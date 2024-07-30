@@ -1,172 +1,180 @@
 import torch
 import torch.nn as nn
 
-import numpy as np
 from math import floor
 
 
-
-#@title Define layer class that only keeps K top weights
+# custom linear layer which only uses the strongest K synaptic weights from in_features 
 class TopKLinear(nn.Linear):
-    """ Custom Linear layer that only uses the stongest K weights """
-    def __init__(self, in_features, out_features, keep_in_features, bias=False):
-        super().__init__(in_features, out_features, bias=bias)
-        self.keep_in_features = keep_in_features
-        self.topk_indices=[]
-        self.mask=0*self.weight.data
-        self.net_weight=0*self.weight.data
+    def __init__(self, in_features, out_features, K, bias = False):    
+        # initialize super Linear layer
+        super().__init__(in_features, out_features, bias = bias)
+        # assign positive integer attribute K, denoting the number of strongest synapses to keep per dendritic branch
+        self.K = K
+        # make all weights positive
+        with torch.no_grad():
+            self.weight = torch.sign(self.weight) * self.weight
 
+    
     def forward(self, x):
-        self.mask=0*self.weight.data
-        self.topk_indices=torch.topk(self.weight, self.keep_in_features, 1, largest=True)[1]
-        self.mask[torch.arange(self.weight.shape[0])[:,None], self.topk_indices] = 1  ##  Change those values to 1
-        self.net_weight=self.mask*self.weight
-        w_times_x= torch.mm(x, self.net_weight.t())
-        return w_times_x
+        # identify top K strongest synaptic connections onto each dendritic branch
+        topK_indices = torch.topk(self.weight, self.K, dim = -1, largest = True, sorted = False)[1]
+        # initialize and populate masking matrix
+        mask = torch.zeros_like(
+            self.weight, device = self.weight.device, dtype = self.weight.dtype,
+            requires_grad = self.weight.requires_grad,
+            )
+        mask[torch.arange(self.weight.shape[0]), topK_indices] = 1
+        # apply mask to weight matrix for manual pruning effect
+        pruned_weight = mask * self.weight
+        # matrix multiply inputs and synaptic weights
+        return torch.mm(x, pruned_weight.t())
+    
+    def freeze_params(self):
+        # TBD
+        pass
 
 
-
-#@title Define layer class that uses a block structure
+# custom linear layer aggregating information from converging branches in previous branch layer
 class BlockLinear(nn.Linear):
-    """ Custom Linear layer that only uses the stongest K weights """
-    def __init__(self, in_features, out_features, bias=False):
-        super().__init__(in_features, out_features, bias=bias)
-        block_size=floor(in_features/out_features)
-        assert(block_size*out_features==in_features)
+    def __init__(self, in_features, out_features, bias = False, requires_grad = False):
+        # block_size equals number of branches converging onto single branch / soma in next layer???
+        block_size = floor(in_features / out_features)
+        assert(in_features == out_features * block_size)
         self.block_size = block_size
-
-        self.mask=torch.zeros(out_features, in_features, device='cuda:0')
-        for counter in range(self.out_features):
-            self.mask[counter, torch.arange(counter*self.block_size, (1+counter)*self.block_size)]=1
-
+        # initialize super linear layer
+        super().__init__(block_size, out_features, bias = bias)
+        # these parameters are not learned
+        self.requires_grad_(requires_grad)
+        # branches have equal weights (?)
+        with torch.no_grad():
+            self.weight = 1
+    
     def forward(self, x):
-        self.net_weight=self.weight*self.mask
-        w_times_x= torch.mm(x, self.net_weight.t())
-        return w_times_x
+        # initialize sparse matrix
+        block = torch.zeros(
+            (self.out_features, self.in_features),
+            device = self.weight.device, dtype = self.weight.dtype,
+            requires_grad = self.weight.requires_grad,
+            )
+        # get row and column indices for sparse matrix which should contain non-zero weights
+        row_ix = torch.arange(
+            self.out_features, device = self.weight.device)#.unsqueeze(1)
+        col_ix = torch.arange(
+            self.in_features, device = self.weight.device).view(self.out_features, self.block_size)
+        # assign weights to appropriate locations in sparse matrix
+        block[row_ix, col_ix] = self.weight
+        # matrix multiply inputs and sparse matrix
+        return torch.mm(x, block.t())
 
 
-
-#@title Define dendrite branch layer
-class DendriteBranchLayer(nn.Module):
-    """ """
+# emulates dendritic computation along a layer of branches (equally distant from soma)
+class DendriticBranchLayer(nn.Module):
     def __init__(
-        self, inhibitory_units_n, dendrite_branch_n, inhibitory_synapses_per_dendrite_branch,
-        excitatory_synapses_per_dendrite_branch, shunting = False, branch_input = False, input_dendrite_branch_n = None,
+        self, input_dim, n_branches, excitatory_synapses_per_branch,
+        n_inhibitory_cells, inhibitory_synapses_per_branch, 
+        shunting = True, n_input_branches = None,
         ):
-        super(DendriteBranchLayer, self).__init__()
-
-        self.branch_input = branch_input
+        # initialize dendritic branch layer
+        super(DendriticBranchLayer, self).__init__()
+        # module for computing excitation along branches in layer
+        self.branch_excitation = TopKLinear(
+            input_dim, n_branches, K = excitatory_synapses_per_branch
+        )
+        # module for computing inhibition along branches in layer
+        self.branch_inhibition = TopKLinear(
+            n_inhibitory_cells, n_branches, K = inhibitory_synapses_per_branch
+        )
+        # if receiving inputs from other dendritic branches
+        self.input_branches = n_input_branches is not None
+        if self.input_branches:
+            # module for aggregating information from converging branches
+            self.branches_to_branch = BlockLinear(n_input_branches, n_branches)            
+        # initialize sigmoid activation if shunting activation is not used
+        if not shunting:
+            self.sigmoid = nn.Sigmoid()
+        # assign necessary class attributes
         self.shunting = shunting
-
-        self.inputs_to_dendrite_branch = TopKLinear(input_size, dendrite_branch_n, excitatory_synapses_per_dendrite_branch)
-
-        self.inhibition_to_dendrite_branch = TopKLinear(inhibitory_units_n, dendrite_branch_n, inhibitory_synapses_per_dendrite_branch)
-
-        if self.branch_input:
-            self.dendrite_branch_inputs_to_dendrite_branch = BlockLinear(input_dendrite_branch_n, dendrite_branch_n)
-            self.dendrite_branch_inputs_to_dendrite_branch.requires_grad_(False) # we don't train this.  All dendrites have the same weight
-
-        self.sigmoid=nn.Sigmoid()
-
-    def forward(self, input, inhibition_outputs, dendrite_branch_outputs=None):
-
-        self.dendrite_inhibition = self.inhibition_to_dendrite_branch(inhibition_outputs)
-        self.dendrite_excitation = self.inputs_to_dendrite_branch(input)
-
-        if self.branch_input:
-            self.dendrite_depolarization = self.dendrite_branch_inputs_to_dendrite_branch(dendrite_branch_outputs)
-            total_excitatory_input = self.dendrite_excitation + self.dendrite_depolarization
-        else:
-            total_excitatory_input = self.dendrite_excitation
-
+        self.e_i_ratio = excitatory_synapses_per_branch / inhibitory_synapses_per_branch
+    
+    def forward(self, x, inhibitory_cell_activation, branch_input = None):
+        # compute excitation and inhibition along each branch in layer
+        excitation = self.branch_excitation(x)
+        inhibition = self.branch_inhibition(inhibitory_cell_activation)
+        # if receiving inputs from upstream branches
+        if self.input_branches:
+            # compute depolarization effect and update excitation
+            depolarization = self.branches_to_branch(branch_input)
+            excitation = excitation + depolarization
+        # if shunting activation is used
         if self.shunting:
-            self.dendrite_act = (total_excitatory_input)/     \
-            (total_excitatory_input + e_to_i_ratio*self.dendrite_inhibition + 1)
-            self.dendrite_out=self.dendrite_act
+            # compute shunting activation
+            activation = excitation / (excitation + self.e_i_ratio * inhibition + 1)
         else:
-            self.dendrite_act = total_excitatory_input - e_to_i_ratio*self.dendrite_inhibition - 3
-            self.dendrite_out = self.sigmoid(self.dendrite_act)
-
-        return self.dendrite_out
-
-
-
-#@title Define network structure
-
-class Net(nn.Module):
-    def __init__(self):
-        super(Net,self).__init__()
-
-        # inhibitory cell layer
-        self.inputs_to_inhibition=TopKLinear(input_size, inhibitory_units_n, synapses_per_inhibitory_unit) # only XX inputs to each inhibitory cell
-
-        # dendrite layers
-        self.dendrite_layers = nn.ModuleList([None]*dendrite_layers_n)
-        for i in range(dendrite_layers_n - 1 , -1, -1):
-
-            is_outermost_layer = (i == (dendrite_layers_n - 1))
-            branch_input = False if is_outermost_layer else True
-            input_dendrite_branch_n = None if is_outermost_layer else dendrite_branch_n[i+1]
-
-            self.dendrite_layers[i] = DendriteBranchLayer(
-                inhibitory_units_n, dendrite_branch_n[i], inhibitory_synapses_per_dendrite_branch,
-                excitatory_synapses_per_dendrite_branch, shunting, branch_input, input_dendrite_branch_n,
-                )
-
-        # soma
-        self.dendrite_to_soma=BlockLinear(dendrite_branch_n[0], soma_n)
-        self.dendrite_to_soma.requires_grad_(False) # we don't train this.  All dendrites have the same weight
-
-        self.relu=nn.ReLU()
-        self.sigmoid=nn.Sigmoid()
-
-    def initWeights(self):
-
-        with torch.no_grad():
-            self.inputs_to_inhibition.weight.data=torch.sign(self.inputs_to_inhibition.weight)*self.inputs_to_inhibition.weight
-
-        for i in range(dendrite_layers_n - 1 , -1, -1):
-
-            self.dendrite_layers[i].inputs_to_dendrite_branch.weight.data=torch.sign(self.dendrite_layers[i].inputs_to_dendrite_branch.weight)*self.dendrite_layers[i].inputs_to_dendrite_branch.weight # all +
-            self.dendrite_layers[i].inhibition_to_dendrite_branch.weight.data=torch.sign(self.dendrite_layers[i].inhibition_to_dendrite_branch.weight)*self.dendrite_layers[i].inhibition_to_dendrite_branch.weight # all +
-
-            is_outermost_layer = (i == (dendrite_layers_n - 1))
-            if not is_outermost_layer:
-                self.dendrite_layers[i].dendrite_branch_inputs_to_dendrite_branch.weight.data=1.0*self.dendrite_layers[i].dendrite_branch_inputs_to_dendrite_branch.mask # all 1
-
-        self.dendrite_to_soma.weight.data=1.0*self.dendrite_to_soma.mask # all 1
-
-    def trimWeights(self):
-
-        with torch.no_grad():
-            self.inputs_to_inhibition.weight.data=torch.maximum(self.inputs_to_inhibition.weight, 0*self.inputs_to_inhibition.weight) # all +
-
-        for i in range(dendrite_layers_n - 1 , -1, -1):
-            self.dendrite_layers[i].inputs_to_dendrite_branch.weight.data=torch.maximum(self.dendrite_layers[i].inputs_to_dendrite_branch.weight, 0*self.dendrite_layers[i].inputs_to_dendrite_branch.weight) # all +
-            self.dendrite_layers[i].inhibition_to_dendrite_branch.weight.data=torch.maximum(self.dendrite_layers[i].inhibition_to_dendrite_branch.weight, 0*self.dendrite_layers[i].inhibition_to_dendrite_branch.weight) # all +
+            # compute sigmoidal activation
+            activation = self.sigmoid(excitation - self.e_i_ratio * inhibition - 3)
+        # return activation along branches as output of layer
+        return activation
 
 
-    def forward(self, input):
-        self.inhibition_act = self.inputs_to_inhibition(input)
+# emulates branching dendritic tree strctures into an artficial neural network analogous to the MLP 
+class DendriNet(nn.Module):
+    def __init__(
+        self, input_dim, n_soma,
+        n_branch_layers, branch_factor, init_factor, 
+        n_inhibitory_cells, synapses_per_inhibitory_cell, 
+        inhibitory_synapses_per_branch, excitatory_synapses_per_branch, shunting,
+        ):
+        # module for propagating inputs to inhibitory cells
+        self.input_inhibitory_cells = TopKLinear(input_dim, n_inhibitory_cells, synapses_per_inhibitory_cell)
+        # number of branches in layer closest to soma layer
+        layer_sizes = [n_soma * branch_factor**init_factor]
+        # number of branches in upstream layers
+        for i in range(1, n_branch_layers):
+            layer_sizes.append(layer_sizes[i-1] * branch_factor)
+        # first item in list corresponds to number of branches in layer furthest from the soma layer
+        layer_sizes.reverse()
+        # first branch layer (furthest from soma) does not receive any branch inputs
+        layer_sizes.insert(0, None)
+        # create branch layers and append to list
+        branch_layers = []
+        for i in range(n_branch_layers):
+            branch_layers.append(DendriticBranchLayer(
+                input_dim = input_dim, n_branches = layer_sizes[i+1], excitatory_synapses_per_branch = excitatory_synapses_per_branch,
+                n_inhibitory_cells = n_inhibitory_cells, inhibitory_synapses_per_branch = inhibitory_synapses_per_branch,
+                shunting = shunting, n_input_branches = layer_sizes[i],
+            ))
+        # wrap list of branch layers in ModuleList
+        self.branch_layers = nn.ModuleList(branch_layers)
+        # propagate outputs of dendritic computation to soma layer
+        self.branches_to_soma = BlockLinear(layer_sizes[-1], n_soma)
+        # if shunting activation is not used
+        if not shunting:
+            self.sigmoid = nn.Sigmoid()
+        # assign necessary class attributes
+        self.shunting = shunting
+        self.n_branch_layers = n_branch_layers
+    
+    def forward(self, x):
+        # compute output from inhibitory cells
+        inhibition = self.input_inhibitory_cells(x)
+        # if shunting is used, compute shunting activation for inhibitory cell output
+        if self.shunting:
+            inhibitory_cell_activation = inhibition / (inhibition + 1)
+        # if no shunting, compute sigmoidal activation for inhibitory cell output
+        else:
+            inhibitory_cell_activation = self.sigmoid(inhibition - 3)
+        # branch_input to first branch layer is None
+        branch_input = None
+        # dendritic computation
+        for i in range(self.n_branch_layers):
+            # recursively update branch_input from one branch layer to the next
+            branch_input = self.branch_layers[i](x, inhibitory_cell_activation, branch_input)
+        # return information processed at the soma layer
+        return self.branches_to_soma(branch_input)
         
-        if shunting:
-            self.inhibition_out = self.inhibition_act / (1 + self.inhibition_act)
-        else:
-            self.inhibition_out = self.sigmoid(self.inhibition_act - sigmoid_offset)
+        
 
-        self.dendrite_branch_out = [None] * dendrite_layers_n
-
-        for i in range(dendrite_layers_n - 1 , -1, -1):
-
-            is_outermost_layer = (i == (dendrite_layers_n - 1))
-            this_dendrite_branch_out = None if is_outermost_layer else self.dendrite_branch_out[i + 1]
-
-            self.dendrite_branch_out[i] = self.dendrite_layers[i](input, self.inhibition_out, this_dendrite_branch_out)
-
-        self.soma_act = self.dendrite_to_soma(self.dendrite_branch_out[0])
-        # self.soma_out = self.sigmoid(self.soma_act - sigmoid_offset)
-
-        return self.soma_act
 
 
 
