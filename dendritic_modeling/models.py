@@ -2,22 +2,37 @@ import torch
 import torch.nn as nn
 from torch.distributions import Categorical
 
-from dendrinet import *
+from dendritic_modeling.dendrinet import *
 
 
-class ProbabilisticClassifier(nn.Module):
 
-    def predict(self, x, deterministic = True):
-        distribution = self.forward(x)
+class ProbabilisticModel(nn.Module):
 
-        if deterministic:
-            return distribution.logits.argmax(dim = -1)
-        else:
-            return distribution.sample()
-    
     def log_prob(self, x, y):
         distribution = self.forward(x)
         return distribution.log_prob(y)
+
+
+class ProbabilisticClassifier(ProbabilisticModel):
+
+    def predict(self, x, stochastic = False):
+        distribution = self.forward(x)
+
+        if stochastic:
+            return distribution.sample()
+        else:
+            return distribution.logits.argmax(dim = -1)
+
+
+class ProbabilisticRegressor(ProbabilisticModel):
+
+    def predict(self, x, stochastic = True):
+        distribution = self.forward(x)
+
+        if stochastic:
+            return distribution.sample()
+        else:
+            return distribution.mean
 
 
 class TopKLogisticRegression(ProbabilisticClassifier):

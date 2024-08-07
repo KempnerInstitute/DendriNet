@@ -32,6 +32,9 @@ class TrainerMLE(object):
         #   produces the log probability of observing the labels given the inputs
         # train_data: Data object containing training data
         # valid_data: Data object containing validation data
+
+        # whether to save at checkpoints
+        save_boolean = save_path is not None and os.path.exists(save_path)
         
         # send model to device
         device = 'cuda' if torch.cuda.is_available() else 'cpu'
@@ -111,12 +114,12 @@ class TrainerMLE(object):
                 best_epoch = epoch
                 best_state_dict = deepcopy(model.state_dict())
 
-                if save_path is not None and os.path.exists(save_path):
+                if save_boolean:
                     torch.save(best_state_dict, save_path+'/state_dict.pt')
 
                     with open(save_path+'/losses.json', 'w') as f:
                         json.dump(
-                            {'train losses' : train_losses, 'valid losses': valid_losses}, f
+                            {'best epoch' : best_epoch, 'train losses' : train_losses, 'valid losses': valid_losses}, f
                         )
 
             
@@ -136,6 +139,16 @@ class TrainerMLE(object):
         # load best model
         model.load_state_dict(best_state_dict)
         
+        results = {
+            'best epoch' : best_epoch, 
+            'train losses' : train_losses, 
+            'valid losses' : valid_losses,
+            }
+        
+        if save_boolean:
+            with open(save_path+'/losses.json', 'w') as f:
+                json.dump(results, f)
+
         # plot loss curves
         if plot_losses:
             
@@ -156,9 +169,12 @@ class TrainerMLE(object):
             plt.title('Loss Curves')
             plt.legend()
 
-            return best_epoch, train_losses, valid_losses, fig
+            results['loss plot'] = fig
+
+            if save_boolean:
+                fig.savefig(save_path+'/loss_curves.jpeg')
             
-        return best_epoch, train_losses, valid_losses
+        return results
     
 
 

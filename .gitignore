@@ -1,3 +1,6 @@
-.venv/*
 *.pt
 *.csv
+scripts/__pycache__/*
+dendritic_modeling.egg-info/*
+dendritic_modeling/__pycache__/*
+
