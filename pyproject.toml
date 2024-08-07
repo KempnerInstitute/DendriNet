@@ -15,9 +15,7 @@ classifiers = [
 "License :: OSI Approved :: MIT License",
 "Operating System :: OS Independent"
 ]
-dependencies = [
-    torch,
-    torchvision,
-    matplotlib,
-    numpy,
-]
+dependencies = []
+
+[tool.setuptools]
+packages = ["dendritic_modeling"]
