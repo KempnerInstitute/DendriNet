@@ -30,3 +30,15 @@ Activate the newly created environment:
     mamba activate <myvenv>
 ```
 
+### Install the Package
+
+```sh
+    pip install .
+```
+
+If you want to install the package in development mode, use the following command:
+
+```sh
+    pip install -e .
+```
+
