@@ -1,3 +1,9 @@
+
+
+[![Documentation Workflow](https://github.com/KempnerInstitute/dendritic_modeling/actions/workflows/deploy-docs.yml/badge.svg?branch=develop)](https://github.com/KempnerInstitute/dendritic_modeling/actions/workflows/deploy-docs.yml)
+
+
+
 This Python package introduces a novel approach to artificial neural networks by emulating dendritic computation through the encoding of dendrite morphology into the network archtecture. Inspired by the complexity and efficiency of biological neurons, our models aim to enhance traditional neural network architectures by incorporating dendrite-like structures.
 
 ## Key Features
