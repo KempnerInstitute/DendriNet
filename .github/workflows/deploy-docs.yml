@@ -4,7 +4,8 @@ on:
   push:
     branches:
       - develop
-      - main  
+      - main 
+      - fix_api_reference
   pull_request:
     branches:
       - develop
