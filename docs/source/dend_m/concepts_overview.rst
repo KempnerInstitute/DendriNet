@@ -3,10 +3,7 @@ Concepts Overview
 
 Example of usinng references. For example, :cite:p:`zhang2023gpu` is an example of p citation and :cite:t:`zhang2023gpu` is an example of t citation.
 
-Here is a mathematical equation:
-
-
-The membrane potential dynamics in the Hodgkin-Huxley model are described by the following equation:
+Here is a mathematical equation, The membrane potential dynamics in the Hodgkin-Huxley model are described by the following equation:
 
 .. math::
     :nowrap:
