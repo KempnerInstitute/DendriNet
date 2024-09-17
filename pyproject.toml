@@ -3,7 +3,7 @@ requires = ["setuptools", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "dendritic-modeling"
+name = "dendritic_modeling"
 version = "0.1.0"
 description = "package containing artificial neural networks emulating dendritic computation"
 authors = [
@@ -15,7 +15,11 @@ classifiers = [
 "License :: OSI Approved :: MIT License",
 "Operating System :: OS Independent"
 ]
+
 dependencies = []
 
 [tool.setuptools]
-packages = ["dendritic_modeling"]
+package-dir = { "" = "src" } 
+packages = ["dendritic_modeling"]  
+
+
