@@ -23,3 +23,37 @@ package-dir = { "" = "src" }
 packages = ["dendritic_modeling"]  
 
 
+[project.optional-dependencies]
+dev = [
+    "ruff",
+    "mypy>=1.0,<1.4",
+    "black>=23.1,<24.0",
+    "isort>=5.12,<5.13",
+    "pytest",
+    "pytest-sphinx",
+    "twine>=1.11.0",
+    "setuptools",
+    "wheel",
+    "build",
+]
+
+train = [
+
+]
+
+all = [
+    "dendritic_modeling[dev,train]",
+]
+
+docs = [
+    "sphinx",
+    "sphinx-rtd-theme",
+    "sphinxcontrib-napoleon",
+    "myst-parser",
+    "nbsphinx",
+    "recommonmark",
+    "sphinx-copybutton",
+    "sphinxcontrib-bibtex",
+
+]
+
