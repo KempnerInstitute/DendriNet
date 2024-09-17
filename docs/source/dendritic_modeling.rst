@@ -1,10 +1,10 @@
 dendritic_modeling package
 ==========================
 
-schemes
--------
+evaluation
+----------
 
-.. automodule:: dendritic_modeling.schemes
+.. automodule:: dendritic_modeling.evaluation
    :members:
    :undoc-members:
    :show-inheritance:
