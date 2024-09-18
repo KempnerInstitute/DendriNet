@@ -1,9 +1,5 @@
-from dendritic_modeling.logging_config import setup_logging
+from dendritic_modeling import logger
 
-
-
-
-logger = setup_logging()
 
 
 class Evaluation:
