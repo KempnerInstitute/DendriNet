@@ -1,3 +1,9 @@
+from dendritic_modeling.logging_config import setup_logging
+
+
+
+
+logger = setup_logging()
 
 
 class Evaluation:
@@ -22,4 +28,5 @@ class SimpleSum:
         self.numbers = numbers
 
     def sum(self):
+        logger.info('Summing numbers')
         return sum(self.numbers)
