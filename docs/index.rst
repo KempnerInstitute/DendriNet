@@ -6,7 +6,7 @@ dendritic_modeling
    :maxdepth: 2
    :caption: Introduction
 
-   source/dend_m/concepts_overview
+   about
 
 .. toctree::
    :maxdepth: 2
