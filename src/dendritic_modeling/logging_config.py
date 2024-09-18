@@ -1,9 +1,10 @@
 import sys
 import logging
 
+LOGGER_NAME = 'dendritic_modeling'
 
 def setup_logging():
-    logger = logging.getLogger('dentritic_modeling')
+    logger = logging.getLogger(LOGGER_NAME)
     if not logger.hasHandlers():
         logger.setLevel(logging.DEBUG)
     
