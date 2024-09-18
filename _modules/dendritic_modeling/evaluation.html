@@ -98,7 +98,9 @@
            <div itemprop="articleBody">
              
   <h1>Source code for dendritic_modeling.evaluation</h1><div class="highlight"><pre>
-<span></span>
+<span></span><span class="kn">from</span> <span class="nn">dendritic_modeling</span> <span class="kn">import</span> <span class="n">logger</span>
+
+
 
 <div class="viewcode-block" id="Evaluation">
 <a class="viewcode-back" href="../../source/dendritic_modeling.html#dendritic_modeling.evaluation.Evaluation">[docs]</a>
@@ -132,6 +134,8 @@
 <div class="viewcode-block" id="SimpleSum.sum">
 <a class="viewcode-back" href="../../source/dendritic_modeling.html#dendritic_modeling.evaluation.SimpleSum.sum">[docs]</a>
     <span class="k">def</span> <span class="nf">sum</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s1">&#39;Summing numbers&#39;</span><span class="p">)</span>
+        <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="sa">f</span><span class="s1">&#39;Numbers: </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">numbers</span><span class="si">}</span><span class="s1">&#39;</span><span class="p">)</span>
         <span class="k">return</span> <span class="nb">sum</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">numbers</span><span class="p">)</span></div>
 </div>
 
