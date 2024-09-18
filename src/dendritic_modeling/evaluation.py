@@ -25,4 +25,5 @@ class SimpleSum:
 
     def sum(self):
         logger.info('Summing numbers')
+        logger.debug(f'Numbers: {self.numbers}')
         return sum(self.numbers)
