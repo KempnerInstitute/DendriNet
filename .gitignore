@@ -1,6 +1,8 @@
 *.pt
 *.csv
 scripts/__pycache__/*
+results/*
 dendritic_modeling.egg-info/*
 dendritic_modeling/__pycache__/*
-
+*.sh
+*.out
