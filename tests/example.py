@@ -69,7 +69,7 @@ if __name__ == '__main__':
     train_time = '%.6f sec -> %.6f min' % (etime, etime/60)
     
 
-    print('evaluating performance.....', flush = True)
+    print('\nevaluating performance.....', flush = True)
     stime = time.time()
     performance = {
         'train accuracy' : accuracy_score(clf, *data['train'][:]).item(),
