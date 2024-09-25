@@ -35,9 +35,15 @@ def save_dict(dict, save_path, fname):
 
 
 
-def load_MNIST(train_valid_split = 1):
-    root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-    data_path = os.path.join(root, 'data', 'mnist')
+def load_MNIST(train_valid_split = 1, cache_dir=None):
+    
+    
+    if cache_dir is None:
+        root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        data_path = os.path.join(root, 'data', 'mnist')
+    else:
+        data_path = os.path.join(cache_dir, 'data', 'mnist')
+
 
     if os.path.exists(data_path):
         train_data = Data(
@@ -50,7 +56,7 @@ def load_MNIST(train_valid_split = 1):
         )
 
     else:
-        os.mkdir(data_path)
+        os.makedirs(data_path, exist_ok = True)
 
         transform = transforms.ToTensor()
 
