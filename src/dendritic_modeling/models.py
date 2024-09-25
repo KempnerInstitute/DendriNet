@@ -1,69 +1,61 @@
-import torch
 import torch.nn as nn
 from torch.distributions import Categorical
 
-from dendrinet import *
+from dendritic_modeling.dendrinet import *
+from dendritic_modeling.excitation_inhibition import *
 
 
-class ProbabilisticClassifier(nn.Module):
 
-    def predict(self, x, deterministic = True):
-        distribution = self.forward(x)
+class ProbabilisticModel(nn.Module):
 
-        if deterministic:
-            return distribution.logits.argmax(dim = -1)
-        else:
-            return distribution.sample()
-    
     def log_prob(self, x, y):
         distribution = self.forward(x)
         return distribution.log_prob(y)
 
 
-class TopKLogisticRegression(ProbabilisticClassifier):
+class ProbabilisticClassifier(ProbabilisticModel):
 
-    def __init__(self, input_dim, n_classes, K, param_freezing = False):
-        if param_freezing:
-            self.lin = newTopKLinear(input_dim, n_classes, K = K)
+    def predict(self, x, stochastic = False):
+        distribution = self.forward(x)
+
+        if stochastic:
+            return distribution.sample()
         else:
-            self.lin = TopKLinear(input_dim, n_classes, K = K)
-        
+            return distribution.logits.argmax(dim = -1)
+
+
+class ProbabilisticRegressor(ProbabilisticModel):
+
+    def predict(self, x, stochastic = True):
+        distribution = self.forward(x)
+
+        if stochastic:
+            return distribution.sample()
+        else:
+            return distribution.mean
+
+
+class EINetClassifier(ProbabilisticClassifier):
+
+    def __init__(
+        self, input_dim, excitatory_layer_sizes, inhibitory_layer_sizes,
+        excitatory_branch_factors, inhibitory_branch_factors, 
+        ee_synapses_per_branch_per_layer, ei_synapses_per_branch_per_layer, 
+        ie_synapses_per_branch_per_layer, ii_synapses_per_branch_per_layer = [], 
+        reactivate = False, somatic_synapses = True,
+    ):
+        super(EINetClassifier, self).__init__()
+
+        self.net = ExcitationInhibitionNetwork(
+            input_dim = input_dim, excitatory_layer_sizes = excitatory_layer_sizes, inhibitory_layer_sizes = inhibitory_layer_sizes,
+            excitatory_branch_factors = excitatory_branch_factors, inhibitory_branch_factors = inhibitory_branch_factors,
+            ee_synapses_per_branch_per_layer = ee_synapses_per_branch_per_layer, ei_synapses_per_branch_per_layer = ei_synapses_per_branch_per_layer,
+            ie_synapses_per_branch_per_layer = ie_synapses_per_branch_per_layer, ii_synapses_per_branch_per_layer = ii_synapses_per_branch_per_layer,
+            reactivate = reactivate, somatic_synapses = somatic_synapses,
+        )
         self.final = nn.LogSoftmax(dim = -1)
     
     def forward(self, x):
-        logits = self.final(self.lin(x))
-        return Categorical(logits = logits)
-    
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+        return Categorical(logits = self.final(self.net(x)))
 
 
