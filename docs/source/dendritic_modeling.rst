@@ -9,6 +9,11 @@ evaluation
    :undoc-members:
    :show-inheritance:
 
+.. automodule:: dendritic_modeling.logging_config
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
 
 .. automodule:: dendritic_modeling.evaluation
    :members:
