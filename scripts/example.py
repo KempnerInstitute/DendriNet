@@ -1,12 +1,19 @@
+import os
+import time
+from datetime import datetime
+
 import torch
-from dendritic_modeling.utils import load_MNIST, split_MNIST_inputs, accuracy_score, save_dict, Shaper
+
 from dendritic_modeling.training import TrainerMLE
 from dendritic_modeling.models import EINetClassifier
-from dendritic_modeling.plot_utils import plot_einet_params, plot_einet_activations
+from dendritic_modeling.plot_utils import (plot_einet_params, 
+                                           plot_einet_activations)
+from dendritic_modeling.utils import (load_MNIST, 
+                                      split_MNIST_inputs, 
+                                      accuracy_score, 
+                                      save_dict, 
+                                      Shaper)
 
-import os
-from datetime import datetime
-import time
 print('\nimports complete\n', flush = True)
 
 
