@@ -31,6 +31,16 @@ dendritic_modeling package
    :undoc-members:
    :show-inheritance:
 
+.. automodule:: dendritic_modeling.excitation_inhibition
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+.. automodule:: dendritic_modeling.dendrinet
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
 
 .. automodule:: dendritic_modeling.evaluation
    :members:
