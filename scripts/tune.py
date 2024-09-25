@@ -1,4 +1,4 @@
-from dendritic_modeling.util import load_MNIST, accuracy_score
+from dendritic_modeling.utils import load_MNIST, accuracy_score
 from dendritic_modeling.models import EINetClassifier
 from dendritic_modeling.tuning import DendriNetTuner
 
