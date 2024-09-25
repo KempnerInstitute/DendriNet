@@ -16,6 +16,8 @@ import torch.autograd as ag
 from torch.utils.data import DataLoader
 from torch.nn.utils import clip_grad_value_
 
+from dendritic_modeling import logger
+
 class TrainerMLE(object):
     
     def __init__(self, optimizer, suppress_prints = False, print_every = 10):
@@ -84,7 +86,7 @@ class TrainerMLE(object):
                 
                 except:
                     # if NaNs encountered in gradients
-                    print('exception occurred during parameter update step')
+                    logger.info('exception occurred during parameter update step')
                     model.load_state_dict(best_state_dict)
                     train_loss += 10
 
@@ -106,7 +108,7 @@ class TrainerMLE(object):
                         valid_loss += nll.item()
                     
                     except:
-                        print('exception occurred during parameter validation step')
+                        logger.info('exception occurred during parameter validation step')
                         model.load_state_dict(best_state_dict)
                         valid_loss += 10
             
@@ -134,14 +136,14 @@ class TrainerMLE(object):
             if not self.suppress:
                 # printing
                 if epoch % self.print_every == 0:
-                    print(f'------------------{epoch}------------------')
-                    print('training loss: %.2f | validation loss: %.2f' % (
+                    logger.info(f'------------------{epoch}------------------')
+                    logger.info('training loss: %.2f | validation loss: %.2f' % (
                         train_loss, valid_loss))
                     
                     time_elapsed = (time.time() - stime)
                     pred_time_remaining = (time_elapsed / epoch) * (epochs-epoch)
                     
-                    print('time elapsed: %.2f s | predicted time remaining: %.2f s' % (
+                    logger.info('time elapsed: %.2f s | predicted time remaining: %.2f s' % (
                         time_elapsed, pred_time_remaining))
         
         # load best model
@@ -170,7 +172,3 @@ class TrainerMLE(object):
             return best_epoch, train_losses, valid_losses, fig
             
         return best_epoch, train_losses, valid_losses
-    
-
-
-
