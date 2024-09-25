@@ -1,8 +1,46 @@
 dendritic_modeling package
 ==========================
 
-evaluation
-----------
+.. automodule:: dendritic_modeling.utils
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+.. automodule:: dendritic_modeling.plot_utils
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+.. automodule:: dendritic_modeling.logging_config
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+.. automodule:: dendritic_modeling.tuning
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+.. automodule:: dendritic_modeling.training
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+.. automodule:: dendritic_modeling.schemes
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+.. automodule:: dendritic_modeling.excitation_inhibition
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+.. automodule:: dendritic_modeling.dendrinet
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
 
 .. automodule:: dendritic_modeling.evaluation
    :members:
