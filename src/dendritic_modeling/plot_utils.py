@@ -1,11 +1,18 @@
-import matplotlib.pyplot as plt
-from matplotlib.gridspec import GridSpec
-import torch
-from mpl_toolkits.axes_grid1 import make_axes_locatable
-
-import pandas as pd
+"""
+plot_utils.py
+=============
+This module contains utility functions for plotting dendritic model parameters.
+"""
 
 import os
+
+import torch
+import pandas as pd
+import matplotlib.pyplot as plt
+from matplotlib.gridspec import GridSpec
+from mpl_toolkits.axes_grid1 import make_axes_locatable
+
+
 
 
 #@title Function to plot an image with the scale color bar
@@ -36,20 +43,35 @@ def add_colorbars(
 
 def shape_helper(condition, reshape_fn, weight, pruned, mask = None):
     if condition and reshape_fn is not None:
-        return reshape_fn(weight), reshape_fn(pruned), None if mask is None else reshape_fn(mask)
+        return (reshape_fn(weight), 
+                reshape_fn(pruned), 
+                None if mask is None else reshape_fn(mask))
     elif weight.dim() == 1:
-        return weight.view(1,-1), pruned.view(1,-1), None if mask is None else mask.view(1,-1)
+        return (weight.view(1,-1), 
+                pruned.view(1,-1), 
+                None if mask is None else mask.view(1,-1))
 
 
 def plot_excitation_inhibition_weights(
     soma_branch, save_path, 
-    excitatory_synapse_weight, excitatory_synapse_pruned, excitatory_synapse_mask = None,
-    inhibitory_synapse_weight = None, inhibitory_synapse_pruned = None, inhibitory_synapse_mask = None,
-    reshape_fn = None, reshape_exc_syn = False, reshape_inh_syn = False,
-    reactivation_curve = None, linspace = None,
+    excitatory_synapse_weight, 
+    excitatory_synapse_pruned, 
+    excitatory_synapse_mask = None,
+    inhibitory_synapse_weight = None, 
+    inhibitory_synapse_pruned = None, 
+    inhibitory_synapse_mask = None,
+    reshape_fn = None, 
+    reshape_exc_syn = False, 
+    reshape_inh_syn = False,
+    reactivation_curve = None, 
+    linspace = None,
     ):
 
-    excitatory_synapse_weight, excitatory_synapse_pruned, excitatory_synapse_mask = shape_helper(
+    (
+        excitatory_synapse_weight, 
+        excitatory_synapse_pruned, 
+        excitatory_synapse_mask
+     ) = shape_helper(
         reshape_exc_syn, reshape_fn,
         excitatory_synapse_weight,  
         excitatory_synapse_pruned,
@@ -86,11 +108,13 @@ def plot_excitation_inhibition_weights(
 
     ax1 = fig.add_subplot(gs[0,0])
     ax1.set_title('excitatory syn weight')
-    im1 = ax1.imshow(excitatory_synapse_weight.detach().numpy(), cmap = 'viridis')
+    im1 = ax1.imshow(excitatory_synapse_weight.detach().numpy(),
+                     cmap = 'viridis')
 
     ax2 = fig.add_subplot(gs[0,1])
     ax2.set_title('excitatory syn pruned')
-    im2 = ax2.imshow(excitatory_synapse_pruned.detach().numpy(), cmap = 'viridis')
+    im2 = ax2.imshow(excitatory_synapse_pruned.detach().numpy(), 
+                     cmap = 'viridis')
 
     ax_list = [ax1, ax2]
     im_list = [im1, im2]
@@ -98,14 +122,20 @@ def plot_excitation_inhibition_weights(
     if excitatory_synapse_mask is not None:
         ax3 = fig.add_subplot(gs[0,2])
         ax3.set_title('excitatory syn mask')
-        im3 = ax3.imshow(excitatory_synapse_mask.detach().numpy(), cmap = 'Greys')
+        im3 = ax3.imshow(excitatory_synapse_mask.detach().numpy(), 
+                         cmap = 'Greys')
         ax_list.append(ax3)
         im_list.append(im3)
 
 
     if inhibitory_synapse_weight is not None:
-        inhibitory_synapse_weight, inhibitory_synapse_pruned, inhibitory_synapse_mask = shape_helper(
-            reshape_inh_syn, reshape_fn,
+        (
+            inhibitory_synapse_weight, 
+            inhibitory_synapse_pruned, 
+            inhibitory_synapse_mask 
+        ) = shape_helper(
+            reshape_inh_syn, 
+            reshape_fn,
             inhibitory_synapse_weight, 
             inhibitory_synapse_pruned, 
             inhibitory_synapse_mask,
@@ -113,11 +143,13 @@ def plot_excitation_inhibition_weights(
 
         ax4 = fig.add_subplot(gs[1,0])
         ax4.set_title('inhibitory syn weight')
-        im4 = ax4.imshow(inhibitory_synapse_weight.detach().numpy(), cmap = 'viridis')
+        im4 = ax4.imshow(inhibitory_synapse_weight.detach().numpy(), 
+                         cmap = 'viridis')
 
         ax5 = fig.add_subplot(gs[1,1])
         ax5.set_title('inhibitory syn pruned')
-        im5 = ax5.imshow(inhibitory_synapse_pruned.detach().numpy(), cmap = 'viridis')
+        im5 = ax5.imshow(inhibitory_synapse_pruned.detach().numpy(), 
+                         cmap = 'viridis')
 
         ax_list.append(ax4)
         ax_list.append(ax5)
@@ -127,7 +159,8 @@ def plot_excitation_inhibition_weights(
         if inhibitory_synapse_mask is not None:
             ax6 = fig.add_subplot(gs[1,2])
             ax6.set_title('inhibitory syn mask')
-            im6 = ax6.imshow(inhibitory_synapse_mask.detach().numpy(), cmap = 'Greys')
+            im6 = ax6.imshow(inhibitory_synapse_mask.detach().numpy(), 
+                             cmap = 'Greys')
 
             ax_list.append(ax6)
             im_list.append(im6)
@@ -142,8 +175,13 @@ def plot_excitation_inhibition_weights(
         )
     # use same bin distribution
     ax7.hist(
-        excitatory_synapse_pruned[excitatory_synapse_pruned > 0].flatten().detach().numpy(),
-        bins = 10, alpha = 0.5, color = 'blue', label = 'pruned',
+        excitatory_synapse_pruned[
+            excitatory_synapse_pruned > 0
+        ].flatten().detach().numpy(),
+        bins = 10, 
+        alpha = 0.5, 
+        color = 'blue', 
+        label = 'pruned',
     )
 
     if inhibitory_synapse_weight is not None:
@@ -154,14 +192,21 @@ def plot_excitation_inhibition_weights(
             bins = 10, alpha = 0.5, color = '0.4', label = 'weight',
             )
         ax8.hist(
-            inhibitory_synapse_pruned[inhibitory_synapse_pruned > 0].flatten().detach().numpy(),
-            bins = 10, alpha = 0.5, color = 'blue', label = 'pruned',
+            inhibitory_synapse_pruned[
+                inhibitory_synapse_pruned > 0
+            ].flatten().detach().numpy(),
+            bins = 10, 
+            alpha = 0.5, 
+            color = 'blue', 
+            label = 'pruned',
         )
 
     if reactivation_curve is not None:
         ax9 = fig.add_subplot(gs[-1,2])
         ax9.set_title('reactivation curve')
-        ax9.plot(linspace.detach().numpy(), reactivation_curve.detach().numpy(), color = 'k')
+        ax9.plot(linspace.detach().numpy(), 
+                 reactivation_curve.detach().numpy(), 
+                 color = 'k')
 
     if not os.path.exists(save_path):
         os.makedirs(save_path, exist_ok = True)
@@ -195,28 +240,47 @@ def plot_dendrinet_params(
             branches_per_soma = int(layer_sizes[i] / n_soma)
 
         if input_inh:
-            excitatory_synapse_weight, inhibitory_synapse_weight = layer.get_weights()
-            excitatory_synapse_mask, inhibitory_synapse_mask = layer.get_mask()
-            excitatory_synapse_pruned, inhibitory_synapse_pruned = layer.get_pruned_weights()
+            (
+                excitatory_synapse_weight, 
+                inhibitory_synapse_weight
+            ) = layer.get_weights()
+            (
+                excitatory_synapse_mask, 
+                inhibitory_synapse_mask
+            ) = layer.get_mask()
+            (
+                excitatory_synapse_pruned, 
+                inhibitory_synapse_pruned 
+            ) = layer.get_pruned_weights()
 
-            inhibitory_synapse_weight = inhibitory_synapse_weight.chunk(n_soma, dim = 0)
-            inhibitory_synapse_mask = inhibitory_synapse_mask.chunk(n_soma, dim = 0)
-            inhibitory_synapse_pruned = inhibitory_synapse_pruned.chunk(n_soma, dim = 0)
+            inhibitory_synapse_weight = inhibitory_synapse_weight.chunk(n_soma, 
+                                                                        dim = 0)
+            inhibitory_synapse_mask = inhibitory_synapse_mask.chunk(n_soma, 
+                                                                    dim = 0)
+            inhibitory_synapse_pruned = inhibitory_synapse_pruned.chunk(n_soma, 
+                                                                        dim = 0)
 
         else:
             excitatory_synapse_weight = layer.get_weights()
             excitatory_synapse_mask = layer.get_mask()
             excitatory_synapse_pruned = layer.get_pruned_weights()
         
-        excitatory_synapse_weight = excitatory_synapse_weight.chunk(n_soma, dim = 0)
-        excitatory_synapse_mask = excitatory_synapse_mask.chunk(n_soma, dim = 0)
-        excitatory_synapse_pruned = excitatory_synapse_pruned.chunk(n_soma, dim = 0)
+        excitatory_synapse_weight = excitatory_synapse_weight.chunk(n_soma, 
+                                                                    dim = 0)
+        excitatory_synapse_mask = excitatory_synapse_mask.chunk(n_soma, 
+                                                                dim = 0)
+        excitatory_synapse_pruned = excitatory_synapse_pruned.chunk(n_soma, 
+                                                                    dim = 0)
 
         if layer.reactivate:
-            reactivation_curve = layer.reactivation(linspace.expand(layer_sizes[i],-1).t()).t()
+            reactivation_curve = layer.reactivation(
+                linspace.expand(layer_sizes[i],-1).t()
+            ).t()
             reactivation_curve = reactivation_curve.chunk(n_soma, dim = 0)
 
-        level = 'soma' if i == dendrinet.n_branch_layers else f'branch layer {dendrinet.n_branch_layers - i}'
+        level = ('soma' 
+                 if i == dendrinet.n_branch_layers 
+                 else f'branch layer {dendrinet.n_branch_layers - i}')
 
         for j in range(n_soma):
             for k in range(branches_per_soma):
@@ -224,42 +288,63 @@ def plot_dendrinet_params(
                 exc_syn_mask = excitatory_synapse_mask[j][k]
                 exc_syn_pruned = excitatory_synapse_pruned[j][k]
                 
-                inh_syn_weight = inhibitory_synapse_weight[j][k] if input_inh else None
-                inh_syn_mask = inhibitory_synapse_mask[j][k] if input_inh else None
-                inh_syn_pruned = inhibitory_synapse_pruned[j][k] if input_inh else None
+                inh_syn_weight = (inhibitory_synapse_weight[j][k] 
+                                  if input_inh 
+                                  else None)
+                inh_syn_mask = (inhibitory_synapse_mask[j][k] 
+                                if input_inh 
+                                else None)
+                inh_syn_pruned = (inhibitory_synapse_pruned[j][k] 
+                                  if input_inh 
+                                  else None)
 
                 react_curve = reactivation_curve[j][k] if layer.reactivate else None
 
                 plot_excitation_inhibition_weights(
-                    soma_branch = f'soma{j}_branch{k}', save_path = os.path.join(save_root, level),
+                    soma_branch = f'soma{j}_branch{k}', 
+                    save_path = os.path.join(save_root, level),
                     excitatory_synapse_weight = exc_syn_weight,
                     excitatory_synapse_pruned = exc_syn_pruned,
                     excitatory_synapse_mask = exc_syn_mask,
                     inhibitory_synapse_weight = inh_syn_weight,
                     inhibitory_synapse_pruned = inh_syn_pruned,
                     inhibitory_synapse_mask = inh_syn_mask,
-                    reshape_fn = reshape_fn, reshape_exc_syn = reshape_exc_syn, reshape_inh_syn = reshape_inh_syn,
-                    reactivation_curve = react_curve, linspace = linspace,
+                    reshape_fn = reshape_fn, 
+                    reshape_exc_syn = reshape_exc_syn, 
+                    reshape_inh_syn = reshape_inh_syn,
+                    reactivation_curve = react_curve, 
+                    linspace = linspace,
                 )
 
     if input_inh:
-        excitatory_synapse_weight_total, inhibitory_synapse_weight_total = dendrinet.sum_weights(pruned = False)
-        excitatory_synapse_pruned_total, inhibitory_synapse_pruned_total = dendrinet.sum_weights(pruned = True)
+        ( 
+            excitatory_synapse_weight_total, 
+            inhibitory_synapse_weight_total 
+        ) = dendrinet.sum_weights(pruned = False)
+        ( excitatory_synapse_pruned_total, 
+          inhibitory_synapse_pruned_total 
+        ) = dendrinet.sum_weights(pruned = True)
     else:
         excitatory_synapse_weight_total = dendrinet.sum_weights(pruned = False)
         excitatory_synapse_pruned_total = dendrinet.sum_weights(pruned = True)
-        inhibitory_synapse_weight_total, inhibitory_synapse_pruned_total = [None] * n_soma, [None] * n_soma
+        (
+            inhibitory_synapse_weight_total, 
+            inhibitory_synapse_pruned_total
+        ) = [None] * n_soma, [None] * n_soma
 
     for i in range(n_soma):
         plot_excitation_inhibition_weights(
-            soma_branch = f'soma{i} all branches', save_path = os.path.join(save_root, 'weight_totals'),
+            soma_branch = f'soma{i} all branches', 
+            save_path = os.path.join(save_root, 'weight_totals'),
             excitatory_synapse_weight = excitatory_synapse_weight_total[i],
             excitatory_synapse_pruned = excitatory_synapse_pruned_total[i],
             excitatory_synapse_mask = None,
             inhibitory_synapse_weight = inhibitory_synapse_weight_total[i],
             inhibitory_synapse_pruned = inhibitory_synapse_pruned_total[i],
             inhibitory_synapse_mask = None,
-            reshape_fn = reshape_fn, reshape_exc_syn = reshape_exc_syn, reshape_inh_syn = reshape_inh_syn,
+            reshape_fn = reshape_fn, 
+            reshape_exc_syn = reshape_exc_syn, 
+            reshape_inh_syn = reshape_inh_syn,
             reactivation_curve = None, linspace = None,
         )
 
@@ -272,12 +357,22 @@ def plot_einet_params(
         exc_dendrinet = einet.layers[i].excitatory_cells
 
         plot_dendrinet_params(
-            dendrinet = inh_dendrinet, save_root = os.path.join(save_root, f'ei_layer{i+1}', 'inhibitory cells'),
-            reshape_fn = reshape_fn, reshape_exc_syn = reshape_exc_syn if i == 0 else False, reshape_inh_syn = False,
+            dendrinet = inh_dendrinet, 
+            save_root = os.path.join(save_root, 
+                                     f'ei_layer{i+1}', 
+                                     'inhibitory cells'),
+            reshape_fn = reshape_fn, 
+            reshape_exc_syn = reshape_exc_syn if i == 0 else False, 
+            reshape_inh_syn = False,
         )
         plot_dendrinet_params(
-            dendrinet = exc_dendrinet, save_root = os.path.join(save_root, f'ei_layer{i+1}', 'excitatory cells'),
-            reshape_fn = reshape_fn, reshape_exc_syn = reshape_exc_syn if i == 0 else False, reshape_inh_syn = False,
+            dendrinet = exc_dendrinet, 
+            save_root = os.path.join(save_root, 
+                                     f'ei_layer{i+1}', 
+                                     'excitatory cells'),
+            reshape_fn = reshape_fn, 
+            reshape_exc_syn = reshape_exc_syn if i == 0 else False, 
+            reshape_inh_syn = False,
         )
 
 
@@ -344,15 +439,21 @@ def plot_dendrinet_activations(
 
         for j in range(len(exc_input_list)):
             if somatic_synapses and i == n_branch_layers:
-                output_list[j] = dendrinet.soma_layer(exc_input_list[j], inh_input_list[j], output_list[j])
+                output_list[j] = dendrinet.soma_layer(exc_input_list[j], 
+                                                      inh_input_list[j], 
+                                                      output_list[j])
             elif not somatic_synapses and i == n_branch_layers:
                 output_list[j] = dendrinet.soma_layer(output_list[j])
             else:
-                output_list[j] = dendrinet.branch_layers[i](exc_input_list[j], inh_input_list[j], output_list[j])
+                output_list[j] = dendrinet.branch_layers[i](exc_input_list[j],
+                                                            inh_input_list[j], 
+                                                            output_list[j])
             # list, tuples, tensors -> numbers, somas, branches 
             chunk_list.append(output_list[j].chunk(n_soma, dim = -1))
 
-        level = 'soma' if (i == n_branch_layers) else f'branch layer {n_branch_layers - i}'
+        level = ('soma' 
+                 if (i == n_branch_layers) 
+                 else f'branch layer {n_branch_layers - i}')
 
         means = torch.zeros((n_soma, branches_per_soma, len(exc_input_list)))
 
@@ -373,7 +474,8 @@ def plot_dendrinet_activations(
 
         xticks = [branches_per_soma * n for n in range(n_soma)]
         xtick_labels = [f'soma{n}' for n in range(n_soma)]
-        activation_means(means.flatten(0,1), xticks, xtick_labels, os.path.join(save_root, level))
+        activation_means(means.flatten(0,1), xticks, xtick_labels, 
+                         os.path.join(save_root, level))
 
 
 def plot_einet_activations(einet, input_list, save_root):
@@ -388,23 +490,33 @@ def plot_einet_activations(einet, input_list, save_root):
         exc_dendrinet = einet.layers[i].excitatory_cells
 
         plot_dendrinet_activations(
-            dendrinet = inh_dendrinet, exc_input_list = exc_input_list, inh_input_list = inh_input_list,
-            save_root = os.path.join(save_root, f'ei_layer{i+1}', 'inhibitory_cells'),
+            dendrinet = inh_dendrinet, 
+            exc_input_list = exc_input_list, 
+            inh_input_list = inh_input_list,
+            save_root = os.path.join(save_root, 
+                                     f'ei_layer{i+1}', 
+                                     'inhibitory_cells'),
         )
 
         inh_temp = []
         for j in range(len(input_list)):
-            inh_temp.append(inh_dendrinet(exc_input_list[j], inh_input_list[j]))
+            inh_temp.append(inh_dendrinet(exc_input_list[j], 
+                                          inh_input_list[j]))
         inh_input_list = inh_temp
 
         plot_dendrinet_activations(
-            dendrinet = exc_dendrinet, exc_input_list = exc_input_list, inh_input_list = inh_input_list,
-            save_root = os.path.join(save_root, f'ei_layer{i+1}', 'excitatory_cells'),
+            dendrinet = exc_dendrinet, 
+            exc_input_list = exc_input_list, 
+            inh_input_list = inh_input_list,
+            save_root = os.path.join(save_root, 
+                                     f'ei_layer{i+1}', 
+                                     'excitatory_cells'),
         )
 
         exc_temp = []
         for j in range(len(input_list)):
-            exc_temp.append(exc_dendrinet(exc_input_list[j], inh_input_list[j]))
+            exc_temp.append(exc_dendrinet(exc_input_list[j], 
+                                          inh_input_list[j]))
         exc_input_list = exc_temp
 
 
@@ -479,13 +591,16 @@ def dendrinet_activations_to_csv(
                 for k in range(len(exc_input_list)):
 
                     exc = exc_chunks[k][n][:,b]
-                    inh = inh_chunks[k][n][:,b] if input_inhibitory else [None] * exc.shape[0]
+                    inh = (inh_chunks[k][n][:,b] 
+                           if input_inhibitory else [None] * exc.shape[0])
                     vinf = vinf_chunks[k][n][:,b]
                     vout = vinf_chunks[k][n][:,b]
 
                     digit_data += [k] * exc.shape[0]
                     
-                    compartment = f'soma{n}' if i == n_branch_layers else f'soma{n}_branch{b}'
+                    compartment = (f'soma{n}' 
+                                   if i == n_branch_layers 
+                                   else f'soma{n}_branch{b}')
                     compartment_data += [compartment] * exc.shape[0]
 
                     exc_data.append(exc)
@@ -496,7 +611,8 @@ def dendrinet_activations_to_csv(
     digit = pd.Series(digit_data)
     compartment = pd.Series(compartment_data)
     g_exc = pd.Series(torch.cat(exc_data, dim = 0).detach().cpu().numpy())
-    g_inh = pd.Series(torch.cat(inh_data, dim = 0).detach().cpu().numpy() if input_inhibitory else inh_data)
+    g_inh = pd.Series(torch.cat(inh_data, dim = 0).detach().cpu().numpy() 
+                      if input_inhibitory else inh_data)
     v_inf = pd.Series(torch.cat(vinf_data, dim = 0).detach().cpu().numpy())
     v_out = pd.Series(torch.cat(vout_data, dim = 0).detach().cpu().numpy())
 
@@ -522,18 +638,27 @@ def einet_activations_to_csv(einet, input_list, save_root):
         exc_dendrinet = einet.layers[i].excitatory_cells
 
         dendrinet_activations_to_csv(
-            dendrinet = inh_dendrinet, exc_input_list = exc_input_list, inh_input_list = inh_input_list,
-            save_root = os.path.join(save_root, f'ei_layer{i+1}', 'inhibitory_cells'),
+            dendrinet = inh_dendrinet, 
+            exc_input_list = exc_input_list, 
+            inh_input_list = inh_input_list,
+            save_root = os.path.join(save_root, 
+                                     f'ei_layer{i+1}', 
+                                     'inhibitory_cells'),
         )
 
         inh_temp = []
         for j in range(len(input_list)):
-            inh_temp.append(inh_dendrinet(exc_input_list[j], inh_input_list[j]))
+            inh_temp.append(inh_dendrinet(exc_input_list[j], 
+                                          inh_input_list[j]))
         inh_input_list = inh_temp
 
         dendrinet_activations_to_csv(
-            dendrinet = exc_dendrinet, exc_input_list = exc_input_list, inh_input_list = inh_input_list,
-            save_root = os.path.join(save_root, f'ei_layer{i+1}', 'excitatory_cells'),
+            dendrinet = exc_dendrinet, 
+            exc_input_list = exc_input_list, 
+            inh_input_list = inh_input_list,
+            save_root = os.path.join(save_root, 
+                                     f'ei_layer{i+1}', 
+                                     'excitatory_cells'),
         )
 
         exc_temp = []
