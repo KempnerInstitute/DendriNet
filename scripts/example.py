@@ -25,6 +25,8 @@ if __name__ == '__main__':
         'somatic_synapses' : True,
     }
 
+    
+
     model_hp['ee_synapses_per_branch_per_layer'] = [24,]
     model_hp['ei_synapses_per_branch_per_layer'] = [100,]
     model_hp['ie_synapses_per_branch_per_layer'] = [1,]
@@ -39,7 +41,7 @@ if __name__ == '__main__':
     }
 
     print('loading mnist.....\n', flush = True)
-    data = load_MNIST(train_valid_split = train_hp['train_valid_split'])
+    data = load_MNIST(train_valid_split = train_hp['train_valid_split'], cache_dir=os.getcwd())
 
     # initialize classifier
     clf = EINetClassifier(**model_hp)
