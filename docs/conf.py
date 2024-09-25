@@ -33,9 +33,9 @@ extensions = [
     'sphinx.ext.autosectionlabel',
     'sphinx.ext.githubpages', 
     'sphinx_copybutton',
-    'sphinxcontrib.bibtex',
-
+    'sphinxcontrib.bibtex'
 ]
+
 myst_enable_extensions = [
     "dollarmath",
     "amsmath",

@@ -1,5 +1,5 @@
 import torch
-from dendritic_modeling.util import load_MNIST, split_MNIST_inputs, accuracy_score, save_dict, Shaper
+from dendritic_modeling.utils import load_MNIST, split_MNIST_inputs, accuracy_score, save_dict, Shaper
 from dendritic_modeling.training import TrainerMLE
 from dendritic_modeling.models import EINetClassifier
 from dendritic_modeling.plotting import plot_einet_params, plot_einet_activations
