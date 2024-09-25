@@ -55,3 +55,30 @@ If you want to install the package in development mode, use the following comman
     pip install -e .
 ```
 
+
+## Generating Documentation Locally
+
+To generate the documentation locally, you can use the following command:
+
+```sh
+    pip install -e '.[docs]'
+    cd docs
+    make html
+    open _build/html/index.html
+```
+
+## Running Tests
+
+To run the tests, you can use the following command:
+
+```sh
+    pip install -e '.[dev]'
+    pytest
+```
+
+To run the tests with coverage, you can use the following command:
+
+```sh
+    pytest --cov=dendritic_modeling --cov-report=html
+    open htmlcov/index.html
+```
