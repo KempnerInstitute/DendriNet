@@ -21,6 +21,16 @@ dendritic_modeling package
    :undoc-members:
    :show-inheritance:
 
+.. automodule:: dendritic_modeling.training
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+.. automodule:: dendritic_modeling.schemes
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
 
 .. automodule:: dendritic_modeling.evaluation
    :members:
