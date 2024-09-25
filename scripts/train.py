@@ -1,11 +1,13 @@
+import os
+import time
+from datetime import datetime
+
 import torch
-from dendritic_modeling.util import load_MNIST, accuracy_score, save_dict
+
+from dendritic_modeling.utils import load_MNIST, accuracy_score, save_dict
 from dendritic_modeling.training import TrainerMLE
 from dendritic_modeling.models import EINetClassifier
 
-import os
-from datetime import datetime
-import time
 print('\nimports complete\n', flush = True)
 
 

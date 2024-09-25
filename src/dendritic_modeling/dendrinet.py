@@ -1,9 +1,14 @@
-import torch
-import torch.nn as nn
-
-from copy import deepcopy
+"""
+dendrinet.py
+============
+This module contains the DendriNet and DendriticBranchLayer classes.
+"""
 
 from math import floor
+from copy import deepcopy
+
+import torch
+import torch.nn as nn
 
 
 # custom linear layer which only uses the strongest K synaptic weights from in_features 
