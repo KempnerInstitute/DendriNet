@@ -1,18 +1,20 @@
+"""
+schemes.py
+==========
+This module contains the training schemes for the dendritic_modeling package.
+"""
+import os
+import json
+import time
+from copy import deepcopy
+
+import numpy as np
+import matplotlib.pyplot as plt
+
 import torch
 import torch.autograd as ag
 from torch.utils.data import DataLoader
 from torch.nn.utils import clip_grad_value_
-
-import numpy as np
-
-import matplotlib.pyplot as plt
-
-import time
-import os
-from copy import deepcopy
-import json
-
-
 
 class TrainerMLE(object):
     
@@ -38,8 +40,12 @@ class TrainerMLE(object):
         model = model.to(device)
         
         # create dataloader objects for training data and validation data
-        train_dataloader = DataLoader(train_data, batch_size = batch_size, shuffle = shuffle)
-        valid_dataloader = DataLoader(valid_data, batch_size = batch_size, shuffle = shuffle)
+        train_dataloader = DataLoader(train_data, 
+                                      batch_size = batch_size, 
+                                      shuffle = shuffle)
+        valid_dataloader = DataLoader(valid_data, 
+                                      batch_size = batch_size, 
+                                      shuffle = shuffle)
         
         train_losses = []
         valid_losses = []
@@ -61,14 +67,16 @@ class TrainerMLE(object):
                     label_batch = ag.Variable(label_batch.to(device))
                     
                     # minimize negative log likelihood
-                    nll = -1 * model.log_prob(input_batch, label_batch).mean(dim = 0)
+                    nll = -1 * model.log_prob(input_batch, 
+                                              label_batch).mean(dim = 0)
                     
                     # zero gradients
                     self.optimizer.zero_grad()
                     # backpropagate loss
                     nll.backward()
                     # prevent exploding gradients
-                    clip_grad_value_(model.parameters(), clip_value = grad_clip_value)
+                    clip_grad_value_(model.parameters(), 
+                                     clip_value = grad_clip_value)
                     # update weights
                     self.optimizer.step()
                     # aggregate training loss
@@ -92,7 +100,8 @@ class TrainerMLE(object):
                     try:
                         # produce negative log likelihood
                         nll = -1 * model.log_prob(
-                            input_batch.to(device), label_batch.to(device)).mean(dim = 0)
+                            input_batch.to(device), 
+                            label_batch.to(device)).mean(dim = 0)
                         # compute and aggregate validation loss 
                         valid_loss += nll.item()
                     
@@ -116,7 +125,9 @@ class TrainerMLE(object):
 
                     with open(save_path+'/losses.json', 'w') as f:
                         json.dump(
-                            {'train losses' : train_losses, 'valid losses': valid_losses}, f
+                            {'train losses' : train_losses, 
+                             'valid losses': valid_losses}, 
+                             f
                         )
 
             

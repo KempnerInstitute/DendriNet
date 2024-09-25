@@ -1,3 +1,10 @@
+"""
+evaluation.py
+=============
+This is a temp module to test the package structure.
+"""
+
+
 from dendritic_modeling import logger
 
 
