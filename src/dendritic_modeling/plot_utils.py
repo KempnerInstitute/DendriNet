@@ -13,11 +13,6 @@ from matplotlib.gridspec import GridSpec
 from mpl_toolkits.axes_grid1 import make_axes_locatable
 
 
-from dendritic_modeling import logger
-
-
-
-
 #@title Function to plot an image with the scale color bar
 def plotWithColor(data, title=''):
     if torch.is_tensor(data):
