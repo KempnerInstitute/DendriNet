@@ -10,8 +10,10 @@ import time
 import torch
 import matplotlib.pyplot as plt
 
+from dendritic_modeling import logger
 from dendritic_modeling.utils import save_dict
 from dendritic_modeling.training import TrainerMLE
+
 
 class DendriNetTuner(object):
 
@@ -91,17 +93,17 @@ class DendriNetTuner(object):
 
                                             if not os.path.exists(save_path):
 
-                                                print('-------------------------------------', flush = True)
-                                                print(f'model configuration - {config_count}/{self.n_configs}', flush = True)
-                                                print(f'branch factors: {branch_factors}', flush = True)
-                                                print(f'n inhibitory cells: {n_inhibitory_cells}', flush = True)
-                                                print(f'synapses per inhibitory cell: {synapses_per_inhibitory_cell}', flush = True)
-                                                print(f'inhibitory synapses per branch: {inhibitory_synapses_per_branch}', flush = True)
-                                                print(f'excitatory synapses per branch: {excitatory_synapses_per_branch}', flush = True)
-                                                print(f'shunting: {shunting}', flush = True)
-                                                print(f'reactivate: {reactivate}', flush = True)
-                                                print(f'b trainable: {b_trainable}', flush = True)
-                                                print(f'learning rate: {lr}', flush = True)
+                                                logger.info('-------------------------------------')
+                                                logger.info(f'model configuration - {config_count}/{self.n_configs}')
+                                                logger.info(f'branch factors: {branch_factors}')
+                                                logger.info(f'n inhibitory cells: {n_inhibitory_cells}')
+                                                logger.info(f'synapses per inhibitory cell: {synapses_per_inhibitory_cell}')
+                                                logger.info(f'inhibitory synapses per branch: {inhibitory_synapses_per_branch}')
+                                                logger.info(f'excitatory synapses per branch: {excitatory_synapses_per_branch}')
+                                                logger.info(f'shunting: {shunting}')
+                                                logger.info(f'reactivate: {reactivate}')
+                                                logger.info(f'b trainable: {b_trainable}')
+                                                logger.info(f'learning rate: {lr}')
 
                                                 
                                                 model = dendrinet(
@@ -121,14 +123,14 @@ class DendriNetTuner(object):
                                                     optimizer = torch.optim.Adam(model.parameters(), lr = lr),
                                                     suppress_prints = True,
                                                 )
-                                                print('training.....', flush = True)
+                                                logger.info('training ...')
                                                 res = trainer.train(
                                                     model, train_data = train_data, valid_data = valid_data,
                                                     epochs = epochs, batch_size = batch_size, shuffle = True, plot_losses = True,
                                                 )
-                                                print('  done..', flush = True)
+                                                logger.info('Done!')
                                                 etime = time.time() - stime
-                                                print('time elapsed: %.2f min | %.3f hrs' % (etime/60, etime/3600), flush = True)
+                                                logger.info('time elapsed: %.2f min | %.3f hrs' % (etime/60, etime/3600))
 
                                                 hp = {
                                                     'input_dim' : input_dim,
@@ -180,9 +182,9 @@ class DendriNetTuner(object):
         sweep_path = os.path.join(save_root, 'sweeping_plots')
         os.mkdir(sweep_path)
 
-        print('generating sweeping plots.....')
+        logger.info('generating sweeping plots.....')
         self.sweeping_plots(sweep_path)
-        print('  done..')
+        logger.info('  done..')
 
 
     def sweeping_plots(self, save_path):

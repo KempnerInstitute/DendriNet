@@ -17,7 +17,7 @@ import torch.autograd as ag
 from torch.utils.data import DataLoader
 from torch.nn.utils import clip_grad_value_
 
-
+from dendritic_modeling import logger
 
 
 
@@ -94,8 +94,7 @@ class TrainerMLE(object):
                 except:
                     # if NaNs encountered in gradients
                     if not self.suppress:
-                        print('exception occurred during parameter update step', 
-                              flush = True)
+                        logger.info('exception occurred during parameter update step')
                     model.load_state_dict(best_state_dict)
                     train_loss += 10
 
@@ -117,8 +116,7 @@ class TrainerMLE(object):
                     
                     except:
                         if not self.suppress:
-                            print('exception occurred during parameter validation step', 
-                                  flush = True)
+                            logger.info('exception occurred during parameter validation step')
                         model.load_state_dict(best_state_dict)
                         valid_loss += 10
             
@@ -147,16 +145,15 @@ class TrainerMLE(object):
             if not self.suppress:
                 # printing
                 if epoch % self.print_every == 0:
-                    print(f'------------------{epoch}------------------', 
-                          flush = True)
-                    print('training loss: %.2f | validation loss: %.2f' % (
-                        train_loss, valid_loss), flush = True)
+                    logger.info(f'------------------{epoch}------------------')
+                    logger.info('training loss: %.2f | validation loss: %.2f' % (
+                        train_loss, valid_loss))
                     
                     time_elapsed = (time.time() - stime)
                     pred_time_remaining = (time_elapsed / epoch) * (epochs-epoch)
                     
-                    print('time elapsed: %.2f s | predicted time remaining: %.2f s' % (
-                        time_elapsed, pred_time_remaining), flush = True)
+                    logger.info('time elapsed: %.2f s | predicted time remaining: %.2f s' % (
+                        time_elapsed, pred_time_remaining))
         
         # load best model
         model.load_state_dict(best_state_dict)
@@ -295,8 +292,7 @@ class TrainerMLE_EINet_video(object):
                 except:
                     # if NaNs encountered in gradients
                     if not self.suppress:
-                        print('exception occurred during parameter update step', 
-                              flush = True)
+                        logger.info('exception occurred during parameter update step')
                     model.load_state_dict(best_state_dict)
                     train_loss += 10
 
@@ -319,8 +315,7 @@ class TrainerMLE_EINet_video(object):
                     
                     except:
                         if not self.suppress:
-                            print('exception occurred during parameter validation step', 
-                                  flush = True)
+                            logger.info('exception occurred during parameter validation step')
                         model.load_state_dict(best_state_dict)
                         valid_loss += 10
             
@@ -350,16 +345,15 @@ class TrainerMLE_EINet_video(object):
             if not self.suppress:
                 # printing
                 if epoch % self.print_every == 0:
-                    print(f'------------------{epoch}------------------', 
-                          flush = True)
-                    print('training loss: %.2f | validation loss: %.2f' % (
-                        train_loss, valid_loss), flush = True)
+                    logger.info(f'------------------{epoch}------------------')
+                    logger.info('training loss: %.2f | validation loss: %.2f' % (
+                        train_loss, valid_loss))
                     
                     time_elapsed = (time.time() - stime)
                     pred_time_remaining = (time_elapsed / epoch) * (epochs-epoch)
                     
-                    print('time elapsed: %.2f s | predicted time remaining: %.2f s' % (
-                        time_elapsed, pred_time_remaining), flush = True)
+                    logger.info('time elapsed: %.2f s | predicted time remaining: %.2f s' % (
+                        time_elapsed, pred_time_remaining))
         
         # load best model
         model.load_state_dict(best_state_dict)
@@ -407,6 +401,3 @@ class TrainerMLE_EINet_video(object):
                 plt.close(fig)
             
         return results
-
-
-
