@@ -1,0 +1,466 @@
+
+
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" data-content_root="../../">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>dendritic_modeling.dendrinet &mdash; dendritic_modeling 0.1.0 documentation</title>
+      <link rel="stylesheet" type="text/css" href="../../_static/pygments.css?v=80d5e7a1" />
+      <link rel="stylesheet" type="text/css" href="../../_static/css/theme.css?v=e59714d7" />
+      <link rel="stylesheet" type="text/css" href="../../_static/copybutton.css?v=76b2166b" />
+
+  
+      <script src="../../_static/jquery.js?v=5d32c60e"></script>
+      <script src="../../_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
+      <script src="../../_static/documentation_options.js?v=01f34227"></script>
+      <script src="../../_static/doctools.js?v=9bcbadda"></script>
+      <script src="../../_static/sphinx_highlight.js?v=dc90522c"></script>
+      <script src="../../_static/clipboard.min.js?v=a7894cd8"></script>
+      <script src="../../_static/copybutton.js?v=f281be69"></script>
+      <script crossorigin="anonymous" integrity="sha256-Ae2Vz/4ePdIu6ZyI/5ZGsYnb+m0JlOmKPjt6XZ9JJkA=" src="https://cdnjs.cloudflare.com/ajax/libs/require.js/2.3.4/require.min.js"></script>
+    <script src="../../_static/js/theme.js"></script>
+    <link rel="author" title="About these documents" href="../../about.html" />
+    <link rel="index" title="Index" href="../../genindex.html" />
+    <link rel="search" title="Search" href="../../search.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+
+          
+          
+          <a href="../../index.html" class="icon icon-home">
+            dendritic_modeling
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <p class="caption" role="heading"><span class="caption-text">Introduction</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../about.html">About</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Users Guide</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../source/users/users.html">Installation</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../source/users/users.html#build-the-documentation">Build the documentation</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Dendritic Modeling</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../source/dend_m/concepts_overview.html">Concepts Overview</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">References</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../source/users/references.html">References</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Appendix and Resources</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../source/additional_resources.html">Additional resources</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../source/glossary.html">Glossary</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">API Reference</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../source/dendritic_modeling.html">dendritic_modeling package</a></li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../../index.html">dendritic_modeling</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="../../index.html" class="icon icon-home" aria-label="Home"></a></li>
+          <li class="breadcrumb-item"><a href="../index.html">Module code</a></li>
+      <li class="breadcrumb-item active">dendritic_modeling.dendrinet</li>
+      <li class="wy-breadcrumbs-aside">
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <h1>Source code for dendritic_modeling.dendrinet</h1><div class="highlight"><pre>
+<span></span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">dendrinet.py</span>
+<span class="sd">============</span>
+<span class="sd">This module contains the DendriNet and DendriticBranchLayer classes.</span>
+<span class="sd">&quot;&quot;&quot;</span>
+
+<span class="kn">from</span> <span class="nn">math</span> <span class="kn">import</span> <span class="n">floor</span>
+<span class="kn">from</span> <span class="nn">copy</span> <span class="kn">import</span> <span class="n">deepcopy</span>
+
+<span class="kn">import</span> <span class="nn">torch</span>
+<span class="kn">import</span> <span class="nn">torch.nn</span> <span class="k">as</span> <span class="nn">nn</span>
+
+
+<span class="c1"># custom linear layer which only uses the strongest K synaptic weights from in_features </span>
+<div class="viewcode-block" id="TopKLinear">
+<a class="viewcode-back" href="../../source/dendritic_modeling.html#dendritic_modeling.dendrinet.TopKLinear">[docs]</a>
+<span class="k">class</span> <span class="nc">TopKLinear</span><span class="p">(</span><span class="n">nn</span><span class="o">.</span><span class="n">Module</span><span class="p">):</span>
+    <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span>
+            <span class="bp">self</span><span class="p">,</span> <span class="n">in_features</span><span class="p">,</span> <span class="n">out_features</span><span class="p">,</span> <span class="n">K</span><span class="p">,</span> <span class="n">param_space</span> <span class="o">=</span> <span class="s1">&#39;log&#39;</span><span class="p">,</span>
+            <span class="p">):</span>    
+        <span class="c1"># initialize super Linear layer</span>
+        <span class="nb">super</span><span class="p">(</span><span class="n">TopKLinear</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="fm">__init__</span><span class="p">()</span>
+        <span class="c1"># make all weights positive</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">pre_w</span> <span class="o">=</span> <span class="n">nn</span><span class="o">.</span><span class="n">Parameter</span><span class="p">(</span><span class="n">torch</span><span class="o">.</span><span class="n">zeros</span><span class="p">((</span><span class="n">out_features</span><span class="p">,</span> <span class="n">in_features</span><span class="p">))</span><span class="o">.</span><span class="n">uniform_</span><span class="p">(</span><span class="o">-</span><span class="mf">2.1</span><span class="p">,</span><span class="o">-</span><span class="mi">2</span><span class="p">),</span> <span class="n">requires_grad</span> <span class="o">=</span> <span class="kc">True</span><span class="p">)</span>
+        <span class="c1"># assign positive integer attribute K, denoting the number of strongest synapses to keep per dendritic branch</span>
+
+        <span class="k">if</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">K</span><span class="p">,</span> <span class="nb">int</span><span class="p">):</span>
+            <span class="k">raise</span> <span class="ne">TypeError</span><span class="p">(</span><span class="s1">&#39;K must be an integer&#39;</span><span class="p">)</span>
+        
+        <span class="k">if</span> <span class="n">K</span> <span class="o">&lt;</span> <span class="mi">1</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s1">&#39;K must be greater than or equal to 1&#39;</span><span class="p">)</span>
+        
+        <span class="k">if</span> <span class="n">K</span> <span class="o">&gt;</span> <span class="n">in_features</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+                <span class="sa">f</span><span class="s1">&#39;K must be less than or equal to the number of input &#39;</span><span class="p">,</span>
+                <span class="sa">f</span><span class="s1">&#39;features. (K = </span><span class="si">{</span><span class="n">K</span><span class="si">}</span><span class="s1">, in_features = </span><span class="si">{</span><span class="n">in_features</span><span class="si">}</span><span class="s1">)&#39;</span><span class="p">)</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">K</span> <span class="o">=</span> <span class="n">K</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">param_space</span> <span class="o">=</span> <span class="n">param_space</span>
+    
+<div class="viewcode-block" id="TopKLinear.forward">
+<a class="viewcode-back" href="../../source/dendritic_modeling.html#dendritic_modeling.dendrinet.TopKLinear.forward">[docs]</a>
+    <span class="k">def</span> <span class="nf">forward</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">x</span><span class="p">):</span>
+        <span class="c1"># identify top K strongest synaptic connections onto each dendritic branch</span>
+        <span class="n">pruned_weight</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">pruned_weight</span><span class="p">()</span>
+        <span class="c1"># matrix multiply inputs and synaptic weights</span>
+        <span class="k">return</span> <span class="n">torch</span><span class="o">.</span><span class="n">mm</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="n">pruned_weight</span><span class="o">.</span><span class="n">t</span><span class="p">())</span></div>
+
+    
+<div class="viewcode-block" id="TopKLinear.weight">
+<a class="viewcode-back" href="../../source/dendritic_modeling.html#dendritic_modeling.dendrinet.TopKLinear.weight">[docs]</a>
+    <span class="k">def</span> <span class="nf">weight</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">param_space</span> <span class="o">==</span> <span class="s1">&#39;log&#39;</span><span class="p">:</span>
+            <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">pre_w</span><span class="o">.</span><span class="n">exp</span><span class="p">()</span>
+        <span class="k">elif</span> <span class="bp">self</span><span class="o">.</span><span class="n">param_space</span> <span class="o">==</span> <span class="s1">&#39;presigmoid&#39;</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">torch</span><span class="o">.</span><span class="n">sigmoid</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">pre_w</span><span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="TopKLinear.weight_mask">
+<a class="viewcode-back" href="../../source/dendritic_modeling.html#dendritic_modeling.dendrinet.TopKLinear.weight_mask">[docs]</a>
+    <span class="k">def</span> <span class="nf">weight_mask</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="n">topK_indices</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">topk</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">pre_w</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">K</span><span class="p">,</span> <span class="n">dim</span> <span class="o">=</span> <span class="o">-</span><span class="mi">1</span><span class="p">,</span> <span class="n">largest</span> <span class="o">=</span> <span class="kc">True</span><span class="p">,</span> <span class="nb">sorted</span> <span class="o">=</span> <span class="kc">False</span><span class="p">)[</span><span class="mi">1</span><span class="p">]</span>
+        <span class="c1"># initialize and populate masking matrix</span>
+        <span class="n">mask</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">zeros_like</span><span class="p">(</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">pre_w</span><span class="p">,</span> <span class="n">device</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">pre_w</span><span class="o">.</span><span class="n">device</span><span class="p">,</span> <span class="n">dtype</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">pre_w</span><span class="o">.</span><span class="n">dtype</span><span class="p">,</span>
+            <span class="p">)</span>
+        <span class="n">mask</span><span class="p">[</span><span class="n">torch</span><span class="o">.</span><span class="n">arange</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">pre_w</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">])[:,</span><span class="kc">None</span><span class="p">],</span> <span class="n">topK_indices</span><span class="p">]</span> <span class="o">=</span> <span class="mi">1</span>
+        <span class="k">return</span> <span class="n">mask</span></div>
+
+
+<div class="viewcode-block" id="TopKLinear.pruned_weight">
+<a class="viewcode-back" href="../../source/dendritic_modeling.html#dendritic_modeling.dendrinet.TopKLinear.pruned_weight">[docs]</a>
+    <span class="k">def</span> <span class="nf">pruned_weight</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="c1"># apply mask to weight matrix for manual pruning effect</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">weight_mask</span><span class="p">()</span> <span class="o">*</span> <span class="bp">self</span><span class="o">.</span><span class="n">weight</span><span class="p">()</span></div>
+
+    
+<div class="viewcode-block" id="TopKLinear.weighted_synapses">
+<a class="viewcode-back" href="../../source/dendritic_modeling.html#dendritic_modeling.dendrinet.TopKLinear.weighted_synapses">[docs]</a>
+    <span class="k">def</span> <span class="nf">weighted_synapses</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">cell_weights</span><span class="p">,</span> <span class="n">prune</span> <span class="o">=</span> <span class="kc">False</span><span class="p">):</span>
+        <span class="k">if</span> <span class="n">prune</span><span class="p">:</span>
+            <span class="n">synapse_weights</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">pruned_weight</span><span class="p">()</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">synapse_weights</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">weight</span><span class="p">()</span>
+        
+        <span class="n">weighted_synapses</span> <span class="o">=</span> <span class="n">cell_weights</span><span class="p">[:,</span><span class="kc">None</span><span class="p">]</span> <span class="o">*</span> <span class="n">synapse_weights</span>
+        <span class="k">return</span> <span class="n">weighted_synapses</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="n">dim</span> <span class="o">=</span> <span class="mi">0</span> <span class="p">)</span></div>
+</div>
+
+
+
+<span class="c1"># custom linear layer aggregating information from converging branches in previous branch layer</span>
+<div class="viewcode-block" id="BlockLinear">
+<a class="viewcode-back" href="../../source/dendritic_modeling.html#dendritic_modeling.dendrinet.BlockLinear">[docs]</a>
+<span class="k">class</span> <span class="nc">BlockLinear</span><span class="p">(</span><span class="n">nn</span><span class="o">.</span><span class="n">Module</span><span class="p">):</span>
+    <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">in_features</span><span class="p">,</span> <span class="n">out_features</span><span class="p">,</span> <span class="n">requires_grad</span> <span class="o">=</span> <span class="kc">False</span><span class="p">):</span>
+        <span class="nb">super</span><span class="p">(</span><span class="n">BlockLinear</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="fm">__init__</span><span class="p">()</span>
+        <span class="c1"># block_size equals number of branches converging onto single branch / soma in next layer???</span>
+        <span class="n">block_size</span> <span class="o">=</span> <span class="n">floor</span><span class="p">(</span><span class="n">in_features</span> <span class="o">/</span> <span class="n">out_features</span><span class="p">)</span>
+        <span class="k">assert</span><span class="p">(</span><span class="n">in_features</span> <span class="o">==</span> <span class="n">out_features</span> <span class="o">*</span> <span class="n">block_size</span><span class="p">)</span>
+
+        <span class="c1"># branches have equal weights (?)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">weight</span> <span class="o">=</span> <span class="n">nn</span><span class="o">.</span><span class="n">Parameter</span><span class="p">(</span><span class="n">torch</span><span class="o">.</span><span class="n">ones</span><span class="p">((</span><span class="n">out_features</span><span class="p">,</span> <span class="n">block_size</span><span class="p">)),</span> <span class="n">requires_grad</span> <span class="o">=</span> <span class="n">requires_grad</span><span class="p">)</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">in_features</span> <span class="o">=</span> <span class="n">in_features</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">out_features</span> <span class="o">=</span> <span class="n">out_features</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">block_size</span> <span class="o">=</span> <span class="n">block_size</span>
+        
+<div class="viewcode-block" id="BlockLinear.forward">
+<a class="viewcode-back" href="../../source/dendritic_modeling.html#dendritic_modeling.dendrinet.BlockLinear.forward">[docs]</a>
+    <span class="k">def</span> <span class="nf">forward</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">x</span><span class="p">):</span>
+        <span class="c1"># initialize sparse matrix</span>
+        <span class="n">block</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">zeros</span><span class="p">(</span>
+            <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">out_features</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">in_features</span><span class="p">),</span>
+            <span class="n">device</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">weight</span><span class="o">.</span><span class="n">device</span><span class="p">,</span> <span class="n">dtype</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">weight</span><span class="o">.</span><span class="n">dtype</span><span class="p">,</span>
+        <span class="p">)</span>
+        <span class="c1"># get row and column indices for sparse matrix which should contain non-zero weights</span>
+        <span class="n">row_ix</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">arange</span><span class="p">(</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">out_features</span><span class="p">,</span> <span class="n">device</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">weight</span><span class="o">.</span><span class="n">device</span><span class="p">)[:,</span><span class="kc">None</span><span class="p">]</span>
+        <span class="n">col_ix</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">arange</span><span class="p">(</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">in_features</span><span class="p">,</span> <span class="n">device</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">weight</span><span class="o">.</span><span class="n">device</span><span class="p">)</span><span class="o">.</span><span class="n">view</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">out_features</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">block_size</span><span class="p">)</span>
+        <span class="c1"># assign weights to appropriate locations in sparse matrix</span>
+        <span class="n">block</span><span class="p">[</span><span class="n">row_ix</span><span class="p">,</span> <span class="n">col_ix</span><span class="p">]</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">weight</span>
+        <span class="c1"># matrix multiply inputs and sparse matrix</span>
+        <span class="k">return</span> <span class="n">torch</span><span class="o">.</span><span class="n">mm</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="n">block</span><span class="o">.</span><span class="n">t</span><span class="p">())</span></div>
+
+    
+<div class="viewcode-block" id="BlockLinear.sum_conductances">
+<a class="viewcode-back" href="../../source/dendritic_modeling.html#dendritic_modeling.dendrinet.BlockLinear.sum_conductances">[docs]</a>
+    <span class="k">def</span> <span class="nf">sum_conductances</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="n">sum_g</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">weight</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="n">dim</span> <span class="o">=</span> <span class="mi">1</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">sum_g</span></div>
+</div>
+
+
+
+<span class="c1"># emulates dendritic computation along a layer of branches (equally distant from soma)</span>
+<div class="viewcode-block" id="DendriticBranchLayer">
+<a class="viewcode-back" href="../../source/dendritic_modeling.html#dendritic_modeling.dendrinet.DendriticBranchLayer">[docs]</a>
+<span class="k">class</span> <span class="nc">DendriticBranchLayer</span><span class="p">(</span><span class="n">nn</span><span class="o">.</span><span class="n">Module</span><span class="p">):</span>
+    <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span> <span class="n">output_dim</span><span class="p">,</span> <span class="n">excitatory_input_dim</span><span class="p">,</span> <span class="n">excitatory_synapses_per_branch</span><span class="p">,</span>
+        <span class="n">inhibitory_input_dim</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span> <span class="n">inhibitory_synapses_per_branch</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span> 
+        <span class="n">input_branch_factor</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span> <span class="n">reactivate</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span>
+        <span class="p">):</span>
+        <span class="c1"># initialize dendritic branch layer</span>
+        <span class="nb">super</span><span class="p">(</span><span class="n">DendriticBranchLayer</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="fm">__init__</span><span class="p">()</span>
+        <span class="c1"># module for computing excitation along branches in layer</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">branch_excitation</span> <span class="o">=</span> <span class="n">TopKLinear</span><span class="p">(</span><span class="n">excitatory_input_dim</span><span class="p">,</span> <span class="n">output_dim</span><span class="p">,</span> <span class="n">K</span> <span class="o">=</span> <span class="n">excitatory_synapses_per_branch</span><span class="p">)</span>
+        <span class="c1"># if receiving inputs from inhibitory cells</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">input_inhibitory</span> <span class="o">=</span> <span class="n">inhibitory_input_dim</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">input_inhibitory</span><span class="p">:</span>
+            <span class="c1"># module for computing inhibition along branches in layer</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">branch_inhibition</span> <span class="o">=</span> <span class="n">TopKLinear</span><span class="p">(</span><span class="n">inhibitory_input_dim</span><span class="p">,</span> <span class="n">output_dim</span><span class="p">,</span> <span class="n">K</span> <span class="o">=</span> <span class="n">inhibitory_synapses_per_branch</span><span class="p">)</span>
+        <span class="c1"># if receiving inputs from other dendritic branches</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">input_branches</span> <span class="o">=</span> <span class="n">input_branch_factor</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">input_branches</span><span class="p">:</span>
+            <span class="c1"># module for aggregating information from converging branches</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">branches_to_output</span> <span class="o">=</span> <span class="n">BlockLinear</span><span class="p">(</span>
+                <span class="n">output_dim</span><span class="o">*</span><span class="n">input_branch_factor</span><span class="p">,</span> <span class="n">output_dim</span><span class="p">,</span> <span class="n">requires_grad</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span>
+            <span class="p">)</span>
+
+        <span class="k">if</span> <span class="n">reactivate</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">presigmoid_Vth</span> <span class="o">=</span> <span class="n">nn</span><span class="o">.</span><span class="n">Parameter</span><span class="p">(</span><span class="n">torch</span><span class="o">.</span><span class="n">zeros</span><span class="p">((</span><span class="n">output_dim</span><span class="p">,))</span><span class="o">.</span><span class="n">uniform_</span><span class="p">(</span><span class="o">-</span><span class="mi">2</span><span class="p">,</span><span class="o">-</span><span class="mi">2</span><span class="p">),</span> <span class="n">requires_grad</span> <span class="o">=</span> <span class="kc">True</span><span class="p">)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">log_alpha_max</span> <span class="o">=</span> <span class="n">nn</span><span class="o">.</span><span class="n">Parameter</span><span class="p">(</span><span class="n">torch</span><span class="o">.</span><span class="n">zeros</span><span class="p">((</span><span class="n">output_dim</span><span class="p">,)),</span> <span class="n">requires_grad</span> <span class="o">=</span> <span class="kc">True</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">reactivate</span> <span class="o">=</span> <span class="n">reactivate</span>
+    
+<div class="viewcode-block" id="DendriticBranchLayer.forward">
+<a class="viewcode-back" href="../../source/dendritic_modeling.html#dendritic_modeling.dendrinet.DendriticBranchLayer.forward">[docs]</a>
+    <span class="k">def</span> <span class="nf">forward</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">x</span><span class="p">,</span> <span class="n">inhibitory_input</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span> <span class="n">branch_input</span> <span class="o">=</span> <span class="kc">None</span><span class="p">):</span>
+        <span class="c1"># compute excitation and inhibition along each branch in layer</span>
+        <span class="n">excitation</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">branch_excitation</span><span class="p">(</span><span class="n">x</span><span class="p">)</span>
+        <span class="c1"># initialize numerator and denominator variables</span>
+        <span class="n">numerator</span> <span class="o">=</span> <span class="n">excitation</span>
+        <span class="n">denominator</span> <span class="o">=</span> <span class="n">excitation</span> <span class="o">+</span> <span class="mi">1</span>
+        <span class="c1"># if receiving inputs from upstream branches</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">input_branches</span><span class="p">:</span>
+            <span class="c1"># compute current contribution from upstream branches and add to numerator</span>
+            <span class="n">current</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">branches_to_output</span><span class="p">(</span><span class="n">branch_input</span><span class="p">)</span>
+            <span class="n">numerator</span> <span class="o">=</span> <span class="n">numerator</span> <span class="o">+</span> <span class="n">current</span>
+            <span class="c1"># compute total conductance of upstream branches and add to denominator</span>
+            <span class="n">conductance</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">branches_to_output</span><span class="o">.</span><span class="n">sum_conductances</span><span class="p">()</span>
+            <span class="n">denominator</span> <span class="o">=</span> <span class="n">denominator</span> <span class="o">+</span> <span class="n">conductance</span>
+        <span class="c1"># if receiving inhibitory inputs</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">input_inhibitory</span><span class="p">:</span>
+            <span class="n">denominator</span> <span class="o">=</span> <span class="n">denominator</span> <span class="o">+</span> <span class="bp">self</span><span class="o">.</span><span class="n">branch_inhibition</span><span class="p">(</span><span class="n">inhibitory_input</span><span class="p">)</span>
+        <span class="c1"># current divided by conductance is voltage</span>
+        <span class="n">voltage</span> <span class="o">=</span> <span class="n">numerator</span> <span class="o">/</span> <span class="n">denominator</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">reactivation</span><span class="p">(</span><span class="n">voltage</span><span class="p">)</span> <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">reactivate</span> <span class="k">else</span> <span class="n">voltage</span></div>
+
+
+<div class="viewcode-block" id="DendriticBranchLayer.reactivation">
+<a class="viewcode-back" href="../../source/dendritic_modeling.html#dendritic_modeling.dendrinet.DendriticBranchLayer.reactivation">[docs]</a>
+    <span class="k">def</span> <span class="nf">reactivation</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">V</span><span class="p">):</span>
+        <span class="c1"># threshold potential</span>
+        <span class="n">Vth</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">sigmoid</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">presigmoid_Vth</span><span class="p">)</span>
+        <span class="c1"># difference between membrane potential and threshold potential</span>
+        <span class="n">V_diff</span> <span class="o">=</span> <span class="n">V</span> <span class="o">-</span> <span class="n">Vth</span>
+        <span class="c1"># scalar of V_diff to produce firing rate</span>
+        <span class="n">alpha</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">log_alpha_max</span><span class="o">.</span><span class="n">exp</span><span class="p">()</span> <span class="o">*</span> <span class="n">V_diff</span>
+        <span class="c1"># compute firing rate</span>
+        <span class="n">rate</span> <span class="o">=</span> <span class="n">alpha</span> <span class="o">*</span> <span class="n">V_diff</span>
+        <span class="c1"># rate = 0 where membrane potential is less than threshold potential</span>
+        <span class="n">rate</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">where</span><span class="p">(</span><span class="n">V_diff</span> <span class="o">&lt;</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="n">rate</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">rate</span></div>
+
+    
+<div class="viewcode-block" id="DendriticBranchLayer.get_weights">
+<a class="viewcode-back" href="../../source/dendritic_modeling.html#dendritic_modeling.dendrinet.DendriticBranchLayer.get_weights">[docs]</a>
+    <span class="k">def</span> <span class="nf">get_weights</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">input_inhibitory</span><span class="p">:</span>
+            <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">branch_excitation</span><span class="o">.</span><span class="n">weight</span><span class="p">(),</span> <span class="bp">self</span><span class="o">.</span><span class="n">branch_inhibition</span><span class="o">.</span><span class="n">weight</span><span class="p">()</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">branch_excitation</span><span class="o">.</span><span class="n">weight</span><span class="p">()</span></div>
+
+
+<div class="viewcode-block" id="DendriticBranchLayer.get_mask">
+<a class="viewcode-back" href="../../source/dendritic_modeling.html#dendritic_modeling.dendrinet.DendriticBranchLayer.get_mask">[docs]</a>
+    <span class="k">def</span> <span class="nf">get_mask</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">input_inhibitory</span><span class="p">:</span>
+            <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">branch_excitation</span><span class="o">.</span><span class="n">weight_mask</span><span class="p">(),</span> <span class="bp">self</span><span class="o">.</span><span class="n">branch_inhibition</span><span class="o">.</span><span class="n">weight_mask</span><span class="p">()</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">branch_excitation</span><span class="o">.</span><span class="n">weight_mask</span><span class="p">()</span></div>
+
+
+<div class="viewcode-block" id="DendriticBranchLayer.get_pruned_weights">
+<a class="viewcode-back" href="../../source/dendritic_modeling.html#dendritic_modeling.dendrinet.DendriticBranchLayer.get_pruned_weights">[docs]</a>
+    <span class="k">def</span> <span class="nf">get_pruned_weights</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">input_inhibitory</span><span class="p">:</span>
+            <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">branch_excitation</span><span class="o">.</span><span class="n">pruned_weight</span><span class="p">(),</span> <span class="bp">self</span><span class="o">.</span><span class="n">branch_inhibition</span><span class="o">.</span><span class="n">pruned_weight</span><span class="p">()</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">branch_excitation</span><span class="o">.</span><span class="n">pruned_weight</span><span class="p">()</span></div>
+</div>
+
+
+
+<span class="c1"># emulates branching dendritic tree strctures into an artficial neural network analogous to the MLP </span>
+<div class="viewcode-block" id="DendriNet">
+<a class="viewcode-back" href="../../source/dendritic_modeling.html#dendritic_modeling.dendrinet.DendriNet">[docs]</a>
+<span class="k">class</span> <span class="nc">DendriNet</span><span class="p">(</span><span class="n">nn</span><span class="o">.</span><span class="n">Module</span><span class="p">):</span>
+    <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span> <span class="n">n_soma</span><span class="p">,</span> <span class="n">branch_factors</span><span class="p">,</span> <span class="n">excitatory_input_dim</span><span class="p">,</span> <span class="n">excitatory_synapses_per_branch</span><span class="p">,</span>
+        <span class="n">inhibitory_input_dim</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span> <span class="n">inhibitory_synapses_per_branch</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+         <span class="n">reactivate</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span> <span class="n">somatic_synapses</span> <span class="o">=</span> <span class="kc">True</span><span class="p">,</span>
+    <span class="p">):</span>
+        <span class="nb">super</span><span class="p">(</span><span class="n">DendriNet</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="fm">__init__</span><span class="p">()</span>
+        <span class="c1"># number of branches in layer closest to soma layer</span>
+        <span class="n">layer_sizes</span> <span class="o">=</span> <span class="p">[</span><span class="n">n_soma</span><span class="p">]</span>
+        <span class="c1"># number of branches in upstream layers</span>
+        <span class="n">branch_factors</span> <span class="o">=</span> <span class="n">deepcopy</span><span class="p">(</span><span class="n">branch_factors</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">n_branch_layers</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">branch_factors</span><span class="p">)</span>
+        <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">n_branch_layers</span><span class="p">):</span>
+            <span class="n">layer_sizes</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">layer_sizes</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="o">*</span> <span class="n">branch_factors</span><span class="p">[</span><span class="n">i</span><span class="p">])</span>
+        <span class="c1"># first item in list corresponds to number of branches in layer furthest from the soma layer</span>
+        <span class="n">layer_sizes</span><span class="o">.</span><span class="n">reverse</span><span class="p">()</span>
+        <span class="n">branch_factors</span><span class="o">.</span><span class="n">reverse</span><span class="p">()</span>
+        <span class="c1"># first branch layer (furthest from soma) does not receive any branch inputs</span>
+        <span class="n">branch_factors</span><span class="o">.</span><span class="n">insert</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span>
+        <span class="c1"># create branch layers and append to list</span>
+        <span class="n">branch_layers</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">n_branch_layers</span><span class="p">):</span>
+            <span class="n">branch_layers</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">DendriticBranchLayer</span><span class="p">(</span>
+                <span class="n">output_dim</span> <span class="o">=</span> <span class="n">layer_sizes</span><span class="p">[</span><span class="n">i</span><span class="p">],</span> 
+                <span class="n">excitatory_input_dim</span> <span class="o">=</span> <span class="n">excitatory_input_dim</span><span class="p">,</span> <span class="n">excitatory_synapses_per_branch</span> <span class="o">=</span> <span class="n">excitatory_synapses_per_branch</span><span class="p">,</span>
+                <span class="n">inhibitory_input_dim</span> <span class="o">=</span> <span class="n">inhibitory_input_dim</span><span class="p">,</span> <span class="n">inhibitory_synapses_per_branch</span> <span class="o">=</span> <span class="n">inhibitory_synapses_per_branch</span><span class="p">,</span> 
+                <span class="n">input_branch_factor</span> <span class="o">=</span> <span class="n">branch_factors</span><span class="p">[</span><span class="n">i</span><span class="p">],</span> <span class="n">reactivate</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span>
+            <span class="p">))</span>
+        <span class="c1"># wrap list of branch layers in ModuleList</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">branch_layers</span> <span class="o">=</span> <span class="n">nn</span><span class="o">.</span><span class="n">ModuleList</span><span class="p">(</span><span class="n">branch_layers</span><span class="p">)</span>
+        <span class="c1"># branches to soma</span>
+        <span class="k">if</span> <span class="n">somatic_synapses</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">soma_layer</span> <span class="o">=</span> <span class="n">DendriticBranchLayer</span><span class="p">(</span>
+                <span class="n">output_dim</span> <span class="o">=</span> <span class="n">n_soma</span><span class="p">,</span> 
+                <span class="n">excitatory_input_dim</span> <span class="o">=</span> <span class="n">excitatory_input_dim</span><span class="p">,</span> <span class="n">excitatory_synapses_per_branch</span> <span class="o">=</span> <span class="n">excitatory_synapses_per_branch</span><span class="p">,</span>
+                <span class="n">inhibitory_input_dim</span> <span class="o">=</span> <span class="n">inhibitory_input_dim</span><span class="p">,</span> <span class="n">inhibitory_synapses_per_branch</span> <span class="o">=</span> <span class="n">inhibitory_synapses_per_branch</span><span class="p">,</span>
+                <span class="n">input_branch_factor</span> <span class="o">=</span> <span class="n">branch_factors</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">],</span> <span class="n">reactivate</span> <span class="o">=</span> <span class="kc">True</span><span class="p">,</span>
+            <span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">soma_layer</span> <span class="o">=</span> <span class="n">BlockLinear</span><span class="p">(</span><span class="n">layer_sizes</span><span class="p">[</span><span class="o">-</span><span class="mi">2</span><span class="p">],</span> <span class="n">n_soma</span><span class="p">,</span> <span class="n">distance</span> <span class="o">=</span> <span class="mi">0</span><span class="p">,</span> <span class="n">requires_grad</span> <span class="o">=</span> <span class="kc">False</span><span class="p">)</span>
+        <span class="c1"># assign necessary class attributes</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">input_inhibitory</span> <span class="o">=</span> <span class="n">inhibitory_input_dim</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">n_soma</span> <span class="o">=</span> <span class="n">n_soma</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">reactivate</span> <span class="o">=</span> <span class="n">reactivate</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">somatic_synapses</span> <span class="o">=</span> <span class="n">somatic_synapses</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">layer_sizes</span> <span class="o">=</span> <span class="n">layer_sizes</span>
+    
+<div class="viewcode-block" id="DendriNet.forward">
+<a class="viewcode-back" href="../../source/dendritic_modeling.html#dendritic_modeling.dendrinet.DendriNet.forward">[docs]</a>
+    <span class="k">def</span> <span class="nf">forward</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">x</span><span class="p">,</span> <span class="n">inhibitory_input</span> <span class="o">=</span> <span class="kc">None</span><span class="p">):</span>
+        <span class="c1"># branch_input to first branch layer is None</span>
+        <span class="n">output</span> <span class="o">=</span> <span class="kc">None</span>
+        <span class="c1"># dendritic computation</span>
+        <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">n_branch_layers</span><span class="p">):</span>
+            <span class="c1"># recursively update branch_input from one branch layer to the next</span>
+            <span class="n">output</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">branch_layers</span><span class="p">[</span><span class="n">i</span><span class="p">](</span><span class="n">x</span><span class="p">,</span> <span class="n">inhibitory_input</span><span class="p">,</span> <span class="n">output</span><span class="p">)</span>
+        <span class="c1"># process information at the soma layer</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">somatic_synapses</span><span class="p">:</span>
+            <span class="n">output</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">soma_layer</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="n">inhibitory_input</span><span class="p">,</span> <span class="n">output</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">output</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">soma_layer</span><span class="p">(</span><span class="n">output</span><span class="p">)</span>
+        <span class="c1"># return output</span>
+        <span class="c1">#return torch.sigmoid(output)</span>
+        <span class="k">return</span> <span class="n">output</span></div>
+
+    
+<div class="viewcode-block" id="DendriNet.sum_weights">
+<a class="viewcode-back" href="../../source/dendritic_modeling.html#dendritic_modeling.dendrinet.DendriNet.sum_weights">[docs]</a>
+    <span class="k">def</span> <span class="nf">sum_weights</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">pruned</span> <span class="o">=</span> <span class="kc">False</span><span class="p">):</span>
+        <span class="n">exc_total</span> <span class="o">=</span> <span class="mi">0</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">input_inhibitory</span><span class="p">:</span>
+            <span class="n">inh_total</span> <span class="o">=</span> <span class="mi">0</span>
+        
+        <span class="n">n_layers</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">n_branch_layers</span> <span class="o">+</span> <span class="mi">1</span> <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">somatic_synapses</span> <span class="k">else</span> <span class="bp">self</span><span class="o">.</span><span class="n">n_branch_layers</span>
+
+        <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">n_layers</span><span class="p">):</span>
+            <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">somatic_synapses</span> <span class="ow">and</span> <span class="n">i</span> <span class="o">==</span> <span class="n">n_layers</span> <span class="o">-</span> <span class="mi">1</span><span class="p">:</span>
+                <span class="n">layer</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">soma_layer</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="n">layer</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">branch_layers</span><span class="p">[</span><span class="n">i</span><span class="p">]</span>
+
+            <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">input_inhibitory</span><span class="p">:</span>
+                <span class="n">exc</span><span class="p">,</span> <span class="n">inh</span> <span class="o">=</span> <span class="n">layer</span><span class="o">.</span><span class="n">get_pruned_weights</span><span class="p">()</span> <span class="k">if</span> <span class="n">pruned</span> <span class="k">else</span> <span class="n">layer</span><span class="o">.</span><span class="n">get_weights</span><span class="p">()</span>
+
+                <span class="n">inh_chunk</span> <span class="o">=</span> <span class="n">inh</span><span class="o">.</span><span class="n">chunk</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">n_soma</span><span class="p">,</span> <span class="n">dim</span> <span class="o">=</span> <span class="mi">0</span><span class="p">)</span>
+                <span class="n">inh_total</span> <span class="o">=</span> <span class="n">inh_total</span> <span class="o">+</span> <span class="n">torch</span><span class="o">.</span><span class="n">stack</span><span class="p">([</span><span class="n">chunk</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="mi">0</span><span class="p">)</span> <span class="k">for</span> <span class="n">chunk</span> <span class="ow">in</span> <span class="n">inh_chunk</span><span class="p">],</span> <span class="n">dim</span> <span class="o">=</span> <span class="mi">0</span><span class="p">)</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="n">exc</span> <span class="o">=</span> <span class="n">layer</span><span class="o">.</span><span class="n">get_pruned_weights</span><span class="p">()</span> <span class="k">if</span> <span class="n">pruned</span> <span class="k">else</span> <span class="n">layer</span><span class="o">.</span><span class="n">get_weights</span><span class="p">()</span>
+            
+            <span class="n">exc_chunk</span> <span class="o">=</span> <span class="n">exc</span><span class="o">.</span><span class="n">chunk</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">n_soma</span><span class="p">,</span> <span class="n">dim</span> <span class="o">=</span> <span class="mi">0</span><span class="p">)</span>
+            <span class="n">exc_total</span> <span class="o">=</span> <span class="n">exc_total</span> <span class="o">+</span> <span class="n">torch</span><span class="o">.</span><span class="n">stack</span><span class="p">([</span><span class="n">chunk</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="mi">0</span><span class="p">)</span> <span class="k">for</span> <span class="n">chunk</span> <span class="ow">in</span> <span class="n">exc_chunk</span><span class="p">],</span> <span class="n">dim</span> <span class="o">=</span> <span class="mi">0</span><span class="p">)</span>
+
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">input_inhibitory</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">exc_total</span><span class="p">,</span> <span class="n">inh_total</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">exc_total</span></div>
+</div>
+
+
+</pre></div>
+
+           </div>
+          </div>
+          <footer>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright 2024, Research and Engineering at Kempner.</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>

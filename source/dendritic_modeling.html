@@ -73,6 +73,42 @@
 <li class="toctree-l1 current"><a class="current reference internal" href="#">dendritic_modeling package</a><ul>
 <li class="toctree-l2"><a class="reference internal" href="#logging-config-py">logging_config.py</a></li>
 <li class="toctree-l2"><a class="reference internal" href="#dendritic_modeling.logging_config.setup_logging"><code class="docutils literal notranslate"><span class="pre">setup_logging()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="#excitation-inhibition-py">excitation_inhibition.py</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#dendritic_modeling.excitation_inhibition.ExcitationInhibitionLayer"><code class="docutils literal notranslate"><span class="pre">ExcitationInhibitionLayer</span></code></a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#dendritic_modeling.excitation_inhibition.ExcitationInhibitionLayer.forward"><code class="docutils literal notranslate"><span class="pre">ExcitationInhibitionLayer.forward()</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="#dendritic_modeling.excitation_inhibition.ExcitationInhibitionNetwork"><code class="docutils literal notranslate"><span class="pre">ExcitationInhibitionNetwork</span></code></a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#dendritic_modeling.excitation_inhibition.ExcitationInhibitionNetwork.forward"><code class="docutils literal notranslate"><span class="pre">ExcitationInhibitionNetwork.forward()</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="#dendrinet-py">dendrinet.py</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#dendritic_modeling.dendrinet.BlockLinear"><code class="docutils literal notranslate"><span class="pre">BlockLinear</span></code></a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#dendritic_modeling.dendrinet.BlockLinear.forward"><code class="docutils literal notranslate"><span class="pre">BlockLinear.forward()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#dendritic_modeling.dendrinet.BlockLinear.sum_conductances"><code class="docutils literal notranslate"><span class="pre">BlockLinear.sum_conductances()</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="#dendritic_modeling.dendrinet.DendriNet"><code class="docutils literal notranslate"><span class="pre">DendriNet</span></code></a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#dendritic_modeling.dendrinet.DendriNet.forward"><code class="docutils literal notranslate"><span class="pre">DendriNet.forward()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#dendritic_modeling.dendrinet.DendriNet.sum_weights"><code class="docutils literal notranslate"><span class="pre">DendriNet.sum_weights()</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="#dendritic_modeling.dendrinet.DendriticBranchLayer"><code class="docutils literal notranslate"><span class="pre">DendriticBranchLayer</span></code></a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#dendritic_modeling.dendrinet.DendriticBranchLayer.forward"><code class="docutils literal notranslate"><span class="pre">DendriticBranchLayer.forward()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#dendritic_modeling.dendrinet.DendriticBranchLayer.get_mask"><code class="docutils literal notranslate"><span class="pre">DendriticBranchLayer.get_mask()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#dendritic_modeling.dendrinet.DendriticBranchLayer.get_pruned_weights"><code class="docutils literal notranslate"><span class="pre">DendriticBranchLayer.get_pruned_weights()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#dendritic_modeling.dendrinet.DendriticBranchLayer.get_weights"><code class="docutils literal notranslate"><span class="pre">DendriticBranchLayer.get_weights()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#dendritic_modeling.dendrinet.DendriticBranchLayer.reactivation"><code class="docutils literal notranslate"><span class="pre">DendriticBranchLayer.reactivation()</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="#dendritic_modeling.dendrinet.TopKLinear"><code class="docutils literal notranslate"><span class="pre">TopKLinear</span></code></a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#dendritic_modeling.dendrinet.TopKLinear.forward"><code class="docutils literal notranslate"><span class="pre">TopKLinear.forward()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#dendritic_modeling.dendrinet.TopKLinear.pruned_weight"><code class="docutils literal notranslate"><span class="pre">TopKLinear.pruned_weight()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#dendritic_modeling.dendrinet.TopKLinear.weight"><code class="docutils literal notranslate"><span class="pre">TopKLinear.weight()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#dendritic_modeling.dendrinet.TopKLinear.weight_mask"><code class="docutils literal notranslate"><span class="pre">TopKLinear.weight_mask()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#dendritic_modeling.dendrinet.TopKLinear.weighted_synapses"><code class="docutils literal notranslate"><span class="pre">TopKLinear.weighted_synapses()</span></code></a></li>
+</ul>
+</li>
 <li class="toctree-l2"><a class="reference internal" href="#evaluation-py">evaluation.py</a></li>
 <li class="toctree-l2"><a class="reference internal" href="#dendritic_modeling.evaluation.Evaluation"><code class="docutils literal notranslate"><span class="pre">Evaluation</span></code></a><ul>
 <li class="toctree-l3"><a class="reference internal" href="#dendritic_modeling.evaluation.Evaluation.evaluate"><code class="docutils literal notranslate"><span class="pre">Evaluation.evaluate()</span></code></a></li>
@@ -121,6 +157,185 @@ package.</p>
 <dt class="sig sig-object py" id="dendritic_modeling.logging_config.setup_logging">
 <span class="sig-prename descclassname"><span class="pre">dendritic_modeling.logging_config.</span></span><span class="sig-name descname"><span class="pre">setup_logging</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="../_modules/dendritic_modeling/logging_config.html#setup_logging"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#dendritic_modeling.logging_config.setup_logging" title="Link to this definition"></a></dt>
 <dd></dd></dl>
+
+<section id="excitation-inhibition-py">
+<span id="module-dendritic_modeling.excitation_inhibition"></span><h2>excitation_inhibition.py<a class="headerlink" href="#excitation-inhibition-py" title="Link to this heading"></a></h2>
+<p>This module contains the ExcitationInhibitionLayer and
+ExcitationInhibitionNetwork classes.</p>
+</section>
+<dl class="py class">
+<dt class="sig sig-object py" id="dendritic_modeling.excitation_inhibition.ExcitationInhibitionLayer">
+<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">dendritic_modeling.excitation_inhibition.</span></span><span class="sig-name descname"><span class="pre">ExcitationInhibitionLayer</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">n_excitatory_cells</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">n_inhibitory_cells</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">excitatory_branch_factors</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">inhibitory_branch_factors</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">excitatory_input_dim</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">ee_synapses_per_branch</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">ei_synapses_per_branch</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">inhibitory_input_dim</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">ie_synapses_per_branch</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">ii_synapses_per_branch</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">reactivate</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">somatic_synapses</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">True</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/dendritic_modeling/excitation_inhibition.html#ExcitationInhibitionLayer"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#dendritic_modeling.excitation_inhibition.ExcitationInhibitionLayer" title="Link to this definition"></a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">Module</span></code></p>
+<dl class="py method">
+<dt class="sig sig-object py" id="dendritic_modeling.excitation_inhibition.ExcitationInhibitionLayer.forward">
+<span class="sig-name descname"><span class="pre">forward</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">x</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">inhibitory_input</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/dendritic_modeling/excitation_inhibition.html#ExcitationInhibitionLayer.forward"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#dendritic_modeling.excitation_inhibition.ExcitationInhibitionLayer.forward" title="Link to this definition"></a></dt>
+<dd><p>Define the computation performed at every call.</p>
+<p>Should be overridden by all subclasses.</p>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>Although the recipe for forward pass needs to be defined within
+this function, one should call the <code class="xref py py-class docutils literal notranslate"><span class="pre">Module</span></code> instance afterwards
+instead of this since the former takes care of running the
+registered hooks while the latter silently ignores them.</p>
+</div>
+</dd></dl>
+
+</dd></dl>
+
+<dl class="py class">
+<dt class="sig sig-object py" id="dendritic_modeling.excitation_inhibition.ExcitationInhibitionNetwork">
+<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">dendritic_modeling.excitation_inhibition.</span></span><span class="sig-name descname"><span class="pre">ExcitationInhibitionNetwork</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">input_dim</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">excitatory_layer_sizes</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">inhibitory_layer_sizes</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">excitatory_branch_factors</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">inhibitory_branch_factors</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">ee_synapses_per_branch_per_layer</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">ei_synapses_per_branch_per_layer</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">ie_synapses_per_branch_per_layer</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">[]</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">ii_synapses_per_branch_per_layer</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">[]</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">reactivate</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">somatic_synapses</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">True</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/dendritic_modeling/excitation_inhibition.html#ExcitationInhibitionNetwork"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#dendritic_modeling.excitation_inhibition.ExcitationInhibitionNetwork" title="Link to this definition"></a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">Module</span></code></p>
+<dl class="py method">
+<dt class="sig sig-object py" id="dendritic_modeling.excitation_inhibition.ExcitationInhibitionNetwork.forward">
+<span class="sig-name descname"><span class="pre">forward</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">x</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/dendritic_modeling/excitation_inhibition.html#ExcitationInhibitionNetwork.forward"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#dendritic_modeling.excitation_inhibition.ExcitationInhibitionNetwork.forward" title="Link to this definition"></a></dt>
+<dd><p>Define the computation performed at every call.</p>
+<p>Should be overridden by all subclasses.</p>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>Although the recipe for forward pass needs to be defined within
+this function, one should call the <code class="xref py py-class docutils literal notranslate"><span class="pre">Module</span></code> instance afterwards
+instead of this since the former takes care of running the
+registered hooks while the latter silently ignores them.</p>
+</div>
+</dd></dl>
+
+</dd></dl>
+
+<section id="dendrinet-py">
+<span id="module-dendritic_modeling.dendrinet"></span><h2>dendrinet.py<a class="headerlink" href="#dendrinet-py" title="Link to this heading"></a></h2>
+<p>This module contains the DendriNet and DendriticBranchLayer classes.</p>
+</section>
+<dl class="py class">
+<dt class="sig sig-object py" id="dendritic_modeling.dendrinet.BlockLinear">
+<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">dendritic_modeling.dendrinet.</span></span><span class="sig-name descname"><span class="pre">BlockLinear</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">in_features</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">out_features</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">requires_grad</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/dendritic_modeling/dendrinet.html#BlockLinear"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#dendritic_modeling.dendrinet.BlockLinear" title="Link to this definition"></a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">Module</span></code></p>
+<dl class="py method">
+<dt class="sig sig-object py" id="dendritic_modeling.dendrinet.BlockLinear.forward">
+<span class="sig-name descname"><span class="pre">forward</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">x</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/dendritic_modeling/dendrinet.html#BlockLinear.forward"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#dendritic_modeling.dendrinet.BlockLinear.forward" title="Link to this definition"></a></dt>
+<dd><p>Define the computation performed at every call.</p>
+<p>Should be overridden by all subclasses.</p>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>Although the recipe for forward pass needs to be defined within
+this function, one should call the <code class="xref py py-class docutils literal notranslate"><span class="pre">Module</span></code> instance afterwards
+instead of this since the former takes care of running the
+registered hooks while the latter silently ignores them.</p>
+</div>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="dendritic_modeling.dendrinet.BlockLinear.sum_conductances">
+<span class="sig-name descname"><span class="pre">sum_conductances</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="../_modules/dendritic_modeling/dendrinet.html#BlockLinear.sum_conductances"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#dendritic_modeling.dendrinet.BlockLinear.sum_conductances" title="Link to this definition"></a></dt>
+<dd></dd></dl>
+
+</dd></dl>
+
+<dl class="py class">
+<dt class="sig sig-object py" id="dendritic_modeling.dendrinet.DendriNet">
+<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">dendritic_modeling.dendrinet.</span></span><span class="sig-name descname"><span class="pre">DendriNet</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">n_soma</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">branch_factors</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">excitatory_input_dim</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">excitatory_synapses_per_branch</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">inhibitory_input_dim</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">inhibitory_synapses_per_branch</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">reactivate</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">somatic_synapses</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">True</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/dendritic_modeling/dendrinet.html#DendriNet"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#dendritic_modeling.dendrinet.DendriNet" title="Link to this definition"></a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">Module</span></code></p>
+<dl class="py method">
+<dt class="sig sig-object py" id="dendritic_modeling.dendrinet.DendriNet.forward">
+<span class="sig-name descname"><span class="pre">forward</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">x</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">inhibitory_input</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/dendritic_modeling/dendrinet.html#DendriNet.forward"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#dendritic_modeling.dendrinet.DendriNet.forward" title="Link to this definition"></a></dt>
+<dd><p>Define the computation performed at every call.</p>
+<p>Should be overridden by all subclasses.</p>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>Although the recipe for forward pass needs to be defined within
+this function, one should call the <code class="xref py py-class docutils literal notranslate"><span class="pre">Module</span></code> instance afterwards
+instead of this since the former takes care of running the
+registered hooks while the latter silently ignores them.</p>
+</div>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="dendritic_modeling.dendrinet.DendriNet.sum_weights">
+<span class="sig-name descname"><span class="pre">sum_weights</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">pruned</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/dendritic_modeling/dendrinet.html#DendriNet.sum_weights"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#dendritic_modeling.dendrinet.DendriNet.sum_weights" title="Link to this definition"></a></dt>
+<dd></dd></dl>
+
+</dd></dl>
+
+<dl class="py class">
+<dt class="sig sig-object py" id="dendritic_modeling.dendrinet.DendriticBranchLayer">
+<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">dendritic_modeling.dendrinet.</span></span><span class="sig-name descname"><span class="pre">DendriticBranchLayer</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">output_dim</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">excitatory_input_dim</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">excitatory_synapses_per_branch</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">inhibitory_input_dim</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">inhibitory_synapses_per_branch</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">input_branch_factor</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">reactivate</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/dendritic_modeling/dendrinet.html#DendriticBranchLayer"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#dendritic_modeling.dendrinet.DendriticBranchLayer" title="Link to this definition"></a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">Module</span></code></p>
+<dl class="py method">
+<dt class="sig sig-object py" id="dendritic_modeling.dendrinet.DendriticBranchLayer.forward">
+<span class="sig-name descname"><span class="pre">forward</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">x</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">inhibitory_input</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">branch_input</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/dendritic_modeling/dendrinet.html#DendriticBranchLayer.forward"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#dendritic_modeling.dendrinet.DendriticBranchLayer.forward" title="Link to this definition"></a></dt>
+<dd><p>Define the computation performed at every call.</p>
+<p>Should be overridden by all subclasses.</p>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>Although the recipe for forward pass needs to be defined within
+this function, one should call the <code class="xref py py-class docutils literal notranslate"><span class="pre">Module</span></code> instance afterwards
+instead of this since the former takes care of running the
+registered hooks while the latter silently ignores them.</p>
+</div>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="dendritic_modeling.dendrinet.DendriticBranchLayer.get_mask">
+<span class="sig-name descname"><span class="pre">get_mask</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="../_modules/dendritic_modeling/dendrinet.html#DendriticBranchLayer.get_mask"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#dendritic_modeling.dendrinet.DendriticBranchLayer.get_mask" title="Link to this definition"></a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="dendritic_modeling.dendrinet.DendriticBranchLayer.get_pruned_weights">
+<span class="sig-name descname"><span class="pre">get_pruned_weights</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="../_modules/dendritic_modeling/dendrinet.html#DendriticBranchLayer.get_pruned_weights"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#dendritic_modeling.dendrinet.DendriticBranchLayer.get_pruned_weights" title="Link to this definition"></a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="dendritic_modeling.dendrinet.DendriticBranchLayer.get_weights">
+<span class="sig-name descname"><span class="pre">get_weights</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="../_modules/dendritic_modeling/dendrinet.html#DendriticBranchLayer.get_weights"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#dendritic_modeling.dendrinet.DendriticBranchLayer.get_weights" title="Link to this definition"></a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="dendritic_modeling.dendrinet.DendriticBranchLayer.reactivation">
+<span class="sig-name descname"><span class="pre">reactivation</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">V</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/dendritic_modeling/dendrinet.html#DendriticBranchLayer.reactivation"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#dendritic_modeling.dendrinet.DendriticBranchLayer.reactivation" title="Link to this definition"></a></dt>
+<dd></dd></dl>
+
+</dd></dl>
+
+<dl class="py class">
+<dt class="sig sig-object py" id="dendritic_modeling.dendrinet.TopKLinear">
+<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">dendritic_modeling.dendrinet.</span></span><span class="sig-name descname"><span class="pre">TopKLinear</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">in_features</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">out_features</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">K</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">param_space</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'log'</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/dendritic_modeling/dendrinet.html#TopKLinear"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#dendritic_modeling.dendrinet.TopKLinear" title="Link to this definition"></a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">Module</span></code></p>
+<dl class="py method">
+<dt class="sig sig-object py" id="dendritic_modeling.dendrinet.TopKLinear.forward">
+<span class="sig-name descname"><span class="pre">forward</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">x</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/dendritic_modeling/dendrinet.html#TopKLinear.forward"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#dendritic_modeling.dendrinet.TopKLinear.forward" title="Link to this definition"></a></dt>
+<dd><p>Define the computation performed at every call.</p>
+<p>Should be overridden by all subclasses.</p>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>Although the recipe for forward pass needs to be defined within
+this function, one should call the <code class="xref py py-class docutils literal notranslate"><span class="pre">Module</span></code> instance afterwards
+instead of this since the former takes care of running the
+registered hooks while the latter silently ignores them.</p>
+</div>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="dendritic_modeling.dendrinet.TopKLinear.pruned_weight">
+<span class="sig-name descname"><span class="pre">pruned_weight</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="../_modules/dendritic_modeling/dendrinet.html#TopKLinear.pruned_weight"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#dendritic_modeling.dendrinet.TopKLinear.pruned_weight" title="Link to this definition"></a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="dendritic_modeling.dendrinet.TopKLinear.weight">
+<span class="sig-name descname"><span class="pre">weight</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="../_modules/dendritic_modeling/dendrinet.html#TopKLinear.weight"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#dendritic_modeling.dendrinet.TopKLinear.weight" title="Link to this definition"></a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="dendritic_modeling.dendrinet.TopKLinear.weight_mask">
+<span class="sig-name descname"><span class="pre">weight_mask</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="../_modules/dendritic_modeling/dendrinet.html#TopKLinear.weight_mask"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#dendritic_modeling.dendrinet.TopKLinear.weight_mask" title="Link to this definition"></a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="dendritic_modeling.dendrinet.TopKLinear.weighted_synapses">
+<span class="sig-name descname"><span class="pre">weighted_synapses</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">cell_weights</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">prune</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/dendritic_modeling/dendrinet.html#TopKLinear.weighted_synapses"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#dendritic_modeling.dendrinet.TopKLinear.weighted_synapses" title="Link to this definition"></a></dt>
+<dd></dd></dl>
+
+</dd></dl>
 
 <section id="evaluation-py">
 <span id="module-dendritic_modeling.evaluation"></span><h2>evaluation.py<a class="headerlink" href="#evaluation-py" title="Link to this heading"></a></h2>
