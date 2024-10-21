@@ -76,8 +76,11 @@ class BlockLinear(nn.Module):
     def __init__(self, in_features, out_features, requires_grad = False):
         super(BlockLinear, self).__init__()
         # block_size equals number of branches converging onto single branch / soma in next layer???
+
+        assert in_features > 0 and out_features > 0, "in_features and out_features must be greater than 0"
+
         block_size = floor(in_features / out_features)
-        assert(in_features == out_features * block_size)
+        assert(in_features == out_features * block_size), "in_features must be divisible by out_features."
 
         # branches have equal weights (?)
         self.weight = nn.Parameter(torch.ones((out_features, block_size)), requires_grad = requires_grad)
