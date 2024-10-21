@@ -21,6 +21,18 @@ class TopKLinear(nn.Module):
         # make all weights positive
         self.pre_w = nn.Parameter(torch.zeros((out_features, in_features)).uniform_(-2.1,-2), requires_grad = True)
         # assign positive integer attribute K, denoting the number of strongest synapses to keep per dendritic branch
+
+        if not isinstance(K, int):
+            raise TypeError('K must be an integer')
+        
+        if K < 1:
+            raise ValueError('K must be greater than or equal to 1')
+        
+        if K > in_features:
+            raise ValueError(
+                f'K must be less than or equal to the number of input ',
+                f'features. (K = {K}, in_features = {in_features})')
+
         self.K = K
         self.param_space = param_space
     
