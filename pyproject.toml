@@ -17,7 +17,7 @@ classifiers = [
 ]
 
 dependencies = [
-    torch
+    "torch"
 ]
 
 [tool.setuptools]
