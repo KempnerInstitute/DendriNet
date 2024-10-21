@@ -114,8 +114,6 @@ class TestTopKLinear(unittest.TestCase):
         with self.assertRaises(RuntimeError):
             output = model(x)
 
-
-
     def test_param_space_presigmoid(self):
         """Test functionality with param_space set to 'presigmoid'."""
         in_features = 10
