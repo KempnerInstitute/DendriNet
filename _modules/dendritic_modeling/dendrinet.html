@@ -345,9 +345,37 @@
          <span class="n">reactivate</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span> <span class="n">somatic_synapses</span> <span class="o">=</span> <span class="kc">True</span><span class="p">,</span>
     <span class="p">):</span>
         <span class="nb">super</span><span class="p">(</span><span class="n">DendriNet</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="fm">__init__</span><span class="p">()</span>
+        
+        <span class="c1"># n_soma should be a positive integer</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">n_soma</span><span class="p">,</span> <span class="nb">int</span><span class="p">):</span>
+            <span class="k">raise</span> <span class="ne">TypeError</span><span class="p">(</span><span class="s1">&#39;n_soma must be an integer&#39;</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">n_soma</span> <span class="o">&lt;</span> <span class="mi">1</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s1">&#39;n_soma must be greater than or equal to 1&#39;</span><span class="p">)</span>
+        
         <span class="c1"># number of branches in layer closest to soma layer</span>
         <span class="n">layer_sizes</span> <span class="o">=</span> <span class="p">[</span><span class="n">n_soma</span><span class="p">]</span>
         <span class="c1"># number of branches in upstream layers</span>
+
+        <span class="c1"># branch_factors must be integers greater than or equal to 1</span>
+        <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">branch_factors</span><span class="p">)):</span>
+            <span class="k">if</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">branch_factors</span><span class="p">[</span><span class="n">i</span><span class="p">],</span> <span class="nb">int</span><span class="p">):</span>
+                <span class="k">raise</span> <span class="ne">TypeError</span><span class="p">(</span><span class="s1">&#39;branch_factors must be integers&#39;</span><span class="p">)</span>
+            <span class="k">if</span> <span class="n">branch_factors</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="o">&lt;</span> <span class="mi">1</span><span class="p">:</span>
+                <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s1">&#39;branch_factors must be greater than or equal to 1&#39;</span><span class="p">)</span>
+        
+        <span class="c1"># Inhibitory synapses must be positive integers</span>
+        <span class="k">if</span> <span class="n">inhibitory_synapses_per_branch</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="k">if</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">inhibitory_synapses_per_branch</span><span class="p">,</span> <span class="nb">int</span><span class="p">):</span>
+                <span class="k">raise</span> <span class="ne">TypeError</span><span class="p">(</span><span class="s1">&#39;inhibitory_synapses_per_branch must be an integer&#39;</span><span class="p">)</span>
+            <span class="k">if</span> <span class="n">inhibitory_synapses_per_branch</span> <span class="o">&lt;</span> <span class="mi">1</span><span class="p">:</span>
+                <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s1">&#39;inhibitory_synapses_per_branch must be greater than or equal to 1&#39;</span><span class="p">)</span>
+            
+        <span class="c1"># Excitatory synapses must be positive integers</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">excitatory_synapses_per_branch</span><span class="p">,</span> <span class="nb">int</span><span class="p">):</span>
+            <span class="k">raise</span> <span class="ne">TypeError</span><span class="p">(</span><span class="s1">&#39;excitatory_synapses_per_branch must be an integer&#39;</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">excitatory_synapses_per_branch</span> <span class="o">&lt;</span> <span class="mi">1</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s1">&#39;excitatory_synapses_per_branch must be greater than or equal to 1&#39;</span><span class="p">)</span>
+
         <span class="n">branch_factors</span> <span class="o">=</span> <span class="n">deepcopy</span><span class="p">(</span><span class="n">branch_factors</span><span class="p">)</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">n_branch_layers</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">branch_factors</span><span class="p">)</span>
         <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">n_branch_layers</span><span class="p">):</span>
@@ -436,6 +464,7 @@
             <span class="k">return</span> <span class="n">exc_total</span></div>
 </div>
 
+        
 
 </pre></div>
 
