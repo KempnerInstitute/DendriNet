@@ -1,9 +1,8 @@
+import torch
 import torch.nn as nn
 from torch.distributions import Categorical
 
-from dendritic_modeling.dendrinet import *
-from dendritic_modeling.excitation_inhibition import *
-
+from dendritic_modeling.excitation_inhibition import ExcitationInhibitionNetwork, Modulo10_ExcitationInhibitionNetwork
 
 
 class ProbabilisticModel(nn.Module):
@@ -53,9 +52,46 @@ class EINetClassifier(ProbabilisticClassifier):
             ie_synapses_per_branch_per_layer = ie_synapses_per_branch_per_layer, ii_synapses_per_branch_per_layer = ii_synapses_per_branch_per_layer,
             reactivate = reactivate, somatic_synapses = somatic_synapses,
         )
+
+        self.log_output_scale = nn.Parameter(torch.zeros(excitatory_layer_sizes[-1],), requires_grad = True)
+
         self.final = nn.LogSoftmax(dim = -1)
     
     def forward(self, x):
-        return Categorical(logits = self.final(self.net(x)))
+        logits = self.final(self.net(x) * self.log_output_scale.exp())
+        return Categorical(logits = logits)
 
+
+class Modulo10_EINetClassifier(ProbabilisticClassifier):
+
+    def __init__(
+        self, first_layer_excitatory_size, second_layer_excitatory_size,
+        first_layer_inhibitory_size, second_layer_inhibitory_size,
+        first_layer_excitatory_branch_factors, second_layer_excitatory_branch_factors,
+        first_layer_inhibitory_branch_factors, second_layer_inhibitory_branch_factors,
+        first_layer_ee_synapses_per_branch, second_layer_ee_synapses_per_branch,
+        first_layer_ei_synapses_per_branch, second_layer_ei_synapses_per_branch,
+        first_layer_ie_synapses_per_branch, second_layer_ie_synapses_per_branch,
+        second_layer_ii_synapses_per_branch, reactivate, somatic_synapses,
+    ):
+        super(Modulo10_EINetClassifier, self).__init__()
+
+        self.net = Modulo10_ExcitationInhibitionNetwork(
+            first_layer_excitatory_size = first_layer_excitatory_size, second_layer_excitatory_size = second_layer_excitatory_size,
+            first_layer_inhibitory_size = first_layer_inhibitory_size, second_layer_inhibitory_size = second_layer_inhibitory_size,
+            first_layer_excitatory_branch_factors = first_layer_excitatory_branch_factors, second_layer_excitatory_branch_factors = second_layer_excitatory_branch_factors,
+            first_layer_inhibitory_branch_factors = first_layer_inhibitory_branch_factors, second_layer_inhibitory_branch_factors = second_layer_inhibitory_branch_factors,
+            first_layer_ee_synapses_per_branch = first_layer_ee_synapses_per_branch, second_layer_ee_synapses_per_branch = second_layer_ee_synapses_per_branch,
+            first_layer_ei_synapses_per_branch = first_layer_ei_synapses_per_branch, second_layer_ei_synapses_per_branch = second_layer_ei_synapses_per_branch,
+            first_layer_ie_synapses_per_branch = first_layer_ie_synapses_per_branch, second_layer_ie_synapses_per_branch = second_layer_ie_synapses_per_branch,
+            second_layer_ii_synapses_per_branch = second_layer_ii_synapses_per_branch, reactivate = reactivate, somatic_synapses = somatic_synapses, 
+        )
+
+        self.log_output_scale = nn.Parameter(torch.zeros((second_layer_excitatory_size,)), requires_grad = True)
+
+        self.final = nn.LogSoftmax(dim = -1)
+    
+    def forward(self, x):
+        logits = self.final(self.net(x) * self.log_output_scale.exp())
+        return Categorical(logits = logits)
 

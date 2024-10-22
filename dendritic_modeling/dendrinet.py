@@ -8,16 +8,17 @@ from math import floor
 
 # custom linear layer which only uses the strongest K synaptic weights from in_features 
 class TopKLinear(nn.Module):
-    def __init__(
-            self, in_features, out_features, K, param_space = 'log',
-            ):    
+    def __init__(self, in_features, out_features, K, param_space = 'log'):    
         # initialize super Linear layer
         super(TopKLinear, self).__init__()
         # make all weights positive
-        self.pre_w = nn.Parameter(torch.zeros((out_features, in_features)).uniform_(-2.1,-2), requires_grad = True)
+        self.pre_w = nn.Parameter(torch.empty((out_features, in_features)), requires_grad = True)
         # assign positive integer attribute K, denoting the number of strongest synapses to keep per dendritic branch
         self.K = K
         self.param_space = param_space
+    
+    def initialize(self):
+        nn.init.xavier_normal_(self.pre_w)
     
     def forward(self, x):
         # identify top K strongest synaptic connections onto each dendritic branch
@@ -28,8 +29,11 @@ class TopKLinear(nn.Module):
     def weight(self):
         if self.param_space == 'log':
             return self.pre_w.exp()
-        elif self.param_space == 'presigmoid':
+        elif self.param_space == 'sigmoid':
             return torch.sigmoid(self.pre_w)
+    
+    def log_weight(self):
+        return self.weight().log()
 
     def weight_mask(self):
         topK_indices = torch.topk(self.pre_w, self.K, dim = -1, largest = True, sorted = False)[1]
@@ -43,6 +47,9 @@ class TopKLinear(nn.Module):
     def pruned_weight(self):
         # apply mask to weight matrix for manual pruning effect
         return self.weight_mask() * self.weight()
+    
+    def log_pruned_weight(self):
+        return ((self.weight_mask() - 1) * 2) + self.log_weight()
     
     def weighted_synapses(self, cell_weights, prune = False):
         if prune:
@@ -58,35 +65,38 @@ class TopKLinear(nn.Module):
 class BlockLinear(nn.Module):
     def __init__(self, in_features, out_features, requires_grad = False):
         super(BlockLinear, self).__init__()
-        # block_size equals number of branches converging onto single branch / soma in next layer???
+        # block_size equals number of branches converging onto single branch / soma in next layer
         block_size = floor(in_features / out_features)
         assert(in_features == out_features * block_size)
 
         # branches have equal weights (?)
-        self.weight = nn.Parameter(torch.ones((out_features, block_size)), requires_grad = requires_grad)
+        self.log_weight = nn.Parameter(torch.empty((out_features, block_size)), requires_grad = requires_grad)
 
         self.in_features = in_features
         self.out_features = out_features
         self.block_size = block_size
+
+    def initialize(self, sum_synapse_conductance):
+        self.log_weight.data = sum_synapse_conductance.log()[:,None].expand(*self.log_weight.shape).clone()
         
     def forward(self, x):
         # initialize sparse matrix
         block = torch.zeros(
             (self.out_features, self.in_features),
-            device = self.weight.device, dtype = self.weight.dtype,
+            device = self.log_weight.device, dtype = self.log_weight.dtype,
         )
         # get row and column indices for sparse matrix which should contain non-zero weights
         row_ix = torch.arange(
-            self.out_features, device = self.weight.device)[:,None]
+            self.out_features, device = self.log_weight.device)[:,None]
         col_ix = torch.arange(
-            self.in_features, device = self.weight.device).view(self.out_features, self.block_size)
+            self.in_features, device = self.log_weight.device).view(self.out_features, self.block_size)
         # assign weights to appropriate locations in sparse matrix
-        block[row_ix, col_ix] = self.weight
+        block[row_ix, col_ix] = self.log_weight.exp()
         # matrix multiply inputs and sparse matrix
         return torch.mm(x, block.t())
     
     def sum_conductances(self):
-        sum_g = self.weight.data.sum(dim = 1)
+        sum_g = self.log_weight.exp().sum(dim = 1)
         return sum_g
 
 
@@ -111,13 +121,30 @@ class DendriticBranchLayer(nn.Module):
         if self.input_branches:
             # module for aggregating information from converging branches
             self.branches_to_output = BlockLinear(
-                output_dim*input_branch_factor, output_dim, requires_grad = False,
+                output_dim*input_branch_factor, output_dim, requires_grad = True,
             )
-
+        # if using branch reactivation
         if reactivate:
-            self.presigmoid_Vth = nn.Parameter(torch.zeros((output_dim,)).uniform_(-2,-2), requires_grad = True)
-            self.log_alpha_max = nn.Parameter(torch.zeros((output_dim,)), requires_grad = True)
+            self.log_m = nn.Parameter(torch.empty((output_dim,)), requires_grad = True)
+            self.log_b = nn.Parameter(torch.empty((output_dim,)), requires_grad = True)
         self.reactivate = reactivate
+
+        self.initialize()
+
+    def initialize(self):
+        self.branch_excitation.initialize()
+        if self.input_inhibitory:
+            self.branch_inhibition.initialize()
+
+        if self.input_branches:
+            sum_synapse_conductance = self.branch_excitation.pruned_weight().data.sum(dim = 1)
+            if self.input_inhibitory:
+                sum_synapse_conductance += self.branch_inhibition.pruned_weight().data.sum(dim = 1)
+            self.branches_to_output.initialize(sum_synapse_conductance)
+        
+        if self.reactivate:
+            nn.init.zeros_(self.log_m)
+            nn.init.zeros_(self.log_b)
     
     def forward(self, x, inhibitory_input = None, branch_input = None):
         # compute excitation and inhibition along each branch in layer
@@ -141,23 +168,20 @@ class DendriticBranchLayer(nn.Module):
         return self.reactivation(voltage) if self.reactivate else voltage
 
     def reactivation(self, V):
-        # threshold potential
-        Vth = torch.sigmoid(self.presigmoid_Vth)
-        # difference between membrane potential and threshold potential
-        V_diff = V - Vth
-        # scalar of V_diff to produce firing rate
-        alpha = self.log_alpha_max.exp() * V_diff
-        # compute firing rate
-        rate = alpha * V_diff
-        # rate = 0 where membrane potential is less than threshold potential
-        rate = torch.where(V_diff < 0, 0, rate)
-        return rate
+        m, b = self.log_m.exp(), self.log_b.exp()
+        return (torch.tanh(m * V - b) + 1) / 2
     
     def get_weights(self):
         if self.input_inhibitory:
             return self.branch_excitation.weight(), self.branch_inhibition.weight()
         else:
             return self.branch_excitation.weight()
+        
+    def get_log_weights(self):
+        if self.input_inhibitory:
+            return self.branch_excitation.log_weight(), self.branch_inhibition.log_weight()
+        else:
+            return self.branch_excitation.log_weight()
 
     def get_mask(self):
         if self.input_inhibitory:
@@ -170,6 +194,12 @@ class DendriticBranchLayer(nn.Module):
             return self.branch_excitation.pruned_weight(), self.branch_inhibition.pruned_weight()
         else:
             return self.branch_excitation.pruned_weight()
+    
+    def get_log_pruned_weights(self):
+        if self.input_inhibitory:
+            return self.branch_excitation.log_pruned_weight(), self.branch_inhibition.log_pruned_weight()
+        else:
+            return self.branch_excitation.log_pruned_weight()
 
 
 # emulates branching dendritic tree strctures into an artficial neural network analogous to the MLP 
@@ -199,7 +229,7 @@ class DendriNet(nn.Module):
                 output_dim = layer_sizes[i], 
                 excitatory_input_dim = excitatory_input_dim, excitatory_synapses_per_branch = excitatory_synapses_per_branch,
                 inhibitory_input_dim = inhibitory_input_dim, inhibitory_synapses_per_branch = inhibitory_synapses_per_branch, 
-                input_branch_factor = branch_factors[i], reactivate = False,
+                input_branch_factor = branch_factors[i], reactivate = reactivate,
             ))
         # wrap list of branch layers in ModuleList
         self.branch_layers = nn.ModuleList(branch_layers)
@@ -212,7 +242,7 @@ class DendriNet(nn.Module):
                 input_branch_factor = branch_factors[-1], reactivate = True,
             )
         else:
-            self.soma_layer = BlockLinear(layer_sizes[-2], n_soma, distance = 0, requires_grad = False)
+            self.soma_layer = BlockLinear(layer_sizes[-2], n_soma, requires_grad = True)
         # assign necessary class attributes
         self.input_inhibitory = inhibitory_input_dim is not None
         self.n_soma = n_soma
@@ -233,7 +263,6 @@ class DendriNet(nn.Module):
         else:
             output = self.soma_layer(output)
         # return output
-        #return torch.sigmoid(output)
         return output
     
     def sum_weights(self, pruned = False):
@@ -264,4 +293,12 @@ class DendriNet(nn.Module):
             return exc_total, inh_total
         else:
             return exc_total
+    
+    def log_sum_weights(self, pruned = False):
+        if self.input_inhibitory:
+            exc_total, inh_total = self.sum_weights(pruned = pruned)
+            return (exc_total + 0.5).log(), (inh_total + 1e-1).log()
+        else:
+            exc_total = self.sum_weights(pruned = pruned)
+            return (exc_total + 0.5).log()
 

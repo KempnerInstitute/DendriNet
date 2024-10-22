@@ -1,6 +1,6 @@
-from dendritic_modeling.util import load_MNIST, Shaper, split_MNIST_inputs
-from dendritic_modeling.models import *
-from dendritic_modeling.plotting import *
+from dendritic_modeling.util import Shaper, load_MNIST, load_MNIST_modulo10, split_MNIST_inputs
+from dendritic_modeling.models import EINetClassifier, Modulo10_EINetClassifier
+from dendritic_modeling.plotting import plot_einet_params, plot_eng_mod10_einet_params, plot_einet_activations, einet_activations_to_csv
 
 import torch
 
@@ -11,7 +11,7 @@ print('imports completed.....', flush = True)
 
 if __name__ == '__main__':
 
-    trained_name = 'test5'
+    trained_name = 'name'
 
     make_csv = False
     
@@ -22,7 +22,7 @@ if __name__ == '__main__':
         hparams = json.load(f)
 
     clf = EINetClassifier(**hparams)
-    clf.load_state_dict(torch.load(os.path.join(trained_path, 'state_dict.pt'), weights_only = True))
+    clf.load_state_dict(torch.load(os.path.join(trained_path, 'state_dict.pt'), weights_only = False))
 
     shaper = Shaper(shape = (28,28))
 

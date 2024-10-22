@@ -17,31 +17,28 @@ if __name__ == '__main__':
         'input_dim' : 784,# * 2,
         'excitatory_layer_sizes' : [10,],
         'inhibitory_layer_sizes' : [20,],
-        'excitatory_branch_factors' : [12,],
+        'excitatory_branch_factors' : [2,2,2],
         'inhibitory_branch_factors' : [],
+        'ee_synapses_per_branch_per_layer' : [24,],
+        'ei_synapses_per_branch_per_layer' : [100,],
+        'ie_synapses_per_branch_per_layer' : [2,],
+        'ii_synapses_per_branch_per_layer' : [],
         'reactivate' : True,
         'somatic_synapses' : True,
     }
 
-    model_hp['ee_synapses_per_branch_per_layer'] = [24,]
-    model_hp['ei_synapses_per_branch_per_layer'] = [100,]
-    model_hp['ie_synapses_per_branch_per_layer'] = [1,]
-    model_hp['ii_synapses_per_branch_per_layer'] = []
-
     train_hp = {
         'train_valid_split' : 0.8,
         'lr' : 1e-3,
-        'epochs' : 300,
+        'epochs' : 500,
         'batch_size' : 512,
     }
 
     print('loading mnist.....\n', flush = True)
-    # data = load_MNIST_modulo10(shuffle_iterations = 5, train_valid_split  = 0.8)
     data = load_MNIST(train_valid_split = train_hp['train_valid_split'])
 
     clf = EINetClassifier(**model_hp)
     
-
     trainer = TrainerMLE(
         optimizer = torch.optim.Adam(clf.parameters(), lr = train_hp['lr']),
         suppress_prints = False, print_every = 10,
