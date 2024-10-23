@@ -7,8 +7,8 @@ This module contains the neural network models for the dendritic_modeling.
 import torch.nn as nn
 from torch.distributions import Categorical
 
-from dendritic_modeling.dendrinet import *
-from dendritic_modeling.excitation_inhibition import *
+# from dendritic_modeling.dendrinet import DendriNet
+from dendritic_modeling.excitation_inhibition import ExcitationInhibitionNetwork
 
 
 
@@ -42,6 +42,85 @@ class ProbabilisticRegressor(ProbabilisticModel):
 
 
 class EINetClassifier(ProbabilisticClassifier):
+    """
+    A probabilistic classifier based on an Excitation-Inhibition Network (EINet) 
+    architecture.
+
+    This classifier utilizes an underlying `ExcitationInhibitionNetwork` to 
+    model complex interactions between excitatory and inhibitory neurons for 
+    classification tasks.
+
+    Parameters
+    ----------
+    input_dim : int
+        The dimensionality of the input features.
+
+    excitatory_layer_sizes : list of int
+        A list specifying the number of excitatory neurons in each excitatory
+        layer.
+
+    inhibitory_layer_sizes : list of int
+        A list specifying the number of inhibitory neurons in each inhibitory 
+        layer.
+
+    excitatory_branch_factors : list of int
+        Branching factors for excitatory neurons at each layer, determining 
+        how they branch out to the next layer.
+
+    inhibitory_branch_factors : list of int
+        Branching factors for inhibitory neurons at each layer, determining
+        how they branch out to the next layer.
+
+    ee_synapses_per_branch_per_layer : list of int
+        Number of excitatory-to-excitatory synapses per branch at each layer.
+
+    ei_synapses_per_branch_per_layer : list of int
+        Number of excitatory-to-inhibitory synapses per branch at each layer.
+
+    ie_synapses_per_branch_per_layer : list of int
+        Number of inhibitory-to-excitatory synapses per branch at each layer.
+
+    ii_synapses_per_branch_per_layer : list of int, optional
+        Number of inhibitory-to-inhibitory synapses per branch at each layer. 
+        Defaults to an empty list `[]`.
+
+    reactivate : bool, optional
+        If `True`, applies a reactivation function simulating neuronal firing
+        at the soma layer. Defaults to `False`.
+
+    somatic_synapses : bool, optional
+        If `True`, includes direct synaptic inputs to the soma layer. Defaults 
+        to `True`.
+
+    Methods
+    -------
+    forward(x)
+        Performs a forward pass through the network and returns a categorical 
+        distribution over the classes.
+
+    Examples
+    --------
+    
+    >>> import torch
+    >>> classifier = EINetClassifier(
+    ...     input_dim=784,
+    ...     excitatory_layer_sizes=[10,],
+    ...     inhibitory_layer_sizes=[20,],
+    ...     excitatory_branch_factors=[24,],
+    ...     inhibitory_branch_factors=[],
+    ...     ee_synapses_per_branch_per_layer=[24,],
+    ...     ei_synapses_per_branch_per_layer=[100,],
+    ...     ie_synapses_per_branch_per_layer=[1,],
+    ...     ii_synapses_per_branch_per_layer=[],
+    ...     reactivate=True,
+    ...     somatic_synapses=True,
+    ... )
+    >>> x = torch.randn(10, 784)  # Batch of 10 samples with 784 features
+    >>> output = classifier.forward(x)
+    >>> predicted_classes = output.sample()
+    >>> print(predicted_classes.shape)
+    torch.Size([10])
+    """
 
     def __init__(
         self, input_dim, excitatory_layer_sizes, inhibitory_layer_sizes,
