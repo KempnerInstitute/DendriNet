@@ -37,7 +37,7 @@ class ExcitationInhibitionLayer(nn.Module):
         The branching factor for inhibitory neurons.
 
     excitatory_input_dim : int
-        The number of input features for excitatory neurons.
+        The number of excitatory inputs to the ExcitationInhibitionLayer.
 
     ee_synapses_per_branch : int
         The number of excitatory-to-excitatory synapses per branch.
@@ -46,12 +46,12 @@ class ExcitationInhibitionLayer(nn.Module):
         The number of excitatory-to-inhibitory synapses per branch.
 
     inhibitory_input_dim : int, optional
-        The number of input features for inhibitory neurons. Defaults to `None`.
+        The number of inhibitory inputs to the ExcitationInhibitionLayer. 
+        Defaults to `None`.
 
-    ie_synapses_per_branch : int, optional
-        The number of inhibitory-to-excitatory synapses per branch. Defaults to
-        `None`.
-
+    ie_synapses_per_branch : int
+        The number of inhibitory-to-excitatory synapses per branch. 
+        
     ii_synapses_per_branch : int, optional
         The number of inhibitory-to-inhibitory synapses per branch. Defaults to
         `None`.
