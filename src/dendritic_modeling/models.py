@@ -7,8 +7,7 @@ This module contains the neural network models for the dendritic_modeling.
 import torch.nn as nn
 from torch.distributions import Categorical
 
-from dendritic_modeling.dendrinet import *
-from dendritic_modeling.excitation_inhibition import *
+from dendritic_modeling.excitation_inhibition import ExcitationInhibitionNetwork
 
 
 
