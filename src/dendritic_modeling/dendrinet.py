@@ -11,8 +11,86 @@ import torch
 import torch.nn as nn
 
 
-# custom linear layer which only uses the strongest K synaptic weights from in_features 
+# custom linear layer which only uses the strongest K synaptic weights from 
+# in_features 
 class TopKLinear(nn.Module):
+    """
+    A linear layer that retains only the top K strongest synaptic connections 
+    per output neuron.
+
+    This module implements a linear transformation with weights constrained to 
+    be positive. For each output neuron, only the top K weights are kept 
+    (pruned), and the rest are set to zero. This simulates a neuron receiving 
+    inputs only from its strongest synaptic connections.
+
+    Parameters
+    ----------
+
+    in_features : int
+        The number of input features.
+    
+    out_features : int
+        The number of output features.
+
+    K : int
+        The number of strongest synapses to keep per dendritic branch.
+
+    param_space : str, optional
+        The parameter space for the weights. Options are 'log' and 'presigmoid'.
+        If `'log'`, the weights are parameterized as exponentials of `pre_w`.
+        If `'presigmoid'`, the weights are parameterized as sigmoids of `pre_w`.
+        Defaults to 'log'.
+    
+    Attributes
+    ----------
+
+    pre_w : torch.nn.Parameter
+        The raw weights before applying the exponential or sigmoid 
+        transformation. Initialized with small negative values to ensure 
+        positive weights after transformation.
+
+    K : int
+        The number of strongest synapses to keep per dendritic branch.
+
+    param_space : str
+        The parameter space for the weights.
+
+    Methods
+    -------
+
+    forward(x)
+        Performs a forward pass through the layer.
+
+    weight()
+        Returns the transformed synaptic weights after applying the exponential 
+        or sigmoid.
+    
+    weight_mask()
+        Returns a mask tensor indicating the top K synaptic connections per 
+        output neuron.
+
+    pruned_weight()
+        Returns the pruned synaptic weights after applying the mask.
+
+    weighted_synapses(cell_weights, prune=False)
+        Returns the weighted synapses for a given set of cell
+
+    Notes
+    -----
+    - All weights are constrained to be positive.
+    - The prunning is done dynamically during the forward pass.
+
+    Examples
+    --------
+
+    >>> import torch
+    >>> from torch import nn
+    >>> topk_linear = TopKLinear(in_features=10, out_features=5, K=3)
+    >>> x = torch.randn(4, 10)  # Batch of 4 samples
+    >>> output = topk_linear(x)
+    >>> print(output.shape)
+    torch.Size([4, 5])
+    """
     def __init__(
             self, in_features, out_features, K, param_space = 'log',
             ):    
@@ -73,6 +151,47 @@ class TopKLinear(nn.Module):
 
 # custom linear layer aggregating information from converging branches in previous branch layer
 class BlockLinear(nn.Module):
+    """
+    A custom linear layer that aggregates information from converging branches 
+    in a previous branch layer.
+
+    Parameters
+    ----------
+
+    in_features : int
+        The number of input features.
+    
+    out_features : int
+        The number of output features.
+
+    requires_grad : bool, optional
+        If `True`, the weights are trainable. Defaults to `False`.
+
+    Attributes
+    ----------
+
+    weight : torch.nn.Parameter
+        The weights for the linear transformation.
+
+    in_features : int
+        The number of input features.
+
+    out_features : int
+        The number of output features.
+
+    block_size : int
+        The number of branches converging onto a single branch.
+
+    Methods
+    -------
+
+    forward(x)
+        Performs a forward pass through the layer.
+
+    sum_conductances()
+        Returns the sum of conductances for each output neuron.
+
+    """
     def __init__(self, in_features, out_features, requires_grad = False):
         super(BlockLinear, self).__init__()
         # block_size equals number of branches converging onto single branch / soma in next layer???
@@ -112,6 +231,77 @@ class BlockLinear(nn.Module):
 
 # emulates dendritic computation along a layer of branches (equally distant from soma)
 class DendriticBranchLayer(nn.Module):
+    """
+    Emulates dendritic computation along a layer of branches (equally distant
+    from soma).
+
+    This layer models the interaction between excitatory and inhibitory inputs, 
+    simulating dendritic processing in biological neurons. It aggregates 
+    information from converging branches in the previous layer and optionally 
+    incorporates inhibitory modulation and reactivation dynamics.
+
+    Parameters
+    ----------
+    output_dim : int
+        The number of output features.
+
+    excitatory_input_dim : int
+        The number of input features for excitatory cells.
+
+    excitatory_synapses_per_branch : int
+        The number of excitatory synapses per branch.
+
+    inhibitory_input_dim : int, optional
+        The number of input features for inhibitory cells. Defaults to `None`.
+
+    inhibitory_synapses_per_branch : int, optional
+        The number of inhibitory synapses per branch. Defaults to `None`.
+
+    input_branch_factor : int, optional
+        The number of branches converging onto a single branch. Defaults to 
+        `None`.
+
+    reactivate : bool, optional
+        If `True`, applies a reactivation function simulating neuronal firing 
+        at the soma layer. Defaults to `False`.
+
+    Attributes
+    ----------
+
+    branch_excitation : TopKLinear
+        The module for computing excitation along branches in the layer.
+
+    branch_inhibition : TopKLinear
+        The module for computing inhibition along branches in the layer.
+
+    branches_to_output : BlockLinear
+        The module for aggregating information from converging branches.
+
+    reactivate : bool
+        If `True`, applies a reactivation function simulating neuronal firing
+        at the soma layer.
+
+
+    Methods
+    -------
+
+    forward(x, inhibitory_input=None, branch_input=None)
+        Performs a forward pass through the layer.
+
+    reactivation(V)
+        Applies a reactivation function to the membrane potential.
+
+    get_weights()
+        Returns the synaptic weights for the excitatory and inhibitory inputs.
+
+    get_mask()
+        Returns the mask for the synaptic weights for the excitatory and
+        inhibitory inputs.
+
+    get_pruned_weights()
+        Returns the pruned synaptic weights for the excitatory and inhibitory
+        inputs.
+    """
     def __init__(
         self, output_dim, excitatory_input_dim, excitatory_synapses_per_branch,
         inhibitory_input_dim = None, inhibitory_synapses_per_branch = None, 
@@ -194,6 +384,77 @@ class DendriticBranchLayer(nn.Module):
 
 # emulates branching dendritic tree strctures into an artficial neural network analogous to the MLP 
 class DendriNet(nn.Module):
+    """
+    Emulates branching dendritic tree structures into an artificial neural 
+    network analogous to the MLP.
+
+    This network models the complex interactions between excitatory and 
+    inhibitory inputs across multiple dendritic branches, simulating dendritic 
+    processing in biological neurons.
+
+    Parameters
+    ----------
+    n_soma : int
+        The number of soma neurons in the network. Must be positive integer.
+
+    branch_factors : list of int
+        The branching factors for each layer of branches. Each element in the 
+        list must be a positive integer.
+
+    excitatory_input_dim : int
+        The number of input features for excitatory cells.
+    
+    excitatory_synapses_per_branch : int
+        The number of excitatory synapses per branch.
+
+    inhibitory_input_dim : int, optional
+        The number of input features for inhibitory cells. Defaults to `None`.
+
+    inhibitory_synapses_per_branch : int, optional 
+        The number of inhibitory synapses per branch. Defaults to `None`.
+
+    reactivate : bool, optional
+        If `True`, applies a reactivation function simulating neuronal firing 
+        at the soma layer. Defaults to `False`.
+    
+    somatic_synapses : bool, optional
+        If `True`, includes direct synaptic inputs to the soma layer. Defaults 
+        to `True`.
+    
+    Attributes
+    ----------
+    branch_layers : torch.nn.ModuleList
+        The list of branch layers in the network.
+
+    soma_layer : DendriticBranchLayer
+        The layer representing the soma neurons.
+
+    input_inhibitory : bool
+        If `True`, the network receives inputs from inhibitory cells.
+
+    n_soma : int
+        The number of soma neurons in the network.
+    
+    reactivate : bool
+        If `True`, applies a reactivation function simulating neuronal firing 
+        at the soma layer.
+
+    somatic_synapses : bool
+        If `True`, includes direct synaptic inputs to the soma layer.
+
+    layer_sizes : list of int
+        The number of branches in each layer of the network.
+
+    Methods
+    -------
+
+    forward(x, inhibitory_input=None)
+        Performs a forward pass through the network.
+
+    sum_weights(pruned=False)
+        Returns the sum of synaptic weights for excitatory and inhibitory 
+        inputs.
+    """
     def __init__(
         self, n_soma, branch_factors, excitatory_input_dim, excitatory_synapses_per_branch,
         inhibitory_input_dim = None, inhibitory_synapses_per_branch = None,
