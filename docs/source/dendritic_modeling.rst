@@ -1,6 +1,11 @@
 dendritic_modeling package
 ==========================
 
+.. automodule:: dendritic_modeling.models
+   :members:
+   :exclude-members: forward
+   :show-inheritance:
+
 .. automodule:: dendritic_modeling.utils
    :members:
    :undoc-members:
