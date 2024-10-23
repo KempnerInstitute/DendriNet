@@ -15,12 +15,11 @@ import torch.nn as nn
 # in_features 
 class TopKLinear(nn.Module):
     """
-    A linear layer that retains only the top K strongest synaptic connections 
-    per output neuron.
+    A linear layer that retains only the top K strongest synaptic weights.
 
     This module implements a linear transformation with weights constrained to 
     be positive. For each output neuron, only the top K weights are kept 
-    (pruned), and the rest are set to zero. This simulates a neuron receiving 
+    , and the rest are set to zero. This simulates a neuron receiving 
     inputs only from its strongest synaptic connections.
 
     Parameters
@@ -246,13 +245,13 @@ class DendriticBranchLayer(nn.Module):
         The number of output features.
 
     excitatory_input_dim : int
-        The number of input features for excitatory cells.
+        The number of input features from excitatory cells.
 
     excitatory_synapses_per_branch : int
         The number of excitatory synapses per branch.
 
     inhibitory_input_dim : int, optional
-        The number of input features for inhibitory cells. Defaults to `None`.
+        The number of input features from inhibitory cells. Defaults to `None`.
 
     inhibitory_synapses_per_branch : int, optional
         The number of inhibitory synapses per branch. Defaults to `None`.
@@ -262,8 +261,8 @@ class DendriticBranchLayer(nn.Module):
         `None`.
 
     reactivate : bool, optional
-        If `True`, applies a reactivation function simulating neuronal firing 
-        at the soma layer. Defaults to `False`.
+        If `True`, applies a reactivation function simulating dendritic/somatic 
+        spiking behavior. Defaults to `False`.
 
     Attributes
     ----------
@@ -385,8 +384,8 @@ class DendriticBranchLayer(nn.Module):
 # emulates branching dendritic tree strctures into an artficial neural network analogous to the MLP 
 class DendriNet(nn.Module):
     """
-    Emulates branching dendritic tree structures into an artificial neural 
-    network analogous to the MLP.
+    Generates a linear layer of neurons, each of which consists of a sequential 
+    structure of dendrtic branches and inhibitory/excitatory inputs.
 
     This network models the complex interactions between excitatory and 
     inhibitory inputs across multiple dendritic branches, simulating dendritic 
@@ -402,13 +401,13 @@ class DendriNet(nn.Module):
         list must be a positive integer.
 
     excitatory_input_dim : int
-        The number of input features for excitatory cells.
+        The dimensionality of the excitatory inputs.
     
     excitatory_synapses_per_branch : int
         The number of excitatory synapses per branch.
 
     inhibitory_input_dim : int, optional
-        The number of input features for inhibitory cells. Defaults to `None`.
+        The dimensionality of the inhibitory inputs. Defaults to `None`.
 
     inhibitory_synapses_per_branch : int, optional 
         The number of inhibitory synapses per branch. Defaults to `None`.
