@@ -12,9 +12,9 @@ from dendritic_modeling.excitation_inhibition import ExcitationInhibitionNetwork
 
 class ProbabilisticModel(nn.Module):
     """
-    A base class for probabilistic models, inheriting from `torch.nn.Module`. 
-    This class is designed to represent models that return a probability 
-    distribution over outcomes.
+    This class is designed to represent models that return a conditional 
+    probability distribution of observing labels given their corresponding 
+    inputs.
     
     Methods
     -------
@@ -119,12 +119,10 @@ class EINetClassifier(ProbabilisticClassifier):
         The dimensionality of the input features.
 
     excitatory_layer_sizes : list of int
-        A list specifying the number of excitatory neurons in each excitatory
-        layer.
+        A list specifying the number of excitatory neurons in each layer.
 
     inhibitory_layer_sizes : list of int
-        A list specifying the number of inhibitory neurons in each inhibitory 
-        layer.
+       A list specifying the number of inhibitory neurons in each layer.
 
     excitatory_branch_factors : list of int
         Branching factors for excitatory neurons at each layer, determining 
@@ -148,8 +146,8 @@ class EINetClassifier(ProbabilisticClassifier):
         Defaults to an empty list `[]`.
 
     reactivate : bool, optional
-        If `True`, applies a reactivation function simulating neuronal firing
-        at the soma layer. Defaults to `False`.
+        If True, applies a reactivation function simulating dendritic/somatic 
+        spiking behavior. Defaults to `False`.
 
     somatic_synapses : bool, optional
         If `True`, includes direct synaptic inputs to the soma layer. Defaults 
