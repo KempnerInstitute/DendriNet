@@ -57,8 +57,8 @@ class ExcitationInhibitionLayer(nn.Module):
         `None`.
     
     reactivate : bool, optional
-        If `True`, applies a reactivation function simulating neuronal firing
-        at the soma layer. Defaults to `False`.
+        If `True`, applies a reactivation function simulating dendritic/somatic 
+        spiking behavior. Defaults to `False`.
 
     somatic_synapses : bool, optional
         If `True`, includes direct synaptic inputs to the soma layer. Defaults 
@@ -119,7 +119,8 @@ class ExcitationInhibitionLayer(nn.Module):
 
 class ExcitationInhibitionNetwork(nn.Module):
     """
-    A neural network module implementing an excitation-inhibition architecture.
+    A neural network module implementing an excitation-inhibition multilayer 
+    architecture.
 
     This class constructs a network composed of TBD
 
@@ -141,22 +142,24 @@ class ExcitationInhibitionNetwork(nn.Module):
         The branching factor for inhibitory neurons at each layer.
 
     ee_synapses_per_branch_per_layer : list of int
-        The number of excitatory-to-excitatory synapses per branch at each layer.
+        The number of excitatory-to-excitatory synapses per branch at each 
+        layer.
 
     ei_synapses_per_branch_per_layer : list of int
-        The number of excitatory-to-inhibitory synapses per branch at each layer.
+        The number of excitatory-to-inhibitory synapses per branch at each 
+        layer.
 
-    ie_synapses_per_branch_per_layer : list of int, optional
-        The number of inhibitory-to-excitatory synapses per branch at each layer.
-        Defaults to an empty list `[]`.
+    ie_synapses_per_branch_per_layer : list of int
+        The number of inhibitory-to-excitatory synapses per branch at each 
+        layer.
     
     ii_synapses_per_branch_per_layer : list of int, optional
-        The number of inhibitory-to-inhibitory synapses per branch at each layer.
-        Defaults to an empty list `[]`.
+        The number of inhibitory-to-inhibitory synapses per branch at each 
+        layer. Defaults to an empty list `[]`.
     
     reactivate : bool, optional
-        If `True`, applies a reactivation function simulating neuronal firing
-        at the soma layer. Defaults to `False`.
+        If `True`, applies a reactivation function simulating dendritic/somatic 
+        spiking behavior. Defaults to `False`.
     
     somatic_synapses : bool, optional
         If `True`, includes direct synaptic inputs to the soma layer. Defaults 
