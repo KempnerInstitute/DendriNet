@@ -109,10 +109,87 @@
 <span class="kn">import</span> <span class="nn">torch.nn</span> <span class="k">as</span> <span class="nn">nn</span>
 
 
-<span class="c1"># custom linear layer which only uses the strongest K synaptic weights from in_features </span>
+<span class="c1"># custom linear layer which only uses the strongest K synaptic weights from </span>
+<span class="c1"># in_features </span>
 <div class="viewcode-block" id="TopKLinear">
 <a class="viewcode-back" href="../../source/dendritic_modeling.html#dendritic_modeling.dendrinet.TopKLinear">[docs]</a>
 <span class="k">class</span> <span class="nc">TopKLinear</span><span class="p">(</span><span class="n">nn</span><span class="o">.</span><span class="n">Module</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    A linear layer that retains only the top K strongest synaptic weights.</span>
+
+<span class="sd">    This module implements a linear transformation with weights constrained to </span>
+<span class="sd">    be positive. For each output neuron, only the top K weights are kept </span>
+<span class="sd">    , and the rest are set to zero. This simulates a neuron receiving </span>
+<span class="sd">    inputs only from its strongest synaptic connections.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+
+<span class="sd">    in_features : int</span>
+<span class="sd">        The number of input features.</span>
+<span class="sd">    </span>
+<span class="sd">    out_features : int</span>
+<span class="sd">        The number of output features.</span>
+
+<span class="sd">    K : int</span>
+<span class="sd">        The number of strongest synapses to keep per dendritic branch.</span>
+
+<span class="sd">    param_space : str, optional</span>
+<span class="sd">        The parameter space for the weights. Options are &#39;log&#39; and &#39;presigmoid&#39;.</span>
+<span class="sd">        If `&#39;log&#39;`, the weights are parameterized as exponentials of `pre_w`.</span>
+<span class="sd">        If `&#39;presigmoid&#39;`, the weights are parameterized as sigmoids of `pre_w`.</span>
+<span class="sd">        Defaults to &#39;log&#39;.</span>
+<span class="sd">    </span>
+<span class="sd">    Attributes</span>
+<span class="sd">    ----------</span>
+
+<span class="sd">    pre_w : torch.nn.Parameter</span>
+<span class="sd">        The raw weights before applying the exponential or sigmoid </span>
+<span class="sd">        transformation. Initialized with small negative values to ensure </span>
+<span class="sd">        positive weights after transformation.</span>
+
+<span class="sd">    K : int</span>
+<span class="sd">        The number of strongest synapses to keep per dendritic branch.</span>
+
+<span class="sd">    param_space : str</span>
+<span class="sd">        The parameter space for the weights.</span>
+
+<span class="sd">    Methods</span>
+<span class="sd">    -------</span>
+
+<span class="sd">    forward(x)</span>
+<span class="sd">        Performs a forward pass through the layer.</span>
+
+<span class="sd">    weight()</span>
+<span class="sd">        Returns the transformed synaptic weights after applying the exponential </span>
+<span class="sd">        or sigmoid.</span>
+<span class="sd">    </span>
+<span class="sd">    weight_mask()</span>
+<span class="sd">        Returns a mask tensor indicating the top K synaptic connections per </span>
+<span class="sd">        output neuron.</span>
+
+<span class="sd">    pruned_weight()</span>
+<span class="sd">        Returns the pruned synaptic weights after applying the mask.</span>
+
+<span class="sd">    weighted_synapses(cell_weights, prune=False)</span>
+<span class="sd">        Returns the weighted synapses for a given set of cell</span>
+
+<span class="sd">    Notes</span>
+<span class="sd">    -----</span>
+<span class="sd">    - All weights are constrained to be positive.</span>
+<span class="sd">    - The prunning is done dynamically during the forward pass.</span>
+
+<span class="sd">    Examples</span>
+<span class="sd">    --------</span>
+
+<span class="sd">    &gt;&gt;&gt; import torch</span>
+<span class="sd">    &gt;&gt;&gt; from torch import nn</span>
+<span class="sd">    &gt;&gt;&gt; topk_linear = TopKLinear(in_features=10, out_features=5, K=3)</span>
+<span class="sd">    &gt;&gt;&gt; x = torch.randn(4, 10)  # Batch of 4 samples</span>
+<span class="sd">    &gt;&gt;&gt; output = topk_linear(x)</span>
+<span class="sd">    &gt;&gt;&gt; print(output.shape)</span>
+<span class="sd">    torch.Size([4, 5])</span>
+<span class="sd">    &quot;&quot;&quot;</span>
     <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span>
             <span class="bp">self</span><span class="p">,</span> <span class="n">in_features</span><span class="p">,</span> <span class="n">out_features</span><span class="p">,</span> <span class="n">K</span><span class="p">,</span> <span class="n">param_space</span> <span class="o">=</span> <span class="s1">&#39;log&#39;</span><span class="p">,</span>
             <span class="p">):</span>    
@@ -191,6 +268,47 @@
 <div class="viewcode-block" id="BlockLinear">
 <a class="viewcode-back" href="../../source/dendritic_modeling.html#dendritic_modeling.dendrinet.BlockLinear">[docs]</a>
 <span class="k">class</span> <span class="nc">BlockLinear</span><span class="p">(</span><span class="n">nn</span><span class="o">.</span><span class="n">Module</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    A custom linear layer that aggregates information from converging branches </span>
+<span class="sd">    in a previous branch layer.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+
+<span class="sd">    in_features : int</span>
+<span class="sd">        The number of input features.</span>
+<span class="sd">    </span>
+<span class="sd">    out_features : int</span>
+<span class="sd">        The number of output features.</span>
+
+<span class="sd">    requires_grad : bool, optional</span>
+<span class="sd">        If `True`, the weights are trainable. Defaults to `False`.</span>
+
+<span class="sd">    Attributes</span>
+<span class="sd">    ----------</span>
+
+<span class="sd">    weight : torch.nn.Parameter</span>
+<span class="sd">        The weights for the linear transformation.</span>
+
+<span class="sd">    in_features : int</span>
+<span class="sd">        The number of input features.</span>
+
+<span class="sd">    out_features : int</span>
+<span class="sd">        The number of output features.</span>
+
+<span class="sd">    block_size : int</span>
+<span class="sd">        The number of branches converging onto a single branch.</span>
+
+<span class="sd">    Methods</span>
+<span class="sd">    -------</span>
+
+<span class="sd">    forward(x)</span>
+<span class="sd">        Performs a forward pass through the layer.</span>
+
+<span class="sd">    sum_conductances()</span>
+<span class="sd">        Returns the sum of conductances for each output neuron.</span>
+
+<span class="sd">    &quot;&quot;&quot;</span>
     <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">in_features</span><span class="p">,</span> <span class="n">out_features</span><span class="p">,</span> <span class="n">requires_grad</span> <span class="o">=</span> <span class="kc">False</span><span class="p">):</span>
         <span class="nb">super</span><span class="p">(</span><span class="n">BlockLinear</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="fm">__init__</span><span class="p">()</span>
         <span class="c1"># block_size equals number of branches converging onto single branch / soma in next layer???</span>
@@ -239,6 +357,77 @@
 <div class="viewcode-block" id="DendriticBranchLayer">
 <a class="viewcode-back" href="../../source/dendritic_modeling.html#dendritic_modeling.dendrinet.DendriticBranchLayer">[docs]</a>
 <span class="k">class</span> <span class="nc">DendriticBranchLayer</span><span class="p">(</span><span class="n">nn</span><span class="o">.</span><span class="n">Module</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Emulates dendritic computation along a layer of branches (equally distant</span>
+<span class="sd">    from soma).</span>
+
+<span class="sd">    This layer models the interaction between excitatory and inhibitory inputs, </span>
+<span class="sd">    simulating dendritic processing in biological neurons. It aggregates </span>
+<span class="sd">    information from converging branches in the previous layer and optionally </span>
+<span class="sd">    incorporates inhibitory modulation and reactivation dynamics.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    output_dim : int</span>
+<span class="sd">        The number of output features.</span>
+
+<span class="sd">    excitatory_input_dim : int</span>
+<span class="sd">        The number of input features from excitatory cells.</span>
+
+<span class="sd">    excitatory_synapses_per_branch : int</span>
+<span class="sd">        The number of excitatory synapses per branch.</span>
+
+<span class="sd">    inhibitory_input_dim : int, optional</span>
+<span class="sd">        The number of input features from inhibitory cells. Defaults to `None`.</span>
+
+<span class="sd">    inhibitory_synapses_per_branch : int, optional</span>
+<span class="sd">        The number of inhibitory synapses per branch. Defaults to `None`.</span>
+
+<span class="sd">    input_branch_factor : int, optional</span>
+<span class="sd">        The number of branches converging onto a single branch. Defaults to </span>
+<span class="sd">        `None`.</span>
+
+<span class="sd">    reactivate : bool, optional</span>
+<span class="sd">        If `True`, applies a reactivation function simulating dendritic/somatic </span>
+<span class="sd">        spiking behavior. Defaults to `False`.</span>
+
+<span class="sd">    Attributes</span>
+<span class="sd">    ----------</span>
+
+<span class="sd">    branch_excitation : TopKLinear</span>
+<span class="sd">        The module for computing excitation along branches in the layer.</span>
+
+<span class="sd">    branch_inhibition : TopKLinear</span>
+<span class="sd">        The module for computing inhibition along branches in the layer.</span>
+
+<span class="sd">    branches_to_output : BlockLinear</span>
+<span class="sd">        The module for aggregating information from converging branches.</span>
+
+<span class="sd">    reactivate : bool</span>
+<span class="sd">        If `True`, applies a reactivation function simulating neuronal firing</span>
+<span class="sd">        at the soma layer.</span>
+
+
+<span class="sd">    Methods</span>
+<span class="sd">    -------</span>
+
+<span class="sd">    forward(x, inhibitory_input=None, branch_input=None)</span>
+<span class="sd">        Performs a forward pass through the layer.</span>
+
+<span class="sd">    reactivation(V)</span>
+<span class="sd">        Applies a reactivation function to the membrane potential.</span>
+
+<span class="sd">    get_weights()</span>
+<span class="sd">        Returns the synaptic weights for the excitatory and inhibitory inputs.</span>
+
+<span class="sd">    get_mask()</span>
+<span class="sd">        Returns the mask for the synaptic weights for the excitatory and</span>
+<span class="sd">        inhibitory inputs.</span>
+
+<span class="sd">    get_pruned_weights()</span>
+<span class="sd">        Returns the pruned synaptic weights for the excitatory and inhibitory</span>
+<span class="sd">        inputs.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
     <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span>
         <span class="bp">self</span><span class="p">,</span> <span class="n">output_dim</span><span class="p">,</span> <span class="n">excitatory_input_dim</span><span class="p">,</span> <span class="n">excitatory_synapses_per_branch</span><span class="p">,</span>
         <span class="n">inhibitory_input_dim</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span> <span class="n">inhibitory_synapses_per_branch</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span> 
@@ -339,6 +528,77 @@
 <div class="viewcode-block" id="DendriNet">
 <a class="viewcode-back" href="../../source/dendritic_modeling.html#dendritic_modeling.dendrinet.DendriNet">[docs]</a>
 <span class="k">class</span> <span class="nc">DendriNet</span><span class="p">(</span><span class="n">nn</span><span class="o">.</span><span class="n">Module</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Generates a linear layer of neurons, each of which consists of a sequential </span>
+<span class="sd">    structure of dendrtic branches and inhibitory/excitatory inputs.</span>
+
+<span class="sd">    This network models the complex interactions between excitatory and </span>
+<span class="sd">    inhibitory inputs across multiple dendritic branches, simulating dendritic </span>
+<span class="sd">    processing in biological neurons.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    n_soma : int</span>
+<span class="sd">        The number of soma neurons in the network. Must be positive integer.</span>
+
+<span class="sd">    branch_factors : list of int</span>
+<span class="sd">        The branching factors for each layer of branches. Each element in the </span>
+<span class="sd">        list must be a positive integer.</span>
+
+<span class="sd">    excitatory_input_dim : int</span>
+<span class="sd">        The dimensionality of the excitatory inputs.</span>
+<span class="sd">    </span>
+<span class="sd">    excitatory_synapses_per_branch : int</span>
+<span class="sd">        The number of excitatory synapses per branch.</span>
+
+<span class="sd">    inhibitory_input_dim : int, optional</span>
+<span class="sd">        The dimensionality of the inhibitory inputs. Defaults to `None`.</span>
+
+<span class="sd">    inhibitory_synapses_per_branch : int, optional </span>
+<span class="sd">        The number of inhibitory synapses per branch. Defaults to `None`.</span>
+
+<span class="sd">    reactivate : bool, optional</span>
+<span class="sd">        If `True`, applies a reactivation function simulating neuronal firing </span>
+<span class="sd">        at the soma layer. Defaults to `False`.</span>
+<span class="sd">    </span>
+<span class="sd">    somatic_synapses : bool, optional</span>
+<span class="sd">        If `True`, includes direct synaptic inputs to the soma layer. Defaults </span>
+<span class="sd">        to `True`.</span>
+<span class="sd">    </span>
+<span class="sd">    Attributes</span>
+<span class="sd">    ----------</span>
+<span class="sd">    branch_layers : torch.nn.ModuleList</span>
+<span class="sd">        The list of branch layers in the network.</span>
+
+<span class="sd">    soma_layer : DendriticBranchLayer</span>
+<span class="sd">        The layer representing the soma of neurons.</span>
+
+<span class="sd">    input_inhibitory : bool</span>
+<span class="sd">        If `True`, the network receives inputs from inhibitory cells.</span>
+
+<span class="sd">    n_soma : int</span>
+<span class="sd">        The number of neurons in the network.</span>
+<span class="sd">    </span>
+<span class="sd">    reactivate : bool</span>
+<span class="sd">        If True, applies a reactivation function dendritic / somatic spiking </span>
+<span class="sd">        behavior.</span>
+
+<span class="sd">    somatic_synapses : bool</span>
+<span class="sd">        If `True`, includes direct synaptic inputs to the soma layer.</span>
+
+<span class="sd">    layer_sizes : list of int</span>
+<span class="sd">        The number of branches in each layer of the network.</span>
+
+<span class="sd">    Methods</span>
+<span class="sd">    -------</span>
+
+<span class="sd">    forward(x, inhibitory_input=None)</span>
+<span class="sd">        Performs a forward pass through the network.</span>
+
+<span class="sd">    sum_weights(pruned=False)</span>
+<span class="sd">        Returns the sum of synaptic weights for excitatory and inhibitory </span>
+<span class="sd">        inputs.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
     <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span>
         <span class="bp">self</span><span class="p">,</span> <span class="n">n_soma</span><span class="p">,</span> <span class="n">branch_factors</span><span class="p">,</span> <span class="n">excitatory_input_dim</span><span class="p">,</span> <span class="n">excitatory_synapses_per_branch</span><span class="p">,</span>
         <span class="n">inhibitory_input_dim</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span> <span class="n">inhibitory_synapses_per_branch</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>

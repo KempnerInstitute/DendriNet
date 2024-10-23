@@ -1,0 +1,364 @@
+
+
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" data-content_root="../../">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>dendritic_modeling.models &mdash; dendritic_modeling 0.1.0 documentation</title>
+      <link rel="stylesheet" type="text/css" href="../../_static/pygments.css?v=80d5e7a1" />
+      <link rel="stylesheet" type="text/css" href="../../_static/css/theme.css?v=e59714d7" />
+      <link rel="stylesheet" type="text/css" href="../../_static/copybutton.css?v=76b2166b" />
+
+  
+      <script src="../../_static/jquery.js?v=5d32c60e"></script>
+      <script src="../../_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
+      <script src="../../_static/documentation_options.js?v=01f34227"></script>
+      <script src="../../_static/doctools.js?v=9bcbadda"></script>
+      <script src="../../_static/sphinx_highlight.js?v=dc90522c"></script>
+      <script src="../../_static/clipboard.min.js?v=a7894cd8"></script>
+      <script src="../../_static/copybutton.js?v=f281be69"></script>
+      <script crossorigin="anonymous" integrity="sha256-Ae2Vz/4ePdIu6ZyI/5ZGsYnb+m0JlOmKPjt6XZ9JJkA=" src="https://cdnjs.cloudflare.com/ajax/libs/require.js/2.3.4/require.min.js"></script>
+    <script src="../../_static/js/theme.js"></script>
+    <link rel="author" title="About these documents" href="../../about.html" />
+    <link rel="index" title="Index" href="../../genindex.html" />
+    <link rel="search" title="Search" href="../../search.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+
+          
+          
+          <a href="../../index.html" class="icon icon-home">
+            dendritic_modeling
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <p class="caption" role="heading"><span class="caption-text">Introduction</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../about.html">About</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Users Guide</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../source/users/users.html">Installation</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../source/users/users.html#build-the-documentation">Build the documentation</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Dendritic Modeling</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../source/dend_m/concepts_overview.html">Concepts Overview</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">References</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../source/users/references.html">References</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Appendix and Resources</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../source/additional_resources.html">Additional resources</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../source/glossary.html">Glossary</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">API Reference</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../source/dendritic_modeling.html">dendritic_modeling package</a></li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../../index.html">dendritic_modeling</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="../../index.html" class="icon icon-home" aria-label="Home"></a></li>
+          <li class="breadcrumb-item"><a href="../index.html">Module code</a></li>
+      <li class="breadcrumb-item active">dendritic_modeling.models</li>
+      <li class="wy-breadcrumbs-aside">
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <h1>Source code for dendritic_modeling.models</h1><div class="highlight"><pre>
+<span></span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">models.py</span>
+<span class="sd">=========</span>
+<span class="sd">This module contains the neural network models for the dendritic_modeling.</span>
+<span class="sd">&quot;&quot;&quot;</span>
+
+<span class="kn">import</span> <span class="nn">torch.nn</span> <span class="k">as</span> <span class="nn">nn</span>
+<span class="kn">from</span> <span class="nn">torch.distributions</span> <span class="kn">import</span> <span class="n">Categorical</span>
+
+<span class="kn">from</span> <span class="nn">dendritic_modeling.excitation_inhibition</span> <span class="kn">import</span> <span class="n">ExcitationInhibitionNetwork</span>
+
+
+<div class="viewcode-block" id="ProbabilisticModel">
+<a class="viewcode-back" href="../../source/dendritic_modeling.html#dendritic_modeling.models.ProbabilisticModel">[docs]</a>
+<span class="k">class</span> <span class="nc">ProbabilisticModel</span><span class="p">(</span><span class="n">nn</span><span class="o">.</span><span class="n">Module</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    This class is designed to represent models that return a conditional </span>
+<span class="sd">    probability distribution of observing labels given their corresponding </span>
+<span class="sd">    inputs.</span>
+<span class="sd">    </span>
+<span class="sd">    Methods</span>
+<span class="sd">    -------</span>
+<span class="sd">    log_prob(x, y)</span>
+<span class="sd">        Computes the log-probability of the data `y` given input `x` by </span>
+<span class="sd">        applying the model&#39;s forward method to `x` to obtain a probability</span>
+<span class="sd">        distribution and then evaluating the log probability of `y`.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+<div class="viewcode-block" id="ProbabilisticModel.log_prob">
+<a class="viewcode-back" href="../../source/dendritic_modeling.html#dendritic_modeling.models.ProbabilisticModel.log_prob">[docs]</a>
+    <span class="k">def</span> <span class="nf">log_prob</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">x</span><span class="p">,</span> <span class="n">y</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Computes the log-probability of `y` given `x`.</span>
+<span class="sd">        </span>
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        x : torch.Tensor</span>
+<span class="sd">            The input data which will be passed through the model&#39;s forward </span>
+<span class="sd">            method to generate a probability distribution.</span>
+<span class="sd">        y : torch.Tensor</span>
+<span class="sd">            The observed data for which we want to compute the log-probability.</span>
+<span class="sd">        </span>
+<span class="sd">        Returns</span>
+<span class="sd">        -------</span>
+<span class="sd">        torch.Tensor</span>
+<span class="sd">            The log-probability of `y` given `x` according to the distribution </span>
+<span class="sd">            output by the model&#39;s forward pass.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">distribution</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">forward</span><span class="p">(</span><span class="n">x</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">distribution</span><span class="o">.</span><span class="n">log_prob</span><span class="p">(</span><span class="n">y</span><span class="p">)</span></div>
+</div>
+
+
+
+<div class="viewcode-block" id="ProbabilisticClassifier">
+<a class="viewcode-back" href="../../source/dendritic_modeling.html#dendritic_modeling.models.ProbabilisticClassifier">[docs]</a>
+<span class="k">class</span> <span class="nc">ProbabilisticClassifier</span><span class="p">(</span><span class="n">ProbabilisticModel</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    A base class for probabilistic classifiers.</span>
+
+<span class="sd">    This class extends `ProbabilisticModel` and provides a common interface for </span>
+<span class="sd">    classifiers that output probability distributions over classes. It includes </span>
+<span class="sd">    a method for making predictions either deterministically or stochastically </span>
+<span class="sd">    based on the output distribution.</span>
+
+<span class="sd">    Methods</span>
+<span class="sd">    -------</span>
+<span class="sd">    predict(x, stochastic=False)</span>
+<span class="sd">        Predicts class labels for the given input data.</span>
+
+<span class="sd">    See Also</span>
+<span class="sd">    --------</span>
+<span class="sd">    ProbabilisticModel : Base class for probabilistic models.</span>
+
+<span class="sd">    &quot;&quot;&quot;</span>
+
+<div class="viewcode-block" id="ProbabilisticClassifier.predict">
+<a class="viewcode-back" href="../../source/dendritic_modeling.html#dendritic_modeling.models.ProbabilisticClassifier.predict">[docs]</a>
+    <span class="k">def</span> <span class="nf">predict</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">x</span><span class="p">,</span> <span class="n">stochastic</span> <span class="o">=</span> <span class="kc">False</span><span class="p">):</span>
+        <span class="n">distribution</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">forward</span><span class="p">(</span><span class="n">x</span><span class="p">)</span>
+
+        <span class="k">if</span> <span class="n">stochastic</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">distribution</span><span class="o">.</span><span class="n">sample</span><span class="p">()</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">distribution</span><span class="o">.</span><span class="n">logits</span><span class="o">.</span><span class="n">argmax</span><span class="p">(</span><span class="n">dim</span> <span class="o">=</span> <span class="o">-</span><span class="mi">1</span><span class="p">)</span></div>
+</div>
+
+
+
+<div class="viewcode-block" id="ProbabilisticRegressor">
+<a class="viewcode-back" href="../../source/dendritic_modeling.html#dendritic_modeling.models.ProbabilisticRegressor">[docs]</a>
+<span class="k">class</span> <span class="nc">ProbabilisticRegressor</span><span class="p">(</span><span class="n">ProbabilisticModel</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    A base class for probabilistic regressors.</span>
+
+<span class="sd">    This class extends `ProbabilisticModel` and provides a common interface for </span>
+<span class="sd">    regressors that output probability distributions over continuous targets. </span>
+<span class="sd">    It includes a method for making predictions either stochastically (by </span>
+<span class="sd">    sampling from the distribution) or deterministically (using the mean of </span>
+<span class="sd">    the distribution).</span>
+
+<span class="sd">    Methods</span>
+<span class="sd">    -------</span>
+<span class="sd">    predict(x, stochastic=True)</span>
+<span class="sd">        Predicts continuous target values for the given input data.</span>
+
+<span class="sd">    See Also</span>
+<span class="sd">    --------</span>
+<span class="sd">    ProbabilisticModel : Base class for probabilistic models.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+<div class="viewcode-block" id="ProbabilisticRegressor.predict">
+<a class="viewcode-back" href="../../source/dendritic_modeling.html#dendritic_modeling.models.ProbabilisticRegressor.predict">[docs]</a>
+    <span class="k">def</span> <span class="nf">predict</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">x</span><span class="p">,</span> <span class="n">stochastic</span> <span class="o">=</span> <span class="kc">True</span><span class="p">):</span>
+        <span class="n">distribution</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">forward</span><span class="p">(</span><span class="n">x</span><span class="p">)</span>
+
+        <span class="k">if</span> <span class="n">stochastic</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">distribution</span><span class="o">.</span><span class="n">sample</span><span class="p">()</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">distribution</span><span class="o">.</span><span class="n">mean</span></div>
+</div>
+
+
+
+<div class="viewcode-block" id="EINetClassifier">
+<a class="viewcode-back" href="../../source/dendritic_modeling.html#dendritic_modeling.models.EINetClassifier">[docs]</a>
+<span class="k">class</span> <span class="nc">EINetClassifier</span><span class="p">(</span><span class="n">ProbabilisticClassifier</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    A probabilistic classifier based on an Excitation-Inhibition Network (EINet) </span>
+<span class="sd">    architecture.</span>
+
+<span class="sd">    This classifier utilizes an underlying `ExcitationInhibitionNetwork` to </span>
+<span class="sd">    model complex interactions between excitatory and inhibitory neurons for </span>
+<span class="sd">    classification tasks.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    input_dim : int</span>
+<span class="sd">        The dimensionality of the input features.</span>
+
+<span class="sd">    excitatory_layer_sizes : list of int</span>
+<span class="sd">        A list specifying the number of excitatory neurons in each layer.</span>
+
+<span class="sd">    inhibitory_layer_sizes : list of int</span>
+<span class="sd">       A list specifying the number of inhibitory neurons in each layer.</span>
+
+<span class="sd">    excitatory_branch_factors : list of int</span>
+<span class="sd">        Branching factors for excitatory neurons at each layer, determining </span>
+<span class="sd">        how they branch out to the next layer.</span>
+
+<span class="sd">    inhibitory_branch_factors : list of int</span>
+<span class="sd">        Branching factors for inhibitory neurons at each layer, determining</span>
+<span class="sd">        how they branch out to the next layer.</span>
+
+<span class="sd">    ee_synapses_per_branch_per_layer : list of int</span>
+<span class="sd">        Number of excitatory-to-excitatory synapses per branch at each layer.</span>
+
+<span class="sd">    ei_synapses_per_branch_per_layer : list of int</span>
+<span class="sd">        Number of excitatory-to-inhibitory synapses per branch at each layer.</span>
+
+<span class="sd">    ie_synapses_per_branch_per_layer : list of int</span>
+<span class="sd">        Number of inhibitory-to-excitatory synapses per branch at each layer.</span>
+
+<span class="sd">    ii_synapses_per_branch_per_layer : list of int, optional</span>
+<span class="sd">        Number of inhibitory-to-inhibitory synapses per branch at each layer. </span>
+<span class="sd">        Defaults to an empty list `[]`.</span>
+
+<span class="sd">    reactivate : bool, optional</span>
+<span class="sd">        If True, applies a reactivation function simulating dendritic/somatic </span>
+<span class="sd">        spiking behavior. Defaults to `False`.</span>
+
+<span class="sd">    somatic_synapses : bool, optional</span>
+<span class="sd">        If `True`, includes direct synaptic inputs to the soma layer. Defaults </span>
+<span class="sd">        to `True`.</span>
+
+<span class="sd">    Methods</span>
+<span class="sd">    -------</span>
+<span class="sd">    forward(x)</span>
+<span class="sd">        Performs a forward pass through the network and returns a categorical </span>
+<span class="sd">        distribution over the classes.</span>
+
+<span class="sd">    Examples</span>
+<span class="sd">    --------</span>
+<span class="sd">    </span>
+<span class="sd">    &gt;&gt;&gt; import torch</span>
+<span class="sd">    &gt;&gt;&gt; classifier = EINetClassifier(</span>
+<span class="sd">    ...     input_dim=784,</span>
+<span class="sd">    ...     excitatory_layer_sizes=[10,],</span>
+<span class="sd">    ...     inhibitory_layer_sizes=[20,],</span>
+<span class="sd">    ...     excitatory_branch_factors=[24,],</span>
+<span class="sd">    ...     inhibitory_branch_factors=[],</span>
+<span class="sd">    ...     ee_synapses_per_branch_per_layer=[24,],</span>
+<span class="sd">    ...     ei_synapses_per_branch_per_layer=[100,],</span>
+<span class="sd">    ...     ie_synapses_per_branch_per_layer=[1,],</span>
+<span class="sd">    ...     ii_synapses_per_branch_per_layer=[],</span>
+<span class="sd">    ...     reactivate=True,</span>
+<span class="sd">    ...     somatic_synapses=True,</span>
+<span class="sd">    ... )</span>
+<span class="sd">    &gt;&gt;&gt; x = torch.randn(10, 784)  # Batch of 10 samples with 784 features</span>
+<span class="sd">    &gt;&gt;&gt; output = classifier.forward(x)</span>
+<span class="sd">    &gt;&gt;&gt; predicted_classes = output.sample()</span>
+<span class="sd">    &gt;&gt;&gt; print(predicted_classes.shape)</span>
+<span class="sd">    torch.Size([10])</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span> <span class="n">input_dim</span><span class="p">,</span> <span class="n">excitatory_layer_sizes</span><span class="p">,</span> <span class="n">inhibitory_layer_sizes</span><span class="p">,</span>
+        <span class="n">excitatory_branch_factors</span><span class="p">,</span> <span class="n">inhibitory_branch_factors</span><span class="p">,</span> 
+        <span class="n">ee_synapses_per_branch_per_layer</span><span class="p">,</span> <span class="n">ei_synapses_per_branch_per_layer</span><span class="p">,</span> 
+        <span class="n">ie_synapses_per_branch_per_layer</span><span class="p">,</span> <span class="n">ii_synapses_per_branch_per_layer</span> <span class="o">=</span> <span class="p">[],</span> 
+        <span class="n">reactivate</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span> <span class="n">somatic_synapses</span> <span class="o">=</span> <span class="kc">True</span><span class="p">,</span>
+    <span class="p">):</span>
+        <span class="nb">super</span><span class="p">(</span><span class="n">EINetClassifier</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="fm">__init__</span><span class="p">()</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">net</span> <span class="o">=</span> <span class="n">ExcitationInhibitionNetwork</span><span class="p">(</span>
+            <span class="n">input_dim</span> <span class="o">=</span> <span class="n">input_dim</span><span class="p">,</span> 
+            <span class="n">excitatory_layer_sizes</span> <span class="o">=</span> <span class="n">excitatory_layer_sizes</span><span class="p">,</span> 
+            <span class="n">inhibitory_layer_sizes</span> <span class="o">=</span> <span class="n">inhibitory_layer_sizes</span><span class="p">,</span>
+            <span class="n">excitatory_branch_factors</span> <span class="o">=</span> <span class="n">excitatory_branch_factors</span><span class="p">,</span> 
+            <span class="n">inhibitory_branch_factors</span> <span class="o">=</span> <span class="n">inhibitory_branch_factors</span><span class="p">,</span>
+            <span class="n">ee_synapses_per_branch_per_layer</span> <span class="o">=</span> <span class="n">ee_synapses_per_branch_per_layer</span><span class="p">,</span> 
+            <span class="n">ei_synapses_per_branch_per_layer</span> <span class="o">=</span> <span class="n">ei_synapses_per_branch_per_layer</span><span class="p">,</span>
+            <span class="n">ie_synapses_per_branch_per_layer</span> <span class="o">=</span> <span class="n">ie_synapses_per_branch_per_layer</span><span class="p">,</span> 
+            <span class="n">ii_synapses_per_branch_per_layer</span> <span class="o">=</span> <span class="n">ii_synapses_per_branch_per_layer</span><span class="p">,</span>
+            <span class="n">reactivate</span> <span class="o">=</span> <span class="n">reactivate</span><span class="p">,</span> <span class="n">somatic_synapses</span> <span class="o">=</span> <span class="n">somatic_synapses</span><span class="p">,</span>
+        <span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">final</span> <span class="o">=</span> <span class="n">nn</span><span class="o">.</span><span class="n">LogSoftmax</span><span class="p">(</span><span class="n">dim</span> <span class="o">=</span> <span class="o">-</span><span class="mi">1</span><span class="p">)</span>
+    
+<div class="viewcode-block" id="EINetClassifier.forward">
+<a class="viewcode-back" href="../../source/dendritic_modeling.html#dendritic_modeling.models.EINetClassifier.forward">[docs]</a>
+    <span class="k">def</span> <span class="nf">forward</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">x</span><span class="p">):</span>
+        <span class="k">return</span> <span class="n">Categorical</span><span class="p">(</span><span class="n">logits</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">final</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">net</span><span class="p">(</span><span class="n">x</span><span class="p">)))</span></div>
+</div>
+
+
+
+</pre></div>
+
+           </div>
+          </div>
+          <footer>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright 2024, Research and Engineering at Kempner.</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>
