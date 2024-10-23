@@ -426,17 +426,17 @@ class DendriNet(nn.Module):
         The list of branch layers in the network.
 
     soma_layer : DendriticBranchLayer
-        The layer representing the soma neurons.
+        The layer representing the soma of neurons.
 
     input_inhibitory : bool
         If `True`, the network receives inputs from inhibitory cells.
 
     n_soma : int
-        The number of soma neurons in the network.
+        The number of neurons in the network.
     
     reactivate : bool
-        If `True`, applies a reactivation function simulating neuronal firing 
-        at the soma layer.
+        If True, applies a reactivation function dendritic / somatic spiking 
+        behavior.
 
     somatic_synapses : bool
         If `True`, includes direct synaptic inputs to the soma layer.
