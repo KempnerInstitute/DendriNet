@@ -7,19 +7,64 @@ This module contains the neural network models for the dendritic_modeling.
 import torch.nn as nn
 from torch.distributions import Categorical
 
-# from dendritic_modeling.dendrinet import DendriNet
 from dendritic_modeling.excitation_inhibition import ExcitationInhibitionNetwork
 
 
-
 class ProbabilisticModel(nn.Module):
+    """
+    A base class for probabilistic models, inheriting from `torch.nn.Module`. 
+    This class is designed to represent models that return a probability 
+    distribution over outcomes.
+    
+    Methods
+    -------
+    log_prob(x, y)
+        Computes the log-probability of the data `y` given input `x` by 
+        applying the model's forward method to `x` to obtain a probability
+        distribution and then evaluating the log probability of `y`.
+    """
 
     def log_prob(self, x, y):
+        """
+        Computes the log-probability of `y` given `x`.
+        
+        Parameters
+        ----------
+        x : torch.Tensor
+            The input data which will be passed through the model's forward 
+            method to generate a probability distribution.
+        y : torch.Tensor
+            The observed data for which we want to compute the log-probability.
+        
+        Returns
+        -------
+        torch.Tensor
+            The log-probability of `y` given `x` according to the distribution 
+            output by the model's forward pass.
+        """
         distribution = self.forward(x)
         return distribution.log_prob(y)
 
 
 class ProbabilisticClassifier(ProbabilisticModel):
+    """
+    A base class for probabilistic classifiers.
+
+    This class extends `ProbabilisticModel` and provides a common interface for 
+    classifiers that output probability distributions over classes. It includes 
+    a method for making predictions either deterministically or stochastically 
+    based on the output distribution.
+
+    Methods
+    -------
+    predict(x, stochastic=False)
+        Predicts class labels for the given input data.
+
+    See Also
+    --------
+    ProbabilisticModel : Base class for probabilistic models.
+
+    """
 
     def predict(self, x, stochastic = False):
         distribution = self.forward(x)
@@ -31,6 +76,24 @@ class ProbabilisticClassifier(ProbabilisticModel):
 
 
 class ProbabilisticRegressor(ProbabilisticModel):
+    """
+    A base class for probabilistic regressors.
+
+    This class extends `ProbabilisticModel` and provides a common interface for 
+    regressors that output probability distributions over continuous targets. 
+    It includes a method for making predictions either stochastically (by 
+    sampling from the distribution) or deterministically (using the mean of 
+    the distribution).
+
+    Methods
+    -------
+    predict(x, stochastic=True)
+        Predicts continuous target values for the given input data.
+
+    See Also
+    --------
+    ProbabilisticModel : Base class for probabilistic models.
+    """
 
     def predict(self, x, stochastic = True):
         distribution = self.forward(x)

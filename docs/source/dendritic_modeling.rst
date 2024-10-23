@@ -3,7 +3,7 @@ dendritic_modeling package
 
 .. automodule:: dendritic_modeling.models
    :members:
-   :exclude-members: forward
+   :exclude-members: forward, log_prob
    :show-inheritance:
 
 .. automodule:: dendritic_modeling.utils
