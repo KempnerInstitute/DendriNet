@@ -16,11 +16,13 @@ classifiers = [
 "Operating System :: OS Independent"
 ]
 
-dependencies = []
+dependencies = [
+    "torch"
+]
 
 [tool.setuptools]
 package-dir = { "" = "src" } 
-packages = ["dendritic_modeling"]  
+packages = ["dendritic_modeling", "dendritic_modeling_v2"]  
 
 
 [project.optional-dependencies]
