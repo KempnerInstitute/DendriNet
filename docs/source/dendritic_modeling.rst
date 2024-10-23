@@ -11,6 +11,11 @@ dendritic_modeling package
    :exclude-members: forward
    :show-inheritance:
 
+.. automodule:: dendritic_modeling.dendrinet
+   :members:
+   :exclude-members: forward
+   :show-inheritance:
+
 .. automodule:: dendritic_modeling.utils
    :members:
    :undoc-members:
@@ -41,10 +46,7 @@ dendritic_modeling package
    :undoc-members:
    :show-inheritance:
 
-.. automodule:: dendritic_modeling.dendrinet
-   :members:
-   :undoc-members:
-   :show-inheritance:
+
 
 
 .. automodule:: dendritic_modeling.evaluation
