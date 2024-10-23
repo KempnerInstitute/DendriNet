@@ -7,6 +7,7 @@ import torch
 from dendritic_modeling.utils import load_MNIST, accuracy_score, save_dict
 from dendritic_modeling.training import TrainerMLE
 from dendritic_modeling.models import EINetClassifier
+from dendritic_modeling import logger
 
 print('\nimports complete\n', flush = True)
 
@@ -37,7 +38,7 @@ if __name__ == '__main__':
         'batch_size' : 512,
     }
 
-    print('loading mnist.....\n', flush = True)
+    logger.info('loading mnist ...\n')
     # data = load_MNIST_modulo10(shuffle_iterations = 5, train_valid_split  = 0.8)
     data = load_MNIST(train_valid_split = train_hp['train_valid_split'])
 
