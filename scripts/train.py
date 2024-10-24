@@ -23,7 +23,7 @@ if __name__ == '__main__':
         'ei_synapses_per_branch_per_layer' : [100,],
         'ie_synapses_per_branch_per_layer' : [2,],
         'ii_synapses_per_branch_per_layer' : [],
-        'reactivate' : True,
+        'reactivate' : False,
         'somatic_synapses' : True,
     }
 

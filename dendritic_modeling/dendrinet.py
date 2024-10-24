@@ -8,7 +8,7 @@ from math import floor
 
 # custom linear layer which only uses the strongest K synaptic weights from in_features 
 class TopKLinear(nn.Module):
-    def __init__(self, in_features, out_features, K, param_space = 'log'):    
+    def __init__(self, in_features, out_features, K, param_space = 'sigmoid'):    
         # initialize super Linear layer
         super(TopKLinear, self).__init__()
         # make all weights positive

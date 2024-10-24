@@ -11,7 +11,7 @@ print('imports completed.....', flush = True)
 
 if __name__ == '__main__':
 
-    trained_name = 'name'
+    trained_name = '222_sig_all'
 
     make_csv = False
     
@@ -29,7 +29,7 @@ if __name__ == '__main__':
     print('creating param visuals.....', flush = True)
     plot_einet_params(
         einet = clf.net, save_root = os.path.join(trained_path, 'param_visuals'),
-        reshape_fn = shaper.reshape, reshape_exc_syn = True,
+        reshape_fn = shaper.reshape, reshape_exc_syn = True, logspace = False,
     )
     print('  done..', flush = True)
     
