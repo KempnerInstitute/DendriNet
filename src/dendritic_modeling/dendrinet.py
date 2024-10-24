@@ -505,22 +505,33 @@ class DendriNet(nn.Module):
         for i in range(self.n_branch_layers):
             branch_layers.append(DendriticBranchLayer(
                 output_dim = layer_sizes[i], 
-                excitatory_input_dim = excitatory_input_dim, excitatory_synapses_per_branch = excitatory_synapses_per_branch,
-                inhibitory_input_dim = inhibitory_input_dim, inhibitory_synapses_per_branch = inhibitory_synapses_per_branch, 
-                input_branch_factor = branch_factors[i], reactivate = False,
+                excitatory_input_dim = excitatory_input_dim, 
+                excitatory_synapses_per_branch = excitatory_synapses_per_branch,
+                inhibitory_input_dim = inhibitory_input_dim, 
+                inhibitory_synapses_per_branch = inhibitory_synapses_per_branch, 
+                input_branch_factor = branch_factors[i], 
+                reactivate = False,
             ))
         # wrap list of branch layers in ModuleList
         self.branch_layers = nn.ModuleList(branch_layers)
+        
         # branches to soma
         if somatic_synapses:
             self.soma_layer = DendriticBranchLayer(
                 output_dim = n_soma, 
-                excitatory_input_dim = excitatory_input_dim, excitatory_synapses_per_branch = excitatory_synapses_per_branch,
-                inhibitory_input_dim = inhibitory_input_dim, inhibitory_synapses_per_branch = inhibitory_synapses_per_branch,
-                input_branch_factor = branch_factors[-1], reactivate = True,
+                excitatory_input_dim = excitatory_input_dim, 
+                excitatory_synapses_per_branch = excitatory_synapses_per_branch,
+                inhibitory_input_dim = inhibitory_input_dim, 
+                inhibitory_synapses_per_branch = inhibitory_synapses_per_branch,
+                input_branch_factor = branch_factors[-1], 
+                reactivate = True,
             )
         else:
-            self.soma_layer = BlockLinear(layer_sizes[-2], n_soma, distance = 0, requires_grad = False)
+            self.soma_layer = BlockLinear(layer_sizes[-2], 
+                                          n_soma, 
+                                          distance = 0, 
+                                          requires_grad = False)
+        
         # assign necessary class attributes
         self.input_inhibitory = inhibitory_input_dim is not None
         self.n_soma = n_soma
