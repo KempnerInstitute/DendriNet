@@ -1,12 +1,19 @@
+import os
+import time
+from datetime import datetime
+
 import torch
-from dendritic_modeling.util import load_MNIST, split_MNIST_inputs, accuracy_score, save_dict, Shaper
+
 from dendritic_modeling.training import TrainerMLE
 from dendritic_modeling.models import EINetClassifier
-from dendritic_modeling.plotting import plot_einet_params, plot_einet_activations
+from dendritic_modeling.plot_utils import (plot_einet_params, 
+                                           plot_einet_activations)
+from dendritic_modeling.utils import (load_MNIST, 
+                                      split_MNIST_inputs, 
+                                      accuracy_score, 
+                                      save_dict, 
+                                      Shaper)
 
-import os
-from datetime import datetime
-import time
 print('\nimports complete\n', flush = True)
 
 
@@ -25,6 +32,8 @@ if __name__ == '__main__':
         'somatic_synapses' : True,
     }
 
+    
+
     model_hp['ee_synapses_per_branch_per_layer'] = [24,]
     model_hp['ei_synapses_per_branch_per_layer'] = [100,]
     model_hp['ie_synapses_per_branch_per_layer'] = [1,]
@@ -39,7 +48,7 @@ if __name__ == '__main__':
     }
 
     print('loading mnist.....\n', flush = True)
-    data = load_MNIST(train_valid_split = train_hp['train_valid_split'])
+    data = load_MNIST(train_valid_split = train_hp['train_valid_split'], cache_dir=os.getcwd())
 
     # initialize classifier
     clf = EINetClassifier(**model_hp)

@@ -1,9 +1,12 @@
-from dendritic_modeling.util import load_MNIST, accuracy_score
-from dendritic_modeling.models import EINetClassifier
-from dendritic_modeling.tuning import DendriNetTuner
 
 import os
 from datetime import datetime
+
+
+from dendritic_modeling.tuning import DendriNetTuner
+from dendritic_modeling.models import EINetClassifier
+from dendritic_modeling.utils import load_MNIST, accuracy_score
+
 print('\nimports complete\n', flush = True)
 
 

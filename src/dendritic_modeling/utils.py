@@ -1,13 +1,39 @@
+"""
+utils.py
+========
+This module contains utility functions for data loading, data splitting, 
+and model evaluation.
+"""
+import os
+import json
+import shutil
+
 import torch
 import torchvision
 from torchvision import transforms
-import os
-import shutil
-import json
 
 
 
 class Data(torch.utils.data.Dataset):
+    """
+    A custom PyTorch Dataset for handling input features and labels.
+    
+    Parameters
+    ----------
+    x : Tensor or array-like 
+        Input features.
+    y : Tensor or array-like 
+        Corresponding labels.
+
+
+    Examples
+    --------
+    >>> dataset = Data(x_data, y_data)
+    >>> dataloader = DataLoader(dataset, batch_size=32, shuffle=True)
+    >>> for inputs, labels in dataloader:
+    ...     # Your training code here
+    ...     pass
+    """
 
     def __init__(self, x, y):
         self.x = x
@@ -21,6 +47,9 @@ class Data(torch.utils.data.Dataset):
 
 
 class Shaper(object):
+    """
+    TODO: Add docstring
+    """
 
     def __init__(self, shape):
         self.shape = shape
@@ -35,30 +64,43 @@ def save_dict(dict, save_path, fname):
 
 
 
-def load_MNIST(train_valid_split = 1):
-    root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-    data_path = os.path.join(root, 'data', 'mnist')
+def load_MNIST(train_valid_split = 1, cache_dir=None):
+    
+    
+    if cache_dir is None:
+        root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        data_path = os.path.join(root, 'data', 'mnist')
+    else:
+        data_path = os.path.join(cache_dir, 'data', 'mnist')
+
 
     if os.path.exists(data_path):
         train_data = Data(
-            torch.load(os.path.join(data_path, 'train_inputs.pt'), weights_only = True),
-            torch.load(os.path.join(data_path, 'train_labels.pt'), weights_only = True),
+            torch.load(os.path.join(data_path, 'train_inputs.pt'), 
+                       weights_only = True),
+            torch.load(os.path.join(data_path, 'train_labels.pt'), 
+                       weights_only = True),
         )
         test_data = Data(
-            torch.load(os.path.join(data_path, 'test_inputs.pt'), weights_only = True),
-            torch.load(os.path.join(data_path, 'test_labels.pt'), weights_only = True),
+            torch.load(os.path.join(data_path, 'test_inputs.pt'), 
+                       weights_only = True),
+            torch.load(os.path.join(data_path, 'test_labels.pt'), 
+                       weights_only = True),
         )
 
     else:
-        os.mkdir(data_path)
+        os.makedirs(data_path, exist_ok = True)
 
         transform = transforms.ToTensor()
 
         def loader_saver(train = True):
-            dataset = torchvision.datasets.MNIST(root = data_path, train = train, download = True)
+            dataset = torchvision.datasets.MNIST(root = data_path, 
+                                                 train = train, 
+                                                 download = True)
             imgs, labels = zip(*(dataset[i] for i in range(len(dataset))))
             
-            imgs = torch.stack([transform(img).flatten() for img in imgs], dim = 0)
+            imgs = torch.stack([transform(img).flatten() for img in imgs], 
+                               dim = 0)
             labels = torch.tensor(labels)
                         
             name = 'train' if train else 'test'
@@ -75,7 +117,9 @@ def load_MNIST(train_valid_split = 1):
     data = {}
 
     if train_valid_split < 1:
-        train_ix = torch.randperm(len(train_data))[:int(train_valid_split*len(train_data))]
+        train_ix = torch.randperm(len(train_data))[
+            :int(train_valid_split*len(train_data))
+        ]
         train_mask = torch.zeros((len(train_data),)).bool()
         train_mask[train_ix] = True
 

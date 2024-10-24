@@ -1,3 +1,19 @@
+
+
+<p align="center">
+  <a href="https://github.com/KempnerInstitute/dendritic_modeling/actions/workflows/deploy-docs.yml">
+    <img src="https://github.com/KempnerInstitute/dendritic_modeling/actions/workflows/deploy-docs.yml/badge.svg?branch=develop" alt="docs">
+  </a>
+  <a href="https://github.com/KempnerInstitute/dendritic_modeling/actions/workflows/python-package.yml">
+    <img src="https://github.com/KempnerInstitute/dendritic_modeling/actions/workflows/python-package.yml/badge.svg" alt="tests">
+  </a>
+  <a href="https://codecov.io/gh/KempnerInstitute/dendritic-modeling" > 
+ <img src="https://codecov.io/gh/KempnerInstitute/dendritic-modeling/graph/badge.svg?token=HUJRFX92DF"/> 
+ </a>
+</p>
+
+
+
 This Python package introduces a novel approach to artificial neural networks by emulating dendritic computation through the encoding of dendrite morphology into the network archtecture. Inspired by the complexity and efficiency of biological neurons, our models aim to enhance traditional neural network architectures by incorporating dendrite-like structures.
 
 ## Key Features
@@ -30,3 +46,42 @@ Activate the newly created environment:
     mamba activate <myvenv>
 ```
 
+### Install the Package
+
+```sh
+    pip install .
+```
+
+If you want to install the package in development mode, use the following command:
+
+```sh
+    pip install -e .
+```
+
+
+## Generating Documentation Locally
+
+To generate the documentation locally, you can use the following command:
+
+```sh
+    pip install -e '.[docs]'
+    cd docs
+    make html
+    open _build/html/index.html
+```
+
+## Running Tests
+
+To run the tests, you can use the following command:
+
+```sh
+    pip install -e '.[dev]'
+    pytest
+```
+
+To run the tests with coverage, you can use the following command:
+
+```sh
+    pytest --cov=dendritic_modeling --cov-report=html
+    open htmlcov/index.html
+```

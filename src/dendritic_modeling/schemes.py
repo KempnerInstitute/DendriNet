@@ -1,18 +1,22 @@
+"""
+schemes.py
+==========
+This module contains the training schemes for the dendritic_modeling package.
+"""
+import os
+import json
+import time
+from copy import deepcopy
+
+import numpy as np
+import matplotlib.pyplot as plt
+
 import torch
 import torch.autograd as ag
 from torch.utils.data import DataLoader
 from torch.nn.utils import clip_grad_value_
 
-import numpy as np
-
-import matplotlib.pyplot as plt
-
-import time
-import os
-from copy import deepcopy
-import json
-
-
+from dendritic_modeling import logger
 
 class TrainerMLE(object):
     
@@ -32,17 +36,18 @@ class TrainerMLE(object):
         #   produces the log probability of observing the labels given the inputs
         # train_data: Data object containing training data
         # valid_data: Data object containing validation data
-
-        # whether to save at checkpoints
-        save_boolean = save_path is not None and os.path.exists(save_path)
         
         # send model to device
         device = 'cuda' if torch.cuda.is_available() else 'cpu'
         model = model.to(device)
         
         # create dataloader objects for training data and validation data
-        train_dataloader = DataLoader(train_data, batch_size = batch_size, shuffle = shuffle)
-        valid_dataloader = DataLoader(valid_data, batch_size = batch_size, shuffle = shuffle)
+        train_dataloader = DataLoader(train_data, 
+                                      batch_size = batch_size, 
+                                      shuffle = shuffle)
+        valid_dataloader = DataLoader(valid_data, 
+                                      batch_size = batch_size, 
+                                      shuffle = shuffle)
         
         train_losses = []
         valid_losses = []
@@ -64,14 +69,16 @@ class TrainerMLE(object):
                     label_batch = ag.Variable(label_batch.to(device))
                     
                     # minimize negative log likelihood
-                    nll = -1 * model.log_prob(input_batch, label_batch).mean(dim = 0)
+                    nll = -1 * model.log_prob(input_batch, 
+                                              label_batch).mean(dim = 0)
                     
                     # zero gradients
                     self.optimizer.zero_grad()
                     # backpropagate loss
                     nll.backward()
                     # prevent exploding gradients
-                    clip_grad_value_(model.parameters(), clip_value = grad_clip_value)
+                    clip_grad_value_(model.parameters(), 
+                                     clip_value = grad_clip_value)
                     # update weights
                     self.optimizer.step()
                     # aggregate training loss
@@ -79,8 +86,7 @@ class TrainerMLE(object):
                 
                 except:
                     # if NaNs encountered in gradients
-                    if not self.suppress:
-                        print('exception occurred during parameter update step', flush = True)
+                    logger.info('exception occurred during parameter update step')
                     model.load_state_dict(best_state_dict)
                     train_loss += 10
 
@@ -96,13 +102,13 @@ class TrainerMLE(object):
                     try:
                         # produce negative log likelihood
                         nll = -1 * model.log_prob(
-                            input_batch.to(device), label_batch.to(device)).mean(dim = 0)
+                            input_batch.to(device), 
+                            label_batch.to(device)).mean(dim = 0)
                         # compute and aggregate validation loss 
                         valid_loss += nll.item()
                     
                     except:
-                        if not self.suppress:
-                            print('exception occurred during parameter validation step', flush = True)
+                        logger.info('exception occurred during parameter validation step')
                         model.load_state_dict(best_state_dict)
                         valid_loss += 10
             
@@ -116,41 +122,33 @@ class TrainerMLE(object):
                 best_epoch = epoch
                 best_state_dict = deepcopy(model.state_dict())
 
-                if save_boolean:
+                if save_path is not None and os.path.exists(save_path):
                     torch.save(best_state_dict, save_path+'/state_dict.pt')
 
                     with open(save_path+'/losses.json', 'w') as f:
                         json.dump(
-                            {'best epoch' : best_epoch, 'train losses' : train_losses, 'valid losses': valid_losses}, f
+                            {'train losses' : train_losses, 
+                             'valid losses': valid_losses}, 
+                             f
                         )
 
             
             if not self.suppress:
                 # printing
                 if epoch % self.print_every == 0:
-                    print(f'------------------{epoch}------------------', flush = True)
-                    print('training loss: %.2f | validation loss: %.2f' % (
-                        train_loss, valid_loss), flush = True)
+                    logger.info(f'------------------{epoch}------------------')
+                    logger.info('training loss: %.2f | validation loss: %.2f' % (
+                        train_loss, valid_loss))
                     
                     time_elapsed = (time.time() - stime)
                     pred_time_remaining = (time_elapsed / epoch) * (epochs-epoch)
                     
-                    print('time elapsed: %.2f s | predicted time remaining: %.2f s' % (
-                        time_elapsed, pred_time_remaining), flush = True)
+                    logger.info('time elapsed: %.2f s | predicted time remaining: %.2f s' % (
+                        time_elapsed, pred_time_remaining))
         
         # load best model
         model.load_state_dict(best_state_dict)
         
-        results = {
-            'best epoch' : best_epoch, 
-            'train losses' : train_losses, 
-            'valid losses' : valid_losses,
-            }
-        
-        if save_boolean:
-            with open(save_path+'/losses.json', 'w') as f:
-                json.dump(results, f)
-
         # plot loss curves
         if plot_losses:
             
@@ -171,12 +169,6 @@ class TrainerMLE(object):
             plt.title('Loss Curves')
             plt.legend()
 
-            results['loss curves'] = fig
-
-            if save_boolean:
-                fig.savefig(save_path+'/loss_curves.jpeg')
-                plt.close(fig)
+            return best_epoch, train_losses, valid_losses, fig
             
-        return results
-    
-
+        return best_epoch, train_losses, valid_losses

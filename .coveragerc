@@ -1,0 +1,3 @@
+[run]
+omit =
+    src/dendritic_modeling/plot_utils.py

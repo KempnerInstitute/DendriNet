@@ -1,9 +1,14 @@
-import torch
-import torch.nn as nn
-
-from copy import deepcopy
+"""
+dendrinet.py
+============
+This module contains the DendriNet and DendriticBranchLayer classes.
+"""
 
 from math import floor
+from copy import deepcopy
+
+import torch
+import torch.nn as nn
 
 
 # custom linear layer which only uses the strongest K synaptic weights from in_features 
@@ -14,6 +19,18 @@ class TopKLinear(nn.Module):
         # make all weights positive
         self.pre_w = nn.Parameter(torch.empty((out_features, in_features)), requires_grad = True)
         # assign positive integer attribute K, denoting the number of strongest synapses to keep per dendritic branch
+
+        if not isinstance(K, int):
+            raise TypeError('K must be an integer')
+        
+        if K < 1:
+            raise ValueError('K must be greater than or equal to 1')
+        
+        if K > in_features:
+            raise ValueError(
+                f'K must be less than or equal to the number of input ',
+                f'features. (K = {K}, in_features = {in_features})')
+
         self.K = K
         self.param_space = param_space
     
@@ -65,9 +82,12 @@ class TopKLinear(nn.Module):
 class BlockLinear(nn.Module):
     def __init__(self, in_features, out_features, requires_grad = False):
         super(BlockLinear, self).__init__()
-        # block_size equals number of branches converging onto single branch / soma in next layer
+        # block_size equals number of branches converging onto single branch / soma in next layer???
+
+        assert in_features > 0 and out_features > 0, "in_features and out_features must be greater than 0"
+
         block_size = floor(in_features / out_features)
-        assert(in_features == out_features * block_size)
+        assert(in_features == out_features * block_size), "in_features must be divisible by out_features."
 
         # branches have equal weights (?)
         self.log_weight = nn.Parameter(torch.empty((out_features, block_size)), requires_grad = requires_grad)
@@ -210,9 +230,37 @@ class DendriNet(nn.Module):
          reactivate = False, somatic_synapses = True,
     ):
         super(DendriNet, self).__init__()
+        
+        # n_soma should be a positive integer
+        if not isinstance(n_soma, int):
+            raise TypeError('n_soma must be an integer')
+        if n_soma < 1:
+            raise ValueError('n_soma must be greater than or equal to 1')
+        
         # number of branches in layer closest to soma layer
         layer_sizes = [n_soma]
         # number of branches in upstream layers
+
+        # branch_factors must be integers greater than or equal to 1
+        for i in range(len(branch_factors)):
+            if not isinstance(branch_factors[i], int):
+                raise TypeError('branch_factors must be integers')
+            if branch_factors[i] < 1:
+                raise ValueError('branch_factors must be greater than or equal to 1')
+        
+        # Inhibitory synapses must be positive integers
+        if inhibitory_synapses_per_branch is not None:
+            if not isinstance(inhibitory_synapses_per_branch, int):
+                raise TypeError('inhibitory_synapses_per_branch must be an integer')
+            if inhibitory_synapses_per_branch < 1:
+                raise ValueError('inhibitory_synapses_per_branch must be greater than or equal to 1')
+            
+        # Excitatory synapses must be positive integers
+        if not isinstance(excitatory_synapses_per_branch, int):
+            raise TypeError('excitatory_synapses_per_branch must be an integer')
+        if excitatory_synapses_per_branch < 1:
+            raise ValueError('excitatory_synapses_per_branch must be greater than or equal to 1')
+
         branch_factors = deepcopy(branch_factors)
         self.n_branch_layers = len(branch_factors)
         for i in range(self.n_branch_layers):

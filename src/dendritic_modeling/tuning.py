@@ -1,11 +1,19 @@
-import torch
+"""
+tuning.py
+=========
+This module contains the hyperparameter tuning class for the dendritic_modeling.
+"""
+
 import os
 import time
 
+import torch
 import matplotlib.pyplot as plt
 
+from dendritic_modeling import logger
+from dendritic_modeling.utils import save_dict
 from dendritic_modeling.training import TrainerMLE
-from dendritic_modeling.util import save_dict
+
 
 class DendriNetTuner(object):
 
@@ -28,11 +36,19 @@ class DendriNetTuner(object):
         self.hparams = hparams
 
         metrics = torch.zeros(
-            (3, len(branch_factors_space), len(n_inh_cells_space), len(syn_per_inh_cell_space),
-             len(inh_syn_per_branch_space), len(exc_syn_per_branch_space),
-             len(shunting_space), len(reactivate_space), len(b_trainable_space), len(log_lr_space)), 
+            (3, 
+             len(branch_factors_space), 
+             len(n_inh_cells_space), 
+             len(syn_per_inh_cell_space),
+             len(inh_syn_per_branch_space), 
+             len(exc_syn_per_branch_space),
+             len(shunting_space), 
+             len(reactivate_space), 
+             len(b_trainable_space), 
+             len(log_lr_space)), 
         )
-        self.metrics = metrics.to('cuda' if torch.cuda.is_available() else 'cpu')
+        device = 'cuda' if torch.cuda.is_available() else 'cpu'
+        self.metrics = metrics.to(device)
 
         self.n_configs = metrics.flatten(1,-1).shape[-1]
     
@@ -48,6 +64,7 @@ class DendriNetTuner(object):
         config_count = 1
         stime = time.time()
     
+        #TODO: Refactor the following nested for loops
         for i in range(len(self.hparams['branch factors'])):
             for j in range(len(self.hparams['n inh cells'])):
                 for k in range(len(self.hparams['syn per inh cell'])):
@@ -76,17 +93,17 @@ class DendriNetTuner(object):
 
                                             if not os.path.exists(save_path):
 
-                                                print('-------------------------------------', flush = True)
-                                                print(f'model configuration - {config_count}/{self.n_configs}', flush = True)
-                                                print(f'branch factors: {branch_factors}', flush = True)
-                                                print(f'n inhibitory cells: {n_inhibitory_cells}', flush = True)
-                                                print(f'synapses per inhibitory cell: {synapses_per_inhibitory_cell}', flush = True)
-                                                print(f'inhibitory synapses per branch: {inhibitory_synapses_per_branch}', flush = True)
-                                                print(f'excitatory synapses per branch: {excitatory_synapses_per_branch}', flush = True)
-                                                print(f'shunting: {shunting}', flush = True)
-                                                print(f'reactivate: {reactivate}', flush = True)
-                                                print(f'b trainable: {b_trainable}', flush = True)
-                                                print(f'learning rate: {lr}', flush = True)
+                                                logger.info('-------------------------------------')
+                                                logger.info(f'model configuration - {config_count}/{self.n_configs}')
+                                                logger.info(f'branch factors: {branch_factors}')
+                                                logger.info(f'n inhibitory cells: {n_inhibitory_cells}')
+                                                logger.info(f'synapses per inhibitory cell: {synapses_per_inhibitory_cell}')
+                                                logger.info(f'inhibitory synapses per branch: {inhibitory_synapses_per_branch}')
+                                                logger.info(f'excitatory synapses per branch: {excitatory_synapses_per_branch}')
+                                                logger.info(f'shunting: {shunting}')
+                                                logger.info(f'reactivate: {reactivate}')
+                                                logger.info(f'b trainable: {b_trainable}')
+                                                logger.info(f'learning rate: {lr}')
 
                                                 
                                                 model = dendrinet(
@@ -106,14 +123,14 @@ class DendriNetTuner(object):
                                                     optimizer = torch.optim.Adam(model.parameters(), lr = lr),
                                                     suppress_prints = True,
                                                 )
-                                                print('training.....', flush = True)
+                                                logger.info('training ...')
                                                 res = trainer.train(
                                                     model, train_data = train_data, valid_data = valid_data,
                                                     epochs = epochs, batch_size = batch_size, shuffle = True, plot_losses = True,
                                                 )
-                                                print('  done..', flush = True)
+                                                logger.info('Done!')
                                                 etime = time.time() - stime
-                                                print('time elapsed: %.2f min | %.3f hrs' % (etime/60, etime/3600), flush = True)
+                                                logger.info('time elapsed: %.2f min | %.3f hrs' % (etime/60, etime/3600))
 
                                                 hp = {
                                                     'input_dim' : input_dim,
@@ -152,7 +169,8 @@ class DendriNetTuner(object):
 
                                             config_count += 1
 
-        bestix = torch.unravel_index(self.metrics[2,...].argmax(), self.metrics[2,...].shape)
+        bestix = torch.unravel_index(self.metrics[2,...].argmax(), 
+                                     self.metrics[2,...].shape)
 
         hp_best = {}
         for i, key in enumerate(self.hparams.keys()):
@@ -164,9 +182,9 @@ class DendriNetTuner(object):
         sweep_path = os.path.join(save_root, 'sweeping_plots')
         os.mkdir(sweep_path)
 
-        print('generating sweeping plots.....')
+        logger.info('generating sweeping plots.....')
         self.sweeping_plots(sweep_path)
-        print('  done..')
+        logger.info('  done..')
 
 
     def sweeping_plots(self, save_path):
@@ -194,17 +212,41 @@ class DendriNetTuner(object):
             fig = plt.figure()
 
             if quantitative:
-                plt.plot(self.hparams[hp_name], train_values, marker = 'o', ms = 8, color = '0.4', label = 'train')
-                plt.plot(self.hparams[hp_name], valid_values, marker = 'o', ms = 8, color = 'blue', label = 'valid')
-                plt.plot(self.hparams[hp_name], test_values, marker = 'o', ms = 8, color = 'orange', label = 'test')
+                plt.plot(self.hparams[hp_name], 
+                         train_values, 
+                         marker = 'o', 
+                         ms = 8, 
+                         color = '0.4', 
+                         label = 'train')
+                plt.plot(self.hparams[hp_name], 
+                         valid_values, 
+                         marker = 'o', 
+                         ms = 8, 
+                         color = 'blue', 
+                         label = 'valid')
+                plt.plot(self.hparams[hp_name], 
+                         test_values, marker = 'o', 
+                         ms = 8, color = 'orange', label = 'test')
             
             else:
                 x = torch.arange(len(self.hparams[hp_name]))
                 width = 0.2
 
-                plt.bar(x - width, train_values, width = width, color = '0.4', label = 'train')
-                plt.bar(x, valid_values, width = width, color = 'blue', label = 'valid')
-                plt.bar(x + width, test_values, width = width, color = 'orange', label = 'test')
+                plt.bar(x - width, 
+                        train_values, 
+                        width = width, 
+                        color = '0.4', 
+                        label = 'train')
+                plt.bar(x, 
+                        valid_values, 
+                        width = width, 
+                        color = 'blue', 
+                        label = 'valid')
+                plt.bar(x + width, 
+                        test_values, 
+                        width = width, 
+                        color = 'orange', 
+                        label = 'test')
                 plt.xticks(x, [str(p) for p in self.hparams[hp_name]])
                 #plt.tight_layout()
             
@@ -216,15 +258,33 @@ class DendriNetTuner(object):
             plt.close(fig)
 
 
-        plot_hp_sweep(hp_name = 'branch factors', hp_dim = 0, quantitative = False)
-        plot_hp_sweep(hp_name = 'n inh cells', hp_dim = 1, quantitative = True)
-        plot_hp_sweep(hp_name = 'syn per inh cell', hp_dim = 2, quantitative = True)
-        plot_hp_sweep(hp_name = 'inh syn per branch', hp_dim = 3, quantitative = True)
-        plot_hp_sweep(hp_name = 'exc syn per branch', hp_dim = 4, quantitative = True)
-        plot_hp_sweep(hp_name = 'shunting', hp_dim = 5, quantitative = False)
-        plot_hp_sweep(hp_name = 'reactivate', hp_dim = 6, quantitative = False)
-        plot_hp_sweep(hp_name = 'b trainable', hp_dim = 7, quantitative = False)
-        plot_hp_sweep(hp_name = 'log lr', hp_dim = 8, quantitative = True)
+        plot_hp_sweep(hp_name = 'branch factors', 
+                      hp_dim = 0, 
+                      quantitative = False)
+        plot_hp_sweep(hp_name = 'n inh cells', 
+                      hp_dim = 1, 
+                      quantitative = True)
+        plot_hp_sweep(hp_name = 'syn per inh cell', 
+                      hp_dim = 2, 
+                      quantitative = True)
+        plot_hp_sweep(hp_name = 'inh syn per branch', 
+                      hp_dim = 3, 
+                      quantitative = True)
+        plot_hp_sweep(hp_name = 'exc syn per branch', 
+                      hp_dim = 4, 
+                      quantitative = True)
+        plot_hp_sweep(hp_name = 'shunting', 
+                      hp_dim = 5, 
+                      quantitative = False)
+        plot_hp_sweep(hp_name = 'reactivate', 
+                      hp_dim = 6, 
+                      quantitative = False)
+        plot_hp_sweep(hp_name = 'b trainable', 
+                      hp_dim = 7, 
+                      quantitative = False)
+        plot_hp_sweep(hp_name = 'log lr', 
+                      hp_dim = 8, 
+                      quantitative = True)
 
 
         
