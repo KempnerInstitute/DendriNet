@@ -184,11 +184,18 @@ class EINetClassifier(ProbabilisticClassifier):
     """
 
     def __init__(
-        self, input_dim, excitatory_layer_sizes, inhibitory_layer_sizes,
-        excitatory_branch_factors, inhibitory_branch_factors, 
-        ee_synapses_per_branch_per_layer, ei_synapses_per_branch_per_layer, 
-        ie_synapses_per_branch_per_layer, ii_synapses_per_branch_per_layer = [], 
-        reactivate = False, somatic_synapses = True,
+        self, 
+        input_dim,
+        excitatory_layer_sizes,
+        inhibitory_layer_sizes,
+        excitatory_branch_factors,
+        inhibitory_branch_factors, 
+        ee_synapses_per_branch_per_layer, 
+        ei_synapses_per_branch_per_layer, 
+        ie_synapses_per_branch_per_layer,
+        ii_synapses_per_branch_per_layer = [], 
+        reactivate = False, 
+        somatic_synapses = True,
     ):
         super(EINetClassifier, self).__init__()
 
@@ -207,6 +214,8 @@ class EINetClassifier(ProbabilisticClassifier):
         self.final = nn.LogSoftmax(dim = -1)
     
     def forward(self, x):
-        return Categorical(logits = self.final(self.net(x)))
+        net_output = self.net(x)
+        final_logits = self.final(net_output)
+        return Categorical(logits =final_logits)
 
 

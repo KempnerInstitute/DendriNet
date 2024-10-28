@@ -10,6 +10,7 @@ from copy import deepcopy
 from torch import nn
 
 from dendritic_modeling.dendrinet import DendriNet
+from dendritic_modeling import logger
 
 
 class ExcitationInhibitionLayer(nn.Module):
@@ -188,18 +189,23 @@ class ExcitationInhibitionNetwork(nn.Module):
         super(ExcitationInhibitionNetwork, self).__init__()
 
         self.n_layers = len(excitatory_layer_sizes)
+        
+        logger.debug(f'Building ExcitationInhibitionNetwork with {self.n_layers} layer(s).')
 
         excitatory_layer_sizes = deepcopy(excitatory_layer_sizes)
         inhibitory_layer_sizes = deepcopy(inhibitory_layer_sizes)
 
+        logger.debug(f'Excitatory layer sizes: {excitatory_layer_sizes}')
+        logger.debug(f'Inhibitory layer sizes: {inhibitory_layer_sizes}')
+
         excitatory_layer_sizes.insert(0, input_dim)
         inhibitory_layer_sizes.insert(0, None)
 
-        #ie_synapses_per_branch_per_layer = deepcopy(ie_synapses_per_branch_per_layer)
+
         ii_synapses_per_branch_per_layer = deepcopy(
             ii_synapses_per_branch_per_layer)
 
-        #ie_synapses_per_branch_per_layer.insert(0, None)
+
         ii_synapses_per_branch_per_layer.insert(0, None)
 
         layers = []
