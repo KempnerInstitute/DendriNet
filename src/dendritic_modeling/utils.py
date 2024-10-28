@@ -88,6 +88,34 @@ def save_dict(dict, save_path, fname):
 
 
 def load_MNIST(train_valid_split = 1, cache_dir=None):
+    """
+    Load the MNIST dataset from torchvision.datasets.MNIST with optional 
+    caching and train-validation split.
+
+    Parameters
+    ----------
+    train_valid_split : float, optional
+        Fraction of the training data to use for validation. Defaults to 1 
+        (no validation split).
+
+    cache_dir : str, optional
+        Path to the directory where the dataset should be cached. 
+
+    Returns
+    -------
+
+    data : dict
+        A dictionary containing the training, validation, and test datasets.
+
+
+    Examples
+    --------
+
+    >>> data = load_MNIST(train_valid_split = 0.8)
+    >>> train_data = data['train']
+    >>> valid_data = data['valid']
+    >>> test_data = data['test']
+    """
     
     
     if cache_dir is None:
@@ -192,6 +220,32 @@ def load_MNIST_modulo10(shuffle_iterations = 2, train_valid_split = 1):
 
 
 def split_MNIST_inputs(inputs, labels):
+    """
+    Split the input features and labels into separate lists based on unique
+    labels.
+
+    Parameters
+    ----------
+    inputs : Tensor
+        The input data tesnor with shape `(num_samples, ...)`.
+
+    labels : Tensor
+        The corresponding labels tensor with shape `(num_samples,)`.
+
+    Returns
+    -------
+    input_list : list of Tensor
+        A list of tensors where each tensor contains all samples with the same
+        label.
+
+    Examples
+    --------
+    >>> inputs = torch.randn(1000, 784)
+    >>> labels = torch.randint(0, 10, (1000,))
+    >>> input_list = split_MNIST_inputs(inputs, labels)
+    >>> len(input_list)
+    10
+    """
     unique_label = torch.unique(labels)
 
     input_list = []
@@ -204,6 +258,23 @@ def split_MNIST_inputs(inputs, labels):
 
 
 def accuracy_score(classifier, inputs, labels):
+    """
+    Computes the accuracy score of a classifier on a given set of inputs and
+    labels. 
+
+    Parameters
+    ----------
+    classifier : nn.Module
+        The classifier pytorch model with a `predict` method that takes input
+        data and returns predicted labels.
+
+    inputs : Tensor
+        The input data tensor with shape `(num_samples, ...)`.
+
+    labels : Tensor
+    """
+
+    
     device = 'cuda' if torch.cuda.is_available() else 'cpu'
 
     classifier = classifier.to(device)
