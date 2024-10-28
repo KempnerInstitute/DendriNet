@@ -214,6 +214,8 @@ class EINetClassifier(ProbabilisticClassifier):
         self.final = nn.LogSoftmax(dim = -1)
     
     def forward(self, x):
-        return Categorical(logits = self.final(self.net(x)))
+        net_output = self.net(x)
+        final_logits = self.final(net_output)
+        return Categorical(logits =final_logits)
 
 
