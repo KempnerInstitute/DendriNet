@@ -80,7 +80,7 @@ class EINetClassifierTest(unittest.TestCase):
         )
 
     def test_forward_output_shape(self):
-        # Batch size of 32, input dim of 10
+        # Batch size of 32, input dim of 784
         x = torch.randn(32, 784)  
         output = self.model.forward(x)
         self.assertIsInstance(output, Categorical)

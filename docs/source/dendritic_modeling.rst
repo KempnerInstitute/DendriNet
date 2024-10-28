@@ -18,7 +18,7 @@ dendritic_modeling package
 
 .. automodule:: dendritic_modeling.utils
    :members:
-   :undoc-members:
+   :exclude-members: forward
    :show-inheritance:
 
 .. automodule:: dendritic_modeling.plot_utils
