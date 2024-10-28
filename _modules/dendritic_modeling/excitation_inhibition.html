@@ -108,6 +108,7 @@
 <span class="kn">from</span> <span class="nn">torch</span> <span class="kn">import</span> <span class="n">nn</span>
 
 <span class="kn">from</span> <span class="nn">dendritic_modeling.dendrinet</span> <span class="kn">import</span> <span class="n">DendriNet</span>
+<span class="kn">from</span> <span class="nn">dendritic_modeling</span> <span class="kn">import</span> <span class="n">logger</span>
 
 
 <div class="viewcode-block" id="ExcitationInhibitionLayer">
@@ -294,18 +295,23 @@
         <span class="nb">super</span><span class="p">(</span><span class="n">ExcitationInhibitionNetwork</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="fm">__init__</span><span class="p">()</span>
 
         <span class="bp">self</span><span class="o">.</span><span class="n">n_layers</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">excitatory_layer_sizes</span><span class="p">)</span>
+        
+        <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="sa">f</span><span class="s1">&#39;Building ExcitationInhibitionNetwork with </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">n_layers</span><span class="si">}</span><span class="s1"> layer(s).&#39;</span><span class="p">)</span>
 
         <span class="n">excitatory_layer_sizes</span> <span class="o">=</span> <span class="n">deepcopy</span><span class="p">(</span><span class="n">excitatory_layer_sizes</span><span class="p">)</span>
         <span class="n">inhibitory_layer_sizes</span> <span class="o">=</span> <span class="n">deepcopy</span><span class="p">(</span><span class="n">inhibitory_layer_sizes</span><span class="p">)</span>
 
+        <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="sa">f</span><span class="s1">&#39;Excitatory layer sizes: </span><span class="si">{</span><span class="n">excitatory_layer_sizes</span><span class="si">}</span><span class="s1">&#39;</span><span class="p">)</span>
+        <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="sa">f</span><span class="s1">&#39;Inhibitory layer sizes: </span><span class="si">{</span><span class="n">inhibitory_layer_sizes</span><span class="si">}</span><span class="s1">&#39;</span><span class="p">)</span>
+
         <span class="n">excitatory_layer_sizes</span><span class="o">.</span><span class="n">insert</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="n">input_dim</span><span class="p">)</span>
         <span class="n">inhibitory_layer_sizes</span><span class="o">.</span><span class="n">insert</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span>
 
-        <span class="c1">#ie_synapses_per_branch_per_layer = deepcopy(ie_synapses_per_branch_per_layer)</span>
+
         <span class="n">ii_synapses_per_branch_per_layer</span> <span class="o">=</span> <span class="n">deepcopy</span><span class="p">(</span>
             <span class="n">ii_synapses_per_branch_per_layer</span><span class="p">)</span>
 
-        <span class="c1">#ie_synapses_per_branch_per_layer.insert(0, None)</span>
+
         <span class="n">ii_synapses_per_branch_per_layer</span><span class="o">.</span><span class="n">insert</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span>
 
         <span class="n">layers</span> <span class="o">=</span> <span class="p">[]</span>
