@@ -4,6 +4,7 @@ utils.py
 This module contains utility functions for data loading, data splitting, 
 and model evaluation.
 """
+
 import os
 import json
 import shutil
@@ -48,7 +49,29 @@ class Data(torch.utils.data.Dataset):
 
 class Shaper(object):
     """
-    TODO: Add docstring
+    A utility class for reshaping input data to a specified shape.
+
+    The class takes an intended shape upon initialization and proivdes a method
+    to reshape any given tensor to that shape.
+
+    Parameters
+    ----------
+    shape : tuple of int
+        The intended shape to which the input tensor should be reshaped.
+
+    Methods
+    -------
+    reshape(x)
+        Reshapes the input tensor `x` to the specified shape.
+
+    Examples
+    --------
+
+    >>> shaper = Shaper(shape = (32, 1, 28, 28))
+    >>> x = torch.randn(32, 784)
+    >>> x_reshaped = shaper.reshape(x)
+    >>> x_reshaped.shape
+    torch.Size([32, 1, 28, 28])
     """
 
     def __init__(self, shape):
@@ -191,11 +214,3 @@ def accuracy_score(classifier, inputs, labels):
 
     accuracy = (yhat == labels).float().mean(dim = -1)
     return accuracy
-
-
-
-
-
-
-
-
