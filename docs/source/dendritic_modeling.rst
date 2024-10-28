@@ -1,6 +1,21 @@
 dendritic_modeling package
 ==========================
 
+.. automodule:: dendritic_modeling.models
+   :members:
+   :exclude-members: forward, log_prob
+   :show-inheritance:
+
+.. automodule:: dendritic_modeling.excitation_inhibition
+   :members:
+   :exclude-members: forward
+   :show-inheritance:
+
+.. automodule:: dendritic_modeling.dendrinet
+   :members:
+   :exclude-members: forward
+   :show-inheritance:
+
 .. automodule:: dendritic_modeling.utils
    :members:
    :undoc-members:
@@ -31,15 +46,7 @@ dendritic_modeling package
    :undoc-members:
    :show-inheritance:
 
-.. automodule:: dendritic_modeling.excitation_inhibition
-   :members:
-   :undoc-members:
-   :show-inheritance:
 
-.. automodule:: dendritic_modeling.dendrinet
-   :members:
-   :undoc-members:
-   :show-inheritance:
 
 
 .. automodule:: dendritic_modeling.evaluation
