@@ -124,17 +124,17 @@
 <li class="toctree-l3"><a class="reference internal" href="#dendritic_modeling.dendrinet.TopKLinear.weighted_synapses"><code class="docutils literal notranslate"><span class="pre">TopKLinear.weighted_synapses()</span></code></a></li>
 </ul>
 </li>
+<li class="toctree-l2"><a class="reference internal" href="#utils-py">utils.py</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#dendritic_modeling.utils.Data"><code class="docutils literal notranslate"><span class="pre">Data</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="#dendritic_modeling.utils.Shaper"><code class="docutils literal notranslate"><span class="pre">Shaper</span></code></a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#dendritic_modeling.utils.Shaper.reshape"><code class="docutils literal notranslate"><span class="pre">Shaper.reshape()</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="#dendritic_modeling.utils.accuracy_score"><code class="docutils literal notranslate"><span class="pre">accuracy_score()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="#dendritic_modeling.utils.load_MNIST"><code class="docutils literal notranslate"><span class="pre">load_MNIST()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="#dendritic_modeling.utils.split_MNIST_inputs"><code class="docutils literal notranslate"><span class="pre">split_MNIST_inputs()</span></code></a></li>
 <li class="toctree-l2"><a class="reference internal" href="#logging-config-py">logging_config.py</a></li>
 <li class="toctree-l2"><a class="reference internal" href="#dendritic_modeling.logging_config.setup_logging"><code class="docutils literal notranslate"><span class="pre">setup_logging()</span></code></a></li>
-<li class="toctree-l2"><a class="reference internal" href="#evaluation-py">evaluation.py</a></li>
-<li class="toctree-l2"><a class="reference internal" href="#dendritic_modeling.evaluation.Evaluation"><code class="docutils literal notranslate"><span class="pre">Evaluation</span></code></a><ul>
-<li class="toctree-l3"><a class="reference internal" href="#dendritic_modeling.evaluation.Evaluation.evaluate"><code class="docutils literal notranslate"><span class="pre">Evaluation.evaluate()</span></code></a></li>
-</ul>
-</li>
-<li class="toctree-l2"><a class="reference internal" href="#dendritic_modeling.evaluation.SimpleSum"><code class="docutils literal notranslate"><span class="pre">SimpleSum</span></code></a><ul>
-<li class="toctree-l3"><a class="reference internal" href="#dendritic_modeling.evaluation.SimpleSum.sum"><code class="docutils literal notranslate"><span class="pre">SimpleSum.sum()</span></code></a></li>
-</ul>
-</li>
 </ul>
 </li>
 </ul>
@@ -628,6 +628,138 @@ output neuron.</p>
 </div>
 </dd></dl>
 
+<section id="utils-py">
+<span id="module-dendritic_modeling.utils"></span><h2>utils.py<a class="headerlink" href="#utils-py" title="Link to this heading"></a></h2>
+<p>This module contains utility functions for data loading, data splitting,
+and model evaluation.</p>
+</section>
+<dl class="py class">
+<dt class="sig sig-object py" id="dendritic_modeling.utils.Data">
+<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">dendritic_modeling.utils.</span></span><span class="sig-name descname"><span class="pre">Data</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">x</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">y</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/dendritic_modeling/utils.html#Data"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#dendritic_modeling.utils.Data" title="Link to this definition"></a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">Dataset</span></code></p>
+<p>A custom PyTorch Dataset for handling input features and labels.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>x</strong> (<em>Tensor</em><em> or </em><em>array-like</em>) – Input features.</p></li>
+<li><p><strong>y</strong> (<em>Tensor</em><em> or </em><em>array-like</em>) – Corresponding labels.</p></li>
+</ul>
+</dd>
+</dl>
+<p class="rubric">Examples</p>
+<div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="n">dataset</span> <span class="o">=</span> <span class="n">Data</span><span class="p">(</span><span class="n">x_data</span><span class="p">,</span> <span class="n">y_data</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">dataloader</span> <span class="o">=</span> <span class="n">DataLoader</span><span class="p">(</span><span class="n">dataset</span><span class="p">,</span> <span class="n">batch_size</span><span class="o">=</span><span class="mi">32</span><span class="p">,</span> <span class="n">shuffle</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="k">for</span> <span class="n">inputs</span><span class="p">,</span> <span class="n">labels</span> <span class="ow">in</span> <span class="n">dataloader</span><span class="p">:</span>
+<span class="gp">... </span>    <span class="c1"># Your training code here</span>
+<span class="gp">... </span>    <span class="k">pass</span>
+</pre></div>
+</div>
+</dd></dl>
+
+<dl class="py class">
+<dt class="sig sig-object py" id="dendritic_modeling.utils.Shaper">
+<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">dendritic_modeling.utils.</span></span><span class="sig-name descname"><span class="pre">Shaper</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">shape</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/dendritic_modeling/utils.html#Shaper"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#dendritic_modeling.utils.Shaper" title="Link to this definition"></a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">object</span></code></p>
+<p>A utility class for reshaping input data to a specified shape.</p>
+<p>The class takes an intended shape upon initialization and proivdes a method
+to reshape any given tensor to that shape.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>shape</strong> (<em>tuple</em><em> of </em><em>int</em>) – The intended shape to which the input tensor should be reshaped.</p>
+</dd>
+</dl>
+<dl class="py method">
+<dt class="sig sig-object py" id="dendritic_modeling.utils.Shaper.reshape">
+<span class="sig-name descname"><span class="pre">reshape</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">x</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/dendritic_modeling/utils.html#Shaper.reshape"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#dendritic_modeling.utils.Shaper.reshape" title="Link to this definition"></a></dt>
+<dd><p>Reshapes the input tensor <cite>x</cite> to the specified shape.</p>
+</dd></dl>
+
+<p class="rubric">Examples</p>
+<div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="n">shaper</span> <span class="o">=</span> <span class="n">Shaper</span><span class="p">(</span><span class="n">shape</span> <span class="o">=</span> <span class="p">(</span><span class="mi">32</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">28</span><span class="p">,</span> <span class="mi">28</span><span class="p">))</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">x</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">randn</span><span class="p">(</span><span class="mi">32</span><span class="p">,</span> <span class="mi">784</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">x_reshaped</span> <span class="o">=</span> <span class="n">shaper</span><span class="o">.</span><span class="n">reshape</span><span class="p">(</span><span class="n">x</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">x_reshaped</span><span class="o">.</span><span class="n">shape</span>
+<span class="go">torch.Size([32, 1, 28, 28])</span>
+</pre></div>
+</div>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="dendritic_modeling.utils.accuracy_score">
+<span class="sig-prename descclassname"><span class="pre">dendritic_modeling.utils.</span></span><span class="sig-name descname"><span class="pre">accuracy_score</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">classifier</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">inputs</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">labels</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/dendritic_modeling/utils.html#accuracy_score"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#dendritic_modeling.utils.accuracy_score" title="Link to this definition"></a></dt>
+<dd><p>Computes the accuracy score of a classifier on a given set of inputs and
+labels.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>classifier</strong> (<em>nn.Module</em>) – The classifier pytorch model with a <cite>predict</cite> method that takes input
+data and returns predicted labels.</p></li>
+<li><p><strong>inputs</strong> (<em>Tensor</em>) – The input data tensor with shape <cite>(num_samples, …)</cite>.</p></li>
+<li><p><strong>labels</strong> (<em>Tensor</em>)</p></li>
+</ul>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="dendritic_modeling.utils.load_MNIST">
+<span class="sig-prename descclassname"><span class="pre">dendritic_modeling.utils.</span></span><span class="sig-name descname"><span class="pre">load_MNIST</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">train_valid_split</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">1</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">cache_dir</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/dendritic_modeling/utils.html#load_MNIST"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#dendritic_modeling.utils.load_MNIST" title="Link to this definition"></a></dt>
+<dd><p>Load the MNIST dataset from torchvision.datasets.MNIST with optional
+caching and train-validation split.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>train_valid_split</strong> (<em>float</em><em>, </em><em>optional</em>) – Fraction of the training data to use for validation. Defaults to 1
+(no validation split).</p></li>
+<li><p><strong>cache_dir</strong> (<em>str</em><em>, </em><em>optional</em>) – Path to the directory where the dataset should be cached.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p><strong>data</strong> – A dictionary containing the training, validation, and test datasets.</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>dict</p>
+</dd>
+</dl>
+<p class="rubric">Examples</p>
+<div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="n">data</span> <span class="o">=</span> <span class="n">load_MNIST</span><span class="p">(</span><span class="n">train_valid_split</span> <span class="o">=</span> <span class="mf">0.8</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">train_data</span> <span class="o">=</span> <span class="n">data</span><span class="p">[</span><span class="s1">&#39;train&#39;</span><span class="p">]</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">valid_data</span> <span class="o">=</span> <span class="n">data</span><span class="p">[</span><span class="s1">&#39;valid&#39;</span><span class="p">]</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">test_data</span> <span class="o">=</span> <span class="n">data</span><span class="p">[</span><span class="s1">&#39;test&#39;</span><span class="p">]</span>
+</pre></div>
+</div>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="dendritic_modeling.utils.split_MNIST_inputs">
+<span class="sig-prename descclassname"><span class="pre">dendritic_modeling.utils.</span></span><span class="sig-name descname"><span class="pre">split_MNIST_inputs</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">inputs</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">labels</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/dendritic_modeling/utils.html#split_MNIST_inputs"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#dendritic_modeling.utils.split_MNIST_inputs" title="Link to this definition"></a></dt>
+<dd><p>Split the input features and labels into separate lists based on unique
+labels.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>inputs</strong> (<em>Tensor</em>) – The input data tesnor with shape <cite>(num_samples, …)</cite>.</p></li>
+<li><p><strong>labels</strong> (<em>Tensor</em>) – The corresponding labels tensor with shape <cite>(num_samples,)</cite>.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p><strong>input_list</strong> – A list of tensors where each tensor contains all samples with the same
+label.</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>list of Tensor</p>
+</dd>
+</dl>
+<p class="rubric">Examples</p>
+<div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="n">inputs</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">randn</span><span class="p">(</span><span class="mi">1000</span><span class="p">,</span> <span class="mi">784</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">labels</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">randint</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="mi">10</span><span class="p">,</span> <span class="p">(</span><span class="mi">1000</span><span class="p">,))</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">input_list</span> <span class="o">=</span> <span class="n">split_MNIST_inputs</span><span class="p">(</span><span class="n">inputs</span><span class="p">,</span> <span class="n">labels</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="nb">len</span><span class="p">(</span><span class="n">input_list</span><span class="p">)</span>
+<span class="go">10</span>
+</pre></div>
+</div>
+</dd></dl>
+
 <section id="logging-config-py">
 <span id="module-dendritic_modeling.logging_config"></span><h2>logging_config.py<a class="headerlink" href="#logging-config-py" title="Link to this heading"></a></h2>
 <p>This module contains the logging configuration for the dendritic_modeling
@@ -637,34 +769,6 @@ package.</p>
 <dt class="sig sig-object py" id="dendritic_modeling.logging_config.setup_logging">
 <span class="sig-prename descclassname"><span class="pre">dendritic_modeling.logging_config.</span></span><span class="sig-name descname"><span class="pre">setup_logging</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="../_modules/dendritic_modeling/logging_config.html#setup_logging"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#dendritic_modeling.logging_config.setup_logging" title="Link to this definition"></a></dt>
 <dd></dd></dl>
-
-<section id="evaluation-py">
-<span id="module-dendritic_modeling.evaluation"></span><h2>evaluation.py<a class="headerlink" href="#evaluation-py" title="Link to this heading"></a></h2>
-<p>This is a temp module to test the package structure.</p>
-</section>
-<dl class="py class">
-<dt class="sig sig-object py" id="dendritic_modeling.evaluation.Evaluation">
-<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">dendritic_modeling.evaluation.</span></span><span class="sig-name descname"><span class="pre">Evaluation</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">model</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">data</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">config</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/dendritic_modeling/evaluation.html#Evaluation"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#dendritic_modeling.evaluation.Evaluation" title="Link to this definition"></a></dt>
-<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">object</span></code></p>
-<p>Evaluation class for evaluating the model</p>
-<dl class="py method">
-<dt class="sig sig-object py" id="dendritic_modeling.evaluation.Evaluation.evaluate">
-<span class="sig-name descname"><span class="pre">evaluate</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="../_modules/dendritic_modeling/evaluation.html#Evaluation.evaluate"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#dendritic_modeling.evaluation.Evaluation.evaluate" title="Link to this definition"></a></dt>
-<dd></dd></dl>
-
-</dd></dl>
-
-<dl class="py class">
-<dt class="sig sig-object py" id="dendritic_modeling.evaluation.SimpleSum">
-<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">dendritic_modeling.evaluation.</span></span><span class="sig-name descname"><span class="pre">SimpleSum</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">numbers</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/dendritic_modeling/evaluation.html#SimpleSum"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#dendritic_modeling.evaluation.SimpleSum" title="Link to this definition"></a></dt>
-<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">object</span></code></p>
-<p>ComplexSum class for summing numbers</p>
-<dl class="py method">
-<dt class="sig sig-object py" id="dendritic_modeling.evaluation.SimpleSum.sum">
-<span class="sig-name descname"><span class="pre">sum</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="../_modules/dendritic_modeling/evaluation.html#SimpleSum.sum"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#dendritic_modeling.evaluation.SimpleSum.sum" title="Link to this definition"></a></dt>
-<dd></dd></dl>
-
-</dd></dl>
 
 </section>
 
