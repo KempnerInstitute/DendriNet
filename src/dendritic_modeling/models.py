@@ -9,7 +9,6 @@ from torch.distributions import Categorical
 
 from dendritic_modeling.excitation_inhibition import ExcitationInhibitionNetwork
 
-
 class ProbabilisticModel(nn.Module):
     """
     This class is designed to represent models that return a conditional 
