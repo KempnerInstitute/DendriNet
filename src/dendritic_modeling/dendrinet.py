@@ -631,5 +631,12 @@ class DendriNet(nn.Module):
             return exc_total, inh_total
         else:
             return exc_total
+    
+    def log_sum_weights(self, pruned = False):
+        if self.input_inhibitory:
+            exc_total, inh_total = self.sum_weights(pruned = pruned)
+            return (exc_total + 1e-6).log(), (inh_total + 1e-6).log()
+        else:
+            exc_total = self.sum_weights(pruned = pruned)
+            return (exc_total + 1e-6).log()
         
-
