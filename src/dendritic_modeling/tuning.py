@@ -16,6 +16,59 @@ from dendritic_modeling.training import TrainerMLE
 
 
 class DendriNetTuner(object):
+    """
+    A hyperparameter tuning class for Dendritic Modeling using DendriNet.
+
+    Parameters
+    ----------
+    branch_factors_space : list of int
+        The space of branch factors to be explored.
+    
+    n_inh_cells_space : list of int
+        The space of number of inhibitory cells to be explored.
+
+    syn_per_inh_cell_space : list of int
+        The space of synapses per inhibitory cell to be explored.
+
+    inh_syn_per_branch_space : list of int
+        The space of inhibitory synapses per branch to be explored.
+
+    exc_syn_per_branch_space : list of int
+        The space of excitatory synapses per branch to be explored.
+
+    shunting_space : list of bool
+        The space of shunting to be explored.
+
+    reactivate_space : list of bool
+        The space of reactivation to be explored.
+
+    b_trainable_space : list of bool
+        The space of b_trainable to be explored.
+
+    log_lr_space : list of float
+        The space of log learning rates to be explored.
+
+    Attributes
+    ----------
+    hparams : dict
+        The hyperparameter space.
+
+    metrics : torch.Tensor
+        The performance metrics tensor for storing training, validation and 
+        testing performances for each configuration.
+
+    n_configs : int
+        The total number of configurations to be explored.
+
+    Methods
+    -------
+    tune(dendrinet, input_dim, output_dim, train_data, valid_data, test_data, 
+         epochs, batch_size, metric_fn, save_root)
+        Tune the hyperparameters of the DendriNet model.
+    
+    sweeping_plots(save_path)
+        Generate sweeping plots for the hyperparameters.
+    """
 
     def __init__(
         self, branch_factors_space, n_inh_cells_space, syn_per_inh_cell_space,
