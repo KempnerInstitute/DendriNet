@@ -19,7 +19,8 @@ classifiers = [
 dependencies = [
     "torch",
     "numpy",
-    "torchvision"
+    "torchvision",
+    "matplotlib"
 ]
 
 [tool.setuptools]
