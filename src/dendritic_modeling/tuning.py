@@ -63,7 +63,7 @@ class DendriNetTuner(object):
     Methods
     -------
     tune(dendrinet, input_dim, output_dim, train_data, valid_data, test_data, 
-         epochs, batch_size, metric_fn, save_root)
+        epochs, batch_size, metric_fn, save_root)
         Tune the hyperparameters of the DendriNet model.
     
     sweeping_plots(save_path)

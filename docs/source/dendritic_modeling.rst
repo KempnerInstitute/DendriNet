@@ -38,11 +38,6 @@ dendritic_modeling package
 
 .. automodule:: dendritic_modeling.tuning
    :members:
-   :undoc-members:
-   :show-inheritance:
-
-.. automodule:: dendritic_modeling.schemes
-   :members:
-   :undoc-members:
+   :exclude-members: forward
    :show-inheritance:
 
