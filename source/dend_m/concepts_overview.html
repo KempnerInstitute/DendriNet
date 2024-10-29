@@ -20,8 +20,6 @@
       <script src="../../_static/clipboard.min.js?v=a7894cd8"></script>
       <script src="../../_static/copybutton.js?v=f281be69"></script>
       <script crossorigin="anonymous" integrity="sha256-Ae2Vz/4ePdIu6ZyI/5ZGsYnb+m0JlOmKPjt6XZ9JJkA=" src="https://cdnjs.cloudflare.com/ajax/libs/require.js/2.3.4/require.min.js"></script>
-      <script>window.MathJax = {"tex": {"inlineMath": [["$", "$"], ["\\(", "\\)"]], "processEscapes": true}, "options": {"ignoreHtmlClass": "tex2jax_ignore|mathjax_ignore|document", "processHtmlClass": "tex2jax_process|mathjax_process|math|output_area"}}</script>
-      <script defer="defer" src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
     <script src="../../_static/js/theme.js"></script>
     <link rel="author" title="About these documents" href="../../about.html" />
     <link rel="index" title="Index" href="../../genindex.html" />
@@ -102,20 +100,33 @@
              
   <section id="concepts-overview">
 <h1>Concepts Overview<a class="headerlink" href="#concepts-overview" title="Link to this heading"></a></h1>
-<p>Example of usinng references. For example, <span id="id1">[<a class="reference internal" href="../users/references.html#id2" title="Yichen Zhang, Gan He, Lei Ma, Xiaofei Liu, JJ Johannes Hjorth, Alexander Kozlov, Yutao He, Shenjian Zhang, Jeanette Hellgren Kotaleski, Yonghong Tian, and others. A gpu-based computational framework that bridges neuron simulation and artificial intelligence. Nature communications, 14(1):5798, 2023.">1</a>]</span> is an example of p citation and <span id="id2">Zhang <em>et al.</em> [<a class="reference internal" href="../users/references.html#id2" title="Yichen Zhang, Gan He, Lei Ma, Xiaofei Liu, JJ Johannes Hjorth, Alexander Kozlov, Yutao He, Shenjian Zhang, Jeanette Hellgren Kotaleski, Yonghong Tian, and others. A gpu-based computational framework that bridges neuron simulation and artificial intelligence. Nature communications, 14(1):5798, 2023.">1</a>]</span> is an example of t citation.</p>
-<p>Here is a mathematical equation, The membrane potential dynamics in the Hodgkin-Huxley model are described by the following equation:</p>
-<div class="math notranslate nohighlight">
-\begin{gather*}
-C_m \frac{dV}{dt} = I_{ext} - \left[ g_K n^4 (V - V_K) + g_{Na} m^3 h (V - V_{Na}) + g_L (V - V_L) \right]
-\end{gather*}</div><p>where:</p>
-<ul class="simple">
-<li><p><span class="math notranslate nohighlight">\(C_m\)</span> is the membrane capacitance,</p></li>
-<li><p><span class="math notranslate nohighlight">\(V\)</span> is the membrane potential,</p></li>
-<li><p><span class="math notranslate nohighlight">\(I_{ext}\)</span> is the external applied current,</p></li>
-<li><p><span class="math notranslate nohighlight">\(g_K\)</span>, <span class="math notranslate nohighlight">\(g_{Na}\)</span>, and <span class="math notranslate nohighlight">\(g_L\)</span> are the conductances of potassium, sodium, and leak channels, respectively,</p></li>
-<li><p><span class="math notranslate nohighlight">\(V_K\)</span>, <span class="math notranslate nohighlight">\(V_{Na}\)</span>, and <span class="math notranslate nohighlight">\(V_L\)</span> are the reversal potentials for potassium, sodium, and leak channels,</p></li>
-<li><p><span class="math notranslate nohighlight">\(n\)</span>, <span class="math notranslate nohighlight">\(m\)</span>, and <span class="math notranslate nohighlight">\(h\)</span> are gating variables for potassium and sodium channels.</p></li>
-</ul>
+<p>The initial dendritic model is designed as follows: external input data (considered as excitatory input) is fed into an excitatory/inhibitory classifier (<code class="docutils literal notranslate"><span class="pre">EINetClassifier</span></code>). This classifier model contains a single excitatory/inhibitory network (<code class="docutils literal notranslate"><span class="pre">ExitationInhibitionNetwork</span></code>), which consists of one or more excitation-inhibition layers (<code class="docutils literal notranslate"><span class="pre">ExcitationInbitionLayer</span></code>). Each excitation-inhibition layer has two dendritic layer (<code class="docutils literal notranslate"><span class="pre">Dendrinet</span></code>).</p>
+<figure class="align-center" id="einetclassifier-dataflow">
+<a class="reference internal image-reference" href="../../_images/EINetClassifier_dataflow.pdf"><img alt="EINetClassifier dataflow" src="../../_images/EINetClassifier_dataflow.pdf" style="width: 100%;" />
+</a>
+<figcaption>
+<p><span class="caption-number">Figure 1 </span><span class="caption-text">: Dataflow diagram of the EINetClassifier model. The blue arrows represent the flow of excitatory data, and the red arrows represent the flow of inhibitory data. Please note that the first inhibitory dendritic layer is not recieving any inhibitory input.</span><a class="headerlink" href="#einetclassifier-dataflow" title="Link to this image"></a></p>
+</figcaption>
+</figure>
+<p>Within each dendritic layer, there is a specialized feedforward multilayer perceptron.</p>
+<figure class="align-center" id="dendrinet-dataflow-1">
+<a class="reference internal image-reference" href="../../_images/Dendrinet_1.pdf"><img alt="Dendrinet dataflow 1" src="../../_images/Dendrinet_1.pdf" style="width: 100%;" />
+</a>
+<figcaption>
+<p><span class="caption-number">Figure 2 </span><span class="caption-text">: Dataflow diagram of the Dendrinet model. The blue arrows represent the flow of excitatory data, and the red arrows represent the flow of inhibitory data. Each dendritic baranch layer (<code class="docutils literal notranslate"><span class="pre">DendriticBranchLayer</span></code>) accepts three types of inputs, excitatory, inhibitory, and data flow from upstream layers through branch factor. In the presented figure, the first dendritic layer branch factor is 2 and the second dendritic layer branch factor is 3. The outermost layer does not have any branch factor.</span><a class="headerlink" href="#dendrinet-dataflow-1" title="Link to this image"></a></p>
+</figcaption>
+</figure>
+<p>Inside the <code class="docutils literal notranslate"><span class="pre">ExcitationInhibitionLayer</span></code>, the Dendrinet is categorized as either excitatory or inhibitory. Consequently, the output of the Dendrinet will be excitatory if it is defined as such, or inhibitory if it is defined as inhibitory. Additionally, note that the input data is fed to all dendritic branch layers. The final layer, known as the somatic layer, will receive direct input (both excitatory and inhibitory) if it is specified when compiling the model (<code class="docutils literal notranslate"><span class="pre">somatic_synapses</span> <span class="pre">=</span> <span class="pre">True</span></code>).</p>
+<p>The following figure shows the data flow to the second dendritic layer in the Dendrinet model. The inputs are excitatory, inhibitory, and data flow from the upstream layer. The branch factor for the first dendritic layer is 3.</p>
+<figure class="align-center" id="dendrinet-dataflow-2">
+<a class="reference internal image-reference" href="../../_images/Dendrinet_2.pdf"><img alt="Dendrinet dataflow 2" src="../../_images/Dendrinet_2.pdf" style="width: 100%;" />
+</a>
+<figcaption>
+<p><span class="caption-number">Figure 3 </span><span class="caption-text">: Dataflow diagram of the Dendrinet model for the second layer. The blue arrows represent the flow of excitatory data, and the red arrows represent the flow of inhibitory data. Each dendritic baranch layer (<code class="docutils literal notranslate"><span class="pre">DendriticBranchLayer</span></code>) accepts three types of inputs, excitatory, inhibitory, and data flow from upstream layers through branch factor.</span><a class="headerlink" href="#dendrinet-dataflow-2" title="Link to this image"></a></p>
+</figcaption>
+</figure>
+<p>The data flow aggregation from upper layers to lower layers is done by <code class="docutils literal notranslate"><span class="pre">BlockLinear</span></code> class. The <code class="docutils literal notranslate"><span class="pre">BlockLinear</span></code> class generates a mask to dropout the input data based on the branch factor.</p>
+<p>The linear transformation is performed by the <code class="docutils literal notranslate"><span class="pre">TopKLinear</span></code> class. The TopKLinear class is a linear transformation that is selects the top-k incoming weights and sets the rest to zero. Note that this process is just for selecting the weights to compute the activation. During the backpropagation, the gradients are computed for all weights and all weights will be updated.</p>
 </section>
 
 
