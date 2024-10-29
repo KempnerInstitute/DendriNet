@@ -3,7 +3,7 @@ models.py
 =========
 This module contains the neural network models for the dendritic_modeling.
 """
-
+import torch
 import torch.nn as nn
 from torch.distributions import Categorical
 
@@ -204,9 +204,12 @@ class EINetClassifier(ProbabilisticClassifier):
             ii_synapses_per_branch_per_layer = ii_synapses_per_branch_per_layer,
             reactivate = reactivate, somatic_synapses = somatic_synapses,
         )
+        self.log_output_scale = nn.Parameter(
+            torch.zeros((excitatory_layer_sizes[-1],)), requires_grad = True)
         self.final = nn.LogSoftmax(dim = -1)
     
     def forward(self, x):
-        return Categorical(logits = self.final(self.net(x)))
+        logits = self.final(self.log_output_scale.exp() * self.net(x))
+        return Categorical(logits = logits)
 
 

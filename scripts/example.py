@@ -43,7 +43,7 @@ if __name__ == '__main__':
     train_hp = {
         'train_valid_split' : 0.8,
         'lr' : 1e-3,
-        'epochs' : 10,
+        'epochs' : 100,
         'batch_size' : 512,
     }
 

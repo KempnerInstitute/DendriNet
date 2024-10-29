@@ -48,7 +48,7 @@ if __name__ == '__main__':
         einet = clf.net, input_list = input_list,
         save_root = os.path.join(trained_path, 'activation_visuals'),
     )
-    print('  done..')
+    print('  done..', flush = True)
 
     if make_csv:
         print('making activation component csv files.....', flush = True)
@@ -56,7 +56,7 @@ if __name__ == '__main__':
             einet = clf.net, input_list = input_list,
             save_root = os.path.join(trained_path, 'activation_components'),
         )
-        print('  done..')
+        print('  done..', flush = True)
 
 
 
