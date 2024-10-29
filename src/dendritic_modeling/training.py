@@ -157,8 +157,8 @@ class TrainerMLE(object):
                     label_batch = ag.Variable(label_batch.to(device))
                     
                     # minimize negative log likelihood
-                    nll = -1 * model.log_prob(input_batch, 
-                                              label_batch).mean(dim = 0)
+                    nll = -1 * model.log_prob(
+                        input_batch, label_batch).mean(dim = 0)
                     
                     # zero gradients
                     self.optimizer.zero_grad()
