@@ -20,32 +20,113 @@ from torch.nn.utils import clip_grad_value_
 from dendritic_modeling import logger
 
 
-
-
 class TrainerMLE(object):
+    """
+    Maximum Likelihood Estimation (MLE) trainer for training probabilistic 
+    models. 
+
+    Parameters
+    ----------
+    optimizer : torch.optim.Optimizer
+        The optimizer used to update the model parameters during training.
+
+    suppress_prints : bool, optional
+        Whether to suppress print statements during training. Default is False.
+
+    print_every : int, optional
+        The frequency with which to print training updates. Default is 10.
+
+    Methods
+    -------
+
+    train(model, train_data, valid_data, grad_clip_value=5, epochs=100,
+            batch_size=256, shuffle=True, plot_losses=False, save_path=None)
+            Trains the model on the training data and validates on the 
+            validation data.
+
+    Notes
+    -----
+      - The model must implement a `log_prob` method that computes the log 
+        probability of observing the labels given the inputs.
+      - train_data: Data object containing training data.
+      - valid_data: Data object containing validation data.
+
+
+    """
     
     def __init__(self, optimizer, suppress_prints = False, print_every = 10):
-        # optimizer: optimizer object used during training
         self.optimizer = optimizer
         self.suppress = suppress_prints
         self.print_every = print_every
     
-    # method for training
+
     def train(
-            self, model, train_data, valid_data, grad_clip_value = 5,
-            epochs = 100, batch_size = 256, shuffle = True, 
-            plot_losses = False, save_path = None,
+            self, 
+            model, 
+            train_data, 
+            valid_data, 
+            grad_clip_value = 5,
+            epochs = 100, 
+            batch_size = 256, 
+            shuffle = True, 
+            plot_losses = False, 
+            save_path = None,
             ):
-        # model: initialized model to be trained; must implement a .log_prob() function which
-        #   produces the log probability of observing the labels given the inputs
-        # train_data: Data object containing training data
-        # valid_data: Data object containing validation data
+        """
+        Trains a model using maximum likelihood estimation.
+
+        Parameters
+        ----------
+
+        model : ProbabilisticModel
+            The model to be trained. Must implement a `log_prob` method that 
+            computes the log probability of observing the labels given the 
+            inputs.
+
+        train_data : Data
+            The training data.
+
+        valid_data : Data
+            The validation data.
+
+        grad_clip_value : float, optional
+            The value at which to clip the gradients to prevent exploding 
+            gradients. The gradients are clipped in the range [-grad_clip_value,
+            grad_clip_value]. Default is 5.
+
+        epochs : int, optional
+            The number of epochs to train the model. Default is 100.
+
+        batch_size : int, optional
+            The batch size used during training. Default is 256.
+
+        shuffle : bool, optional    
+            Whether to shuffle the data during training. Default is True.
+
+        plot_losses : bool, optional
+            Whether to plot the training and validation losses. 
+            Default is False.
+
+        save_path : str, optional
+            Directory to save checkpoints and loss curves if provided.
+
+        Returns
+        -------
+
+        dict
+            A dictionary containing the best epoch, training losses, and
+            validation losses. If `plot_losses` is True, the dictionary will
+            also contain a figure object for the loss curves and the figure
+            will be saved to `save_path` if provided.
+
+        """
+
 
         # whether to save at checkpoints
         save_boolean = save_path is not None and os.path.exists(save_path)
         
         # send model to device
-        device = 'cpu'#'cuda' if torch.cuda.is_available() else 'cpu'
+        device = 'cuda' if torch.cuda.is_available() else 'cpu'
         model = model.to(device)
         
         # create dataloader objects for training data and validation data
@@ -85,7 +166,7 @@ class TrainerMLE(object):
                     nll.backward()
                     # prevent exploding gradients
                     clip_grad_value_(model.parameters(), 
-                    clip_value = grad_clip_value)
+                                     clip_value = grad_clip_value)
                     # update weights
                     self.optimizer.step()
                     # aggregate training loss
@@ -110,7 +191,8 @@ class TrainerMLE(object):
                     try:
                         # produce negative log likelihood
                         nll = -1 * model.log_prob(
-                            input_batch.to(device), label_batch.to(device)).mean(dim = 0)
+                            input_batch.to(device), 
+                            label_batch.to(device)).mean(dim = 0)
                         # compute and aggregate validation loss 
                         valid_loss += nll.item()
                     
