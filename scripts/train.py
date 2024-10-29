@@ -4,9 +4,19 @@ from datetime import datetime
 
 import torch
 
-from dendritic_modeling.utils import load_MNIST, accuracy_score, save_dict
+from dendritic_modeling.utils import (
+    load_MNIST, 
+    split_MNIST_inputs,
+    accuracy_score, 
+    save_dict,
+    Shaper,
+)
 from dendritic_modeling.training import TrainerMLE
 from dendritic_modeling.models import EINetClassifier
+from dendritic_modeling.plot_utils import (
+    plot_einet_params,
+    plot_einet_activations,
+)
 from dendritic_modeling import logger
 
 print('\nimports complete\n', flush = True)
@@ -17,19 +27,18 @@ if __name__ == '__main__':
     name = 'train'
     
     model_hp = {
-        'input_dim' : 784,# * 2,
+        'input_dim' : 784,
         'excitatory_layer_sizes' : [10,],
         'inhibitory_layer_sizes' : [20,],
-        'excitatory_branch_factors' : [12,],
+        'excitatory_branch_factors' : [2,2,2],
         'inhibitory_branch_factors' : [],
-        'reactivate' : True,
+        'ee_synapses_per_branch_per_layer' : [24,],
+        'ei_synapses_per_branch_per_layer' : [100,],
+        'ie_synapses_per_branch_per_layer' : [1,],
+        'ii_synapses_per_branch_per_layer' : [],
+        'reactivate' : False,
         'somatic_synapses' : True,
     }
-
-    model_hp['ee_synapses_per_branch_per_layer'] = [24,]
-    model_hp['ei_synapses_per_branch_per_layer'] = [100,]
-    model_hp['ie_synapses_per_branch_per_layer'] = [1,]
-    model_hp['ii_synapses_per_branch_per_layer'] = []
 
     train_hp = {
         'train_valid_split' : 0.8,
@@ -39,11 +48,9 @@ if __name__ == '__main__':
     }
 
     logger.info('loading mnist ...\n')
-    # data = load_MNIST_modulo10(shuffle_iterations = 5, train_valid_split  = 0.8)
     data = load_MNIST(train_valid_split = train_hp['train_valid_split'])
 
-    clf = EINetClassifier(**model_hp)
-    
+    clf = EINetClassifier(**model_hp)    
 
     trainer = TrainerMLE(
         optimizer = torch.optim.Adam(clf.parameters(), lr = train_hp['lr']),
@@ -55,20 +62,23 @@ if __name__ == '__main__':
     save_path = os.path.join(root, 'results', f'{name}_{now}')
     os.makedirs(save_path, exist_ok = True)
 
-    print('training.....\n')
+    logger.info('training.....\n')
     stime = time.time()
     trainer.train(
         model = clf, 
-        train_data = data['train'], valid_data = data['valid'],
-        epochs = train_hp['epochs'], batch_size = train_hp['batch_size'], shuffle = True,
-        plot_losses = True, save_path = save_path,
-        )
+        train_data = data['train'], 
+        valid_data = data['valid'],
+        epochs = train_hp['epochs'], 
+        batch_size = train_hp['batch_size'],
+        shuffle = True,
+        plot_losses = True, 
+        save_path = save_path,
+    )
     etime = time.time() - stime
 
     train_time = '%.6f sec -> %.6f min' % (etime, etime/60)
     
-
-    print('evaluating performance.....\n', flush = True)
+    logger.info('\nevaluating performance.....\n')
     stime = time.time()
     performance = {
         'train accuracy' : accuracy_score(clf, *data['train'][:]).item(),
@@ -85,7 +95,26 @@ if __name__ == '__main__':
     save_dict(dict = train_hp, save_path = save_path, fname = 'training_hparams.json')
     save_dict(dict = performance, save_path = save_path, fname = 'performance.json')
 
-    print('  done..')
+    logger.info('  done..\n')
 
+    shaper = Shaper(shape = (28,28))
 
+    logger.info('creating param visuals.....')
+    plot_einet_params(
+        einet = clf.net,
+        save_root = os.path.join(save_path, 'param_visuals'),
+        reshape_fn = shaper.reshape,
+        reshape_exc_syn = True,
+        logspace = False,
+    )
+    logger.info('  done..\n')
 
+    input_list = split_MNIST_inputs(*data['train'][:])
+
+    logger.info('creating activation visuals.....')
+    plot_einet_activations(
+        einet = clf.net,
+        input_list = input_list,
+        save_root = os.path.join(save_path, 'activation_visuals'),
+    )
+    logger.info('  done..\n')
