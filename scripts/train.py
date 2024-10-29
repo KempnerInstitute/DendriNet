@@ -33,7 +33,7 @@ if __name__ == '__main__':
         'inhibitory_branch_factors' : [],
         'ee_synapses_per_branch_per_layer' : [24,],
         'ei_synapses_per_branch_per_layer' : [100,],
-        'ie_synapses_per_branch_per_layer' : [2,],
+        'ie_synapses_per_branch_per_layer' : [1,],
         'ii_synapses_per_branch_per_layer' : [],
         'reactivate' : False,
         'somatic_synapses' : True,

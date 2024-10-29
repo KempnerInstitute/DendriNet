@@ -26,7 +26,7 @@ if __name__ == '__main__':
         'input_dim' : 784,
         'excitatory_layer_sizes' : [10,],
         'inhibitory_layer_sizes' : [20,],
-        'excitatory_branch_factors' : [24,],
+        'excitatory_branch_factors' : [2,2,2],
         'inhibitory_branch_factors' : [],
         'reactivate' : True,
         'somatic_synapses' : True,
@@ -43,7 +43,7 @@ if __name__ == '__main__':
     train_hp = {
         'train_valid_split' : 0.8,
         'lr' : 1e-3,
-        'epochs' : 100,
+        'epochs' : 500,
         'batch_size' : 512,
     }
 
