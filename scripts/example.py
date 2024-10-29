@@ -26,18 +26,15 @@ if __name__ == '__main__':
         'input_dim' : 784,
         'excitatory_layer_sizes' : [10,],
         'inhibitory_layer_sizes' : [20,],
-        'excitatory_branch_factors' : [24,],
+        'excitatory_branch_factors' : [2,2,2],
         'inhibitory_branch_factors' : [],
+        'ee_synapses_per_branch_per_layer' : [24,],
+        'ei_synapses_per_branch_per_layer' : [100,],
+        'ie_synapses_per_branch_per_layer' : [1,],
+        'ii_synapses_per_branch_per_layer' : [],
         'reactivate' : True,
         'somatic_synapses' : True,
     }
-
-    
-
-    model_hp['ee_synapses_per_branch_per_layer'] = [24,]
-    model_hp['ei_synapses_per_branch_per_layer'] = [100,]
-    model_hp['ie_synapses_per_branch_per_layer'] = [1,]
-    model_hp['ii_synapses_per_branch_per_layer'] = []
 
     # define training hparams
     train_hp = {
