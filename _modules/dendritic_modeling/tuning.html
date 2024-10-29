@@ -1,0 +1,482 @@
+
+
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" data-content_root="../../">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>dendritic_modeling.tuning &mdash; dendritic_modeling 0.1.0 documentation</title>
+      <link rel="stylesheet" type="text/css" href="../../_static/pygments.css?v=80d5e7a1" />
+      <link rel="stylesheet" type="text/css" href="../../_static/css/theme.css?v=e59714d7" />
+      <link rel="stylesheet" type="text/css" href="../../_static/copybutton.css?v=76b2166b" />
+
+  
+      <script src="../../_static/jquery.js?v=5d32c60e"></script>
+      <script src="../../_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
+      <script src="../../_static/documentation_options.js?v=01f34227"></script>
+      <script src="../../_static/doctools.js?v=9bcbadda"></script>
+      <script src="../../_static/sphinx_highlight.js?v=dc90522c"></script>
+      <script src="../../_static/clipboard.min.js?v=a7894cd8"></script>
+      <script src="../../_static/copybutton.js?v=f281be69"></script>
+      <script crossorigin="anonymous" integrity="sha256-Ae2Vz/4ePdIu6ZyI/5ZGsYnb+m0JlOmKPjt6XZ9JJkA=" src="https://cdnjs.cloudflare.com/ajax/libs/require.js/2.3.4/require.min.js"></script>
+    <script src="../../_static/js/theme.js"></script>
+    <link rel="author" title="About these documents" href="../../about.html" />
+    <link rel="index" title="Index" href="../../genindex.html" />
+    <link rel="search" title="Search" href="../../search.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+
+          
+          
+          <a href="../../index.html" class="icon icon-home">
+            dendritic_modeling
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <p class="caption" role="heading"><span class="caption-text">Introduction</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../about.html">About</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Users Guide</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../source/users/users.html">Installation</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../source/users/users.html#build-the-documentation">Build the documentation</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Dendritic Modeling</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../source/dend_m/concepts_overview.html">Concepts Overview</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">References</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../source/users/references.html">References</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Appendix and Resources</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../source/additional_resources.html">Additional resources</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../source/glossary.html">Glossary</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">API Reference</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../source/dendritic_modeling.html">dendritic_modeling package</a></li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../../index.html">dendritic_modeling</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="../../index.html" class="icon icon-home" aria-label="Home"></a></li>
+          <li class="breadcrumb-item"><a href="../index.html">Module code</a></li>
+      <li class="breadcrumb-item active">dendritic_modeling.tuning</li>
+      <li class="wy-breadcrumbs-aside">
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <h1>Source code for dendritic_modeling.tuning</h1><div class="highlight"><pre>
+<span></span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">tuning.py</span>
+<span class="sd">=========</span>
+<span class="sd">This module contains the hyperparameter tuning class for the dendritic_modeling.</span>
+<span class="sd">&quot;&quot;&quot;</span>
+
+<span class="kn">import</span> <span class="nn">os</span>
+<span class="kn">import</span> <span class="nn">time</span>
+
+<span class="kn">import</span> <span class="nn">torch</span>
+<span class="kn">import</span> <span class="nn">matplotlib.pyplot</span> <span class="k">as</span> <span class="nn">plt</span>
+
+<span class="kn">from</span> <span class="nn">dendritic_modeling</span> <span class="kn">import</span> <span class="n">logger</span>
+<span class="kn">from</span> <span class="nn">dendritic_modeling.utils</span> <span class="kn">import</span> <span class="n">save_dict</span>
+<span class="kn">from</span> <span class="nn">dendritic_modeling.training</span> <span class="kn">import</span> <span class="n">TrainerMLE</span>
+
+
+<div class="viewcode-block" id="DendriNetTuner">
+<a class="viewcode-back" href="../../source/dendritic_modeling.html#dendritic_modeling.tuning.DendriNetTuner">[docs]</a>
+<span class="k">class</span> <span class="nc">DendriNetTuner</span><span class="p">(</span><span class="nb">object</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    A hyperparameter tuning class for Dendritic Modeling using DendriNet.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    branch_factors_space : list of int</span>
+<span class="sd">        The space of branch factors to be explored.</span>
+<span class="sd">    </span>
+<span class="sd">    n_inh_cells_space : list of int</span>
+<span class="sd">        The space of number of inhibitory cells to be explored.</span>
+
+<span class="sd">    syn_per_inh_cell_space : list of int</span>
+<span class="sd">        The space of synapses per inhibitory cell to be explored.</span>
+
+<span class="sd">    inh_syn_per_branch_space : list of int</span>
+<span class="sd">        The space of inhibitory synapses per branch to be explored.</span>
+
+<span class="sd">    exc_syn_per_branch_space : list of int</span>
+<span class="sd">        The space of excitatory synapses per branch to be explored.</span>
+
+<span class="sd">    shunting_space : list of bool</span>
+<span class="sd">        The space of shunting to be explored.</span>
+
+<span class="sd">    reactivate_space : list of bool</span>
+<span class="sd">        The space of reactivation to be explored.</span>
+
+<span class="sd">    b_trainable_space : list of bool</span>
+<span class="sd">        The space of b_trainable to be explored.</span>
+
+<span class="sd">    log_lr_space : list of float</span>
+<span class="sd">        The space of log learning rates to be explored.</span>
+
+<span class="sd">    Attributes</span>
+<span class="sd">    ----------</span>
+<span class="sd">    hparams : dict</span>
+<span class="sd">        The hyperparameter space.</span>
+
+<span class="sd">    metrics : torch.Tensor</span>
+<span class="sd">        The performance metrics tensor for storing training, validation and </span>
+<span class="sd">        testing performances for each configuration.</span>
+
+<span class="sd">    n_configs : int</span>
+<span class="sd">        The total number of configurations to be explored.</span>
+
+<span class="sd">    Methods</span>
+<span class="sd">    -------</span>
+<span class="sd">    tune(dendrinet, input_dim, output_dim, train_data, valid_data, test_data, </span>
+<span class="sd">         epochs, batch_size, metric_fn, save_root)</span>
+<span class="sd">        Tune the hyperparameters of the DendriNet model.</span>
+<span class="sd">    </span>
+<span class="sd">    sweeping_plots(save_path)</span>
+<span class="sd">        Generate sweeping plots for the hyperparameters.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span> <span class="n">branch_factors_space</span><span class="p">,</span> <span class="n">n_inh_cells_space</span><span class="p">,</span> <span class="n">syn_per_inh_cell_space</span><span class="p">,</span>
+        <span class="n">inh_syn_per_branch_space</span><span class="p">,</span> <span class="n">exc_syn_per_branch_space</span><span class="p">,</span>
+        <span class="n">shunting_space</span><span class="p">,</span> <span class="n">reactivate_space</span><span class="p">,</span> <span class="n">b_trainable_space</span><span class="p">,</span> <span class="n">log_lr_space</span><span class="p">,</span>
+    <span class="p">):</span>
+        <span class="n">hparams</span> <span class="o">=</span> <span class="p">{}</span>
+        <span class="n">hparams</span><span class="p">[</span><span class="s1">&#39;branch factors&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">branch_factors_space</span>
+        <span class="n">hparams</span><span class="p">[</span><span class="s1">&#39;n inh cells&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">n_inh_cells_space</span>
+        <span class="n">hparams</span><span class="p">[</span><span class="s1">&#39;syn per inh cell&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">syn_per_inh_cell_space</span>
+        <span class="n">hparams</span><span class="p">[</span><span class="s1">&#39;inh syn per branch&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">inh_syn_per_branch_space</span>
+        <span class="n">hparams</span><span class="p">[</span><span class="s1">&#39;exc syn per branch&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">exc_syn_per_branch_space</span>
+        <span class="n">hparams</span><span class="p">[</span><span class="s1">&#39;shunting&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">shunting_space</span>
+        <span class="n">hparams</span><span class="p">[</span><span class="s1">&#39;reactivate&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">reactivate_space</span>
+        <span class="n">hparams</span><span class="p">[</span><span class="s1">&#39;b trainable&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">b_trainable_space</span>
+        <span class="n">hparams</span><span class="p">[</span><span class="s1">&#39;log lr&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">log_lr_space</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">hparams</span> <span class="o">=</span> <span class="n">hparams</span>
+
+        <span class="n">metrics</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">zeros</span><span class="p">(</span>
+            <span class="p">(</span><span class="mi">3</span><span class="p">,</span> 
+             <span class="nb">len</span><span class="p">(</span><span class="n">branch_factors_space</span><span class="p">),</span> 
+             <span class="nb">len</span><span class="p">(</span><span class="n">n_inh_cells_space</span><span class="p">),</span> 
+             <span class="nb">len</span><span class="p">(</span><span class="n">syn_per_inh_cell_space</span><span class="p">),</span>
+             <span class="nb">len</span><span class="p">(</span><span class="n">inh_syn_per_branch_space</span><span class="p">),</span> 
+             <span class="nb">len</span><span class="p">(</span><span class="n">exc_syn_per_branch_space</span><span class="p">),</span>
+             <span class="nb">len</span><span class="p">(</span><span class="n">shunting_space</span><span class="p">),</span> 
+             <span class="nb">len</span><span class="p">(</span><span class="n">reactivate_space</span><span class="p">),</span> 
+             <span class="nb">len</span><span class="p">(</span><span class="n">b_trainable_space</span><span class="p">),</span> 
+             <span class="nb">len</span><span class="p">(</span><span class="n">log_lr_space</span><span class="p">)),</span> 
+        <span class="p">)</span>
+        <span class="n">device</span> <span class="o">=</span> <span class="s1">&#39;cuda&#39;</span> <span class="k">if</span> <span class="n">torch</span><span class="o">.</span><span class="n">cuda</span><span class="o">.</span><span class="n">is_available</span><span class="p">()</span> <span class="k">else</span> <span class="s1">&#39;cpu&#39;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">metrics</span> <span class="o">=</span> <span class="n">metrics</span><span class="o">.</span><span class="n">to</span><span class="p">(</span><span class="n">device</span><span class="p">)</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">n_configs</span> <span class="o">=</span> <span class="n">metrics</span><span class="o">.</span><span class="n">flatten</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span><span class="o">-</span><span class="mi">1</span><span class="p">)</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span>
+    
+<div class="viewcode-block" id="DendriNetTuner.tune">
+<a class="viewcode-back" href="../../source/dendritic_modeling.html#dendritic_modeling.tuning.DendriNetTuner.tune">[docs]</a>
+    <span class="k">def</span> <span class="nf">tune</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span> <span class="n">dendrinet</span><span class="p">,</span> <span class="n">input_dim</span><span class="p">,</span> <span class="n">output_dim</span><span class="p">,</span>
+        <span class="n">train_data</span><span class="p">,</span> <span class="n">valid_data</span><span class="p">,</span> <span class="n">test_data</span><span class="p">,</span>
+        <span class="n">epochs</span><span class="p">,</span> <span class="n">batch_size</span><span class="p">,</span> <span class="n">metric_fn</span><span class="p">,</span> <span class="n">save_root</span><span class="p">,</span>
+    <span class="p">):</span>
+        <span class="n">metrics_path</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">save_root</span><span class="p">,</span> <span class="s1">&#39;metrics.pt&#39;</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">exists</span><span class="p">(</span><span class="n">metrics_path</span><span class="p">):</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">metrics</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">load</span><span class="p">(</span><span class="n">metrics_path</span><span class="p">,</span> <span class="n">weights_only</span> <span class="o">=</span> <span class="kc">True</span><span class="p">)</span>
+        
+        <span class="n">config_count</span> <span class="o">=</span> <span class="mi">1</span>
+        <span class="n">stime</span> <span class="o">=</span> <span class="n">time</span><span class="o">.</span><span class="n">time</span><span class="p">()</span>
+    
+        <span class="c1">#TODO: Refactor the following nested for loops</span>
+        <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">hparams</span><span class="p">[</span><span class="s1">&#39;branch factors&#39;</span><span class="p">])):</span>
+            <span class="k">for</span> <span class="n">j</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">hparams</span><span class="p">[</span><span class="s1">&#39;n inh cells&#39;</span><span class="p">])):</span>
+                <span class="k">for</span> <span class="n">k</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">hparams</span><span class="p">[</span><span class="s1">&#39;syn per inh cell&#39;</span><span class="p">])):</span>
+                    <span class="k">for</span> <span class="n">l</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">hparams</span><span class="p">[</span><span class="s1">&#39;inh syn per branch&#39;</span><span class="p">])):</span>
+                        <span class="k">for</span> <span class="n">m</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">hparams</span><span class="p">[</span><span class="s1">&#39;exc syn per branch&#39;</span><span class="p">])):</span>
+                            <span class="k">for</span> <span class="n">n</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">hparams</span><span class="p">[</span><span class="s1">&#39;shunting&#39;</span><span class="p">])):</span>
+                                <span class="k">for</span> <span class="n">o</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">hparams</span><span class="p">[</span><span class="s1">&#39;reactivate&#39;</span><span class="p">])):</span>
+                                    <span class="k">for</span> <span class="n">p</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">hparams</span><span class="p">[</span><span class="s1">&#39;b trainable&#39;</span><span class="p">])):</span>
+                                        <span class="k">for</span> <span class="n">q</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">hparams</span><span class="p">[</span><span class="s1">&#39;log lr&#39;</span><span class="p">])):</span>
+
+                                            <span class="n">branch_factors</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">hparams</span><span class="p">[</span><span class="s1">&#39;branch factors&#39;</span><span class="p">][</span><span class="n">i</span><span class="p">]</span>
+                                            <span class="n">n_inhibitory_cells</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">hparams</span><span class="p">[</span><span class="s1">&#39;n inh cells&#39;</span><span class="p">][</span><span class="n">j</span><span class="p">]</span>
+                                            <span class="n">synapses_per_inhibitory_cell</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">hparams</span><span class="p">[</span><span class="s1">&#39;syn per inh cell&#39;</span><span class="p">][</span><span class="n">k</span><span class="p">]</span>
+                                            <span class="n">inhibitory_synapses_per_branch</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">hparams</span><span class="p">[</span><span class="s1">&#39;inh syn per branch&#39;</span><span class="p">][</span><span class="n">l</span><span class="p">]</span>
+                                            <span class="n">excitatory_synapses_per_branch</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">hparams</span><span class="p">[</span><span class="s1">&#39;exc syn per branch&#39;</span><span class="p">][</span><span class="n">m</span><span class="p">]</span>
+                                            <span class="n">shunting</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">hparams</span><span class="p">[</span><span class="s1">&#39;shunting&#39;</span><span class="p">][</span><span class="n">n</span><span class="p">]</span>
+                                            <span class="n">reactivate</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">hparams</span><span class="p">[</span><span class="s1">&#39;reactivate&#39;</span><span class="p">][</span><span class="n">o</span><span class="p">]</span>
+                                            <span class="n">b_trainable</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">hparams</span><span class="p">[</span><span class="s1">&#39;b trainable&#39;</span><span class="p">][</span><span class="n">p</span><span class="p">]</span>
+                                            <span class="n">lr</span> <span class="o">=</span> <span class="mi">10</span><span class="o">**</span><span class="bp">self</span><span class="o">.</span><span class="n">hparams</span><span class="p">[</span><span class="s1">&#39;log lr&#39;</span><span class="p">][</span><span class="n">q</span><span class="p">]</span>
+
+                                            <span class="n">model_dir</span> <span class="o">=</span> <span class="sa">f</span><span class="s1">&#39;brf</span><span class="si">{</span><span class="n">branch_factors</span><span class="si">}</span><span class="s1">_nic</span><span class="si">{</span><span class="n">n_inhibitory_cells</span><span class="si">}</span><span class="s1">_sic</span><span class="si">{</span><span class="n">synapses_per_inhibitory_cell</span><span class="si">}</span><span class="s1">_&#39;</span>
+                                            <span class="n">model_dir</span> <span class="o">+=</span> <span class="sa">f</span><span class="s1">&#39;isb</span><span class="si">{</span><span class="n">inhibitory_synapses_per_branch</span><span class="si">}</span><span class="s1">_esb</span><span class="si">{</span><span class="n">excitatory_synapses_per_branch</span><span class="si">}</span><span class="s1">_&#39;</span>
+                                            <span class="n">model_dir</span> <span class="o">+=</span> <span class="sa">f</span><span class="s1">&#39;shu</span><span class="si">{</span><span class="n">shunting</span><span class="si">}</span><span class="s1">_rea</span><span class="si">{</span><span class="n">reactivate</span><span class="si">}</span><span class="s1">_btr</span><span class="si">{</span><span class="n">b_trainable</span><span class="si">}</span><span class="s1">_lr</span><span class="si">{</span><span class="n">lr</span><span class="si">}</span><span class="s1">&#39;</span>
+
+                                            <span class="n">save_path</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">save_root</span><span class="p">,</span> <span class="s1">&#39;models&#39;</span><span class="p">,</span> <span class="n">model_dir</span><span class="p">)</span>
+
+                                            <span class="k">if</span> <span class="ow">not</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">exists</span><span class="p">(</span><span class="n">save_path</span><span class="p">):</span>
+
+                                                <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s1">&#39;-------------------------------------&#39;</span><span class="p">)</span>
+                                                <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="sa">f</span><span class="s1">&#39;model configuration - </span><span class="si">{</span><span class="n">config_count</span><span class="si">}</span><span class="s1">/</span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">n_configs</span><span class="si">}</span><span class="s1">&#39;</span><span class="p">)</span>
+                                                <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="sa">f</span><span class="s1">&#39;branch factors: </span><span class="si">{</span><span class="n">branch_factors</span><span class="si">}</span><span class="s1">&#39;</span><span class="p">)</span>
+                                                <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="sa">f</span><span class="s1">&#39;n inhibitory cells: </span><span class="si">{</span><span class="n">n_inhibitory_cells</span><span class="si">}</span><span class="s1">&#39;</span><span class="p">)</span>
+                                                <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="sa">f</span><span class="s1">&#39;synapses per inhibitory cell: </span><span class="si">{</span><span class="n">synapses_per_inhibitory_cell</span><span class="si">}</span><span class="s1">&#39;</span><span class="p">)</span>
+                                                <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="sa">f</span><span class="s1">&#39;inhibitory synapses per branch: </span><span class="si">{</span><span class="n">inhibitory_synapses_per_branch</span><span class="si">}</span><span class="s1">&#39;</span><span class="p">)</span>
+                                                <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="sa">f</span><span class="s1">&#39;excitatory synapses per branch: </span><span class="si">{</span><span class="n">excitatory_synapses_per_branch</span><span class="si">}</span><span class="s1">&#39;</span><span class="p">)</span>
+                                                <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="sa">f</span><span class="s1">&#39;shunting: </span><span class="si">{</span><span class="n">shunting</span><span class="si">}</span><span class="s1">&#39;</span><span class="p">)</span>
+                                                <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="sa">f</span><span class="s1">&#39;reactivate: </span><span class="si">{</span><span class="n">reactivate</span><span class="si">}</span><span class="s1">&#39;</span><span class="p">)</span>
+                                                <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="sa">f</span><span class="s1">&#39;b trainable: </span><span class="si">{</span><span class="n">b_trainable</span><span class="si">}</span><span class="s1">&#39;</span><span class="p">)</span>
+                                                <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="sa">f</span><span class="s1">&#39;learning rate: </span><span class="si">{</span><span class="n">lr</span><span class="si">}</span><span class="s1">&#39;</span><span class="p">)</span>
+
+                                                
+                                                <span class="n">model</span> <span class="o">=</span> <span class="n">dendrinet</span><span class="p">(</span>
+                                                    <span class="n">input_dim</span> <span class="o">=</span> <span class="n">input_dim</span><span class="p">,</span> <span class="n">output_dim</span> <span class="o">=</span> <span class="n">output_dim</span><span class="p">,</span>
+                                                    <span class="n">branch_factors</span> <span class="o">=</span> <span class="n">branch_factors</span><span class="p">,</span>
+                                                    <span class="n">n_inhibitory_cells</span> <span class="o">=</span> <span class="n">n_inhibitory_cells</span><span class="p">,</span>
+                                                    <span class="n">synapses_per_inhibitory_cell</span> <span class="o">=</span> <span class="n">synapses_per_inhibitory_cell</span><span class="p">,</span>
+                                                    <span class="n">inhibitory_synapses_per_branch</span> <span class="o">=</span> <span class="n">inhibitory_synapses_per_branch</span><span class="p">,</span>
+                                                    <span class="n">excitatory_synapses_per_branch</span> <span class="o">=</span> <span class="n">excitatory_synapses_per_branch</span><span class="p">,</span>
+                                                    <span class="n">shunting</span> <span class="o">=</span> <span class="n">shunting</span><span class="p">,</span>
+                                                    <span class="n">reactivate</span> <span class="o">=</span> <span class="n">reactivate</span><span class="p">,</span> 
+                                                    <span class="n">b_trainable</span> <span class="o">=</span> <span class="n">b_trainable</span><span class="p">,</span>
+                                                <span class="p">)</span>
+                                                <span class="c1">#scripted_model = torch.jit.script(model)</span>
+
+                                                <span class="n">trainer</span> <span class="o">=</span> <span class="n">TrainerMLE</span><span class="p">(</span>
+                                                    <span class="n">optimizer</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">optim</span><span class="o">.</span><span class="n">Adam</span><span class="p">(</span><span class="n">model</span><span class="o">.</span><span class="n">parameters</span><span class="p">(),</span> <span class="n">lr</span> <span class="o">=</span> <span class="n">lr</span><span class="p">),</span>
+                                                    <span class="n">suppress_prints</span> <span class="o">=</span> <span class="kc">True</span><span class="p">,</span>
+                                                <span class="p">)</span>
+                                                <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s1">&#39;training ...&#39;</span><span class="p">)</span>
+                                                <span class="n">res</span> <span class="o">=</span> <span class="n">trainer</span><span class="o">.</span><span class="n">train</span><span class="p">(</span>
+                                                    <span class="n">model</span><span class="p">,</span> <span class="n">train_data</span> <span class="o">=</span> <span class="n">train_data</span><span class="p">,</span> <span class="n">valid_data</span> <span class="o">=</span> <span class="n">valid_data</span><span class="p">,</span>
+                                                    <span class="n">epochs</span> <span class="o">=</span> <span class="n">epochs</span><span class="p">,</span> <span class="n">batch_size</span> <span class="o">=</span> <span class="n">batch_size</span><span class="p">,</span> <span class="n">shuffle</span> <span class="o">=</span> <span class="kc">True</span><span class="p">,</span> <span class="n">plot_losses</span> <span class="o">=</span> <span class="kc">True</span><span class="p">,</span>
+                                                <span class="p">)</span>
+                                                <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s1">&#39;Done!&#39;</span><span class="p">)</span>
+                                                <span class="n">etime</span> <span class="o">=</span> <span class="n">time</span><span class="o">.</span><span class="n">time</span><span class="p">()</span> <span class="o">-</span> <span class="n">stime</span>
+                                                <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s1">&#39;time elapsed: </span><span class="si">%.2f</span><span class="s1"> min | </span><span class="si">%.3f</span><span class="s1"> hrs&#39;</span> <span class="o">%</span> <span class="p">(</span><span class="n">etime</span><span class="o">/</span><span class="mi">60</span><span class="p">,</span> <span class="n">etime</span><span class="o">/</span><span class="mi">3600</span><span class="p">))</span>
+
+                                                <span class="n">hp</span> <span class="o">=</span> <span class="p">{</span>
+                                                    <span class="s1">&#39;input_dim&#39;</span> <span class="p">:</span> <span class="n">input_dim</span><span class="p">,</span>
+                                                    <span class="s1">&#39;output_dim&#39;</span> <span class="p">:</span> <span class="n">output_dim</span><span class="p">,</span>
+                                                    <span class="s1">&#39;branch_factors&#39;</span> <span class="p">:</span> <span class="n">branch_factors</span><span class="p">,</span>
+                                                    <span class="s1">&#39;n_inhibitory_cells&#39;</span> <span class="p">:</span> <span class="n">n_inhibitory_cells</span><span class="p">,</span>
+                                                    <span class="s1">&#39;synapses_per_inhibitory_cell&#39;</span> <span class="p">:</span> <span class="n">synapses_per_inhibitory_cell</span><span class="p">,</span>
+                                                    <span class="s1">&#39;inhibitory_synapses_per_branch&#39;</span> <span class="p">:</span> <span class="n">inhibitory_synapses_per_branch</span><span class="p">,</span>
+                                                    <span class="s1">&#39;excitatory_synapses_per_branch&#39;</span> <span class="p">:</span> <span class="n">excitatory_synapses_per_branch</span><span class="p">,</span>
+                                                    <span class="s1">&#39;shunting&#39;</span> <span class="p">:</span> <span class="n">shunting</span><span class="p">,</span>
+                                                    <span class="s1">&#39;reactivate&#39;</span> <span class="p">:</span> <span class="n">reactivate</span><span class="p">,</span>
+                                                    <span class="s1">&#39;b_trainable&#39;</span> <span class="p">:</span> <span class="n">b_trainable</span><span class="p">,</span>
+                                                    <span class="s1">&#39;learning rate&#39;</span> <span class="p">:</span> <span class="n">lr</span><span class="p">,</span>
+                                                <span class="p">}</span>
+
+                                                <span class="n">performance</span> <span class="o">=</span> <span class="p">{</span>
+                                                    <span class="s1">&#39;training&#39;</span> <span class="p">:</span> <span class="n">metric_fn</span><span class="p">(</span><span class="n">model</span><span class="p">,</span> <span class="o">*</span><span class="n">train_data</span><span class="p">[:])</span><span class="o">.</span><span class="n">item</span><span class="p">(),</span>
+                                                    <span class="s1">&#39;validation&#39;</span> <span class="p">:</span> <span class="n">metric_fn</span><span class="p">(</span><span class="n">model</span><span class="p">,</span> <span class="o">*</span><span class="n">valid_data</span><span class="p">[:])</span><span class="o">.</span><span class="n">item</span><span class="p">(),</span>
+                                                    <span class="s1">&#39;testing&#39;</span> <span class="p">:</span> <span class="n">metric_fn</span><span class="p">(</span><span class="n">model</span><span class="p">,</span> <span class="o">*</span><span class="n">test_data</span><span class="p">[:])</span><span class="o">.</span><span class="n">item</span><span class="p">(),</span>
+                                                <span class="p">}</span>
+
+                                                <span class="bp">self</span><span class="o">.</span><span class="n">metrics</span><span class="p">[</span><span class="mi">0</span><span class="p">,</span><span class="n">i</span><span class="p">,</span><span class="n">j</span><span class="p">,</span><span class="n">k</span><span class="p">,</span><span class="n">l</span><span class="p">,</span><span class="n">m</span><span class="p">,</span><span class="n">n</span><span class="p">,</span><span class="n">o</span><span class="p">,</span><span class="n">p</span><span class="p">,</span><span class="n">q</span><span class="p">]</span> <span class="o">=</span> <span class="n">performance</span><span class="p">[</span><span class="s1">&#39;training&#39;</span><span class="p">]</span>
+                                                <span class="bp">self</span><span class="o">.</span><span class="n">metrics</span><span class="p">[</span><span class="mi">1</span><span class="p">,</span><span class="n">i</span><span class="p">,</span><span class="n">j</span><span class="p">,</span><span class="n">k</span><span class="p">,</span><span class="n">l</span><span class="p">,</span><span class="n">m</span><span class="p">,</span><span class="n">n</span><span class="p">,</span><span class="n">o</span><span class="p">,</span><span class="n">p</span><span class="p">,</span><span class="n">q</span><span class="p">]</span> <span class="o">=</span> <span class="n">performance</span><span class="p">[</span><span class="s1">&#39;validation&#39;</span><span class="p">]</span>
+                                                <span class="bp">self</span><span class="o">.</span><span class="n">metrics</span><span class="p">[</span><span class="mi">2</span><span class="p">,</span><span class="n">i</span><span class="p">,</span><span class="n">j</span><span class="p">,</span><span class="n">k</span><span class="p">,</span><span class="n">l</span><span class="p">,</span><span class="n">m</span><span class="p">,</span><span class="n">n</span><span class="p">,</span><span class="n">o</span><span class="p">,</span><span class="n">p</span><span class="p">,</span><span class="n">q</span><span class="p">]</span> <span class="o">=</span> <span class="n">performance</span><span class="p">[</span><span class="s1">&#39;testing&#39;</span><span class="p">]</span>
+
+                                                <span class="n">os</span><span class="o">.</span><span class="n">makedirs</span><span class="p">(</span><span class="n">save_path</span><span class="p">,</span> <span class="n">exist_ok</span> <span class="o">=</span> <span class="kc">True</span><span class="p">)</span>
+
+                                                <span class="n">torch</span><span class="o">.</span><span class="n">save</span><span class="p">(</span><span class="n">model</span><span class="o">.</span><span class="n">state_dict</span><span class="p">(),</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">save_path</span><span class="p">,</span> <span class="s1">&#39;state_dict.pt&#39;</span><span class="p">))</span>
+                                                <span class="n">torch</span><span class="o">.</span><span class="n">save</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">metrics</span><span class="p">,</span> <span class="n">metrics_path</span><span class="p">)</span>
+
+                                                <span class="n">save_dict</span><span class="p">(</span><span class="n">hp</span><span class="p">,</span> <span class="n">save_path</span><span class="p">,</span> <span class="s1">&#39;hparams.json&#39;</span><span class="p">)</span>
+                                                <span class="n">save_dict</span><span class="p">(</span><span class="n">performance</span><span class="p">,</span> <span class="n">save_path</span><span class="p">,</span> <span class="s1">&#39;performance.json&#39;</span><span class="p">)</span>
+                                                
+                                                <span class="n">res</span><span class="p">[</span><span class="s1">&#39;loss curves&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">savefig</span><span class="p">(</span><span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">save_path</span><span class="p">,</span> <span class="s1">&#39;loss_curves.jpeg&#39;</span><span class="p">))</span>
+                                                <span class="n">plt</span><span class="o">.</span><span class="n">close</span><span class="p">(</span><span class="n">res</span><span class="p">[</span><span class="s1">&#39;loss curves&#39;</span><span class="p">])</span>
+
+                                            <span class="n">config_count</span> <span class="o">+=</span> <span class="mi">1</span>
+
+        <span class="n">bestix</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">unravel_index</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">metrics</span><span class="p">[</span><span class="mi">2</span><span class="p">,</span><span class="o">...</span><span class="p">]</span><span class="o">.</span><span class="n">argmax</span><span class="p">(),</span> 
+                                     <span class="bp">self</span><span class="o">.</span><span class="n">metrics</span><span class="p">[</span><span class="mi">2</span><span class="p">,</span><span class="o">...</span><span class="p">]</span><span class="o">.</span><span class="n">shape</span><span class="p">)</span>
+
+        <span class="n">hp_best</span> <span class="o">=</span> <span class="p">{}</span>
+        <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="n">key</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">hparams</span><span class="o">.</span><span class="n">keys</span><span class="p">()):</span>
+            <span class="n">hp_best</span><span class="p">[</span><span class="n">key</span><span class="p">]</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">hparams</span><span class="p">[</span><span class="n">key</span><span class="p">][</span><span class="n">bestix</span><span class="p">[</span><span class="n">i</span><span class="p">]]</span>
+
+        <span class="n">save_dict</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">hparams</span><span class="p">,</span> <span class="n">save_root</span><span class="p">,</span> <span class="s1">&#39;hparam_space.json&#39;</span><span class="p">)</span>
+        <span class="n">save_dict</span><span class="p">(</span><span class="n">hp_best</span><span class="p">,</span> <span class="n">save_root</span><span class="p">,</span> <span class="s1">&#39;hparam_best.json&#39;</span><span class="p">)</span>
+
+        <span class="n">sweep_path</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">save_root</span><span class="p">,</span> <span class="s1">&#39;sweeping_plots&#39;</span><span class="p">)</span>
+        <span class="n">os</span><span class="o">.</span><span class="n">mkdir</span><span class="p">(</span><span class="n">sweep_path</span><span class="p">)</span>
+
+        <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s1">&#39;generating sweeping plots.....&#39;</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">sweeping_plots</span><span class="p">(</span><span class="n">sweep_path</span><span class="p">)</span>
+        <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s1">&#39;  done..&#39;</span><span class="p">)</span></div>
+
+
+
+<div class="viewcode-block" id="DendriNetTuner.sweeping_plots">
+<a class="viewcode-back" href="../../source/dendritic_modeling.html#dendritic_modeling.tuning.DendriNetTuner.sweeping_plots">[docs]</a>
+    <span class="k">def</span> <span class="nf">sweeping_plots</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">save_path</span><span class="p">):</span>
+        
+        <span class="n">train</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">metrics</span><span class="p">[</span><span class="mi">0</span><span class="p">,</span><span class="o">...</span><span class="p">]</span>
+        <span class="n">valid</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">metrics</span><span class="p">[</span><span class="mi">1</span><span class="p">,</span><span class="o">...</span><span class="p">]</span>
+        <span class="n">test</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">metrics</span><span class="p">[</span><span class="mi">2</span><span class="p">,</span><span class="o">...</span><span class="p">]</span>
+
+        <span class="n">bestix</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">unravel_index</span><span class="p">(</span><span class="n">test</span><span class="o">.</span><span class="n">argmax</span><span class="p">(),</span> <span class="n">test</span><span class="o">.</span><span class="n">shape</span><span class="p">)</span>
+
+        <span class="k">def</span> <span class="nf">plot_hp_sweep</span><span class="p">(</span><span class="n">hp_name</span><span class="p">,</span> <span class="n">hp_dim</span><span class="p">,</span> <span class="n">quantitative</span> <span class="o">=</span> <span class="kc">True</span><span class="p">):</span>
+            
+            <span class="n">train_values</span> <span class="o">=</span> <span class="p">[]</span>
+            <span class="n">valid_values</span> <span class="o">=</span> <span class="p">[]</span>
+            <span class="n">test_values</span> <span class="o">=</span> <span class="p">[]</span>
+
+            <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">test</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="n">hp_dim</span><span class="p">]):</span>
+                <span class="n">ix</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="n">bestix</span><span class="p">)</span>
+                <span class="n">ix</span><span class="p">[</span><span class="n">hp_dim</span><span class="p">]</span> <span class="o">=</span> <span class="n">i</span>
+
+                <span class="n">train_values</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">train</span><span class="p">[</span><span class="n">ix</span><span class="p">]</span><span class="o">.</span><span class="n">item</span><span class="p">())</span>
+                <span class="n">valid_values</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">valid</span><span class="p">[</span><span class="n">ix</span><span class="p">]</span><span class="o">.</span><span class="n">item</span><span class="p">())</span>
+                <span class="n">test_values</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">test</span><span class="p">[</span><span class="n">ix</span><span class="p">]</span><span class="o">.</span><span class="n">item</span><span class="p">())</span>
+
+            <span class="n">fig</span> <span class="o">=</span> <span class="n">plt</span><span class="o">.</span><span class="n">figure</span><span class="p">()</span>
+
+            <span class="k">if</span> <span class="n">quantitative</span><span class="p">:</span>
+                <span class="n">plt</span><span class="o">.</span><span class="n">plot</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">hparams</span><span class="p">[</span><span class="n">hp_name</span><span class="p">],</span> 
+                         <span class="n">train_values</span><span class="p">,</span> 
+                         <span class="n">marker</span> <span class="o">=</span> <span class="s1">&#39;o&#39;</span><span class="p">,</span> 
+                         <span class="n">ms</span> <span class="o">=</span> <span class="mi">8</span><span class="p">,</span> 
+                         <span class="n">color</span> <span class="o">=</span> <span class="s1">&#39;0.4&#39;</span><span class="p">,</span> 
+                         <span class="n">label</span> <span class="o">=</span> <span class="s1">&#39;train&#39;</span><span class="p">)</span>
+                <span class="n">plt</span><span class="o">.</span><span class="n">plot</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">hparams</span><span class="p">[</span><span class="n">hp_name</span><span class="p">],</span> 
+                         <span class="n">valid_values</span><span class="p">,</span> 
+                         <span class="n">marker</span> <span class="o">=</span> <span class="s1">&#39;o&#39;</span><span class="p">,</span> 
+                         <span class="n">ms</span> <span class="o">=</span> <span class="mi">8</span><span class="p">,</span> 
+                         <span class="n">color</span> <span class="o">=</span> <span class="s1">&#39;blue&#39;</span><span class="p">,</span> 
+                         <span class="n">label</span> <span class="o">=</span> <span class="s1">&#39;valid&#39;</span><span class="p">)</span>
+                <span class="n">plt</span><span class="o">.</span><span class="n">plot</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">hparams</span><span class="p">[</span><span class="n">hp_name</span><span class="p">],</span> 
+                         <span class="n">test_values</span><span class="p">,</span> <span class="n">marker</span> <span class="o">=</span> <span class="s1">&#39;o&#39;</span><span class="p">,</span> 
+                         <span class="n">ms</span> <span class="o">=</span> <span class="mi">8</span><span class="p">,</span> <span class="n">color</span> <span class="o">=</span> <span class="s1">&#39;orange&#39;</span><span class="p">,</span> <span class="n">label</span> <span class="o">=</span> <span class="s1">&#39;test&#39;</span><span class="p">)</span>
+            
+            <span class="k">else</span><span class="p">:</span>
+                <span class="n">x</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">arange</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">hparams</span><span class="p">[</span><span class="n">hp_name</span><span class="p">]))</span>
+                <span class="n">width</span> <span class="o">=</span> <span class="mf">0.2</span>
+
+                <span class="n">plt</span><span class="o">.</span><span class="n">bar</span><span class="p">(</span><span class="n">x</span> <span class="o">-</span> <span class="n">width</span><span class="p">,</span> 
+                        <span class="n">train_values</span><span class="p">,</span> 
+                        <span class="n">width</span> <span class="o">=</span> <span class="n">width</span><span class="p">,</span> 
+                        <span class="n">color</span> <span class="o">=</span> <span class="s1">&#39;0.4&#39;</span><span class="p">,</span> 
+                        <span class="n">label</span> <span class="o">=</span> <span class="s1">&#39;train&#39;</span><span class="p">)</span>
+                <span class="n">plt</span><span class="o">.</span><span class="n">bar</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> 
+                        <span class="n">valid_values</span><span class="p">,</span> 
+                        <span class="n">width</span> <span class="o">=</span> <span class="n">width</span><span class="p">,</span> 
+                        <span class="n">color</span> <span class="o">=</span> <span class="s1">&#39;blue&#39;</span><span class="p">,</span> 
+                        <span class="n">label</span> <span class="o">=</span> <span class="s1">&#39;valid&#39;</span><span class="p">)</span>
+                <span class="n">plt</span><span class="o">.</span><span class="n">bar</span><span class="p">(</span><span class="n">x</span> <span class="o">+</span> <span class="n">width</span><span class="p">,</span> 
+                        <span class="n">test_values</span><span class="p">,</span> 
+                        <span class="n">width</span> <span class="o">=</span> <span class="n">width</span><span class="p">,</span> 
+                        <span class="n">color</span> <span class="o">=</span> <span class="s1">&#39;orange&#39;</span><span class="p">,</span> 
+                        <span class="n">label</span> <span class="o">=</span> <span class="s1">&#39;test&#39;</span><span class="p">)</span>
+                <span class="n">plt</span><span class="o">.</span><span class="n">xticks</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="p">[</span><span class="nb">str</span><span class="p">(</span><span class="n">p</span><span class="p">)</span> <span class="k">for</span> <span class="n">p</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">hparams</span><span class="p">[</span><span class="n">hp_name</span><span class="p">]])</span>
+                <span class="c1">#plt.tight_layout()</span>
+            
+            <span class="n">plt</span><span class="o">.</span><span class="n">xlabel</span><span class="p">(</span><span class="n">hp_name</span><span class="p">)</span>
+            <span class="n">plt</span><span class="o">.</span><span class="n">ylabel</span><span class="p">(</span><span class="s1">&#39;Performance&#39;</span><span class="p">)</span>
+            <span class="n">plt</span><span class="o">.</span><span class="n">title</span><span class="p">(</span><span class="s1">&#39;Effect of Hyperparameter on Performance&#39;</span><span class="p">)</span>
+
+            <span class="n">fig</span><span class="o">.</span><span class="n">savefig</span><span class="p">(</span><span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">save_path</span><span class="p">,</span> <span class="sa">f</span><span class="s1">&#39;</span><span class="si">{</span><span class="n">hp_name</span><span class="si">}</span><span class="s1">_sweep.jpeg&#39;</span><span class="p">))</span>
+            <span class="n">plt</span><span class="o">.</span><span class="n">close</span><span class="p">(</span><span class="n">fig</span><span class="p">)</span>
+
+
+        <span class="n">plot_hp_sweep</span><span class="p">(</span><span class="n">hp_name</span> <span class="o">=</span> <span class="s1">&#39;branch factors&#39;</span><span class="p">,</span> 
+                      <span class="n">hp_dim</span> <span class="o">=</span> <span class="mi">0</span><span class="p">,</span> 
+                      <span class="n">quantitative</span> <span class="o">=</span> <span class="kc">False</span><span class="p">)</span>
+        <span class="n">plot_hp_sweep</span><span class="p">(</span><span class="n">hp_name</span> <span class="o">=</span> <span class="s1">&#39;n inh cells&#39;</span><span class="p">,</span> 
+                      <span class="n">hp_dim</span> <span class="o">=</span> <span class="mi">1</span><span class="p">,</span> 
+                      <span class="n">quantitative</span> <span class="o">=</span> <span class="kc">True</span><span class="p">)</span>
+        <span class="n">plot_hp_sweep</span><span class="p">(</span><span class="n">hp_name</span> <span class="o">=</span> <span class="s1">&#39;syn per inh cell&#39;</span><span class="p">,</span> 
+                      <span class="n">hp_dim</span> <span class="o">=</span> <span class="mi">2</span><span class="p">,</span> 
+                      <span class="n">quantitative</span> <span class="o">=</span> <span class="kc">True</span><span class="p">)</span>
+        <span class="n">plot_hp_sweep</span><span class="p">(</span><span class="n">hp_name</span> <span class="o">=</span> <span class="s1">&#39;inh syn per branch&#39;</span><span class="p">,</span> 
+                      <span class="n">hp_dim</span> <span class="o">=</span> <span class="mi">3</span><span class="p">,</span> 
+                      <span class="n">quantitative</span> <span class="o">=</span> <span class="kc">True</span><span class="p">)</span>
+        <span class="n">plot_hp_sweep</span><span class="p">(</span><span class="n">hp_name</span> <span class="o">=</span> <span class="s1">&#39;exc syn per branch&#39;</span><span class="p">,</span> 
+                      <span class="n">hp_dim</span> <span class="o">=</span> <span class="mi">4</span><span class="p">,</span> 
+                      <span class="n">quantitative</span> <span class="o">=</span> <span class="kc">True</span><span class="p">)</span>
+        <span class="n">plot_hp_sweep</span><span class="p">(</span><span class="n">hp_name</span> <span class="o">=</span> <span class="s1">&#39;shunting&#39;</span><span class="p">,</span> 
+                      <span class="n">hp_dim</span> <span class="o">=</span> <span class="mi">5</span><span class="p">,</span> 
+                      <span class="n">quantitative</span> <span class="o">=</span> <span class="kc">False</span><span class="p">)</span>
+        <span class="n">plot_hp_sweep</span><span class="p">(</span><span class="n">hp_name</span> <span class="o">=</span> <span class="s1">&#39;reactivate&#39;</span><span class="p">,</span> 
+                      <span class="n">hp_dim</span> <span class="o">=</span> <span class="mi">6</span><span class="p">,</span> 
+                      <span class="n">quantitative</span> <span class="o">=</span> <span class="kc">False</span><span class="p">)</span>
+        <span class="n">plot_hp_sweep</span><span class="p">(</span><span class="n">hp_name</span> <span class="o">=</span> <span class="s1">&#39;b trainable&#39;</span><span class="p">,</span> 
+                      <span class="n">hp_dim</span> <span class="o">=</span> <span class="mi">7</span><span class="p">,</span> 
+                      <span class="n">quantitative</span> <span class="o">=</span> <span class="kc">False</span><span class="p">)</span>
+        <span class="n">plot_hp_sweep</span><span class="p">(</span><span class="n">hp_name</span> <span class="o">=</span> <span class="s1">&#39;log lr&#39;</span><span class="p">,</span> 
+                      <span class="n">hp_dim</span> <span class="o">=</span> <span class="mi">8</span><span class="p">,</span> 
+                      <span class="n">quantitative</span> <span class="o">=</span> <span class="kc">True</span><span class="p">)</span></div>
+</div>
+
+
+
+        
+
+
+</pre></div>
+
+           </div>
+          </div>
+          <footer>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright 2024, Research and Engineering at Kempner.</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>

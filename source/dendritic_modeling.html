@@ -135,6 +135,18 @@
 <li class="toctree-l2"><a class="reference internal" href="#dendritic_modeling.utils.split_MNIST_inputs"><code class="docutils literal notranslate"><span class="pre">split_MNIST_inputs()</span></code></a></li>
 <li class="toctree-l2"><a class="reference internal" href="#logging-config-py">logging_config.py</a></li>
 <li class="toctree-l2"><a class="reference internal" href="#dendritic_modeling.logging_config.setup_logging"><code class="docutils literal notranslate"><span class="pre">setup_logging()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="#training-py">training.py</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#dendritic_modeling.training.TrainerMLE"><code class="docutils literal notranslate"><span class="pre">TrainerMLE</span></code></a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#dendritic_modeling.training.TrainerMLE.train"><code class="docutils literal notranslate"><span class="pre">TrainerMLE.train()</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="#tuning-py">tuning.py</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#dendritic_modeling.tuning.DendriNetTuner"><code class="docutils literal notranslate"><span class="pre">DendriNetTuner</span></code></a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#dendritic_modeling.tuning.DendriNetTuner.sweeping_plots"><code class="docutils literal notranslate"><span class="pre">DendriNetTuner.sweeping_plots()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#id0"><code class="docutils literal notranslate"><span class="pre">DendriNetTuner.sweeping_plots()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#dendritic_modeling.tuning.DendriNetTuner.tune"><code class="docutils literal notranslate"><span class="pre">DendriNetTuner.tune()</span></code></a></li>
+</ul>
+</li>
 </ul>
 </li>
 </ul>
@@ -769,6 +781,136 @@ package.</p>
 <dt class="sig sig-object py" id="dendritic_modeling.logging_config.setup_logging">
 <span class="sig-prename descclassname"><span class="pre">dendritic_modeling.logging_config.</span></span><span class="sig-name descname"><span class="pre">setup_logging</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="../_modules/dendritic_modeling/logging_config.html#setup_logging"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#dendritic_modeling.logging_config.setup_logging" title="Link to this definition"></a></dt>
 <dd></dd></dl>
+
+<section id="training-py">
+<span id="module-dendritic_modeling.training"></span><h2>training.py<a class="headerlink" href="#training-py" title="Link to this heading"></a></h2>
+<p>This module contains the TrainerMLE class for training the models.</p>
+</section>
+<dl class="py class">
+<dt class="sig sig-object py" id="dendritic_modeling.training.TrainerMLE">
+<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">dendritic_modeling.training.</span></span><span class="sig-name descname"><span class="pre">TrainerMLE</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">optimizer</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">suppress_prints</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">print_every</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">10</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/dendritic_modeling/training.html#TrainerMLE"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#dendritic_modeling.training.TrainerMLE" title="Link to this definition"></a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">object</span></code></p>
+<p>Maximum Likelihood Estimation (MLE) trainer for training probabilistic
+models.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>optimizer</strong> (<em>torch.optim.Optimizer</em>) – The optimizer used to update the model parameters during training.</p></li>
+<li><p><strong>suppress_prints</strong> (<em>bool</em><em>, </em><em>optional</em>) – Whether to suppress print statements during training. Default is False.</p></li>
+<li><p><strong>print_every</strong> (<em>int</em><em>, </em><em>optional</em>) – The frequency with which to print training updates. Default is 10.</p></li>
+</ul>
+</dd>
+</dl>
+<dl class="py method">
+<dt class="sig sig-object py">
+<span class="sig-name descname"><span class="pre">train(model,</span> <span class="pre">train_data,</span> <span class="pre">valid_data,</span> <span class="pre">grad_clip_value=5,</span> <span class="pre">epochs=100,</span></span></dt>
+<dd><p>batch_size=256, shuffle=True, plot_losses=False, save_path=None)
+Trains the model on the training data and validates on the
+validation data.</p>
+</dd></dl>
+
+<p class="rubric">Notes</p>
+<ul class="simple">
+<li><p>The model must implement a <cite>log_prob</cite> method that computes the log
+probability of observing the labels given the inputs.</p></li>
+<li><p>train_data: Data object containing training data.</p></li>
+<li><p>valid_data: Data object containing validation data.</p></li>
+</ul>
+<dl class="py method">
+<dt class="sig sig-object py" id="dendritic_modeling.training.TrainerMLE.train">
+<span class="sig-name descname"><span class="pre">train</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">model</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">train_data</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">valid_data</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">grad_clip_value</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">5</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">epochs</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">100</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">batch_size</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">256</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">shuffle</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">True</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">plot_losses</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">save_path</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/dendritic_modeling/training.html#TrainerMLE.train"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#dendritic_modeling.training.TrainerMLE.train" title="Link to this definition"></a></dt>
+<dd><p>Trains a model using maximum likelihood estimation.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>model</strong> (<a class="reference internal" href="#dendritic_modeling.models.ProbabilisticModel" title="dendritic_modeling.models.ProbabilisticModel"><em>ProbabilisticModel</em></a>) – The model to be trained. Must implement a <cite>log_prob</cite> method that
+computes the log probability of observing the labels given the
+inputs.</p></li>
+<li><p><strong>train_data</strong> (<a class="reference internal" href="#dendritic_modeling.utils.Data" title="dendritic_modeling.utils.Data"><em>Data</em></a>) – The training data.</p></li>
+<li><p><strong>valid_data</strong> (<a class="reference internal" href="#dendritic_modeling.utils.Data" title="dendritic_modeling.utils.Data"><em>Data</em></a>) – The validation data.</p></li>
+<li><p><strong>grad_clip_value</strong> (<em>float</em><em>, </em><em>optional</em>) – The value at which to clip the gradients to prevent exploding
+gradients. The gradients are clipped in the range [-grad_clip_value,
+grad_clip_value]. Default is 5.</p></li>
+<li><p><strong>epochs</strong> (<em>int</em><em>, </em><em>optional</em>) – The number of epochs to train the model. Default is 100.</p></li>
+<li><p><strong>batch_size</strong> (<em>int</em><em>, </em><em>optional</em>) – The batch size used during training. Default is 256.</p></li>
+<li><p><strong>shuffle</strong> (<em>bool</em><em>, </em><em>optional</em>) – Whether to shuffle the data during training. Default is True.</p></li>
+<li><p><strong>plot_losses</strong> (<em>bool</em><em>, </em><em>optional</em>) – Whether to plot the training and validation losses.
+Default is False.</p></li>
+<li><p><strong>save_path</strong> (<em>str</em><em>, </em><em>optional</em>) – Directory to save checkpoints and loss curves if provided.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>A dictionary containing the best epoch, training losses, and
+validation losses. If <cite>plot_losses</cite> is True, the dictionary will
+also contain a figure object for the loss curves and the figure
+will be saved to <cite>save_path</cite> if provided.</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>dict</p>
+</dd>
+</dl>
+</dd></dl>
+
+</dd></dl>
+
+<section id="tuning-py">
+<span id="module-dendritic_modeling.tuning"></span><h2>tuning.py<a class="headerlink" href="#tuning-py" title="Link to this heading"></a></h2>
+<p>This module contains the hyperparameter tuning class for the dendritic_modeling.</p>
+</section>
+<dl class="py class">
+<dt class="sig sig-object py" id="dendritic_modeling.tuning.DendriNetTuner">
+<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">dendritic_modeling.tuning.</span></span><span class="sig-name descname"><span class="pre">DendriNetTuner</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">branch_factors_space</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">n_inh_cells_space</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">syn_per_inh_cell_space</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">inh_syn_per_branch_space</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">exc_syn_per_branch_space</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">shunting_space</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">reactivate_space</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">b_trainable_space</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">log_lr_space</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/dendritic_modeling/tuning.html#DendriNetTuner"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#dendritic_modeling.tuning.DendriNetTuner" title="Link to this definition"></a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">object</span></code></p>
+<p>A hyperparameter tuning class for Dendritic Modeling using DendriNet.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>branch_factors_space</strong> (<em>list</em><em> of </em><em>int</em>) – The space of branch factors to be explored.</p></li>
+<li><p><strong>n_inh_cells_space</strong> (<em>list</em><em> of </em><em>int</em>) – The space of number of inhibitory cells to be explored.</p></li>
+<li><p><strong>syn_per_inh_cell_space</strong> (<em>list</em><em> of </em><em>int</em>) – The space of synapses per inhibitory cell to be explored.</p></li>
+<li><p><strong>inh_syn_per_branch_space</strong> (<em>list</em><em> of </em><em>int</em>) – The space of inhibitory synapses per branch to be explored.</p></li>
+<li><p><strong>exc_syn_per_branch_space</strong> (<em>list</em><em> of </em><em>int</em>) – The space of excitatory synapses per branch to be explored.</p></li>
+<li><p><strong>shunting_space</strong> (<em>list</em><em> of </em><em>bool</em>) – The space of shunting to be explored.</p></li>
+<li><p><strong>reactivate_space</strong> (<em>list</em><em> of </em><em>bool</em>) – The space of reactivation to be explored.</p></li>
+<li><p><strong>b_trainable_space</strong> (<em>list</em><em> of </em><em>bool</em>) – The space of b_trainable to be explored.</p></li>
+<li><p><strong>log_lr_space</strong> (<em>list</em><em> of </em><em>float</em>) – The space of log learning rates to be explored.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Variables<span class="colon">:</span></dt>
+<dd class="field-even"><ul class="simple">
+<li><p><strong>hparams</strong> (<em>dict</em>) – The hyperparameter space.</p></li>
+<li><p><strong>metrics</strong> (<em>torch.Tensor</em>) – The performance metrics tensor for storing training, validation and
+testing performances for each configuration.</p></li>
+<li><p><strong>n_configs</strong> (<em>int</em>) – The total number of configurations to be explored.</p></li>
+</ul>
+</dd>
+</dl>
+<dl class="py method">
+<dt class="sig sig-object py">
+<span class="sig-name descname"><span class="pre">tune(dendrinet,</span> <span class="pre">input_dim,</span> <span class="pre">output_dim,</span> <span class="pre">train_data,</span> <span class="pre">valid_data,</span> <span class="pre">test_data,</span></span></dt>
+<dd><blockquote>
+<div><p>epochs, batch_size, metric_fn, save_root)</p>
+</div></blockquote>
+<p>Tune the hyperparameters of the DendriNet model.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="dendritic_modeling.tuning.DendriNetTuner.sweeping_plots">
+<span class="sig-name descname"><span class="pre">sweeping_plots</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">save_path</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/dendritic_modeling/tuning.html#DendriNetTuner.sweeping_plots"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#dendritic_modeling.tuning.DendriNetTuner.sweeping_plots" title="Link to this definition"></a></dt>
+<dd><p>Generate sweeping plots for the hyperparameters.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="id0">
+<span class="sig-name descname"><span class="pre">sweeping_plots</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">save_path</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/dendritic_modeling/tuning.html#DendriNetTuner.sweeping_plots"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#id0" title="Link to this definition"></a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="dendritic_modeling.tuning.DendriNetTuner.tune">
+<span class="sig-name descname"><span class="pre">tune</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">dendrinet</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">input_dim</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">output_dim</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">train_data</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">valid_data</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">test_data</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">epochs</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">batch_size</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">metric_fn</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">save_root</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/dendritic_modeling/tuning.html#DendriNetTuner.tune"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#dendritic_modeling.tuning.DendriNetTuner.tune" title="Link to this definition"></a></dt>
+<dd></dd></dl>
+
+</dd></dl>
 
 </section>
 

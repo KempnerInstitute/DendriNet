@@ -31,12 +31,12 @@ dendritic_modeling package
    :undoc-members:
    :show-inheritance:
 
-.. automodule:: dendritic_modeling.tuning
+.. automodule:: dendritic_modeling.training
    :members:
    :undoc-members:
    :show-inheritance:
 
-.. automodule:: dendritic_modeling.training
+.. automodule:: dendritic_modeling.tuning
    :members:
    :undoc-members:
    :show-inheritance:
