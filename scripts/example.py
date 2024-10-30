@@ -45,8 +45,8 @@ if __name__ == '__main__':
     train_hp = {
         'train_valid_split' : 0.8,
         'lr' : 1e-3,
-        'epochs' : 10,
-        'batch_size' : 512,
+        'epochs' : 200,
+        'batch_size' : 32,
     }
 
     logger.info('loading mnist ...')
@@ -57,7 +57,7 @@ if __name__ == '__main__':
     clf = EINetClassifierNLL(**model_hp)
     model_summary = torchinfo.summary(
                         clf,
-                        input_size=(32, 784),
+                        input_size=(train_hp['batch_size'], model_hp['input_dim']),
                         col_names=["input_size", "output_size", "num_params"],
                         col_width=25,
                         row_settings=["depth"],
