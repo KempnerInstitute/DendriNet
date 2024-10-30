@@ -295,8 +295,11 @@
 
 
 
-<span class="k">def</span> <span class="nf">load_MNIST_modulo10</span><span class="p">(</span><span class="n">shuffle_iterations</span> <span class="o">=</span> <span class="mi">2</span><span class="p">,</span> <span class="n">train_valid_split</span> <span class="o">=</span> <span class="mi">1</span><span class="p">):</span>
-    <span class="n">data</span> <span class="o">=</span> <span class="n">load_MNIST</span><span class="p">(</span><span class="n">train_valid_split</span><span class="p">)</span>
+<span class="k">def</span> <span class="nf">load_MNIST_modulo10</span><span class="p">(</span><span class="n">shuffle_iterations</span> <span class="o">=</span> <span class="mi">2</span><span class="p">,</span> 
+                        <span class="n">train_valid_split</span> <span class="o">=</span> <span class="mi">1</span><span class="p">,</span>
+                        <span class="n">cache_dir</span> <span class="o">=</span> <span class="kc">None</span><span class="p">):</span>
+    
+    <span class="n">data</span> <span class="o">=</span> <span class="n">load_MNIST</span><span class="p">(</span><span class="n">train_valid_split</span><span class="p">,</span> <span class="n">cache_dir</span><span class="p">)</span>
 
     <span class="k">for</span> <span class="n">key</span><span class="p">,</span> <span class="n">ds</span> <span class="ow">in</span> <span class="n">data</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
         <span class="n">ix</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">randperm</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">ds</span><span class="p">))</span>
