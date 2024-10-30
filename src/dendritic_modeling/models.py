@@ -23,6 +23,8 @@ class ProbabilisticModel(nn.Module):
         distribution and then evaluating the log probability of `y`.
     """
 
+    pass
+
     def log_prob(self, x, y):
         """
         Computes the log-probability of `y` given `x`.
@@ -216,5 +218,36 @@ class EINetClassifier(ProbabilisticClassifier):
         net_output = self.net(x)
         final_logits = self.final(net_output)
         return Categorical(logits =final_logits)
+    
+
+class EINetClassifierNLL(EINetClassifier):
+    """
+    A probabilistic classifier based on an Excitation-Inhibition Network (EINet)
+    architecture that uses the negative log-likelihood loss for training.
+
+    This classifier extends the `EINetClassifier` class and includes a method
+    for computing the negative log-likelihood loss for training the model.
+
+    Methods
+    -------
+    forward(x, y=None)
+        Computes the negative log-likelihood loss for the given input-output 
+        pair.
+
+    Notes
+    -----
+    `y=None` is provided to allow for the model to be used in `torchinfo.summary`.  
+    """
+      
+    def forward(self, x, y=None):
+        net_output = self.net(x)
+        final_logits = self.final(net_output)
+        categorical_sampler = Categorical(logits =final_logits)
+        if y is None:
+            return categorical_sampler.probs
+        else: 
+            nll =  -categorical_sampler.log_prob(y)
+            return nll
+
 
 
