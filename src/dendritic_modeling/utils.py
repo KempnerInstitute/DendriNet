@@ -185,8 +185,11 @@ def load_MNIST(train_valid_split = 1, cache_dir=None):
     return data
 
 
-def load_MNIST_modulo10(shuffle_iterations = 2, train_valid_split = 1):
-    data = load_MNIST(train_valid_split)
+def load_MNIST_modulo10(shuffle_iterations = 2, 
+                        train_valid_split = 1,
+                        cache_dir = None):
+    
+    data = load_MNIST(train_valid_split, cache_dir)
 
     for key, ds in data.items():
         ix = torch.randperm(len(ds))
