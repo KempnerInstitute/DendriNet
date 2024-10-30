@@ -239,15 +239,31 @@ class EINetClassifierNLL(EINetClassifier):
     `y=None` is provided to allow for the model to be used in `torchinfo.summary`.  
     """
       
-    def forward(self, x, y=None):
+    def forward(self, x, y=None, sampler = False):
         net_output = self.net(x)
         final_logits = self.final(net_output)
         categorical_sampler = Categorical(logits =final_logits)
-        if y is None:
-            return categorical_sampler.probs
-        else: 
+        
+        # Tentative implementation of the forward method
+        if (y is None) and (not sampler):
+            return categorical_sampler.logits
+        elif (y is None) and (sampler):
+            return categorical_sampler
+        elif y is not None: 
             nll =  -categorical_sampler.log_prob(y)
             return nll
+        else:
+            raise ValueError("Invalid input-output pair for forward method.")
+        
+    
+    def predict(self, x, stochastic = False):
+        
+        distribution = self.forward(x, y=None, sampler = True)
+
+        if stochastic:
+            return distribution.sample()
+        else:
+            return distribution.logits.argmax(dim = -1)
 
 
 
