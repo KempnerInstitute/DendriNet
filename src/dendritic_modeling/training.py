@@ -195,7 +195,7 @@ class TrainerMLE(object):
                         # compute and aggregate validation loss 
                         valid_loss += nll.item()
                     
-                    except:
+                    except Exception as e:
                         print(f"Exception: {e}")
                         if not self.suppress:
                             logger.info('exception occurred during parameter validation step')
