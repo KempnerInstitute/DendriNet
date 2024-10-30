@@ -330,3 +330,109 @@ class TestDendriNet(unittest.TestCase):
 
         # Output should have shape (1, n_soma)
         self.assertEqual(output.shape, (1, n_soma))
+
+    def test_soma_layer_forward(self):
+        """Test that the soma layer processes aggregated output from 
+        previous layers."""
+        n_soma = 1
+        # Multiple branch layers leading to soma
+        branch_factors = [2, 3]  
+        excitatory_input_dim = 10
+        excitatory_synapses_per_branch = 3
+        batch_size = 2
+
+        model = DendriNet(
+            n_soma=n_soma,
+            branch_factors=branch_factors,
+            excitatory_input_dim=excitatory_input_dim,
+            excitatory_synapses_per_branch=excitatory_synapses_per_branch
+        )
+
+        x = torch.randn(batch_size, excitatory_input_dim)
+        output = model(x)
+
+        # Check output shape and ensure the forward pass reaches soma layer
+        self.assertEqual(output.shape, (batch_size, n_soma))
+        # Confirm that the soma layer was involved in processing
+        self.assertIsInstance(model.soma_layer, DendriticBranchLayer)
+
+    def test_sum_weights_no_inhibitory(self):
+        """Test sum_weights without inhibitory inputs."""
+        n_soma = 2
+        branch_factors = [2, 3]
+        excitatory_input_dim = 10
+        excitatory_synapses_per_branch = 4
+
+        # Initialize model without inhibitory input
+        model = DendriNet(
+            n_soma=n_soma,
+            branch_factors=branch_factors,
+            excitatory_input_dim=excitatory_input_dim,
+            excitatory_synapses_per_branch=excitatory_synapses_per_branch
+        )
+
+        # Calculate summed weights
+        exc_total = model.sum_weights(pruned=False)
+        
+        self.assertIsInstance(exc_total, torch.Tensor)
+
+        # Verify that the sum is positive
+        self.assertTrue(exc_total.sum().item() > 0)
+
+    def test_sum_weights_with_inhibitory(self):
+        """Test sum_weights with inhibitory inputs."""
+        n_soma = 2
+        branch_factors = [2, 3]
+        excitatory_input_dim = 10
+        excitatory_synapses_per_branch = 4
+        inhibitory_input_dim = 5
+        inhibitory_synapses_per_branch = 3
+
+        # Initialize model with inhibitory input
+        model = DendriNet(
+            n_soma=n_soma,
+            branch_factors=branch_factors,
+            excitatory_input_dim=excitatory_input_dim,
+            excitatory_synapses_per_branch=excitatory_synapses_per_branch,
+            inhibitory_input_dim=inhibitory_input_dim,
+            inhibitory_synapses_per_branch=inhibitory_synapses_per_branch
+        )
+
+        # Calculate summed weights
+        exc_total, inh_total = model.sum_weights(pruned=False)
+
+        # Verify exc_total and inh_total are tensors
+        self.assertIsInstance(exc_total, torch.Tensor)
+        self.assertIsInstance(inh_total, torch.Tensor)
+
+        # Verify that the sums are positive
+        self.assertTrue(exc_total.sum().item() > 0)
+        self.assertTrue(inh_total.sum().item() > 0)
+
+    def test_sum_weights_with_pruned(self):
+        """Test sum_weights with pruned weights."""
+        n_soma = 2
+        branch_factors = [1]
+        excitatory_input_dim = 6
+        excitatory_synapses_per_branch = 3
+
+        # Initialize model with small dimensions for simple testing
+        model = DendriNet(
+            n_soma=n_soma,
+            branch_factors=branch_factors,
+            excitatory_input_dim=excitatory_input_dim,
+            excitatory_synapses_per_branch=excitatory_synapses_per_branch
+        )
+
+        # Calculate summed pruned weights
+        exc_total = model.sum_weights(pruned=True)
+
+        # Verify exc_total is a tensor
+        self.assertIsInstance(exc_total, torch.Tensor)
+
+        # Pruned weights should also yield a positive total
+        self.assertTrue(exc_total.sum().item() > 0)
+        
+
+if __name__ == "__main__":
+    unittest.main()
