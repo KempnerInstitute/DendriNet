@@ -156,9 +156,8 @@ class TrainerMLE(object):
                     input_batch = ag.Variable(input_batch.to(device))
                     label_batch = ag.Variable(label_batch.to(device))
                     
-                    # minimize negative log likelihood
-                    nll = -1 * model.log_prob(input_batch, 
-                                              label_batch).mean(dim = 0)
+                    nll = model(input_batch, label_batch)
+                    nll = nll.mean(dim = 0)
                     
                     # zero gradients
                     self.optimizer.zero_grad()
@@ -172,8 +171,9 @@ class TrainerMLE(object):
                     # aggregate training loss
                     train_loss += nll.item()
                 
-                except:
+                except Exception as e:
                     # if NaNs encountered in gradients
+                    print(f"Exception: {e}")
                     if not self.suppress:
                         logger.info('exception occurred during parameter update step')
                     model.load_state_dict(best_state_dict)
@@ -190,13 +190,13 @@ class TrainerMLE(object):
                 for input_batch, label_batch in valid_dataloader:
                     try:
                         # produce negative log likelihood
-                        nll = -1 * model.log_prob(
-                            input_batch.to(device), 
-                            label_batch.to(device)).mean(dim = 0)
+                        nll = model(input_batch.to(device), label_batch.to(device))
+                        nll = nll.mean(dim = 0)
                         # compute and aggregate validation loss 
                         valid_loss += nll.item()
                     
                     except:
+                        print(f"Exception: {e}")
                         if not self.suppress:
                             logger.info('exception occurred during parameter validation step')
                         model.load_state_dict(best_state_dict)
