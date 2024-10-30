@@ -7,6 +7,7 @@ import torch.nn as nn
 
 from dendritic_modeling.utils import (Shaper, 
                                       load_MNIST, 
+                                      load_MNIST_modulo10,
                                       Data, 
                                       accuracy_score, 
                                       split_MNIST_inputs)
@@ -138,6 +139,68 @@ class TestAccuracyScore(unittest.TestCase):
         accuracy = accuracy_score(self.classifier, inputs, labels)
         self.assertAlmostEqual(accuracy, 0.5)  # 50% accuracy
 
+class TestLoadMNISTModulo10(unittest.TestCase):
+
+    def setUp(self):
+        # Create a temporary directory for caching during tests
+        self.temp_dir = tempfile.TemporaryDirectory()
+
+    def tearDown(self):
+        # Clean up the temporary directory after tests
+        self.temp_dir.cleanup()
+
+    def test_data_loading_no_split(self):
+        """Test data loading with no train/validation split."""
+        data = load_MNIST_modulo10(train_valid_split=1, 
+                                   cache_dir=self.temp_dir.name)
+        self.assertIn('train', data)
+        self.assertIn('test', data)
+        self.assertIsInstance(data['train'], Data)
+        self.assertIsInstance(data['test'], Data)
+        self.assertGreater(len(data['train']), 0)
+        self.assertGreater(len(data['test']), 0)
+
+    def test_data_loading_with_split(self):
+        """Test data loading with train/validation split."""
+        data = load_MNIST_modulo10(train_valid_split=0.8, 
+                                   cache_dir=self.temp_dir.name)
+        self.assertIn('train', data)
+        self.assertIn('valid', data)
+        self.assertIn('test', data)
+        self.assertIsInstance(data['train'], Data)
+        self.assertIsInstance(data['valid'], Data)
+        self.assertIsInstance(data['test'], Data)
+
+        # Check that train/validation split ratio is respected approximately
+        total_train_valid = len(data['train']) + len(data['valid'])
+        self.assertAlmostEqual(
+            len(data['train']) / total_train_valid, 0.8, delta=0.05)
+        self.assertGreater(len(data['test']), 0)
+
+    def test_shuffle_iterations_effect(self):
+        """Test that different shuffle iterations produce different results."""
+        # Load data with 1 shuffle iteration
+        data1 = load_MNIST_modulo10(shuffle_iterations=1, 
+                                    train_valid_split=1, 
+                                    cache_dir=self.temp_dir.name)
+        # Load data with 2 shuffle iterations
+        data2 = load_MNIST_modulo10(shuffle_iterations=2, 
+                                    train_valid_split=1, 
+                                    cache_dir=self.temp_dir.name)
+
+        # Check that different shuffle iterations yield different input tensors
+        # For example, the 10th input tensor should be different
+        self.assertFalse(torch.equal(data1['train'][9][0], 
+                                     data2['train'][9][0]))
+
+    def test_modulo10_labels(self):
+        """Test that labels are correctly computed with modulo 10."""
+        data = load_MNIST_modulo10(shuffle_iterations=1, 
+                                   train_valid_split=1, 
+                                   cache_dir=self.temp_dir.name)
+        labels = [item[1].numpy().tolist()  for item in data['train']]
+        mod_status = [(item >=0) and (item < 10) for item in labels]
+        self.assertTrue(all(mod_status))
 
 
 if __name__ == '__main__':
