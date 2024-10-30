@@ -3,9 +3,11 @@ import time
 from datetime import datetime
 
 import torch
+import torchinfo
 
+from dendritic_modeling import logger
 from dendritic_modeling.training import TrainerMLE
-from dendritic_modeling.models import EINetClassifier
+from dendritic_modeling.models import EINetClassifier, EINetClassifierNLL
 from dendritic_modeling.plot_utils import (plot_einet_params, 
                                            plot_einet_activations)
 from dendritic_modeling.utils import (load_MNIST, 
@@ -43,15 +45,29 @@ if __name__ == '__main__':
     train_hp = {
         'train_valid_split' : 0.8,
         'lr' : 1e-3,
-        'epochs' : 1000,
+        'epochs' : 10,
         'batch_size' : 512,
     }
 
-    print('loading mnist.....\n', flush = True)
-    data = load_MNIST(train_valid_split = train_hp['train_valid_split'], cache_dir=os.getcwd())
+    logger.info('loading mnist ...')
+    data = load_MNIST(train_valid_split = train_hp['train_valid_split'], 
+                      cache_dir=os.getcwd())
 
     # initialize classifier
-    clf = EINetClassifier(**model_hp)
+    clf = EINetClassifierNLL(**model_hp)
+    model_summary = torchinfo.summary(
+                        clf,
+                        input_size=(32, 784),
+                        col_names=["input_size", "output_size", "num_params"],
+                        col_width=25,
+                        row_settings=["depth"],
+                        depth=7
+                    )
+
+    logger.debug("".join(["\n", str(model_summary), "\n"]))
+
+
+
     
     # initialize trainer class (maximum likelihood estimation)
     trainer = TrainerMLE(
