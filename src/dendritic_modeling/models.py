@@ -228,6 +228,10 @@ class EINetClassifierNLL(EINetClassifier):
     This classifier extends the `EINetClassifier` class and includes a method
     for computing the negative log-likelihood loss for training the model.
 
+    Parameters
+    ----------
+    See `EINetClassifier` for parameter descriptions.
+
     Methods
     -------
     forward(x, y=None)
@@ -240,23 +244,68 @@ class EINetClassifierNLL(EINetClassifier):
     """
       
     def forward(self, x, y=None, sampler = False):
+        """
+        Forward pass for the classifier. Returns either logits, a categorical
+        distribution, or the negative log-likelihood loss depending on the
+        input arguments.
+
+        Parameters
+        ----------
+        x : torch.Tensor
+            The input data for which to compute the output.
+
+        y : torch.Tensor, optional
+            The observed labels for the input data. If provided, the negative
+            log-likelihood loss is computed. Defaults to `None`.
+
+        distribution : bool, optional
+            If `True` and `y=None`, returns the categorical distribution;
+            otherwise, returns logits. Defaults to `False`.
+
+        Returns
+        -------
+        torch.Tensor or torch.distributions.Categorical
+            The logits, categorical distribution, or negative log-likelihood 
+            loss depending on the input arguments.
+
+        Raises
+        ------
+        ValueError
+            If the input-output pair is invalid for the forward method.    
+
+        """
         net_output = self.net(x)
         final_logits = self.final(net_output)
-        categorical_sampler = Categorical(logits =final_logits)
-        
-        # Tentative implementation of the forward method
-        if (y is None) and (not sampler):
-            return categorical_sampler.logits
-        elif (y is None) and (sampler):
-            return categorical_sampler
-        elif y is not None: 
-            nll =  -categorical_sampler.log_prob(y)
+        categorical_dist = Categorical(logits =final_logits)
+
+        if y is None:
+            return categorical_dist if sampler else categorical_dist.logits
+        elif y is not None:
+            nll = -categorical_dist.log_prob(y)
             return nll
         else:
             raise ValueError("Invalid input-output pair for forward method.")
         
     
     def predict(self, x, stochastic = False):
+        """
+        Generates predictions for the given input data from the model.
+
+        Parameters
+        ----------
+        x : torch.Tensor
+            The input data for which to generate predictions.
+
+        stochastic : bool, optional
+            If `True`, samples from the output distribution to make predictions;
+            otherwise, returns the class with the highest probability. Defaults
+            to `False`.
+
+        Returns
+        -------
+        torch.Tensor
+            The predicted class labels for the input data.
+        """
         
         distribution = self.forward(x, y=None, sampler = True)
 
