@@ -9,9 +9,12 @@ import os
 import torch
 import pandas as pd
 import matplotlib.pyplot as plt
+import matplotlib
 from matplotlib.gridspec import GridSpec
 from mpl_toolkits.axes_grid1 import make_axes_locatable
 
+
+matplotlib.use('Agg')
 
 #@title Function to plot an image with the scale color bar
 def plotWithColor(data, title=''):
