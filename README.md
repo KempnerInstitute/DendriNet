@@ -85,3 +85,14 @@ To run the tests with coverage, you can use the following command:
     pytest --cov=dendritic_modeling --cov-report=html
     open htmlcov/index.html
 ```
+
+## Running on Kempner Cluster GPUs
+
+The steps for running the package on the Kempner cluster GPU are similar to the previous instructions; however, you must ensure that compatible modules are loaded.
+
+```sh
+module load python/3.12.5-fasrc01
+module load cuda/12.4.1-fasrc01
+module load cudnn/8.9.2.26_cuda12-fasrc01
+```
+
