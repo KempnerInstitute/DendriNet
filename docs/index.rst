@@ -1,19 +1,6 @@
 dendritic_modeling
 ==================
 
-.. image:: https://github.com/KempnerInstitute/dendritic-modeling/actions/workflows/deploy-docs.yml/badge.svg&branch=develop&event=push
-   :target: https://github.com/KempnerInstitute/dendritic-modeling/actions/workflows/deploy-docs.yml
-   :alt: docs
-
-.. image:: https://github.com/KempnerInstitute/dendritic-modeling/actions/workflows/python-package.yml/badge.svg&branch=develop&event=push
-   :target: https://github.com/KempnerInstitute/dendritic-modeling/actions/workflows/python-package.yml
-   :alt: tests
-
-.. image:: https://codecov.io/gh/KempnerInstitute/dendritic-modeling/graph/badge.svg?token=HUJRFX92DF
-   :target: https://codecov.io/gh/KempnerInstitute/dendritic-modeling
-   :alt: coverage
-
-
 *The Dendritic Modeling Package provides a neural network framework that emulates biological neuron dynamics, enabling advanced probabilistic models with dendritic-inspired computations.*
 
 .. figure:: figures/pdf/landing_page_1.pdf
