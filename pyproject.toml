@@ -20,8 +20,10 @@ dependencies = [
     "torch",
     "numpy",
     "torchvision",
+    "torchinfo",
     "matplotlib",
     "wandb",
+    "pandas",
     "omegaconf>=2.3.0",
 ]
 
