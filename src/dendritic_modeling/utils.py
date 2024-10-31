@@ -12,6 +12,8 @@ import shutil
 import torch
 import torchvision
 from torchvision import transforms
+from omegaconf import OmegaConf, DictConfig, ListConfig
+
 
 
 
@@ -81,9 +83,41 @@ class Shaper(object):
         return x.view(*self.shape)
 
 
-def save_dict(dict, save_path, fname):
-    with open(os.path.join(save_path, fname), 'w') as f:
-        json.dump(dict, f, indent = 4)
+def convert_to_serializable(obj):
+    """
+    Recursively convert OmegaConf objects to standard Python data types.
+    
+    Parameters
+    ----------
+    obj : Any
+        The object to convert. Can be a DictConfig, ListConfig, dict, list, or primitive type.
+    
+    Returns
+    -------
+    Any
+        A JSON-serializable version of the object.
+    """
+    if isinstance(obj, DictConfig):
+        return {k: convert_to_serializable(v) for k, v in obj.items()}
+    elif isinstance(obj, ListConfig):
+        return [convert_to_serializable(item) for item in obj]
+    elif isinstance(obj, dict):
+        return {k: convert_to_serializable(v) for k, v in obj.items()}
+    elif isinstance(obj, list):
+        return [convert_to_serializable(item) for item in obj]
+    else:
+        return obj
+
+def save_dict(dict_obj, save_path, fname):
+    # Convert OmegaConf configurations to standard dictionary
+    dict_obj = convert_to_serializable(dict_obj)
+
+    # Define the full path for the JSON file
+    full_path = os.path.join(save_path, fname)
+    
+    # Save the converted dictionary as JSON
+    with open(full_path, 'w') as f:
+        json.dump(dict_obj, f, indent=4)
 
 
 
