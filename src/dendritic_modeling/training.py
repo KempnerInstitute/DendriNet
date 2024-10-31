@@ -238,15 +238,12 @@ class TrainerMLE(object):
                     
                     logger.info('time elapsed: %.2f s | predicted time remaining: %.2f s' % (
                         time_elapsed, pred_time_remaining))
-                         
-            wandb.log({"train_loss": float(train_loss), 
-                       "valid_loss": float(valid_loss),
-                       "epoch": epoch})
+                    
+            if wandb.run is not None:
+                wandb.log({"train_loss": float(train_loss), 
+                        "valid_loss": float(valid_loss),
+                        "epoch": epoch})
 
-
-            
-
-        
         # load best model
         model.load_state_dict(best_state_dict)
         
