@@ -23,6 +23,8 @@ class ProbabilisticModel(nn.Module):
         distribution and then evaluating the log probability of `y`.
     """
 
+    pass
+
     def log_prob(self, x, y):
         """
         Computes the log-probability of `y` given `x`.
@@ -216,5 +218,101 @@ class EINetClassifier(ProbabilisticClassifier):
         net_output = self.net(x)
         final_logits = self.final(net_output)
         return Categorical(logits =final_logits)
+    
+
+class EINetClassifierNLL(EINetClassifier):
+    """
+    A probabilistic classifier based on an Excitation-Inhibition Network (EINet)
+    architecture that uses the negative log-likelihood loss for training.
+
+    This classifier extends the `EINetClassifier` class and includes a method
+    for computing the negative log-likelihood loss for training the model.
+
+    Parameters
+    ----------
+    See `EINetClassifier` for parameter descriptions.
+
+    Methods
+    -------
+    forward(x, y=None)
+        Computes the negative log-likelihood loss for the given input-output 
+        pair.
+
+    Notes
+    -----
+    `y=None` is provided to allow for the model to be used in `torchinfo.summary`.  
+    """
+      
+    def forward(self, x, y=None, sampler = False):
+        """
+        Forward pass for the classifier. Returns either logits, a categorical
+        distribution, or the negative log-likelihood loss depending on the
+        input arguments.
+
+        Parameters
+        ----------
+        x : torch.Tensor
+            The input data for which to compute the output.
+
+        y : torch.Tensor, optional
+            The observed labels for the input data. If provided, the negative
+            log-likelihood loss is computed. Defaults to `None`.
+
+        distribution : bool, optional
+            If `True` and `y=None`, returns the categorical distribution;
+            otherwise, returns logits. Defaults to `False`.
+
+        Returns
+        -------
+        torch.Tensor or torch.distributions.Categorical
+            The logits, categorical distribution, or negative log-likelihood 
+            loss depending on the input arguments.
+
+        Raises
+        ------
+        ValueError
+            If the input-output pair is invalid for the forward method.    
+
+        """
+        net_output = self.net(x)
+        final_logits = self.final(net_output)
+        categorical_dist = Categorical(logits =final_logits)
+
+        if y is None:
+            return categorical_dist if sampler else categorical_dist.logits
+        elif y is not None:
+            nll = -categorical_dist.log_prob(y)
+            return nll
+        else:
+            raise ValueError("Invalid input-output pair for forward method.")
+        
+    
+    def predict(self, x, stochastic = False):
+        """
+        Generates predictions for the given input data from the model.
+
+        Parameters
+        ----------
+        x : torch.Tensor
+            The input data for which to generate predictions.
+
+        stochastic : bool, optional
+            If `True`, samples from the output distribution to make predictions;
+            otherwise, returns the class with the highest probability. Defaults
+            to `False`.
+
+        Returns
+        -------
+        torch.Tensor
+            The predicted class labels for the input data.
+        """
+        
+        distribution = self.forward(x, y=None, sampler = True)
+
+        if stochastic:
+            return distribution.sample()
+        else:
+            return distribution.logits.argmax(dim = -1)
+
 
 
