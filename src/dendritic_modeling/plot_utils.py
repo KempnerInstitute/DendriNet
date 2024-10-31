@@ -9,9 +9,12 @@ import os
 import torch
 import pandas as pd
 import matplotlib.pyplot as plt
+import matplotlib
 from matplotlib.gridspec import GridSpec
 from mpl_toolkits.axes_grid1 import make_axes_locatable
 
+
+matplotlib.use('Agg')
 
 #@title Function to plot an image with the scale color bar
 def plotWithColor(data, title=''):
@@ -106,12 +109,12 @@ def plot_excitation_inhibition_weights(
 
     ax1 = fig.add_subplot(gs[0,0])
     ax1.set_title('excitatory syn weight')
-    im1 = ax1.imshow(excitatory_synapse_weight.detach().numpy(),
+    im1 = ax1.imshow(excitatory_synapse_weight.detach().cpu().numpy(),
                      cmap = 'viridis')
 
     ax2 = fig.add_subplot(gs[0,1])
     ax2.set_title('excitatory syn pruned')
-    im2 = ax2.imshow(excitatory_synapse_pruned.detach().numpy(), 
+    im2 = ax2.imshow(excitatory_synapse_pruned.detach().cpu().numpy(), 
                      cmap = 'viridis')
 
     ax_list = [ax1, ax2]
@@ -120,7 +123,7 @@ def plot_excitation_inhibition_weights(
     if excitatory_synapse_mask is not None:
         ax3 = fig.add_subplot(gs[0,2])
         ax3.set_title('excitatory syn mask')
-        im3 = ax3.imshow(excitatory_synapse_mask.detach().numpy(), 
+        im3 = ax3.imshow(excitatory_synapse_mask.detach().cpu().numpy(), 
                          cmap = 'Greys')
         ax_list.append(ax3)
         im_list.append(im3)
@@ -141,12 +144,12 @@ def plot_excitation_inhibition_weights(
 
         ax4 = fig.add_subplot(gs[1,0])
         ax4.set_title('inhibitory syn weight')
-        im4 = ax4.imshow(inhibitory_synapse_weight.detach().numpy(), 
+        im4 = ax4.imshow(inhibitory_synapse_weight.detach().cpu().numpy(), 
                          cmap = 'viridis')
 
         ax5 = fig.add_subplot(gs[1,1])
         ax5.set_title('inhibitory syn pruned')
-        im5 = ax5.imshow(inhibitory_synapse_pruned.detach().numpy(), 
+        im5 = ax5.imshow(inhibitory_synapse_pruned.detach().cpu().numpy(), 
                          cmap = 'viridis')
 
         ax_list.append(ax4)
@@ -157,7 +160,7 @@ def plot_excitation_inhibition_weights(
         if inhibitory_synapse_mask is not None:
             ax6 = fig.add_subplot(gs[1,2])
             ax6.set_title('inhibitory syn mask')
-            im6 = ax6.imshow(inhibitory_synapse_mask.detach().numpy(), 
+            im6 = ax6.imshow(inhibitory_synapse_mask.detach().cpu().numpy(), 
                              cmap = 'Greys')
 
             ax_list.append(ax6)
@@ -168,14 +171,14 @@ def plot_excitation_inhibition_weights(
     ax7 = fig.add_subplot(gs[-1,0])
     ax7.set_title('excitatory syn dist')
     ax7.hist(
-        excitatory_synapse_weight.flatten().detach().numpy(), 
+        excitatory_synapse_weight.flatten().detach().cpu().numpy(), 
         bins = 10, alpha = 0.5, color = '0.4', label = 'weight',
         )
     # use same bin distribution
     ax7.hist(
         excitatory_synapse_pruned[
             excitatory_synapse_pruned > 0
-        ].flatten().detach().numpy(),
+        ].flatten().detach().cpu().numpy(),
         bins = 10, 
         alpha = 0.5, 
         color = 'blue', 
@@ -186,13 +189,13 @@ def plot_excitation_inhibition_weights(
         ax8 = fig.add_subplot(gs[-1,1])
         ax8.set_title('inhibitory syn dist')
         ax8.hist(
-            inhibitory_synapse_weight.flatten().detach().numpy(), 
+            inhibitory_synapse_weight.flatten().detach().cpu().numpy(), 
             bins = 10, alpha = 0.5, color = '0.4', label = 'weight',
             )
         ax8.hist(
             inhibitory_synapse_pruned[
                 inhibitory_synapse_pruned > 0
-            ].flatten().detach().numpy(),
+            ].flatten().detach().cpu().numpy(),
             bins = 10, 
             alpha = 0.5, 
             color = 'blue', 
@@ -202,8 +205,8 @@ def plot_excitation_inhibition_weights(
     if reactivation_curve is not None:
         ax9 = fig.add_subplot(gs[-1,2])
         ax9.set_title('reactivation curve')
-        ax9.plot(linspace.detach().numpy(), 
-                 reactivation_curve.detach().numpy(), 
+        ax9.plot(linspace.detach().cpu().numpy(), 
+                 reactivation_curve.detach().cpu().numpy(), 
                  color = 'k')
 
     if not os.path.exists(save_path):
@@ -663,12 +666,3 @@ def einet_activations_to_csv(einet, input_list, save_root):
         for j in range(len(input_list)):
             exc_temp.append(exc_dendrinet(exc_input_list[j], inh_input_list[j]))
         exc_input_list = exc_temp
-
-
-
-
-
-
-
-
-
