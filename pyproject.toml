@@ -20,7 +20,8 @@ dependencies = [
     "torch",
     "numpy",
     "torchvision",
-    "matplotlib"
+    "matplotlib",
+    "omegaconf>=2.3.0",
 ]
 
 [tool.setuptools]
