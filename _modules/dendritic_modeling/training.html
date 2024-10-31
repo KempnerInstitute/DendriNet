@@ -258,9 +258,8 @@
                     <span class="n">input_batch</span> <span class="o">=</span> <span class="n">ag</span><span class="o">.</span><span class="n">Variable</span><span class="p">(</span><span class="n">input_batch</span><span class="o">.</span><span class="n">to</span><span class="p">(</span><span class="n">device</span><span class="p">))</span>
                     <span class="n">label_batch</span> <span class="o">=</span> <span class="n">ag</span><span class="o">.</span><span class="n">Variable</span><span class="p">(</span><span class="n">label_batch</span><span class="o">.</span><span class="n">to</span><span class="p">(</span><span class="n">device</span><span class="p">))</span>
                     
-                    <span class="c1"># minimize negative log likelihood</span>
-                    <span class="n">nll</span> <span class="o">=</span> <span class="o">-</span><span class="mi">1</span> <span class="o">*</span> <span class="n">model</span><span class="o">.</span><span class="n">log_prob</span><span class="p">(</span><span class="n">input_batch</span><span class="p">,</span> 
-                                              <span class="n">label_batch</span><span class="p">)</span><span class="o">.</span><span class="n">mean</span><span class="p">(</span><span class="n">dim</span> <span class="o">=</span> <span class="mi">0</span><span class="p">)</span>
+                    <span class="n">nll</span> <span class="o">=</span> <span class="n">model</span><span class="p">(</span><span class="n">input_batch</span><span class="p">,</span> <span class="n">label_batch</span><span class="p">)</span>
+                    <span class="n">nll</span> <span class="o">=</span> <span class="n">nll</span><span class="o">.</span><span class="n">mean</span><span class="p">(</span><span class="n">dim</span> <span class="o">=</span> <span class="mi">0</span><span class="p">)</span>
                     
                     <span class="c1"># zero gradients</span>
                     <span class="bp">self</span><span class="o">.</span><span class="n">optimizer</span><span class="o">.</span><span class="n">zero_grad</span><span class="p">()</span>
@@ -274,8 +273,9 @@
                     <span class="c1"># aggregate training loss</span>
                     <span class="n">train_loss</span> <span class="o">+=</span> <span class="n">nll</span><span class="o">.</span><span class="n">item</span><span class="p">()</span>
                 
-                <span class="k">except</span><span class="p">:</span>
+                <span class="k">except</span> <span class="ne">Exception</span> <span class="k">as</span> <span class="n">e</span><span class="p">:</span>
                     <span class="c1"># if NaNs encountered in gradients</span>
+                    <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Exception: </span><span class="si">{</span><span class="n">e</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
                     <span class="k">if</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">suppress</span><span class="p">:</span>
                         <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s1">&#39;exception occurred during parameter update step&#39;</span><span class="p">)</span>
                     <span class="n">model</span><span class="o">.</span><span class="n">load_state_dict</span><span class="p">(</span><span class="n">best_state_dict</span><span class="p">)</span>
@@ -292,13 +292,13 @@
                 <span class="k">for</span> <span class="n">input_batch</span><span class="p">,</span> <span class="n">label_batch</span> <span class="ow">in</span> <span class="n">valid_dataloader</span><span class="p">:</span>
                     <span class="k">try</span><span class="p">:</span>
                         <span class="c1"># produce negative log likelihood</span>
-                        <span class="n">nll</span> <span class="o">=</span> <span class="o">-</span><span class="mi">1</span> <span class="o">*</span> <span class="n">model</span><span class="o">.</span><span class="n">log_prob</span><span class="p">(</span>
-                            <span class="n">input_batch</span><span class="o">.</span><span class="n">to</span><span class="p">(</span><span class="n">device</span><span class="p">),</span> 
-                            <span class="n">label_batch</span><span class="o">.</span><span class="n">to</span><span class="p">(</span><span class="n">device</span><span class="p">))</span><span class="o">.</span><span class="n">mean</span><span class="p">(</span><span class="n">dim</span> <span class="o">=</span> <span class="mi">0</span><span class="p">)</span>
+                        <span class="n">nll</span> <span class="o">=</span> <span class="n">model</span><span class="p">(</span><span class="n">input_batch</span><span class="o">.</span><span class="n">to</span><span class="p">(</span><span class="n">device</span><span class="p">),</span> <span class="n">label_batch</span><span class="o">.</span><span class="n">to</span><span class="p">(</span><span class="n">device</span><span class="p">))</span>
+                        <span class="n">nll</span> <span class="o">=</span> <span class="n">nll</span><span class="o">.</span><span class="n">mean</span><span class="p">(</span><span class="n">dim</span> <span class="o">=</span> <span class="mi">0</span><span class="p">)</span>
                         <span class="c1"># compute and aggregate validation loss </span>
                         <span class="n">valid_loss</span> <span class="o">+=</span> <span class="n">nll</span><span class="o">.</span><span class="n">item</span><span class="p">()</span>
                     
-                    <span class="k">except</span><span class="p">:</span>
+                    <span class="k">except</span> <span class="ne">Exception</span> <span class="k">as</span> <span class="n">e</span><span class="p">:</span>
+                        <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Exception: </span><span class="si">{</span><span class="n">e</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
                         <span class="k">if</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">suppress</span><span class="p">:</span>
                             <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s1">&#39;exception occurred during parameter validation step&#39;</span><span class="p">)</span>
                         <span class="n">model</span><span class="o">.</span><span class="n">load_state_dict</span><span class="p">(</span><span class="n">best_state_dict</span><span class="p">)</span>

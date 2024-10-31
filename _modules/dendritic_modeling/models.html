@@ -123,6 +123,8 @@
 <span class="sd">        distribution and then evaluating the log probability of `y`.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
 
+    <span class="k">pass</span>
+
 <div class="viewcode-block" id="ProbabilisticModel.log_prob">
 <a class="viewcode-back" href="../../source/dendritic_modeling.html#dendritic_modeling.models.ProbabilisticModel.log_prob">[docs]</a>
     <span class="k">def</span> <span class="nf">log_prob</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">x</span><span class="p">,</span> <span class="n">y</span><span class="p">):</span>
@@ -337,6 +339,111 @@
         <span class="n">final_logits</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">final</span><span class="p">(</span><span class="n">net_output</span><span class="p">)</span>
         <span class="k">return</span> <span class="n">Categorical</span><span class="p">(</span><span class="n">logits</span> <span class="o">=</span><span class="n">final_logits</span><span class="p">)</span></div>
 </div>
+
+    
+
+<div class="viewcode-block" id="EINetClassifierNLL">
+<a class="viewcode-back" href="../../source/dendritic_modeling.html#dendritic_modeling.models.EINetClassifierNLL">[docs]</a>
+<span class="k">class</span> <span class="nc">EINetClassifierNLL</span><span class="p">(</span><span class="n">EINetClassifier</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    A probabilistic classifier based on an Excitation-Inhibition Network (EINet)</span>
+<span class="sd">    architecture that uses the negative log-likelihood loss for training.</span>
+
+<span class="sd">    This classifier extends the `EINetClassifier` class and includes a method</span>
+<span class="sd">    for computing the negative log-likelihood loss for training the model.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    See `EINetClassifier` for parameter descriptions.</span>
+
+<span class="sd">    Methods</span>
+<span class="sd">    -------</span>
+<span class="sd">    forward(x, y=None)</span>
+<span class="sd">        Computes the negative log-likelihood loss for the given input-output </span>
+<span class="sd">        pair.</span>
+
+<span class="sd">    Notes</span>
+<span class="sd">    -----</span>
+<span class="sd">    `y=None` is provided to allow for the model to be used in `torchinfo.summary`.  </span>
+<span class="sd">    &quot;&quot;&quot;</span>
+      
+<div class="viewcode-block" id="EINetClassifierNLL.forward">
+<a class="viewcode-back" href="../../source/dendritic_modeling.html#dendritic_modeling.models.EINetClassifierNLL.forward">[docs]</a>
+    <span class="k">def</span> <span class="nf">forward</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">x</span><span class="p">,</span> <span class="n">y</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">sampler</span> <span class="o">=</span> <span class="kc">False</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Forward pass for the classifier. Returns either logits, a categorical</span>
+<span class="sd">        distribution, or the negative log-likelihood loss depending on the</span>
+<span class="sd">        input arguments.</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        x : torch.Tensor</span>
+<span class="sd">            The input data for which to compute the output.</span>
+
+<span class="sd">        y : torch.Tensor, optional</span>
+<span class="sd">            The observed labels for the input data. If provided, the negative</span>
+<span class="sd">            log-likelihood loss is computed. Defaults to `None`.</span>
+
+<span class="sd">        distribution : bool, optional</span>
+<span class="sd">            If `True` and `y=None`, returns the categorical distribution;</span>
+<span class="sd">            otherwise, returns logits. Defaults to `False`.</span>
+
+<span class="sd">        Returns</span>
+<span class="sd">        -------</span>
+<span class="sd">        torch.Tensor or torch.distributions.Categorical</span>
+<span class="sd">            The logits, categorical distribution, or negative log-likelihood </span>
+<span class="sd">            loss depending on the input arguments.</span>
+
+<span class="sd">        Raises</span>
+<span class="sd">        ------</span>
+<span class="sd">        ValueError</span>
+<span class="sd">            If the input-output pair is invalid for the forward method.    </span>
+
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">net_output</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">net</span><span class="p">(</span><span class="n">x</span><span class="p">)</span>
+        <span class="n">final_logits</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">final</span><span class="p">(</span><span class="n">net_output</span><span class="p">)</span>
+        <span class="n">categorical_dist</span> <span class="o">=</span> <span class="n">Categorical</span><span class="p">(</span><span class="n">logits</span> <span class="o">=</span><span class="n">final_logits</span><span class="p">)</span>
+
+        <span class="k">if</span> <span class="n">y</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">categorical_dist</span> <span class="k">if</span> <span class="n">sampler</span> <span class="k">else</span> <span class="n">categorical_dist</span><span class="o">.</span><span class="n">logits</span>
+        <span class="k">elif</span> <span class="n">y</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">nll</span> <span class="o">=</span> <span class="o">-</span><span class="n">categorical_dist</span><span class="o">.</span><span class="n">log_prob</span><span class="p">(</span><span class="n">y</span><span class="p">)</span>
+            <span class="k">return</span> <span class="n">nll</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;Invalid input-output pair for forward method.&quot;</span><span class="p">)</span></div>
+
+        
+    
+<div class="viewcode-block" id="EINetClassifierNLL.predict">
+<a class="viewcode-back" href="../../source/dendritic_modeling.html#dendritic_modeling.models.EINetClassifierNLL.predict">[docs]</a>
+    <span class="k">def</span> <span class="nf">predict</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">x</span><span class="p">,</span> <span class="n">stochastic</span> <span class="o">=</span> <span class="kc">False</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Generates predictions for the given input data from the model.</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        x : torch.Tensor</span>
+<span class="sd">            The input data for which to generate predictions.</span>
+
+<span class="sd">        stochastic : bool, optional</span>
+<span class="sd">            If `True`, samples from the output distribution to make predictions;</span>
+<span class="sd">            otherwise, returns the class with the highest probability. Defaults</span>
+<span class="sd">            to `False`.</span>
+
+<span class="sd">        Returns</span>
+<span class="sd">        -------</span>
+<span class="sd">        torch.Tensor</span>
+<span class="sd">            The predicted class labels for the input data.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        
+        <span class="n">distribution</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">forward</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="n">y</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">sampler</span> <span class="o">=</span> <span class="kc">True</span><span class="p">)</span>
+
+        <span class="k">if</span> <span class="n">stochastic</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">distribution</span><span class="o">.</span><span class="n">sample</span><span class="p">()</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">distribution</span><span class="o">.</span><span class="n">logits</span><span class="o">.</span><span class="n">argmax</span><span class="p">(</span><span class="n">dim</span> <span class="o">=</span> <span class="o">-</span><span class="mi">1</span><span class="p">)</span></div>
+</div>
+
 
 
 
