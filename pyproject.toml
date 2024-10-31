@@ -21,6 +21,7 @@ dependencies = [
     "numpy",
     "torchvision",
     "matplotlib",
+    "wandb",
     "omegaconf>=2.3.0",
 ]
 
