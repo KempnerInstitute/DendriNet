@@ -364,15 +364,15 @@ class DendriticBranchLayer(nn.Module):
 
     def reactivation(self, V):
         # threshold potential
-        Vth = torch.sigmoid(self.presigmoid_Vth)
+        Vth = torch.sigmoid(self.presigmoid_Vth).to(V.device)
         # difference between membrane potential and threshold potential
         V_diff = V - Vth
         # scalar of V_diff to produce firing rate
-        alpha = self.log_alpha_max.exp() * V_diff
+        alpha = self.log_alpha_max.exp().to(V.device) * V_diff
         # compute firing rate
         rate = alpha * V_diff
         # rate = 0 where membrane potential is less than threshold potential
-        rate = torch.where(V_diff < 0, 0, rate)
+        rate = torch.where(V_diff < 0, torch.tensor(0.0, device=V.device), rate)
         return rate
     
     def get_weights(self):
