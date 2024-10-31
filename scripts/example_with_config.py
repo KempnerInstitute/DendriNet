@@ -126,3 +126,6 @@ if __name__ == '__main__':
 
     # Run the main function
     main(config_path=args.config, experiment_name=args.experiment_name)
+
+    # Example usage:
+    # python scripts/example_with_config.py configs/example_config.yaml --experiment_name example
