@@ -9,6 +9,7 @@ import json
 import time
 from copy import deepcopy
 
+import wandb
 import numpy as np
 import matplotlib.pyplot as plt
 
@@ -205,6 +206,7 @@ class TrainerMLE(object):
             # compute mean validation loss and save to list
             valid_loss /= len(valid_dataloader)
             valid_losses.append(valid_loss)
+
             
             # save model that performs best on validation data
             if valid_loss < best_loss:
@@ -236,6 +238,14 @@ class TrainerMLE(object):
                     
                     logger.info('time elapsed: %.2f s | predicted time remaining: %.2f s' % (
                         time_elapsed, pred_time_remaining))
+                         
+            wandb.log({"train_loss": float(train_loss), 
+                       "valid_loss": float(valid_loss),
+                       "epoch": epoch})
+
+
+            
+
         
         # load best model
         model.load_state_dict(best_state_dict)

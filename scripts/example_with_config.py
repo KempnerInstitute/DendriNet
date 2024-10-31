@@ -3,8 +3,10 @@ import time
 import argparse
 from datetime import datetime
 
+import wandb
 import torch
 import torchinfo
+from pathlib import Path
 from omegaconf import OmegaConf
 
 from dendritic_modeling import logger
@@ -28,7 +30,6 @@ def main(config_path: str, experiment_name: str):
     config = load_config(config_path)
     model_hp = config.model.asdict()
     train_hp = config.train.asdict()
-
 
     logger.info('loading mnist ...')
     data = load_MNIST(train_valid_split = train_hp['train_valid_split'], 
@@ -63,6 +64,22 @@ def main(config_path: str, experiment_name: str):
     root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
     save_path = os.path.join(root, 'results', f'{experiment_name}_{now}')
     os.makedirs(save_path, exist_ok = True)
+
+
+    # intialize W&B
+    if config.wandb is not None:
+        wandb_dir = Path(save_path) / "wandb"
+        wandb_run_name = experiment_name
+        wandb_dir.mkdir(parents=True, exist_ok=True)
+        wandb.init(
+            dir=wandb_dir,
+            project=config.wandb.project,
+            entity=config.wandb.entity,
+            group=config.wandb.group,
+            name=wandb_run_name,
+            tags=config.wandb.tags,
+            config=config.asdict(exclude=["wandb"]),
+        )
 
     print('Training ...\n')
     start_time = time.time()
@@ -113,6 +130,8 @@ def main(config_path: str, experiment_name: str):
         save_root=os.path.join(save_path, 'activation_visuals'),
     )
     print('Done.')
+
+    wandb.finish()
 
 
 

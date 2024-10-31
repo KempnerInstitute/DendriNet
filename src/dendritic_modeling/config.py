@@ -16,6 +16,13 @@ class BaseConfig:
     def asdict(self):
         return asdict(self)
 
+@dataclass
+class WandbConfig(BaseConfig):
+    """Configuration for Weights & Biases (W&B) integration."""
+    entity: str = "your_wandb_entity"
+    project: str = "dendritic_modeling_pr"
+    group: str = "debug"
+    tags: list = field(default_factory=list)
 
 @dataclass
 class ModelConfig(BaseConfig):
@@ -47,6 +54,24 @@ class Config:
     """Primary configuration that combines model and training configs."""
     model: ModelConfig = field(default_factory=ModelConfig)
     train: TrainConfig = field(default_factory=TrainConfig)
+    wandb: WandbConfig = field(default_factory=WandbConfig)
+
+    def asdict(self, exclude=None):
+        """Convert the Config class to a dictionary, with options to exclude keys."""
+        exclude = exclude or []
+        config_dict = {
+            "model": self.model.asdict() if hasattr(self.model, 
+                                                    'asdict') else self.model,
+            "train": self.train.asdict() if hasattr(self.train, 
+                                                    'asdict') else self.train,
+            "wandb": self.wandb,
+        }
+        
+        # Remove excluded keys
+        for key in exclude:
+            config_dict.pop(key, None)
+        
+        return config_dict
 
 
 def load_config(path: str = None) -> Config:
@@ -56,5 +81,6 @@ def load_config(path: str = None) -> Config:
         return Config(
             model=ModelConfig(**raw_conf.get("model", {})),
             train=TrainConfig(**raw_conf.get("train", {})),
+            wandb=WandbConfig(**raw_conf.get("wandb", {})),
         )
     return Config()
