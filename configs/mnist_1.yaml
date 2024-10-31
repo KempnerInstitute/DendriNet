@@ -17,3 +17,9 @@ train:
   epochs: 10
   batch_size: 32
 
+wandb:
+  entity: your_entity  # <---- Add your entity
+  project: dendritic_modeling_pr
+  group: debug
+  tags: [mnist_1]
+
