@@ -1,0 +1,19 @@
+model:
+  input_dim: 784
+  excitatory_layer_sizes: [10]
+  inhibitory_layer_sizes: [20]
+  excitatory_branch_factors: [24]
+  inhibitory_branch_factors: []
+  reactivate: true
+  somatic_synapses: true
+  ee_synapses_per_branch_per_layer: [24]
+  ei_synapses_per_branch_per_layer: [100]
+  ie_synapses_per_branch_per_layer: [1]
+  ii_synapses_per_branch_per_layer: []
+
+train:
+  train_valid_split: 0.8
+  lr: 0.001
+  epochs: 10
+  batch_size: 32
+
