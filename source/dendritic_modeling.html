@@ -136,6 +136,7 @@
 </ul>
 </li>
 <li class="toctree-l2"><a class="reference internal" href="#dendritic_modeling.utils.accuracy_score"><code class="docutils literal notranslate"><span class="pre">accuracy_score()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="#dendritic_modeling.utils.convert_to_serializable"><code class="docutils literal notranslate"><span class="pre">convert_to_serializable()</span></code></a></li>
 <li class="toctree-l2"><a class="reference internal" href="#dendritic_modeling.utils.load_MNIST"><code class="docutils literal notranslate"><span class="pre">load_MNIST()</span></code></a></li>
 <li class="toctree-l2"><a class="reference internal" href="#dendritic_modeling.utils.split_MNIST_inputs"><code class="docutils literal notranslate"><span class="pre">split_MNIST_inputs()</span></code></a></li>
 <li class="toctree-l2"><a class="reference internal" href="#logging-config-py">logging_config.py</a></li>
@@ -758,6 +759,23 @@ data and returns predicted labels.</p></li>
 <li><p><strong>inputs</strong> (<em>Tensor</em>) – The input data tensor with shape <cite>(num_samples, …)</cite>.</p></li>
 <li><p><strong>labels</strong> (<em>Tensor</em>)</p></li>
 </ul>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="dendritic_modeling.utils.convert_to_serializable">
+<span class="sig-prename descclassname"><span class="pre">dendritic_modeling.utils.</span></span><span class="sig-name descname"><span class="pre">convert_to_serializable</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">obj</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/dendritic_modeling/utils.html#convert_to_serializable"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#dendritic_modeling.utils.convert_to_serializable" title="Link to this definition"></a></dt>
+<dd><p>Recursively convert OmegaConf objects to standard Python data types.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>obj</strong> (<em>Any</em>) – The object to convert. Can be a DictConfig, ListConfig, dict, list, or primitive type.</p>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>A JSON-serializable version of the object.</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>Any</p>
 </dd>
 </dl>
 </dd></dl>
