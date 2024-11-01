@@ -4,6 +4,7 @@ models.py
 This module contains the neural network models for the dendritic_modeling.
 """
 
+import torch
 import torch.nn as nn
 from torch.distributions import Categorical
 
@@ -212,11 +213,13 @@ class EINetClassifier(ProbabilisticClassifier):
             ii_synapses_per_branch_per_layer = ii_synapses_per_branch_per_layer,
             reactivate = reactivate, somatic_synapses = somatic_synapses,
         )
+        self.log_output_scale = nn.Parameter(
+            torch.zeros((excitatory_layer_sizes[-1],)), requires_grad = True)
         self.final = nn.LogSoftmax(dim = -1)
     
     def forward(self, x):
         net_output = self.net(x)
-        final_logits = self.final(net_output)
+        final_logits = self.final(self.log_output_scale.exp() * net_output)
         return Categorical(logits =final_logits)
     
 
@@ -243,7 +246,7 @@ class EINetClassifierNLL(EINetClassifier):
     `y=None` is provided to allow for the model to be used in `torchinfo.summary`.  
     """
       
-    def forward(self, x, y=None, sampler = False):
+    def forward(self, x, y = None, sampler = False):
         """
         Forward pass for the classifier. Returns either logits, a categorical
         distribution, or the negative log-likelihood loss depending on the
@@ -275,8 +278,8 @@ class EINetClassifierNLL(EINetClassifier):
 
         """
         net_output = self.net(x)
-        final_logits = self.final(net_output)
-        categorical_dist = Categorical(logits =final_logits)
+        final_logits = self.final(self.log_output_scale.exp() * net_output)
+        categorical_dist = Categorical(logits = final_logits)
 
         if y is None:
             return categorical_dist if sampler else categorical_dist.logits
@@ -307,7 +310,7 @@ class EINetClassifierNLL(EINetClassifier):
             The predicted class labels for the input data.
         """
         
-        distribution = self.forward(x, y=None, sampler = True)
+        distribution = self.forward(x, y = None, sampler = True)
 
         if stochastic:
             return distribution.sample()
