@@ -159,6 +159,9 @@ class TestTopKLinear(unittest.TestCase):
 
     def test_forward_pass_consistency(self):
         """Test that forward pass outputs are consistent with manual computation."""
+        
+        torch.manual_seed(0)
+        
         in_features = 5
         out_features = 2
         K = 2
