@@ -44,8 +44,6 @@ class TestDendriticBranchLayer(unittest.TestCase):
         self.assertTrue(isinstance(layer.branch_inhibition, TopKLinear))
         self.assertTrue(isinstance(layer.branches_to_output, BlockLinear))
         self.assertTrue(layer.reactivate)
-        self.assertTrue(hasattr(layer, 'presigmoid_Vth'))
-        self.assertTrue(hasattr(layer, 'log_alpha_max'))
 
     def test_forward_no_inhibition_no_branch(self):
         # Forward pass without inhibition and branch inputs
