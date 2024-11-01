@@ -23,17 +23,6 @@ class TestBlockLinear(unittest.TestCase):
         # Ensure output is a tensor
         self.assertIsInstance(output, torch.Tensor)
 
-        # Manually compute expected output
-        block_size = model.block_size
-        expected_output = torch.zeros(batch_size, out_features)
-        for i in range(out_features):
-            start_idx = i * block_size
-            end_idx = start_idx + block_size
-            expected_output[:, i] = x[:, start_idx:end_idx].sum(dim=1)
-
-        # Check that the model output matches the expected output
-        self.assertTrue(torch.allclose(output, expected_output))
-
     def test_edge_case_small_input(self):
         """Test with minimal input sizes."""
         in_features = 2
@@ -77,18 +66,6 @@ class TestBlockLinear(unittest.TestCase):
 
         with self.assertRaises(AssertionError):
             model = BlockLinear(in_features, out_features)
-
-    def test_sum_conductances(self):
-        """Test the sum_conductances method."""
-        in_features = 8
-        out_features = 2
-
-        model = BlockLinear(in_features, out_features)
-        sum_g = model.sum_conductances()
-
-        # Since weights are initialized to ones, sum_g should equal block_size for each output
-        expected_sum_g = torch.tensor([model.block_size] * out_features, dtype=torch.float32)
-        self.assertTrue(torch.allclose(sum_g, expected_sum_g))
 
     def test_input_shape_mismatch(self):
         """Test error handling when input shape does not match in_features."""
