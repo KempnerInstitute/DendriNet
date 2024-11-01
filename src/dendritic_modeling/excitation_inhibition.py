@@ -182,7 +182,7 @@ class ExcitationInhibitionNetwork(nn.Module):
         inhibitory_branch_factors, 
         ee_synapses_per_branch_per_layer, 
         ei_synapses_per_branch_per_layer, 
-        ie_synapses_per_branch_per_layer = [], 
+        ie_synapses_per_branch_per_layer, 
         ii_synapses_per_branch_per_layer = [], 
         reactivate = False, somatic_synapses = True,
     ):
