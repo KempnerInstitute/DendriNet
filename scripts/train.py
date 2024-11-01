@@ -114,7 +114,7 @@ if __name__ == '__main__':
     logger.info('creating param visuals.....')
     plot_einet_params(
         einet = clf.net, save_root = os.path.join(save_path, 'param_visuals'),
-        reshape_fn = shaper.reshape, reshape_exc_syn = True,
+        reshape_fn = shaper.reshape, reshape_exc_syn = True, logspace = False,
     )
     logger.info('  done..\n')
 
