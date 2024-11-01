@@ -107,12 +107,9 @@
 <span class="kn">import</span> <span class="nn">torch</span>
 <span class="kn">import</span> <span class="nn">pandas</span> <span class="k">as</span> <span class="nn">pd</span>
 <span class="kn">import</span> <span class="nn">matplotlib.pyplot</span> <span class="k">as</span> <span class="nn">plt</span>
-<span class="kn">import</span> <span class="nn">matplotlib</span>
 <span class="kn">from</span> <span class="nn">matplotlib.gridspec</span> <span class="kn">import</span> <span class="n">GridSpec</span>
 <span class="kn">from</span> <span class="nn">mpl_toolkits.axes_grid1</span> <span class="kn">import</span> <span class="n">make_axes_locatable</span>
 
-
-<span class="n">matplotlib</span><span class="o">.</span><span class="n">use</span><span class="p">(</span><span class="s1">&#39;Agg&#39;</span><span class="p">)</span>
 
 <span class="c1">#@title Function to plot an image with the scale color bar</span>
 <div class="viewcode-block" id="plotWithColor">
@@ -173,6 +170,7 @@
     <span class="n">reshape_fn</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span> 
     <span class="n">reshape_exc_syn</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span> 
     <span class="n">reshape_inh_syn</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span>
+    <span class="n">logspace</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span>
     <span class="n">reactivation_curve</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span> 
     <span class="n">linspace</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
     <span class="p">):</span>
@@ -217,13 +215,13 @@
     <span class="n">gs</span> <span class="o">=</span> <span class="n">GridSpec</span><span class="p">(</span><span class="n">nrows</span><span class="p">,</span> <span class="n">ncols</span><span class="p">,</span> <span class="n">height_ratios</span> <span class="o">=</span> <span class="n">height_ratios</span><span class="p">)</span>
 
     <span class="n">ax1</span> <span class="o">=</span> <span class="n">fig</span><span class="o">.</span><span class="n">add_subplot</span><span class="p">(</span><span class="n">gs</span><span class="p">[</span><span class="mi">0</span><span class="p">,</span><span class="mi">0</span><span class="p">])</span>
-    <span class="n">ax1</span><span class="o">.</span><span class="n">set_title</span><span class="p">(</span><span class="s1">&#39;excitatory syn weight&#39;</span><span class="p">)</span>
-    <span class="n">im1</span> <span class="o">=</span> <span class="n">ax1</span><span class="o">.</span><span class="n">imshow</span><span class="p">(</span><span class="n">excitatory_synapse_weight</span><span class="o">.</span><span class="n">detach</span><span class="p">()</span><span class="o">.</span><span class="n">cpu</span><span class="p">()</span><span class="o">.</span><span class="n">numpy</span><span class="p">(),</span>
+    <span class="n">ax1</span><span class="o">.</span><span class="n">set_title</span><span class="p">(</span><span class="s1">&#39;exc syn log weight&#39;</span> <span class="k">if</span> <span class="n">logspace</span> <span class="k">else</span> <span class="s1">&#39;exc syn weight&#39;</span><span class="p">)</span>
+    <span class="n">im1</span> <span class="o">=</span> <span class="n">ax1</span><span class="o">.</span><span class="n">imshow</span><span class="p">(</span><span class="n">excitatory_synapse_weight</span><span class="o">.</span><span class="n">detach</span><span class="p">()</span><span class="o">.</span><span class="n">numpy</span><span class="p">(),</span> 
                      <span class="n">cmap</span> <span class="o">=</span> <span class="s1">&#39;viridis&#39;</span><span class="p">)</span>
 
     <span class="n">ax2</span> <span class="o">=</span> <span class="n">fig</span><span class="o">.</span><span class="n">add_subplot</span><span class="p">(</span><span class="n">gs</span><span class="p">[</span><span class="mi">0</span><span class="p">,</span><span class="mi">1</span><span class="p">])</span>
-    <span class="n">ax2</span><span class="o">.</span><span class="n">set_title</span><span class="p">(</span><span class="s1">&#39;excitatory syn pruned&#39;</span><span class="p">)</span>
-    <span class="n">im2</span> <span class="o">=</span> <span class="n">ax2</span><span class="o">.</span><span class="n">imshow</span><span class="p">(</span><span class="n">excitatory_synapse_pruned</span><span class="o">.</span><span class="n">detach</span><span class="p">()</span><span class="o">.</span><span class="n">cpu</span><span class="p">()</span><span class="o">.</span><span class="n">numpy</span><span class="p">(),</span> 
+    <span class="n">ax2</span><span class="o">.</span><span class="n">set_title</span><span class="p">(</span><span class="s1">&#39;exc syn log pruned&#39;</span> <span class="k">if</span> <span class="n">logspace</span> <span class="k">else</span> <span class="s1">&#39;exc syn pruned&#39;</span><span class="p">)</span>
+    <span class="n">im2</span> <span class="o">=</span> <span class="n">ax2</span><span class="o">.</span><span class="n">imshow</span><span class="p">(</span><span class="n">excitatory_synapse_pruned</span><span class="o">.</span><span class="n">detach</span><span class="p">()</span><span class="o">.</span><span class="n">numpy</span><span class="p">(),</span> 
                      <span class="n">cmap</span> <span class="o">=</span> <span class="s1">&#39;viridis&#39;</span><span class="p">)</span>
 
     <span class="n">ax_list</span> <span class="o">=</span> <span class="p">[</span><span class="n">ax1</span><span class="p">,</span> <span class="n">ax2</span><span class="p">]</span>
@@ -231,8 +229,8 @@
 
     <span class="k">if</span> <span class="n">excitatory_synapse_mask</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
         <span class="n">ax3</span> <span class="o">=</span> <span class="n">fig</span><span class="o">.</span><span class="n">add_subplot</span><span class="p">(</span><span class="n">gs</span><span class="p">[</span><span class="mi">0</span><span class="p">,</span><span class="mi">2</span><span class="p">])</span>
-        <span class="n">ax3</span><span class="o">.</span><span class="n">set_title</span><span class="p">(</span><span class="s1">&#39;excitatory syn mask&#39;</span><span class="p">)</span>
-        <span class="n">im3</span> <span class="o">=</span> <span class="n">ax3</span><span class="o">.</span><span class="n">imshow</span><span class="p">(</span><span class="n">excitatory_synapse_mask</span><span class="o">.</span><span class="n">detach</span><span class="p">()</span><span class="o">.</span><span class="n">cpu</span><span class="p">()</span><span class="o">.</span><span class="n">numpy</span><span class="p">(),</span> 
+        <span class="n">ax3</span><span class="o">.</span><span class="n">set_title</span><span class="p">(</span><span class="s1">&#39;exc syn mask&#39;</span><span class="p">)</span>
+        <span class="n">im3</span> <span class="o">=</span> <span class="n">ax3</span><span class="o">.</span><span class="n">imshow</span><span class="p">(</span><span class="n">excitatory_synapse_mask</span><span class="o">.</span><span class="n">detach</span><span class="p">()</span><span class="o">.</span><span class="n">numpy</span><span class="p">(),</span> 
                          <span class="n">cmap</span> <span class="o">=</span> <span class="s1">&#39;Greys&#39;</span><span class="p">)</span>
         <span class="n">ax_list</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">ax3</span><span class="p">)</span>
         <span class="n">im_list</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">im3</span><span class="p">)</span>
@@ -252,13 +250,13 @@
         <span class="p">)</span>
 
         <span class="n">ax4</span> <span class="o">=</span> <span class="n">fig</span><span class="o">.</span><span class="n">add_subplot</span><span class="p">(</span><span class="n">gs</span><span class="p">[</span><span class="mi">1</span><span class="p">,</span><span class="mi">0</span><span class="p">])</span>
-        <span class="n">ax4</span><span class="o">.</span><span class="n">set_title</span><span class="p">(</span><span class="s1">&#39;inhibitory syn weight&#39;</span><span class="p">)</span>
-        <span class="n">im4</span> <span class="o">=</span> <span class="n">ax4</span><span class="o">.</span><span class="n">imshow</span><span class="p">(</span><span class="n">inhibitory_synapse_weight</span><span class="o">.</span><span class="n">detach</span><span class="p">()</span><span class="o">.</span><span class="n">cpu</span><span class="p">()</span><span class="o">.</span><span class="n">numpy</span><span class="p">(),</span> 
+        <span class="n">ax4</span><span class="o">.</span><span class="n">set_title</span><span class="p">(</span><span class="s1">&#39;inh syn log weight&#39;</span> <span class="k">if</span> <span class="n">logspace</span> <span class="k">else</span> <span class="s1">&#39;inh syn weight&#39;</span><span class="p">)</span>
+        <span class="n">im4</span> <span class="o">=</span> <span class="n">ax4</span><span class="o">.</span><span class="n">imshow</span><span class="p">(</span><span class="n">inhibitory_synapse_weight</span><span class="o">.</span><span class="n">detach</span><span class="p">()</span><span class="o">.</span><span class="n">numpy</span><span class="p">(),</span> 
                          <span class="n">cmap</span> <span class="o">=</span> <span class="s1">&#39;viridis&#39;</span><span class="p">)</span>
 
         <span class="n">ax5</span> <span class="o">=</span> <span class="n">fig</span><span class="o">.</span><span class="n">add_subplot</span><span class="p">(</span><span class="n">gs</span><span class="p">[</span><span class="mi">1</span><span class="p">,</span><span class="mi">1</span><span class="p">])</span>
-        <span class="n">ax5</span><span class="o">.</span><span class="n">set_title</span><span class="p">(</span><span class="s1">&#39;inhibitory syn pruned&#39;</span><span class="p">)</span>
-        <span class="n">im5</span> <span class="o">=</span> <span class="n">ax5</span><span class="o">.</span><span class="n">imshow</span><span class="p">(</span><span class="n">inhibitory_synapse_pruned</span><span class="o">.</span><span class="n">detach</span><span class="p">()</span><span class="o">.</span><span class="n">cpu</span><span class="p">()</span><span class="o">.</span><span class="n">numpy</span><span class="p">(),</span> 
+        <span class="n">ax5</span><span class="o">.</span><span class="n">set_title</span><span class="p">(</span><span class="s1">&#39;inh syn log pruned&#39;</span> <span class="k">if</span> <span class="n">logspace</span> <span class="k">else</span> <span class="s1">&#39;inh syn pruned&#39;</span><span class="p">)</span>
+        <span class="n">im5</span> <span class="o">=</span> <span class="n">ax5</span><span class="o">.</span><span class="n">imshow</span><span class="p">(</span><span class="n">inhibitory_synapse_pruned</span><span class="o">.</span><span class="n">detach</span><span class="p">()</span><span class="o">.</span><span class="n">numpy</span><span class="p">(),</span> 
                          <span class="n">cmap</span> <span class="o">=</span> <span class="s1">&#39;viridis&#39;</span><span class="p">)</span>
 
         <span class="n">ax_list</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">ax4</span><span class="p">)</span>
@@ -268,8 +266,8 @@
 
         <span class="k">if</span> <span class="n">inhibitory_synapse_mask</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
             <span class="n">ax6</span> <span class="o">=</span> <span class="n">fig</span><span class="o">.</span><span class="n">add_subplot</span><span class="p">(</span><span class="n">gs</span><span class="p">[</span><span class="mi">1</span><span class="p">,</span><span class="mi">2</span><span class="p">])</span>
-            <span class="n">ax6</span><span class="o">.</span><span class="n">set_title</span><span class="p">(</span><span class="s1">&#39;inhibitory syn mask&#39;</span><span class="p">)</span>
-            <span class="n">im6</span> <span class="o">=</span> <span class="n">ax6</span><span class="o">.</span><span class="n">imshow</span><span class="p">(</span><span class="n">inhibitory_synapse_mask</span><span class="o">.</span><span class="n">detach</span><span class="p">()</span><span class="o">.</span><span class="n">cpu</span><span class="p">()</span><span class="o">.</span><span class="n">numpy</span><span class="p">(),</span> 
+            <span class="n">ax6</span><span class="o">.</span><span class="n">set_title</span><span class="p">(</span><span class="s1">&#39;inh syn mask&#39;</span><span class="p">)</span>
+            <span class="n">im6</span> <span class="o">=</span> <span class="n">ax6</span><span class="o">.</span><span class="n">imshow</span><span class="p">(</span><span class="n">inhibitory_synapse_mask</span><span class="o">.</span><span class="n">detach</span><span class="p">()</span><span class="o">.</span><span class="n">numpy</span><span class="p">(),</span> 
                              <span class="n">cmap</span> <span class="o">=</span> <span class="s1">&#39;Greys&#39;</span><span class="p">)</span>
 
             <span class="n">ax_list</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">ax6</span><span class="p">)</span>
@@ -278,44 +276,46 @@
     <span class="n">add_colorbars</span><span class="p">(</span><span class="n">fig</span><span class="p">,</span> <span class="n">ax_list</span><span class="p">,</span> <span class="n">im_list</span><span class="p">,</span> <span class="s1">&#39;right&#39;</span><span class="p">,</span> <span class="s1">&#39;5%&#39;</span><span class="p">,</span> <span class="mf">0.05</span><span class="p">)</span>
 
     <span class="n">ax7</span> <span class="o">=</span> <span class="n">fig</span><span class="o">.</span><span class="n">add_subplot</span><span class="p">(</span><span class="n">gs</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">,</span><span class="mi">0</span><span class="p">])</span>
-    <span class="n">ax7</span><span class="o">.</span><span class="n">set_title</span><span class="p">(</span><span class="s1">&#39;excitatory syn dist&#39;</span><span class="p">)</span>
+    <span class="n">ax7</span><span class="o">.</span><span class="n">set_title</span><span class="p">(</span><span class="s1">&#39;exc syn dist&#39;</span><span class="p">)</span>
     <span class="n">ax7</span><span class="o">.</span><span class="n">hist</span><span class="p">(</span>
-        <span class="n">excitatory_synapse_weight</span><span class="o">.</span><span class="n">flatten</span><span class="p">()</span><span class="o">.</span><span class="n">detach</span><span class="p">()</span><span class="o">.</span><span class="n">cpu</span><span class="p">()</span><span class="o">.</span><span class="n">numpy</span><span class="p">(),</span> 
+        <span class="n">excitatory_synapse_weight</span><span class="o">.</span><span class="n">flatten</span><span class="p">()</span><span class="o">.</span><span class="n">detach</span><span class="p">()</span><span class="o">.</span><span class="n">numpy</span><span class="p">(),</span> 
         <span class="n">bins</span> <span class="o">=</span> <span class="mi">10</span><span class="p">,</span> <span class="n">alpha</span> <span class="o">=</span> <span class="mf">0.5</span><span class="p">,</span> <span class="n">color</span> <span class="o">=</span> <span class="s1">&#39;0.4&#39;</span><span class="p">,</span> <span class="n">label</span> <span class="o">=</span> <span class="s1">&#39;weight&#39;</span><span class="p">,</span>
         <span class="p">)</span>
     <span class="c1"># use same bin distribution</span>
     <span class="n">ax7</span><span class="o">.</span><span class="n">hist</span><span class="p">(</span>
         <span class="n">excitatory_synapse_pruned</span><span class="p">[</span>
             <span class="n">excitatory_synapse_pruned</span> <span class="o">&gt;</span> <span class="mi">0</span>
-        <span class="p">]</span><span class="o">.</span><span class="n">flatten</span><span class="p">()</span><span class="o">.</span><span class="n">detach</span><span class="p">()</span><span class="o">.</span><span class="n">cpu</span><span class="p">()</span><span class="o">.</span><span class="n">numpy</span><span class="p">(),</span>
+        <span class="p">]</span><span class="o">.</span><span class="n">flatten</span><span class="p">()</span><span class="o">.</span><span class="n">detach</span><span class="p">()</span><span class="o">.</span><span class="n">numpy</span><span class="p">(),</span>
         <span class="n">bins</span> <span class="o">=</span> <span class="mi">10</span><span class="p">,</span> 
         <span class="n">alpha</span> <span class="o">=</span> <span class="mf">0.5</span><span class="p">,</span> 
         <span class="n">color</span> <span class="o">=</span> <span class="s1">&#39;blue&#39;</span><span class="p">,</span> 
         <span class="n">label</span> <span class="o">=</span> <span class="s1">&#39;pruned&#39;</span><span class="p">,</span>
     <span class="p">)</span>
+    <span class="n">ax7</span><span class="o">.</span><span class="n">legend</span><span class="p">()</span>
 
     <span class="k">if</span> <span class="n">inhibitory_synapse_weight</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
         <span class="n">ax8</span> <span class="o">=</span> <span class="n">fig</span><span class="o">.</span><span class="n">add_subplot</span><span class="p">(</span><span class="n">gs</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">,</span><span class="mi">1</span><span class="p">])</span>
-        <span class="n">ax8</span><span class="o">.</span><span class="n">set_title</span><span class="p">(</span><span class="s1">&#39;inhibitory syn dist&#39;</span><span class="p">)</span>
+        <span class="n">ax8</span><span class="o">.</span><span class="n">set_title</span><span class="p">(</span><span class="s1">&#39;inh syn dist&#39;</span><span class="p">)</span>
         <span class="n">ax8</span><span class="o">.</span><span class="n">hist</span><span class="p">(</span>
-            <span class="n">inhibitory_synapse_weight</span><span class="o">.</span><span class="n">flatten</span><span class="p">()</span><span class="o">.</span><span class="n">detach</span><span class="p">()</span><span class="o">.</span><span class="n">cpu</span><span class="p">()</span><span class="o">.</span><span class="n">numpy</span><span class="p">(),</span> 
+            <span class="n">inhibitory_synapse_weight</span><span class="o">.</span><span class="n">flatten</span><span class="p">()</span><span class="o">.</span><span class="n">detach</span><span class="p">()</span><span class="o">.</span><span class="n">numpy</span><span class="p">(),</span> 
             <span class="n">bins</span> <span class="o">=</span> <span class="mi">10</span><span class="p">,</span> <span class="n">alpha</span> <span class="o">=</span> <span class="mf">0.5</span><span class="p">,</span> <span class="n">color</span> <span class="o">=</span> <span class="s1">&#39;0.4&#39;</span><span class="p">,</span> <span class="n">label</span> <span class="o">=</span> <span class="s1">&#39;weight&#39;</span><span class="p">,</span>
             <span class="p">)</span>
         <span class="n">ax8</span><span class="o">.</span><span class="n">hist</span><span class="p">(</span>
             <span class="n">inhibitory_synapse_pruned</span><span class="p">[</span>
                 <span class="n">inhibitory_synapse_pruned</span> <span class="o">&gt;</span> <span class="mi">0</span>
-            <span class="p">]</span><span class="o">.</span><span class="n">flatten</span><span class="p">()</span><span class="o">.</span><span class="n">detach</span><span class="p">()</span><span class="o">.</span><span class="n">cpu</span><span class="p">()</span><span class="o">.</span><span class="n">numpy</span><span class="p">(),</span>
+            <span class="p">]</span><span class="o">.</span><span class="n">flatten</span><span class="p">()</span><span class="o">.</span><span class="n">detach</span><span class="p">()</span><span class="o">.</span><span class="n">numpy</span><span class="p">(),</span>
             <span class="n">bins</span> <span class="o">=</span> <span class="mi">10</span><span class="p">,</span> 
             <span class="n">alpha</span> <span class="o">=</span> <span class="mf">0.5</span><span class="p">,</span> 
             <span class="n">color</span> <span class="o">=</span> <span class="s1">&#39;blue&#39;</span><span class="p">,</span> 
             <span class="n">label</span> <span class="o">=</span> <span class="s1">&#39;pruned&#39;</span><span class="p">,</span>
         <span class="p">)</span>
+        <span class="n">ax8</span><span class="o">.</span><span class="n">legend</span><span class="p">()</span>
 
     <span class="k">if</span> <span class="n">reactivation_curve</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
         <span class="n">ax9</span> <span class="o">=</span> <span class="n">fig</span><span class="o">.</span><span class="n">add_subplot</span><span class="p">(</span><span class="n">gs</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">,</span><span class="mi">2</span><span class="p">])</span>
         <span class="n">ax9</span><span class="o">.</span><span class="n">set_title</span><span class="p">(</span><span class="s1">&#39;reactivation curve&#39;</span><span class="p">)</span>
-        <span class="n">ax9</span><span class="o">.</span><span class="n">plot</span><span class="p">(</span><span class="n">linspace</span><span class="o">.</span><span class="n">detach</span><span class="p">()</span><span class="o">.</span><span class="n">cpu</span><span class="p">()</span><span class="o">.</span><span class="n">numpy</span><span class="p">(),</span> 
-                 <span class="n">reactivation_curve</span><span class="o">.</span><span class="n">detach</span><span class="p">()</span><span class="o">.</span><span class="n">cpu</span><span class="p">()</span><span class="o">.</span><span class="n">numpy</span><span class="p">(),</span> 
+        <span class="n">ax9</span><span class="o">.</span><span class="n">plot</span><span class="p">(</span><span class="n">linspace</span><span class="o">.</span><span class="n">detach</span><span class="p">()</span><span class="o">.</span><span class="n">numpy</span><span class="p">(),</span> 
+                 <span class="n">reactivation_curve</span><span class="o">.</span><span class="n">detach</span><span class="p">()</span><span class="o">.</span><span class="n">numpy</span><span class="p">(),</span> 
                  <span class="n">color</span> <span class="o">=</span> <span class="s1">&#39;k&#39;</span><span class="p">)</span>
 
     <span class="k">if</span> <span class="ow">not</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">exists</span><span class="p">(</span><span class="n">save_path</span><span class="p">):</span>
@@ -330,7 +330,7 @@
 <a class="viewcode-back" href="../../source/dendritic_modeling.html#dendritic_modeling.plot_utils.plot_dendrinet_params">[docs]</a>
 <span class="k">def</span> <span class="nf">plot_dendrinet_params</span><span class="p">(</span>
         <span class="n">dendrinet</span><span class="p">,</span> <span class="n">save_root</span><span class="p">,</span> 
-        <span class="n">reshape_fn</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span> <span class="n">reshape_exc_syn</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span> <span class="n">reshape_inh_syn</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span>
+        <span class="n">reshape_fn</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span> <span class="n">reshape_exc_syn</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span> <span class="n">reshape_inh_syn</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span> <span class="n">logspace</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span>
     <span class="p">):</span>
     <span class="n">layer_sizes</span> <span class="o">=</span> <span class="n">dendrinet</span><span class="o">.</span><span class="n">layer_sizes</span>
     <span class="n">n_soma</span> <span class="o">=</span> <span class="n">dendrinet</span><span class="o">.</span><span class="n">n_soma</span>
@@ -353,18 +353,28 @@
             <span class="n">branches_per_soma</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">layer_sizes</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="o">/</span> <span class="n">n_soma</span><span class="p">)</span>
 
         <span class="k">if</span> <span class="n">input_inh</span><span class="p">:</span>
-            <span class="p">(</span>
-                <span class="n">excitatory_synapse_weight</span><span class="p">,</span> 
-                <span class="n">inhibitory_synapse_weight</span>
-            <span class="p">)</span> <span class="o">=</span> <span class="n">layer</span><span class="o">.</span><span class="n">get_weights</span><span class="p">()</span>
+            <span class="k">if</span> <span class="n">logspace</span><span class="p">:</span>
+                <span class="p">(</span>
+                    <span class="n">excitatory_synapse_weight</span><span class="p">,</span> 
+                    <span class="n">inhibitory_synapse_weight</span>
+                <span class="p">)</span> <span class="o">=</span> <span class="n">layer</span><span class="o">.</span><span class="n">get_log_weights</span><span class="p">()</span>
+                <span class="p">(</span>
+                    <span class="n">excitatory_synapse_pruned</span><span class="p">,</span> 
+                    <span class="n">inhibitory_synapse_pruned</span> 
+                <span class="p">)</span> <span class="o">=</span> <span class="n">layer</span><span class="o">.</span><span class="n">get_log_pruned_weights</span><span class="p">()</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="p">(</span>
+                    <span class="n">excitatory_synapse_weight</span><span class="p">,</span> 
+                    <span class="n">inhibitory_synapse_weight</span>
+                <span class="p">)</span> <span class="o">=</span> <span class="n">layer</span><span class="o">.</span><span class="n">get_weights</span><span class="p">()</span>
+                <span class="p">(</span>
+                    <span class="n">excitatory_synapse_pruned</span><span class="p">,</span> 
+                    <span class="n">inhibitory_synapse_pruned</span> 
+                <span class="p">)</span> <span class="o">=</span> <span class="n">layer</span><span class="o">.</span><span class="n">get_pruned_weights</span><span class="p">()</span>
             <span class="p">(</span>
                 <span class="n">excitatory_synapse_mask</span><span class="p">,</span> 
                 <span class="n">inhibitory_synapse_mask</span>
             <span class="p">)</span> <span class="o">=</span> <span class="n">layer</span><span class="o">.</span><span class="n">get_mask</span><span class="p">()</span>
-            <span class="p">(</span>
-                <span class="n">excitatory_synapse_pruned</span><span class="p">,</span> 
-                <span class="n">inhibitory_synapse_pruned</span> 
-            <span class="p">)</span> <span class="o">=</span> <span class="n">layer</span><span class="o">.</span><span class="n">get_pruned_weights</span><span class="p">()</span>
 
             <span class="n">inhibitory_synapse_weight</span> <span class="o">=</span> <span class="n">inhibitory_synapse_weight</span><span class="o">.</span><span class="n">chunk</span><span class="p">(</span><span class="n">n_soma</span><span class="p">,</span> 
                                                                         <span class="n">dim</span> <span class="o">=</span> <span class="mi">0</span><span class="p">)</span>
@@ -374,9 +384,14 @@
                                                                         <span class="n">dim</span> <span class="o">=</span> <span class="mi">0</span><span class="p">)</span>
 
         <span class="k">else</span><span class="p">:</span>
-            <span class="n">excitatory_synapse_weight</span> <span class="o">=</span> <span class="n">layer</span><span class="o">.</span><span class="n">get_weights</span><span class="p">()</span>
+            <span class="k">if</span> <span class="n">logspace</span><span class="p">:</span>
+                <span class="n">excitatory_synapse_weight</span> <span class="o">=</span> <span class="n">layer</span><span class="o">.</span><span class="n">get_log_weights</span><span class="p">()</span>
+                <span class="n">excitatory_synapse_pruned</span> <span class="o">=</span> <span class="n">layer</span><span class="o">.</span><span class="n">get_log_pruned_weights</span><span class="p">()</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="n">excitatory_synapse_weight</span> <span class="o">=</span> <span class="n">layer</span><span class="o">.</span><span class="n">get_weights</span><span class="p">()</span>
+                <span class="n">excitatory_synapse_pruned</span> <span class="o">=</span> <span class="n">layer</span><span class="o">.</span><span class="n">get_pruned_weights</span><span class="p">()</span>
             <span class="n">excitatory_synapse_mask</span> <span class="o">=</span> <span class="n">layer</span><span class="o">.</span><span class="n">get_mask</span><span class="p">()</span>
-            <span class="n">excitatory_synapse_pruned</span> <span class="o">=</span> <span class="n">layer</span><span class="o">.</span><span class="n">get_pruned_weights</span><span class="p">()</span>
+
         
         <span class="n">excitatory_synapse_weight</span> <span class="o">=</span> <span class="n">excitatory_synapse_weight</span><span class="o">.</span><span class="n">chunk</span><span class="p">(</span><span class="n">n_soma</span><span class="p">,</span> 
                                                                     <span class="n">dim</span> <span class="o">=</span> <span class="mi">0</span><span class="p">)</span>
@@ -425,21 +440,35 @@
                     <span class="n">reshape_fn</span> <span class="o">=</span> <span class="n">reshape_fn</span><span class="p">,</span> 
                     <span class="n">reshape_exc_syn</span> <span class="o">=</span> <span class="n">reshape_exc_syn</span><span class="p">,</span> 
                     <span class="n">reshape_inh_syn</span> <span class="o">=</span> <span class="n">reshape_inh_syn</span><span class="p">,</span>
+                    <span class="n">logspace</span> <span class="o">=</span> <span class="n">logspace</span><span class="p">,</span>
                     <span class="n">reactivation_curve</span> <span class="o">=</span> <span class="n">react_curve</span><span class="p">,</span> 
                     <span class="n">linspace</span> <span class="o">=</span> <span class="n">linspace</span><span class="p">,</span>
                 <span class="p">)</span>
 
     <span class="k">if</span> <span class="n">input_inh</span><span class="p">:</span>
-        <span class="p">(</span> 
-            <span class="n">excitatory_synapse_weight_total</span><span class="p">,</span> 
-            <span class="n">inhibitory_synapse_weight_total</span> 
-        <span class="p">)</span> <span class="o">=</span> <span class="n">dendrinet</span><span class="o">.</span><span class="n">sum_weights</span><span class="p">(</span><span class="n">pruned</span> <span class="o">=</span> <span class="kc">False</span><span class="p">)</span>
-        <span class="p">(</span> <span class="n">excitatory_synapse_pruned_total</span><span class="p">,</span> 
-          <span class="n">inhibitory_synapse_pruned_total</span> 
-        <span class="p">)</span> <span class="o">=</span> <span class="n">dendrinet</span><span class="o">.</span><span class="n">sum_weights</span><span class="p">(</span><span class="n">pruned</span> <span class="o">=</span> <span class="kc">True</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">logspace</span><span class="p">:</span>
+            <span class="p">(</span> 
+                <span class="n">excitatory_synapse_weight_total</span><span class="p">,</span> 
+                <span class="n">inhibitory_synapse_weight_total</span> 
+            <span class="p">)</span> <span class="o">=</span> <span class="n">dendrinet</span><span class="o">.</span><span class="n">log_sum_weights</span><span class="p">(</span><span class="n">pruned</span> <span class="o">=</span> <span class="kc">False</span><span class="p">)</span>
+            <span class="p">(</span> <span class="n">excitatory_synapse_pruned_total</span><span class="p">,</span> 
+            <span class="n">inhibitory_synapse_pruned_total</span> 
+            <span class="p">)</span> <span class="o">=</span> <span class="n">dendrinet</span><span class="o">.</span><span class="n">log_sum_weights</span><span class="p">(</span><span class="n">pruned</span> <span class="o">=</span> <span class="kc">True</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="p">(</span> 
+                <span class="n">excitatory_synapse_weight_total</span><span class="p">,</span> 
+                <span class="n">inhibitory_synapse_weight_total</span> 
+            <span class="p">)</span> <span class="o">=</span> <span class="n">dendrinet</span><span class="o">.</span><span class="n">sum_weights</span><span class="p">(</span><span class="n">pruned</span> <span class="o">=</span> <span class="kc">False</span><span class="p">)</span>
+            <span class="p">(</span> <span class="n">excitatory_synapse_pruned_total</span><span class="p">,</span> 
+            <span class="n">inhibitory_synapse_pruned_total</span> 
+            <span class="p">)</span> <span class="o">=</span> <span class="n">dendrinet</span><span class="o">.</span><span class="n">sum_weights</span><span class="p">(</span><span class="n">pruned</span> <span class="o">=</span> <span class="kc">True</span><span class="p">)</span>
     <span class="k">else</span><span class="p">:</span>
-        <span class="n">excitatory_synapse_weight_total</span> <span class="o">=</span> <span class="n">dendrinet</span><span class="o">.</span><span class="n">sum_weights</span><span class="p">(</span><span class="n">pruned</span> <span class="o">=</span> <span class="kc">False</span><span class="p">)</span>
-        <span class="n">excitatory_synapse_pruned_total</span> <span class="o">=</span> <span class="n">dendrinet</span><span class="o">.</span><span class="n">sum_weights</span><span class="p">(</span><span class="n">pruned</span> <span class="o">=</span> <span class="kc">True</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">logspace</span><span class="p">:</span>
+            <span class="n">excitatory_synapse_weight_total</span> <span class="o">=</span> <span class="n">dendrinet</span><span class="o">.</span><span class="n">log_sum_weights</span><span class="p">(</span><span class="n">pruned</span> <span class="o">=</span> <span class="kc">False</span><span class="p">)</span>
+            <span class="n">excitatory_synapse_pruned_total</span> <span class="o">=</span> <span class="n">dendrinet</span><span class="o">.</span><span class="n">log_sum_weights</span><span class="p">(</span><span class="n">pruned</span> <span class="o">=</span> <span class="kc">True</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">excitatory_synapse_weight_total</span> <span class="o">=</span> <span class="n">dendrinet</span><span class="o">.</span><span class="n">sum_weights</span><span class="p">(</span><span class="n">pruned</span> <span class="o">=</span> <span class="kc">False</span><span class="p">)</span>
+            <span class="n">excitatory_synapse_pruned_total</span> <span class="o">=</span> <span class="n">dendrinet</span><span class="o">.</span><span class="n">sum_weights</span><span class="p">(</span><span class="n">pruned</span> <span class="o">=</span> <span class="kc">True</span><span class="p">)</span>
         <span class="p">(</span>
             <span class="n">inhibitory_synapse_weight_total</span><span class="p">,</span> 
             <span class="n">inhibitory_synapse_pruned_total</span>
@@ -458,6 +487,7 @@
             <span class="n">reshape_fn</span> <span class="o">=</span> <span class="n">reshape_fn</span><span class="p">,</span> 
             <span class="n">reshape_exc_syn</span> <span class="o">=</span> <span class="n">reshape_exc_syn</span><span class="p">,</span> 
             <span class="n">reshape_inh_syn</span> <span class="o">=</span> <span class="n">reshape_inh_syn</span><span class="p">,</span>
+            <span class="n">logspace</span> <span class="o">=</span> <span class="n">logspace</span><span class="p">,</span>
             <span class="n">reactivation_curve</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span> <span class="n">linspace</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
         <span class="p">)</span></div>
 
@@ -466,8 +496,10 @@
 <div class="viewcode-block" id="plot_einet_params">
 <a class="viewcode-back" href="../../source/dendritic_modeling.html#dendritic_modeling.plot_utils.plot_einet_params">[docs]</a>
 <span class="k">def</span> <span class="nf">plot_einet_params</span><span class="p">(</span>
-        <span class="n">einet</span><span class="p">,</span> <span class="n">save_root</span><span class="p">,</span> <span class="n">reshape_fn</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span> <span class="n">reshape_exc_syn</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span>
+        <span class="n">einet</span><span class="p">,</span> <span class="n">save_root</span><span class="p">,</span> <span class="n">reshape_fn</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span> <span class="n">reshape_exc_syn</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span> <span class="n">logspace</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span>
     <span class="p">):</span>
+    <span class="n">einet</span> <span class="o">=</span> <span class="n">einet</span><span class="o">.</span><span class="n">to</span><span class="p">(</span><span class="s1">&#39;cpu&#39;</span><span class="p">)</span>
+
     <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">einet</span><span class="o">.</span><span class="n">layers</span><span class="p">)):</span>
         <span class="n">inh_dendrinet</span> <span class="o">=</span> <span class="n">einet</span><span class="o">.</span><span class="n">layers</span><span class="p">[</span><span class="n">i</span><span class="p">]</span><span class="o">.</span><span class="n">inhibitory_cells</span>
         <span class="n">exc_dendrinet</span> <span class="o">=</span> <span class="n">einet</span><span class="o">.</span><span class="n">layers</span><span class="p">[</span><span class="n">i</span><span class="p">]</span><span class="o">.</span><span class="n">excitatory_cells</span>
@@ -480,6 +512,7 @@
             <span class="n">reshape_fn</span> <span class="o">=</span> <span class="n">reshape_fn</span><span class="p">,</span> 
             <span class="n">reshape_exc_syn</span> <span class="o">=</span> <span class="n">reshape_exc_syn</span> <span class="k">if</span> <span class="n">i</span> <span class="o">==</span> <span class="mi">0</span> <span class="k">else</span> <span class="kc">False</span><span class="p">,</span> 
             <span class="n">reshape_inh_syn</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span>
+            <span class="n">logspace</span> <span class="o">=</span> <span class="n">logspace</span><span class="p">,</span>
         <span class="p">)</span>
         <span class="n">plot_dendrinet_params</span><span class="p">(</span>
             <span class="n">dendrinet</span> <span class="o">=</span> <span class="n">exc_dendrinet</span><span class="p">,</span> 
@@ -489,6 +522,29 @@
             <span class="n">reshape_fn</span> <span class="o">=</span> <span class="n">reshape_fn</span><span class="p">,</span> 
             <span class="n">reshape_exc_syn</span> <span class="o">=</span> <span class="n">reshape_exc_syn</span> <span class="k">if</span> <span class="n">i</span> <span class="o">==</span> <span class="mi">0</span> <span class="k">else</span> <span class="kc">False</span><span class="p">,</span> 
             <span class="n">reshape_inh_syn</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span>
+            <span class="n">logspace</span> <span class="o">=</span> <span class="n">logspace</span><span class="p">,</span>
+        <span class="p">)</span></div>
+
+
+
+<div class="viewcode-block" id="plot_eng_mod10_einet_params">
+<a class="viewcode-back" href="../../source/dendritic_modeling.html#dendritic_modeling.plot_utils.plot_eng_mod10_einet_params">[docs]</a>
+<span class="k">def</span> <span class="nf">plot_eng_mod10_einet_params</span><span class="p">(</span><span class="n">einet</span><span class="p">,</span> <span class="n">save_root</span><span class="p">,</span> <span class="n">reshape_fn</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span> <span class="n">logspace</span> <span class="o">=</span> <span class="kc">False</span><span class="p">):</span>
+    <span class="n">einet</span> <span class="o">=</span> <span class="n">einet</span><span class="o">.</span><span class="n">to</span><span class="p">(</span><span class="s1">&#39;cpu&#39;</span><span class="p">)</span>
+
+    <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">einet</span><span class="o">.</span><span class="n">layers</span><span class="p">)):</span>
+        <span class="n">inh_dendrinet</span> <span class="o">=</span> <span class="n">einet</span><span class="o">.</span><span class="n">layers</span><span class="p">[</span><span class="n">i</span><span class="p">]</span><span class="o">.</span><span class="n">inhibitory_cells</span>
+        <span class="n">exc_dendrinet</span> <span class="o">=</span> <span class="n">einet</span><span class="o">.</span><span class="n">layers</span><span class="p">[</span><span class="n">i</span><span class="p">]</span><span class="o">.</span><span class="n">excitatory_cells</span>
+
+        <span class="n">plot_dendrinet_params</span><span class="p">(</span>
+            <span class="n">dendrinet</span> <span class="o">=</span> <span class="n">inh_dendrinet</span><span class="p">,</span> <span class="n">save_root</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">save_root</span><span class="p">,</span> <span class="sa">f</span><span class="s1">&#39;ei_layer</span><span class="si">{</span><span class="n">i</span><span class="o">+</span><span class="mi">1</span><span class="si">}</span><span class="s1">&#39;</span><span class="p">,</span> <span class="s1">&#39;inhibitory cells&#39;</span><span class="p">),</span>
+            <span class="n">reshape_fn</span> <span class="o">=</span> <span class="n">reshape_fn</span><span class="p">,</span> <span class="n">reshape_exc_syn</span> <span class="o">=</span> <span class="kc">False</span> <span class="k">if</span> <span class="n">i</span> <span class="o">==</span> <span class="mi">2</span> <span class="k">else</span> <span class="kc">True</span><span class="p">,</span> <span class="n">reshape_inh_syn</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span>
+            <span class="n">logspace</span> <span class="o">=</span> <span class="n">logspace</span><span class="p">,</span>
+        <span class="p">)</span>
+        <span class="n">plot_dendrinet_params</span><span class="p">(</span>
+            <span class="n">dendrinet</span> <span class="o">=</span> <span class="n">exc_dendrinet</span><span class="p">,</span> <span class="n">save_root</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">save_root</span><span class="p">,</span> <span class="sa">f</span><span class="s1">&#39;ei_layer</span><span class="si">{</span><span class="n">i</span><span class="o">+</span><span class="mi">1</span><span class="si">}</span><span class="s1">&#39;</span><span class="p">,</span> <span class="s1">&#39;excitatory cells&#39;</span><span class="p">),</span>
+            <span class="n">reshape_fn</span> <span class="o">=</span> <span class="n">reshape_fn</span><span class="p">,</span> <span class="n">reshape_exc_syn</span> <span class="o">=</span> <span class="kc">False</span> <span class="k">if</span> <span class="n">i</span> <span class="o">==</span> <span class="mi">2</span> <span class="k">else</span> <span class="kc">True</span><span class="p">,</span> <span class="n">reshape_inh_syn</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span>
+            <span class="n">logspace</span> <span class="o">=</span> <span class="n">logspace</span><span class="p">,</span>
         <span class="p">)</span></div>
 
 
