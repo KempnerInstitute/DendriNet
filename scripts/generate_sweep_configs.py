@@ -298,7 +298,7 @@ def generate_run_sh(num_config,
     lines.append("# Path to the config file directory")
     lines.append(f"CONFIG_DIR={config_dir}")
     lines.append("")
-    lines.append(f"Path to output directory")
+    lines.append(f"# Path to output directory")
     lines.append(f"OUTPUT_DIR={slurm_config['output_dir']}")
     lines.append("")
     lines.append(f"CONFIG_FILE_NAME_INIT={config_filename_init}")
