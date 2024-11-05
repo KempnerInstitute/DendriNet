@@ -142,10 +142,17 @@ def main(config_path: str, output_dir: str,  experiment_name: str):
 
 if __name__ == '__main__':
 
-    parser = argparse.ArgumentParser(description='Run dendritic modeling training and evaluation.')
-    parser.add_argument("config", help="Path to the configuration YAML file.")
-    parser.add_argument("--experiment_name", default="example", help="Optional experiment name for saving results.")
-    parser.add_argument("--output_dir", default="results", help="Optional output directory for saving results.")
+    parser = argparse.ArgumentParser(
+        description='Run dendritic modeling training and evaluation.')
+    parser.add_argument("config", 
+                        help="Path to the configuration YAML file.")
+    parser.add_argument("--output_dir", 
+                        default="results", 
+                        help="Optional output directory for saving results.")
+    parser.add_argument("--experiment_name", 
+                        default="example", 
+                        help="Optional experiment name for saving results.")
+
  
     args = parser.parse_args()
 
@@ -155,4 +162,4 @@ if __name__ == '__main__':
          experiment_name=args.experiment_name)
 
     # Example usage:
-    # python scripts/example_with_config.py configs/example_config.yaml --experiment_name example
+    # python scripts/example_with_config.py configs/example_config.yaml --experiment_name example --output_dir results
