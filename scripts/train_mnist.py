@@ -23,7 +23,7 @@ from dendritic_modeling.config import load_config
 
 
 
-def main(config_path: str, experiment_name: str):
+def main(config_path: str, output_dir: str,  experiment_name: str):
 
     # Load configuration
     config = load_config(config_path)
@@ -60,8 +60,9 @@ def main(config_path: str, experiment_name: str):
 
     # create saving directory
     now = datetime.now().strftime('%Y-%m-%d_%H:%M:%S')
-    root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-    save_path = os.path.join(root, 'results', f'{experiment_name}_{now}')
+    # root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+
+    save_path = os.path.join(output_dir, f'{experiment_name}_{now}')
     os.makedirs(save_path, exist_ok = True)
 
 
@@ -144,11 +145,14 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Run dendritic modeling training and evaluation.')
     parser.add_argument("config", help="Path to the configuration YAML file.")
     parser.add_argument("--experiment_name", default="example", help="Optional experiment name for saving results.")
+    parser.add_argument("--output_dir", default="results", help="Optional output directory for saving results.")
  
     args = parser.parse_args()
 
     # Run the main function
-    main(config_path=args.config, experiment_name=args.experiment_name)
+    main(config_path=args.config, 
+         output_dir=args.output_dir,
+         experiment_name=args.experiment_name)
 
     # Example usage:
     # python scripts/example_with_config.py configs/example_config.yaml --experiment_name example
