@@ -1,4 +1,6 @@
 import os
+import argparse
+from pathlib import Path
 from copy import deepcopy
 from itertools import product
 
@@ -335,10 +337,32 @@ def generate_run_sh(num_config,
     
     print("run.sh file has been generated.")
 
+
+def parse_args():
+    """
+    """
+
+    parser = argparse.ArgumentParser(description="Generate configuration files for a sweep.")
+    parser.add_argument("--config_dir", 
+                        default="configs", 
+                        type=str, 
+                        help="The directory containing the configuration file.")
+    
+    parser.add_argument("--param_filename",
+                        default="sweep_params.yaml",
+                        type=str,
+                        help="The name of the sweep parameters file.")
+
+    return parser.parse_args()
+
 if __name__ == "__main__":
+
+    args = parse_args()
+    config_dir = args.config_dir
+    param_filename = args.param_filename
     
     # Read the config file
-    params = read_config("configs", "sweep_params.yaml")
+    params = read_config(config_dir, param_filename)
 
     # Validate the parameters
     validate_params(params)
