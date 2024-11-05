@@ -307,6 +307,9 @@ def generate_run_sh(num_config,
     lines.append("#Training script: ")
     lines.append(f"TRAINING_SCRIPT={slurm_config['training_script']}")
     lines.append("")
+    lines.append("#Python path: ")
+    lines.append(f"PYTHON={slurm_config['conda_env_path']}/bin/python")
+    lines.append("")
     lines.append("# Get the specific config file based on the array job ID")
     if array_job_flag:
         lines.append('CONFIG=${CONFIG_DIR}/${CONFIG_FILE_NAME_INIT}_${SLURM_ARRAY_TASK_ID}.yaml')
@@ -326,7 +329,7 @@ def generate_run_sh(num_config,
     lines.append("srun \\")
     lines.append("  --cpus-per-task=${SLURM_CPUS_PER_TASK} \\")
     lines.append("  --kill-on-bad-exit \\")
-    lines.append("  python -u  ${TRAINING_SCRIPT} ${CONFIG} \\")
+    lines.append("  {PYTHON} -u  ${TRAINING_SCRIPT} ${CONFIG} \\")
     lines.append("  --output_dir=${OUTPUT_DIR} \\")
     lines.append("  --experiment_name=${RUN_NAME} \\")
     lines.append("  ${@}")
