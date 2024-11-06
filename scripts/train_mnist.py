@@ -8,7 +8,7 @@ import torch
 import torchinfo
 from pathlib import Path
 
-from dendritic_modeling.logging_config import setup_logging
+from dendritic_modeling import logger, update_file_handler
 from dendritic_modeling.training import TrainerMLE
 from dendritic_modeling.models import EINetClassifierNLL
 from dendritic_modeling.plot_utils import (plot_einet_params, 
@@ -26,8 +26,7 @@ from dendritic_modeling.config import load_config
 def main(config_path: str, output_dir: str,  experiment_name: str):
 
     # Set up the logging environment
-    logger_file_path = os.path.join(output_dir, 'dendritic_modeling.log')
-    logger = setup_logging(logger_file_path)
+    update_file_handler(os.path.join(output_dir, "dendritic_modeling.log"))
 
     # Load configuration
     config = load_config(config_path)
