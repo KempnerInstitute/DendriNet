@@ -17,10 +17,11 @@ slurm_config:
 
 
 train_config:
-  run_name: "dendritic_modeling_sweep"
-  seed: 0
-  epochs: 10
-  batch_size: 32
+  train:
+    run_name: "dendritic_modeling_sweep"
+    seed: 0
+    epochs: 10
+    batch_size: 32
   
   wandb:
     entity:  # <---- Add your entity

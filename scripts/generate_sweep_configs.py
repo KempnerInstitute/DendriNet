@@ -373,7 +373,7 @@ if __name__ == "__main__":
     # Validate the parameters
     validate_params(params)
 
-    params.slurm_config.run_name = params.train_config.run_name
+    params.slurm_config.run_name = params.train_config.train.run_name
 
     # Generate configuration files for each combination of sweep parameters
     base_config = params['train_config']
