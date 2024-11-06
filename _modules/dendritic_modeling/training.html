@@ -247,6 +247,8 @@
         
         <span class="n">best_loss</span> <span class="o">=</span> <span class="mf">1e10</span>
         <span class="n">best_state_dict</span> <span class="o">=</span> <span class="n">deepcopy</span><span class="p">(</span><span class="n">model</span><span class="o">.</span><span class="n">state_dict</span><span class="p">())</span>
+
+        <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Requested number of epochs: </span><span class="si">{</span><span class="n">epochs</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
         
         <span class="k">for</span> <span class="n">epoch</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span><span class="n">epochs</span><span class="o">+</span><span class="mi">1</span><span class="p">):</span>        
             <span class="n">train_loss</span> <span class="o">=</span> <span class="mi">0</span>

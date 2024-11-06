@@ -154,7 +154,11 @@
 <li class="toctree-l2"><a class="reference internal" href="#dendritic_modeling.plot_utils.plot_excitation_inhibition_weights"><code class="docutils literal notranslate"><span class="pre">plot_excitation_inhibition_weights()</span></code></a></li>
 <li class="toctree-l2"><a class="reference internal" href="#dendritic_modeling.plot_utils.shape_helper"><code class="docutils literal notranslate"><span class="pre">shape_helper()</span></code></a></li>
 <li class="toctree-l2"><a class="reference internal" href="#logging-config-py">logging_config.py</a></li>
-<li class="toctree-l2"><a class="reference internal" href="#dendritic_modeling.logging_config.setup_logging"><code class="docutils literal notranslate"><span class="pre">setup_logging()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="#dendritic_modeling.logging_config.LoggerManager"><code class="docutils literal notranslate"><span class="pre">LoggerManager</span></code></a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#dendritic_modeling.logging_config.LoggerManager.get_logger"><code class="docutils literal notranslate"><span class="pre">LoggerManager.get_logger()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#dendritic_modeling.logging_config.LoggerManager.set_log_file"><code class="docutils literal notranslate"><span class="pre">LoggerManager.set_log_file()</span></code></a></li>
+</ul>
+</li>
 <li class="toctree-l2"><a class="reference internal" href="#training-py">training.py</a></li>
 <li class="toctree-l2"><a class="reference internal" href="#dendritic_modeling.training.TrainerMLE"><code class="docutils literal notranslate"><span class="pre">TrainerMLE</span></code></a><ul>
 <li class="toctree-l3"><a class="reference internal" href="#dendritic_modeling.training.TrainerMLE.train"><code class="docutils literal notranslate"><span class="pre">TrainerMLE.train()</span></code></a></li>
@@ -927,10 +931,21 @@ label.</p>
 <p>This module contains the logging configuration for the dendritic_modeling
 package.</p>
 </section>
-<dl class="py function">
-<dt class="sig sig-object py" id="dendritic_modeling.logging_config.setup_logging">
-<span class="sig-prename descclassname"><span class="pre">dendritic_modeling.logging_config.</span></span><span class="sig-name descname"><span class="pre">setup_logging</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="../_modules/dendritic_modeling/logging_config.html#setup_logging"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#dendritic_modeling.logging_config.setup_logging" title="Link to this definition"></a></dt>
+<dl class="py class">
+<dt class="sig sig-object py" id="dendritic_modeling.logging_config.LoggerManager">
+<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">dendritic_modeling.logging_config.</span></span><span class="sig-name descname"><span class="pre">LoggerManager</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="o"><span class="pre">*</span></span><span class="n"><span class="pre">args</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">**</span></span><span class="n"><span class="pre">kwargs</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/dendritic_modeling/logging_config.html#LoggerManager"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#dendritic_modeling.logging_config.LoggerManager" title="Link to this definition"></a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">object</span></code></p>
+<dl class="py method">
+<dt class="sig sig-object py" id="dendritic_modeling.logging_config.LoggerManager.get_logger">
+<span class="sig-name descname"><span class="pre">get_logger</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="../_modules/dendritic_modeling/logging_config.html#LoggerManager.get_logger"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#dendritic_modeling.logging_config.LoggerManager.get_logger" title="Link to this definition"></a></dt>
 <dd></dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="dendritic_modeling.logging_config.LoggerManager.set_log_file">
+<span class="sig-name descname"><span class="pre">set_log_file</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">file_path</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/dendritic_modeling/logging_config.html#LoggerManager.set_log_file"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#dendritic_modeling.logging_config.LoggerManager.set_log_file" title="Link to this definition"></a></dt>
+<dd></dd></dl>
+
+</dd></dl>
 
 <section id="training-py">
 <span id="module-dendritic_modeling.training"></span><h2>training.py<a class="headerlink" href="#training-py" title="Link to this heading"></a></h2>

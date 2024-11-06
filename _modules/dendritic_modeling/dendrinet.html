@@ -496,8 +496,8 @@
                 <span class="bp">self</span><span class="o">.</span><span class="n">branches_to_output</span><span class="o">.</span><span class="n">initialize</span><span class="p">(</span><span class="n">sum_synapse_conductances</span><span class="p">)</span>
             
             <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">reactivate</span><span class="p">:</span>
-                <span class="n">nn</span><span class="o">.</span><span class="n">init</span><span class="o">.</span><span class="n">zeros_</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">log_m</span><span class="p">)</span>
-                <span class="n">nn</span><span class="o">.</span><span class="n">init</span><span class="o">.</span><span class="n">zeros_</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">log_b</span><span class="p">)</span>
+                <span class="n">nn</span><span class="o">.</span><span class="n">init</span><span class="o">.</span><span class="n">constant_</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">log_m</span><span class="p">,</span> <span class="mf">1.8</span><span class="p">)</span>
+                <span class="n">nn</span><span class="o">.</span><span class="n">init</span><span class="o">.</span><span class="n">constant_</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">log_b</span><span class="p">,</span> <span class="o">-</span><span class="mf">0.7</span><span class="p">)</span>
     
 <div class="viewcode-block" id="DendriticBranchLayer.forward">
 <a class="viewcode-back" href="../../source/dendritic_modeling.html#dendritic_modeling.dendrinet.DendriticBranchLayer.forward">[docs]</a>
@@ -527,7 +527,7 @@
 <a class="viewcode-back" href="../../source/dendritic_modeling.html#dendritic_modeling.dendrinet.DendriticBranchLayer.reactivation">[docs]</a>
     <span class="k">def</span> <span class="nf">reactivation</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">V</span><span class="p">):</span>
         <span class="n">m</span><span class="p">,</span> <span class="n">b</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">log_m</span><span class="o">.</span><span class="n">exp</span><span class="p">(),</span> <span class="bp">self</span><span class="o">.</span><span class="n">log_b</span><span class="o">.</span><span class="n">exp</span><span class="p">()</span>
-        <span class="k">return</span> <span class="p">(</span><span class="n">torch</span><span class="o">.</span><span class="n">tanh</span><span class="p">(</span><span class="n">m</span> <span class="o">*</span> <span class="n">V</span> <span class="o">-</span> <span class="n">b</span><span class="p">)</span> <span class="o">+</span> <span class="mi">1</span><span class="p">)</span> <span class="o">/</span> <span class="mi">2</span></div>
+        <span class="k">return</span> <span class="p">(</span><span class="n">torch</span><span class="o">.</span><span class="n">tanh</span><span class="p">(</span><span class="n">m</span> <span class="o">*</span> <span class="p">(</span><span class="n">V</span> <span class="o">-</span> <span class="n">b</span><span class="p">))</span> <span class="o">+</span> <span class="mi">1</span><span class="p">)</span> <span class="o">/</span> <span class="mi">2</span></div>
 
     
 <div class="viewcode-block" id="DendriticBranchLayer.get_weights">
