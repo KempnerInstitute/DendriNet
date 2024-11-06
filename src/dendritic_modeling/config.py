@@ -43,6 +43,8 @@ class ModelConfig(BaseConfig):
 @dataclass
 class TrainConfig(BaseConfig):
     """Configuration for training hyperparameters."""
+    run_name: str = "dm_test"
+    seed: int = 42
     train_valid_split: float = 0.8
     lr: float = 1e-3
     epochs: int = 200
