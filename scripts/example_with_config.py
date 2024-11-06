@@ -7,11 +7,10 @@ import wandb
 import torch
 import torchinfo
 from pathlib import Path
-from omegaconf import OmegaConf
 
 from dendritic_modeling import logger
 from dendritic_modeling.training import TrainerMLE
-from dendritic_modeling.models import EINetClassifier, EINetClassifierNLL
+from dendritic_modeling.models import EINetClassifierNLL
 from dendritic_modeling.plot_utils import (plot_einet_params, 
                                            plot_einet_activations)
 from dendritic_modeling.utils import (load_MNIST, 
@@ -20,7 +19,7 @@ from dendritic_modeling.utils import (load_MNIST,
                                       save_dict, 
                                       Shaper)
 
-from dendritic_modeling.config import ModelConfig, TrainConfig, load_config
+from dendritic_modeling.config import load_config
 
 
 
@@ -68,18 +67,23 @@ def main(config_path: str, experiment_name: str):
 
     # intialize W&B
     if config.wandb is not None:
-        wandb_dir = Path(save_path) / "wandb"
-        wandb_run_name = experiment_name
-        wandb_dir.mkdir(parents=True, exist_ok=True)
-        wandb.init(
-            dir=wandb_dir,
-            project=config.wandb.project,
-            entity=config.wandb.entity,
-            group=config.wandb.group,
-            name=wandb_run_name,
-            tags=config.wandb.tags,
-            config=config.asdict(exclude=["wandb"]),
-        )
+        try:
+            wandb_dir = Path(save_path) / "wandb"
+            wandb_run_name = experiment_name
+            wandb_dir.mkdir(parents=True, exist_ok=True)
+            wandb.init(
+                dir=wandb_dir,
+                project=config.wandb.project,
+                entity=config.wandb.entity,
+                group=config.wandb.group,
+                name=wandb_run_name,
+                tags=config.wandb.tags,
+                config=config.asdict(exclude=["wandb"]),
+            )
+        except Exception as e:
+            logger.error(f"Error initializing W&B: {e}")
+            logger.error("Continuing without W&B ... ")
+            config.wandb = None
 
     print('Training ...\n')
     start_time = time.time()

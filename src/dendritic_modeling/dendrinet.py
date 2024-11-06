@@ -369,8 +369,8 @@ class DendriticBranchLayer(nn.Module):
                 self.branches_to_output.initialize(sum_synapse_conductances)
             
             if self.reactivate:
-                nn.init.zeros_(self.log_m)
-                nn.init.zeros_(self.log_b)
+                nn.init.constant_(self.log_m, 1.8)
+                nn.init.constant_(self.log_b, -0.7)
     
     def forward(self, x, inhibitory_input = None, branch_input = None):
         # compute excitation and inhibition along each branch in layer
@@ -395,7 +395,7 @@ class DendriticBranchLayer(nn.Module):
 
     def reactivation(self, V):
         m, b = self.log_m.exp(), self.log_b.exp()
-        return (torch.tanh(m * V - b) + 1) / 2
+        return (torch.tanh(m * (V - b)) + 1) / 2
     
     def get_weights(self):
         if self.input_inhibitory:

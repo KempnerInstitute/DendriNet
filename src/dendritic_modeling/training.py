@@ -145,6 +145,8 @@ class TrainerMLE(object):
         
         best_loss = 1e10
         best_state_dict = deepcopy(model.state_dict())
+
+        logger.debug(f"Requested number of epochs: {epochs}")
         
         for epoch in range(1,epochs+1):        
             train_loss = 0
