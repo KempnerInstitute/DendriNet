@@ -318,18 +318,18 @@ def generate_run_sh(num_config,
         lines.append('CONFIG=${CONFIG_DIR}/${CONFIG_FILE_NAME_INIT}_0.yaml')
         lines.append('RUN_NAME=${SC_RUN_NAME}_${SLURM_JOB_ID}')
     lines.append("")
-    lines.append(f"# Path to the folder to save the checkpoints")
+    lines.append(f"# Path to the folder to save outputs")
     if array_job_flag:
-        lines.append(f"CHECKPOINTS_PATH={slurm_config['output_dir']}/${{SC_RUN_NAME}}_${{SLURM_ARRAY_JOB_ID}}/${{SLURM_ARRAY_JOB_ID}}_${{SLURM_ARRAY_TASK_ID}}/checkpoints")
+        lines.append(f"OUTPUT_FOLDER_PATH={slurm_config['output_dir']}/${{SC_RUN_NAME}}_${{SLURM_ARRAY_JOB_ID}}/${{SLURM_ARRAY_JOB_ID}}_${{SLURM_ARRAY_TASK_ID}}")
     else:
-        lines.append(f"CHECKPOINTS_PATH={slurm_config['output_dir']}/${{SC_RUN_NAME}}_${{SLURM_JOB_ID}}/checkpoints")
+        lines.append(f"OUTPUT_FOLDER_PATH={slurm_config['output_dir']}/${{SC_RUN_NAME}}_${{SLURM_JOB_ID}}")
     lines.append("")
     lines.append('echo "Starting running a training job at $(date)"')
     lines.append("start_time=$(date +%s)")
     lines.append("srun \\")
     lines.append("  --cpus-per-task=${SLURM_CPUS_PER_TASK} \\")
     lines.append("  --kill-on-bad-exit \\")
-    lines.append("  {PYTHON} -u  ${TRAINING_SCRIPT} ${CONFIG} \\")
+    lines.append("  ${PYTHON} -u  ${TRAINING_SCRIPT} ${CONFIG} \\")
     lines.append("  --output_dir=${OUTPUT_DIR} \\")
     lines.append("  --experiment_name=${RUN_NAME} \\")
     lines.append("  ${@}")
@@ -349,12 +349,12 @@ def parse_args():
     """
 
     parser = argparse.ArgumentParser(description="Generate configuration files for a sweep.")
-    parser.add_argument("--config_dir", 
+    parser.add_argument("config_dir", 
                         default="configs", 
                         type=str, 
                         help="The directory containing the configuration file.")
     
-    parser.add_argument("--param_filename",
+    parser.add_argument("param_filename",
                         default="sweep_params.yaml",
                         type=str,
                         help="The name of the sweep parameters file.")
@@ -384,20 +384,20 @@ if __name__ == "__main__":
     flatten_sweep_params = flatten(sweep_params)
     configs, sweeps = generate_config_files(base_config, 
                                             flatten_sweep_params, 
-                                            output_dir="configs")
+                                            output_dir=config_dir)
     
 
     # Write the configuration files to disk
     write_config_files(configs, 
                        sweeps,
-                       output_dir="configs", 
+                       output_dir=config_dir, 
                        base_name=config_filename_init )
     
 
     # Generate a SLURM batch script for running jobs
     # Get config file name init    
     generate_run_sh(len(configs), 
-                    config_dir="configs", 
+                    config_dir=config_dir, 
                     config_filename_init=config_filename_init, 
                     slurm_config=slurm_config)
 
