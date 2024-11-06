@@ -25,7 +25,7 @@
     <link rel="index" title="Index" href="../../genindex.html" />
     <link rel="search" title="Search" href="../../search.html" />
     <link rel="next" title="References" href="../users/references.html" />
-    <link rel="prev" title="Installation" href="../users/users.html" /> 
+    <link rel="prev" title="Sweep Job Submission" href="../users/sweep_job_submission.html" /> 
 </head>
 
 <body class="wy-body-for-nav"> 
@@ -55,6 +55,8 @@
 <ul>
 <li class="toctree-l1"><a class="reference internal" href="../users/users.html">Installation</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../users/users.html#build-the-documentation">Build the documentation</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../users/interactive_run.html">Running an interactive session</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../users/sweep_job_submission.html">Sweep Job Submission</a></li>
 </ul>
 <p class="caption" role="heading"><span class="caption-text">Dendritic Modeling</span></p>
 <ul class="current">
@@ -99,7 +101,7 @@
            <div itemprop="articleBody">
              
   <section id="concepts-overview">
-<h1>Concepts Overview<a class="headerlink" href="#concepts-overview" title="Link to this heading"></a></h1>
+<span id="concept-overview"></span><h1>Concepts Overview<a class="headerlink" href="#concepts-overview" title="Link to this heading"></a></h1>
 <p>The initial dendritic model is designed as follows: external input data (considered as excitatory input) is fed into an excitatory/inhibitory classifier (<code class="docutils literal notranslate"><span class="pre">EINetClassifier</span></code>). This classifier model contains a single excitatory/inhibitory network (<code class="docutils literal notranslate"><span class="pre">ExitationInhibitionNetwork</span></code>), which consists of one or more excitation-inhibition layers (<code class="docutils literal notranslate"><span class="pre">ExcitationInbitionLayer</span></code>). Each excitation-inhibition layer has two dendritic layer (<code class="docutils literal notranslate"><span class="pre">Dendrinet</span></code>).</p>
 <figure class="align-center" id="einetclassifier-dataflow">
 <a class="reference internal image-reference" href="../../_images/EINetClassifier_dataflow.pdf"><img alt="EINetClassifier dataflow" src="../../_images/EINetClassifier_dataflow.pdf" style="width: 100%;" />
@@ -133,7 +135,7 @@
            </div>
           </div>
           <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
-        <a href="../users/users.html" class="btn btn-neutral float-left" title="Installation" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
+        <a href="../users/sweep_job_submission.html" class="btn btn-neutral float-left" title="Sweep Job Submission" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
         <a href="../users/references.html" class="btn btn-neutral float-right" title="References" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
     </div>
 

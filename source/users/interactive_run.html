@@ -1,0 +1,193 @@
+
+
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" data-content_root="../../">
+<head>
+  <meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Running an interactive session &mdash; dendritic_modeling 0.1.0 documentation</title>
+      <link rel="stylesheet" type="text/css" href="../../_static/pygments.css?v=80d5e7a1" />
+      <link rel="stylesheet" type="text/css" href="../../_static/css/theme.css?v=e59714d7" />
+      <link rel="stylesheet" type="text/css" href="../../_static/copybutton.css?v=76b2166b" />
+
+  
+      <script src="../../_static/jquery.js?v=5d32c60e"></script>
+      <script src="../../_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
+      <script src="../../_static/documentation_options.js?v=01f34227"></script>
+      <script src="../../_static/doctools.js?v=9bcbadda"></script>
+      <script src="../../_static/sphinx_highlight.js?v=dc90522c"></script>
+      <script src="../../_static/clipboard.min.js?v=a7894cd8"></script>
+      <script src="../../_static/copybutton.js?v=f281be69"></script>
+      <script crossorigin="anonymous" integrity="sha256-Ae2Vz/4ePdIu6ZyI/5ZGsYnb+m0JlOmKPjt6XZ9JJkA=" src="https://cdnjs.cloudflare.com/ajax/libs/require.js/2.3.4/require.min.js"></script>
+    <script src="../../_static/js/theme.js"></script>
+    <link rel="author" title="About these documents" href="../../about.html" />
+    <link rel="index" title="Index" href="../../genindex.html" />
+    <link rel="search" title="Search" href="../../search.html" />
+    <link rel="next" title="Sweep Job Submission" href="sweep_job_submission.html" />
+    <link rel="prev" title="Installation" href="users.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+
+          
+          
+          <a href="../../index.html" class="icon icon-home">
+            dendritic_modeling
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <p class="caption" role="heading"><span class="caption-text">Introduction</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../about.html">About</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Users Guide</span></p>
+<ul class="current">
+<li class="toctree-l1"><a class="reference internal" href="users.html">Installation</a></li>
+<li class="toctree-l1"><a class="reference internal" href="users.html#build-the-documentation">Build the documentation</a></li>
+<li class="toctree-l1 current"><a class="current reference internal" href="#">Running an interactive session</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="#step-1-prepare-your-run-environment">Step 1: Prepare your run environment</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#step-2-run-the-interactive-session">Step 2: Run the interactive session</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="sweep_job_submission.html">Sweep Job Submission</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Dendritic Modeling</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../dend_m/concepts_overview.html">Concepts Overview</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">References</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="references.html">References</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Appendix and Resources</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../additional_resources.html">Additional resources</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../glossary.html">Glossary</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">API Reference</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../dendritic_modeling.html">dendritic_modeling package</a></li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../../index.html">dendritic_modeling</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="../../index.html" class="icon icon-home" aria-label="Home"></a></li>
+      <li class="breadcrumb-item active">Running an interactive session</li>
+      <li class="wy-breadcrumbs-aside">
+            <a href="../../_sources/source/users/interactive_run.rst.txt" rel="nofollow"> View page source</a>
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <section id="running-an-interactive-session">
+<h1>Running an interactive session<a class="headerlink" href="#running-an-interactive-session" title="Link to this heading"></a></h1>
+<p>This section provides a step-by-step guide to running an interactive session with the Dendritic Modeling package. Interactive sessions are useful for exploring the package’s features, testing different network configurations, and visualizing the results of your experiments.</p>
+<p>To run a job with the <cite>dendritic_modeling</cite> package, we need the following components:</p>
+<ul class="simple">
+<li><p>A Python environment with the required dependencies installed</p></li>
+<li><p>A configuration file</p></li>
+<li><p>A run script</p></li>
+</ul>
+<p>In the following sections, we will walk you through the process of setting up an interactive session with the Dendritic Modeling package.</p>
+<section id="step-1-prepare-your-run-environment">
+<h2>Step 1: Prepare your run environment<a class="headerlink" href="#step-1-prepare-your-run-environment" title="Link to this heading"></a></h2>
+<p>The first step is setting up your compute environment. It can be your laptop or an an interactive session on the cluster. You will need to get the code and install the package in your conda environment. Please refer to the <a class="reference internal" href="users.html#installation-guide"><span class="std std-ref">Installation</span></a> for detailed instructions on setting up your environment.</p>
+<p>Step 2: Create a configuration file</p>
+<p>Each compute job requires a configuration file that specifies the network architecture, training parameters, and other experimental settings. The following shows an example of a configuration file:</p>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">model</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">input_dim</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">784</span>
+<span class="w">    </span><span class="nt">excitatory_layer_sizes</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">10</span><span class="p p-Indicator">]</span>
+<span class="w">    </span><span class="nt">inhibitory_layer_sizes</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">20</span><span class="p p-Indicator">]</span>
+<span class="w">    </span><span class="nt">excitatory_branch_factors</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">24</span><span class="p p-Indicator">]</span>
+<span class="w">    </span><span class="nt">inhibitory_branch_factors</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[]</span>
+<span class="w">    </span><span class="nt">reactivate</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+<span class="w">    </span><span class="nt">somatic_synapses</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+<span class="w">    </span><span class="nt">ee_synapses_per_branch_per_layer</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">24</span><span class="p p-Indicator">]</span>
+<span class="w">    </span><span class="nt">ei_synapses_per_branch_per_layer</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">100</span><span class="p p-Indicator">]</span>
+<span class="w">    </span><span class="nt">ie_synapses_per_branch_per_layer</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">1</span><span class="p p-Indicator">]</span>
+<span class="w">    </span><span class="nt">ii_synapses_per_branch_per_layer</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[]</span>
+
+<span class="nt">train</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">run_name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">mnist_1</span>
+<span class="w">    </span><span class="nt">seed</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">42</span>
+<span class="w">    </span><span class="nt">train_valid_split</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">0.8</span>
+<span class="w">    </span><span class="nt">lr</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">0.001</span>
+<span class="w">    </span><span class="nt">epochs</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">10</span>
+<span class="w">    </span><span class="nt">batch_size</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">32</span>
+
+<span class="nt">wandb</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">entity</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">your_entity</span><span class="w">  </span><span class="c1"># &lt;---- Add your entity</span>
+<span class="w">    </span><span class="nt">project</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">dendritic_modeling_pr</span>
+<span class="w">    </span><span class="nt">group</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">debug</span>
+<span class="w">    </span><span class="nt">tags</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">mnist_1</span><span class="p p-Indicator">]</span>
+</pre></div>
+</div>
+<p>The configuration (let’s say <cite>mnist_1.yaml</cite>) has three major sections: <cite>model</cite>, <cite>train</cite>, and <cite>wandb</cite>. The <cite>model</cite> section specifies the network architecture, including the input dimension, layer sizes, branch factors, and synaptic connections. The <cite>train</cite> section defines the training parameters, such as the learning rate, number of epochs, and batch size. The <cite>wandb</cite> section contains the settings for logging the experiment results to Weights &amp; Biases (W&amp;B). Please refer to the <a class="reference internal" href="../dend_m/concepts_overview.html#concept-overview"><span class="std std-ref">Concepts Overview</span></a> for more details on the network architecture.</p>
+</section>
+<section id="step-2-run-the-interactive-session">
+<h2>Step 2: Run the interactive session<a class="headerlink" href="#step-2-run-the-interactive-session" title="Link to this heading"></a></h2>
+<p>Once you have set up your environment and created the configuration file, you can run the interactive session using the following command:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span>python<span class="w"> </span>scripts/train_mnist.py<span class="w"> </span>configs/mnist_1.yaml<span class="w"> </span>--output_dir<span class="w"> </span>output_folder<span class="w"> </span>--experiment_name<span class="w"> </span>mnist_1
+</pre></div>
+</div>
+<p>The <cite>output_dir</cite> and <cite>experiment_name</cite> arguments specify the output directory and the name of the experiment, respectively. The <cite>train_mnist.py</cite> script will load the configuration file <cite>mnist_1.yaml</cite> and start the training process. You can monitor the training progress and visualize the results using the W&amp;B dashboard.</p>
+</section>
+</section>
+
+
+           </div>
+          </div>
+          <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
+        <a href="users.html" class="btn btn-neutral float-left" title="Installation" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
+        <a href="sweep_job_submission.html" class="btn btn-neutral float-right" title="Sweep Job Submission" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright 2024, Research and Engineering at Kempner.</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>
