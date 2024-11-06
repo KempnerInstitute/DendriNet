@@ -59,10 +59,10 @@ def main(config_path: str, output_dir: str,  experiment_name: str):
     )
 
     # create saving directory
-    now = datetime.now().strftime('%Y-%m-%d_%H:%M:%S')
+    # now = datetime.now().strftime('%Y-%m-%d_%H:%M:%S')
     # root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
-    save_path = os.path.join(output_dir, f'{experiment_name}_{now}')
+    save_path = output_dir
     os.makedirs(save_path, exist_ok = True)
 
 
