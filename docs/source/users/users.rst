@@ -1,5 +1,7 @@
+.. _installation_guide:  
+
 Installation
-============
+============  
 
 
 To install the package:

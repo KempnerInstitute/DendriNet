@@ -25,6 +25,8 @@ Ideal for neuroscience researchers, Dendritic Modeling integrates seamlessly wit
    :caption: Users Guide
 
    source/users/users
+   source/users/interactive_run
+   source/users/sweep_job_submission
 
 
 .. toctree::
