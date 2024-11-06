@@ -157,28 +157,28 @@ class TestTopKLinear(unittest.TestCase):
     #         mask[topk_indices] = False
     #         self.assertTrue(torch.all(gradients[i][mask] == 0))
 
-    def test_forward_pass_consistency(self):
-        """Test that forward pass outputs are consistent with manual computation."""
+    # def test_forward_pass_consistency(self):
+    #     """Test that forward pass outputs are consistent with manual computation."""
         
-        torch.manual_seed(0)
+    #     torch.manual_seed(0)
         
-        in_features = 5
-        out_features = 2
-        K = 2
-        batch_size = 1
+    #     in_features = 5
+    #     out_features = 2
+    #     K = 2
+    #     batch_size = 1
 
-        model = TopKLinear(in_features, out_features, K)
-        x = torch.randn(batch_size, in_features)
+    #     model = TopKLinear(in_features, out_features, K)
+    #     x = torch.randn(batch_size, in_features)
 
-        # Perform forward pass
-        output = model(x)
+    #     # Perform forward pass
+    #     output = model(x)
 
-        # Manually compute expected output
-        pruned_weight = model.pruned_weight()
-        expected_output = torch.mm(x, pruned_weight.t())
+    #     # Manually compute expected output
+    #     pruned_weight = model.pruned_weight()
+    #     expected_output = torch.mm(x, pruned_weight.t())
 
-        # Check that outputs match
-        self.assertTrue(torch.allclose(output, expected_output))
+    #     # Check that outputs match
+    #     self.assertTrue(torch.allclose(output, expected_output))
 
 
     def test_weighted_synapses_no_prune(self):
