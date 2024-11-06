@@ -5,7 +5,6 @@ This module contains the logging configuration for the dendritic_modeling
 package.
 """
 
-import os
 import sys
 import logging
 
