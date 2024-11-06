@@ -330,7 +330,7 @@ def generate_run_sh(num_config,
     lines.append("  --cpus-per-task=${SLURM_CPUS_PER_TASK} \\")
     lines.append("  --kill-on-bad-exit \\")
     lines.append("  ${PYTHON} -u  ${TRAINING_SCRIPT} ${CONFIG} \\")
-    lines.append("  --output_dir=${OUTPUT_DIR} \\")
+    lines.append("  --output_dir=${OUTPUT_FOLDER_PATH} \\")
     lines.append("  --experiment_name=${RUN_NAME} \\")
     lines.append("  ${@}")
     lines.append("end_time=$(date +%s)")
