@@ -1,12 +1,11 @@
 import os
 import time
 import argparse
-from datetime import datetime
+from pathlib import Path
 
 import wandb
 import torch
 import torchinfo
-from pathlib import Path
 
 from dendritic_modeling import logger, logger_manager
 from dendritic_modeling.training import TrainerMLE
@@ -63,9 +62,6 @@ def main(config_path: str, output_dir: str,  experiment_name: str):
     )
 
     # create saving directory
-    # now = datetime.now().strftime('%Y-%m-%d_%H:%M:%S')
-    # root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-
     save_path = output_dir
     os.makedirs(save_path, exist_ok = True)
 
