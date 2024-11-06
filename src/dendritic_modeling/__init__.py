@@ -1,7 +1,5 @@
-
-
 # Set up the logging environment
-from dendritic_modeling.logging_config import (logger, 
-                                               setup_logging, 
-                                               update_file_handler)
-setup_logging()
+from dendritic_modeling.logging_config import LoggerManager
+
+logger_manager = LoggerManager()
+logger = logger_manager.get_logger()
