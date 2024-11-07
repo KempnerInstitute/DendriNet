@@ -11,11 +11,10 @@ import torch
 import torch.nn as nn
 
 
-# custom linear layer which only uses the strongest K synaptic weights from 
-# in_features 
 class TopKLinear(nn.Module):
     """
-    A linear layer that retains only the top K strongest synaptic weights.
+    A linear layer that retains only the top K strongest synaptic weights for
+    in_features.
 
     This module implements a linear transformation with weights constrained to 
     be positive. For each output neuron, only the top K weights are kept 
@@ -327,10 +326,16 @@ class DendriticBranchLayer(nn.Module):
         inputs.
     """
     def __init__(
-        self, output_dim, excitatory_input_dim, excitatory_synapses_per_branch,
-        inhibitory_input_dim = None, inhibitory_synapses_per_branch = None, 
-        input_branch_factor = None, reactivate = False,
+        self, 
+        output_dim, 
+        excitatory_input_dim, 
+        excitatory_synapses_per_branch,
+        inhibitory_input_dim = None, 
+        inhibitory_synapses_per_branch = None, 
+        input_branch_factor = None, 
+        reactivate = False,
         ):
+        
         # initialize dendritic branch layer
         super(DendriticBranchLayer, self).__init__()
         # module for computing excitation along branches in layer
@@ -350,8 +355,10 @@ class DendriticBranchLayer(nn.Module):
                 output_dim*input_branch_factor, output_dim)
 
         if reactivate:
-            self.log_m = nn.Parameter(torch.empty((output_dim,)), requires_grad = True)
-            self.log_b = nn.Parameter(torch.empty((output_dim,)), requires_grad = True)
+            self.log_m = nn.Parameter(torch.empty((output_dim,)), 
+                                      requires_grad = True)
+            self.log_b = nn.Parameter(torch.empty((output_dim,)), 
+                                      requires_grad = True)
         self.reactivate = reactivate
 
         self.initialize()

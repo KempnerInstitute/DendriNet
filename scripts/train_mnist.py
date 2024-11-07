@@ -41,8 +41,8 @@ def main(config_path: str, output_dir: str,  experiment_name: str):
     model_hp = config.model.asdict()
     train_hp = config.train.asdict()
 
-    logger.debug("\n" + "="*50)
-    logger.debug("   CONFIG AND RUN INFO   ")
+    logger.debug("="*50)
+    logger.debug(" "*10 + "Config and run hyperparameters" + " "*10)
     logger.debug("="*50)
 
     logger.debug(f" Experiment Name: {experiment_name}")
@@ -50,7 +50,7 @@ def main(config_path: str, output_dir: str,  experiment_name: str):
     logger.debug(" Training Hyperparameters:\n" + str(train_hp))
     logger.debug(f" Output Directory: {save_path}")
 
-    logger.debug("="*50 + "\n")
+    logger.debug("="*50)
 
 
     # intialize W&B
@@ -68,12 +68,13 @@ def main(config_path: str, output_dir: str,  experiment_name: str):
                 tags=config.wandb.tags,
                 config=config.asdict(exclude=["wandb"]),
             )
+            logger.debug("W&B initialized successfully.")
         except Exception as e:
             logger.error(f"Error initializing W&B: {e}")
             logger.error("Continuing without W&B ... ")
             config.wandb = None
 
-    logger.info('loading mnist ...')
+    logger.info('Loading mnist ...')
     data = load_MNIST(train_valid_split = train_hp['train_valid_split'], 
                       cache_dir=os.getcwd())
     
@@ -108,7 +109,8 @@ def main(config_path: str, output_dir: str,  experiment_name: str):
     trainer = TrainerMLE(
         optimizer = torch.optim.Adam(clf.parameters(), 
                                      lr = train_hp['lr']),
-        suppress_prints = False, print_every = 10,
+        suppress_prints = False, 
+        print_every = 10,
     )
 
 
@@ -119,8 +121,9 @@ def main(config_path: str, output_dir: str,  experiment_name: str):
         model=clf,
         train_data=data['train'], 
         valid_data=data['valid'],
-        epochs=config.train.epochs, 
+        epochs=train_hp['epochs'],
         batch_size=train_hp['batch_size'], 
+        grad_clip_value=train_hp['grad_clip_value'],
         shuffle=True,
         plot_losses=True, 
         save_path=save_path,
