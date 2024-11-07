@@ -127,7 +127,17 @@ class TrainerMLE(object):
         save_boolean = save_path is not None and os.path.exists(save_path)
         
         # send model to device
-        device = 'cuda' if torch.cuda.is_available() else 'cpu'
+        if torch.cuda.is_available():
+            device = 'cuda'
+            gpu_properties = torch.cuda.get_device_properties(device)
+            logger.debug(f"Using GPU: {gpu_properties.name}")
+            logger.debug(f"GPU Memory: {gpu_properties.total_memory / 1024 / 1024 / 1024:.0f} GB")
+            logger.debug(f"GPU Compute Capability: {gpu_properties.major}.{gpu_properties.minor}")
+            logger.debug(f"GPU multiprocessor count: {gpu_properties.multi_processor_count}")
+        else:
+            device = 'cpu'
+            logger.debug("Using CPU Device for Training.") 
+
         model = model.to(device)
         
         # create dataloader objects for training data and validation data
@@ -143,7 +153,7 @@ class TrainerMLE(object):
         
         stime = time.time()
         
-        best_loss = 1e10
+        best_loss = torch.tensor(float('inf'))
         best_state_dict = deepcopy(model.state_dict())
 
         logger.debug(f"Requested number of epochs: {epochs}")
@@ -167,6 +177,7 @@ class TrainerMLE(object):
                     # backpropagate loss
                     nll.backward()
                     # prevent exploding gradients
+                    
                     clip_grad_value_(model.parameters(), 
                                      clip_value = grad_clip_value)
                     # update weights
@@ -231,7 +242,7 @@ class TrainerMLE(object):
             if not self.suppress:
                 # printing
                 if epoch % self.print_every == 0:
-                    logger.info(f'------------------{epoch}------------------')
+                    logger.info(f' ----   Epoch {epoch}  ---- ')
                     logger.info('training loss: %.2f | validation loss: %.2f' % (
                         train_loss, valid_loss))
                     
