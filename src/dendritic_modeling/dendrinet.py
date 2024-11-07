@@ -11,6 +11,18 @@ import torch
 import torch.nn as nn
 
 
+TOPK_INIT_METHODS = {
+    'xavier_normal': nn.init.xavier_normal_,
+    'xavier_uniform': nn.init.xavier_uniform_,
+    'kaiming_normal': nn.init.kaiming_normal_,
+    'kaiming_uniform': nn.init.kaiming_uniform_,
+    'orthogonal': nn.init.orthogonal_,
+    'normal': nn.init.normal_,
+    'uniform': nn.init.uniform_,
+    'eye': nn.init.eye_,
+}
+
+
 class TopKLinear(nn.Module):
     """
     A linear layer that retains only the top K strongest synaptic weights for
@@ -90,7 +102,13 @@ class TopKLinear(nn.Module):
     torch.Size([4, 5])
     """
     def __init__(
-            self, in_features, out_features, K, param_space = 'log',
+            self, 
+            in_features, 
+            out_features, 
+            K, 
+            param_space = 'log',
+            init_method = 'xavier_normal',
+            init_params = None
             ):    
         super(TopKLinear, self).__init__()
         # make all weights positive
@@ -110,9 +128,18 @@ class TopKLinear(nn.Module):
 
         self.K = K
         self.param_space = param_space
+        self.init_method = init_method
     
     def initialize(self):
-        nn.init.xavier_normal_(self.pre_w)
+        if self.init_method in TOPK_INIT_METHODS:
+            init_func = TOPK_INIT_METHODS[self.init_method]
+            init_func(self.pre_w)
+            #TODO: Accept hyperparameters for initialization
+            # init_func(self.pre_w, **self.init_params) 
+        else:
+            raise ValueError(
+                f'Invalid initialization method: {self.init_method}. ',
+                f'Choose from {list(TOPK_INIT_METHODS.keys())}')
     
     def forward(self, x):
         # identify top K strongest synaptic connections onto each dendritic branch
@@ -334,19 +361,26 @@ class DendriticBranchLayer(nn.Module):
         inhibitory_synapses_per_branch = None, 
         input_branch_factor = None, 
         reactivate = False,
+        topk_init_method = 'xavier_normal'
         ):
         
         # initialize dendritic branch layer
         super(DendriticBranchLayer, self).__init__()
         # module for computing excitation along branches in layer
         self.branch_excitation = TopKLinear(
-            excitatory_input_dim, output_dim, K = excitatory_synapses_per_branch)
+            excitatory_input_dim, 
+            output_dim, 
+            K = excitatory_synapses_per_branch,
+            init_method = topk_init_method)
         # if receiving inputs from inhibitory cells
         self.input_inhibitory = inhibitory_input_dim is not None
         if self.input_inhibitory:
             # module for computing inhibition along branches in layer
             self.branch_inhibition = TopKLinear(
-                inhibitory_input_dim, output_dim, K = inhibitory_synapses_per_branch)
+                inhibitory_input_dim, 
+                output_dim, 
+                K = inhibitory_synapses_per_branch,
+                init_method = topk_init_method)
         # if receiving inputs from other dendritic branches
         self.input_branches = input_branch_factor is not None
         if self.input_branches:
@@ -526,6 +560,7 @@ class DendriNet(nn.Module):
         inhibitory_synapses_per_branch = None,
         reactivate = False, 
         somatic_synapses = True,
+        topk_init_method = 'xavier_normal'
     ):
         super(DendriNet, self).__init__()
         
@@ -579,6 +614,7 @@ class DendriNet(nn.Module):
                 inhibitory_synapses_per_branch = inhibitory_synapses_per_branch, 
                 input_branch_factor = branch_factors[i], 
                 reactivate = reactivate,
+                topk_init_method = topk_init_method,
             ))
         # wrap list of branch layers in ModuleList
         self.branch_layers = nn.ModuleList(branch_layers)
@@ -593,6 +629,7 @@ class DendriNet(nn.Module):
                 inhibitory_synapses_per_branch = inhibitory_synapses_per_branch,
                 input_branch_factor = branch_factors[-1], 
                 reactivate = True,
+                topk_init_method = topk_init_method,
             )
         else:
             self.soma_layer = BlockLinear(layer_sizes[-2], n_soma)

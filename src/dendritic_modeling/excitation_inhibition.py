@@ -88,6 +88,7 @@ class ExcitationInhibitionLayer(nn.Module):
         ii_synapses_per_branch = None, 
         reactivate = False, 
         somatic_synapses = True,
+        topk_init_method = "xavier_normal",
     ):
         super(ExcitationInhibitionLayer, self).__init__()
 
@@ -98,7 +99,9 @@ class ExcitationInhibitionLayer(nn.Module):
             excitatory_synapses_per_branch = ei_synapses_per_branch,
             inhibitory_input_dim = inhibitory_input_dim, 
             inhibitory_synapses_per_branch = ii_synapses_per_branch,
-            reactivate = reactivate, somatic_synapses = somatic_synapses, 
+            reactivate = reactivate, 
+            somatic_synapses = somatic_synapses, 
+            topk_init_method = topk_init_method
         )
 
         self.excitatory_cells = DendriNet(
@@ -110,6 +113,7 @@ class ExcitationInhibitionLayer(nn.Module):
             inhibitory_synapses_per_branch = ie_synapses_per_branch,
             reactivate = reactivate, 
             somatic_synapses = somatic_synapses,
+            topk_init_method = topk_init_method
         )
 
     def forward(self, x, inhibitory_input = None):
@@ -184,7 +188,9 @@ class ExcitationInhibitionNetwork(nn.Module):
         ei_synapses_per_branch_per_layer, 
         ie_synapses_per_branch_per_layer, 
         ii_synapses_per_branch_per_layer = [], 
-        reactivate = False, somatic_synapses = True,
+        reactivate = False, 
+        somatic_synapses = True,
+        topk_init_method = "xavier_normal",
     ):
         super(ExcitationInhibitionNetwork, self).__init__()
 
@@ -217,7 +223,10 @@ class ExcitationInhibitionNetwork(nn.Module):
                 inhibitory_input_dim = inhibitory_layer_sizes[i],
                 ie_synapses_per_branch = ie_synapses_per_branch_per_layer[i], 
                 ii_synapses_per_branch = ii_synapses_per_branch_per_layer[i],
-                reactivate = reactivate, somatic_synapses = somatic_synapses,
+                reactivate = reactivate, 
+                somatic_synapses = somatic_synapses,
+                topk_init_method = topk_init_method,
+
             ))
         
         self.layers = nn.ModuleList(layers)
