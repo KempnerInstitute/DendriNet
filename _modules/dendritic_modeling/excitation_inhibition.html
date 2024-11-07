@@ -303,12 +303,8 @@
         <span class="n">excitatory_layer_sizes</span> <span class="o">=</span> <span class="n">deepcopy</span><span class="p">(</span><span class="n">excitatory_layer_sizes</span><span class="p">)</span>
         <span class="n">inhibitory_layer_sizes</span> <span class="o">=</span> <span class="n">deepcopy</span><span class="p">(</span><span class="n">inhibitory_layer_sizes</span><span class="p">)</span>
 
-        <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="sa">f</span><span class="s1">&#39;Excitatory layer sizes: </span><span class="si">{</span><span class="n">excitatory_layer_sizes</span><span class="si">}</span><span class="s1">&#39;</span><span class="p">)</span>
-        <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="sa">f</span><span class="s1">&#39;Inhibitory layer sizes: </span><span class="si">{</span><span class="n">inhibitory_layer_sizes</span><span class="si">}</span><span class="s1">&#39;</span><span class="p">)</span>
-
         <span class="n">excitatory_layer_sizes</span><span class="o">.</span><span class="n">insert</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="n">input_dim</span><span class="p">)</span>
         <span class="n">inhibitory_layer_sizes</span><span class="o">.</span><span class="n">insert</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span>
-
 
         <span class="n">ii_synapses_per_branch_per_layer</span> <span class="o">=</span> <span class="n">deepcopy</span><span class="p">(</span>
             <span class="n">ii_synapses_per_branch_per_layer</span><span class="p">)</span>

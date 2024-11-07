@@ -111,13 +111,12 @@
 <span class="kn">import</span> <span class="nn">torch.nn</span> <span class="k">as</span> <span class="nn">nn</span>
 
 
-<span class="c1"># custom linear layer which only uses the strongest K synaptic weights from </span>
-<span class="c1"># in_features </span>
 <div class="viewcode-block" id="TopKLinear">
 <a class="viewcode-back" href="../../source/dendritic_modeling.html#dendritic_modeling.dendrinet.TopKLinear">[docs]</a>
 <span class="k">class</span> <span class="nc">TopKLinear</span><span class="p">(</span><span class="n">nn</span><span class="o">.</span><span class="n">Module</span><span class="p">):</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
-<span class="sd">    A linear layer that retains only the top K strongest synaptic weights.</span>
+<span class="sd">    A linear layer that retains only the top K strongest synaptic weights for</span>
+<span class="sd">    in_features.</span>
 
 <span class="sd">    This module implements a linear transformation with weights constrained to </span>
 <span class="sd">    be positive. For each output neuron, only the top K weights are kept </span>
@@ -456,10 +455,16 @@
 <span class="sd">        inputs.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
     <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span>
-        <span class="bp">self</span><span class="p">,</span> <span class="n">output_dim</span><span class="p">,</span> <span class="n">excitatory_input_dim</span><span class="p">,</span> <span class="n">excitatory_synapses_per_branch</span><span class="p">,</span>
-        <span class="n">inhibitory_input_dim</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span> <span class="n">inhibitory_synapses_per_branch</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span> 
-        <span class="n">input_branch_factor</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span> <span class="n">reactivate</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span>
+        <span class="bp">self</span><span class="p">,</span> 
+        <span class="n">output_dim</span><span class="p">,</span> 
+        <span class="n">excitatory_input_dim</span><span class="p">,</span> 
+        <span class="n">excitatory_synapses_per_branch</span><span class="p">,</span>
+        <span class="n">inhibitory_input_dim</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span> 
+        <span class="n">inhibitory_synapses_per_branch</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span> 
+        <span class="n">input_branch_factor</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span> 
+        <span class="n">reactivate</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span>
         <span class="p">):</span>
+        
         <span class="c1"># initialize dendritic branch layer</span>
         <span class="nb">super</span><span class="p">(</span><span class="n">DendriticBranchLayer</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="fm">__init__</span><span class="p">()</span>
         <span class="c1"># module for computing excitation along branches in layer</span>
@@ -479,8 +484,10 @@
                 <span class="n">output_dim</span><span class="o">*</span><span class="n">input_branch_factor</span><span class="p">,</span> <span class="n">output_dim</span><span class="p">)</span>
 
         <span class="k">if</span> <span class="n">reactivate</span><span class="p">:</span>
-            <span class="bp">self</span><span class="o">.</span><span class="n">log_m</span> <span class="o">=</span> <span class="n">nn</span><span class="o">.</span><span class="n">Parameter</span><span class="p">(</span><span class="n">torch</span><span class="o">.</span><span class="n">empty</span><span class="p">((</span><span class="n">output_dim</span><span class="p">,)),</span> <span class="n">requires_grad</span> <span class="o">=</span> <span class="kc">True</span><span class="p">)</span>
-            <span class="bp">self</span><span class="o">.</span><span class="n">log_b</span> <span class="o">=</span> <span class="n">nn</span><span class="o">.</span><span class="n">Parameter</span><span class="p">(</span><span class="n">torch</span><span class="o">.</span><span class="n">empty</span><span class="p">((</span><span class="n">output_dim</span><span class="p">,)),</span> <span class="n">requires_grad</span> <span class="o">=</span> <span class="kc">True</span><span class="p">)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">log_m</span> <span class="o">=</span> <span class="n">nn</span><span class="o">.</span><span class="n">Parameter</span><span class="p">(</span><span class="n">torch</span><span class="o">.</span><span class="n">empty</span><span class="p">((</span><span class="n">output_dim</span><span class="p">,)),</span> 
+                                      <span class="n">requires_grad</span> <span class="o">=</span> <span class="kc">True</span><span class="p">)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">log_b</span> <span class="o">=</span> <span class="n">nn</span><span class="o">.</span><span class="n">Parameter</span><span class="p">(</span><span class="n">torch</span><span class="o">.</span><span class="n">empty</span><span class="p">((</span><span class="n">output_dim</span><span class="p">,)),</span> 
+                                      <span class="n">requires_grad</span> <span class="o">=</span> <span class="kc">True</span><span class="p">)</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">reactivate</span> <span class="o">=</span> <span class="n">reactivate</span>
 
         <span class="bp">self</span><span class="o">.</span><span class="n">initialize</span><span class="p">()</span>
