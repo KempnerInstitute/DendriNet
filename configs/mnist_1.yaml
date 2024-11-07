@@ -10,6 +10,7 @@ model:
   ei_synapses_per_branch_per_layer: [100]
   ie_synapses_per_branch_per_layer: [1]
   ii_synapses_per_branch_per_layer: []
+  topk_init_method: "xavier_normal"
 
 train:
   train_valid_split: 0.8
