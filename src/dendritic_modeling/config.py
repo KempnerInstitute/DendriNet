@@ -49,6 +49,7 @@ class TrainConfig(BaseConfig):
     lr: float = 1e-3
     epochs: int = 200
     batch_size: int = 32
+    grad_clip_value: float = 0.5
 
 
 @dataclass
