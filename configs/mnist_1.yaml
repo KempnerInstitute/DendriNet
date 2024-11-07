@@ -16,6 +16,7 @@ train:
   lr: 0.001
   epochs: 10
   batch_size: 32
+  grad_clip_value: 0.5
 
 wandb:
   entity: your_entity  # <---- Add your entity
