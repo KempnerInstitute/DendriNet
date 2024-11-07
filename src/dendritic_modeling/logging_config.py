@@ -26,7 +26,7 @@ class LoggerManager:
 
         console_handler = logging.StreamHandler(sys.stdout)
         console_handler.setLevel(logging.INFO)
-        console_format = logging.Formatter('%(levelname)s  %(message)s')
+        console_format = logging.Formatter('%(levelname)s %(filename)s:%(lineno)d  %(message)s')
         console_handler.setFormatter(console_format)
         self.logger.addHandler(console_handler)
 
@@ -40,10 +40,9 @@ class LoggerManager:
         try:
             file_handler = logging.FileHandler(file_path)
             file_handler.setLevel(logging.DEBUG)
-            file_format = logging.Formatter('%(asctime)s %(levelname)s %(message)s')
+            file_format = logging.Formatter('%(asctime)s %(levelname)s %(filename)s:%(lineno)d %(message)s')
             file_handler.setFormatter(file_format)
             self.logger.addHandler(file_handler)
-            self.logger.debug(f'Log file set to {file_path}.')
         except Exception as e:
             self.logger.error(f'Failed to set file handler: {e}')
 
