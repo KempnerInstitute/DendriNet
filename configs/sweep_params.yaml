@@ -48,10 +48,10 @@ train_config:
     ei_synapses_per_branch_per_layer: [100]
     ie_synapses_per_branch_per_layer: [1]
     ii_synapses_per_branch_per_layer: []
+    topk_init_method: "xavier_normal"
   
 sweep_config:
-  optimizer:
-    learning_rate: [0.001, 0.0001, 0.1]
+  train:
+    batch_size: [32, 64, 128, 512]
   model:
-    inhibitory_layer_sizes: [[10], [20], [30]]
-    ee_synapses_per_branch_per_layer: [[24], [22]]
+    topk_initi_method: ['xavier_normal', 'xavier_uniform']
