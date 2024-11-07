@@ -318,6 +318,7 @@
         <span class="n">ii_synapses_per_branch_per_layer</span> <span class="o">=</span> <span class="p">[],</span> 
         <span class="n">reactivate</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span> 
         <span class="n">somatic_synapses</span> <span class="o">=</span> <span class="kc">True</span><span class="p">,</span>
+        <span class="n">topk_init_method</span> <span class="o">=</span> <span class="s2">&quot;xavier_normal&quot;</span><span class="p">,</span>
     <span class="p">):</span>
         <span class="nb">super</span><span class="p">(</span><span class="n">EINetClassifier</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="fm">__init__</span><span class="p">()</span>
 
@@ -332,6 +333,7 @@
             <span class="n">ie_synapses_per_branch_per_layer</span> <span class="o">=</span> <span class="n">ie_synapses_per_branch_per_layer</span><span class="p">,</span> 
             <span class="n">ii_synapses_per_branch_per_layer</span> <span class="o">=</span> <span class="n">ii_synapses_per_branch_per_layer</span><span class="p">,</span>
             <span class="n">reactivate</span> <span class="o">=</span> <span class="n">reactivate</span><span class="p">,</span> <span class="n">somatic_synapses</span> <span class="o">=</span> <span class="n">somatic_synapses</span><span class="p">,</span>
+            <span class="n">topk_init_method</span> <span class="o">=</span> <span class="n">topk_init_method</span><span class="p">,</span>
         <span class="p">)</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">log_output_scale</span> <span class="o">=</span> <span class="n">nn</span><span class="o">.</span><span class="n">Parameter</span><span class="p">(</span>
             <span class="n">torch</span><span class="o">.</span><span class="n">zeros</span><span class="p">((</span><span class="n">excitatory_layer_sizes</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">],)),</span> <span class="n">requires_grad</span> <span class="o">=</span> <span class="kc">True</span><span class="p">)</span>

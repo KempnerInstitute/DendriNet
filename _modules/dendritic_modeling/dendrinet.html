@@ -111,6 +111,18 @@
 <span class="kn">import</span> <span class="nn">torch.nn</span> <span class="k">as</span> <span class="nn">nn</span>
 
 
+<span class="n">TOPK_INIT_METHODS</span> <span class="o">=</span> <span class="p">{</span>
+    <span class="s1">&#39;xavier_normal&#39;</span><span class="p">:</span> <span class="n">nn</span><span class="o">.</span><span class="n">init</span><span class="o">.</span><span class="n">xavier_normal_</span><span class="p">,</span>
+    <span class="s1">&#39;xavier_uniform&#39;</span><span class="p">:</span> <span class="n">nn</span><span class="o">.</span><span class="n">init</span><span class="o">.</span><span class="n">xavier_uniform_</span><span class="p">,</span>
+    <span class="s1">&#39;kaiming_normal&#39;</span><span class="p">:</span> <span class="n">nn</span><span class="o">.</span><span class="n">init</span><span class="o">.</span><span class="n">kaiming_normal_</span><span class="p">,</span>
+    <span class="s1">&#39;kaiming_uniform&#39;</span><span class="p">:</span> <span class="n">nn</span><span class="o">.</span><span class="n">init</span><span class="o">.</span><span class="n">kaiming_uniform_</span><span class="p">,</span>
+    <span class="s1">&#39;orthogonal&#39;</span><span class="p">:</span> <span class="n">nn</span><span class="o">.</span><span class="n">init</span><span class="o">.</span><span class="n">orthogonal_</span><span class="p">,</span>
+    <span class="s1">&#39;normal&#39;</span><span class="p">:</span> <span class="n">nn</span><span class="o">.</span><span class="n">init</span><span class="o">.</span><span class="n">normal_</span><span class="p">,</span>
+    <span class="s1">&#39;uniform&#39;</span><span class="p">:</span> <span class="n">nn</span><span class="o">.</span><span class="n">init</span><span class="o">.</span><span class="n">uniform_</span><span class="p">,</span>
+    <span class="s1">&#39;eye&#39;</span><span class="p">:</span> <span class="n">nn</span><span class="o">.</span><span class="n">init</span><span class="o">.</span><span class="n">eye_</span><span class="p">,</span>
+<span class="p">}</span>
+
+
 <div class="viewcode-block" id="TopKLinear">
 <a class="viewcode-back" href="../../source/dendritic_modeling.html#dendritic_modeling.dendrinet.TopKLinear">[docs]</a>
 <span class="k">class</span> <span class="nc">TopKLinear</span><span class="p">(</span><span class="n">nn</span><span class="o">.</span><span class="n">Module</span><span class="p">):</span>
@@ -192,7 +204,13 @@
 <span class="sd">    torch.Size([4, 5])</span>
 <span class="sd">    &quot;&quot;&quot;</span>
     <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span>
-            <span class="bp">self</span><span class="p">,</span> <span class="n">in_features</span><span class="p">,</span> <span class="n">out_features</span><span class="p">,</span> <span class="n">K</span><span class="p">,</span> <span class="n">param_space</span> <span class="o">=</span> <span class="s1">&#39;log&#39;</span><span class="p">,</span>
+            <span class="bp">self</span><span class="p">,</span> 
+            <span class="n">in_features</span><span class="p">,</span> 
+            <span class="n">out_features</span><span class="p">,</span> 
+            <span class="n">K</span><span class="p">,</span> 
+            <span class="n">param_space</span> <span class="o">=</span> <span class="s1">&#39;log&#39;</span><span class="p">,</span>
+            <span class="n">init_method</span> <span class="o">=</span> <span class="s1">&#39;xavier_normal&#39;</span><span class="p">,</span>
+            <span class="n">init_params</span> <span class="o">=</span> <span class="kc">None</span>
             <span class="p">):</span>    
         <span class="nb">super</span><span class="p">(</span><span class="n">TopKLinear</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="fm">__init__</span><span class="p">()</span>
         <span class="c1"># make all weights positive</span>
@@ -212,9 +230,18 @@
 
         <span class="bp">self</span><span class="o">.</span><span class="n">K</span> <span class="o">=</span> <span class="n">K</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">param_space</span> <span class="o">=</span> <span class="n">param_space</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">init_method</span> <span class="o">=</span> <span class="n">init_method</span>
     
     <span class="k">def</span> <span class="nf">initialize</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
-        <span class="n">nn</span><span class="o">.</span><span class="n">init</span><span class="o">.</span><span class="n">xavier_normal_</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">pre_w</span><span class="p">)</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">init_method</span> <span class="ow">in</span> <span class="n">TOPK_INIT_METHODS</span><span class="p">:</span>
+            <span class="n">init_func</span> <span class="o">=</span> <span class="n">TOPK_INIT_METHODS</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">init_method</span><span class="p">]</span>
+            <span class="n">init_func</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">pre_w</span><span class="p">)</span>
+            <span class="c1">#TODO: Accept hyperparameters for initialization</span>
+            <span class="c1"># init_func(self.pre_w, **self.init_params) </span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+                <span class="sa">f</span><span class="s1">&#39;Invalid initialization method: </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">init_method</span><span class="si">}</span><span class="s1">. &#39;</span><span class="p">,</span>
+                <span class="sa">f</span><span class="s1">&#39;Choose from </span><span class="si">{</span><span class="nb">list</span><span class="p">(</span><span class="n">TOPK_INIT_METHODS</span><span class="o">.</span><span class="n">keys</span><span class="p">())</span><span class="si">}</span><span class="s1">&#39;</span><span class="p">)</span>
     
 <div class="viewcode-block" id="TopKLinear.forward">
 <a class="viewcode-back" href="../../source/dendritic_modeling.html#dendritic_modeling.dendrinet.TopKLinear.forward">[docs]</a>
@@ -463,19 +490,26 @@
         <span class="n">inhibitory_synapses_per_branch</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span> 
         <span class="n">input_branch_factor</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span> 
         <span class="n">reactivate</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span>
+        <span class="n">topk_init_method</span> <span class="o">=</span> <span class="s1">&#39;xavier_normal&#39;</span>
         <span class="p">):</span>
         
         <span class="c1"># initialize dendritic branch layer</span>
         <span class="nb">super</span><span class="p">(</span><span class="n">DendriticBranchLayer</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="fm">__init__</span><span class="p">()</span>
         <span class="c1"># module for computing excitation along branches in layer</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">branch_excitation</span> <span class="o">=</span> <span class="n">TopKLinear</span><span class="p">(</span>
-            <span class="n">excitatory_input_dim</span><span class="p">,</span> <span class="n">output_dim</span><span class="p">,</span> <span class="n">K</span> <span class="o">=</span> <span class="n">excitatory_synapses_per_branch</span><span class="p">)</span>
+            <span class="n">excitatory_input_dim</span><span class="p">,</span> 
+            <span class="n">output_dim</span><span class="p">,</span> 
+            <span class="n">K</span> <span class="o">=</span> <span class="n">excitatory_synapses_per_branch</span><span class="p">,</span>
+            <span class="n">init_method</span> <span class="o">=</span> <span class="n">topk_init_method</span><span class="p">)</span>
         <span class="c1"># if receiving inputs from inhibitory cells</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">input_inhibitory</span> <span class="o">=</span> <span class="n">inhibitory_input_dim</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span>
         <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">input_inhibitory</span><span class="p">:</span>
             <span class="c1"># module for computing inhibition along branches in layer</span>
             <span class="bp">self</span><span class="o">.</span><span class="n">branch_inhibition</span> <span class="o">=</span> <span class="n">TopKLinear</span><span class="p">(</span>
-                <span class="n">inhibitory_input_dim</span><span class="p">,</span> <span class="n">output_dim</span><span class="p">,</span> <span class="n">K</span> <span class="o">=</span> <span class="n">inhibitory_synapses_per_branch</span><span class="p">)</span>
+                <span class="n">inhibitory_input_dim</span><span class="p">,</span> 
+                <span class="n">output_dim</span><span class="p">,</span> 
+                <span class="n">K</span> <span class="o">=</span> <span class="n">inhibitory_synapses_per_branch</span><span class="p">,</span>
+                <span class="n">init_method</span> <span class="o">=</span> <span class="n">topk_init_method</span><span class="p">)</span>
         <span class="c1"># if receiving inputs from other dendritic branches</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">input_branches</span> <span class="o">=</span> <span class="n">input_branch_factor</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span>
         <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">input_branches</span><span class="p">:</span>
@@ -673,6 +707,7 @@
         <span class="n">inhibitory_synapses_per_branch</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
         <span class="n">reactivate</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span> 
         <span class="n">somatic_synapses</span> <span class="o">=</span> <span class="kc">True</span><span class="p">,</span>
+        <span class="n">topk_init_method</span> <span class="o">=</span> <span class="s1">&#39;xavier_normal&#39;</span>
     <span class="p">):</span>
         <span class="nb">super</span><span class="p">(</span><span class="n">DendriNet</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="fm">__init__</span><span class="p">()</span>
         
@@ -726,6 +761,7 @@
                 <span class="n">inhibitory_synapses_per_branch</span> <span class="o">=</span> <span class="n">inhibitory_synapses_per_branch</span><span class="p">,</span> 
                 <span class="n">input_branch_factor</span> <span class="o">=</span> <span class="n">branch_factors</span><span class="p">[</span><span class="n">i</span><span class="p">],</span> 
                 <span class="n">reactivate</span> <span class="o">=</span> <span class="n">reactivate</span><span class="p">,</span>
+                <span class="n">topk_init_method</span> <span class="o">=</span> <span class="n">topk_init_method</span><span class="p">,</span>
             <span class="p">))</span>
         <span class="c1"># wrap list of branch layers in ModuleList</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">branch_layers</span> <span class="o">=</span> <span class="n">nn</span><span class="o">.</span><span class="n">ModuleList</span><span class="p">(</span><span class="n">branch_layers</span><span class="p">)</span>
@@ -740,6 +776,7 @@
                 <span class="n">inhibitory_synapses_per_branch</span> <span class="o">=</span> <span class="n">inhibitory_synapses_per_branch</span><span class="p">,</span>
                 <span class="n">input_branch_factor</span> <span class="o">=</span> <span class="n">branch_factors</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">],</span> 
                 <span class="n">reactivate</span> <span class="o">=</span> <span class="kc">True</span><span class="p">,</span>
+                <span class="n">topk_init_method</span> <span class="o">=</span> <span class="n">topk_init_method</span><span class="p">,</span>
             <span class="p">)</span>
         <span class="k">else</span><span class="p">:</span>
             <span class="bp">self</span><span class="o">.</span><span class="n">soma_layer</span> <span class="o">=</span> <span class="n">BlockLinear</span><span class="p">(</span><span class="n">layer_sizes</span><span class="p">[</span><span class="o">-</span><span class="mi">2</span><span class="p">],</span> <span class="n">n_soma</span><span class="p">)</span>
