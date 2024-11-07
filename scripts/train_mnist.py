@@ -1,4 +1,5 @@
 import os
+import json
 import time
 import argparse
 from pathlib import Path
@@ -6,6 +7,7 @@ from pathlib import Path
 import wandb
 import torch
 import torchinfo
+from omegaconf import OmegaConf
 
 from dendritic_modeling import logger, logger_manager
 from dendritic_modeling.training import TrainerMLE
@@ -24,6 +26,12 @@ from dendritic_modeling.config import load_config
 
 def main(config_path: str, output_dir: str,  experiment_name: str):
 
+    
+    # create output directory
+    save_path = output_dir
+    os.makedirs(save_path, exist_ok = True)
+
+    
     # Set up the logging environment
     logger_manager.set_log_file(os.path.join(output_dir, 
                                              "dendritic_modeling.log"))
@@ -33,37 +41,16 @@ def main(config_path: str, output_dir: str,  experiment_name: str):
     model_hp = config.model.asdict()
     train_hp = config.train.asdict()
 
-    logger.info('loading mnist ...')
-    data = load_MNIST(train_valid_split = train_hp['train_valid_split'], 
-                      cache_dir=os.getcwd())
-    
-    # initialize classifier
-    clf = EINetClassifierNLL(**model_hp)
+    logger.debug("\n" + "="*50)
+    logger.debug("   CONFIG AND RUN INFO   ")
+    logger.debug("="*50)
 
-    model_summary = torchinfo.summary(
-                        clf,
-                        input_size=(train_hp['batch_size'], 
-                                    model_hp['input_dim']),
-                        col_names=["input_size", 
-                                   "output_size", 
-                                   "num_params"],
-                        col_width=25,
-                        row_settings=["depth"],
-                        depth=7
-                    )
+    logger.debug(f" Experiment Name: {experiment_name}")
+    logger.debug(" Model Hyperparameters:\n" + str(model_hp))
+    logger.debug(" Training Hyperparameters:\n" + str(train_hp))
+    logger.debug(f" Output Directory: {save_path}")
 
-    logger.debug("".join(["\n", str(model_summary), "\n"]))
-
-    # initialize trainer class
-    trainer = TrainerMLE(
-        optimizer = torch.optim.Adam(clf.parameters(), 
-                                     lr = train_hp['lr']),
-        suppress_prints = False, print_every = 10,
-    )
-
-    # create saving directory
-    save_path = output_dir
-    os.makedirs(save_path, exist_ok = True)
+    logger.debug("="*50 + "\n")
 
 
     # intialize W&B
@@ -86,8 +73,48 @@ def main(config_path: str, output_dir: str,  experiment_name: str):
             logger.error("Continuing without W&B ... ")
             config.wandb = None
 
-    print('Training ...\n')
-    start_time = time.time()
+    logger.info('loading mnist ...')
+    data = load_MNIST(train_valid_split = train_hp['train_valid_split'], 
+                      cache_dir=os.getcwd())
+    
+    # initialize classifier
+    clf = EINetClassifierNLL(**model_hp)
+
+    model_summary = torchinfo.summary(
+                        clf,
+                        input_size=(train_hp['batch_size'], 
+                                    model_hp['input_dim']),
+                        col_names=["input_size", 
+                                   "output_size", 
+                                   "num_params"],
+                        col_width=25,
+                        row_settings=["depth"],
+                        depth=7
+                    )
+
+    logger.debug("".join(["\n", str(model_summary), "\n"]))
+
+    # send model summary to wandb
+    if wandb.run is not None:
+        model_summary_params = {
+            "total_params": model_summary.total_params,
+            "trainable_params": model_summary.trainable_params
+        }
+        wandb.log(model_summary_params)
+
+
+
+    # initialize trainer class
+    trainer = TrainerMLE(
+        optimizer = torch.optim.Adam(clf.parameters(), 
+                                     lr = train_hp['lr']),
+        suppress_prints = False, print_every = 10,
+    )
+
+
+
+    logger.info('Started training the model...')
+    training_start_time = time.time()
     trainer.train(
         model=clf,
         train_data=data['train'], 
@@ -98,11 +125,12 @@ def main(config_path: str, output_dir: str,  experiment_name: str):
         plot_losses=True, 
         save_path=save_path,
     )
-    training_time = time.time() - start_time
+    training_time = time.time() - training_start_time
     formatted_training_time = f'{training_time:.6f} sec -> {training_time / 60:.6f} min'
+    logger.info(f'Training completed in {formatted_training_time}.')
 
     # Evaluate performance
-    print('\nEvaluating performance...')
+    logger.info('Started evaluating performance...')
     inference_start = time.time()
     performance = {
         'train accuracy': accuracy_score(clf, *data['train'][:]).item(),
@@ -111,18 +139,22 @@ def main(config_path: str, output_dir: str,  experiment_name: str):
     }
     inference_time = time.time() - inference_start
     performance['training time'] = formatted_training_time
-    performance['inference time'] = f'{inference_time:.6f} sec -> {inference_time / 60:.6f} min'
+    formatted_inference_time = f'{inference_time:.6f} sec -> {inference_time / 60:.6f} min'
+    performance['inference time'] = formatted_inference_time
 
     # Saving
     save_dict(model_hp, save_path, 'model_hparams.json')
     save_dict(train_hp, save_path, 'training_hparams.json')
     save_dict(performance, save_path, 'performance.json')
 
-    print('  done..\n')
+    logger.info(f"Completed evaluation in {formatted_inference_time}.")
 
     # Visualize and save model parameters and activations
     shaper = Shaper(shape=(28, 28))
-    print('Creating parameter visuals...')
+
+    logger.info('Creating parameter visuals ...')
+    visual_start_time = time.time()
+
     plot_einet_params(
         einet=clf.net, save_root=os.path.join(save_path, 'param_visuals'),
         reshape_fn=shaper.reshape, reshape_exc_syn=True,
@@ -134,7 +166,25 @@ def main(config_path: str, output_dir: str,  experiment_name: str):
         einet=clf.net, input_list=input_list,
         save_root=os.path.join(save_path, 'activation_visuals'),
     )
-    print('Done.')
+    visual_time = time.time() - visual_start_time
+    formatted_visual_time = f'{visual_time:.6f} sec -> {visual_time / 60:.6f} min'
+    logger.info(f'Completed visualization in {formatted_visual_time}.')
+
+
+    # send wall clock time to wandb
+    if wandb.run is not None:
+        wc_time = {
+            "training_time": training_time,
+            "inference_time": inference_time,
+            "visualization_time": visual_time,
+            "total_time": training_time + inference_time + visual_time,
+            "normalized_training_time": (training_time) / config.train.epochs
+
+        }
+        wandb.log(wc_time)
+
+
+    logger.info('----------- Done! -----------')
 
     wandb.finish()
 
