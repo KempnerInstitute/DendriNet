@@ -347,8 +347,8 @@
                     
             <span class="k">if</span> <span class="n">wandb</span><span class="o">.</span><span class="n">run</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
                 <span class="n">wandb</span><span class="o">.</span><span class="n">log</span><span class="p">({</span><span class="s2">&quot;train_loss&quot;</span><span class="p">:</span> <span class="nb">float</span><span class="p">(</span><span class="n">train_loss</span><span class="p">),</span> 
-                        <span class="s2">&quot;valid_loss&quot;</span><span class="p">:</span> <span class="nb">float</span><span class="p">(</span><span class="n">valid_loss</span><span class="p">),</span>
-                        <span class="s2">&quot;epoch&quot;</span><span class="p">:</span> <span class="n">epoch</span><span class="p">})</span>
+                           <span class="s2">&quot;valid_loss&quot;</span><span class="p">:</span> <span class="nb">float</span><span class="p">(</span><span class="n">valid_loss</span><span class="p">),</span>
+                           <span class="s2">&quot;epoch&quot;</span><span class="p">:</span> <span class="n">epoch</span><span class="p">})</span>
 
         <span class="c1"># load best model</span>
         <span class="n">model</span><span class="o">.</span><span class="n">load_state_dict</span><span class="p">(</span><span class="n">best_state_dict</span><span class="p">)</span>
