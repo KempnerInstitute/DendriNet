@@ -19,10 +19,7 @@ TOPK_INIT_METHODS = {
     'orthogonal': nn.init.orthogonal_,
     'normal': nn.init.normal_,
     'uniform': nn.init.uniform_,
-    'constant': nn.init.constant_,
     'eye': nn.init.eye_,
-    'dirac': nn.init.dirac_,
-    'sparse': nn.init.sparse_,
 }
 
 
