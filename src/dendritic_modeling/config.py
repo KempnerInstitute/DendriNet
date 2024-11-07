@@ -38,6 +38,7 @@ class ModelConfig(BaseConfig):
     ii_synapses_per_branch_per_layer: list = field(default_factory=list)
     reactivate: bool = True
     somatic_synapses: bool = True
+    topk_init_method: str = "xavier_normal"
 
 
 @dataclass
