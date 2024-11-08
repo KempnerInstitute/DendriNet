@@ -1,0 +1,27 @@
+model:
+  input_dim: 1568
+  excitatory_layer_sizes: [10]
+  inhibitory_layer_sizes: [20]
+  excitatory_branch_factors: [24]
+  inhibitory_branch_factors: []
+  reactivate: true
+  somatic_synapses: true
+  ee_synapses_per_branch_per_layer: [24]
+  ei_synapses_per_branch_per_layer: [100]
+  ie_synapses_per_branch_per_layer: [1]
+  ii_synapses_per_branch_per_layer: []
+  topk_init_method: "xavier_normal"
+
+train:
+  train_valid_split: 0.8
+  lr: 0.001
+  epochs: 100
+  batch_size: 64
+  grad_clip_value: 0.5
+
+wandb:
+  entity: naeem_ai  # <---- Add your entity
+  project: dendritic_modeling_pr
+  group: debug
+  tags: [mnist_1]
+
