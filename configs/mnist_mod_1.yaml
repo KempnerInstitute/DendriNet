@@ -2,7 +2,7 @@ model:
   input_dim: 1568
   excitatory_layer_sizes: [10]
   inhibitory_layer_sizes: [20]
-  excitatory_branch_factors: [24]
+  excitatory_branch_factors: [10, 10]
   inhibitory_branch_factors: []
   reactivate: true
   somatic_synapses: true
@@ -10,14 +10,14 @@ model:
   ei_synapses_per_branch_per_layer: [100]
   ie_synapses_per_branch_per_layer: [1]
   ii_synapses_per_branch_per_layer: []
-  topk_init_method: "xavier_normal"
+  topk_init_method: "uniform"
 
 train:
   train_valid_split: 0.8
-  lr: 0.001
+  lr: 0.0005
   epochs: 100
-  batch_size: 64
-  grad_clip_value: 0.5
+  batch_size: 512
+  grad_clip_value: 5
 
 wandb:
   entity: naeem_ai  # <---- Add your entity

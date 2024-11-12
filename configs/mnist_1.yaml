@@ -15,12 +15,12 @@ model:
 train:
   train_valid_split: 0.8
   lr: 0.001
-  epochs: 10
-  batch_size: 32
+  epochs: 100
+  batch_size: 64
   grad_clip_value: 0.5
 
 wandb:
-  entity: your_entity  # <---- Add your entity
+  entity: naeem_ai  # <---- Add your entity
   project: dendritic_modeling_pr
   group: debug
   tags: [mnist_1]
