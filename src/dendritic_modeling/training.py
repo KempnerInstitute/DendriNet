@@ -96,6 +96,7 @@ class TrainerMLE(object):
             shuffle = True, 
             plot_losses = False, 
             save_path = None,
+            profiler = None
             ):
         """
         Trains a model using maximum likelihood estimation.
@@ -188,7 +189,7 @@ class TrainerMLE(object):
             
             model.train()
             # iterate over the training data
-            for input_batch, label_batch in train_dataloader:
+            for batch_idx, (input_batch, label_batch) in enumerate(train_dataloader):
                 try:
                     input_batch = ag.Variable(input_batch.to(device))
                     label_batch = ag.Variable(label_batch.to(device))
@@ -208,7 +209,13 @@ class TrainerMLE(object):
                     self.optimizer.step()
                     # aggregate training loss
                     train_loss += nll.item()
-                
+
+                    # profiler for a couple of steps
+                    if profiler is not None:
+                        if device == 'cuda':
+                            if epoch == 2 and batch_idx < 3: 
+                                profiler.step()
+
                 except Exception as e:
                     # if NaNs encountered in gradients
                     print(f"Exception: {e}")
