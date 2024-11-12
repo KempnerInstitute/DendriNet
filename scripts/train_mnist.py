@@ -187,6 +187,17 @@ def main(config_path: str, output_dir: str,  experiment_name: str):
         wandb.log(wc_time)
 
 
+        run_data = {
+            "config": dict(wandb.run.config),
+            "summary": dict(wandb.run.summary),
+        }
+
+        with open(os.path.join(save_path, "wandb_run_data.json"), "w") as f:
+            json.dump(run_data, f, indent=4)
+
+
+    
+
     logger.info('----------- Done! -----------')
 
     wandb.finish()
