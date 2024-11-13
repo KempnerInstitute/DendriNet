@@ -6,6 +6,8 @@ This module contains the neural network models for the dendritic_modeling.
 
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
+
 from torch.distributions import Categorical
 
 from dendritic_modeling.excitation_inhibition import ExcitationInhibitionNetwork
@@ -291,6 +293,7 @@ class EINetClassifierNLL(EINetClassifier):
         else:
             raise ValueError("Invalid input-output pair for forward method.")
         
+         
     
     def predict(self, x, stochastic = False):
         """
@@ -320,4 +323,66 @@ class EINetClassifierNLL(EINetClassifier):
             return distribution.logits.argmax(dim = -1)
 
 
+
+class EINetClassifierCE(EINetClassifier):
+    """
+    A probabilistic classifier based on an Excitation-Inhibition Network (EINet)
+    architecture that uses cross-entropy loss for training.
+    This classifier extends the `EINetClassifier` class and includes a method
+    for computing the cross-entropy loss for training the model.
+
+    Parameters
+    ----------
+    See `EINetClassifier` for parameter descriptions.
+
+    Methods
+    -------
+    forward(x, y=None)
+        Computes the cross-entropy loss for the given input-output pair.
+
+    Notes
+    -----
+    `y=None` is provided to allow for the model to be used in `torchinfo.summary`.
+    """
+      
+    def forward(self, x, y=None):
+        """
+        Forward pass for the classifier. If labels `y` are provided, computes
+        the cross-entropy loss for the predictions.
+
+        Parameters
+        ----------
+        x : torch.Tensor
+            The input data for which to compute the output.
+
+        y : torch.Tensor, optional
+            The observed labels for the input data. If provided, the
+            cross-entropy loss is computed. Defaults to `None`.
+
+        Returns
+        -------
+        torch.Tensor
+            If `y` is provided, returns the cross-entropy loss. Otherwise,
+            returns logits.
+
+        """
+        net_output = self.net(x)
+        final_logits = self.final(self.log_output_scale.exp() * net_output)
+
+        if y is not None:
+            # Compute cross-entropy loss
+            return F.cross_entropy(final_logits, y)
+        else:
+            # Return logits for predictions
+            return final_logits
+        
+    def predict(self, x, stochastic=False):
+        # Here, `self.forward(x)` will return the logits as a tensor directly
+        logits = self.forward(x)
+        
+        if stochastic:
+            distribution = torch.distributions.Categorical(logits=logits)
+            return distribution.sample()
+        else:
+            return logits.argmax(dim=-1)  # Returns the predicted class label as a tensor
 

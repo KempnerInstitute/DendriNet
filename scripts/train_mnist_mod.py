@@ -9,7 +9,7 @@ import torchinfo
 
 from dendritic_modeling import logger, logger_manager
 from dendritic_modeling.training import TrainerMLE
-from dendritic_modeling.models import EINetClassifierNLL
+from dendritic_modeling.models import EINetClassifierNLL, EINetClassifierCE
 from dendritic_modeling.plot_utils import (plot_einet_params, 
                                            plot_einet_activations)
 from dendritic_modeling.utils import (load_MNIST,
@@ -43,6 +43,7 @@ def main(config_path: str, output_dir: str,  experiment_name: str):
     
     # initialize classifier
     clf = EINetClassifierNLL(**model_hp)
+    #clf = EINetClassifierCE(**model_hp)
 
     model_summary = torchinfo.summary(
                         clf,

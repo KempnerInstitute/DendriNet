@@ -115,10 +115,19 @@ class ExcitationInhibitionLayer(nn.Module):
             somatic_synapses = somatic_synapses,
             topk_init_method = topk_init_method
         )
+        
+        # Add Batch Normalization for excitatory and inhibitory cells
+        #self.excitatory_bn = nn.BatchNorm1d(n_excitatory_cells)
+        #self.inhibitory_bn = nn.BatchNorm1d(n_inhibitory_cells)
 
     def forward(self, x, inhibitory_input = None):
         inhibitory_output = self.inhibitory_cells(x, inhibitory_input)
         excitatory_output = self.excitatory_cells(x, inhibitory_output)
+        
+        # Apply batch normalization
+        #excitatory_output = self.excitatory_bn(excitatory_output)
+        #inhibitory_output = self.inhibitory_bn(inhibitory_output)
+        
         return excitatory_output, inhibitory_output
 
 

@@ -15,12 +15,15 @@ import matplotlib.pyplot as plt
 from sklearn.metrics import (accuracy_score,
                              precision_score,
                              recall_score,
-                             f1_score)
+                             f1_score,
+                             mean_squared_error,
+                             mean_absolute_error)
 
 import torch
 import torch.autograd as ag
 from torch.utils.data import DataLoader
 from torch.nn.utils import clip_grad_value_
+import torch.nn.functional as F
 
 from dendritic_modeling import logger
 
@@ -41,7 +44,6 @@ def compute_metrics_classification(preds, labels):
     }
 
     return metrics
-
 
 
 
@@ -96,6 +98,7 @@ class TrainerMLE(object):
             shuffle = True, 
             plot_losses = False, 
             save_path = None,
+            profiler = None
             ):
         """
         Trains a model using maximum likelihood estimation.
@@ -188,7 +191,7 @@ class TrainerMLE(object):
             
             model.train()
             # iterate over the training data
-            for input_batch, label_batch in train_dataloader:
+            for batch_idx, (input_batch, label_batch) in enumerate(train_dataloader):
                 try:
                     input_batch = ag.Variable(input_batch.to(device))
                     label_batch = ag.Variable(label_batch.to(device))
@@ -200,6 +203,16 @@ class TrainerMLE(object):
                     self.optimizer.zero_grad()
                     # backpropagate loss
                     nll.backward()
+                    grad_norms = {}
+                    for name, param in model.named_parameters():
+                        if param.grad is not None:
+                            grad_norms[name] = param.grad.norm().item()
+
+                    # Optionally log with wandb or print
+                    if wandb.run is not None:
+                        wandb.log({f"grad_norms/{name}": norm for name, norm in grad_norms.items()})
+                    else:
+                        print(f"Grad Norms: {grad_norms}")
                     # prevent exploding gradients
                     
                     clip_grad_value_(model.parameters(), 
@@ -208,7 +221,13 @@ class TrainerMLE(object):
                     self.optimizer.step()
                     # aggregate training loss
                     train_loss += nll.item()
-                
+
+                    # profiler for a couple of steps
+                    if profiler is not None:
+                        if device == 'cuda':
+                            if epoch == 2 and batch_idx < 3: 
+                                profiler.step()
+
                 except Exception as e:
                     # if NaNs encountered in gradients
                     print(f"Exception: {e}")

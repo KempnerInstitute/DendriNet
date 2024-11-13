@@ -11,7 +11,7 @@ from omegaconf import OmegaConf
 
 from dendritic_modeling import logger, logger_manager
 from dendritic_modeling.training import TrainerMLE
-from dendritic_modeling.models import EINetClassifierNLL
+from dendritic_modeling.models import EINetClassifierNLL, EINetClassifierCE
 from dendritic_modeling.plot_utils import (plot_einet_params, 
                                            plot_einet_activations)
 from dendritic_modeling.utils import (load_MNIST, 
@@ -22,10 +22,7 @@ from dendritic_modeling.utils import (load_MNIST,
 
 from dendritic_modeling.config import load_config
 
-
-
 def main(config_path: str, output_dir: str,  experiment_name: str):
-
     
     # create output directory
     save_path = output_dir
@@ -51,7 +48,6 @@ def main(config_path: str, output_dir: str,  experiment_name: str):
     logger.debug(f" Output Directory: {save_path}")
 
     logger.debug("="*50)
-
 
     # intialize W&B
     if config.wandb is not None:
@@ -80,6 +76,7 @@ def main(config_path: str, output_dir: str,  experiment_name: str):
     
     # initialize classifier
     clf = EINetClassifierNLL(**model_hp)
+    #clf = EINetRegressor(**model_hp)
 
     model_summary = torchinfo.summary(
                         clf,
@@ -112,8 +109,6 @@ def main(config_path: str, output_dir: str,  experiment_name: str):
         suppress_prints = False, 
         print_every = 10,
     )
-
-
 
     logger.info('Started training the model...')
     training_start_time = time.time()
@@ -155,42 +150,39 @@ def main(config_path: str, output_dir: str,  experiment_name: str):
     # Visualize and save model parameters and activations
     shaper = Shaper(shape=(28, 28))
 
-    logger.info('Creating parameter visuals ...')
-    visual_start_time = time.time()
+    # logger.info('Creating parameter visuals ...')
+    # visual_start_time = time.time()
 
-    plot_einet_params(
-        einet=clf.net, save_root=os.path.join(save_path, 'param_visuals'),
-        reshape_fn=shaper.reshape, reshape_exc_syn=True,
-    )
+    # plot_einet_params(
+    #     einet=clf.net, save_root=os.path.join(save_path, 'param_visuals'),
+    #     reshape_fn=shaper.reshape, reshape_exc_syn=True,
+    # )
 
-    input_list = split_MNIST_inputs(*data['train'][:])
-    print('Creating activation visuals...')
-    plot_einet_activations(
-        einet=clf.net, input_list=input_list,
-        save_root=os.path.join(save_path, 'activation_visuals'),
-    )
-    visual_time = time.time() - visual_start_time
-    formatted_visual_time = f'{visual_time:.6f} sec -> {visual_time / 60:.6f} min'
-    logger.info(f'Completed visualization in {formatted_visual_time}.')
-
+    # input_list = split_MNIST_inputs(*data['train'][:])
+    # print('Creating activation visuals...')
+    # plot_einet_activations(
+    #     einet=clf.net, input_list=input_list,
+    #     save_root=os.path.join(save_path, 'activation_visuals'),
+    # )
+    # visual_time = time.time() - visual_start_time
+    # formatted_visual_time = f'{visual_time:.6f} sec -> {visual_time / 60:.6f} min'
+    # logger.info(f'Completed visualization in {formatted_visual_time}.')
 
     # send wall clock time to wandb
     if wandb.run is not None:
         wc_time = {
             "training_time": training_time,
             "inference_time": inference_time,
-            "visualization_time": visual_time,
-            "total_time": training_time + inference_time + visual_time,
-            "normalized_training_time": (training_time) / config.train.epochs
+            #"visualization_time": visual_time,
+            #"total_time": training_time + inference_time + visual_time,
+            #"normalized_training_time": (training_time) / config.train.epochs
 
         }
         wandb.log(wc_time)
 
-
     logger.info('----------- Done! -----------')
 
     wandb.finish()
-
 
 
 if __name__ == '__main__':
