@@ -3,10 +3,12 @@ import json
 import time
 import argparse
 from pathlib import Path
+from contextlib import contextmanager
 
 import wandb
 import torch
 import torchinfo
+import torch.profiler as profiler
 from omegaconf import OmegaConf
 
 from dendritic_modeling import logger, logger_manager
@@ -21,6 +23,30 @@ from dendritic_modeling.utils import (load_MNIST,
                                       Shaper)
 
 from dendritic_modeling.config import load_config
+
+@contextmanager
+def setup_profiler(enable_profiler: bool = False, log_dir: str = None):
+
+    if enable_profiler and log_dir is not None:
+        os.makedirs(log_dir, exist_ok=True)
+
+    if enable_profiler:
+        with profiler.profile(
+            activities=[
+                profiler.ProfilerActivity.CPU,
+                profiler.ProfilerActivity.CUDA,
+            ],
+            schedule=torch.profiler.schedule(wait=2, warmup=2, active=6),
+            on_trace_ready=torch.profiler.tensorboard_trace_handler(log_dir),
+            record_shapes=True,
+            with_stack=True,
+        ) as prof:
+            yield prof
+    else:
+        yield None
+
+
+PROFILER = True
 
 def main(config_path: str, output_dir: str,  experiment_name: str):
     
@@ -112,17 +138,20 @@ def main(config_path: str, output_dir: str,  experiment_name: str):
 
     logger.info('Started training the model...')
     training_start_time = time.time()
-    trainer.train(
-        model=clf,
-        train_data=data['train'], 
-        valid_data=data['valid'],
-        epochs=train_hp['epochs'],
-        batch_size=train_hp['batch_size'], 
-        grad_clip_value=train_hp['grad_clip_value'],
-        shuffle=True,
-        plot_losses=True, 
-        save_path=save_path,
-    )
+    profiler_log_dir = os.path.join(save_path, 'profiler_logs')
+    with setup_profiler(PROFILER, profiler_log_dir) as prof:
+        trainer.train(
+            model=clf,
+            train_data=data['train'], 
+            valid_data=data['valid'],
+            epochs=train_hp['epochs'],
+            batch_size=train_hp['batch_size'], 
+            grad_clip_value=train_hp['grad_clip_value'],
+            shuffle=True,
+            plot_losses=True, 
+            save_path=save_path,
+            profiler=prof,
+        )
     training_time = time.time() - training_start_time
     formatted_training_time = f'{training_time:.6f} sec -> {training_time / 60:.6f} min'
     logger.info(f'Training completed in {formatted_training_time}.')
@@ -179,6 +208,19 @@ def main(config_path: str, output_dir: str,  experiment_name: str):
 
         }
         wandb.log(wc_time)
+
+
+        run_data = {
+            "config": dict(wandb.run.config),
+            "summary": dict(wandb.run.summary),
+        }
+
+        with open(os.path.join(save_path, "wandb_run_data.json"), "w") as f:
+            json.dump(run_data, f, indent=4)
+
+
+    
+
 
     logger.info('----------- Done! -----------')
 

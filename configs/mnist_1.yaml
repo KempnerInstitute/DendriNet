@@ -18,10 +18,14 @@ train:
   lr: 0.01
   epochs: 10
   batch_size: 128
+  lr: 0.001
+  epochs: 100
+  batch_size: 64
   grad_clip_value: 0.5
 
 wandb:
   entity: houman_safaai-harvard-university  # <---- Add your entity
+  entity: naeem_ai  # <---- Add your entity
   project: dendritic_modeling_pr
   group: debug
   tags: [mnist_1]
