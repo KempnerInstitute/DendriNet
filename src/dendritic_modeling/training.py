@@ -327,11 +327,21 @@ class TrainerMLE(object):
         # load best model
         model.load_state_dict(best_state_dict)
         
+        # Existing code to calculate accuracy metrics
+        train_accuracy = accuracy_score(model, *data['train'][:]).item()
+        valid_accuracy = accuracy_score(model, *data['valid'][:]).item()
+        test_accuracy = accuracy_score(model, *data['test'][:]).item()
+            
         results = {
             'best epoch' : best_epoch, 
             'train losses' : train_losses, 
             'valid losses' : valid_losses,
+            'train accuracy': train_accuracy,
+            'valid accuracy': valid_accuracy,
+            'test accuracy': test_accuracy
             }
+        
+
         
         if save_boolean:
             with open(save_path+'/losses.json', 'w') as f:
