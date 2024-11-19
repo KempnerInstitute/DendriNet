@@ -12,6 +12,10 @@ from copy import deepcopy
 import wandb
 import numpy as np
 import matplotlib.pyplot as plt
+from sklearn.metrics import (accuracy_score,
+                             precision_score,
+                             recall_score,
+                             f1_score)
 
 import torch
 import torch.autograd as ag
@@ -19,6 +23,26 @@ from torch.utils.data import DataLoader
 from torch.nn.utils import clip_grad_value_
 
 from dendritic_modeling import logger
+
+
+
+def compute_metrics_classification(preds, labels):
+
+    assert preds.shape == labels.shape
+
+    preds = preds.cpu().numpy()
+    labels = labels.cpu().numpy()
+
+    metrics  = {
+        'accuracy' : accuracy_score(labels, preds),
+        'precision' : precision_score(labels, preds, average = 'weighted'),
+        'recall' : recall_score(labels, preds, average = 'weighted'),
+        'f1_score' : f1_score(labels, preds, average = 'weighted')
+    }
+
+    return metrics
+
+
 
 
 class TrainerMLE(object):
@@ -201,6 +225,10 @@ class TrainerMLE(object):
             model.eval()
             with torch.no_grad():
                 # iterate over validation data
+
+                all_preds = []
+                all_labels = []
+
                 for input_batch, label_batch in valid_dataloader:
                     try:
                         # produce negative log likelihood
@@ -208,6 +236,12 @@ class TrainerMLE(object):
                         nll = nll.mean(dim = 0)
                         # compute and aggregate validation loss 
                         valid_loss += nll.item()
+
+                        # compute metrics
+                        pred  = model.predict(input_batch.to(device))
+                        all_preds.append(pred)
+                        all_labels.append(label_batch)
+
                     
                     except Exception as e:
                         print(f"Exception: {e}")
@@ -215,6 +249,20 @@ class TrainerMLE(object):
                             logger.info('exception occurred during parameter validation step')
                         model.load_state_dict(best_state_dict)
                         valid_loss += 10
+
+                all_preds = torch.cat(all_preds, dim = 0)
+                all_labels = torch.cat(all_labels, dim = 0)
+
+                metrics = compute_metrics_classification(all_preds, all_labels)
+
+                if wandb.run is not None:
+                    wandb.log(
+                        {"val_accuracy": metrics['accuracy'], 
+                         "val_precision": metrics['precision'],
+                         "val_recall": metrics['recall'],
+                         "val_f1_score": metrics['f1_score'],
+                         "epoch": epoch}
+                    )
             
             # compute mean validation loss and save to list
             valid_loss /= len(valid_dataloader)
