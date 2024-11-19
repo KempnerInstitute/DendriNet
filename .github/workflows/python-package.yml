@@ -11,8 +11,8 @@ on:
       - develop
 
 concurrency:
-  group: ${{ github.ref }}-${{ github.head_ref || github.run_id }}
-  cancel-in-progress: true
+  group: ${{ github.workflow }}-${{ github.head_ref}}
+  cancel-in-progress: true  
 
 jobs:
   test:
