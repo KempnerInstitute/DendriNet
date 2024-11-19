@@ -25,6 +25,7 @@ dependencies = [
     "wandb",
     "pandas",
     "omegaconf>=2.3.0",
+    "scikit-learn"
 ]
 
 [tool.setuptools]
