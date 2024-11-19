@@ -175,7 +175,7 @@ class TopKLinear(nn.Module):
         return self.weight_mask() * self.weight()
     
     def log_pruned_weight(self):
-        return ((self.weight_mask - 1) * 10) + self.log_weight()
+        return ((self.weight_mask() - 1) * 10) + self.log_weight()
     
     def weighted_synapses(self, cell_weights, prune = False):
         if prune:
@@ -258,8 +258,8 @@ class BlockLinear(nn.Module):
     def initialize(self, sum_synapse_conductances):
         self.log_weight.data = sum_synapse_conductances.log()[:,None].expand(
             self.out_features, self.block_size).clone()
-        
-    def forward(self, x):
+    
+    def block(self):
         # initialize sparse matrix
         block = torch.zeros(
             (self.out_features, self.in_features),
@@ -272,8 +272,23 @@ class BlockLinear(nn.Module):
             self.in_features, device = self.log_weight.device).view(self.out_features, self.block_size)
         # assign weights to appropriate locations in sparse matrix
         block[row_ix, col_ix] = self.log_weight.exp()
+        return block
+    
+    def log_block(self):
+        log_block = torch.ones(
+            (self.out_features, self.in_features),
+            device = self.log_weight.device, dtype = self.log_weight.dtype,
+        ) * -10
+        row_ix = torch.arange(
+            self.out_features, device = self.log_weight.device)[:,None]
+        col_ix = torch.arange(
+            self.in_features, device = self.log_weight.device).view(self.out_features, self.block_size)
+        log_block[row_ix, col_ix] = self.log_weight
+        return log_block
+    
+    def forward(self, x):
         # matrix multiply inputs and sparse matrix
-        return torch.mm(x, block.t())
+        return torch.mm(x, self.block().t())
     
     def sum_conductances(self):
         sum_g = self.log_weight.exp().sum(dim = 1)

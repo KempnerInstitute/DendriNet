@@ -114,6 +114,9 @@ def save_dict(dict_obj, save_path, fname):
 
     # Define the full path for the JSON file
     full_path = os.path.join(save_path, fname)
+
+    if not os.path.exists(save_path):
+        os.makedirs(save_path, exist_ok = True)
     
     # Save the converted dictionary as JSON
     with open(full_path, 'w') as f:
