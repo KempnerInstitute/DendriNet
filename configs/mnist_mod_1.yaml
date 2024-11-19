@@ -20,7 +20,7 @@ train:
   grad_clip_value: 0.5
 
 wandb:
-  entity: houman_safaai-harvard-university # <---- Add your entity
+  entity: your_entity # <---- Add your entity
   project: dendritic_modeling_pr
   group: debug
   tags: [mnist_1]

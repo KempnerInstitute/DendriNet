@@ -1,6 +1,6 @@
 slurm_config:
-  output_dir: /n/holylabs/LABS/kempner_dev/Users/hsafaai/results/dendritic_modeling # <--- Add your output directory path
-  conda_env_path: "/n/home13/hsafaai/.conda/envs/dendritic_env" # <--- Add your conda environment path
+  output_dir:  # <--- Add your output directory path
+  conda_env_path:  # <--- Add your conda environment path
   modules_to_load: ["python/3.12.5-fasrc01", "cuda/12.4.1-fasrc01", "cudnn/8.9.2.26_cuda12-fasrc01"] # <--- Modify this based on your requirements
   max_concurrent_jobs: 8
   training_script: "scripts/train_mnist_mod.py"
@@ -27,7 +27,7 @@ train_config:
     grad_clip_value: 0.5
     
   wandb:
-    entity: houman_safaai-harvard-university # <---- Add your entity
+    entity: your_entity # <---- Add your entity
     project: dendritic_modeling_pr_sweep
     group: debug
     tags: [mnist_1]
@@ -40,18 +40,6 @@ train_config:
     name: "none"
   
   model:
-    # input_dim: 784
-    # excitatory_layer_sizes: [10]
-    # inhibitory_layer_sizes: [20]
-    # excitatory_branch_factors: [24]
-    # inhibitory_branch_factors: []
-    # reactivate: true
-    # somatic_synapses: true
-    # ee_synapses_per_branch_per_layer: [24]
-    # ei_synapses_per_branch_per_layer: [100]
-    # ie_synapses_per_branch_per_layer: [1]
-    # ii_synapses_per_branch_per_layer: []
-    # topk_init_method: "xavier_normal"
     input_dim: 1568
     excitatory_layer_sizes: [10]
     inhibitory_layer_sizes: [100]

@@ -7,6 +7,7 @@ dendritic_modeling.egg-info/*
 dendritic_modeling/__pycache__/*
 *.sh
 *.out
+notebooks/*
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
