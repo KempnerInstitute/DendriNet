@@ -289,7 +289,7 @@
 
     
     <span class="k">def</span> <span class="nf">log_pruned_weight</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
-        <span class="k">return</span> <span class="p">((</span><span class="bp">self</span><span class="o">.</span><span class="n">weight_mask</span> <span class="o">-</span> <span class="mi">1</span><span class="p">)</span> <span class="o">*</span> <span class="mi">10</span><span class="p">)</span> <span class="o">+</span> <span class="bp">self</span><span class="o">.</span><span class="n">log_weight</span><span class="p">()</span>
+        <span class="k">return</span> <span class="p">((</span><span class="bp">self</span><span class="o">.</span><span class="n">weight_mask</span><span class="p">()</span> <span class="o">-</span> <span class="mi">1</span><span class="p">)</span> <span class="o">*</span> <span class="mi">10</span><span class="p">)</span> <span class="o">+</span> <span class="bp">self</span><span class="o">.</span><span class="n">log_weight</span><span class="p">()</span>
     
 <div class="viewcode-block" id="TopKLinear.weighted_synapses">
 <a class="viewcode-back" href="../../source/dendritic_modeling.html#dendritic_modeling.dendrinet.TopKLinear.weighted_synapses">[docs]</a>
@@ -378,10 +378,8 @@
     <span class="k">def</span> <span class="nf">initialize</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">sum_synapse_conductances</span><span class="p">):</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">log_weight</span><span class="o">.</span><span class="n">data</span> <span class="o">=</span> <span class="n">sum_synapse_conductances</span><span class="o">.</span><span class="n">log</span><span class="p">()[:,</span><span class="kc">None</span><span class="p">]</span><span class="o">.</span><span class="n">expand</span><span class="p">(</span>
             <span class="bp">self</span><span class="o">.</span><span class="n">out_features</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">block_size</span><span class="p">)</span><span class="o">.</span><span class="n">clone</span><span class="p">()</span>
-        
-<div class="viewcode-block" id="BlockLinear.forward">
-<a class="viewcode-back" href="../../source/dendritic_modeling.html#dendritic_modeling.dendrinet.BlockLinear.forward">[docs]</a>
-    <span class="k">def</span> <span class="nf">forward</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">x</span><span class="p">):</span>
+    
+    <span class="k">def</span> <span class="nf">block</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
         <span class="c1"># initialize sparse matrix</span>
         <span class="n">block</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">zeros</span><span class="p">(</span>
             <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">out_features</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">in_features</span><span class="p">),</span>
@@ -394,8 +392,25 @@
             <span class="bp">self</span><span class="o">.</span><span class="n">in_features</span><span class="p">,</span> <span class="n">device</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">log_weight</span><span class="o">.</span><span class="n">device</span><span class="p">)</span><span class="o">.</span><span class="n">view</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">out_features</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">block_size</span><span class="p">)</span>
         <span class="c1"># assign weights to appropriate locations in sparse matrix</span>
         <span class="n">block</span><span class="p">[</span><span class="n">row_ix</span><span class="p">,</span> <span class="n">col_ix</span><span class="p">]</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">log_weight</span><span class="o">.</span><span class="n">exp</span><span class="p">()</span>
+        <span class="k">return</span> <span class="n">block</span>
+    
+    <span class="k">def</span> <span class="nf">log_block</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="n">log_block</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">ones</span><span class="p">(</span>
+            <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">out_features</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">in_features</span><span class="p">),</span>
+            <span class="n">device</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">log_weight</span><span class="o">.</span><span class="n">device</span><span class="p">,</span> <span class="n">dtype</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">log_weight</span><span class="o">.</span><span class="n">dtype</span><span class="p">,</span>
+        <span class="p">)</span> <span class="o">*</span> <span class="o">-</span><span class="mi">10</span>
+        <span class="n">row_ix</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">arange</span><span class="p">(</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">out_features</span><span class="p">,</span> <span class="n">device</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">log_weight</span><span class="o">.</span><span class="n">device</span><span class="p">)[:,</span><span class="kc">None</span><span class="p">]</span>
+        <span class="n">col_ix</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">arange</span><span class="p">(</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">in_features</span><span class="p">,</span> <span class="n">device</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">log_weight</span><span class="o">.</span><span class="n">device</span><span class="p">)</span><span class="o">.</span><span class="n">view</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">out_features</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">block_size</span><span class="p">)</span>
+        <span class="n">log_block</span><span class="p">[</span><span class="n">row_ix</span><span class="p">,</span> <span class="n">col_ix</span><span class="p">]</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">log_weight</span>
+        <span class="k">return</span> <span class="n">log_block</span>
+    
+<div class="viewcode-block" id="BlockLinear.forward">
+<a class="viewcode-back" href="../../source/dendritic_modeling.html#dendritic_modeling.dendrinet.BlockLinear.forward">[docs]</a>
+    <span class="k">def</span> <span class="nf">forward</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">x</span><span class="p">):</span>
         <span class="c1"># matrix multiply inputs and sparse matrix</span>
-        <span class="k">return</span> <span class="n">torch</span><span class="o">.</span><span class="n">mm</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="n">block</span><span class="o">.</span><span class="n">t</span><span class="p">())</span></div>
+        <span class="k">return</span> <span class="n">torch</span><span class="o">.</span><span class="n">mm</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">block</span><span class="p">()</span><span class="o">.</span><span class="n">t</span><span class="p">())</span></div>
 
     
 <div class="viewcode-block" id="BlockLinear.sum_conductances">

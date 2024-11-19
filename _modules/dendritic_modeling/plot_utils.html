@@ -159,6 +159,42 @@
 
 
 
+<div class="viewcode-block" id="plot_branch_weights">
+<a class="viewcode-back" href="../../source/dendritic_modeling.html#dendritic_modeling.plot_utils.plot_branch_weights">[docs]</a>
+<span class="k">def</span> <span class="nf">plot_branch_weights</span><span class="p">(</span>
+    <span class="n">save_path</span><span class="p">,</span> 
+    <span class="n">branches_to_output</span><span class="p">,</span> 
+    <span class="n">logspace</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span>
+    <span class="n">save_in_dir</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span>
+    <span class="n">filename</span> <span class="o">=</span> <span class="s1">&#39;image&#39;</span><span class="p">,</span>
+    <span class="p">):</span>
+    <span class="k">if</span> <span class="n">logspace</span><span class="p">:</span>
+        <span class="n">block</span> <span class="o">=</span> <span class="n">branches_to_output</span><span class="o">.</span><span class="n">log_block</span><span class="p">()</span>
+        <span class="n">title</span> <span class="o">=</span> <span class="s1">&#39;Upstream Branch Log Weights&#39;</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="n">block</span> <span class="o">=</span> <span class="n">branches_to_output</span><span class="o">.</span><span class="n">block</span><span class="p">()</span>
+        <span class="n">title</span> <span class="o">=</span> <span class="s1">&#39;Upstream Branch Weights&#39;</span>
+    
+    <span class="n">fig</span><span class="p">,</span> <span class="n">ax</span> <span class="o">=</span> <span class="n">plt</span><span class="o">.</span><span class="n">subplots</span><span class="p">()</span>
+    <span class="n">fig</span><span class="o">.</span><span class="n">suptitle</span><span class="p">(</span><span class="n">title</span><span class="p">)</span>
+    <span class="n">im</span> <span class="o">=</span> <span class="n">ax</span><span class="o">.</span><span class="n">imshow</span><span class="p">(</span><span class="n">block</span><span class="o">.</span><span class="n">detach</span><span class="p">()</span><span class="o">.</span><span class="n">numpy</span><span class="p">(),</span> <span class="n">cmap</span> <span class="o">=</span> <span class="s1">&#39;viridis&#39;</span><span class="p">)</span>
+
+    <span class="n">add_colorbars</span><span class="p">(</span><span class="n">fig</span><span class="p">,</span> <span class="p">[</span><span class="n">ax</span><span class="p">],</span> <span class="p">[</span><span class="n">im</span><span class="p">],</span> <span class="s1">&#39;right&#39;</span><span class="p">,</span> <span class="s1">&#39;5%&#39;</span><span class="p">,</span> <span class="mf">0.05</span><span class="p">)</span>
+
+    <span class="k">if</span> <span class="n">save_in_dir</span><span class="p">:</span>
+        <span class="n">save_path</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">save_path</span><span class="p">,</span> <span class="s1">&#39;branch_weights&#39;</span><span class="p">)</span>
+        <span class="n">file_path</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">save_path</span><span class="p">,</span> <span class="sa">f</span><span class="s1">&#39;</span><span class="si">{</span><span class="n">filename</span><span class="si">}</span><span class="s1">.jpeg&#39;</span><span class="p">)</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="n">file_path</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">save_path</span><span class="p">,</span> <span class="s1">&#39;branch_weights.jpeg&#39;</span><span class="p">)</span>
+    
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">exists</span><span class="p">(</span><span class="n">save_path</span><span class="p">):</span>
+        <span class="n">os</span><span class="o">.</span><span class="n">makedirs</span><span class="p">(</span><span class="n">save_path</span><span class="p">,</span> <span class="n">exist_ok</span> <span class="o">=</span> <span class="kc">True</span><span class="p">)</span>    
+    
+    <span class="n">fig</span><span class="o">.</span><span class="n">savefig</span><span class="p">(</span><span class="n">file_path</span><span class="p">)</span>
+    <span class="n">plt</span><span class="o">.</span><span class="n">close</span><span class="p">(</span><span class="n">fig</span><span class="p">)</span></div>
+
+
+
 <div class="viewcode-block" id="plot_excitation_inhibition_weights">
 <a class="viewcode-back" href="../../source/dendritic_modeling.html#dendritic_modeling.plot_utils.plot_excitation_inhibition_weights">[docs]</a>
 <span class="k">def</span> <span class="nf">plot_excitation_inhibition_weights</span><span class="p">(</span>
@@ -175,6 +211,8 @@
     <span class="n">logspace</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span>
     <span class="n">reactivation_curve</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span> 
     <span class="n">linspace</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="n">save_in_dir</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span>
+    <span class="n">filename</span> <span class="o">=</span> <span class="s1">&#39;image&#39;</span><span class="p">,</span>
     <span class="p">):</span>
 
     <span class="p">(</span>
@@ -320,10 +358,16 @@
                  <span class="n">reactivation_curve</span><span class="o">.</span><span class="n">detach</span><span class="p">()</span><span class="o">.</span><span class="n">numpy</span><span class="p">(),</span> 
                  <span class="n">color</span> <span class="o">=</span> <span class="s1">&#39;k&#39;</span><span class="p">)</span>
 
+    <span class="k">if</span> <span class="n">save_in_dir</span><span class="p">:</span>
+        <span class="n">save_path</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">save_path</span><span class="p">,</span> <span class="n">soma_branch</span><span class="p">)</span>
+        <span class="n">file_path</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">save_path</span><span class="p">,</span> <span class="sa">f</span><span class="s1">&#39;</span><span class="si">{</span><span class="n">filename</span><span class="si">}</span><span class="s1">.jpeg&#39;</span><span class="p">)</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="n">file_path</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">save_path</span><span class="p">,</span> <span class="sa">f</span><span class="s1">&#39;</span><span class="si">{</span><span class="n">soma_branch</span><span class="si">}</span><span class="s1">.jpeg&#39;</span><span class="p">)</span>
+    
     <span class="k">if</span> <span class="ow">not</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">exists</span><span class="p">(</span><span class="n">save_path</span><span class="p">):</span>
         <span class="n">os</span><span class="o">.</span><span class="n">makedirs</span><span class="p">(</span><span class="n">save_path</span><span class="p">,</span> <span class="n">exist_ok</span> <span class="o">=</span> <span class="kc">True</span><span class="p">)</span>
     
-    <span class="n">fig</span><span class="o">.</span><span class="n">savefig</span><span class="p">(</span><span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">save_path</span><span class="p">,</span> <span class="sa">f</span><span class="s1">&#39;</span><span class="si">{</span><span class="n">soma_branch</span><span class="si">}</span><span class="s1">.jpeg&#39;</span><span class="p">))</span>
+    <span class="n">fig</span><span class="o">.</span><span class="n">savefig</span><span class="p">(</span><span class="n">file_path</span><span class="p">)</span>
     <span class="n">plt</span><span class="o">.</span><span class="n">close</span><span class="p">(</span><span class="n">fig</span><span class="p">)</span></div>
 
 
@@ -331,8 +375,14 @@
 <div class="viewcode-block" id="plot_dendrinet_params">
 <a class="viewcode-back" href="../../source/dendritic_modeling.html#dendritic_modeling.plot_utils.plot_dendrinet_params">[docs]</a>
 <span class="k">def</span> <span class="nf">plot_dendrinet_params</span><span class="p">(</span>
-        <span class="n">dendrinet</span><span class="p">,</span> <span class="n">save_root</span><span class="p">,</span> 
-        <span class="n">reshape_fn</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span> <span class="n">reshape_exc_syn</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span> <span class="n">reshape_inh_syn</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span> <span class="n">logspace</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span>
+        <span class="n">dendrinet</span><span class="p">,</span> 
+        <span class="n">save_root</span><span class="p">,</span> 
+        <span class="n">reshape_fn</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span> 
+        <span class="n">reshape_exc_syn</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span> 
+        <span class="n">reshape_inh_syn</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span> 
+        <span class="n">logspace</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span>
+        <span class="n">save_in_dir</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span>
+        <span class="n">filename</span> <span class="o">=</span> <span class="s1">&#39;image&#39;</span><span class="p">,</span>
     <span class="p">):</span>
     <span class="n">layer_sizes</span> <span class="o">=</span> <span class="n">dendrinet</span><span class="o">.</span><span class="n">layer_sizes</span>
     <span class="n">n_soma</span> <span class="o">=</span> <span class="n">dendrinet</span><span class="o">.</span><span class="n">n_soma</span>
@@ -347,12 +397,25 @@
         <span class="n">n_layers</span> <span class="o">=</span> <span class="n">dendrinet</span><span class="o">.</span><span class="n">n_branch_layers</span>
 
     <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">n_layers</span><span class="p">):</span>
+        <span class="n">level</span> <span class="o">=</span> <span class="p">(</span><span class="s1">&#39;soma&#39;</span> 
+                 <span class="k">if</span> <span class="n">i</span> <span class="o">==</span> <span class="n">dendrinet</span><span class="o">.</span><span class="n">n_branch_layers</span> 
+                 <span class="k">else</span> <span class="sa">f</span><span class="s1">&#39;branch layer </span><span class="si">{</span><span class="n">dendrinet</span><span class="o">.</span><span class="n">n_branch_layers</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="n">i</span><span class="si">}</span><span class="s1">&#39;</span><span class="p">)</span>
+
         <span class="k">if</span> <span class="n">somatic_synapses</span> <span class="ow">and</span> <span class="n">i</span> <span class="o">==</span> <span class="n">n_layers</span> <span class="o">-</span> <span class="mi">1</span><span class="p">:</span>
             <span class="n">layer</span> <span class="o">=</span> <span class="n">dendrinet</span><span class="o">.</span><span class="n">soma_layer</span>
             <span class="n">branches_per_soma</span> <span class="o">=</span> <span class="mi">1</span>
         <span class="k">else</span><span class="p">:</span>
             <span class="n">layer</span> <span class="o">=</span> <span class="n">dendrinet</span><span class="o">.</span><span class="n">branch_layers</span><span class="p">[</span><span class="n">i</span><span class="p">]</span>
             <span class="n">branches_per_soma</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">layer_sizes</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="o">/</span> <span class="n">n_soma</span><span class="p">)</span>
+
+        <span class="k">if</span> <span class="n">layer</span><span class="o">.</span><span class="n">input_branches</span><span class="p">:</span>
+            <span class="n">plot_branch_weights</span><span class="p">(</span>
+                <span class="n">save_path</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">save_root</span><span class="p">,</span> <span class="n">level</span><span class="p">),</span>
+                <span class="n">branches_to_output</span> <span class="o">=</span> <span class="n">layer</span><span class="o">.</span><span class="n">branches_to_output</span><span class="p">,</span>
+                <span class="n">logspace</span> <span class="o">=</span> <span class="n">logspace</span><span class="p">,</span>
+                <span class="n">save_in_dir</span> <span class="o">=</span> <span class="n">save_in_dir</span><span class="p">,</span>
+                <span class="n">filename</span> <span class="o">=</span> <span class="n">filename</span><span class="p">,</span>
+            <span class="p">)</span>
 
         <span class="k">if</span> <span class="n">input_inh</span><span class="p">:</span>
             <span class="k">if</span> <span class="n">logspace</span><span class="p">:</span>
@@ -408,10 +471,6 @@
             <span class="p">)</span><span class="o">.</span><span class="n">t</span><span class="p">()</span>
             <span class="n">reactivation_curve</span> <span class="o">=</span> <span class="n">reactivation_curve</span><span class="o">.</span><span class="n">chunk</span><span class="p">(</span><span class="n">n_soma</span><span class="p">,</span> <span class="n">dim</span> <span class="o">=</span> <span class="mi">0</span><span class="p">)</span>
 
-        <span class="n">level</span> <span class="o">=</span> <span class="p">(</span><span class="s1">&#39;soma&#39;</span> 
-                 <span class="k">if</span> <span class="n">i</span> <span class="o">==</span> <span class="n">dendrinet</span><span class="o">.</span><span class="n">n_branch_layers</span> 
-                 <span class="k">else</span> <span class="sa">f</span><span class="s1">&#39;branch layer </span><span class="si">{</span><span class="n">dendrinet</span><span class="o">.</span><span class="n">n_branch_layers</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="n">i</span><span class="si">}</span><span class="s1">&#39;</span><span class="p">)</span>
-
         <span class="k">for</span> <span class="n">j</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">n_soma</span><span class="p">):</span>
             <span class="k">for</span> <span class="n">k</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">branches_per_soma</span><span class="p">):</span>
                 <span class="n">exc_syn_weight</span> <span class="o">=</span> <span class="n">excitatory_synapse_weight</span><span class="p">[</span><span class="n">j</span><span class="p">][</span><span class="n">k</span><span class="p">]</span>
@@ -445,6 +504,8 @@
                     <span class="n">logspace</span> <span class="o">=</span> <span class="n">logspace</span><span class="p">,</span>
                     <span class="n">reactivation_curve</span> <span class="o">=</span> <span class="n">react_curve</span><span class="p">,</span> 
                     <span class="n">linspace</span> <span class="o">=</span> <span class="n">linspace</span><span class="p">,</span>
+                    <span class="n">save_in_dir</span> <span class="o">=</span> <span class="n">save_in_dir</span><span class="p">,</span>
+                    <span class="n">filename</span> <span class="o">=</span> <span class="n">filename</span><span class="p">,</span>
                 <span class="p">)</span>
 
     <span class="k">if</span> <span class="n">input_inh</span><span class="p">:</span>
@@ -490,7 +551,10 @@
             <span class="n">reshape_exc_syn</span> <span class="o">=</span> <span class="n">reshape_exc_syn</span><span class="p">,</span> 
             <span class="n">reshape_inh_syn</span> <span class="o">=</span> <span class="n">reshape_inh_syn</span><span class="p">,</span>
             <span class="n">logspace</span> <span class="o">=</span> <span class="n">logspace</span><span class="p">,</span>
-            <span class="n">reactivation_curve</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span> <span class="n">linspace</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+            <span class="n">reactivation_curve</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span> 
+            <span class="n">linspace</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+            <span class="n">save_in_dir</span> <span class="o">=</span> <span class="n">save_in_dir</span><span class="p">,</span>
+            <span class="n">filename</span> <span class="o">=</span> <span class="n">filename</span><span class="p">,</span>
         <span class="p">)</span></div>
 
 
@@ -498,7 +562,13 @@
 <div class="viewcode-block" id="plot_einet_params">
 <a class="viewcode-back" href="../../source/dendritic_modeling.html#dendritic_modeling.plot_utils.plot_einet_params">[docs]</a>
 <span class="k">def</span> <span class="nf">plot_einet_params</span><span class="p">(</span>
-        <span class="n">einet</span><span class="p">,</span> <span class="n">save_root</span><span class="p">,</span> <span class="n">reshape_fn</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span> <span class="n">reshape_exc_syn</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span> <span class="n">logspace</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span>
+    <span class="n">einet</span><span class="p">,</span> 
+    <span class="n">save_root</span><span class="p">,</span> 
+    <span class="n">reshape_fn</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span> 
+    <span class="n">reshape_exc_syn</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span> 
+    <span class="n">logspace</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span>
+    <span class="n">save_in_dir</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span>
+    <span class="n">filename</span> <span class="o">=</span> <span class="s1">&#39;image&#39;</span><span class="p">,</span>
     <span class="p">):</span>
     <span class="n">einet</span> <span class="o">=</span> <span class="n">einet</span><span class="o">.</span><span class="n">to</span><span class="p">(</span><span class="s1">&#39;cpu&#39;</span><span class="p">)</span>
 
@@ -515,6 +585,8 @@
             <span class="n">reshape_exc_syn</span> <span class="o">=</span> <span class="n">reshape_exc_syn</span> <span class="k">if</span> <span class="n">i</span> <span class="o">==</span> <span class="mi">0</span> <span class="k">else</span> <span class="kc">False</span><span class="p">,</span> 
             <span class="n">reshape_inh_syn</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span>
             <span class="n">logspace</span> <span class="o">=</span> <span class="n">logspace</span><span class="p">,</span>
+            <span class="n">save_in_dir</span> <span class="o">=</span> <span class="n">save_in_dir</span><span class="p">,</span>
+            <span class="n">filename</span> <span class="o">=</span> <span class="n">filename</span><span class="p">,</span>
         <span class="p">)</span>
         <span class="n">plot_dendrinet_params</span><span class="p">(</span>
             <span class="n">dendrinet</span> <span class="o">=</span> <span class="n">exc_dendrinet</span><span class="p">,</span> 
@@ -525,13 +597,22 @@
             <span class="n">reshape_exc_syn</span> <span class="o">=</span> <span class="n">reshape_exc_syn</span> <span class="k">if</span> <span class="n">i</span> <span class="o">==</span> <span class="mi">0</span> <span class="k">else</span> <span class="kc">False</span><span class="p">,</span> 
             <span class="n">reshape_inh_syn</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span>
             <span class="n">logspace</span> <span class="o">=</span> <span class="n">logspace</span><span class="p">,</span>
+            <span class="n">save_in_dir</span> <span class="o">=</span> <span class="n">save_in_dir</span><span class="p">,</span>
+            <span class="n">filename</span> <span class="o">=</span> <span class="n">filename</span><span class="p">,</span>
         <span class="p">)</span></div>
 
 
 
 <div class="viewcode-block" id="plot_eng_mod10_einet_params">
 <a class="viewcode-back" href="../../source/dendritic_modeling.html#dendritic_modeling.plot_utils.plot_eng_mod10_einet_params">[docs]</a>
-<span class="k">def</span> <span class="nf">plot_eng_mod10_einet_params</span><span class="p">(</span><span class="n">einet</span><span class="p">,</span> <span class="n">save_root</span><span class="p">,</span> <span class="n">reshape_fn</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span> <span class="n">logspace</span> <span class="o">=</span> <span class="kc">False</span><span class="p">):</span>
+<span class="k">def</span> <span class="nf">plot_eng_mod10_einet_params</span><span class="p">(</span>
+    <span class="n">einet</span><span class="p">,</span> 
+    <span class="n">save_root</span><span class="p">,</span> 
+    <span class="n">reshape_fn</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span> 
+    <span class="n">logspace</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span>
+    <span class="n">save_in_dir</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span>
+    <span class="n">filename</span> <span class="o">=</span> <span class="s1">&#39;image&#39;</span><span class="p">,</span>
+    <span class="p">):</span>
     <span class="n">einet</span> <span class="o">=</span> <span class="n">einet</span><span class="o">.</span><span class="n">to</span><span class="p">(</span><span class="s1">&#39;cpu&#39;</span><span class="p">)</span>
 
     <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">einet</span><span class="o">.</span><span class="n">layers</span><span class="p">)):</span>
@@ -539,41 +620,70 @@
         <span class="n">exc_dendrinet</span> <span class="o">=</span> <span class="n">einet</span><span class="o">.</span><span class="n">layers</span><span class="p">[</span><span class="n">i</span><span class="p">]</span><span class="o">.</span><span class="n">excitatory_cells</span>
 
         <span class="n">plot_dendrinet_params</span><span class="p">(</span>
-            <span class="n">dendrinet</span> <span class="o">=</span> <span class="n">inh_dendrinet</span><span class="p">,</span> <span class="n">save_root</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">save_root</span><span class="p">,</span> <span class="sa">f</span><span class="s1">&#39;ei_layer</span><span class="si">{</span><span class="n">i</span><span class="o">+</span><span class="mi">1</span><span class="si">}</span><span class="s1">&#39;</span><span class="p">,</span> <span class="s1">&#39;inhibitory cells&#39;</span><span class="p">),</span>
-            <span class="n">reshape_fn</span> <span class="o">=</span> <span class="n">reshape_fn</span><span class="p">,</span> <span class="n">reshape_exc_syn</span> <span class="o">=</span> <span class="kc">False</span> <span class="k">if</span> <span class="n">i</span> <span class="o">==</span> <span class="mi">2</span> <span class="k">else</span> <span class="kc">True</span><span class="p">,</span> <span class="n">reshape_inh_syn</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span>
+            <span class="n">dendrinet</span> <span class="o">=</span> <span class="n">inh_dendrinet</span><span class="p">,</span> 
+            <span class="n">save_root</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">save_root</span><span class="p">,</span> <span class="sa">f</span><span class="s1">&#39;ei_layer</span><span class="si">{</span><span class="n">i</span><span class="o">+</span><span class="mi">1</span><span class="si">}</span><span class="s1">&#39;</span><span class="p">,</span> <span class="s1">&#39;inhibitory cells&#39;</span><span class="p">),</span>
+            <span class="n">reshape_fn</span> <span class="o">=</span> <span class="n">reshape_fn</span><span class="p">,</span> 
+            <span class="n">reshape_exc_syn</span> <span class="o">=</span> <span class="kc">False</span> <span class="k">if</span> <span class="n">i</span> <span class="o">==</span> <span class="mi">2</span> <span class="k">else</span> <span class="kc">True</span><span class="p">,</span> 
+            <span class="n">reshape_inh_syn</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span>
             <span class="n">logspace</span> <span class="o">=</span> <span class="n">logspace</span><span class="p">,</span>
+            <span class="n">save_in_dir</span> <span class="o">=</span> <span class="n">save_in_dir</span><span class="p">,</span>
+            <span class="n">filename</span> <span class="o">=</span> <span class="n">filename</span><span class="p">,</span>
         <span class="p">)</span>
         <span class="n">plot_dendrinet_params</span><span class="p">(</span>
-            <span class="n">dendrinet</span> <span class="o">=</span> <span class="n">exc_dendrinet</span><span class="p">,</span> <span class="n">save_root</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">save_root</span><span class="p">,</span> <span class="sa">f</span><span class="s1">&#39;ei_layer</span><span class="si">{</span><span class="n">i</span><span class="o">+</span><span class="mi">1</span><span class="si">}</span><span class="s1">&#39;</span><span class="p">,</span> <span class="s1">&#39;excitatory cells&#39;</span><span class="p">),</span>
-            <span class="n">reshape_fn</span> <span class="o">=</span> <span class="n">reshape_fn</span><span class="p">,</span> <span class="n">reshape_exc_syn</span> <span class="o">=</span> <span class="kc">False</span> <span class="k">if</span> <span class="n">i</span> <span class="o">==</span> <span class="mi">2</span> <span class="k">else</span> <span class="kc">True</span><span class="p">,</span> <span class="n">reshape_inh_syn</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span>
+            <span class="n">dendrinet</span> <span class="o">=</span> <span class="n">exc_dendrinet</span><span class="p">,</span> 
+            <span class="n">save_root</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">save_root</span><span class="p">,</span> <span class="sa">f</span><span class="s1">&#39;ei_layer</span><span class="si">{</span><span class="n">i</span><span class="o">+</span><span class="mi">1</span><span class="si">}</span><span class="s1">&#39;</span><span class="p">,</span> <span class="s1">&#39;excitatory cells&#39;</span><span class="p">),</span>
+            <span class="n">reshape_fn</span> <span class="o">=</span> <span class="n">reshape_fn</span><span class="p">,</span> 
+            <span class="n">reshape_exc_syn</span> <span class="o">=</span> <span class="kc">False</span> <span class="k">if</span> <span class="n">i</span> <span class="o">==</span> <span class="mi">2</span> <span class="k">else</span> <span class="kc">True</span><span class="p">,</span> 
+            <span class="n">reshape_inh_syn</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span>
             <span class="n">logspace</span> <span class="o">=</span> <span class="n">logspace</span><span class="p">,</span>
+            <span class="n">save_in_dir</span> <span class="o">=</span> <span class="n">save_in_dir</span><span class="p">,</span>
+            <span class="n">filename</span> <span class="o">=</span> <span class="n">filename</span><span class="p">,</span>
         <span class="p">)</span></div>
 
 
 
 <div class="viewcode-block" id="activation_boxplots">
 <a class="viewcode-back" href="../../source/dendritic_modeling.html#dendritic_modeling.plot_utils.activation_boxplots">[docs]</a>
-<span class="k">def</span> <span class="nf">activation_boxplots</span><span class="p">(</span><span class="n">activation_list</span><span class="p">,</span> <span class="n">title</span><span class="p">,</span> <span class="n">fname</span><span class="p">,</span> <span class="n">save_path</span><span class="p">):</span>
+<span class="k">def</span> <span class="nf">activation_boxplots</span><span class="p">(</span>
+    <span class="n">activation_list</span><span class="p">,</span> 
+    <span class="n">soma_branch</span><span class="p">,</span> 
+    <span class="n">save_path</span><span class="p">,</span>
+    <span class="n">save_in_dir</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span>
+    <span class="n">filename</span> <span class="o">=</span> <span class="s1">&#39;image&#39;</span><span class="p">,</span>
+    <span class="p">):</span>
     <span class="n">activation_list</span> <span class="o">=</span> <span class="p">[</span><span class="n">act</span><span class="o">.</span><span class="n">detach</span><span class="p">()</span><span class="o">.</span><span class="n">cpu</span><span class="p">()</span><span class="o">.</span><span class="n">numpy</span><span class="p">()</span> <span class="k">for</span> <span class="n">act</span> <span class="ow">in</span> <span class="n">activation_list</span><span class="p">]</span>
 
     <span class="n">fig</span> <span class="o">=</span> <span class="n">plt</span><span class="o">.</span><span class="n">figure</span><span class="p">()</span>
     <span class="n">plt</span><span class="o">.</span><span class="n">boxplot</span><span class="p">(</span><span class="n">activation_list</span><span class="p">)</span>
-    <span class="n">plt</span><span class="o">.</span><span class="n">title</span><span class="p">(</span><span class="n">title</span><span class="p">)</span>
+    <span class="n">plt</span><span class="o">.</span><span class="n">title</span><span class="p">(</span><span class="sa">f</span><span class="s1">&#39;Activation Distribution for </span><span class="si">{</span><span class="n">soma_branch</span><span class="si">}</span><span class="s1">&#39;</span><span class="p">)</span>
     <span class="n">plt</span><span class="o">.</span><span class="n">gca</span><span class="p">()</span><span class="o">.</span><span class="n">set_xticklabels</span><span class="p">([</span><span class="n">i</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">10</span><span class="p">)])</span>
     <span class="n">plt</span><span class="o">.</span><span class="n">xlabel</span><span class="p">(</span><span class="s1">&#39;Input Digit&#39;</span><span class="p">)</span>
     <span class="n">plt</span><span class="o">.</span><span class="n">ylabel</span><span class="p">(</span><span class="s1">&#39;Values&#39;</span><span class="p">)</span>
 
+    <span class="k">if</span> <span class="n">save_in_dir</span><span class="p">:</span>
+        <span class="n">save_path</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">save_path</span><span class="p">,</span> <span class="n">soma_branch</span><span class="p">)</span>
+        <span class="n">file_path</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">save_path</span><span class="p">,</span> <span class="sa">f</span><span class="s1">&#39;</span><span class="si">{</span><span class="n">filename</span><span class="si">}</span><span class="s1">.jpeg&#39;</span><span class="p">)</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="n">file_path</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">save_path</span><span class="p">,</span> <span class="sa">f</span><span class="s1">&#39;</span><span class="si">{</span><span class="n">soma_branch</span><span class="si">}</span><span class="s1">.jpeg&#39;</span><span class="p">)</span>
+    
     <span class="k">if</span> <span class="ow">not</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">exists</span><span class="p">(</span><span class="n">save_path</span><span class="p">):</span>
         <span class="n">os</span><span class="o">.</span><span class="n">makedirs</span><span class="p">(</span><span class="n">save_path</span><span class="p">,</span> <span class="n">exist_ok</span> <span class="o">=</span> <span class="kc">True</span><span class="p">)</span>
 
-    <span class="n">fig</span><span class="o">.</span><span class="n">savefig</span><span class="p">(</span><span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">save_path</span><span class="p">,</span> <span class="n">fname</span><span class="p">))</span>
+    <span class="n">fig</span><span class="o">.</span><span class="n">savefig</span><span class="p">(</span><span class="n">file_path</span><span class="p">)</span>
     <span class="n">plt</span><span class="o">.</span><span class="n">close</span><span class="p">(</span><span class="n">fig</span><span class="p">)</span></div>
 
 
 
 <div class="viewcode-block" id="activation_means">
 <a class="viewcode-back" href="../../source/dendritic_modeling.html#dendritic_modeling.plot_utils.activation_means">[docs]</a>
-<span class="k">def</span> <span class="nf">activation_means</span><span class="p">(</span><span class="n">means</span><span class="p">,</span> <span class="n">xticks</span><span class="p">,</span> <span class="n">xtick_labels</span><span class="p">,</span> <span class="n">save_path</span><span class="p">):</span>
+<span class="k">def</span> <span class="nf">activation_means</span><span class="p">(</span>
+    <span class="n">means</span><span class="p">,</span> 
+    <span class="n">xticks</span><span class="p">,</span> 
+    <span class="n">xtick_labels</span><span class="p">,</span> 
+    <span class="n">save_path</span><span class="p">,</span>
+    <span class="n">save_in_dir</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span>
+    <span class="n">filename</span> <span class="o">=</span> <span class="s1">&#39;image&#39;</span><span class="p">,</span>
+    <span class="p">):</span>
     <span class="n">means</span> <span class="o">=</span> <span class="n">means</span><span class="o">.</span><span class="n">t</span><span class="p">()</span><span class="o">.</span><span class="n">detach</span><span class="p">()</span><span class="o">.</span><span class="n">cpu</span><span class="p">()</span><span class="o">.</span><span class="n">numpy</span><span class="p">()</span>
     <span class="n">x</span> <span class="o">=</span> <span class="n">means</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
     <span class="n">y</span> <span class="o">=</span> <span class="n">means</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span>
@@ -593,10 +703,16 @@
     <span class="n">ax</span><span class="o">.</span><span class="n">set_xticks</span><span class="p">(</span><span class="n">xticks</span><span class="p">)</span>
     <span class="n">ax</span><span class="o">.</span><span class="n">set_xticklabels</span><span class="p">(</span><span class="n">xtick_labels</span><span class="p">,</span> <span class="n">rotation</span> <span class="o">=</span> <span class="mi">45</span><span class="p">)</span>
 
+    <span class="k">if</span> <span class="n">save_in_dir</span><span class="p">:</span>
+        <span class="n">save_path</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">save_path</span><span class="p">,</span> <span class="s1">&#39;activation_means&#39;</span><span class="p">)</span>
+        <span class="n">file_path</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">save_path</span><span class="p">,</span> <span class="sa">f</span><span class="s1">&#39;</span><span class="si">{</span><span class="n">filename</span><span class="si">}</span><span class="s1">.jpeg&#39;</span><span class="p">)</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="n">file_path</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">save_path</span><span class="p">,</span> <span class="s1">&#39;activation_means.jpeg&#39;</span><span class="p">)</span>
+    
     <span class="k">if</span> <span class="ow">not</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">exists</span><span class="p">(</span><span class="n">save_path</span><span class="p">):</span>
         <span class="n">os</span><span class="o">.</span><span class="n">makedirs</span><span class="p">(</span><span class="n">save_path</span><span class="p">,</span> <span class="n">exist_ok</span> <span class="o">=</span> <span class="kc">True</span><span class="p">)</span>
     
-    <span class="n">fig</span><span class="o">.</span><span class="n">savefig</span><span class="p">(</span><span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">save_path</span><span class="p">,</span> <span class="s1">&#39;activation_means.jpeg&#39;</span><span class="p">))</span>
+    <span class="n">fig</span><span class="o">.</span><span class="n">savefig</span><span class="p">(</span><span class="n">file_path</span><span class="p">)</span>
     <span class="n">plt</span><span class="o">.</span><span class="n">close</span><span class="p">(</span><span class="n">fig</span><span class="p">)</span></div>
 
 
@@ -604,7 +720,12 @@
 <div class="viewcode-block" id="plot_dendrinet_activations">
 <a class="viewcode-back" href="../../source/dendritic_modeling.html#dendritic_modeling.plot_utils.plot_dendrinet_activations">[docs]</a>
 <span class="k">def</span> <span class="nf">plot_dendrinet_activations</span><span class="p">(</span>
-        <span class="n">dendrinet</span><span class="p">,</span> <span class="n">exc_input_list</span><span class="p">,</span> <span class="n">inh_input_list</span><span class="p">,</span> <span class="n">save_root</span><span class="p">,</span>
+    <span class="n">dendrinet</span><span class="p">,</span> 
+    <span class="n">exc_input_list</span><span class="p">,</span> 
+    <span class="n">inh_input_list</span><span class="p">,</span> 
+    <span class="n">save_root</span><span class="p">,</span>
+    <span class="n">save_in_dir</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span>
+    <span class="n">filename</span> <span class="o">=</span> <span class="s1">&#39;image&#39;</span><span class="p">,</span>
     <span class="p">):</span>
     <span class="n">layer_sizes</span> <span class="o">=</span> <span class="n">dendrinet</span><span class="o">.</span><span class="n">layer_sizes</span>
     <span class="n">n_soma</span> <span class="o">=</span> <span class="n">dendrinet</span><span class="o">.</span><span class="n">n_soma</span>
@@ -648,23 +769,37 @@
                     <span class="n">activation_list</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">chunk</span><span class="p">)</span>
                     <span class="n">means</span><span class="p">[</span><span class="n">n</span><span class="p">,</span><span class="n">b</span><span class="p">,</span><span class="n">k</span><span class="p">]</span> <span class="o">=</span> <span class="n">chunk</span><span class="o">.</span><span class="n">mean</span><span class="p">(</span><span class="n">dim</span> <span class="o">=</span> <span class="mi">0</span><span class="p">)</span>
                 
-                <span class="n">fname</span> <span class="o">=</span> <span class="sa">f</span><span class="s1">&#39;soma</span><span class="si">{</span><span class="n">n</span><span class="si">}</span><span class="s1">_branch</span><span class="si">{</span><span class="n">b</span><span class="si">}</span><span class="s1">&#39;</span>
+                <span class="n">soma_branch</span> <span class="o">=</span> <span class="sa">f</span><span class="s1">&#39;soma</span><span class="si">{</span><span class="n">n</span><span class="si">}</span><span class="s1">_branch</span><span class="si">{</span><span class="n">b</span><span class="si">}</span><span class="s1">&#39;</span>
                 <span class="n">activation_boxplots</span><span class="p">(</span>
                     <span class="n">activation_list</span> <span class="o">=</span> <span class="n">activation_list</span><span class="p">,</span>
-                    <span class="n">title</span> <span class="o">=</span> <span class="sa">f</span><span class="s1">&#39;Activation Distribution for </span><span class="si">{</span><span class="n">fname</span><span class="si">}</span><span class="s1">&#39;</span><span class="p">,</span>
-                    <span class="n">fname</span> <span class="o">=</span> <span class="n">fname</span><span class="p">,</span> <span class="n">save_path</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">save_root</span><span class="p">,</span> <span class="n">level</span><span class="p">),</span>
+                    <span class="n">soma_branch</span> <span class="o">=</span> <span class="n">soma_branch</span><span class="p">,</span>
+                    <span class="n">save_path</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">save_root</span><span class="p">,</span> <span class="n">level</span><span class="p">),</span>
+                    <span class="n">save_in_dir</span> <span class="o">=</span> <span class="n">save_in_dir</span><span class="p">,</span>
+                    <span class="n">filename</span> <span class="o">=</span> <span class="n">filename</span><span class="p">,</span>
                 <span class="p">)</span>
 
         <span class="n">xticks</span> <span class="o">=</span> <span class="p">[</span><span class="n">branches_per_soma</span> <span class="o">*</span> <span class="n">n</span> <span class="k">for</span> <span class="n">n</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">n_soma</span><span class="p">)]</span>
         <span class="n">xtick_labels</span> <span class="o">=</span> <span class="p">[</span><span class="sa">f</span><span class="s1">&#39;soma</span><span class="si">{</span><span class="n">n</span><span class="si">}</span><span class="s1">&#39;</span> <span class="k">for</span> <span class="n">n</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">n_soma</span><span class="p">)]</span>
-        <span class="n">activation_means</span><span class="p">(</span><span class="n">means</span><span class="o">.</span><span class="n">flatten</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span><span class="mi">1</span><span class="p">),</span> <span class="n">xticks</span><span class="p">,</span> <span class="n">xtick_labels</span><span class="p">,</span> 
-                         <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">save_root</span><span class="p">,</span> <span class="n">level</span><span class="p">))</span></div>
+        <span class="n">activation_means</span><span class="p">(</span>
+            <span class="n">means</span> <span class="o">=</span> <span class="n">means</span><span class="o">.</span><span class="n">flatten</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span><span class="mi">1</span><span class="p">),</span>
+            <span class="n">xticks</span> <span class="o">=</span> <span class="n">xticks</span><span class="p">,</span>
+            <span class="n">xtick_labels</span> <span class="o">=</span> <span class="n">xtick_labels</span><span class="p">,</span>
+            <span class="n">save_path</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">save_root</span><span class="p">,</span> <span class="n">level</span><span class="p">),</span>
+            <span class="n">save_in_dir</span> <span class="o">=</span> <span class="n">save_in_dir</span><span class="p">,</span>
+            <span class="n">filename</span> <span class="o">=</span> <span class="n">filename</span><span class="p">,</span>
+        <span class="p">)</span></div>
 
 
 
 <div class="viewcode-block" id="plot_einet_activations">
 <a class="viewcode-back" href="../../source/dendritic_modeling.html#dendritic_modeling.plot_utils.plot_einet_activations">[docs]</a>
-<span class="k">def</span> <span class="nf">plot_einet_activations</span><span class="p">(</span><span class="n">einet</span><span class="p">,</span> <span class="n">input_list</span><span class="p">,</span> <span class="n">save_root</span><span class="p">):</span>
+<span class="k">def</span> <span class="nf">plot_einet_activations</span><span class="p">(</span>
+    <span class="n">einet</span><span class="p">,</span> 
+    <span class="n">input_list</span><span class="p">,</span> 
+    <span class="n">save_root</span><span class="p">,</span>
+    <span class="n">save_in_dir</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span>
+    <span class="n">filename</span> <span class="o">=</span> <span class="s1">&#39;image&#39;</span><span class="p">,</span>
+    <span class="p">):</span>
     <span class="n">device</span> <span class="o">=</span> <span class="s1">&#39;cuda&#39;</span> <span class="k">if</span> <span class="n">torch</span><span class="o">.</span><span class="n">cuda</span><span class="o">.</span><span class="n">is_available</span><span class="p">()</span> <span class="k">else</span> <span class="s1">&#39;cpu&#39;</span>
     <span class="n">einet</span> <span class="o">=</span> <span class="n">einet</span><span class="o">.</span><span class="n">to</span><span class="p">(</span><span class="n">device</span><span class="p">)</span>
 
@@ -679,9 +814,9 @@
             <span class="n">dendrinet</span> <span class="o">=</span> <span class="n">inh_dendrinet</span><span class="p">,</span> 
             <span class="n">exc_input_list</span> <span class="o">=</span> <span class="n">exc_input_list</span><span class="p">,</span> 
             <span class="n">inh_input_list</span> <span class="o">=</span> <span class="n">inh_input_list</span><span class="p">,</span>
-            <span class="n">save_root</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">save_root</span><span class="p">,</span> 
-                                     <span class="sa">f</span><span class="s1">&#39;ei_layer</span><span class="si">{</span><span class="n">i</span><span class="o">+</span><span class="mi">1</span><span class="si">}</span><span class="s1">&#39;</span><span class="p">,</span> 
-                                     <span class="s1">&#39;inhibitory_cells&#39;</span><span class="p">),</span>
+            <span class="n">save_root</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">save_root</span><span class="p">,</span> <span class="sa">f</span><span class="s1">&#39;ei_layer</span><span class="si">{</span><span class="n">i</span><span class="o">+</span><span class="mi">1</span><span class="si">}</span><span class="s1">&#39;</span><span class="p">,</span> <span class="s1">&#39;inhibitory_cells&#39;</span><span class="p">),</span>
+            <span class="n">save_in_dir</span> <span class="o">=</span> <span class="n">save_in_dir</span><span class="p">,</span>
+            <span class="n">filename</span> <span class="o">=</span> <span class="n">filename</span><span class="p">,</span>
         <span class="p">)</span>
 
         <span class="n">inh_temp</span> <span class="o">=</span> <span class="p">[]</span>
@@ -694,9 +829,9 @@
             <span class="n">dendrinet</span> <span class="o">=</span> <span class="n">exc_dendrinet</span><span class="p">,</span> 
             <span class="n">exc_input_list</span> <span class="o">=</span> <span class="n">exc_input_list</span><span class="p">,</span> 
             <span class="n">inh_input_list</span> <span class="o">=</span> <span class="n">inh_input_list</span><span class="p">,</span>
-            <span class="n">save_root</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">save_root</span><span class="p">,</span> 
-                                     <span class="sa">f</span><span class="s1">&#39;ei_layer</span><span class="si">{</span><span class="n">i</span><span class="o">+</span><span class="mi">1</span><span class="si">}</span><span class="s1">&#39;</span><span class="p">,</span> 
-                                     <span class="s1">&#39;excitatory_cells&#39;</span><span class="p">),</span>
+            <span class="n">save_root</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">save_root</span><span class="p">,</span> <span class="sa">f</span><span class="s1">&#39;ei_layer</span><span class="si">{</span><span class="n">i</span><span class="o">+</span><span class="mi">1</span><span class="si">}</span><span class="s1">&#39;</span><span class="p">,</span> <span class="s1">&#39;excitatory_cells&#39;</span><span class="p">),</span>
+            <span class="n">save_in_dir</span> <span class="o">=</span> <span class="n">save_in_dir</span><span class="p">,</span>
+            <span class="n">filename</span> <span class="o">=</span> <span class="n">filename</span><span class="p">,</span>
         <span class="p">)</span>
 
         <span class="n">exc_temp</span> <span class="o">=</span> <span class="p">[]</span>
@@ -707,11 +842,10 @@
 
 
 
-
 <div class="viewcode-block" id="dendrinet_activations_to_csv">
 <a class="viewcode-back" href="../../source/dendritic_modeling.html#dendritic_modeling.plot_utils.dendrinet_activations_to_csv">[docs]</a>
 <span class="k">def</span> <span class="nf">dendrinet_activations_to_csv</span><span class="p">(</span>
-        <span class="n">dendrinet</span><span class="p">,</span> <span class="n">exc_input_list</span><span class="p">,</span> <span class="n">inh_input_list</span><span class="p">,</span> <span class="n">save_root</span><span class="p">,</span>
+        <span class="n">dendrinet</span><span class="p">,</span> <span class="n">exc_input_list</span><span class="p">,</span> <span class="n">inh_input_list</span><span class="p">,</span> <span class="n">save_root</span><span class="p">,</span> <span class="n">filename</span> <span class="o">=</span> <span class="s1">&#39;activation_components&#39;</span><span class="p">,</span>
     <span class="p">):</span>
     <span class="n">layer_sizes</span> <span class="o">=</span> <span class="n">dendrinet</span><span class="o">.</span><span class="n">layer_sizes</span>
     <span class="n">n_soma</span> <span class="o">=</span> <span class="n">dendrinet</span><span class="o">.</span><span class="n">n_soma</span>
@@ -722,10 +856,14 @@
 
     <span class="n">digit_data</span> <span class="o">=</span> <span class="p">[]</span>
     <span class="n">compartment_data</span> <span class="o">=</span> <span class="p">[]</span>
-    <span class="n">exc_data</span> <span class="o">=</span> <span class="p">[]</span>
-    <span class="n">inh_data</span> <span class="o">=</span> <span class="p">[]</span>
-    <span class="n">vinf_data</span> <span class="o">=</span> <span class="p">[]</span>
-    <span class="n">vout_data</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="n">exc_mean_data</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="n">exc_sdev_data</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="n">inh_mean_data</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="n">inh_sdev_data</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="n">vinf_mean_data</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="n">vinf_sdev_data</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="n">vout_mean_data</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="n">vout_sdev_data</span> <span class="o">=</span> <span class="p">[]</span>
 
     <span class="n">branch_input</span> <span class="o">=</span> <span class="p">[</span><span class="kc">None</span><span class="p">]</span> <span class="o">*</span> <span class="nb">len</span><span class="p">(</span><span class="n">exc_input_list</span><span class="p">)</span>
     <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">n_branch_layers</span><span class="o">+</span><span class="mi">1</span><span class="p">):</span>
@@ -738,6 +876,8 @@
         <span class="n">branch_excitation</span> <span class="o">=</span> <span class="n">layer</span><span class="o">.</span><span class="n">branch_excitation</span>
         <span class="k">if</span> <span class="n">input_inhibitory</span><span class="p">:</span>
             <span class="n">branch_inhibition</span> <span class="o">=</span> <span class="n">layer</span><span class="o">.</span><span class="n">branch_inhibition</span>
+        
+        <span class="n">reactivate</span> <span class="o">=</span> <span class="n">layer</span><span class="o">.</span><span class="n">reactivate</span>
 
         <span class="k">try</span><span class="p">:</span>
             <span class="n">branches_per_soma</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">layer_sizes</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="o">/</span> <span class="n">n_soma</span><span class="p">)</span>
@@ -748,7 +888,8 @@
         <span class="k">if</span> <span class="n">input_inhibitory</span><span class="p">:</span>
             <span class="n">inh_chunks</span> <span class="o">=</span> <span class="p">[]</span>
         <span class="n">vinf_chunks</span> <span class="o">=</span> <span class="p">[]</span>
-        <span class="n">vout_chunks</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="k">if</span> <span class="n">reactivate</span><span class="p">:</span>
+            <span class="n">vout_chunks</span> <span class="o">=</span> <span class="p">[]</span>
 
         <span class="k">for</span> <span class="n">j</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">exc_input_list</span><span class="p">)):</span>
             <span class="n">exc</span> <span class="o">=</span> <span class="n">branch_excitation</span><span class="p">(</span><span class="n">exc_input_list</span><span class="p">[</span><span class="n">j</span><span class="p">])</span>
@@ -765,60 +906,85 @@
                 <span class="n">denom</span> <span class="o">=</span> <span class="n">denom</span> <span class="o">+</span> <span class="n">inh</span>
 
             <span class="n">vinf</span> <span class="o">=</span> <span class="n">numer</span> <span class="o">/</span> <span class="n">denom</span>
-            <span class="n">vout</span> <span class="o">=</span> <span class="n">layer</span><span class="o">.</span><span class="n">reactivation</span><span class="p">(</span><span class="n">vinf</span><span class="p">)</span>
 
-            <span class="n">branch_input</span><span class="p">[</span><span class="n">j</span><span class="p">]</span> <span class="o">=</span> <span class="n">vout</span>
+            <span class="k">if</span> <span class="n">reactivate</span><span class="p">:</span>
+                <span class="n">vout</span> <span class="o">=</span> <span class="n">layer</span><span class="o">.</span><span class="n">reactivation</span><span class="p">(</span><span class="n">vinf</span><span class="p">)</span>
+
+            <span class="n">branch_input</span><span class="p">[</span><span class="n">j</span><span class="p">]</span> <span class="o">=</span> <span class="n">vout</span> <span class="k">if</span> <span class="n">reactivate</span> <span class="k">else</span> <span class="n">vinf</span>
             <span class="c1"># list, tuples, tensors -&gt; numbers, somas, branches </span>
             <span class="n">exc_chunks</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">exc</span><span class="o">.</span><span class="n">chunk</span><span class="p">(</span><span class="n">n_soma</span><span class="p">,</span> <span class="n">dim</span> <span class="o">=</span> <span class="o">-</span><span class="mi">1</span><span class="p">))</span>
             <span class="k">if</span> <span class="n">input_inhibitory</span><span class="p">:</span>
                 <span class="n">inh_chunks</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">inh</span><span class="o">.</span><span class="n">chunk</span><span class="p">(</span><span class="n">n_soma</span><span class="p">,</span> <span class="n">dim</span> <span class="o">=</span> <span class="o">-</span><span class="mi">1</span><span class="p">))</span>
             <span class="n">vinf_chunks</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">vinf</span><span class="o">.</span><span class="n">chunk</span><span class="p">(</span><span class="n">n_soma</span><span class="p">,</span> <span class="n">dim</span> <span class="o">=</span> <span class="o">-</span><span class="mi">1</span><span class="p">))</span>
-            <span class="n">vout_chunks</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">vout</span><span class="o">.</span><span class="n">chunk</span><span class="p">(</span><span class="n">n_soma</span><span class="p">,</span> <span class="n">dim</span> <span class="o">=</span> <span class="o">-</span><span class="mi">1</span><span class="p">))</span>
+            <span class="k">if</span> <span class="n">reactivate</span><span class="p">:</span>
+                <span class="n">vout_chunks</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">vout</span><span class="o">.</span><span class="n">chunk</span><span class="p">(</span><span class="n">n_soma</span><span class="p">,</span> <span class="n">dim</span> <span class="o">=</span> <span class="o">-</span><span class="mi">1</span><span class="p">))</span>
 
         <span class="k">for</span> <span class="n">n</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">n_soma</span><span class="p">):</span>
             <span class="k">for</span> <span class="n">b</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">branches_per_soma</span><span class="p">):</span>
                 <span class="k">for</span> <span class="n">k</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">exc_input_list</span><span class="p">)):</span>
 
-                    <span class="n">exc</span> <span class="o">=</span> <span class="n">exc_chunks</span><span class="p">[</span><span class="n">k</span><span class="p">][</span><span class="n">n</span><span class="p">][:,</span><span class="n">b</span><span class="p">]</span>
-                    <span class="n">inh</span> <span class="o">=</span> <span class="p">(</span><span class="n">inh_chunks</span><span class="p">[</span><span class="n">k</span><span class="p">][</span><span class="n">n</span><span class="p">][:,</span><span class="n">b</span><span class="p">]</span> 
-                           <span class="k">if</span> <span class="n">input_inhibitory</span> <span class="k">else</span> <span class="p">[</span><span class="kc">None</span><span class="p">]</span> <span class="o">*</span> <span class="n">exc</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">])</span>
-                    <span class="n">vinf</span> <span class="o">=</span> <span class="n">vinf_chunks</span><span class="p">[</span><span class="n">k</span><span class="p">][</span><span class="n">n</span><span class="p">][:,</span><span class="n">b</span><span class="p">]</span>
-                    <span class="n">vout</span> <span class="o">=</span> <span class="n">vinf_chunks</span><span class="p">[</span><span class="n">k</span><span class="p">][</span><span class="n">n</span><span class="p">][:,</span><span class="n">b</span><span class="p">]</span>
+                    <span class="n">exc</span> <span class="o">=</span> <span class="n">exc_chunks</span><span class="p">[</span><span class="n">k</span><span class="p">][</span><span class="n">n</span><span class="p">][:,</span><span class="n">b</span><span class="p">]</span><span class="o">.</span><span class="n">detach</span><span class="p">()</span><span class="o">.</span><span class="n">cpu</span><span class="p">()</span>
+                    <span class="n">exc_mean_data</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">exc</span><span class="o">.</span><span class="n">mean</span><span class="p">(</span><span class="n">dim</span> <span class="o">=</span> <span class="mi">0</span><span class="p">)</span><span class="o">.</span><span class="n">item</span><span class="p">())</span>
+                    <span class="n">exc_sdev_data</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">exc</span><span class="o">.</span><span class="n">std</span><span class="p">(</span><span class="n">dim</span> <span class="o">=</span> <span class="mi">0</span><span class="p">)</span><span class="o">.</span><span class="n">item</span><span class="p">())</span>
 
-                    <span class="n">digit_data</span> <span class="o">+=</span> <span class="p">[</span><span class="n">k</span><span class="p">]</span> <span class="o">*</span> <span class="n">exc</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+                    <span class="k">if</span> <span class="n">input_inhibitory</span><span class="p">:</span>
+                        <span class="n">inh</span> <span class="o">=</span> <span class="n">inh_chunks</span><span class="p">[</span><span class="n">k</span><span class="p">][</span><span class="n">n</span><span class="p">][:,</span><span class="n">b</span><span class="p">]</span><span class="o">.</span><span class="n">detach</span><span class="p">()</span><span class="o">.</span><span class="n">cpu</span><span class="p">()</span>
+                        <span class="n">inh_mean_data</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">inh</span><span class="o">.</span><span class="n">mean</span><span class="p">(</span><span class="n">dim</span> <span class="o">=</span> <span class="mi">0</span><span class="p">)</span><span class="o">.</span><span class="n">item</span><span class="p">())</span>
+                        <span class="n">inh_sdev_data</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">inh</span><span class="o">.</span><span class="n">std</span><span class="p">(</span><span class="n">dim</span> <span class="o">=</span> <span class="mi">0</span><span class="p">)</span><span class="o">.</span><span class="n">item</span><span class="p">())</span>
+                    <span class="k">else</span><span class="p">:</span>
+                        <span class="n">inh_mean_data</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="kc">None</span><span class="p">)</span>
+                        <span class="n">inh_sdev_data</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="kc">None</span><span class="p">)</span>
+                    
+                    <span class="n">vinf</span> <span class="o">=</span> <span class="n">vinf_chunks</span><span class="p">[</span><span class="n">k</span><span class="p">][</span><span class="n">n</span><span class="p">][:,</span><span class="n">b</span><span class="p">]</span><span class="o">.</span><span class="n">detach</span><span class="p">()</span><span class="o">.</span><span class="n">cpu</span><span class="p">()</span>
+                    <span class="n">vinf_mean_data</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">vinf</span><span class="o">.</span><span class="n">mean</span><span class="p">(</span><span class="n">dim</span> <span class="o">=</span> <span class="mi">0</span><span class="p">)</span><span class="o">.</span><span class="n">item</span><span class="p">())</span>
+                    <span class="n">vinf_sdev_data</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">vinf</span><span class="o">.</span><span class="n">std</span><span class="p">(</span><span class="n">dim</span> <span class="o">=</span> <span class="mi">0</span><span class="p">)</span><span class="o">.</span><span class="n">item</span><span class="p">())</span>
+
+                    <span class="k">if</span> <span class="n">reactivate</span><span class="p">:</span>
+                        <span class="n">vout</span> <span class="o">=</span> <span class="n">vout_chunks</span><span class="p">[</span><span class="n">k</span><span class="p">][</span><span class="n">n</span><span class="p">][:,</span><span class="n">b</span><span class="p">]</span><span class="o">.</span><span class="n">detach</span><span class="p">()</span><span class="o">.</span><span class="n">cpu</span><span class="p">()</span>
+                        <span class="n">vout_mean_data</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">vout</span><span class="o">.</span><span class="n">mean</span><span class="p">(</span><span class="n">dim</span> <span class="o">=</span> <span class="mi">0</span><span class="p">)</span><span class="o">.</span><span class="n">item</span><span class="p">())</span>
+                        <span class="n">vout_sdev_data</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">vout</span><span class="o">.</span><span class="n">std</span><span class="p">(</span><span class="n">dim</span> <span class="o">=</span> <span class="mi">0</span><span class="p">)</span><span class="o">.</span><span class="n">item</span><span class="p">())</span>
+                    <span class="k">else</span><span class="p">:</span>
+                        <span class="n">vout_mean_data</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="kc">None</span><span class="p">)</span>
+                        <span class="n">vout_sdev_data</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="kc">None</span><span class="p">)</span>
+
+                    <span class="n">digit_data</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">k</span><span class="p">)</span>
                     
                     <span class="n">compartment</span> <span class="o">=</span> <span class="p">(</span><span class="sa">f</span><span class="s1">&#39;soma</span><span class="si">{</span><span class="n">n</span><span class="si">}</span><span class="s1">&#39;</span> 
                                    <span class="k">if</span> <span class="n">i</span> <span class="o">==</span> <span class="n">n_branch_layers</span> 
                                    <span class="k">else</span> <span class="sa">f</span><span class="s1">&#39;soma</span><span class="si">{</span><span class="n">n</span><span class="si">}</span><span class="s1">_branch</span><span class="si">{</span><span class="n">b</span><span class="si">}</span><span class="s1">&#39;</span><span class="p">)</span>
-                    <span class="n">compartment_data</span> <span class="o">+=</span> <span class="p">[</span><span class="n">compartment</span><span class="p">]</span> <span class="o">*</span> <span class="n">exc</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
-
-                    <span class="n">exc_data</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">exc</span><span class="p">)</span>
-                    <span class="n">inh_data</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">inh</span><span class="p">)</span>
-                    <span class="n">vinf_data</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">vinf</span><span class="p">)</span>
-                    <span class="n">vout_data</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">vout</span><span class="p">)</span>
+                    <span class="n">compartment_data</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">compartment</span><span class="p">)</span>
 
     <span class="n">digit</span> <span class="o">=</span> <span class="n">pd</span><span class="o">.</span><span class="n">Series</span><span class="p">(</span><span class="n">digit_data</span><span class="p">)</span>
     <span class="n">compartment</span> <span class="o">=</span> <span class="n">pd</span><span class="o">.</span><span class="n">Series</span><span class="p">(</span><span class="n">compartment_data</span><span class="p">)</span>
-    <span class="n">g_exc</span> <span class="o">=</span> <span class="n">pd</span><span class="o">.</span><span class="n">Series</span><span class="p">(</span><span class="n">torch</span><span class="o">.</span><span class="n">cat</span><span class="p">(</span><span class="n">exc_data</span><span class="p">,</span> <span class="n">dim</span> <span class="o">=</span> <span class="mi">0</span><span class="p">)</span><span class="o">.</span><span class="n">detach</span><span class="p">()</span><span class="o">.</span><span class="n">cpu</span><span class="p">()</span><span class="o">.</span><span class="n">numpy</span><span class="p">())</span>
-    <span class="n">g_inh</span> <span class="o">=</span> <span class="n">pd</span><span class="o">.</span><span class="n">Series</span><span class="p">(</span><span class="n">torch</span><span class="o">.</span><span class="n">cat</span><span class="p">(</span><span class="n">inh_data</span><span class="p">,</span> <span class="n">dim</span> <span class="o">=</span> <span class="mi">0</span><span class="p">)</span><span class="o">.</span><span class="n">detach</span><span class="p">()</span><span class="o">.</span><span class="n">cpu</span><span class="p">()</span><span class="o">.</span><span class="n">numpy</span><span class="p">()</span> 
-                      <span class="k">if</span> <span class="n">input_inhibitory</span> <span class="k">else</span> <span class="n">inh_data</span><span class="p">)</span>
-    <span class="n">v_inf</span> <span class="o">=</span> <span class="n">pd</span><span class="o">.</span><span class="n">Series</span><span class="p">(</span><span class="n">torch</span><span class="o">.</span><span class="n">cat</span><span class="p">(</span><span class="n">vinf_data</span><span class="p">,</span> <span class="n">dim</span> <span class="o">=</span> <span class="mi">0</span><span class="p">)</span><span class="o">.</span><span class="n">detach</span><span class="p">()</span><span class="o">.</span><span class="n">cpu</span><span class="p">()</span><span class="o">.</span><span class="n">numpy</span><span class="p">())</span>
-    <span class="n">v_out</span> <span class="o">=</span> <span class="n">pd</span><span class="o">.</span><span class="n">Series</span><span class="p">(</span><span class="n">torch</span><span class="o">.</span><span class="n">cat</span><span class="p">(</span><span class="n">vout_data</span><span class="p">,</span> <span class="n">dim</span> <span class="o">=</span> <span class="mi">0</span><span class="p">)</span><span class="o">.</span><span class="n">detach</span><span class="p">()</span><span class="o">.</span><span class="n">cpu</span><span class="p">()</span><span class="o">.</span><span class="n">numpy</span><span class="p">())</span>
+    
+    <span class="n">g_exc_mean</span> <span class="o">=</span> <span class="n">pd</span><span class="o">.</span><span class="n">Series</span><span class="p">(</span><span class="n">exc_mean_data</span><span class="p">)</span>
+    <span class="n">g_exc_sdev</span> <span class="o">=</span> <span class="n">pd</span><span class="o">.</span><span class="n">Series</span><span class="p">(</span><span class="n">exc_sdev_data</span><span class="p">)</span>
+    
+    <span class="n">g_inh_mean</span> <span class="o">=</span> <span class="n">pd</span><span class="o">.</span><span class="n">Series</span><span class="p">(</span><span class="n">inh_mean_data</span><span class="p">)</span>
+    <span class="n">g_inh_sdev</span> <span class="o">=</span> <span class="n">pd</span><span class="o">.</span><span class="n">Series</span><span class="p">(</span><span class="n">inh_sdev_data</span><span class="p">)</span>
+    
+    <span class="n">v_inf_mean</span> <span class="o">=</span> <span class="n">pd</span><span class="o">.</span><span class="n">Series</span><span class="p">(</span><span class="n">vinf_mean_data</span><span class="p">)</span>
+    <span class="n">v_inf_sdev</span> <span class="o">=</span> <span class="n">pd</span><span class="o">.</span><span class="n">Series</span><span class="p">(</span><span class="n">vinf_sdev_data</span><span class="p">)</span>
+    
+    <span class="n">v_out_mean</span> <span class="o">=</span> <span class="n">pd</span><span class="o">.</span><span class="n">Series</span><span class="p">(</span><span class="n">vout_mean_data</span><span class="p">)</span>
+    <span class="n">v_out_sdev</span> <span class="o">=</span> <span class="n">pd</span><span class="o">.</span><span class="n">Series</span><span class="p">(</span><span class="n">vout_sdev_data</span><span class="p">)</span>
 
     <span class="n">df</span> <span class="o">=</span> <span class="n">pd</span><span class="o">.</span><span class="n">DataFrame</span><span class="p">({</span>
         <span class="s1">&#39;digit&#39;</span> <span class="p">:</span> <span class="n">digit</span><span class="p">,</span> <span class="s1">&#39;compartment&#39;</span> <span class="p">:</span> <span class="n">compartment</span><span class="p">,</span>
-        <span class="s1">&#39;g_exc&#39;</span> <span class="p">:</span> <span class="n">g_exc</span><span class="p">,</span> <span class="s1">&#39;g_inh&#39;</span> <span class="p">:</span> <span class="n">g_inh</span><span class="p">,</span>
-        <span class="s1">&#39;v_inf&#39;</span> <span class="p">:</span> <span class="n">v_inf</span><span class="p">,</span> <span class="s1">&#39;v_out&#39;</span> <span class="p">:</span> <span class="n">v_out</span><span class="p">,</span>
+        <span class="s1">&#39;g_exc_mean&#39;</span> <span class="p">:</span> <span class="n">g_exc_mean</span><span class="p">,</span> <span class="s1">&#39;g_exc_sdev&#39;</span> <span class="p">:</span> <span class="n">g_exc_sdev</span><span class="p">,</span>
+        <span class="s1">&#39;g_inh_mean&#39;</span> <span class="p">:</span> <span class="n">g_inh_mean</span><span class="p">,</span> <span class="s1">&#39;g_inh_sdev&#39;</span> <span class="p">:</span> <span class="n">g_inh_sdev</span><span class="p">,</span>
+        <span class="s1">&#39;v_inf_mean&#39;</span> <span class="p">:</span> <span class="n">v_inf_mean</span><span class="p">,</span> <span class="s1">&#39;v_inf_sdev&#39;</span> <span class="p">:</span> <span class="n">v_inf_sdev</span><span class="p">,</span>
+        <span class="s1">&#39;v_out_mean&#39;</span> <span class="p">:</span> <span class="n">v_out_mean</span><span class="p">,</span> <span class="s1">&#39;v_out_sdev&#39;</span> <span class="p">:</span> <span class="n">v_out_sdev</span><span class="p">,</span>
     <span class="p">})</span>
 
     <span class="n">os</span><span class="o">.</span><span class="n">makedirs</span><span class="p">(</span><span class="n">save_root</span><span class="p">,</span> <span class="n">exist_ok</span> <span class="o">=</span> <span class="kc">True</span><span class="p">)</span>
-    <span class="n">df</span><span class="o">.</span><span class="n">to_csv</span><span class="p">(</span><span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">save_root</span><span class="p">,</span> <span class="s1">&#39;activation_components.csv&#39;</span><span class="p">))</span></div>
+    <span class="n">df</span><span class="o">.</span><span class="n">to_csv</span><span class="p">(</span><span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">save_root</span><span class="p">,</span> <span class="sa">f</span><span class="s1">&#39;</span><span class="si">{</span><span class="n">filename</span><span class="si">}</span><span class="s1">.csv&#39;</span><span class="p">))</span></div>
 
 
 
 <div class="viewcode-block" id="einet_activations_to_csv">
 <a class="viewcode-back" href="../../source/dendritic_modeling.html#dendritic_modeling.plot_utils.einet_activations_to_csv">[docs]</a>
-<span class="k">def</span> <span class="nf">einet_activations_to_csv</span><span class="p">(</span><span class="n">einet</span><span class="p">,</span> <span class="n">input_list</span><span class="p">,</span> <span class="n">save_root</span><span class="p">):</span>
+<span class="k">def</span> <span class="nf">einet_activations_to_csv</span><span class="p">(</span><span class="n">einet</span><span class="p">,</span> <span class="n">input_list</span><span class="p">,</span> <span class="n">save_root</span><span class="p">,</span> <span class="n">filename</span> <span class="o">=</span> <span class="s1">&#39;activation_components&#39;</span><span class="p">):</span>
     <span class="n">device</span> <span class="o">=</span> <span class="s1">&#39;cuda&#39;</span> <span class="k">if</span> <span class="n">torch</span><span class="o">.</span><span class="n">cuda</span><span class="o">.</span><span class="n">is_available</span><span class="p">()</span> <span class="k">else</span> <span class="s1">&#39;cpu&#39;</span>
     <span class="n">einet</span> <span class="o">=</span> <span class="n">einet</span><span class="o">.</span><span class="n">to</span><span class="p">(</span><span class="n">device</span><span class="p">)</span>
 
@@ -833,9 +999,8 @@
             <span class="n">dendrinet</span> <span class="o">=</span> <span class="n">inh_dendrinet</span><span class="p">,</span> 
             <span class="n">exc_input_list</span> <span class="o">=</span> <span class="n">exc_input_list</span><span class="p">,</span> 
             <span class="n">inh_input_list</span> <span class="o">=</span> <span class="n">inh_input_list</span><span class="p">,</span>
-            <span class="n">save_root</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">save_root</span><span class="p">,</span> 
-                                     <span class="sa">f</span><span class="s1">&#39;ei_layer</span><span class="si">{</span><span class="n">i</span><span class="o">+</span><span class="mi">1</span><span class="si">}</span><span class="s1">&#39;</span><span class="p">,</span> 
-                                     <span class="s1">&#39;inhibitory_cells&#39;</span><span class="p">),</span>
+            <span class="n">save_root</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">save_root</span><span class="p">,</span> <span class="sa">f</span><span class="s1">&#39;ei_layer</span><span class="si">{</span><span class="n">i</span><span class="o">+</span><span class="mi">1</span><span class="si">}</span><span class="s1">&#39;</span><span class="p">,</span> <span class="s1">&#39;inhibitory_cells&#39;</span><span class="p">),</span>
+            <span class="n">filename</span> <span class="o">=</span> <span class="n">filename</span><span class="p">,</span>
         <span class="p">)</span>
 
         <span class="n">inh_temp</span> <span class="o">=</span> <span class="p">[]</span>
@@ -848,9 +1013,8 @@
             <span class="n">dendrinet</span> <span class="o">=</span> <span class="n">exc_dendrinet</span><span class="p">,</span> 
             <span class="n">exc_input_list</span> <span class="o">=</span> <span class="n">exc_input_list</span><span class="p">,</span> 
             <span class="n">inh_input_list</span> <span class="o">=</span> <span class="n">inh_input_list</span><span class="p">,</span>
-            <span class="n">save_root</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">save_root</span><span class="p">,</span> 
-                                     <span class="sa">f</span><span class="s1">&#39;ei_layer</span><span class="si">{</span><span class="n">i</span><span class="o">+</span><span class="mi">1</span><span class="si">}</span><span class="s1">&#39;</span><span class="p">,</span> 
-                                     <span class="s1">&#39;excitatory_cells&#39;</span><span class="p">),</span>
+            <span class="n">save_root</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">save_root</span><span class="p">,</span> <span class="sa">f</span><span class="s1">&#39;ei_layer</span><span class="si">{</span><span class="n">i</span><span class="o">+</span><span class="mi">1</span><span class="si">}</span><span class="s1">&#39;</span><span class="p">,</span> <span class="s1">&#39;excitatory_cells&#39;</span><span class="p">),</span>
+            <span class="n">filename</span> <span class="o">=</span> <span class="n">filename</span><span class="p">,</span>
         <span class="p">)</span>
 
         <span class="n">exc_temp</span> <span class="o">=</span> <span class="p">[]</span>
