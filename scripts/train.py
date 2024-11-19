@@ -16,25 +16,31 @@ from dendritic_modeling.utils import (load_MNIST,
                                       save_dict, 
                                       Shaper)
 
-logger.info('\nimports complete\n')
+logger.info('imports complete\n')
+
+torch.manual_seed(47)
+torch.cuda.manual_seed(47)
+torch.cuda.manual_seed_all(47)
+torch.backends.cudnn.deterministic = True
+torch.backends.cudnn.benchmark = False
 
 
 if __name__ == '__main__':
 
-    name = 'example'
+    name = 'train'
     
     # define model hparams
     model_hp = {
         'input_dim' : 784,
         'excitatory_layer_sizes' : [10,],
         'inhibitory_layer_sizes' : [20,],
-        'excitatory_branch_factors' : [2,2,2],
+        'excitatory_branch_factors' : [1,2],
         'inhibitory_branch_factors' : [],
         'ee_synapses_per_branch_per_layer' : [24,],
         'ei_synapses_per_branch_per_layer' : [100,],
         'ie_synapses_per_branch_per_layer' : [1,],
         'ii_synapses_per_branch_per_layer' : [],
-        'reactivate' : False,
+        'reactivate' : True,
         'somatic_synapses' : True,
     }
 
@@ -42,7 +48,7 @@ if __name__ == '__main__':
     train_hp = {
         'train_valid_split' : 0.8,
         'lr' : 1e-3,
-        'epochs' : 300,
+        'epochs' : 200,
         'batch_size' : 1024,
     }
 
@@ -113,18 +119,22 @@ if __name__ == '__main__':
 
     logger.info('creating param visuals.....')
     plot_einet_params(
-        einet = clf.net, save_root = os.path.join(save_path, 'param_visuals'),
-        reshape_fn = shaper.reshape, reshape_exc_syn = True, logspace = False,
+        einet = clf.net, 
+        save_root = os.path.join(save_path, 'param_visuals'),
+        reshape_fn = shaper.reshape, 
+        reshape_exc_syn = True, 
+        logspace = True,
     )
     logger.info('  done..\n')
 
     # split inputs into list of tensors
     #   each element in list is tensor of all samples with same label
-    input_list = split_MNIST_inputs(*data['train'][:])
+    input_list = split_MNIST_inputs(*data['valid'][:])
 
     logger.info('creating activation visuals.....')
     plot_einet_activations(
-        einet = clf.net, input_list = input_list,
+        einet = clf.net, 
+        input_list = input_list,
         save_root = os.path.join(save_path, 'activation_visuals'),
     )
     logger.info('  done..\n')

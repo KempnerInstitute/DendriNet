@@ -50,6 +50,39 @@ def shape_helper(condition, reshape_fn, weight, pruned, mask = None):
                 None if mask is None else mask.view(1,-1))
 
 
+def plot_branch_weights(
+    save_path, 
+    branches_to_output, 
+    logspace = False,
+    save_in_dir = False,
+    filename = 'image',
+    ):
+    if logspace:
+        block = branches_to_output.log_block()
+        title = 'Upstream Branch Log Weights'
+    else:
+        block = branches_to_output.block()
+        title = 'Upstream Branch Weights'
+    
+    fig, ax = plt.subplots()
+    fig.suptitle(title)
+    im = ax.imshow(block.detach().numpy(), cmap = 'viridis')
+
+    add_colorbars(fig, [ax], [im], 'right', '5%', 0.05)
+
+    if save_in_dir:
+        save_path = os.path.join(save_path, 'branch_weights')
+        file_path = os.path.join(save_path, f'{filename}.jpeg')
+    else:
+        file_path = os.path.join(save_path, 'branch_weights.jpeg')
+    
+    if not os.path.exists(save_path):
+        os.makedirs(save_path, exist_ok = True)    
+    
+    fig.savefig(file_path)
+    plt.close(fig)
+
+
 def plot_excitation_inhibition_weights(
     soma_branch, save_path, 
     excitatory_synapse_weight, 
@@ -64,6 +97,8 @@ def plot_excitation_inhibition_weights(
     logspace = False,
     reactivation_curve = None, 
     linspace = None,
+    save_in_dir = False,
+    filename = 'image',
     ):
 
     (
@@ -209,16 +244,28 @@ def plot_excitation_inhibition_weights(
                  reactivation_curve.detach().numpy(), 
                  color = 'k')
 
+    if save_in_dir:
+        save_path = os.path.join(save_path, soma_branch)
+        file_path = os.path.join(save_path, f'{filename}.jpeg')
+    else:
+        file_path = os.path.join(save_path, f'{soma_branch}.jpeg')
+    
     if not os.path.exists(save_path):
         os.makedirs(save_path, exist_ok = True)
     
-    fig.savefig(os.path.join(save_path, f'{soma_branch}.jpeg'))
+    fig.savefig(file_path)
     plt.close(fig)
 
 
 def plot_dendrinet_params(
-        dendrinet, save_root, 
-        reshape_fn = None, reshape_exc_syn = False, reshape_inh_syn = False, logspace = False,
+        dendrinet, 
+        save_root, 
+        reshape_fn = None, 
+        reshape_exc_syn = False, 
+        reshape_inh_syn = False, 
+        logspace = False,
+        save_in_dir = False,
+        filename = 'image',
     ):
     layer_sizes = dendrinet.layer_sizes
     n_soma = dendrinet.n_soma
@@ -233,12 +280,25 @@ def plot_dendrinet_params(
         n_layers = dendrinet.n_branch_layers
 
     for i in range(n_layers):
+        level = ('soma' 
+                 if i == dendrinet.n_branch_layers 
+                 else f'branch layer {dendrinet.n_branch_layers - i}')
+
         if somatic_synapses and i == n_layers - 1:
             layer = dendrinet.soma_layer
             branches_per_soma = 1
         else:
             layer = dendrinet.branch_layers[i]
             branches_per_soma = int(layer_sizes[i] / n_soma)
+
+        if layer.input_branches:
+            plot_branch_weights(
+                save_path = os.path.join(save_root, level),
+                branches_to_output = layer.branches_to_output,
+                logspace = logspace,
+                save_in_dir = save_in_dir,
+                filename = filename,
+            )
 
         if input_inh:
             if logspace:
@@ -294,10 +354,6 @@ def plot_dendrinet_params(
             ).t()
             reactivation_curve = reactivation_curve.chunk(n_soma, dim = 0)
 
-        level = ('soma' 
-                 if i == dendrinet.n_branch_layers 
-                 else f'branch layer {dendrinet.n_branch_layers - i}')
-
         for j in range(n_soma):
             for k in range(branches_per_soma):
                 exc_syn_weight = excitatory_synapse_weight[j][k]
@@ -331,6 +387,8 @@ def plot_dendrinet_params(
                     logspace = logspace,
                     reactivation_curve = react_curve, 
                     linspace = linspace,
+                    save_in_dir = save_in_dir,
+                    filename = filename,
                 )
 
     if input_inh:
@@ -376,12 +434,21 @@ def plot_dendrinet_params(
             reshape_exc_syn = reshape_exc_syn, 
             reshape_inh_syn = reshape_inh_syn,
             logspace = logspace,
-            reactivation_curve = None, linspace = None,
+            reactivation_curve = None, 
+            linspace = None,
+            save_in_dir = save_in_dir,
+            filename = filename,
         )
 
 
 def plot_einet_params(
-        einet, save_root, reshape_fn = None, reshape_exc_syn = False, logspace = False,
+    einet, 
+    save_root, 
+    reshape_fn = None, 
+    reshape_exc_syn = False, 
+    logspace = False,
+    save_in_dir = False,
+    filename = 'image',
     ):
     einet = einet.to('cpu')
 
@@ -398,6 +465,8 @@ def plot_einet_params(
             reshape_exc_syn = reshape_exc_syn if i == 0 else False, 
             reshape_inh_syn = False,
             logspace = logspace,
+            save_in_dir = save_in_dir,
+            filename = filename,
         )
         plot_dendrinet_params(
             dendrinet = exc_dendrinet, 
@@ -408,10 +477,19 @@ def plot_einet_params(
             reshape_exc_syn = reshape_exc_syn if i == 0 else False, 
             reshape_inh_syn = False,
             logspace = logspace,
+            save_in_dir = save_in_dir,
+            filename = filename,
         )
 
 
-def plot_eng_mod10_einet_params(einet, save_root, reshape_fn = None, logspace = False):
+def plot_eng_mod10_einet_params(
+    einet, 
+    save_root, 
+    reshape_fn = None, 
+    logspace = False,
+    save_in_dir = False,
+    filename = 'image',
+    ):
     einet = einet.to('cpu')
 
     for i in range(len(einet.layers)):
@@ -419,35 +497,64 @@ def plot_eng_mod10_einet_params(einet, save_root, reshape_fn = None, logspace = 
         exc_dendrinet = einet.layers[i].excitatory_cells
 
         plot_dendrinet_params(
-            dendrinet = inh_dendrinet, save_root = os.path.join(save_root, f'ei_layer{i+1}', 'inhibitory cells'),
-            reshape_fn = reshape_fn, reshape_exc_syn = False if i == 2 else True, reshape_inh_syn = False,
+            dendrinet = inh_dendrinet, 
+            save_root = os.path.join(save_root, f'ei_layer{i+1}', 'inhibitory cells'),
+            reshape_fn = reshape_fn, 
+            reshape_exc_syn = False if i == 2 else True, 
+            reshape_inh_syn = False,
             logspace = logspace,
+            save_in_dir = save_in_dir,
+            filename = filename,
         )
         plot_dendrinet_params(
-            dendrinet = exc_dendrinet, save_root = os.path.join(save_root, f'ei_layer{i+1}', 'excitatory cells'),
-            reshape_fn = reshape_fn, reshape_exc_syn = False if i == 2 else True, reshape_inh_syn = False,
+            dendrinet = exc_dendrinet, 
+            save_root = os.path.join(save_root, f'ei_layer{i+1}', 'excitatory cells'),
+            reshape_fn = reshape_fn, 
+            reshape_exc_syn = False if i == 2 else True, 
+            reshape_inh_syn = False,
             logspace = logspace,
+            save_in_dir = save_in_dir,
+            filename = filename,
         )
 
 
-def activation_boxplots(activation_list, title, fname, save_path):
+def activation_boxplots(
+    activation_list, 
+    soma_branch, 
+    save_path,
+    save_in_dir = False,
+    filename = 'image',
+    ):
     activation_list = [act.detach().cpu().numpy() for act in activation_list]
 
     fig = plt.figure()
     plt.boxplot(activation_list)
-    plt.title(title)
+    plt.title(f'Activation Distribution for {soma_branch}')
     plt.gca().set_xticklabels([i for i in range(10)])
     plt.xlabel('Input Digit')
     plt.ylabel('Values')
 
+    if save_in_dir:
+        save_path = os.path.join(save_path, soma_branch)
+        file_path = os.path.join(save_path, f'{filename}.jpeg')
+    else:
+        file_path = os.path.join(save_path, f'{soma_branch}.jpeg')
+    
     if not os.path.exists(save_path):
         os.makedirs(save_path, exist_ok = True)
 
-    fig.savefig(os.path.join(save_path, fname))
+    fig.savefig(file_path)
     plt.close(fig)
 
 
-def activation_means(means, xticks, xtick_labels, save_path):
+def activation_means(
+    means, 
+    xticks, 
+    xtick_labels, 
+    save_path,
+    save_in_dir = False,
+    filename = 'image',
+    ):
     means = means.t().detach().cpu().numpy()
     x = means.shape[0]
     y = means.shape[1]
@@ -467,15 +574,26 @@ def activation_means(means, xticks, xtick_labels, save_path):
     ax.set_xticks(xticks)
     ax.set_xticklabels(xtick_labels, rotation = 45)
 
+    if save_in_dir:
+        save_path = os.path.join(save_path, 'activation_means')
+        file_path = os.path.join(save_path, f'{filename}.jpeg')
+    else:
+        file_path = os.path.join(save_path, 'activation_means.jpeg')
+    
     if not os.path.exists(save_path):
         os.makedirs(save_path, exist_ok = True)
     
-    fig.savefig(os.path.join(save_path, 'activation_means.jpeg'))
+    fig.savefig(file_path)
     plt.close(fig)
 
 
 def plot_dendrinet_activations(
-        dendrinet, exc_input_list, inh_input_list, save_root,
+    dendrinet, 
+    exc_input_list, 
+    inh_input_list, 
+    save_root,
+    save_in_dir = False,
+    filename = 'image',
     ):
     layer_sizes = dendrinet.layer_sizes
     n_soma = dendrinet.n_soma
@@ -519,20 +637,34 @@ def plot_dendrinet_activations(
                     activation_list.append(chunk)
                     means[n,b,k] = chunk.mean(dim = 0)
                 
-                fname = f'soma{n}_branch{b}'
+                soma_branch = f'soma{n}_branch{b}'
                 activation_boxplots(
                     activation_list = activation_list,
-                    title = f'Activation Distribution for {fname}',
-                    fname = fname, save_path = os.path.join(save_root, level),
+                    soma_branch = soma_branch,
+                    save_path = os.path.join(save_root, level),
+                    save_in_dir = save_in_dir,
+                    filename = filename,
                 )
 
         xticks = [branches_per_soma * n for n in range(n_soma)]
         xtick_labels = [f'soma{n}' for n in range(n_soma)]
-        activation_means(means.flatten(0,1), xticks, xtick_labels, 
-                         os.path.join(save_root, level))
+        activation_means(
+            means = means.flatten(0,1),
+            xticks = xticks,
+            xtick_labels = xtick_labels,
+            save_path = os.path.join(save_root, level),
+            save_in_dir = save_in_dir,
+            filename = filename,
+        )
 
 
-def plot_einet_activations(einet, input_list, save_root):
+def plot_einet_activations(
+    einet, 
+    input_list, 
+    save_root,
+    save_in_dir = False,
+    filename = 'image',
+    ):
     device = 'cuda' if torch.cuda.is_available() else 'cpu'
     einet = einet.to(device)
 
@@ -547,9 +679,9 @@ def plot_einet_activations(einet, input_list, save_root):
             dendrinet = inh_dendrinet, 
             exc_input_list = exc_input_list, 
             inh_input_list = inh_input_list,
-            save_root = os.path.join(save_root, 
-                                     f'ei_layer{i+1}', 
-                                     'inhibitory_cells'),
+            save_root = os.path.join(save_root, f'ei_layer{i+1}', 'inhibitory_cells'),
+            save_in_dir = save_in_dir,
+            filename = filename,
         )
 
         inh_temp = []
@@ -562,9 +694,9 @@ def plot_einet_activations(einet, input_list, save_root):
             dendrinet = exc_dendrinet, 
             exc_input_list = exc_input_list, 
             inh_input_list = inh_input_list,
-            save_root = os.path.join(save_root, 
-                                     f'ei_layer{i+1}', 
-                                     'excitatory_cells'),
+            save_root = os.path.join(save_root, f'ei_layer{i+1}', 'excitatory_cells'),
+            save_in_dir = save_in_dir,
+            filename = filename,
         )
 
         exc_temp = []
@@ -574,9 +706,8 @@ def plot_einet_activations(einet, input_list, save_root):
         exc_input_list = exc_temp
 
 
-
 def dendrinet_activations_to_csv(
-        dendrinet, exc_input_list, inh_input_list, save_root,
+        dendrinet, exc_input_list, inh_input_list, save_root, filename = 'activation_components',
     ):
     layer_sizes = dendrinet.layer_sizes
     n_soma = dendrinet.n_soma
@@ -587,10 +718,14 @@ def dendrinet_activations_to_csv(
 
     digit_data = []
     compartment_data = []
-    exc_data = []
-    inh_data = []
-    vinf_data = []
-    vout_data = []
+    exc_mean_data = []
+    exc_sdev_data = []
+    inh_mean_data = []
+    inh_sdev_data = []
+    vinf_mean_data = []
+    vinf_sdev_data = []
+    vout_mean_data = []
+    vout_sdev_data = []
 
     branch_input = [None] * len(exc_input_list)
     for i in range(n_branch_layers+1):
@@ -603,6 +738,8 @@ def dendrinet_activations_to_csv(
         branch_excitation = layer.branch_excitation
         if input_inhibitory:
             branch_inhibition = layer.branch_inhibition
+        
+        reactivate = layer.reactivate
 
         try:
             branches_per_soma = int(layer_sizes[i] / n_soma)
@@ -613,7 +750,8 @@ def dendrinet_activations_to_csv(
         if input_inhibitory:
             inh_chunks = []
         vinf_chunks = []
-        vout_chunks = []
+        if reactivate:
+            vout_chunks = []
 
         for j in range(len(exc_input_list)):
             exc = branch_excitation(exc_input_list[j])
@@ -630,57 +768,82 @@ def dendrinet_activations_to_csv(
                 denom = denom + inh
 
             vinf = numer / denom
-            vout = layer.reactivation(vinf)
 
-            branch_input[j] = vout
+            if reactivate:
+                vout = layer.reactivation(vinf)
+
+            branch_input[j] = vout if reactivate else vinf
             # list, tuples, tensors -> numbers, somas, branches 
             exc_chunks.append(exc.chunk(n_soma, dim = -1))
             if input_inhibitory:
                 inh_chunks.append(inh.chunk(n_soma, dim = -1))
             vinf_chunks.append(vinf.chunk(n_soma, dim = -1))
-            vout_chunks.append(vout.chunk(n_soma, dim = -1))
+            if reactivate:
+                vout_chunks.append(vout.chunk(n_soma, dim = -1))
 
         for n in range(n_soma):
             for b in range(branches_per_soma):
                 for k in range(len(exc_input_list)):
 
-                    exc = exc_chunks[k][n][:,b]
-                    inh = (inh_chunks[k][n][:,b] 
-                           if input_inhibitory else [None] * exc.shape[0])
-                    vinf = vinf_chunks[k][n][:,b]
-                    vout = vinf_chunks[k][n][:,b]
+                    exc = exc_chunks[k][n][:,b].detach().cpu()
+                    exc_mean_data.append(exc.mean(dim = 0).item())
+                    exc_sdev_data.append(exc.std(dim = 0).item())
 
-                    digit_data += [k] * exc.shape[0]
+                    if input_inhibitory:
+                        inh = inh_chunks[k][n][:,b].detach().cpu()
+                        inh_mean_data.append(inh.mean(dim = 0).item())
+                        inh_sdev_data.append(inh.std(dim = 0).item())
+                    else:
+                        inh_mean_data.append(None)
+                        inh_sdev_data.append(None)
+                    
+                    vinf = vinf_chunks[k][n][:,b].detach().cpu()
+                    vinf_mean_data.append(vinf.mean(dim = 0).item())
+                    vinf_sdev_data.append(vinf.std(dim = 0).item())
+
+                    if reactivate:
+                        vout = vout_chunks[k][n][:,b].detach().cpu()
+                        vout_mean_data.append(vout.mean(dim = 0).item())
+                        vout_sdev_data.append(vout.std(dim = 0).item())
+                    else:
+                        vout_mean_data.append(None)
+                        vout_sdev_data.append(None)
+
+                    digit_data.append(k)
                     
                     compartment = (f'soma{n}' 
                                    if i == n_branch_layers 
                                    else f'soma{n}_branch{b}')
-                    compartment_data += [compartment] * exc.shape[0]
-
-                    exc_data.append(exc)
-                    inh_data.append(inh)
-                    vinf_data.append(vinf)
-                    vout_data.append(vout)
+                    compartment_data.append(compartment)
 
     digit = pd.Series(digit_data)
     compartment = pd.Series(compartment_data)
-    g_exc = pd.Series(torch.cat(exc_data, dim = 0).detach().cpu().numpy())
-    g_inh = pd.Series(torch.cat(inh_data, dim = 0).detach().cpu().numpy() 
-                      if input_inhibitory else inh_data)
-    v_inf = pd.Series(torch.cat(vinf_data, dim = 0).detach().cpu().numpy())
-    v_out = pd.Series(torch.cat(vout_data, dim = 0).detach().cpu().numpy())
+    
+    g_exc_mean = pd.Series(exc_mean_data)
+    g_exc_sdev = pd.Series(exc_sdev_data)
+    
+    g_inh_mean = pd.Series(inh_mean_data)
+    g_inh_sdev = pd.Series(inh_sdev_data)
+    
+    v_inf_mean = pd.Series(vinf_mean_data)
+    v_inf_sdev = pd.Series(vinf_sdev_data)
+    
+    v_out_mean = pd.Series(vout_mean_data)
+    v_out_sdev = pd.Series(vout_sdev_data)
 
     df = pd.DataFrame({
         'digit' : digit, 'compartment' : compartment,
-        'g_exc' : g_exc, 'g_inh' : g_inh,
-        'v_inf' : v_inf, 'v_out' : v_out,
+        'g_exc_mean' : g_exc_mean, 'g_exc_sdev' : g_exc_sdev,
+        'g_inh_mean' : g_inh_mean, 'g_inh_sdev' : g_inh_sdev,
+        'v_inf_mean' : v_inf_mean, 'v_inf_sdev' : v_inf_sdev,
+        'v_out_mean' : v_out_mean, 'v_out_sdev' : v_out_sdev,
     })
 
     os.makedirs(save_root, exist_ok = True)
-    df.to_csv(os.path.join(save_root, 'activation_components.csv'))
+    df.to_csv(os.path.join(save_root, f'{filename}.csv'))
 
 
-def einet_activations_to_csv(einet, input_list, save_root):
+def einet_activations_to_csv(einet, input_list, save_root, filename = 'activation_components'):
     device = 'cuda' if torch.cuda.is_available() else 'cpu'
     einet = einet.to(device)
 
@@ -695,9 +858,8 @@ def einet_activations_to_csv(einet, input_list, save_root):
             dendrinet = inh_dendrinet, 
             exc_input_list = exc_input_list, 
             inh_input_list = inh_input_list,
-            save_root = os.path.join(save_root, 
-                                     f'ei_layer{i+1}', 
-                                     'inhibitory_cells'),
+            save_root = os.path.join(save_root, f'ei_layer{i+1}', 'inhibitory_cells'),
+            filename = filename,
         )
 
         inh_temp = []
@@ -710,9 +872,8 @@ def einet_activations_to_csv(einet, input_list, save_root):
             dendrinet = exc_dendrinet, 
             exc_input_list = exc_input_list, 
             inh_input_list = inh_input_list,
-            save_root = os.path.join(save_root, 
-                                     f'ei_layer{i+1}', 
-                                     'excitatory_cells'),
+            save_root = os.path.join(save_root, f'ei_layer{i+1}', 'excitatory_cells'),
+            filename = filename,
         )
 
         exc_temp = []
