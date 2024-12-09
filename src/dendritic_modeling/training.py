@@ -10,6 +10,7 @@ import time
 from copy import deepcopy
 
 import wandb
+
 import numpy as np
 import matplotlib.pyplot as plt
 from sklearn.metrics import (accuracy_score,
@@ -23,6 +24,23 @@ from torch.utils.data import DataLoader
 from torch.nn.utils import clip_grad_value_
 
 from dendritic_modeling import logger
+from dendritic_modeling.plot_utils import plot_NLL_loss_curves
+
+
+class CustomWeightDecayOptimizer(object):
+
+    def __init__(self, model, optimizer, weight_decay = 0.1):
+        self.model = model
+        self.optimizer = optimizer
+        self.weight_decay = weight_decay
+    
+    def zero_grad(self):
+        self.optimizer.zero_grad()
+    
+    def step(self):
+        lr = self.optimizer.param_groups[0]['lr']
+        self.model.decay_weights(weight_decay = lr * self.weight_decay)
+        self.optimizer.step()
 
 
 
@@ -94,6 +112,7 @@ class TrainerMLE(object):
             epochs = 100, 
             batch_size = 256, 
             shuffle = True, 
+            load_best_state_dict = True,
             plot_losses = False, 
             save_path = None,
             ):
@@ -305,14 +324,16 @@ class TrainerMLE(object):
                            "valid_loss": float(valid_loss),
                            "epoch": epoch})
 
-        # load best model
-        model.load_state_dict(best_state_dict)
-        
         results = {
             'best epoch' : best_epoch, 
             'train losses' : train_losses, 
             'valid losses' : valid_losses,
             }
+
+        if load_best_state_dict:
+            model.load_state_dict(best_state_dict)
+        else:
+            results['best state dict'] = best_state_dict
         
         if save_boolean:
             with open(save_path+'/losses.json', 'w') as f:
@@ -320,28 +341,16 @@ class TrainerMLE(object):
 
         # plot loss curves
         if plot_losses:
-            
-            Train_losses = np.array(train_losses)
-            Train_losses[np.where(Train_losses > 5)] = 5
-            
-            Valid_losses = np.array(valid_losses)
-            Valid_losses[np.where(Valid_losses > 5)] = 5
-            
-            fig = plt.figure()
-            
-            plt.plot(range(1,epochs+1), Train_losses, '0.4', label = 'training')
-            plt.plot(range(1,epochs+1), Valid_losses, 'b', label = 'validation')
-            
-            plt.xlabel('Epochs')
-            plt.xticks(range(0,epochs+1,int(epochs // 10)))
-            plt.ylabel('Negative Log Likelihood')
-            plt.title('Loss Curves')
-            plt.legend()
-
-            results['loss curves'] = fig
-
             if save_boolean:
-                fig.savefig(save_path+'/loss_curves.jpeg')
-                plt.close(fig)
+                plot_NLL_loss_curves(
+                    train_losses, 
+                    valid_losses, 
+                    epochs,
+                    save_path,
+                )
+            else:
+                results['loss curves'] = plot_NLL_loss_curves(
+                    train_losses, valid_losses, epochs,
+                )
             
         return results
