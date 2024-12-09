@@ -8,6 +8,7 @@ and model evaluation.
 import os
 import json
 import shutil
+from copy import deepcopy
 
 import torch
 import torchvision
@@ -250,6 +251,55 @@ def load_MNIST_modulo10(shuffle_iterations = 2,
             ix1 = torch.randperm(input1.shape[0])
             input1 = input1[ix1]
             label1 = label1[ix1]
+        
+        inputs = torch.cat(inputs, dim = 0)
+        labels = torch.cat(labels, dim = 0)
+
+        data[key] = Data(inputs, labels)
+
+    return data
+
+
+def load_MNIST_task_switch(train_valid_split = 1, cache_dir = None):
+    data = load_MNIST(train_valid_split, cache_dir)
+
+    for key, ds in data.items():
+        input0, label0 = ds[:]
+        input1 = deepcopy(input0)
+
+        input0[:,0] = 1
+        input0[:,1] = 0
+
+        input1[:,0] = 0
+        input1[:,1] = 1
+        label1 = 9 - label0
+
+        inputs = torch.cat([input0, input1], dim = 0)
+        labels = torch.cat([label0, label1], dim = 0)
+        
+        data[key] = Data(inputs, labels)
+    
+    return data
+
+
+def load_MNIST_task_switch0(train_valid_split = 1, cache_dir = None):
+    data = load_MNIST(train_valid_split, cache_dir)
+
+    for key, ds in data.items():
+        raw_input, raw_label = ds[:]
+        raw_input[:,:10] = 0
+
+        inputs = []
+        labels = []
+
+        for i in range(10):
+            task_input = deepcopy(raw_input)
+            task_input[:,i] = 1
+
+            task_label = (raw_label + i) % 10
+
+            inputs.append(task_input)
+            labels.append(task_label)
         
         inputs = torch.cat(inputs, dim = 0)
         labels = torch.cat(labels, dim = 0)
