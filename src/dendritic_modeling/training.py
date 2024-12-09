@@ -177,7 +177,8 @@ class TrainerMLE(object):
         
         train_losses = []
         valid_losses = []
-        
+        gradient_logs = {}  # Dictionary to store gradients for visualization
+
         stime = time.time()
         
         best_loss = torch.tensor(float('inf'))
@@ -204,9 +205,13 @@ class TrainerMLE(object):
                     # backpropagate loss
                     nll.backward()
                     grad_norms = {}
+                    
                     for name, param in model.named_parameters():
-                        if param.grad is not None:
-                            grad_norms[name] = param.grad.norm().item()
+                        if param.grad is not None:  # Ensure gradient exists
+                            if "previous" in locals():  # Ensure there's a previous layer
+                                scaling_factor = torch.norm(param.grad) / (torch.norm(previous) + 1e-8)
+                                param.grad *= scaling_factor
+                            previous = param.grad  # Update for the next layer
 
                     # Optionally log with wandb or print
                     if wandb.run is not None:
@@ -221,6 +226,8 @@ class TrainerMLE(object):
                     self.optimizer.step()
                     # aggregate training loss
                     train_loss += nll.item()
+            
+                    gradient_logs[f"epoch_{epoch}"] = self._log_gradients(model)
 
                     # profiler for a couple of steps
                     if profiler is not None:
@@ -275,12 +282,16 @@ class TrainerMLE(object):
                 metrics = compute_metrics_classification(all_preds, all_labels)
 
                 if wandb.run is not None:
+                    # Log metrics and gradients together
                     wandb.log(
-                        {"val_accuracy": metrics['accuracy'], 
-                         "val_precision": metrics['precision'],
-                         "val_recall": metrics['recall'],
-                         "val_f1_score": metrics['f1_score'],
-                         "epoch": epoch}
+                        {
+                            "val_accuracy": metrics['accuracy'], 
+                            #"val_precision": metrics['precision'],
+                            #"val_recall": metrics['recall'],
+                            #"val_f1_score": metrics['f1_score'],
+                            #"epoch": epoch,
+                            #**{f"grad_{layer_name}": mean_grad for layer_name, mean_grad in gradient_logs.items()}
+                        }
                     )
             
             # compute mean validation loss and save to list
@@ -374,3 +385,12 @@ class TrainerMLE(object):
                 plt.close(fig)
             
         return results
+    
+    
+    def _log_gradients(self, model):
+        """Computes the mean gradient for each layer in the model."""
+        grad_logs = {}
+        for name, param in model.named_parameters():
+            if param.grad is not None:
+                grad_logs[name] = param.grad.abs().mean().item()
+        return grad_logs

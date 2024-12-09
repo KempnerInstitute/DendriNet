@@ -130,17 +130,28 @@ class TopKLinear(nn.Module):
         self.param_space = param_space
         self.init_method = init_method
     
-    def initialize(self):
+    # def initialize(self):
+    #     if self.init_method in TOPK_INIT_METHODS:
+    #         init_func = TOPK_INIT_METHODS[self.init_method]
+    #         init_func(self.pre_w)
+    #         #TODO: Accept hyperparameters for initialization
+    #         # init_func(self.pre_w, **self.init_params) 
+    #     else:
+    #         raise ValueError(
+    #             f'Invalid initialization method: {self.init_method}. ',
+    #             f'Choose from {list(TOPK_INIT_METHODS.keys())}')
+    
+    def initialize(self, depth=1, total_depth=1):
+        scale = 1 / (depth * total_depth)
         if self.init_method in TOPK_INIT_METHODS:
             init_func = TOPK_INIT_METHODS[self.init_method]
             init_func(self.pre_w)
-            #TODO: Accept hyperparameters for initialization
-            # init_func(self.pre_w, **self.init_params) 
+            self.pre_w.data *= scale  # Scale weights based on depth
         else:
             raise ValueError(
                 f'Invalid initialization method: {self.init_method}. ',
                 f'Choose from {list(TOPK_INIT_METHODS.keys())}')
-    
+                
     def forward(self, x):
         # identify top K strongest synaptic connections onto each dendritic branch
         pruned_weight = self.pruned_weight()
@@ -279,7 +290,16 @@ class BlockLinear(nn.Module):
         sum_g = self.log_weight.exp().sum(dim = 1)
         return sum_g
 
+class GradientScaler(torch.autograd.Function):
+    @staticmethod
+    def forward(ctx, input, scale):
+        ctx.save_for_backward(scale)
+        return input
 
+    @staticmethod
+    def backward(ctx, grad_output):
+        scale, = ctx.saved_tensors
+        return grad_output * scale, None
 class DendriticBranchLayer(nn.Module):
     """
     Emulates dendritic computation along a layer of branches (equally distant
@@ -397,43 +417,57 @@ class DendriticBranchLayer(nn.Module):
 
         self.initialize()
     
-    def initialize(self):
+    # def initialize(self):
+    #     with torch.no_grad():
+    #         self.branch_excitation.initialize()
+    #         if self.input_inhibitory:
+    #             self.branch_inhibition.initialize()
+            
+    #         if self.input_branches:
+    #             sum_synapse_conductances = self.branch_excitation.weight().sum(dim = 1)
+    #             if self.input_inhibitory:
+    #                 sum_synapse_conductances += self.branch_inhibition.weight().sum(dim = 1)
+    #             self.branches_to_output.initialize(sum_synapse_conductances)
+            
+    #         if self.reactivate:
+    #             nn.init.constant_(self.log_m, 1.8)
+    #             nn.init.constant_(self.log_b, -0.7)
+
+    def initialize(self, depth=1, total_depth=1):
         with torch.no_grad():
-            self.branch_excitation.initialize()
+            self.branch_excitation.initialize(depth, total_depth)
             if self.input_inhibitory:
-                self.branch_inhibition.initialize()
-            
+                self.branch_inhibition.initialize(depth, total_depth)
             if self.input_branches:
-                sum_synapse_conductances = self.branch_excitation.weight().sum(dim = 1)
+                sum_synapse_conductances = self.branch_excitation.weight().sum(dim=1)
                 if self.input_inhibitory:
-                    sum_synapse_conductances += self.branch_inhibition.weight().sum(dim = 1)
+                    sum_synapse_conductances += self.branch_inhibition.weight().sum(dim=1)
                 self.branches_to_output.initialize(sum_synapse_conductances)
-            
             if self.reactivate:
                 nn.init.constant_(self.log_m, 1.8)
                 nn.init.constant_(self.log_b, -0.7)
-    
-    def forward(self, x, inhibitory_input = None, branch_input = None):
-        # compute excitation and inhibition along each branch in layer
+                
+    def forward(self, x, inhibitory_input=None, branch_input=None, depth=1, total_depth=1):
         excitation = self.branch_excitation(x)
-        # initialize numerator and denominator variables
         numerator = excitation
         denominator = excitation + 1
-        # if receiving inputs from upstream branches
-        if self.input_branches:
-            # compute current contribution from upstream branches and add to numerator
-            current = self.branches_to_output(branch_input)
-            numerator = numerator + current
-            # compute total conductance of upstream branches and add to denominator
-            conductance = self.branches_to_output.sum_conductances()
-            denominator = denominator + conductance
-        # if receiving inhibitory inputs
-        if self.input_inhibitory:
-            denominator = denominator + self.branch_inhibition(inhibitory_input)
-        # current divided by conductance is voltage
-        voltage = numerator / denominator
-        return self.reactivation(voltage) if self.reactivate else voltage
 
+        if self.input_branches:
+            current = self.branches_to_output(branch_input)
+            numerator += current
+            conductance = self.branches_to_output.sum_conductances()
+            denominator += conductance
+
+        if self.input_inhibitory:
+            denominator += self.branch_inhibition(inhibitory_input)
+
+        voltage = numerator / denominator
+
+        # Apply gradient scaling
+        scale = torch.tensor((total_depth - depth + 1) / total_depth, device=voltage.device)
+        scaled_voltage = GradientScaler.apply(voltage, scale)
+
+        return self.reactivation(scaled_voltage) if self.reactivate else scaled_voltage
     def reactivation(self, V):
         m, b = self.log_m.exp(), self.log_b.exp()
         return (torch.tanh(m * (V - b)) + 1) / 2
@@ -641,19 +675,15 @@ class DendriNet(nn.Module):
         self.somatic_synapses = somatic_synapses
         self.layer_sizes = layer_sizes
     
-    def forward(self, x, inhibitory_input = None):
-        # branch_input to first branch layer is None
+    def forward(self, x, inhibitory_input=None):
         output = None
-        # dendritic computation
-        for i in range(self.n_branch_layers):
-            # recursively update branch_input from one branch layer to the next
-            output = self.branch_layers[i](x, inhibitory_input, output)
-        # process information at the soma layer
+        total_depth = len(self.branch_layers) + 1  # Including soma layer
+        for i, branch_layer in enumerate(self.branch_layers):
+            output = branch_layer(x, inhibitory_input, output, depth=(i + 1), total_depth=total_depth)
         if self.somatic_synapses:
-            output = self.soma_layer(x, inhibitory_input, output)
+            output = self.soma_layer(x, inhibitory_input, output, depth=total_depth, total_depth=total_depth)
         else:
             output = self.soma_layer(output) / self.soma_layer.sum_conductances()
-        # return output
         return output
     
     def sum_weights(self, pruned = False):
@@ -692,3 +722,16 @@ class DendriNet(nn.Module):
         else:
             exc_total = self.sum_weights(pruned = pruned)
             return (exc_total + 1e-6).log()
+
+    def initialize(self):
+        """
+        Initialize weights for all layers in the network.
+
+        The initialization considers the depth of each branch layer 
+        and optionally applies depth-based scaling.
+        """
+        total_depth = len(self.branch_layers) + 1  # Including soma layer
+        for i, branch_layer in enumerate(self.branch_layers):
+            branch_layer.initialize(depth=(i + 1), total_depth=total_depth)  # Pass depth info
+        if self.somatic_synapses:
+            self.soma_layer.initialize(depth=total_depth, total_depth=total_depth)
