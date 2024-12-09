@@ -6,11 +6,12 @@ import torch
 import torchinfo
 
 from dendritic_modeling import logger
-from dendritic_modeling.training import TrainerMLE
+from dendritic_modeling.training import CustomWeightDecayOptimizer, TrainerMLE
 from dendritic_modeling.models import EINetClassifierNLL
 from dendritic_modeling.plot_utils import (plot_einet_params, 
                                            plot_einet_activations)
 from dendritic_modeling.utils import (load_MNIST, 
+                                      load_MNIST_task_switch,
                                       split_MNIST_inputs, 
                                       accuracy_score, 
                                       save_dict, 
@@ -35,26 +36,31 @@ if __name__ == '__main__':
         'excitatory_layer_sizes' : [10,],
         'inhibitory_layer_sizes' : [20,],
         'excitatory_branch_factors' : [1,2],
-        'inhibitory_branch_factors' : [],
+        'inhibitory_branch_factors' : [1,],
         'ee_synapses_per_branch_per_layer' : [24,],
         'ei_synapses_per_branch_per_layer' : [100,],
-        'ie_synapses_per_branch_per_layer' : [1,],
+        'ie_synapses_per_branch_per_layer' : [2,],
         'ii_synapses_per_branch_per_layer' : [],
         'reactivate' : True,
-        'somatic_synapses' : True,
+        'somatic_synapses' : False,
     }
 
     # define training hparams
     train_hp = {
         'train_valid_split' : 0.8,
         'lr' : 1e-3,
-        'epochs' : 200,
+        'epochs' : 10,
         'batch_size' : 1024,
+        'weight_decay' : 0.1,
     }
 
     logger.info('loading mnist ...')
     data = load_MNIST(train_valid_split = train_hp['train_valid_split'], 
                       cache_dir=os.getcwd())
+    # data = load_MNIST_task_switch(
+    #     train_valid_split = train_hp['train_valid_split'],
+    #     cache_dir = os.getcwd(),
+    # )
 
     # initialize classifier
     clf = EINetClassifierNLL(**model_hp)
@@ -69,11 +75,16 @@ if __name__ == '__main__':
 
     logger.debug("".join(["\n", str(model_summary), "\n"]))
 
-
+    optimizer = CustomWeightDecayOptimizer(
+        model = clf,
+        optimizer = torch.optim.Adam(clf.parameters(), lr = train_hp['lr']),
+        weight_decay = train_hp['weight_decay'],
+    )
     # initialize trainer class (maximum likelihood estimation)
     trainer = TrainerMLE(
-        optimizer = torch.optim.Adam(clf.parameters(), lr = train_hp['lr']),
-        suppress_prints = False, print_every = 10,
+        optimizer = optimizer,
+        suppress_prints = False, 
+        print_every = 10,
     )
 
     # create saving directory
@@ -89,7 +100,7 @@ if __name__ == '__main__':
         train_data = data['train'], valid_data = data['valid'],
         epochs = train_hp['epochs'], batch_size = train_hp['batch_size'], shuffle = True,
         plot_losses = True, save_path = save_path,
-        )
+    )
     etime = time.time() - stime
 
     train_time = '%.6f sec -> %.6f min' % (etime, etime/60)
