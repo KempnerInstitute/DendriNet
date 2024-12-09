@@ -219,6 +219,9 @@ class EINetClassifier(ProbabilisticClassifier):
             torch.zeros((excitatory_layer_sizes[-1],)), requires_grad = True)
         self.final = nn.LogSoftmax(dim = -1)
     
+    def decay_weights(self, weight_decay = 0.1):
+        self.net.decay_weights(weight_decay)
+
     def forward(self, x):
         net_output = self.net(x)
         final_logits = self.final(self.log_output_scale.exp() * net_output)
