@@ -101,7 +101,7 @@ class ExcitationInhibitionLayer(nn.Module):
             inhibitory_synapses_per_branch = ii_synapses_per_branch,
             reactivate = reactivate, 
             somatic_synapses = somatic_synapses, 
-            topk_init_method = topk_init_method
+            topk_init_method = topk_init_method,
         )
 
         self.excitatory_cells = DendriNet(
@@ -113,8 +113,12 @@ class ExcitationInhibitionLayer(nn.Module):
             inhibitory_synapses_per_branch = ie_synapses_per_branch,
             reactivate = reactivate, 
             somatic_synapses = somatic_synapses,
-            topk_init_method = topk_init_method
+            topk_init_method = topk_init_method,
         )
+    
+    def decay_weights(self, weight_decay = 0.1):
+        self.inhibitory_cells.decay_weights(weight_decay)
+        self.excitatory_cells.decay_weights(weight_decay)
 
     def forward(self, x, inhibitory_input = None):
         inhibitory_output = self.inhibitory_cells(x, inhibitory_input)
@@ -226,10 +230,13 @@ class ExcitationInhibitionNetwork(nn.Module):
                 reactivate = reactivate, 
                 somatic_synapses = somatic_synapses,
                 topk_init_method = topk_init_method,
-
             ))
         
         self.layers = nn.ModuleList(layers)
+    
+    def decay_weights(self, weight_decay = 0.1):
+        for layer in self.layers:
+            layer.decay_weights(weight_decay)
 
     def forward(self, x):
         excitatory = x
