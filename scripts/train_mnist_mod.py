@@ -42,7 +42,11 @@ def main(config_path: str, output_dir: str,  experiment_name: str):
                     cache_dir=os.getcwd())
     
     # initialize classifier
-    clf = EINetClassifierNLL(**model_hp)
+    clf = EINetClassifierNLL(
+        **{k: v for k, v in model_hp.items() if k not in ['initialization_mode', 'gradient_scale']},
+        initialization_mode=model_hp.get('initialization_mode', 'default'),
+        gradient_scale=train_hp.get('gradient_scale', False),
+    )
     #clf = EINetClassifierCE(**model_hp)
 
     model_summary = torchinfo.summary(

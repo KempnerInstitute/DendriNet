@@ -88,7 +88,9 @@ class ExcitationInhibitionLayer(nn.Module):
         ii_synapses_per_branch = None, 
         reactivate = False, 
         somatic_synapses = True,
-        topk_init_method = "xavier_normal",
+        topk_init_method = "xavier_uniform",
+        initialization_mode="default",
+        gradient_scale=False,  # Added parameter
     ):
         super(ExcitationInhibitionLayer, self).__init__()
 
@@ -101,7 +103,9 @@ class ExcitationInhibitionLayer(nn.Module):
             inhibitory_synapses_per_branch = ii_synapses_per_branch,
             reactivate = reactivate, 
             somatic_synapses = somatic_synapses, 
-            topk_init_method = topk_init_method
+            topk_init_method = topk_init_method,
+            initialization_mode=initialization_mode,
+            gradient_scale=gradient_scale,
         )
 
         self.excitatory_cells = DendriNet(
@@ -113,7 +117,9 @@ class ExcitationInhibitionLayer(nn.Module):
             inhibitory_synapses_per_branch = ie_synapses_per_branch,
             reactivate = reactivate, 
             somatic_synapses = somatic_synapses,
-            topk_init_method = topk_init_method
+            topk_init_method = topk_init_method,
+            initialization_mode=initialization_mode,
+            gradient_scale=gradient_scale,
         )
         
         # Add Batch Normalization for excitatory and inhibitory cells
@@ -199,7 +205,9 @@ class ExcitationInhibitionNetwork(nn.Module):
         ii_synapses_per_branch_per_layer = [], 
         reactivate = False, 
         somatic_synapses = True,
-        topk_init_method = "xavier_normal",
+        topk_init_method = "xavier_uniform",
+        initialization_mode="default",
+        gradient_scale=False,
     ):
         super(ExcitationInhibitionNetwork, self).__init__()
 
@@ -235,7 +243,8 @@ class ExcitationInhibitionNetwork(nn.Module):
                 reactivate = reactivate, 
                 somatic_synapses = somatic_synapses,
                 topk_init_method = topk_init_method,
-
+                initialization_mode=initialization_mode,
+                gradient_scale=gradient_scale,
             ))
         
         self.layers = nn.ModuleList(layers)

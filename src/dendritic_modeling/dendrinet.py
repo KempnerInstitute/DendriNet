@@ -108,7 +108,8 @@ class TopKLinear(nn.Module):
             K, 
             param_space = 'log',
             init_method = 'xavier_normal',
-            init_params = None
+            init_params = None,
+            initialization_mode="default",  # New parameter
             ):    
         super(TopKLinear, self).__init__()
         # make all weights positive
@@ -129,7 +130,8 @@ class TopKLinear(nn.Module):
         self.K = K
         self.param_space = param_space
         self.init_method = init_method
-    
+        self.initialization_mode = initialization_mode  # Store initialization mode
+
     # def initialize(self):
     #     if self.init_method in TOPK_INIT_METHODS:
     #         init_func = TOPK_INIT_METHODS[self.init_method]
@@ -141,16 +143,32 @@ class TopKLinear(nn.Module):
     #             f'Invalid initialization method: {self.init_method}. ',
     #             f'Choose from {list(TOPK_INIT_METHODS.keys())}')
     
-    def initialize(self, depth=1, total_depth=1):
-        scale = 1 / (depth * total_depth)
-        if self.init_method in TOPK_INIT_METHODS:
-            init_func = TOPK_INIT_METHODS[self.init_method]
-            init_func(self.pre_w)
-            self.pre_w.data *= scale  # Scale weights based on depth
-        else:
-            raise ValueError(
-                f'Invalid initialization method: {self.init_method}. ',
-                f'Choose from {list(TOPK_INIT_METHODS.keys())}')
+    def initialize(self, depth=1, total_depth=1, initialization_mode="default"):
+        """
+        Initialize the weights of TopKLinear with optional scaling.
+
+        Parameters:
+        - depth: Current depth of the layer (closer to soma).
+        - total_depth: Total depth of the network (from inputs to soma).
+        - initialization_mode: Mode for scaling ("default" or "scaled").
+        """
+        with torch.no_grad():
+            # Determine scaling factor based on initialization mode
+            if initialization_mode == "scaled":
+                scale = 1 / (depth * total_depth)  # Scale inversely with depth
+            else:
+                scale = 1  # Default initialization (no scaling)
+
+            # Apply the initialization function
+            if self.init_method in TOPK_INIT_METHODS:
+                init_func = TOPK_INIT_METHODS[self.init_method]
+                init_func(self.pre_w)
+                self.pre_w.data *= scale  # Apply scaling
+            else:
+                raise ValueError(
+                    f"Invalid initialization method: {self.init_method}. "
+                    f"Choose from {list(TOPK_INIT_METHODS.keys())}"
+                )
                 
     def forward(self, x):
         # identify top K strongest synaptic connections onto each dendritic branch
@@ -300,6 +318,7 @@ class GradientScaler(torch.autograd.Function):
     def backward(ctx, grad_output):
         scale, = ctx.saved_tensors
         return grad_output * scale, None
+    
 class DendriticBranchLayer(nn.Module):
     """
     Emulates dendritic computation along a layer of branches (equally distant
@@ -381,17 +400,23 @@ class DendriticBranchLayer(nn.Module):
         inhibitory_synapses_per_branch = None, 
         input_branch_factor = None, 
         reactivate = False,
-        topk_init_method = 'xavier_normal'
+        topk_init_method = 'xavier_uniform',
+        initialization_mode="default",  # New parameter
+        gradient_scale=False,  # New parameter
         ):
         
         # initialize dendritic branch layer
         super(DendriticBranchLayer, self).__init__()
+        self.initialization_mode = initialization_mode  # Store initialization mode
+        self.gradient_scale = gradient_scale  # Store gradient scaling option
+        
         # module for computing excitation along branches in layer
         self.branch_excitation = TopKLinear(
             excitatory_input_dim, 
             output_dim, 
             K = excitatory_synapses_per_branch,
-            init_method = topk_init_method)
+            init_method = topk_init_method,
+            initialization_mode=self.initialization_mode)
         # if receiving inputs from inhibitory cells
         self.input_inhibitory = inhibitory_input_dim is not None
         if self.input_inhibitory:
@@ -400,7 +425,8 @@ class DendriticBranchLayer(nn.Module):
                 inhibitory_input_dim, 
                 output_dim, 
                 K = inhibitory_synapses_per_branch,
-                init_method = topk_init_method)
+                init_method = topk_init_method,            
+                initialization_mode=self.initialization_mode)
         # if receiving inputs from other dendritic branches
         self.input_branches = input_branch_factor is not None
         if self.input_branches:
@@ -434,15 +460,38 @@ class DendriticBranchLayer(nn.Module):
     #             nn.init.constant_(self.log_b, -0.7)
 
     def initialize(self, depth=1, total_depth=1):
+        """
+        Initialize the weights of the dendritic branch layer with optional scaling
+        based on depth and total depth. Supports 'default' and 'scaled' modes.
+        
+        Parameters:
+        - depth: Current depth of the layer (closer to soma).
+        - total_depth: Total depth of the network (from inputs to soma).
+        """
         with torch.no_grad():
+            # Determine scaling factor based on initialization mode
+            if getattr(self, "initialization_mode", "default") == "scaled":
+                scale = 1 / (depth * total_depth)  # Scale inversely with depth
+            else:
+                scale = 1  # Default initialization (no scaling)
+
+            # Initialize branch excitation weights and apply scaling
             self.branch_excitation.initialize(depth, total_depth)
+            self.branch_excitation.pre_w.data *= scale
+
+            # Initialize branch inhibition weights (if applicable) and apply scaling
             if self.input_inhibitory:
                 self.branch_inhibition.initialize(depth, total_depth)
+                self.branch_inhibition.pre_w.data *= scale
+
+            # Initialize branch-to-output weights (if applicable)
             if self.input_branches:
                 sum_synapse_conductances = self.branch_excitation.weight().sum(dim=1)
                 if self.input_inhibitory:
                     sum_synapse_conductances += self.branch_inhibition.weight().sum(dim=1)
                 self.branches_to_output.initialize(sum_synapse_conductances)
+            
+            # Initialize reactivation parameters (if applicable)
             if self.reactivate:
                 nn.init.constant_(self.log_m, 1.8)
                 nn.init.constant_(self.log_b, -0.7)
@@ -463,11 +512,15 @@ class DendriticBranchLayer(nn.Module):
 
         voltage = numerator / denominator
 
-        # Apply gradient scaling
-        scale = torch.tensor((total_depth - depth + 1) / total_depth, device=voltage.device)
-        scaled_voltage = GradientScaler.apply(voltage, scale)
-
+        # Conditionally apply gradient scaling
+        if getattr(self, "scale_gradients", False):
+            scale = torch.tensor((total_depth - depth + 1) / total_depth, device=voltage.device)
+            voltage = GradientScaler.apply(voltage, scale)
+        else:
+            scaled_voltage = voltage  # Ensure scaled_voltage is always defined
+            
         return self.reactivation(scaled_voltage) if self.reactivate else scaled_voltage
+    
     def reactivation(self, V):
         m, b = self.log_m.exp(), self.log_b.exp()
         return (torch.tanh(m * (V - b)) + 1) / 2
@@ -594,7 +647,9 @@ class DendriNet(nn.Module):
         inhibitory_synapses_per_branch = None,
         reactivate = False, 
         somatic_synapses = True,
-        topk_init_method = 'xavier_normal'
+        topk_init_method = 'xavier_uniform',
+        initialization_mode="default",  # Pass mode
+        gradient_scale=False,  # New parameter
     ):
         super(DendriNet, self).__init__()
         
@@ -649,6 +704,8 @@ class DendriNet(nn.Module):
                 input_branch_factor = branch_factors[i], 
                 reactivate = reactivate,
                 topk_init_method = topk_init_method,
+                initialization_mode=initialization_mode,  # Pass mode
+                gradient_scale=gradient_scale,  # New parameter
             ))
         # wrap list of branch layers in ModuleList
         self.branch_layers = nn.ModuleList(branch_layers)
@@ -664,6 +721,8 @@ class DendriNet(nn.Module):
                 input_branch_factor = branch_factors[-1], 
                 reactivate = True,
                 topk_init_method = topk_init_method,
+                initialization_mode=initialization_mode,  # Pass mode
+                gradient_scale=gradient_scale,  # New parameter
             )
         else:
             self.soma_layer = BlockLinear(layer_sizes[-2], n_soma)

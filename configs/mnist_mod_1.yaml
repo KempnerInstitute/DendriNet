@@ -2,15 +2,17 @@ model:
   input_dim: 1568
   excitatory_layer_sizes: [10]
   inhibitory_layer_sizes: [20]
-  excitatory_branch_factors: [5,5,5,10,20]
+  excitatory_branch_factors: [2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2]
   inhibitory_branch_factors: []
   reactivate: true
   somatic_synapses: true
-  ee_synapses_per_branch_per_layer: [50,50,50,50,50]
+  ee_synapses_per_branch_per_layer: [100, 100, 100, 100, 100, 100, 100, 100, 100, 100, 100, 100, 100, 100, 100, 100, 100, 100, 100, 100]
   ei_synapses_per_branch_per_layer: [100]
   ie_synapses_per_branch_per_layer: [2]
   ii_synapses_per_branch_per_layer: []
   topk_init_method: "xavier_uniform"
+  initialization_mode: "default"  #  "default" #Options: "scaled" or "default"
+  gradient_scale: false
 
 train:
   train_valid_split: 0.8

@@ -200,7 +200,9 @@ class EINetClassifier(ProbabilisticClassifier):
         ii_synapses_per_branch_per_layer = [], 
         reactivate = False, 
         somatic_synapses = True,
-        topk_init_method = "xavier_normal",
+        topk_init_method = "xavier_uniform",
+        initialization_mode="default",  # Added parameter
+        gradient_scale=False,  # Added parameter
     ):
         super(EINetClassifier, self).__init__()
 
@@ -216,6 +218,8 @@ class EINetClassifier(ProbabilisticClassifier):
             ii_synapses_per_branch_per_layer = ii_synapses_per_branch_per_layer,
             reactivate = reactivate, somatic_synapses = somatic_synapses,
             topk_init_method = topk_init_method,
+            initialization_mode=initialization_mode,  # Passed to network
+            gradient_scale=gradient_scale,  # Pass to network
         )
         self.log_output_scale = nn.Parameter(
             torch.zeros((excitatory_layer_sizes[-1],)), requires_grad = True)

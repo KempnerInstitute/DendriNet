@@ -39,8 +39,9 @@ class ModelConfig(BaseConfig):
     reactivate: bool = True
     somatic_synapses: bool = True
     topk_init_method: str = "xavier_normal"
-
-
+    initialization_mode: str = "default"  # New field for initialization mode
+    gradient_scale: bool = False  # Add gradient_scale parameter
+    
 @dataclass
 class TrainConfig(BaseConfig):
     """Configuration for training hyperparameters."""

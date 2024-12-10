@@ -204,21 +204,23 @@ class TrainerMLE(object):
                     self.optimizer.zero_grad()
                     # backpropagate loss
                     nll.backward()
-                    grad_norms = {}
                     
-                    for name, param in model.named_parameters():
-                        if param.grad is not None:  # Ensure gradient exists
-                            if "previous" in locals():  # Ensure there's a previous layer
-                                scaling_factor = torch.norm(param.grad) / (torch.norm(previous) + 1e-8)
-                                param.grad *= scaling_factor
-                            previous = param.grad  # Update for the next layer
+                    # Compute mean gradient for the first and last layers
+                    first_layer_grad = None
+                    last_layer_grad = None
+                    for idx, (name, param) in enumerate(model.named_parameters()):
+                        if param.grad is not None:
+                            if first_layer_grad is None:
+                                first_layer_grad = param.grad.abs().mean().item()
+                            last_layer_grad = param.grad.abs().mean().item()  # Keep updating until the last layer
 
-                    # Optionally log with wandb or print
+                    # Log gradients to WandB
                     if wandb.run is not None:
-                        wandb.log({f"grad_norms/{name}": norm for name, norm in grad_norms.items()})
-                    else:
-                        print(f"Grad Norms: {grad_norms}")
-                    # prevent exploding gradients
+                        wandb.log({
+                            "epoch": epoch,
+                            "grad_first_layer": first_layer_grad,
+                            "grad_last_layer": last_layer_grad
+                        })
                     
                     clip_grad_value_(model.parameters(), 
                                      clip_value = grad_clip_value)
@@ -338,19 +340,22 @@ class TrainerMLE(object):
         # load best model
         model.load_state_dict(best_state_dict)
         
-        # Existing code to calculate accuracy metrics
-        train_accuracy = accuracy_score(model, *data['train'][:]).item()
-        valid_accuracy = accuracy_score(model, *data['valid'][:]).item()
-        test_accuracy = accuracy_score(model, *data['test'][:]).item()
-            
+        # After training loop
+        train_inputs, train_labels = train_data[:]
+        train_preds = model.predict(train_inputs.to(device))
+        train_accuracy = accuracy_score(train_labels.cpu(), train_preds.cpu())
+
+        valid_inputs, valid_labels = valid_data[:]
+        valid_preds = model.predict(valid_inputs.to(device))
+        valid_accuracy = accuracy_score(valid_labels.cpu(), valid_preds.cpu())
+
         results = {
-            'best epoch' : best_epoch, 
-            'train losses' : train_losses, 
-            'valid losses' : valid_losses,
+            'best epoch': best_epoch,
+            'train losses': train_losses,
+            'valid losses': valid_losses,
             'train accuracy': train_accuracy,
             'valid accuracy': valid_accuracy,
-            'test accuracy': test_accuracy
-            }
+        }
         
 
         
