@@ -193,8 +193,7 @@ class TrainerMLE(object):
                     input_batch = ag.Variable(input_batch.to(device))
                     label_batch = ag.Variable(label_batch.to(device))
                     
-                    nll = model(input_batch, label_batch)
-                    nll = nll.mean(dim = 0)
+                    nll = model.compute_loss(input_batch, label_batch)
                     
                     # zero gradients
                     self.optimizer.zero_grad()
@@ -232,8 +231,8 @@ class TrainerMLE(object):
                 for input_batch, label_batch in valid_dataloader:
                     try:
                         # produce negative log likelihood
-                        nll = model(input_batch.to(device), label_batch.to(device))
-                        nll = nll.mean(dim = 0)
+                        nll = model.compute_loss(input_batch.to(device), label_batch.to(device))
+
                         # compute and aggregate validation loss 
                         valid_loss += nll.item()
 

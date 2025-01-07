@@ -7,7 +7,7 @@ import torchinfo
 
 from dendritic_modeling import logger
 from dendritic_modeling.training import TrainerMLE
-from dendritic_modeling.models import EINetClassifierNLL
+from dendritic_modeling.models import ProbabilisticClassifier, Classifier #EINetClassifierNLL, ProbabilisticClassifier
 from dendritic_modeling.plot_utils import (plot_einet_params, 
                                            plot_einet_activations)
 from dendritic_modeling.utils import (load_MNIST, 
@@ -15,6 +15,8 @@ from dendritic_modeling.utils import (load_MNIST,
                                       accuracy_score, 
                                       save_dict, 
                                       Shaper)
+
+from dendritic_modeling.excitation_inhibition import ExcitationInhibitionNetwork, FeedforwardNN
 
 logger.info('imports complete\n')
 
@@ -48,7 +50,7 @@ if __name__ == '__main__':
     train_hp = {
         'train_valid_split' : 0.8,
         'lr' : 1e-3,
-        'epochs' : 200,
+        'epochs' : 80,
         'batch_size' : 1024,
     }
 
@@ -56,8 +58,33 @@ if __name__ == '__main__':
     data = load_MNIST(train_valid_split = train_hp['train_valid_split'], 
                       cache_dir=os.getcwd())
 
-    # initialize classifier
-    clf = EINetClassifierNLL(**model_hp)
+    # Run scenarios
+    # 1: Run simple feedforward neural network with probablistic classifier
+    # 2: Run simple feedforward neural network with simple classifier
+    # 3: Run EINet with probablistic classifier
+    # 4: Run EINet with simple classifier
+
+    run_scenario = 4
+
+    if run_scenario == 1:
+        logger.info('Running simple feedforward neural network with probablistic classifier')
+        net = FeedforwardNN()
+        output_dim = 10
+        clf = ProbabilisticClassifier(net, output_dim)
+    elif run_scenario == 2:
+        logger.info('Running simple feedforward neural network with simple classifier')
+        net = FeedforwardNN()
+        clf = Classifier(net)
+    elif run_scenario == 3:
+        logger.info('Running EINet with probablistic classifier')
+        net = ExcitationInhibitionNetwork(**model_hp)
+        output_dim = model_hp['excitatory_layer_sizes'][-1]
+        clf = ProbabilisticClassifier(net, output_dim)
+    elif run_scenario == 4:
+        logger.info('Running EINet with simple classifier')
+        net = ExcitationInhibitionNetwork(**model_hp)
+        clf = Classifier(net)
+
     model_summary = torchinfo.summary(
                         clf,
                         input_size=(train_hp['batch_size'], model_hp['input_dim']),
@@ -115,26 +142,27 @@ if __name__ == '__main__':
     logger.info('  done..\n')
 
     # initialize shaper class for reshaping weights
-    shaper = Shaper(shape = (28,28))
+    if run_scenario > 2:
+        shaper = Shaper(shape = (28,28))
 
-    logger.info('creating param visuals.....')
-    plot_einet_params(
-        einet = clf.net, 
-        save_root = os.path.join(save_path, 'param_visuals'),
-        reshape_fn = shaper.reshape, 
-        reshape_exc_syn = True, 
-        logspace = True,
-    )
-    logger.info('  done..\n')
+        logger.info('creating param visuals.....')
+        plot_einet_params(
+            einet = clf.net, 
+            save_root = os.path.join(save_path, 'param_visuals'),
+            reshape_fn = shaper.reshape, 
+            reshape_exc_syn = True, 
+            logspace = True,
+        )
+        logger.info('  done..\n')
 
-    # split inputs into list of tensors
-    #   each element in list is tensor of all samples with same label
-    input_list = split_MNIST_inputs(*data['valid'][:])
+        # split inputs into list of tensors
+        #   each element in list is tensor of all samples with same label
+        input_list = split_MNIST_inputs(*data['valid'][:])
 
-    logger.info('creating activation visuals.....')
-    plot_einet_activations(
-        einet = clf.net, 
-        input_list = input_list,
-        save_root = os.path.join(save_path, 'activation_visuals'),
-    )
-    logger.info('  done..\n')
+        logger.info('creating activation visuals.....')
+        plot_einet_activations(
+            einet = clf.net, 
+            input_list = input_list,
+            save_root = os.path.join(save_path, 'activation_visuals'),
+        )
+        logger.info('  done..\n')

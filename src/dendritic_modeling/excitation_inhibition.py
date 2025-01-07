@@ -195,6 +195,7 @@ class ExcitationInhibitionNetwork(nn.Module):
         super(ExcitationInhibitionNetwork, self).__init__()
 
         self.n_layers = len(excitatory_layer_sizes)
+        self.output_dim = excitatory_layer_sizes[-1]
         
         logger.debug(f'Building ExcitationInhibitionNetwork with {self.n_layers} layer(s).')
 
@@ -237,3 +238,23 @@ class ExcitationInhibitionNetwork(nn.Module):
         for layer in self.layers:
             excitatory, inhibitory = layer(excitatory, inhibitory)
         return excitatory
+    
+
+
+class FeedforwardNN(nn.Module):
+    """
+    A simple feedforward neural network as a baseline for comparison for the 
+    flatten MNIST dataset.
+    """
+    def __init__(self):
+        super(FeedforwardNN, self).__init__()
+        self.model = nn.Sequential(
+            nn.Linear(784, 128),  
+            nn.ReLU(),           
+            nn.Linear(128, 64),  
+            nn.ReLU(),
+            nn.Linear(64, 10)    
+        )
+
+    def forward(self, x):
+        return self.model(x)
