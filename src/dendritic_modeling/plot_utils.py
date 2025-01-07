@@ -15,6 +15,127 @@ from matplotlib.gridspec import GridSpec
 from mpl_toolkits.axes_grid1 import make_axes_locatable
 
 
+
+def plot_activation_tuning(einet, input_list, save_root):
+    """
+    Quantifies and plots the sensitivity of activations to different digits 
+    per layer in the Excitation-Inhibition Network.
+
+    Args:
+        einet (Net): The trained network.
+        input_list (list): List of input tensors, each corresponding to a digit.
+        save_root (str): Directory to save the plots.
+    """
+    import seaborn as sns
+
+    device = 'cuda' if torch.cuda.is_available() else 'cpu'
+    einet = einet.to(device)
+    einet.eval()
+
+    os.makedirs(save_root, exist_ok=True)
+
+    exc_input_list = [inputs.to(device) for inputs in input_list]
+    inh_input_list = [None] * len(input_list)
+
+    # Per layer storage for activations
+    activation_data = {}
+
+    with torch.no_grad():
+        for layer_idx in range(len(einet.layers)):
+            inh_dendrinet = einet.layers[layer_idx].inhibitory_cells
+            exc_dendrinet = einet.layers[layer_idx].excitatory_cells
+
+            # Process inhibitory cells
+            inh_activations = []
+            for digit_idx, inputs in enumerate(exc_input_list):
+                activations = inh_dendrinet(inputs, inh_input_list[digit_idx])
+                inh_activations.append(activations.cpu().numpy())
+            activation_data[f"layer{layer_idx+1}_inh"] = np.stack(inh_activations)
+
+            # Process excitatory cells
+            exc_activations = []
+            for digit_idx, inputs in enumerate(exc_input_list):
+                activations = exc_dendrinet(inputs, inh_input_list[digit_idx])
+                exc_activations.append(activations.cpu().numpy())
+            activation_data[f"layer{layer_idx+1}_exc"] = np.stack(exc_activations)
+
+            # Update inhibitory input for next layer
+            inh_input_list = [inh_dendrinet(inputs, None) for inputs in exc_input_list]
+            exc_input_list = [exc_dendrinet(inputs, inh_input) for inputs, inh_input in zip(exc_input_list, inh_input_list)]
+
+    # Plot tuning per layer
+    for layer_name, activations in activation_data.items():
+        mean_activations = np.mean(activations, axis=2)  # Average over activations per neuron
+        var_activations = np.var(activations, axis=2)    # Variance over activations per neuron
+
+        # Plot heatmap of variance (tuning)
+        plt.figure(figsize=(10, 6))
+        sns.heatmap(var_activations, cmap="viridis", annot=False)
+        plt.title(f"Activation Tuning (Variance) for {layer_name}")
+        plt.xlabel("Digit (0-9)")
+        plt.ylabel("Neuron Index")
+        save_path = os.path.join(save_root, f"{layer_name}_tuning.png")
+        plt.savefig(save_path)
+        plt.close()
+        print(f"Saved tuning plot for {layer_name} at {save_path}")
+        
+        
+def plot_voltage_before_activation(einet, input_list, save_root=None):
+    """
+    Plots the voltage before feeding it to the activation function 
+    for each layer in the Excitation-Inhibition Network.
+
+    Args:
+        einet (Net): The neural network model.
+        input_list (list): List of input tensors for visualization.
+        save_root (str): Directory to save the plots. If None, plots are displayed.
+    """
+    # Ensure save directory exists
+    if save_root is not None:
+        os.makedirs(save_root, exist_ok=True)
+    
+    # Set model to evaluation mode
+    einet.eval()
+
+    with torch.no_grad():
+        for idx, input_tensor in enumerate(input_list):
+            input_tensor = input_tensor.cuda() if torch.cuda.is_available() else input_tensor
+
+            # Forward pass and extract voltages
+            einet(input_tensor)  # Pass input directly without keyword
+
+            # Collect voltages
+            inhibition_v_inf = einet.inhibition_v_inf.cpu().numpy()
+            dendrite_branch_v_inf = einet.dendrite_branch_v_inf.cpu().numpy()
+            dendrite_v_inf = einet.dendrite_v_inf.cpu().numpy()
+            soma_v_inf = einet.soma_v_inf.cpu().numpy()
+
+            # Plot each voltage map
+            fig, axes = plt.subplots(1, 4, figsize=(20, 5))
+
+            axes[0].imshow(inhibition_v_inf.reshape(1, -1), aspect='auto', cmap='viridis')
+            axes[0].set_title(r"Inhibition Voltage $V_{\text{inf}}$")
+
+            axes[1].imshow(dendrite_branch_v_inf.reshape(1, -1), aspect='auto', cmap='viridis')
+            axes[1].set_title(r"Dendrite Branch Voltage $V_{\text{inf}}$")
+
+            axes[2].imshow(dendrite_v_inf.reshape(1, -1), aspect='auto', cmap='viridis')
+            axes[2].set_title(r"Dendrite Voltage $V_{\text{inf}}$")
+
+            axes[3].imshow(soma_v_inf.reshape(1, -1), aspect='auto', cmap='viridis')
+            axes[3].set_title(r"Soma Voltage $V_{\text{inf}}$")
+
+            plt.suptitle(f"Voltage Before Activation - Input {idx + 1}")
+
+            # Save or show the plot
+            if save_root is not None:
+                save_path = os.path.join(save_root, f"voltage_before_activation_{idx + 1}.png")
+                plt.savefig(save_path)
+                plt.close(fig)
+                print(f"Saved voltage plot for input {idx + 1} at {save_path}")
+            else:
+                plt.show()
+
 #@title Function to plot an image with the scale color bar
 def plotWithColor(data, title=''):
     if torch.is_tensor(data):

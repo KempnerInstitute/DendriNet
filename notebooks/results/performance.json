@@ -1,0 +1,6 @@
+{
+    "train accuracy": 0.9408957958221436,
+    "valid accuracy": 0.9383333325386047,
+    "test accuracy": 0.9350000023841858,
+    "training time": 567.6544442176819
+}

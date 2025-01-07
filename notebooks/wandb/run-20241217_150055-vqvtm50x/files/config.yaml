@@ -1,0 +1,68 @@
+_wandb:
+    value:
+        cli_version: 0.18.6
+        m: []
+        python_version: 3.12.7
+        t:
+            "1":
+                - 1
+                - 5
+                - 41
+                - 53
+                - 55
+            "2":
+                - 1
+                - 5
+                - 41
+                - 53
+                - 55
+            "3":
+                - 2
+                - 13
+                - 16
+                - 23
+                - 55
+            "4": 3.12.7
+            "5": 0.18.6
+            "8":
+                - 1
+                - 5
+            "12": 0.18.6
+            "13": linux-x86_64
+model:
+    value:
+        ee_synapses_per_branch_per_layer:
+            - 24
+        ei_synapses_per_branch_per_layer:
+            - 100
+        excitatory_branch_factors:
+            - 1
+            - 5
+        excitatory_layer_sizes:
+            - 10
+        ie_synapses_per_branch_per_layer:
+            - 1
+        ii_synapses_per_branch_per_layer: []
+        inhibitory_branch_factors: []
+        inhibitory_layer_sizes:
+            - 20
+        input_dim: 784
+        reactivate: true
+        somatic_synapses: true
+        topk_init_method: xavier_normal
+train:
+    value:
+        batch_size: 500
+        epochs: 50
+        grad_clip_value: 5
+        lr: 0.01
+        run_name: dendritic_modeling_sweep
+        seed: 0
+        train_valid_split: 0.8
+wandb:
+    value:
+        entity: houman_safaai-harvard-university
+        group: debug
+        project: dendritic_modeling_pr
+        tags:
+            - mnist_1

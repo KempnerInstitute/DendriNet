@@ -281,7 +281,7 @@ class BlockLinear(nn.Module):
         self.out_features = out_features
         self.block_size = block_size
 
-        self.scale_factor = 300
+        self.scale_factor = 1#300
         self.register_full_backward_hook(
             lambda module, grad_input, grad_output : scale_layer_gradients(module, grad_input, grad_output, self.scale_factor))
     
@@ -479,7 +479,10 @@ class DendriticBranchLayer(nn.Module):
             
             if self.input_inhibitory:
                 self.branch_inhibition.initialize()
-            
+                self.branch_inhibition.pre_w + log(
+                    self.branch_excitation.K / self.branch_inhibition.K
+                )
+                
             if self.input_branches:
                 if self.input_excitatory or self.input_inhibitory:
                     sum_synapse_conductances = 0
@@ -515,7 +518,7 @@ class DendriticBranchLayer(nn.Module):
             numerator = numerator + excitation
             denominator = denominator + excitation
         # if receiving inhibitory inputs
-        if self.input_inhibitory:
+        if self.input_inhibitory and inhibitory_input is not None:
             denominator = denominator + self.branch_inhibition(inhibitory_input)
         # if receiving inputs from upstream branches
         if self.input_branches:

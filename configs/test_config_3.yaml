@@ -1,0 +1,29 @@
+train:
+  run_name: dendritic_modeling_sweep
+  seed: 0
+  epochs: 50
+  batch_size: 500
+wandb:
+  entity: houman_safaai-harvard-university# <---- Add your entity
+  project: dendritic_modeling_pr
+  group: debug
+  tags: ['mnist_1']
+optimizer:
+  name: adam
+  learning_rate: 0.01
+scheduler:
+  name: none
+model:
+  input_dim: 784
+  excitatory_layer_sizes: [10]
+  inhibitory_layer_sizes: [20]
+  excitatory_branch_factors: [1, 2]
+  inhibitory_branch_factors: []
+  reactivate: False
+  somatic_synapses: True
+  ee_synapses_per_branch_per_layer: [24]
+  ei_synapses_per_branch_per_layer: [100]
+  ie_synapses_per_branch_per_layer: [1]
+  ii_synapses_per_branch_per_layer: []
+  topk_init_method: xavier_normal
+  topk_initi_method: xavier_uniform
