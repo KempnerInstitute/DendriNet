@@ -497,7 +497,7 @@ class DendriticBranchLayer(nn.Module):
             if self.reactivate:
                 # nn.init.constant_(self.log_m, 1.8)
                 # nn.init.constant_(self.log_b, -0.7)
-                nn.init.constant_(self.log_m, log(3))
+                nn.init.constant_(self.log_m, log(3.0))
                 nn.init.constant_(self.log_b, log(0.5))
     
     def decay_weights(self, weight_decay = 0.1):
