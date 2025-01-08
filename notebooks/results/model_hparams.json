@@ -8,11 +8,10 @@
     ],
     "excitatory_branch_factors": [
         1,
-        2,
         2
     ],
     "inhibitory_branch_factors": [],
-    "reactivate": true,
+    "reactivate": false,
     "somatic_synapses": true,
     "ee_synapses_per_branch_per_layer": [
         24

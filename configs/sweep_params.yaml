@@ -3,7 +3,7 @@ slurm_config:
   conda_env_path: /n/home13/hsafaai/.conda/envs/dendritic_env # <--- Add your conda environment path
   modules_to_load: ["python/3.12.5-fasrc01", "cuda/12.4.1-fasrc01", "cudnn/8.9.2.26_cuda12-fasrc01"] # <--- Modify this based on your requirements
   max_concurrent_jobs: 8
-  training_script: "/n/holylabs/LABS/kempner_dev/Users/hsafaai/Code/dendritic-modeling/scripts/train_mnist_new.py"
+  training_script: "/n/holylabs/LABS/kempner_dev/Users/hsafaai/Code/dendritic-modeling/scripts/train_mnist.py"
   config_filename_init: "test_config"
 
   account: "kempner_dev"
