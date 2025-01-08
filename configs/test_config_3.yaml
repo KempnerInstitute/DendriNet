@@ -1,11 +1,11 @@
 train:
   run_name: dendritic_modeling_sweep
   seed: 0
-  epochs: 50
-  batch_size: 500
+  epochs: 100
+  batch_size: 1000
 wandb:
-  entity: houman_safaai-harvard-university# <---- Add your entity
-  project: dendritic_modeling_pr
+  entity: houman_safaai-harvard-university
+  project: dendritic_modeling_sweep
   group: debug
   tags: ['mnist_1']
 optimizer:
@@ -25,5 +25,4 @@ model:
   ei_synapses_per_branch_per_layer: [100]
   ie_synapses_per_branch_per_layer: [1]
   ii_synapses_per_branch_per_layer: []
-  topk_init_method: xavier_normal
-  topk_initi_method: xavier_uniform
+  topk_init_method: xavier_uniform

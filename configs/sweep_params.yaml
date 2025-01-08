@@ -20,12 +20,12 @@ train_config:
   train:
     run_name: "dendritic_modeling_sweep"
     seed: 0
-    epochs: 50
-    batch_size: 500
+    epochs: 100
+    batch_size: 1000
   
   wandb:
-    entity:  houman_safaai-harvard-university# <---- Add your entity
-    project: dendritic_modeling_pr
+    entity:  houman_safaai-harvard-university 
+    project: dendritic_modeling_sweep
     group: debug
     tags: [mnist_1]
 
@@ -42,8 +42,8 @@ train_config:
     inhibitory_layer_sizes: [20]
     excitatory_branch_factors: [1,2]
     inhibitory_branch_factors: []
-    reactivate: true
-    somatic_synapses: true
+    reactivate: True
+    somatic_synapses: True
     ee_synapses_per_branch_per_layer: [24]
     ei_synapses_per_branch_per_layer: [100]
     ie_synapses_per_branch_per_layer: [1]
@@ -54,7 +54,7 @@ sweep_config:
   #train:
     #batch_size: [32, 64, 128, 512]
   model:
-    topk_initi_method: ['xavier_normal', 'xavier_uniform']
+    topk_init_method: ['xavier_normal', 'xavier_uniform']
     #ie_synapses_per_branch_per_layer: [[1], [2], [3], [4], [5], [6], [7], [8], [9], [10],
                                       #  [11], [12], [13], [14], [15], [16], [17], [18], [19], [20],
                                       #  [21], [22], [23], [24], [25], [26], [27], [28], [29], [30],
