@@ -6,8 +6,10 @@ ExcitationInhibitionNetwork classes.
 """
 
 from copy import deepcopy
+from typing import List
 
 from torch import nn
+
 
 from dendritic_modeling.dendrinet import DendriNet
 from dendritic_modeling import logger
@@ -243,18 +245,48 @@ class ExcitationInhibitionNetwork(nn.Module):
 
 class FeedforwardNN(nn.Module):
     """
-    A simple feedforward neural network as a baseline for comparison for the 
-    flatten MNIST dataset.
+    A configurable feedforward neural network as a baseline for comparison
+    on the flattened MNIST dataset.
     """
-    def __init__(self):
+    def __init__(
+        self,
+        input_dim: int = 784,
+        hidden_layer_sizes: List[int] = [128, 64],
+        activation: str = "relu",
+        dropout: float = 0.2,
+        output_dim: int = 10,
+    ):
         super(FeedforwardNN, self).__init__()
-        self.model = nn.Sequential(
-            nn.Linear(784, 128),  
-            nn.ReLU(),           
-            nn.Linear(128, 64),  
-            nn.ReLU(),
-            nn.Linear(64, 10)    
-        )
+
+        # Map string activation to PyTorch activation functions
+        activation_mapping = {
+            "relu": nn.ReLU,
+            "sigmoid": nn.Sigmoid,
+            "tanh": nn.Tanh,
+            "leaky_relu": nn.LeakyReLU
+        }
+
+        # Raise an error if the activation is not supported
+        if activation not in activation_mapping:
+            raise ValueError(f"Unsupported activation function: {activation}. "
+                             f"Supported: {list(activation_mapping.keys())}")
+
+        # Define layers dynamically
+        layers = []
+        current_dim = input_dim
+
+        for layer_size in hidden_layer_sizes:
+            layers.append(nn.Linear(current_dim, layer_size))
+            layers.append(activation_mapping[activation]())
+            if dropout > 0:  # Apply dropout only if it's greater than 0
+                layers.append(nn.Dropout(dropout))
+            current_dim = layer_size
+
+        # Add the output layer
+        layers.append(nn.Linear(current_dim, output_dim))
+
+        # Combine layers into a sequential model
+        self.model = nn.Sequential(*layers)
 
     def forward(self, x):
         return self.model(x)
