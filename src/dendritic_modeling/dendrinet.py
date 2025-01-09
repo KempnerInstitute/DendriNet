@@ -468,6 +468,14 @@ class DendriticBranchLayer(nn.Module):
                                       requires_grad = True)
         self.reactivate = reactivate
 
+        self.inh_scale = 1.0
+        if (self.input_excitatory and self.input_inhibitory and
+            excitatory_synapses_per_branch is not None and 
+            inhibitory_synapses_per_branch is not None and
+            inhibitory_synapses_per_branch > 0):
+            
+            self.inh_scale = float(excitatory_synapses_per_branch) / float(inhibitory_synapses_per_branch)
+
         # self.register_full_backward_hook(normalize_layer_gradients)
 
         self.initialize()
@@ -515,17 +523,17 @@ class DendriticBranchLayer(nn.Module):
         # compute excitation and inhibition along each branch in layer
         if self.input_excitatory:
             excitation = self.branch_excitation(x)
-            numerator = numerator + excitation
-            denominator = denominator + excitation
+            numerator +=  excitation
+            denominator +=  excitation
         # if receiving inhibitory inputs
         if self.input_inhibitory and inhibitory_input is not None:
-            denominator = denominator + self.branch_inhibition(inhibitory_input)
+            denominator += (self.inh_scale * self.branch_inhibition(inhibitory_input))
         # if receiving inputs from upstream branches
         if self.input_branches:
             # compute current contribution from upstream branches and add to numerator
             numerator = numerator + self.branches_to_output(branch_input)
             # compute total conductance of upstream branches and add to denominator
-            denominator = denominator + self.branches_to_output.sum_conductances()
+            denominator +=  self.branches_to_output.sum_conductances()
         # current divided by conductance is voltage
         voltage = numerator / denominator
         return self.reactivation(voltage) if self.reactivate else voltage
@@ -577,7 +585,7 @@ class DendriticBranchLayer(nn.Module):
 class DendriNet(nn.Module):
     """
     Generates a linear layer of neurons, each of which consists of a sequential 
-    structure of dendrtic branches and inhibitory/excitatory inputs.
+    structure of dendritic branches and inhibitory/excitatory inputs.
 
     This network models the complex interactions between excitatory and 
     inhibitory inputs across multiple dendritic branches, simulating dendritic 
@@ -798,228 +806,8 @@ class DendriNet(nn.Module):
     def log_sum_weights(self, pruned = False):
         if self.input_inhibitory:
             exc_total, inh_total = self.sum_weights(pruned = pruned)
-            return (exc_total + 1e-6).log(), (inh_total + 1e-6).log()
+            return (exc_total + 1e-8).log(), (inh_total + 1e-8).log()
         else:
             exc_total = self.sum_weights(pruned = pruned)
-            return (exc_total + 1e-6).log()
+            return (exc_total + 1e-8).log()
 
-
-# class DendriNet(nn.Module):
-#     """
-#     Generates a linear layer of neurons, each of which consists of a sequential 
-#     structure of dendrtic branches and inhibitory/excitatory inputs.
-
-#     This network models the complex interactions between excitatory and 
-#     inhibitory inputs across multiple dendritic branches, simulating dendritic 
-#     processing in biological neurons.
-
-#     Parameters
-#     ----------
-#     n_soma : int
-#         The number of soma neurons in the network. Must be positive integer.
-
-#     branch_factors : list of int
-#         The branching factors for each layer of branches. Each element in the 
-#         list must be a positive integer.
-
-#     excitatory_input_dim : int
-#         The dimensionality of the excitatory inputs.
-    
-#     excitatory_synapses_per_branch : int
-#         The number of excitatory synapses per branch.
-
-#     inhibitory_input_dim : int, optional
-#         The dimensionality of the inhibitory inputs. Defaults to `None`.
-
-#     inhibitory_synapses_per_branch : int, optional 
-#         The number of inhibitory synapses per branch. Defaults to `None`.
-
-#     reactivate : bool, optional
-#         If `True`, applies a reactivation function simulating neuronal firing 
-#         at the soma layer. Defaults to `False`.
-    
-#     somatic_synapses : bool, optional
-#         If `True`, includes direct synaptic inputs to the soma layer. Defaults 
-#         to `True`.
-    
-#     Attributes
-#     ----------
-#     branch_layers : torch.nn.ModuleList
-#         The list of branch layers in the network.
-
-#     soma_layer : DendriticBranchLayer
-#         The layer representing the soma of neurons.
-
-#     input_inhibitory : bool
-#         If `True`, the network receives inputs from inhibitory cells.
-
-#     n_soma : int
-#         The number of neurons in the network.
-    
-#     reactivate : bool
-#         If True, applies a reactivation function dendritic / somatic spiking 
-#         behavior.
-
-#     somatic_synapses : bool
-#         If `True`, includes direct synaptic inputs to the soma layer.
-
-#     layer_sizes : list of int
-#         The number of branches in each layer of the network.
-
-#     Methods
-#     -------
-
-#     forward(x, inhibitory_input=None)
-#         Performs a forward pass through the network.
-
-#     sum_weights(pruned=False)
-#         Returns the sum of synaptic weights for excitatory and inhibitory 
-#         inputs.
-#     """
-#     def __init__(
-#         self, 
-#         n_soma, 
-#         branch_factors, 
-#         excitatory_input_dim, 
-#         excitatory_synapses_per_branch,
-#         inhibitory_input_dim = None, 
-#         inhibitory_synapses_per_branch = None,
-#         reactivate = False, 
-#         somatic_synapses = True,
-#         topk_init_method = 'xavier_normal',
-#     ):
-#         super(DendriNet, self).__init__()
-        
-#         # n_soma should be a positive integer
-#         if not isinstance(n_soma, int):
-#             raise TypeError('n_soma must be an integer')
-#         if n_soma < 1:
-#             raise ValueError('n_soma must be greater than or equal to 1')
-        
-#         # number of branches in layer closest to soma layer
-#         layer_sizes = [n_soma]
-#         # number of branches in upstream layers
-
-#         # branch_factors must be integers greater than or equal to 1
-#         for i in range(len(branch_factors)):
-#             if not isinstance(branch_factors[i], int):
-#                 raise TypeError('branch_factors must be integers')
-#             if branch_factors[i] < 1:
-#                 raise ValueError('branch_factors must be greater than or equal to 1')
-        
-#         # Inhibitory synapses must be positive integers
-#         if inhibitory_synapses_per_branch is not None:
-#             if not isinstance(inhibitory_synapses_per_branch, int):
-#                 raise TypeError('inhibitory_synapses_per_branch must be an integer')
-#             if inhibitory_synapses_per_branch < 1:
-#                 raise ValueError('inhibitory_synapses_per_branch must be greater than or equal to 1')
-            
-#         # Excitatory synapses must be positive integers
-#         if not isinstance(excitatory_synapses_per_branch, int):
-#             raise TypeError('excitatory_synapses_per_branch must be an integer')
-#         if excitatory_synapses_per_branch < 1:
-#             raise ValueError('excitatory_synapses_per_branch must be greater than or equal to 1')
-
-#         branch_factors = deepcopy(branch_factors)
-#         self.n_branch_layers = len(branch_factors)
-#         for i in range(self.n_branch_layers):
-#             layer_sizes.append(layer_sizes[i] * branch_factors[i])
-#         # first item in list corresponds to number of branches in layer furthest from the soma layer
-#         layer_sizes.reverse()
-#         branch_factors.reverse()
-#         # first branch layer (furthest from soma) does not receive any branch inputs
-#         branch_factors.insert(0, None)
-#         # create branch layers and append to list
-#         branch_layers = []
-#         for i in range(self.n_branch_layers):
-#             branch_layers.append(DendriticBranchLayer(
-#                 output_dim = layer_sizes[i], 
-#                 excitatory_input_dim = excitatory_input_dim, 
-#                 excitatory_synapses_per_branch = excitatory_synapses_per_branch,
-#                 inhibitory_input_dim = inhibitory_input_dim, 
-#                 inhibitory_synapses_per_branch = inhibitory_synapses_per_branch, 
-#                 input_branch_factor = branch_factors[i], 
-#                 reactivate = reactivate,
-#                 topk_init_method = topk_init_method,
-#             ))
-#         # wrap list of branch layers in ModuleList
-#         self.branch_layers = nn.ModuleList(branch_layers)
-        
-#         # branches to soma
-#         if somatic_synapses:
-#             self.soma_layer = DendriticBranchLayer(
-#                 output_dim = n_soma, 
-#                 excitatory_input_dim = excitatory_input_dim, 
-#                 excitatory_synapses_per_branch = excitatory_synapses_per_branch,
-#                 inhibitory_input_dim = inhibitory_input_dim, 
-#                 inhibitory_synapses_per_branch = inhibitory_synapses_per_branch,
-#                 input_branch_factor = branch_factors[-1], 
-#                 reactivate = True,
-#                 topk_init_method = topk_init_method,
-#             )
-#         else:
-#             self.soma_layer = BlockLinear(layer_sizes[-2], n_soma)
-        
-#         # assign necessary class attributes
-#         self.input_inhibitory = inhibitory_input_dim is not None
-#         self.n_soma = n_soma
-#         self.reactivate = reactivate
-#         self.somatic_synapses = somatic_synapses
-#         self.layer_sizes = layer_sizes
-    
-#     def decay_weights(self, weight_decay = 0.1):
-#         for branch_layer in self.branch_layers:
-#             branch_layer.decay_weights(weight_decay)
-#         self.soma_layer.decay_weights(weight_decay)
-    
-#     def forward(self, x, inhibitory_input = None):
-#         # branch_input to first branch layer is None
-#         output = None
-#         # dendritic computation
-#         for i in range(self.n_branch_layers):
-#             # recursively update branch_input from one branch layer to the next
-#             output = self.branch_layers[i](x, inhibitory_input, output)
-#         # process information at the soma layer
-#         if self.somatic_synapses:
-#             output = self.soma_layer(x, inhibitory_input, output)
-#         else:
-#             output = self.soma_layer(output) / (self.soma_layer.sum_conductances() + 1)
-#         # return output
-#         return output
-    
-#     def sum_weights(self, pruned = False):
-#         exc_total = 0
-#         if self.input_inhibitory:
-#             inh_total = 0
-        
-#         n_layers = self.n_branch_layers + 1 if self.somatic_synapses else self.n_branch_layers
-
-#         for i in range(n_layers):
-#             if self.somatic_synapses and i == n_layers - 1:
-#                 layer = self.soma_layer
-#             else:
-#                 layer = self.branch_layers[i]
-
-#             if self.input_inhibitory:
-#                 exc, inh = layer.get_pruned_weights() if pruned else layer.get_weights()
-
-#                 inh_chunk = inh.chunk(self.n_soma, dim = 0)
-#                 inh_total = inh_total + torch.stack([chunk.sum(0) for chunk in inh_chunk], dim = 0)
-#             else:
-#                 exc = layer.get_pruned_weights() if pruned else layer.get_weights()
-            
-#             exc_chunk = exc.chunk(self.n_soma, dim = 0)
-#             exc_total = exc_total + torch.stack([chunk.sum(0) for chunk in exc_chunk], dim = 0)
-
-#         if self.input_inhibitory:
-#             return exc_total, inh_total
-#         else:
-#             return exc_total
-        
-#     def log_sum_weights(self, pruned = False):
-#         if self.input_inhibitory:
-#             exc_total, inh_total = self.sum_weights(pruned = pruned)
-#             return (exc_total + 1e-6).log(), (inh_total + 1e-6).log()
-#         else:
-#             exc_total = self.sum_weights(pruned = pruned)
-#             return (exc_total + 1e-6).log()
