@@ -75,8 +75,10 @@ def main(config_path: str, output_dir: str,  experiment_name: str):
             config.wandb = None
 
     logger.info('Loading mnist ...')
+    #data = load_MNIST(train_valid_split = train_hp['train_valid_split'], 
+    #                  cache_dir=os.getcwd())
     data = load_MNIST(train_valid_split = train_hp['train_valid_split'], 
-                      cache_dir=os.getcwd())
+                      cache_dir='/n/holylabs/LABS/kempner_dev/Users/hsafaai/datasets/datasets')
     
     # initialize classifier
     clf = EINetClassifierNLL(**model_hp)
