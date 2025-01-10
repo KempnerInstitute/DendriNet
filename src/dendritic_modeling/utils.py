@@ -17,7 +17,6 @@ from omegaconf import OmegaConf, DictConfig, ListConfig
 
 
 
-
 class Data(torch.utils.data.Dataset):
     """
     A custom PyTorch Dataset for handling input features and labels.
@@ -375,3 +374,8 @@ def accuracy_score(classifier, inputs, labels):
 
     accuracy = (yhat == labels).float().mean(dim = -1)
     return accuracy
+
+
+
+
+
