@@ -8,7 +8,7 @@ import torch
 import torch.nn as nn
 from torch.distributions import Categorical
 
-from dendritic_modeling.excitation_inhibition import ExcitationInhibitionNetwork
+from dendritic_modeling.networks import ExcitationInhibitionNetwork
 
 
 class BaseModel(nn.Module):

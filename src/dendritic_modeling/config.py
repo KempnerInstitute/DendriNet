@@ -41,6 +41,7 @@ class EINetParameters(BaseNetworkParameters):
     somatic_synapses: bool = True
     topk_init_method: str = "xavier_normal"
 
+
 # Parameters for feedforward network
 @dataclass
 class FeedForwardParameters(BaseNetworkParameters):

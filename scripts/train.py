@@ -16,7 +16,7 @@ from dendritic_modeling.utils import (load_MNIST,
                                       save_dict, 
                                       Shaper)
 
-from dendritic_modeling.excitation_inhibition import ExcitationInhibitionNetwork, FeedforwardNN
+from dendritic_modeling.networks import ExcitationInhibitionNetwork, FeedforwardNN
 
 logger.info('imports complete\n')
 

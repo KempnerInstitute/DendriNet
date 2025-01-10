@@ -21,7 +21,7 @@ from dendritic_modeling.utils import (load_MNIST,
                                       Shaper)
 
 from dendritic_modeling.config import load_config
-from dendritic_modeling.excitation_inhibition import (ExcitationInhibitionNetwork, 
+from dendritic_modeling.networks import (ExcitationInhibitionNetwork, 
                                                       FeedforwardNN)
 
 
