@@ -1,11 +1,10 @@
-# datasets.py
+# synthetic_datasets.py
 import torch
 import numpy as np
-from torch.utils.data import Dataset, DataLoader
+from torch.utils.data import Dataset, random_split, TensorDataset
 
-# Import your MNIST loader from your existing utils
-# (Adjust import if your module is in a different location)
-from dendritic_modeling.utils import load_MNIST
+from dendritic_modeling.utils import load_MNIST  # Adjust path if needed
+
 
 ########################################
 # 1) LINE DETECTION DATASET
@@ -28,7 +27,6 @@ class LineDataset(Dataset):
         for _ in range(self.n_samples):
             img = np.zeros((self.image_size, self.image_size), dtype=np.float32)
             label = np.random.choice([0, 1, 2])
-
             if label == 1:  # horizontal line
                 row = np.random.randint(0, self.image_size)
                 img[row, :] = 1.0
@@ -113,7 +111,7 @@ class CenterSurroundDataset(Dataset):
 ########################################
 class OrientationBarsDataset(Dataset):
     """
-    Each sample is an (image_size x image_size) image with a bar 
+    Each sample is an (image_size x image_size) image with a bar
     in one of n_orient_classes orientations.
     """
     def __init__(self, n_samples=10000, image_size=16, n_orient_classes=8):
@@ -155,7 +153,7 @@ class OrientationBarsDataset(Dataset):
 ########################################
 class MultiXORDataset(Dataset):
     """
-    Each sample is an n_bits-bit input. We define multiple XOR sub-tasks 
+    Each sample is an n_bits-bit input. We define multiple XOR sub-tasks
     and combine them for a single label with multiple classes.
     e.g., XOR(x0, x1) => y1, XOR(x2, x3, x4) => y2 => label in [0..3].
     """
@@ -169,9 +167,9 @@ class MultiXORDataset(Dataset):
         X, Y = [], []
         for _ in range(self.n_samples):
             bits = np.random.randint(0, 2, size=self.n_bits).astype(np.float32)
-            # y1 = XOR of bits[0], bits[1]
+            # y1 = XOR(x0, x1)
             y1 = bits[0] ^ bits[1]
-            # y2 = XOR of bits[2], bits[3], bits[4]
+            # y2 = XOR(x2, x3, x4)
             y2 = bits[2] ^ bits[3] ^ bits[4]
             label = (y1 << 1) + y2  # 0..3
             X.append(bits)
@@ -186,38 +184,25 @@ class MultiXORDataset(Dataset):
 
 
 ########################################
-# 5) MNIST LOADER
+# MNIST LOADER (RAW DATASETS)
 ########################################
-# We rely on load_MNIST(...) from dendritic_modeling.utils
-# which typically returns a dictionary: {'train': (X_train, Y_train), 
-#                                       'valid': (X_valid, Y_valid), 
-#                                       'test': (X_test, Y_test)}
-# We just need to wrap each partition in a DataLoader or something equivalent.
-
-def get_mnist_dataloaders(
-    train_valid_split=0.9, 
-    batch_size=64, 
-    # you can pass your cache_dir if needed
-):
+def load_mnist_as_datasets(train_valid_split=0.9):
+    """
+    Loads MNIST using your existing load_MNIST() utility, then wraps
+    each split in a TensorDataset. Returns (train_dataset, valid_dataset, test_dataset).
+    """
     data = load_MNIST(train_valid_split=train_valid_split)
-    # data['train'] => (X_train, Y_train), each is torch.Tensor
-    # We'll create DataLoaders from those:
-
+    # data['train'] => (X_train, Y_train)
     train_dataset = torch.utils.data.TensorDataset(*data['train'][:])
     valid_dataset = torch.utils.data.TensorDataset(*data['valid'][:])
     test_dataset  = torch.utils.data.TensorDataset(*data['test'][:])
-
-    train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True)
-    valid_loader = DataLoader(valid_dataset, batch_size=batch_size, shuffle=False)
-    test_loader  = DataLoader(test_dataset,  batch_size=batch_size, shuffle=False)
-
-    return train_loader, valid_loader, test_loader
+    return train_dataset, valid_dataset, test_dataset
 
 
 ########################################
-# 6) Unified function to get ANY dataset
+# 5) Unified function to get ANY dataset
 ########################################
-def get_unified_dataloaders(
+def get_unified_datasets(
     dataset_name="mnist",
     train_size=8000,
     valid_size=1000,
@@ -225,43 +210,53 @@ def get_unified_dataloaders(
     image_size=10,
     n_orient_classes=8,
     n_bits=8,
-    batch_size=64,
     mnist_train_valid_split=0.9
 ):
     """
-    Returns train_loader, valid_loader, test_loader 
-    for the selected dataset.
+    Returns (train_dataset, valid_dataset, test_dataset) as raw Dataset objects
+    for the specified dataset_name.
+    The main script or trainer can then create DataLoaders from these Datasets.
     """
+
     if dataset_name == "mnist":
-        return get_mnist_dataloaders(
-            train_valid_split=mnist_train_valid_split,
-            batch_size=batch_size
-        )
+        # If we want MNIST, load from your utility
+        return load_mnist_as_datasets(train_valid_split=mnist_train_valid_split)
+
     elif dataset_name == "line":
         total = train_size + valid_size + test_size
-        dataset = LineDataset(n_samples=total, image_size=image_size)
+        full_dataset = LineDataset(n_samples=total, image_size=image_size)
+        train_ds, valid_ds, test_ds = torch.utils.data.random_split(
+            full_dataset, [train_size, valid_size, test_size]
+        )
+        return train_ds, valid_ds, test_ds
+
     elif dataset_name == "center_surround":
         total = train_size + valid_size + test_size
-        dataset = CenterSurroundDataset(n_samples=total, image_size=image_size)
+        full_dataset = CenterSurroundDataset(n_samples=total, image_size=image_size)
+        train_ds, valid_ds, test_ds = torch.utils.data.random_split(
+            full_dataset, [train_size, valid_size, test_size]
+        )
+        return train_ds, valid_ds, test_ds
+
     elif dataset_name == "orientation_bars":
         total = train_size + valid_size + test_size
-        dataset = OrientationBarsDataset(
-            n_samples=total, 
+        full_dataset = OrientationBarsDataset(
+            n_samples=total,
             image_size=image_size,
             n_orient_classes=n_orient_classes
         )
+        train_ds, valid_ds, test_ds = torch.utils.data.random_split(
+            full_dataset, [train_size, valid_size, test_size]
+        )
+        return train_ds, valid_ds, test_ds
+
     elif dataset_name == "multi_xor":
         total = train_size + valid_size + test_size
-        dataset = MultiXORDataset(n_samples=total, n_bits=n_bits)
+        full_dataset = MultiXORDataset(n_samples=total, n_bits=n_bits)
+        train_ds, valid_ds, test_ds = torch.utils.data.random_split(
+            full_dataset, [train_size, valid_size, test_size]
+        )
+        return train_ds, valid_ds, test_ds
+
     else:
         raise ValueError(f"Unknown dataset name: {dataset_name}")
-
-    # if not MNIST, we split + create dataloaders
-    train_data, valid_data, test_data = torch.utils.data.random_split(
-        dataset, [train_size, valid_size, test_size]
-    )
-
-    train_loader = DataLoader(train_data, batch_size=batch_size, shuffle=True)
-    valid_loader = DataLoader(valid_data, batch_size=batch_size, shuffle=False)
-    test_loader  = DataLoader(test_data,  batch_size=batch_size, shuffle=False)
-    return train_loader, valid_loader, test_loader
