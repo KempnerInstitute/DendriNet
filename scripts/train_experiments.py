@@ -1,149 +1,203 @@
-import os
-import torch
-import torch.nn as nn
-import wandb
-from torch.utils.data import DataLoader
+#!/usr/bin/env python
 
-# Reuse your existing code:
+import os
+import time
+import argparse
+from pathlib import Path
+
+import wandb
+import torch
+import torchinfo
+from omegaconf import OmegaConf
+
+# Reuse your logging & training code
+from dendritic_modeling import logger, logger_manager
 from dendritic_modeling.training import TrainerMLE
 from dendritic_modeling.models import EINetClassifierNLL
-from dendritic_modeling.utils import accuracy_score
-from dendritic_modeling.synthetic_datasets import get_synthetic_line_dataloaders
-from dendritic_modeling.information_metrics import estimate_hidden_output_MI
+from dendritic_modeling.utils import accuracy_score, save_dict
 
-def run_experiment(
-    e_cells, i_cells, 
-    remove_inhibition=False,
-    dataset="synthetic_line",
-    output_dir="experiment_results",
-    config=None
-):
-    """
-    e_cells: number of excitatory neurons in final classification layer
-    i_cells: number of inhibitory neurons in final classification layer
-    remove_inhibition: bool, whether to ablate inhibition
-    dataset: 'synthetic_line' or 'mnist'
-    config: dictionary or object with standard hyperparams
-    """
+# Our new unified dataset loader
+from dendritic_modeling.synthetic_datasets import get_unified_dataloaders
 
-    # 1. Load data
-    if dataset == "synthetic_line":
-        train_loader, valid_loader, test_loader = get_synthetic_line_dataloaders()
-        input_dim = 10*10
-        n_classes = 3
+# A simple MLP baseline (for comparison)
+import torch.nn as nn
+import torch.nn.functional as F
+
+class MLPBaseline(nn.Module):
+    """
+    A simple feedforward MLP with one hidden layer, for baseline comparison.
+    """
+    def __init__(self, input_dim, hidden_dim, output_dim):
+        super(MLPBaseline, self).__init__()
+        self.fc1 = nn.Linear(input_dim, hidden_dim)
+        self.fc2 = nn.Linear(hidden_dim, output_dim)
+
+    def forward(self, x):
+        x = F.relu(self.fc1(x))
+        return self.fc2(x)  # raw logits
+
+
+def main(config_path: str, output_dir: str, experiment_name: str):
+
+    # 1. Setup output dir & logging
+    os.makedirs(output_dir, exist_ok=True)
+    logger_manager.set_log_file(os.path.join(output_dir, "dendritic_modeling.log"))
+
+    # 2. Load config
+    config = OmegaConf.load(config_path)
+    model_cfg = config.model
+    train_cfg = config.train
+    wandb_cfg = config.get("wandb", None)
+
+    logger.debug("="*50)
+    logger.debug(f" Experiment Name: {experiment_name}")
+    logger.debug(" Model Hyperparameters:\n" + str(model_cfg))
+    logger.debug(" Training Hyperparameters:\n" + str(train_cfg))
+    logger.debug(f" Output Directory: {output_dir}")
+    logger.debug("="*50)
+
+    # 3. Possibly init W&B
+    if wandb_cfg:
+        try:
+            wandb_dir = Path(output_dir) / "wandb"
+            wandb_dir.mkdir(parents=True, exist_ok=True)
+            wandb_run_name = experiment_name
+            wandb.init(
+                dir=wandb_dir,
+                project=wandb_cfg.project,
+                entity=wandb_cfg.entity,
+                group=wandb_cfg.group,
+                name=wandb_run_name,
+                tags=wandb_cfg.tags,
+                config=OmegaConf.to_container(config, resolve=True),
+            )
+            logger.debug("W&B initialized successfully.")
+        except Exception as e:
+            logger.error(f"Error initializing W&B: {e}")
+            wandb_cfg = None
+
+    # 4. Load dataset
+    dataset_name = train_cfg.get("dataset_name", "mnist")
+    train_loader, valid_loader, test_loader = get_unified_dataloaders(
+        dataset_name=dataset_name,
+        train_size=train_cfg.get("train_size", 8000),
+        valid_size=train_cfg.get("valid_size", 1000),
+        test_size=train_cfg.get("test_size", 1000),
+        image_size=train_cfg.get("image_size", 10),
+        n_orient_classes=train_cfg.get("n_orient_classes", 8),
+        n_bits=train_cfg.get("n_bits", 8),
+        batch_size=train_cfg.get("batch_size", 64),
+        mnist_train_valid_split=train_cfg.get("train_valid_split", 0.9),
+    )
+    logger.info(f"Loaded dataset: {dataset_name}")
+
+    # Peek at one batch to find input_dim & num_classes
+    sample_x, sample_y = next(iter(train_loader))
+    input_dim = sample_x.shape[1]  # e.g. 784 for MNIST, or 100 for line
+    num_classes = len(torch.unique(sample_y))
+
+    # 5. Build model: either MLP or EINet
+    model_type = model_cfg.get("type", "EINet")  # "MLP" or "EINet"
+    if model_type == "MLP":
+        hidden_dim = model_cfg.get("hidden_dim", 50)
+        clf = MLPBaseline(input_dim, hidden_dim, num_classes)
     else:
-        # Reuse your MNIST loader
-        from dendritic_modeling.utils import load_MNIST
-        data = load_MNIST(train_valid_split=config["train_valid_split"])
-        train_loader = DataLoader(data['train'], batch_size=config["batch_size"], shuffle=True)
-        valid_loader = DataLoader(data['valid'], batch_size=config["batch_size"], shuffle=False)
-        test_loader  = DataLoader(data['test'],  batch_size=config["batch_size"], shuffle=False)
-        input_dim = 28*28
-        n_classes = 10
+        # build EINet
+        clf = EINetClassifierNLL(
+            input_dim=input_dim,
+            excitatory_layer_sizes=model_cfg.get("excitatory_layer_sizes", [10]),
+            inhibitory_layer_sizes=model_cfg.get("inhibitory_layer_sizes", [20]),
+            excitatory_branch_factors=model_cfg.get("excitatory_branch_factors", [1,2]),
+            inhibitory_branch_factors=model_cfg.get("inhibitory_branch_factors", []),
+            ee_synapses_per_branch_per_layer=model_cfg.get("ee_synapses_per_branch_per_layer", [24]),
+            ei_synapses_per_branch_per_layer=model_cfg.get("ei_synapses_per_branch_per_layer", [200]),
+            ie_synapses_per_branch_per_layer=model_cfg.get("ie_synapses_per_branch_per_layer", [1]),
+            ii_synapses_per_branch_per_layer=model_cfg.get("ii_synapses_per_branch_per_layer", []),
+            reactivate=model_cfg.get("reactivate", True),
+            somatic_synapses=model_cfg.get("somatic_synapses", True),
+            topk_init_method=model_cfg.get("topk_init_method", "xavier_normal"),
+        )
 
-    # 2. Build model hyperparams
-    excitatory_layer_sizes = [e_cells]
-    inhibitory_layer_sizes = [i_cells] if not remove_inhibition else [0]  # ablation means i_cells=0 or None
+    # 6. Optional: Model summary with torchinfo
+    try:
+        import torchinfo
+        summary = torchinfo.summary(
+            clf,
+            input_size=(train_cfg.get("batch_size", 64), input_dim),
+            col_names=["input_size", "output_size", "num_params"],
+            col_width=25,
+            row_settings=["depth"],
+            depth=7
+        )
+        logger.debug("\n" + str(summary))
+        if wandb_cfg:
+            wandb.log({
+                "total_params": summary.total_params,
+                "trainable_params": summary.trainable_params
+            })
+    except:
+        pass
 
-    # minimal example: single-layer net with some synapses
-    model_hp = {
-        "input_dim": input_dim,
-        "excitatory_layer_sizes": excitatory_layer_sizes,
-        "inhibitory_layer_sizes": inhibitory_layer_sizes,
-        "excitatory_branch_factors": [4],   # or some other factor
-        "inhibitory_branch_factors": [4],
-        "ee_synapses_per_branch_per_layer": [20],
-        "ei_synapses_per_branch_per_layer": [20],
-        "ie_synapses_per_branch_per_layer": [1],
-        "ii_synapses_per_branch_per_layer": [1] if not remove_inhibition else [],
-        "reactivate": True,
-        "somatic_synapses": True,
-        "topk_init_method": "xavier_normal",
-    }
-
-    clf = EINetClassifierNLL(**model_hp)
-
-    # 3. Set up trainer
-    train_hp = {
-        "epochs": config.get("epochs", 10),
-        "batch_size": config.get("batch_size", 64),
-        "lr": config.get("lr", 1e-3),
-        "grad_clip_value": config.get("grad_clip_value", None)
-    }
-
-    optimizer = torch.optim.Adam(clf.parameters(), lr=train_hp["lr"])
+    # 7. Trainer
+    optimizer = torch.optim.Adam(clf.parameters(), lr=train_cfg.get("lr",1e-3))
     trainer = TrainerMLE(
-        optimizer = optimizer, 
-        suppress_prints = False, 
-        print_every = 1,
+        optimizer=optimizer,
+        suppress_prints=False,
+        print_every=10,
     )
 
-    # 4. Training
+    # 8. Train
+    epochs = train_cfg.get("epochs", 10)
+    logger.info("Starting training...")
+    start_time = time.time()
     trainer.train(
         model=clf,
-        train_data=train_loader, 
+        train_data=train_loader,
         valid_data=valid_loader,
-        epochs=train_hp['epochs'],
-        batch_size=train_hp['batch_size'], 
-        grad_clip_value=train_hp['grad_clip_value'],
+        epochs=epochs,
+        batch_size=train_cfg.get("batch_size", 64),
+        grad_clip_value=train_cfg.get("grad_clip_value", None),
         shuffle=True,
-        plot_losses=True, 
-        save_path=output_dir
+        plot_losses=True,
+        save_path=output_dir,
     )
+    training_time = time.time() - start_time
+    logger.info(f"Training completed in {training_time/60:.2f} min.")
 
-    # 5. Evaluation
-    train_acc = accuracy_score(clf, *next(iter(train_loader)))
-    valid_acc = accuracy_score(clf, *next(iter(valid_loader)))
-    test_acc  = accuracy_score(clf, *next(iter(test_loader)))
+    # 9. Evaluate
+    logger.info("Evaluating performance...")
+    t0 = time.time()
+    train_acc = accuracy_score(clf, *next(iter(train_loader))).item()
+    valid_acc = accuracy_score(clf, *next(iter(valid_loader))).item()
+    test_acc  = accuracy_score(clf, *next(iter(test_loader))).item()
+    inference_time = time.time() - t0
 
-    # 6. (Optional) Info analysis
-    hidden_MI = estimate_hidden_output_MI(clf, test_loader)
-
-    return {
-        "train_acc": train_acc.item(),
-        "valid_acc": valid_acc.item(),
-        "test_acc": test_acc.item(),
-        "hidden_MI": hidden_MI
+    performance = {
+        "train accuracy": train_acc,
+        "valid accuracy": valid_acc,
+        "test accuracy":  test_acc,
+        "training time": f"{training_time:.3f} sec",
+        "inference time": f"{inference_time:.3f} sec"
     }
+    logger.info(f"Performance: {performance}")
+
+    # 10. Save info
+    save_dict(model_cfg, output_dir, "model_hparams.json")
+    save_dict(train_cfg, output_dir, "training_hparams.json")
+    save_dict(performance, output_dir, "performance.json")
+
+    if wandb_cfg:
+        wandb.log(performance)
+        wandb.finish()
+
+    logger.info("----------- Done! -----------")
 
 
-if __name__ == "__main__":
+if __name__ == '__main__':
+    parser = argparse.ArgumentParser()
+    parser.add_argument("config", help="Path to the configuration YAML file.")
+    parser.add_argument("--output_dir", default="results", help="Output directory")
+    parser.add_argument("--experiment_name", default="example", help="Experiment name")
+    args = parser.parse_args()
 
-    # Example usage of the experiment function
-    # We'll systematically vary excitatory/inhibitory ratio
-    results = []
-
-    # Suppose we fix total = 10 neurons, vary E/I from (9,1) to (5,5)
-    E_list = [9,8,7,6,5]
-    I_list = [1,2,3,4,5]
-
-    for e, i in zip(E_list, I_list):
-        res = run_experiment(
-            e_cells=e, 
-            i_cells=i,
-            remove_inhibition=False, 
-            dataset="synthetic_line",  # or "mnist"
-            output_dir=f"results/E_{e}_I_{i}",
-            config={
-                "epochs": 10,
-                "batch_size": 64,
-                "lr": 1e-3,
-            }
-        )
-        print(f"E={e}, I={i} => {res}")
-        results.append((e, i, res))
-
-    # Ablation: remove inhibition altogether
-    no_inh_res = run_experiment(
-        e_cells=10, 
-        i_cells=0, 
-        remove_inhibition=True, 
-        dataset="synthetic_line",
-        output_dir=f"results/no_inhibition",
-        config={
-            "epochs": 10,
-            "batch_size": 64,
-            "lr": 1e-3
-        }
-    )
-    print(f"No Inhibition => {no_inh_res}")
+    main(args.config, args.output_dir, args.experiment_name)

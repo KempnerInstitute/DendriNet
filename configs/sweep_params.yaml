@@ -63,3 +63,5 @@ sweep_config:
     #init_scale: ['True','False']
     reactivate: ['True','False']
     somatic_synapses: ['True','False']
+
+
