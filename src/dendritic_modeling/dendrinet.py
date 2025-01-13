@@ -10,7 +10,6 @@ from copy import deepcopy
 import torch
 import torch.nn as nn
 
-
 TOPK_INIT_METHODS = {
     'xavier_normal': nn.init.xavier_normal_,
     'xavier_uniform': nn.init.xavier_uniform_,
@@ -21,7 +20,6 @@ TOPK_INIT_METHODS = {
     'uniform': nn.init.uniform_,
     'eye': nn.init.eye_,
 }
-
 
 def scale_layer_gradients(module, grad_input, grad_output, scale_factor):
     return tuple(
