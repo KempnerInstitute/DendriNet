@@ -1,7 +1,9 @@
 # conf.py
-from omegaconf import OmegaConf as om
-from dataclasses import dataclass, field, asdict
 from pathlib import Path
+from typing import List, Union
+from dataclasses import dataclass, field, asdict
+
+from omegaconf import OmegaConf as om
 
 # Base configuration class
 class BaseConfig:
@@ -15,18 +17,17 @@ class BaseConfig:
 
     def asdict(self):
         return asdict(self)
-
+    
+# Base class for all network parameters
 @dataclass
-class WandbConfig(BaseConfig):
-    """Configuration for Weights & Biases (W&B) integration."""
-    entity: str = "your_wandb_entity"
-    project: str = "dendritic_modeling_pr"
-    group: str = "debug"
-    tags: list = field(default_factory=list)
+class BaseNetworkParameters(BaseConfig):
+    """ Base class for all network parameters """
+    pass
 
+# Parameters for EINet network
 @dataclass
-class ModelConfig(BaseConfig):
-    """Configuration for model hyperparameters."""
+class EINetParameters(BaseNetworkParameters):
+    """ Parameters for EINet network """
     input_dim: int = 784
     excitatory_layer_sizes: list = field(default_factory=lambda: [10])
     inhibitory_layer_sizes: list = field(default_factory=lambda: [20])
@@ -41,6 +42,41 @@ class ModelConfig(BaseConfig):
     topk_init_method: str = "xavier_normal"
 
 
+# Parameters for feedforward network
+@dataclass
+class FeedForwardParameters(BaseNetworkParameters):
+    """ Parameters for feedforward network """
+    input_dim: int = 784
+    hidden_layer_sizes:  List[int] = field(default_factory=lambda: [128, 64])
+    activation: str = "relu"
+    dropout: float = 0.2
+    output_dim: int = 10
+
+
+# Network configuration
+@dataclass
+class NetworkConfig(BaseConfig):
+    """ Configuration for network hyperparameters """
+    type: str = "EINet"
+    parameters: Union[EINetParameters, FeedForwardParameters] = field(default_factory=EINetParameters)
+
+
+@dataclass
+class WandbConfig(BaseConfig):
+    """Configuration for Weights & Biases (W&B) integration."""
+    entity: str = "your_wandb_entity"
+    project: str = "dendritic_modeling_pr"
+    group: str = "debug"
+    tags: list = field(default_factory=list)
+
+@dataclass
+class ModelConfig(BaseConfig):
+    """Configuration for model hyperparameters."""
+    task: str = "classification"
+    probabilistic: bool = False
+    network: NetworkConfig = field(default_factory=NetworkConfig)
+
+
 @dataclass
 class TrainConfig(BaseConfig):
     """Configuration for training hyperparameters."""
@@ -53,12 +89,19 @@ class TrainConfig(BaseConfig):
     grad_clip_value: float = 0.5
 
 
+# Settings configuration (all other parameters)
+@dataclass
+class SettingsConfig(BaseConfig):
+    """Configuration for all other settings."""
+    visualizations: bool = False
+
 @dataclass
 class Config:
     """Primary configuration that combines model and training configs."""
     model: ModelConfig = field(default_factory=ModelConfig)
     train: TrainConfig = field(default_factory=TrainConfig)
     wandb: WandbConfig = field(default_factory=WandbConfig)
+    settings: SettingsConfig = field(default_factory=SettingsConfig)
 
     def asdict(self, exclude=None):
         """Convert the Config class to a dictionary, with options to exclude keys."""
@@ -69,6 +112,7 @@ class Config:
             "train": self.train.asdict() if hasattr(self.train, 
                                                     'asdict') else self.train,
             "wandb": self.wandb,
+            "settings": self.settings
         }
         
         # Remove excluded keys
@@ -76,6 +120,8 @@ class Config:
             config_dict.pop(key, None)
         
         return config_dict
+
+
 
 
 def load_config(path: str = None) -> Config:
@@ -86,5 +132,8 @@ def load_config(path: str = None) -> Config:
             model=ModelConfig(**raw_conf.get("model", {})),
             train=TrainConfig(**raw_conf.get("train", {})),
             wandb=WandbConfig(**raw_conf.get("wandb", {})),
+            settings=SettingsConfig(**raw_conf.get("settings", {}))
         )
     return Config()
+
+
