@@ -86,7 +86,7 @@ class ExcitationInhibitionLayer(nn.Module):
         inhibitory_input_dim = None, 
         ie_synapses_per_branch = None, 
         ii_synapses_per_branch = None, 
-        reactivate = False, 
+        reactivate = True, 
         somatic_synapses = True,
         topk_init_method = "xavier_normal",
         use_shunting = True
@@ -195,7 +195,7 @@ class ExcitationInhibitionNetwork(nn.Module):
         ei_synapses_per_branch_per_layer, 
         ie_synapses_per_branch_per_layer, 
         ii_synapses_per_branch_per_layer = [], 
-        reactivate = False, 
+        reactivate = True, 
         somatic_synapses = True,
         topk_init_method = "xavier_normal",
         use_shunting = True
