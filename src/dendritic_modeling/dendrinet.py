@@ -469,13 +469,13 @@ class DendriticBranchLayer(nn.Module):
                                       requires_grad = True)
         self.reactivate = reactivate
 
-        self.inh_scale = 1.0
-        if (self.input_excitatory and self.input_inhibitory and
-            excitatory_synapses_per_branch is not None and 
-            inhibitory_synapses_per_branch is not None and
-            inhibitory_synapses_per_branch > 0):
+        # self.inh_scale = 1.0
+        # if (self.input_excitatory and self.input_inhibitory and
+        #     excitatory_synapses_per_branch is not None and 
+        #     inhibitory_synapses_per_branch is not None and
+        #     inhibitory_synapses_per_branch > 0):
             
-            self.inh_scale = float(excitatory_synapses_per_branch) / float(inhibitory_synapses_per_branch)
+        #     self.inh_scale = float(excitatory_synapses_per_branch) / float(inhibitory_synapses_per_branch)
 
         # self.register_full_backward_hook(normalize_layer_gradients)
 
@@ -528,7 +528,7 @@ class DendriticBranchLayer(nn.Module):
             denominator +=  excitation
         # if receiving inhibitory inputs
         if self.input_inhibitory and inhibitory_input is not None:
-            denominator += (self.inh_scale * self.branch_inhibition(inhibitory_input))
+            denominator +=  self.branch_inhibition(inhibitory_input)
         # if receiving inputs from upstream branches
         if self.input_branches:
             # compute current contribution from upstream branches and add to numerator
