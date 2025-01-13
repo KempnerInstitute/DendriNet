@@ -830,28 +830,20 @@ class DendriNetWithOutputs(DendriNet):
                                                for each dendritic branch layer,
                                                plus the soma layer as the last entry.
         """
-        # We'll store each layer's activation
         per_layer_acts = []
 
-        # Step through branch layers
         output = None
         for i in range(self.n_branch_layers):
-            # pass forward
             output = self.branch_layers[i](x, inhibitory_input, output)
             per_layer_acts.append(output)  # shape [batch_size, layer_sizes[i]]
 
-        # final pass at soma
         final_soma = self.soma_layer(x, inhibitory_input, output)
-        per_layer_acts.append(final_soma)  # soma is last
+        per_layer_acts.append(final_soma)  
 
         return final_soma, per_layer_acts
 
     def forward(self, x, inhibitory_input=None):
-        """
-        The usual forward. This just returns the final soma output
-        if you want the standard usage. 
-        """
-        # same as your existing logic
+
         output = None
         for i in range(self.n_branch_layers):
             output = self.branch_layers[i](x, inhibitory_input, output)

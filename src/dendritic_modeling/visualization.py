@@ -1,4 +1,3 @@
-# visualization.py
 
 import networkx as nx
 import matplotlib.pyplot as plt
@@ -8,11 +7,8 @@ def build_dendritic_tree_graph(model, branch_info=None, ablation_info=None):
     """
     Creates a networkx DiGraph where each node corresponds to a (layer_idx, branch_id).
     We'll store 'info' and 'ablation' as node attributes if provided.
-    This depends on how your model is structured; we do a simple example.
 
-    We'll assume each layer i has 'output_dim = layer.output_dim' branches,
-    and they're connected from layer i -> layer i+1 or to soma. 
-    The exact adjacency might differ in your code.
+
     """
     G = nx.DiGraph()
     for i, layer in enumerate(model.branch_layers):
@@ -22,16 +18,13 @@ def build_dendritic_tree_graph(model, branch_info=None, ablation_info=None):
             G.add_node(node_id)
             # store info
             if branch_info and i in branch_info:
-                # branch_info might be {layer_idx: MI_value}. 
-                # If you have per-branch_id MI, you might store them differently.
-                # We'll store the same for all branches at that layer
+
                 G.nodes[node_id]['info'] = branch_info[i]
             if ablation_info and i in ablation_info:
                 G.nodes[node_id]['ablation'] = ablation_info[i]
             else:
                 G.nodes[node_id]['ablation'] = 0
 
-    # connect edges i-> i+1. This is simplistic
     for i in range(model.n_branch_layers - 1):
         out_dim_i = model.branch_layers[i].branch_excitation.out_features
         out_dim_next = model.branch_layers[i+1].branch_excitation.out_features
@@ -51,7 +44,6 @@ def build_dendritic_tree_graph(model, branch_info=None, ablation_info=None):
             else:
                 G.nodes[node_id]['info'] = 0
             G.nodes[node_id]['ablation'] = 0
-        # connect from layer n_branch_layers-1 to soma
         out_dim_last = model.branch_layers[-1].branch_excitation.out_features
         for b1 in range(out_dim_last):
             for b2 in range(out_dim_soma):
