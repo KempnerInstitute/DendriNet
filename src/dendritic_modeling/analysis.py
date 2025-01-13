@@ -22,7 +22,6 @@ def collect_branch_outputs(model, dataset, batch_size=64, device='cpu'):
     - model is an instance of DendriNet or something that 
       can expose internal dendritic branches.
     - each DendriticBranchLayer can return a 'branch_voltage' or something 
-      if you instrument the forward pass or create a hook.
     
     Implementation approach:
     1) We define forward hooks or override the forward method to store each branch output.
@@ -129,8 +128,6 @@ def ablate_branch(model, layer_idx, branch_idx=None):
     If layer_idx is an integer indexing model.branch_layers,
     we zero that layer's branch_excitation and branch_inhibition pre_w, 
     only for excitatory input (NOT upstream branch inputs).
-    
-
     """
     layer = None
     if layer_idx == 'soma':
