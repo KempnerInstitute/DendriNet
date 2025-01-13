@@ -30,13 +30,9 @@ def collect_branch_outputs(model, dataset, batch_size=64, device='cpu'):
     2) We provide a special function "model.forward_with_branch_outputs(...)"
        that returns the branch outputs as well as the final output.
     """
-    # We'll assume you have some way to do it. We'll give a placeholder approach:
     model.eval()
-    # We'll store outputs in a dict of lists:
     branch_outputs = {}
 
-    # => We'll define a "branch_hook" to capture each branch's final voltage
-    # We'll dynamically attach hooks to each DendriticBranchLayer
     hooks = []
 
     def make_hook(layer_idx, branch_outputs_dict):
@@ -51,7 +47,6 @@ def collect_branch_outputs(model, dataset, batch_size=64, device='cpu'):
             
             # shape: [batch_size, output_dim]
             # We'll do a mean across output_dim to get a single scalar (just for demonstration).
-            # In practice, you might keep all dims or do something else.
             mean_per_sample = output.mean(dim=1).detach().cpu().numpy()
             if (layer_idx) not in branch_outputs_dict:
                 branch_outputs_dict[layer_idx] = []
@@ -60,28 +55,22 @@ def collect_branch_outputs(model, dataset, batch_size=64, device='cpu'):
 
     # Register the hook on each branch layer:
     # e.g. "model.branch_layers" is a ModuleList of DendriticBranchLayer
-    # We'll do something like:
     for idx, layer in enumerate(model.branch_layers):
         h = layer.register_forward_hook(make_hook(idx, branch_outputs))
         hooks.append(h)
 
-    # Also handle the soma_layer, if that is a separate DendriticBranchLayer
     soma_hook = model.soma_layer.register_forward_hook(make_hook('soma', branch_outputs))
     hooks.append(soma_hook)
 
-    # Now run through dataset
     loader = DataLoader(dataset, batch_size=batch_size, shuffle=False)
     for x, y in loader:
         x = x.to(device)
-        # forward pass
         with torch.no_grad():
             _ = model(x)  # triggers hooks
 
-    # Remove hooks
     for h in hooks:
         h.remove()
 
-    # Now branch_outputs[layer_idx] is a list of arrays. We'll stack them
     final_branch_outputs = {}
     for k, list_of_arrays in branch_outputs.items():
         final_branch_outputs[k] = np.concatenate(list_of_arrays, axis=0)  # shape [N,], single scalar each sample
@@ -112,14 +101,10 @@ def compute_branch_information(branch_outputs, labels, bins=10):
     labels = labels.numpy() if torch.is_tensor(labels) else labels
     N = len(labels)
 
-    # Unique label classes:
     unique_labels = np.unique(labels)
 
     for layer_idx, out_vals in branch_outputs.items():
-        # out_vals shape [N,]
-        # bin them
         hist, xedges, yedges = np.histogram2d(out_vals, labels, bins=[bins, len(unique_labels)])
-        # hist shape [bins, #unique_labels]
         pxy = hist / hist.sum()
         px = pxy.sum(axis=1, keepdims=True)
         py = pxy.sum(axis=0, keepdims=True)
@@ -145,10 +130,7 @@ def ablate_branch(model, layer_idx, branch_idx=None):
     we zero that layer's branch_excitation and branch_inhibition pre_w, 
     only for excitatory input (NOT upstream branch inputs).
     
-    If branch_idx is relevant (like if output_dim>1 and we want to ablate the k-th sub-branch),
-    we might do partial zeroing. But often you zero the entire DendriticBranchLayer's input.
 
-    Implementation depends on how your code organizes branches. We'll do a simple approach:
     """
     layer = None
     if layer_idx == 'soma':
@@ -157,8 +139,6 @@ def ablate_branch(model, layer_idx, branch_idx=None):
         layer = model.branch_layers[layer_idx]
 
     if layer.input_excitatory:
-        # For partial ablation (like ablate only some rows?), you'd do fancier indexing.
-        # For full ablation, just zero out all excitatory pre_w
         with torch.no_grad():
             layer.branch_excitation.pre_w[:] = 0.0
 
@@ -201,7 +181,6 @@ def measure_performance_drop(model, layer_idx, dataset_dict,
     dataset_dict = {'train': train_dataset, 'valid': valid_dataset, 'test': test_dataset}
     trainer_config is some dict specifying batch_size, etc.
 
-    We'll measure accuracy for simplicity. 
     """
     layer = None
     if layer_idx == 'soma':
@@ -209,7 +188,6 @@ def measure_performance_drop(model, layer_idx, dataset_dict,
     else:
         layer = model.branch_layers[layer_idx]
 
-    # 1. backup
     exc_backup = None
     inh_backup = None
     if layer.input_excitatory:
@@ -217,7 +195,6 @@ def measure_performance_drop(model, layer_idx, dataset_dict,
     if layer.input_inhibitory:
         inh_backup = layer.branch_inhibition.pre_w.clone()
 
-    # original performance
     batch_size = trainer_config.get('batch_size', 64)
     train_loader = DataLoader(dataset_dict['train'], batch_size=batch_size, shuffle=False)
     valid_loader = DataLoader(dataset_dict['valid'], batch_size=batch_size, shuffle=False)
@@ -229,19 +206,15 @@ def measure_performance_drop(model, layer_idx, dataset_dict,
         valid_acc_orig = accuracy_score(model, *next(iter(valid_loader))).item()
         test_acc_orig  = accuracy_score(model, *next(iter(test_loader))).item()
 
-    # 2. zero out
     ablate_branch(model, layer_idx)
 
-    # 3. measure new performance
     with torch.no_grad():
         train_acc_ablat = accuracy_score(model, *next(iter(train_loader))).item()
         valid_acc_ablat = accuracy_score(model, *next(iter(valid_loader))).item()
         test_acc_ablat  = accuracy_score(model, *next(iter(test_loader))).item()
 
-    # 4. restore
     restore_branch(model, layer_idx, exc_backup, inh_backup)
 
-    # 5. Return performance drop
     return {
         'train_perf_drop': train_acc_orig - train_acc_ablat,
         'valid_perf_drop': valid_acc_orig - valid_acc_ablat,
@@ -280,7 +253,6 @@ def gather_dendritic_analysis(model, train_ds, valid_ds, test_ds,
     model.to(device)
     model.eval()
 
-    # We'll collect a single vector of labels for the entire train set
     from torch.utils.data import DataLoader
     loader = DataLoader(train_ds, batch_size=trainer_config.get('batch_size',64), shuffle=False)
     all_labels = []
@@ -288,21 +260,16 @@ def gather_dendritic_analysis(model, train_ds, valid_ds, test_ds,
         all_labels.append(y)
     all_labels = torch.cat(all_labels, dim=0)
 
-    # 1. Collect branch outputs
     branch_outs = collect_branch_outputs(model, train_ds, 
                                          batch_size=trainer_config.get('batch_size',64),
                                          device=device)
-    # 2. Compute info
     info_dict = compute_branch_information(branch_outs, all_labels, bins=bins)
 
-    # 3. For each layer, measure performance drop
     dataset_dict = {'train': train_ds, 'valid': valid_ds, 'test': test_ds}
     results = {}
-    # We'll gather a list of layer indices: e.g. 0..(n_branch_layers-1) plus 'soma'
     layer_indices = list(range(len(model.branch_layers))) + ['soma']
 
     for lidx in layer_indices:
-        # measure
         perf_drop = measure_performance_drop(model, lidx, dataset_dict, 
                                              trainer_config=trainer_config, device=device)
         info_val = info_dict[lidx] if lidx in info_dict else None
