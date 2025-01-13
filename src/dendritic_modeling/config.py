@@ -40,7 +40,7 @@ class EINetParameters(BaseNetworkParameters):
     reactivate: bool = True
     somatic_synapses: bool = True
     topk_init_method: str = "xavier_normal"
-
+    use_shunting=use_shunting
 
 # Parameters for feedforward network
 @dataclass
