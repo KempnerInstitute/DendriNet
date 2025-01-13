@@ -39,6 +39,7 @@ class ModelConfig(BaseConfig):
     reactivate: bool = True
     somatic_synapses: bool = True
     topk_init_method: str = "xavier_normal"
+    use_shunting: bool = True
 
 
 @dataclass

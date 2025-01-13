@@ -1,9 +1,8 @@
-# synthetic_datasets.py
 import torch
 import numpy as np
 from torch.utils.data import Dataset, random_split, TensorDataset
 
-from dendritic_modeling.utils import load_MNIST  # Adjust path if needed
+from dendritic_modeling.utils import load_MNIST  
 
 
 ########################################
@@ -219,7 +218,7 @@ def get_unified_datasets(
     """
 
     if dataset_name == "mnist":
-        # If we want MNIST, load from your utility
+
         return load_mnist_as_datasets(train_valid_split=mnist_train_valid_split)
 
     elif dataset_name == "line":

@@ -89,6 +89,7 @@ class ExcitationInhibitionLayer(nn.Module):
         reactivate = False, 
         somatic_synapses = True,
         topk_init_method = "xavier_normal",
+        use_shunting = True
     ):
         super(ExcitationInhibitionLayer, self).__init__()
 
@@ -102,6 +103,7 @@ class ExcitationInhibitionLayer(nn.Module):
             reactivate = reactivate, 
             somatic_synapses = somatic_synapses, 
             topk_init_method = topk_init_method,
+            use_shunting=use_shunting
         )
 
         self.excitatory_cells = DendriNet(
@@ -114,6 +116,7 @@ class ExcitationInhibitionLayer(nn.Module):
             reactivate = reactivate, 
             somatic_synapses = somatic_synapses,
             topk_init_method = topk_init_method,
+            use_shunting=use_shunting
         )
     
     def decay_weights(self, weight_decay = 0.1):
@@ -195,6 +198,7 @@ class ExcitationInhibitionNetwork(nn.Module):
         reactivate = False, 
         somatic_synapses = True,
         topk_init_method = "xavier_normal",
+        use_shunting = True
     ):
         super(ExcitationInhibitionNetwork, self).__init__()
 
@@ -230,6 +234,7 @@ class ExcitationInhibitionNetwork(nn.Module):
                 reactivate = reactivate, 
                 somatic_synapses = somatic_synapses,
                 topk_init_method = topk_init_method,
+                use_shunting = use_shunting
             ))
         
         self.layers = nn.ModuleList(layers)

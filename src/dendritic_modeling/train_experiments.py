@@ -30,6 +30,13 @@ from dendritic_modeling.visualization import (
     plot_depth_info
 )
 
+
+    
+	# •	We can run python scripts/train_experiments.py configs/my_config.yaml ... as before.
+	# •	If the model ends up being an EINet that uses a DendriNetWithOutputs under the hood, the code will do a post-training branch analysis + optional ablation + simple plots.
+	# •	If it’s MLP, or if the dendritic net doesn’t have forward_with_branch_outputs, the new analysis is skipped.
+ 
+ 
 class MLPBaseline(nn.Module):
     """
     A simple feedforward MLP with one hidden layer, for baseline comparison.
@@ -114,7 +121,7 @@ def main(config_path: str, output_dir: str, experiment_name: str):
             reactivate=model_cfg.get("reactivate", True),
             somatic_synapses=model_cfg.get("somatic_synapses", True),
             topk_init_method=model_cfg.get("topk_init_method", "xavier_normal"),
-            # optional param: use_shunting=model_cfg.get("use_shunting", True),
+            use_shunting=model_cfg.get("use_shunting", True),
         )
 
     try:
@@ -244,3 +251,7 @@ if __name__ == '__main__':
     args = parser.parse_args()
 
     main(args.config, args.output_dir, args.experiment_name)
+    
+    
+    
+    

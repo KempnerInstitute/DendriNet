@@ -426,8 +426,9 @@ class DendriticBranchLayer(nn.Module):
         inhibitory_input_dim = None, 
         inhibitory_synapses_per_branch = None, 
         input_branch_factor = None, 
-        reactivate = False,
+        reactivate = True,
         topk_init_method = 'xavier_normal',
+        use_shunting = self.use_shunting,
         ):
         
         # initialize dendritic branch layer
@@ -665,9 +666,12 @@ class DendriNet(nn.Module):
         reactivate = False, 
         somatic_synapses = True,
         topk_init_method = 'xavier_normal',
+        use_shunting = True
     ):
         super(DendriNet, self).__init__()
         
+        self.use_shunting = use_shunting
+
         # n_soma should be a positive integer
         if not isinstance(n_soma, int):
             raise TypeError('n_soma must be an integer')
@@ -720,6 +724,7 @@ class DendriNet(nn.Module):
                 input_branch_factor = branch_factors[i], 
                 reactivate = reactivate,
                 topk_init_method = topk_init_method,
+                use_shunting = self.use_shunting,
             ))
         # wrap list of branch layers in ModuleList
         self.branch_layers = nn.ModuleList(branch_layers)
@@ -736,6 +741,7 @@ class DendriNet(nn.Module):
                 input_branch_factor = branch_factors[-1], 
                 reactivate = reactivate,
                 topk_init_method = topk_init_method,
+                use_shunting = self.use_shunting,
             )
         else:
             self.soma_layer = DendriticBranchLayer(
@@ -748,6 +754,7 @@ class DendriNet(nn.Module):
                 input_branch_factor = branch_factors[-1], 
                 reactivate = reactivate,
                 topk_init_method = topk_init_method,
+                use_shunting = self.use_shunting,
             )
         
         # assign necessary class attributes
