@@ -1,8 +1,12 @@
+# synthetic_datasets.py
+
 import torch
 import numpy as np
 from torch.utils.data import Dataset, random_split, TensorDataset
 
-from dendritic_modeling.utils import load_MNIST  
+from dendritic_modeling.utils import load_MNIST  # Adjust path if needed
+from torchvision.datasets import MNIST
+import torchvision.transforms as T
 
 
 ########################################
@@ -192,10 +196,119 @@ def load_mnist_as_datasets(train_valid_split=0.9):
     """
     data = load_MNIST(train_valid_split=train_valid_split)
     # data['train'] => (X_train, Y_train)
-    train_dataset = torch.utils.data.TensorDataset(*data['train'][:])
-    valid_dataset = torch.utils.data.TensorDataset(*data['valid'][:])
-    test_dataset  = torch.utils.data.TensorDataset(*data['test'][:])
+    train_dataset = TensorDataset(*data['train'][:])
+    valid_dataset = TensorDataset(*data['valid'][:])
+    test_dataset  = TensorDataset(*data['test'][:])
     return train_dataset, valid_dataset, test_dataset
+
+
+#### NEW DATASETS ####
+
+class MNISTContextualFG(Dataset):
+    """
+    Takes a standard MNIST sample (28x28),
+    transforms left half into random noise, keeps the right half as original digit.
+    Label remains the digit (0..9).
+    """
+    def __init__(self, base_mnist, noise_level=0.1):
+        super().__init__()
+        self.base_mnist = base_mnist  # e.g. torchvision MNIST
+        self.noise_level = noise_level
+
+    def __len__(self):
+        return len(self.base_mnist)
+
+    def __getitem__(self, idx):
+        img, label = self.base_mnist[idx]
+        # If using torchvision transforms, 'img' might be a 1x28x28 tensor or a PIL image
+        img_arr = np.array(img, dtype=np.float32)  # shape: [28,28]
+        w = 28
+        # random noise on left half
+        new_img = np.random.rand(w, w) * self.noise_level
+        boundary = w//2
+        new_img[:, boundary:] = img_arr[:, boundary:]
+        # flatten
+        new_img_tensor = torch.tensor(new_img, dtype=torch.float32).view(-1)
+        return new_img_tensor, label
+
+
+class MNISTNoisyPartial(Dataset):
+    """
+    Takes a standard MNIST sample, adds random noise and partial occlusion.
+    occlusion_prob: fraction of pixels set to 0
+    noise_level: random [0, noise_level] added
+    """
+    def __init__(self, base_mnist, occlusion_prob=0.3, noise_level=0.2):
+        super().__init__()
+        self.base_mnist = base_mnist
+        self.occlusion_prob = occlusion_prob
+        self.noise_level = noise_level
+
+    def __len__(self):
+        return len(self.base_mnist)
+
+    def __getitem__(self, idx):
+        img, label = self.base_mnist[idx]
+        img_arr = np.array(img, dtype=np.float32)  # shape [28,28]
+        # add noise
+        noise = np.random.rand(*img_arr.shape) * self.noise_level
+        img_arr += noise
+        # occlusion
+        mask = np.random.rand(*img_arr.shape) < self.occlusion_prob
+        img_arr[mask] = 0.0
+        # flatten
+        tensor_img = torch.tensor(img_arr, dtype=torch.float32).view(-1)
+        return tensor_img, label
+
+
+class MNISTTemporal(Dataset):
+    """
+    Splits each 28x28 digit into seq_len vertical slices.
+    Then concatenates them in time order into a single vector.
+    """
+    def __init__(self, base_mnist, seq_len=4):
+        super().__init__()
+        self.base_mnist = base_mnist
+        self.seq_len = seq_len
+        self.slice_width = 28 // seq_len
+
+    def __len__(self):
+        return len(self.base_mnist)
+
+    def __getitem__(self, idx):
+        img, label = self.base_mnist[idx]
+        img_arr = np.array(img, dtype=np.float32)  # [28,28]
+
+        slices = []
+        for s in range(self.seq_len):
+            sc = s * self.slice_width
+            ec = (s+1)*self.slice_width
+            part = img_arr[:, sc:ec].flatten()
+            slices.append(part)
+        data_np = np.concatenate(slices, axis=0)  # shape: seq_len*(28*slice_width)
+
+        data_tensor = torch.tensor(data_np, dtype=torch.float32)
+        return data_tensor, label
+
+
+class MNISTSparse(Dataset):
+    """
+    Binarizes MNIST images above a threshold => sparser input.
+    """
+    def __init__(self, base_mnist, threshold=0.3):
+        super().__init__()
+        self.base_mnist = base_mnist
+        self.threshold = threshold
+
+    def __len__(self):
+        return len(self.base_mnist)
+
+    def __getitem__(self, idx):
+        img, label = self.base_mnist[idx]
+        arr = np.array(img, dtype=np.float32)/255.0
+        bin_arr = (arr > self.threshold).astype(np.float32)
+        bin_tensor = torch.tensor(bin_arr, dtype=torch.float32).view(-1)
+        return bin_tensor, label
 
 
 ########################################
@@ -209,7 +322,12 @@ def get_unified_datasets(
     image_size=10,
     n_orient_classes=8,
     n_bits=8,
-    mnist_train_valid_split=0.9
+    mnist_train_valid_split=0.9,
+    # NEW ARGS
+    seq_len=4,
+    occlusion_prob=0.3,
+    noise_level=0.2,
+    threshold=0.3
 ):
     """
     Returns (train_dataset, valid_dataset, test_dataset) as raw Dataset objects
@@ -218,13 +336,12 @@ def get_unified_datasets(
     """
 
     if dataset_name == "mnist":
-
         return load_mnist_as_datasets(train_valid_split=mnist_train_valid_split)
 
     elif dataset_name == "line":
         total = train_size + valid_size + test_size
         full_dataset = LineDataset(n_samples=total, image_size=image_size)
-        train_ds, valid_ds, test_ds = torch.utils.data.random_split(
+        train_ds, valid_ds, test_ds = random_split(
             full_dataset, [train_size, valid_size, test_size]
         )
         return train_ds, valid_ds, test_ds
@@ -232,7 +349,7 @@ def get_unified_datasets(
     elif dataset_name == "center_surround":
         total = train_size + valid_size + test_size
         full_dataset = CenterSurroundDataset(n_samples=total, image_size=image_size)
-        train_ds, valid_ds, test_ds = torch.utils.data.random_split(
+        train_ds, valid_ds, test_ds = random_split(
             full_dataset, [train_size, valid_size, test_size]
         )
         return train_ds, valid_ds, test_ds
@@ -244,7 +361,7 @@ def get_unified_datasets(
             image_size=image_size,
             n_orient_classes=n_orient_classes
         )
-        train_ds, valid_ds, test_ds = torch.utils.data.random_split(
+        train_ds, valid_ds, test_ds = random_split(
             full_dataset, [train_size, valid_size, test_size]
         )
         return train_ds, valid_ds, test_ds
@@ -252,7 +369,50 @@ def get_unified_datasets(
     elif dataset_name == "multi_xor":
         total = train_size + valid_size + test_size
         full_dataset = MultiXORDataset(n_samples=total, n_bits=n_bits)
-        train_ds, valid_ds, test_ds = torch.utils.data.random_split(
+        train_ds, valid_ds, test_ds = random_split(
+            full_dataset, [train_size, valid_size, test_size]
+        )
+        return train_ds, valid_ds, test_ds
+
+    #### NEW MNIST-based tasks ####
+    elif dataset_name == "mnist_contextual":
+        # We'll load raw torchvision MNIST
+        from torchvision.datasets import MNIST
+        base_mnist = MNIST(root=".", download=True, train=True)
+        # wrap
+        full_dataset = MNISTContextualFG(base_mnist, noise_level=noise_level)
+        train_ds, valid_ds, test_ds = random_split(
+            full_dataset, [train_size, valid_size, test_size]
+        )
+        return train_ds, valid_ds, test_ds
+
+    elif dataset_name == "mnist_noisy_partial":
+        from torchvision.datasets import MNIST
+        base_mnist = MNIST(root=".", download=True, train=True)
+        full_dataset = MNISTNoisyPartial(
+            base_mnist,
+            occlusion_prob=occlusion_prob,
+            noise_level=noise_level
+        )
+        train_ds, valid_ds, test_ds = random_split(
+            full_dataset, [train_size, valid_size, test_size]
+        )
+        return train_ds, valid_ds, test_ds
+
+    elif dataset_name == "mnist_temporal":
+        from torchvision.datasets import MNIST
+        base_mnist = MNIST(root=".", download=True, train=True)
+        full_dataset = MNISTTemporal(base_mnist, seq_len=seq_len)
+        train_ds, valid_ds, test_ds = random_split(
+            full_dataset, [train_size, valid_size, test_size]
+        )
+        return train_ds, valid_ds, test_ds
+
+    elif dataset_name == "mnist_sparse":
+        from torchvision.datasets import MNIST
+        base_mnist = MNIST(root=".", download=True, train=True)
+        full_dataset = MNISTSparse(base_mnist, threshold=threshold)
+        train_ds, valid_ds, test_ds = random_split(
             full_dataset, [train_size, valid_size, test_size]
         )
         return train_ds, valid_ds, test_ds
