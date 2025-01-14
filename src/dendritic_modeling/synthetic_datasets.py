@@ -1,10 +1,8 @@
-# synthetic_datasets.py
-
 import torch
 import numpy as np
 from torch.utils.data import Dataset, random_split, TensorDataset
 
-from dendritic_modeling.utils import load_MNIST  # Adjust path if needed
+from dendritic_modeling.utils import load_MNIST  
 from torchvision.datasets import MNIST
 import torchvision.transforms as T
 
@@ -376,7 +374,7 @@ def get_unified_datasets(
 
     #### NEW MNIST-based tasks ####
     elif dataset_name == "mnist_contextual":
-        # We'll load raw torchvision MNIST
+
         from torchvision.datasets import MNIST
         base_mnist = MNIST(root=".", download=True, train=True)
         # wrap
