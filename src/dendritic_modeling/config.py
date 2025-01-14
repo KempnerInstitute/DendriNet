@@ -40,7 +40,7 @@ class EINetParameters(BaseNetworkParameters):
     reactivate: bool = True
     somatic_synapses: bool = True
     topk_init_method: str = "xavier_normal"
-    use_shunting=use_shunting
+    use_shunting: bool = True
 
 # Parameters for feedforward network
 @dataclass
@@ -51,6 +51,30 @@ class FeedForwardParameters(BaseNetworkParameters):
     activation: str = "relu"
     dropout: float = 0.2
     output_dim: int = 10
+
+
+@dataclass
+class BaseTaskParameters(BaseConfig):
+    """ Base class for all task parameters """
+    pass
+
+@dataclass
+class LineParameters(BaseTaskParameters):
+    """ Parameters for line task """
+    train_size: int = 1000
+    valid_size: int = 100
+    test_size: int = 100
+    image_size: int = 10
+    seed: int = 42
+
+
+# Task configuration
+@dataclass
+class TaskConfig(BaseConfig):
+    """ Configuration for task hyperparameters """
+    dataset: str = "line"
+    parameters: Union[LineParameters] = field(default_factory=LineParameters)
+
 
 
 # Network configuration
@@ -87,6 +111,7 @@ class TrainConfig(BaseConfig):
     epochs: int = 200
     batch_size: int = 32
     grad_clip_value: float = 0.5
+    weight_decay: float = 0.0
 
 
 # Settings configuration (all other parameters)
@@ -102,6 +127,7 @@ class Config:
     train: TrainConfig = field(default_factory=TrainConfig)
     wandb: WandbConfig = field(default_factory=WandbConfig)
     settings: SettingsConfig = field(default_factory=SettingsConfig)
+    task: TaskConfig = field(default_factory=TaskConfig)
 
     def asdict(self, exclude=None):
         """Convert the Config class to a dictionary, with options to exclude keys."""
@@ -112,7 +138,9 @@ class Config:
             "train": self.train.asdict() if hasattr(self.train, 
                                                     'asdict') else self.train,
             "wandb": self.wandb,
-            "settings": self.settings
+            "settings": self.settings,
+            "task": self.task.asdict() if hasattr(self.task, 
+                                                  'asdict') else self.task
         }
         
         # Remove excluded keys

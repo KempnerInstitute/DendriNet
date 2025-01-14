@@ -9,6 +9,7 @@ from copy import deepcopy
 from typing import List
 
 from torch import nn
+from torch.functional import F
 
 
 from dendritic_modeling.dendrinet import DendriNet

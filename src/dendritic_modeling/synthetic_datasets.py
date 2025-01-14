@@ -312,20 +312,24 @@ class MNISTSparse(Dataset):
 ########################################
 # 5) Unified function to get ANY dataset
 ########################################
+# def get_unified_datasets(
+#     dataset_name="mnist",
+#     train_size=8000,
+#     valid_size=1000,
+#     test_size=1000,
+#     image_size=10,
+#     n_orient_classes=8,
+#     n_bits=8,
+#     mnist_train_valid_split=0.9,
+#     # NEW ARGS
+#     seq_len=4,
+#     occlusion_prob=0.3,
+#     noise_level=0.2,
+#     threshold=0.3,
+# ):
+    
 def get_unified_datasets(
-    dataset_name="mnist",
-    train_size=8000,
-    valid_size=1000,
-    test_size=1000,
-    image_size=10,
-    n_orient_classes=8,
-    n_bits=8,
-    mnist_train_valid_split=0.9,
-    # NEW ARGS
-    seq_len=4,
-    occlusion_prob=0.3,
-    noise_level=0.2,
-    threshold=0.3
+    task_cfg, train_cfg
 ):
     """
     Returns (train_dataset, valid_dataset, test_dataset) as raw Dataset objects
@@ -333,87 +337,95 @@ def get_unified_datasets(
     The main script or trainer can then create DataLoaders from these Datasets.
     """
 
-    if dataset_name == "mnist":
-        return load_mnist_as_datasets(train_valid_split=mnist_train_valid_split)
+    dataset_name = task_cfg['dataset']
+    train_valid_split = train_cfg['train_valid_split']
+    
 
-    elif dataset_name == "line":
-        total = train_size + valid_size + test_size
-        full_dataset = LineDataset(n_samples=total, image_size=image_size)
+    # if dataset_name == "mnist":
+    #     return load_mnist_as_datasets(train_valid_split=train_valid_split)
+
+    if dataset_name == "line":
+        image_size = task_cfg['parameters']['image_size']
+        train_size, valid_size, test_size = (task_cfg['parameters']['train_size'], 
+                                             task_cfg['parameters']['valid_size'], 
+                                             task_cfg['parameters']['test_size'])
+        n_samples = train_size + valid_size + test_size 
+        full_dataset = LineDataset(n_samples=n_samples, image_size=image_size)
         train_ds, valid_ds, test_ds = random_split(
             full_dataset, [train_size, valid_size, test_size]
         )
         return train_ds, valid_ds, test_ds
 
-    elif dataset_name == "center_surround":
-        total = train_size + valid_size + test_size
-        full_dataset = CenterSurroundDataset(n_samples=total, image_size=image_size)
-        train_ds, valid_ds, test_ds = random_split(
-            full_dataset, [train_size, valid_size, test_size]
-        )
-        return train_ds, valid_ds, test_ds
+    # elif dataset_name == "center_surround":
+    #     total = train_size + valid_size + test_size
+    #     full_dataset = CenterSurroundDataset(n_samples=total, image_size=image_size)
+    #     train_ds, valid_ds, test_ds = random_split(
+    #         full_dataset, [train_size, valid_size, test_size]
+    #     )
+    #     return train_ds, valid_ds, test_ds
 
-    elif dataset_name == "orientation_bars":
-        total = train_size + valid_size + test_size
-        full_dataset = OrientationBarsDataset(
-            n_samples=total,
-            image_size=image_size,
-            n_orient_classes=n_orient_classes
-        )
-        train_ds, valid_ds, test_ds = random_split(
-            full_dataset, [train_size, valid_size, test_size]
-        )
-        return train_ds, valid_ds, test_ds
+    # elif dataset_name == "orientation_bars":
+    #     total = train_size + valid_size + test_size
+    #     full_dataset = OrientationBarsDataset(
+    #         n_samples=total,
+    #         image_size=image_size,
+    #         n_orient_classes=n_orient_classes
+    #     )
+    #     train_ds, valid_ds, test_ds = random_split(
+    #         full_dataset, [train_size, valid_size, test_size]
+    #     )
+    #     return train_ds, valid_ds, test_ds
 
-    elif dataset_name == "multi_xor":
-        total = train_size + valid_size + test_size
-        full_dataset = MultiXORDataset(n_samples=total, n_bits=n_bits)
-        train_ds, valid_ds, test_ds = random_split(
-            full_dataset, [train_size, valid_size, test_size]
-        )
-        return train_ds, valid_ds, test_ds
+    # elif dataset_name == "multi_xor":
+    #     total = train_size + valid_size + test_size
+    #     full_dataset = MultiXORDataset(n_samples=total, n_bits=n_bits)
+    #     train_ds, valid_ds, test_ds = random_split(
+    #         full_dataset, [train_size, valid_size, test_size]
+    #     )
+    #     return train_ds, valid_ds, test_ds
 
-    #### NEW MNIST-based tasks ####
-    elif dataset_name == "mnist_contextual":
+    # #### NEW MNIST-based tasks ####
+    # elif dataset_name == "mnist_contextual":
 
-        from torchvision.datasets import MNIST
-        base_mnist = MNIST(root=".", download=True, train=True)
-        # wrap
-        full_dataset = MNISTContextualFG(base_mnist, noise_level=noise_level)
-        train_ds, valid_ds, test_ds = random_split(
-            full_dataset, [train_size, valid_size, test_size]
-        )
-        return train_ds, valid_ds, test_ds
+    #     from torchvision.datasets import MNIST
+    #     base_mnist = MNIST(root=".", download=True, train=True)
+    #     # wrap
+    #     full_dataset = MNISTContextualFG(base_mnist, noise_level=noise_level)
+    #     train_ds, valid_ds, test_ds = random_split(
+    #         full_dataset, [train_size, valid_size, test_size]
+    #     )
+    #     return train_ds, valid_ds, test_ds
 
-    elif dataset_name == "mnist_noisy_partial":
-        from torchvision.datasets import MNIST
-        base_mnist = MNIST(root=".", download=True, train=True)
-        full_dataset = MNISTNoisyPartial(
-            base_mnist,
-            occlusion_prob=occlusion_prob,
-            noise_level=noise_level
-        )
-        train_ds, valid_ds, test_ds = random_split(
-            full_dataset, [train_size, valid_size, test_size]
-        )
-        return train_ds, valid_ds, test_ds
+    # elif dataset_name == "mnist_noisy_partial":
+    #     from torchvision.datasets import MNIST
+    #     base_mnist = MNIST(root=".", download=True, train=True)
+    #     full_dataset = MNISTNoisyPartial(
+    #         base_mnist,
+    #         occlusion_prob=occlusion_prob,
+    #         noise_level=noise_level
+    #     )
+    #     train_ds, valid_ds, test_ds = random_split(
+    #         full_dataset, [train_size, valid_size, test_size]
+    #     )
+    #     return train_ds, valid_ds, test_ds
 
-    elif dataset_name == "mnist_temporal":
-        from torchvision.datasets import MNIST
-        base_mnist = MNIST(root=".", download=True, train=True)
-        full_dataset = MNISTTemporal(base_mnist, seq_len=seq_len)
-        train_ds, valid_ds, test_ds = random_split(
-            full_dataset, [train_size, valid_size, test_size]
-        )
-        return train_ds, valid_ds, test_ds
+    # elif dataset_name == "mnist_temporal":
+    #     from torchvision.datasets import MNIST
+    #     base_mnist = MNIST(root=".", download=True, train=True)
+    #     full_dataset = MNISTTemporal(base_mnist, seq_len=seq_len)
+    #     train_ds, valid_ds, test_ds = random_split(
+    #         full_dataset, [train_size, valid_size, test_size]
+    #     )
+    #     return train_ds, valid_ds, test_ds
 
-    elif dataset_name == "mnist_sparse":
-        from torchvision.datasets import MNIST
-        base_mnist = MNIST(root=".", download=True, train=True)
-        full_dataset = MNISTSparse(base_mnist, threshold=threshold)
-        train_ds, valid_ds, test_ds = random_split(
-            full_dataset, [train_size, valid_size, test_size]
-        )
-        return train_ds, valid_ds, test_ds
+    # elif dataset_name == "mnist_sparse":
+    #     from torchvision.datasets import MNIST
+    #     base_mnist = MNIST(root=".", download=True, train=True)
+    #     full_dataset = MNISTSparse(base_mnist, threshold=threshold)
+    #     train_ds, valid_ds, test_ds = random_split(
+    #         full_dataset, [train_size, valid_size, test_size]
+    #     )
+    #     return train_ds, valid_ds, test_ds
 
     else:
         raise ValueError(f"Unknown dataset name: {dataset_name}")

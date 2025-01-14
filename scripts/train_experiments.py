@@ -18,7 +18,7 @@ from dendritic_modeling.synthetic_datasets import get_unified_datasets
 import torch.nn as nn
 import torch.nn.functional as F
 from torch.utils.data import DataLoader
-from dendrinet.networks import MLPBaseline
+from dendritic_modeling.networks import MLPBaseline
 from dendritic_modeling.analysis import (
     analyze_branch_information, 
     analyze_branch_ablation,

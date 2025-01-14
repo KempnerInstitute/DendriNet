@@ -426,13 +426,14 @@ class DendriticBranchLayer(nn.Module):
         input_branch_factor = None, 
         reactivate = True,
         topk_init_method = 'xavier_normal',
-        use_shunting = self.use_shunting,
+        use_shunting = True,
         ):
         
         # initialize dendritic branch layer
         super(DendriticBranchLayer, self).__init__()
         # module for computing excitation along branches in layer
         self.input_excitatory = excitatory_input_dim is not None
+        self.use_shunting = use_shunting
         if self.input_excitatory:
             self.branch_excitation = TopKLinear(
                 excitatory_input_dim, 
@@ -534,7 +535,11 @@ class DendriticBranchLayer(nn.Module):
             # compute total conductance of upstream branches and add to denominator
             denominator +=  self.branches_to_output.sum_conductances()
         # current divided by conductance is voltage
-        voltage = numerator / denominator
+        if self.use_shunting:
+            voltage = numerator / denominator
+        else:
+            voltage = numerator - denominator #TODO: Check this
+
         return self.reactivation(voltage) if self.reactivate else voltage
 
     def reactivation(self, V):
