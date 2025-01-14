@@ -159,9 +159,6 @@ def ablate_branch(model, layer_idx, branch_ids, mode='direct'):
                 layer.branch_inhibition.pre_w.data[b_id, :] = 0.
 
     elif mode == 'full':
-        # do the direct ablation plus any 'branches_to_output'
-        # or block connections that feed from upstream. 
-        # Implementation depends on your actual code structure.
         if layer.input_excitatory:
             for b_id in branch_ids:
                 layer.branch_excitation.pre_w.data[b_id, :] = 0.
@@ -171,8 +168,7 @@ def ablate_branch(model, layer_idx, branch_ids, mode='direct'):
         # plus zero out blockLinear if used
         if layer.input_branches and hasattr(layer, 'branches_to_output'):
             # ex: zero out the relevant rows/cols in layer.branches_to_output.log_weight
-            # or do something that cuts the entire sub-tree. 
-            # This is a conceptual placeholder.
+
             pass
 
 def analyze_branch_ablation(model, dataset, layer_idx, branch_ids,
