@@ -1,0 +1,47 @@
+model:
+  task: classification
+  probabilistic: False
+  network: 
+    type: "einet"
+    parameters:
+      input_dim: 100
+      excitatory_layer_sizes: [10]
+      inhibitory_layer_sizes: [20]
+      excitatory_branch_factors: [24]
+      inhibitory_branch_factors: []
+      reactivate: true
+      somatic_synapses: true
+      ee_synapses_per_branch_per_layer: [24]
+      ei_synapses_per_branch_per_layer: [100]
+      ie_synapses_per_branch_per_layer: [1]
+      ii_synapses_per_branch_per_layer: []
+      topk_init_method: "xavier_normal"
+      use_shunting: true
+
+train:
+  train_valid_split: 1.0
+  lr: 0.005
+  epochs: 50
+  batch_size: 64
+  grad_clip_value: 0.5
+  weight_decay: 0.0001
+
+
+task:
+  dataset: "line"
+  parameters:
+    train_size: 8192
+    valid_size: 512
+    test_size: 512
+    image_size: 10
+    seed: 0
+
+
+wandb:
+  entity: # <---- Add your entity
+  project: dendritic_modeling_pr
+  group: debug
+  tags: [mnist_1]
+
+settings:
+  visualizations: False

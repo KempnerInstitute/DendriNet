@@ -9,6 +9,7 @@ from copy import deepcopy
 from typing import List
 
 from torch import nn
+from torch.functional import F
 
 
 from dendritic_modeling.dendrinet import DendriNet
@@ -88,9 +89,10 @@ class ExcitationInhibitionLayer(nn.Module):
         inhibitory_input_dim = None, 
         ie_synapses_per_branch = None, 
         ii_synapses_per_branch = None, 
-        reactivate = False, 
+        reactivate = True, 
         somatic_synapses = True,
         topk_init_method = "xavier_normal",
+        use_shunting = True
     ):
         super(ExcitationInhibitionLayer, self).__init__()
 
@@ -103,7 +105,8 @@ class ExcitationInhibitionLayer(nn.Module):
             inhibitory_synapses_per_branch = ii_synapses_per_branch,
             reactivate = reactivate, 
             somatic_synapses = somatic_synapses, 
-            topk_init_method = topk_init_method
+            topk_init_method = topk_init_method,
+            use_shunting=use_shunting
         )
 
         self.excitatory_cells = DendriNet(
@@ -115,8 +118,13 @@ class ExcitationInhibitionLayer(nn.Module):
             inhibitory_synapses_per_branch = ie_synapses_per_branch,
             reactivate = reactivate, 
             somatic_synapses = somatic_synapses,
-            topk_init_method = topk_init_method
+            topk_init_method = topk_init_method,
+            use_shunting=use_shunting
         )
+    
+    def decay_weights(self, weight_decay = 0.1):
+        self.inhibitory_cells.decay_weights(weight_decay)
+        self.excitatory_cells.decay_weights(weight_decay)
 
     def forward(self, x, inhibitory_input = None):
         inhibitory_output = self.inhibitory_cells(x, inhibitory_input)
@@ -190,14 +198,14 @@ class ExcitationInhibitionNetwork(nn.Module):
         ei_synapses_per_branch_per_layer, 
         ie_synapses_per_branch_per_layer, 
         ii_synapses_per_branch_per_layer = [], 
-        reactivate = False, 
+        reactivate = True, 
         somatic_synapses = True,
         topk_init_method = "xavier_normal",
+        use_shunting = True
     ):
         super(ExcitationInhibitionNetwork, self).__init__()
 
         self.n_layers = len(excitatory_layer_sizes)
-        self.output_dim = excitatory_layer_sizes[-1]
         
         logger.debug(f'Building ExcitationInhibitionNetwork with {self.n_layers} layer(s).')
 
@@ -229,18 +237,21 @@ class ExcitationInhibitionNetwork(nn.Module):
                 reactivate = reactivate, 
                 somatic_synapses = somatic_synapses,
                 topk_init_method = topk_init_method,
-
+                use_shunting = use_shunting
             ))
         
         self.layers = nn.ModuleList(layers)
+    
+    def decay_weights(self, weight_decay = 0.1):
+        for layer in self.layers:
+            layer.decay_weights(weight_decay)
 
     def forward(self, x):
         excitatory = x
         inhibitory = None
         for layer in self.layers:
             excitatory, inhibitory = layer(excitatory, inhibitory)
-        return excitatory
-    
+        return excitatory    
 
 
 class FeedforwardNN(nn.Module):
@@ -290,3 +301,17 @@ class FeedforwardNN(nn.Module):
 
     def forward(self, x):
         return self.model(x)
+    
+    
+class MLPBaseline(nn.Module):
+    """
+    A simple feedforward MLP with one hidden layer, for baseline comparison.
+    """
+    def __init__(self, input_dim, hidden_dim, output_dim):
+        super(MLPBaseline, self).__init__()
+        self.fc1 = nn.Linear(input_dim, hidden_dim)
+        self.fc2 = nn.Linear(hidden_dim, output_dim)
+
+    def forward(self, x):
+        x = F.relu(self.fc1(x))
+        return self.fc2(x)  # raw logits
