@@ -1,3 +1,4 @@
+
 """
 dendrinet.py
 ============
@@ -20,15 +21,6 @@ TOPK_INIT_METHODS = {
     'uniform': nn.init.uniform_,
     'eye': nn.init.eye_,
 }
-
-def scale_layer_gradients(module, grad_input, grad_output, scale_factor):
-    return tuple(
-        grad * scale_factor if grad is not None else None for grad in grad_input
-    )
-
-def normalize_param_gradients(grad, scale_factor):
-    return None if grad is None else (grad / grad.norm()) * scale_factor
-
 
 def scale_layer_gradients(module, grad_input, grad_output, scale_factor):
     return tuple(
@@ -433,24 +425,16 @@ class DendriticBranchLayer(nn.Module):
         inhibitory_input_dim = None, 
         inhibitory_synapses_per_branch = None, 
         input_branch_factor = None, 
-<<<<<<< HEAD
-        reactivate = False,
-        topk_init_method = 'xavier_normal',
-=======
         reactivate = True,
         topk_init_method = 'xavier_normal',
         use_shunting = True,
->>>>>>> 36b16bfaa7370a8eab620257f5609e43d9a2426e
         ):
         
         # initialize dendritic branch layer
         super(DendriticBranchLayer, self).__init__()
         # module for computing excitation along branches in layer
         self.input_excitatory = excitatory_input_dim is not None
-<<<<<<< HEAD
-=======
         self.use_shunting = use_shunting
->>>>>>> 36b16bfaa7370a8eab620257f5609e43d9a2426e
         if self.input_excitatory:
             self.branch_excitation = TopKLinear(
                 excitatory_input_dim, 
@@ -686,10 +670,7 @@ class DendriNet(nn.Module):
         reactivate = False, 
         somatic_synapses = True,
         topk_init_method = 'xavier_normal',
-<<<<<<< HEAD
-=======
         use_shunting = True
->>>>>>> 36b16bfaa7370a8eab620257f5609e43d9a2426e
     ):
         super(DendriNet, self).__init__()
         
@@ -777,10 +758,7 @@ class DendriNet(nn.Module):
                 input_branch_factor = branch_factors[-1], 
                 reactivate = reactivate,
                 topk_init_method = topk_init_method,
-<<<<<<< HEAD
-=======
                 use_shunting = self.use_shunting,
->>>>>>> 36b16bfaa7370a8eab620257f5609e43d9a2426e
             )
         
         # assign necessary class attributes
@@ -844,8 +822,6 @@ class DendriNet(nn.Module):
             exc_total = self.sum_weights(pruned = pruned)
             return (exc_total + 1e-8).log()
 
-<<<<<<< HEAD
-=======
 
 
 class DendriNetWithOutputs(DendriNet):
@@ -884,4 +860,3 @@ class DendriNetWithOutputs(DendriNet):
             output = self.branch_layers[i](x, inhibitory_input, output)
         final_soma = self.soma_layer(x, inhibitory_input, output)
         return final_soma
->>>>>>> 36b16bfaa7370a8eab620257f5609e43d9a2426e
