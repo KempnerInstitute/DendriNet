@@ -6,8 +6,11 @@ ExcitationInhibitionNetwork classes.
 """
 
 from copy import deepcopy
+from typing import List
 
 from torch import nn
+from torch.functional import F
+
 
 from dendritic_modeling.dendrinet import DendriNet
 from dendritic_modeling import logger
@@ -86,9 +89,10 @@ class ExcitationInhibitionLayer(nn.Module):
         inhibitory_input_dim = None, 
         ie_synapses_per_branch = None, 
         ii_synapses_per_branch = None, 
-        reactivate = False, 
+        reactivate = True, 
         somatic_synapses = True,
         topk_init_method = "xavier_normal",
+        use_shunting = True
     ):
         super(ExcitationInhibitionLayer, self).__init__()
 
@@ -102,6 +106,10 @@ class ExcitationInhibitionLayer(nn.Module):
             reactivate = reactivate, 
             somatic_synapses = somatic_synapses, 
             topk_init_method = topk_init_method,
+<<<<<<< HEAD:src/dendritic_modeling/excitation_inhibition.py
+=======
+            use_shunting=use_shunting
+>>>>>>> 36b16bfaa7370a8eab620257f5609e43d9a2426e:src/dendritic_modeling/networks.py
         )
 
         self.excitatory_cells = DendriNet(
@@ -114,6 +122,10 @@ class ExcitationInhibitionLayer(nn.Module):
             reactivate = reactivate, 
             somatic_synapses = somatic_synapses,
             topk_init_method = topk_init_method,
+<<<<<<< HEAD:src/dendritic_modeling/excitation_inhibition.py
+=======
+            use_shunting=use_shunting
+>>>>>>> 36b16bfaa7370a8eab620257f5609e43d9a2426e:src/dendritic_modeling/networks.py
         )
     
     def decay_weights(self, weight_decay = 0.1):
@@ -192,9 +204,10 @@ class ExcitationInhibitionNetwork(nn.Module):
         ei_synapses_per_branch_per_layer, 
         ie_synapses_per_branch_per_layer, 
         ii_synapses_per_branch_per_layer = [], 
-        reactivate = False, 
+        reactivate = True, 
         somatic_synapses = True,
         topk_init_method = "xavier_normal",
+        use_shunting = True
     ):
         super(ExcitationInhibitionNetwork, self).__init__()
 
@@ -230,6 +243,10 @@ class ExcitationInhibitionNetwork(nn.Module):
                 reactivate = reactivate, 
                 somatic_synapses = somatic_synapses,
                 topk_init_method = topk_init_method,
+<<<<<<< HEAD:src/dendritic_modeling/excitation_inhibition.py
+=======
+                use_shunting = use_shunting
+>>>>>>> 36b16bfaa7370a8eab620257f5609e43d9a2426e:src/dendritic_modeling/networks.py
             ))
         
         self.layers = nn.ModuleList(layers)
@@ -243,4 +260,67 @@ class ExcitationInhibitionNetwork(nn.Module):
         inhibitory = None
         for layer in self.layers:
             excitatory, inhibitory = layer(excitatory, inhibitory)
-        return excitatory
+        return excitatory    
+
+
+class FeedforwardNN(nn.Module):
+    """
+    A configurable feedforward neural network as a baseline for comparison
+    on the flattened MNIST dataset.
+    """
+    def __init__(
+        self,
+        input_dim: int = 784,
+        hidden_layer_sizes: List[int] = [128, 64],
+        activation: str = "relu",
+        dropout: float = 0.2,
+        output_dim: int = 10,
+    ):
+        super(FeedforwardNN, self).__init__()
+
+        # Map string activation to PyTorch activation functions
+        activation_mapping = {
+            "relu": nn.ReLU,
+            "sigmoid": nn.Sigmoid,
+            "tanh": nn.Tanh,
+            "leaky_relu": nn.LeakyReLU
+        }
+
+        # Raise an error if the activation is not supported
+        if activation not in activation_mapping:
+            raise ValueError(f"Unsupported activation function: {activation}. "
+                             f"Supported: {list(activation_mapping.keys())}")
+
+        # Define layers dynamically
+        layers = []
+        current_dim = input_dim
+
+        for layer_size in hidden_layer_sizes:
+            layers.append(nn.Linear(current_dim, layer_size))
+            layers.append(activation_mapping[activation]())
+            if dropout > 0:  # Apply dropout only if it's greater than 0
+                layers.append(nn.Dropout(dropout))
+            current_dim = layer_size
+
+        # Add the output layer
+        layers.append(nn.Linear(current_dim, output_dim))
+
+        # Combine layers into a sequential model
+        self.model = nn.Sequential(*layers)
+
+    def forward(self, x):
+        return self.model(x)
+    
+    
+class MLPBaseline(nn.Module):
+    """
+    A simple feedforward MLP with one hidden layer, for baseline comparison.
+    """
+    def __init__(self, input_dim, hidden_dim, output_dim):
+        super(MLPBaseline, self).__init__()
+        self.fc1 = nn.Linear(input_dim, hidden_dim)
+        self.fc2 = nn.Linear(hidden_dim, output_dim)
+
+    def forward(self, x):
+        x = F.relu(self.fc1(x))
+        return self.fc2(x)  # raw logits

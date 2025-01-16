@@ -6,16 +6,17 @@ import torch
 import torchinfo
 
 from dendritic_modeling import logger
-from dendritic_modeling.training import CustomWeightDecayOptimizer, TrainerMLE
-from dendritic_modeling.models import EINetClassifierNLL
+from dendritic_modeling.training import TrainerMLE
+from dendritic_modeling.models import ProbabilisticClassifier, Classifier #EINetClassifierNLL, ProbabilisticClassifier
 from dendritic_modeling.plot_utils import (plot_einet_params, 
                                            plot_einet_activations)
 from dendritic_modeling.utils import (load_MNIST, 
-                                      load_MNIST_task_switch,
                                       split_MNIST_inputs, 
                                       accuracy_score, 
                                       save_dict, 
                                       Shaper)
+
+from dendritic_modeling.networks import ExcitationInhibitionNetwork, FeedforwardNN
 
 logger.info('imports complete\n')
 
@@ -36,34 +37,54 @@ if __name__ == '__main__':
         'excitatory_layer_sizes' : [10,],
         'inhibitory_layer_sizes' : [20,],
         'excitatory_branch_factors' : [1,2],
-        'inhibitory_branch_factors' : [1,],
+        'inhibitory_branch_factors' : [],
         'ee_synapses_per_branch_per_layer' : [24,],
         'ei_synapses_per_branch_per_layer' : [100,],
-        'ie_synapses_per_branch_per_layer' : [2,],
+        'ie_synapses_per_branch_per_layer' : [1,],
         'ii_synapses_per_branch_per_layer' : [],
         'reactivate' : True,
-        'somatic_synapses' : False,
+        'somatic_synapses' : True,
     }
 
     # define training hparams
     train_hp = {
         'train_valid_split' : 0.8,
         'lr' : 1e-3,
-        'epochs' : 10,
+        'epochs' : 80,
         'batch_size' : 1024,
-        'weight_decay' : 0.1,
     }
 
     logger.info('loading mnist ...')
     data = load_MNIST(train_valid_split = train_hp['train_valid_split'], 
                       cache_dir=os.getcwd())
-    # data = load_MNIST_task_switch(
-    #     train_valid_split = train_hp['train_valid_split'],
-    #     cache_dir = os.getcwd(),
-    # )
 
-    # initialize classifier
-    clf = EINetClassifierNLL(**model_hp)
+    # Run scenarios
+    # 1: Run simple feedforward neural network with probablistic classifier
+    # 2: Run simple feedforward neural network with simple classifier
+    # 3: Run EINet with probablistic classifier
+    # 4: Run EINet with simple classifier
+
+    run_scenario = 4
+
+    if run_scenario == 1:
+        logger.info('Running simple feedforward neural network with probablistic classifier')
+        net = FeedforwardNN()
+        output_dim = 10
+        clf = ProbabilisticClassifier(net, output_dim)
+    elif run_scenario == 2:
+        logger.info('Running simple feedforward neural network with simple classifier')
+        net = FeedforwardNN()
+        clf = Classifier(net)
+    elif run_scenario == 3:
+        logger.info('Running EINet with probablistic classifier')
+        net = ExcitationInhibitionNetwork(**model_hp)
+        output_dim = model_hp['excitatory_layer_sizes'][-1]
+        clf = ProbabilisticClassifier(net, output_dim)
+    elif run_scenario == 4:
+        logger.info('Running EINet with simple classifier')
+        net = ExcitationInhibitionNetwork(**model_hp)
+        clf = Classifier(net)
+
     model_summary = torchinfo.summary(
                         clf,
                         input_size=(train_hp['batch_size'], model_hp['input_dim']),
@@ -75,16 +96,11 @@ if __name__ == '__main__':
 
     logger.debug("".join(["\n", str(model_summary), "\n"]))
 
-    optimizer = CustomWeightDecayOptimizer(
-        model = clf,
-        optimizer = torch.optim.Adam(clf.parameters(), lr = train_hp['lr']),
-        weight_decay = train_hp['weight_decay'],
-    )
+
     # initialize trainer class (maximum likelihood estimation)
     trainer = TrainerMLE(
-        optimizer = optimizer,
-        suppress_prints = False, 
-        print_every = 10,
+        optimizer = torch.optim.Adam(clf.parameters(), lr = train_hp['lr']),
+        suppress_prints = False, print_every = 10,
     )
 
     # create saving directory
@@ -100,7 +116,7 @@ if __name__ == '__main__':
         train_data = data['train'], valid_data = data['valid'],
         epochs = train_hp['epochs'], batch_size = train_hp['batch_size'], shuffle = True,
         plot_losses = True, save_path = save_path,
-    )
+        )
     etime = time.time() - stime
 
     train_time = '%.6f sec -> %.6f min' % (etime, etime/60)
@@ -126,26 +142,27 @@ if __name__ == '__main__':
     logger.info('  done..\n')
 
     # initialize shaper class for reshaping weights
-    shaper = Shaper(shape = (28,28))
+    if run_scenario > 2:
+        shaper = Shaper(shape = (28,28))
 
-    logger.info('creating param visuals.....')
-    plot_einet_params(
-        einet = clf.net, 
-        save_root = os.path.join(save_path, 'param_visuals'),
-        reshape_fn = shaper.reshape, 
-        reshape_exc_syn = True, 
-        logspace = True,
-    )
-    logger.info('  done..\n')
+        logger.info('creating param visuals.....')
+        plot_einet_params(
+            einet = clf.net, 
+            save_root = os.path.join(save_path, 'param_visuals'),
+            reshape_fn = shaper.reshape, 
+            reshape_exc_syn = True, 
+            logspace = True,
+        )
+        logger.info('  done..\n')
 
-    # split inputs into list of tensors
-    #   each element in list is tensor of all samples with same label
-    input_list = split_MNIST_inputs(*data['valid'][:])
+        # split inputs into list of tensors
+        #   each element in list is tensor of all samples with same label
+        input_list = split_MNIST_inputs(*data['valid'][:])
 
-    logger.info('creating activation visuals.....')
-    plot_einet_activations(
-        einet = clf.net, 
-        input_list = input_list,
-        save_root = os.path.join(save_path, 'activation_visuals'),
-    )
-    logger.info('  done..\n')
+        logger.info('creating activation visuals.....')
+        plot_einet_activations(
+            einet = clf.net, 
+            input_list = input_list,
+            save_root = os.path.join(save_path, 'activation_visuals'),
+        )
+        logger.info('  done..\n')
