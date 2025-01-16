@@ -1,3 +1,4 @@
+
 """
 excitation_inhibition.py
 ========================
@@ -106,10 +107,7 @@ class ExcitationInhibitionLayer(nn.Module):
             reactivate = reactivate, 
             somatic_synapses = somatic_synapses, 
             topk_init_method = topk_init_method,
-<<<<<<< HEAD:src/dendritic_modeling/excitation_inhibition.py
-=======
             use_shunting=use_shunting
->>>>>>> 36b16bfaa7370a8eab620257f5609e43d9a2426e:src/dendritic_modeling/networks.py
         )
 
         self.excitatory_cells = DendriNet(
@@ -122,10 +120,7 @@ class ExcitationInhibitionLayer(nn.Module):
             reactivate = reactivate, 
             somatic_synapses = somatic_synapses,
             topk_init_method = topk_init_method,
-<<<<<<< HEAD:src/dendritic_modeling/excitation_inhibition.py
-=======
             use_shunting=use_shunting
->>>>>>> 36b16bfaa7370a8eab620257f5609e43d9a2426e:src/dendritic_modeling/networks.py
         )
     
     def decay_weights(self, weight_decay = 0.1):
@@ -243,10 +238,7 @@ class ExcitationInhibitionNetwork(nn.Module):
                 reactivate = reactivate, 
                 somatic_synapses = somatic_synapses,
                 topk_init_method = topk_init_method,
-<<<<<<< HEAD:src/dendritic_modeling/excitation_inhibition.py
-=======
                 use_shunting = use_shunting
->>>>>>> 36b16bfaa7370a8eab620257f5609e43d9a2426e:src/dendritic_modeling/networks.py
             ))
         
         self.layers = nn.ModuleList(layers)
