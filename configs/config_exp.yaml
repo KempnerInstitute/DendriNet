@@ -30,11 +30,11 @@ train:
 
 task:
   dataset: "mnist"   # or "mnist", "center_surround", etc.
-  parameters:
-    train_size: 8000
-    valid_size: 1000
-    test_size: 1000
-    seed: 10
+  parameters: {}
+    # train_size: 8000
+    # valid_size: 1000
+    # test_size: 1000
+    # seed: 10
 
 wandb:
   entity: houman_safaai-harvard-university  # <---- Add your entity
