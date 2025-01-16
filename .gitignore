@@ -10,6 +10,7 @@ notebook/wandb/*
 notebook/votage_plots/*
 notebook/*.log
 notebook/test/*
+notebook/*
 *.sh
 *.out
 data/*
