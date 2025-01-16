@@ -5,7 +5,7 @@ slurm_config:
   conda_env_path: /n/home13/hsafaai/.conda/envs/dendritic_env
   modules_to_load: ["python/3.12.5-fasrc01", "cuda/12.4.1-fasrc01", "cudnn/8.9.2.26_cuda12-fasrc01"]
   max_concurrent_jobs: 8
-  training_script: "/n/holylabs/LABS/kempner_dev/Users/hsafaai/Code/dendritic-modeling/scripts/train_mnist.py"
+  training_script: "/n/holylabs/LABS/kempner_dev/Users/hsafaai/Code/dendritic-modeling/scripts/train_experiments.py"
   config_filename_init: "test_config"
   account: "kempner_dev"
   nodes: 1
@@ -15,44 +15,53 @@ slurm_config:
   mem: 1200GB
   time: "0:30:00"
   partition: "kempner_h100"
+  run_name: "dendritic_modeling_sweep_job"
 
-train_config:
+base_config:
+  model:
+    task: classification
+    probabilistic: false
+    network:
+      type: "einet"
+      parameters:
+        input_dim: 784
+        excitatory_layer_sizes: [10]
+        inhibitory_layer_sizes: [20]
+        excitatory_branch_factors: [1, 2]
+        inhibitory_branch_factors: []
+        reactivate: true
+        somatic_synapses: true
+        ee_synapses_per_branch_per_layer: [24]
+        ei_synapses_per_branch_per_layer: [200]
+        ie_synapses_per_branch_per_layer: [1]
+        ii_synapses_per_branch_per_layer: []
+        topk_init_method: "xavier_normal"
+        use_shunting: true
+
   train:
-    run_name: "dendritic_modeling_sweep"
-    seed: 0
+    train_valid_split: 0.8
+    lr: 0.01
     epochs: 100
     batch_size: 500
     grad_clip_value: 1
     weight_decay: 0.0
-    # if you want "train_valid_split": 0.8 or "lr": 0.01, etc. you can add them here.
 
-  # Possibly a "model" subkey
-  model:
-    input_dim: 784
-    excitatory_layer_sizes: [10]
-    inhibitory_layer_sizes: [20]
-    excitatory_branch_factors: [1,2]
-    inhibitory_branch_factors: []
-    reactivate: True
-    somatic_synapses: True
-    ee_synapses_per_branch_per_layer: [24]
-    ei_synapses_per_branch_per_layer: [200]
-    ie_synapses_per_branch_per_layer: [1]
-    ii_synapses_per_branch_per_layer: []
-    topk_init_method: "xavier_normal"
+  task:
+    dataset: "mnist"
+    parameters: {}
 
-  # You can also have a "wandb" subkey if you wish
   wandb:
-    entity:  "houman_safaai-harvard-university" 
-    project: "dendritic_modeling_sweep_new"
+    entity: houman_safaai-harvard-university
+    project: dendritic_modeling_new
     group: "debug"
     tags: ["mnist_1"]
 
-  # You can place "optimizer", "scheduler" etc. inside train_config as well.
+  settings:
+    visualizations: false
 
-# The actual param combos for sweeping:
 sweep_config:
-  model.topk_init_method: ["xavier_normal","xavier_uniform","normal","uniform"]
-  model.somatic_synapses: ["True","False"]
-  # etc. e.g.: train.batch_size: [32,64,128]
-  # or train.epochs: [50,100]
+  # e.g. we want to sweep topk_init_method over 2 values,
+  # and also somatic_synapses over 2 booleans
+  model.network.parameters.topk_init_method: ["xavier_uniform","normal"]
+  model.network.parameters.somatic_synapses: [true,false]  
+  model.network.parameters.use_shunting: [true,false]
