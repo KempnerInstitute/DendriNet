@@ -14,6 +14,8 @@ from matplotlib.colors import TwoSlopeNorm
 from matplotlib.gridspec import GridSpec
 from mpl_toolkits.axes_grid1 import make_axes_locatable
 
+from dendritic_modeling.utils import split_MNIST_inputs
+
 
 #@title Function to plot an image with the scale color bar
 def plotWithColor(data, title=''):
@@ -337,25 +339,19 @@ def plot_dendrinet_params(
     n_soma = dendrinet.n_soma
     input_inh = dendrinet.input_inhibitory
     somatic_synapses = dendrinet.somatic_synapses
+    reactivate = dendrinet.reactivate
 
     linspace = torch.linspace(0,1,50)
 
-    if somatic_synapses:
-        n_layers = dendrinet.n_branch_layers + 1
-    else:
-        n_layers = dendrinet.n_branch_layers
+    n_layers = dendrinet.n_branch_layers + 1
 
     for i in range(n_layers):
         level = ('soma' 
                  if i == dendrinet.n_branch_layers 
                  else f'branch layer {dendrinet.n_branch_layers - i}')
 
-        if somatic_synapses and i == n_layers - 1:
-            layer = dendrinet.soma_layer
-            branches_per_soma = 1
-        else:
-            layer = dendrinet.branch_layers[i]
-            branches_per_soma = int(layer_sizes[i] / n_soma)
+        layer = dendrinet.branch_layers[i]
+        branches_per_soma = int(layer_sizes[i] / n_soma)
 
         if layer.input_branches:
             plot_branch_weights(
@@ -414,9 +410,9 @@ def plot_dendrinet_params(
         excitatory_synapse_pruned = excitatory_synapse_pruned.chunk(n_soma, 
                                                                     dim = 0)
 
-        if layer.reactivate:
-            reactivation_curve = layer.reactivation(
-                linspace.expand(layer_sizes[i],-1).t()
+        if reactivate:
+            reactivation_curve = dendrinet.reactivation_layers[i](
+                linspace.expand(layer_sizes[i], -1).t()
             ).t()
             reactivation_curve = reactivation_curve.chunk(n_soma, dim = 0)
 
@@ -436,7 +432,7 @@ def plot_dendrinet_params(
                                   if input_inh 
                                   else None)
 
-                react_curve = reactivation_curve[j][k] if layer.reactivate else None
+                react_curve = reactivation_curve[j][k] if reactivate else None
 
                 plot_excitation_inhibition_weights(
                     soma_branch = f'soma{j}_branch{k}', 
@@ -463,16 +459,18 @@ def plot_dendrinet_params(
                 excitatory_synapse_weight_total, 
                 inhibitory_synapse_weight_total 
             ) = dendrinet.log_sum_weights(pruned = False)
-            ( excitatory_synapse_pruned_total, 
-            inhibitory_synapse_pruned_total 
+            (
+                excitatory_synapse_pruned_total, 
+                inhibitory_synapse_pruned_total 
             ) = dendrinet.log_sum_weights(pruned = True)
         else:
             ( 
                 excitatory_synapse_weight_total, 
                 inhibitory_synapse_weight_total 
             ) = dendrinet.sum_weights(pruned = False)
-            ( excitatory_synapse_pruned_total, 
-            inhibitory_synapse_pruned_total 
+            (
+                excitatory_synapse_pruned_total, 
+                inhibitory_synapse_pruned_total 
             ) = dendrinet.sum_weights(pruned = True)
     else:
         if logspace:
@@ -774,24 +772,17 @@ def plot_dendrinet_gradients(
 ):
     layer_sizes = dendrinet.layer_sizes
     n_soma = dendrinet.n_soma
-    somatic_synapses = dendrinet.somatic_synapses
+    reactivate = dendrinet.reactivate
 
-    if somatic_synapses:
-        n_layers = dendrinet.n_branch_layers + 1
-    else:
-        n_layers = dendrinet.n_branch_layers
+    n_layers = dendrinet.n_branch_layers + 1
 
     for i in range(n_layers):
         level = ('soma' 
                  if i == dendrinet.n_branch_layers 
                  else f'branch layer {dendrinet.n_branch_layers - i}')
 
-        if somatic_synapses and i == n_layers - 1:
-            layer = dendrinet.soma_layer
-            branches_per_soma = 1
-        else:
-            layer = dendrinet.branch_layers[i]
-            branches_per_soma = int(layer_sizes[i] / n_soma)
+        layer = dendrinet.branch_layers[i]
+        branches_per_soma = int(layer_sizes[i] / n_soma)
 
         if layer.input_branches:
             if layer.branches_to_output.log_weight.requires_grad:
@@ -803,8 +794,8 @@ def plot_dendrinet_gradients(
         
         inh_grad = layer.input_inhibitory
 
-        if layer.reactivate:
-            if layer.log_m.requires_grad:
+        if reactivate:
+            if dendrinet.reactivation_layers[i].log_m.requires_grad:
                 reactivate_grad = True
             else:
                 reactivate_grad = False
@@ -835,8 +826,8 @@ def plot_dendrinet_gradients(
                                                                 dim = 0)
 
         if reactivate_grad:
-            log_m_grad = layer.log_m.grad.chunk(n_soma, dim = 0)
-            log_b_grad = layer.log_b.grad.chunk(n_soma, dim = 0)
+            log_m_grad = dendrinet.reactivation_layers[i].log_m.grad.chunk(n_soma, dim = 0)
+            log_b_grad = dendrinet.reactivation_layers[i].log_b.grad.chunk(n_soma, dim = 0)
 
         for j in range(n_soma):
             for k in range(branches_per_soma):
@@ -1011,12 +1002,8 @@ def plot_dendrinet_activations(
         chunk_list = []
 
         for j in range(len(exc_input_list)):
-            if i == n_branch_layers:
-                output_list[j] = dendrinet.soma_layer(
-                    exc_input_list[j], inh_input_list[j], output_list[j])
-            else:
-                output_list[j] = dendrinet.branch_layers[i](
-                    exc_input_list[j], inh_input_list[j], output_list[j])
+            output_list[j] = dendrinet.branch_layers[i](
+                exc_input_list[j], inh_input_list[j], output_list[j])
             # list, tuples, tensors -> numbers, somas, branches 
             chunk_list.append(output_list[j].chunk(n_soma, dim = -1))
 
@@ -1061,7 +1048,7 @@ def plot_einet_activations(
     save_root,
     save_in_dir = False,
     filename = 'image',
-    ):
+):
     device = 'cuda' if torch.cuda.is_available() else 'cpu'
     einet = einet.to(device)
 
@@ -1101,6 +1088,562 @@ def plot_einet_activations(
             exc_temp.append(exc_dendrinet(exc_input_list[j], 
                                           inh_input_list[j]))
         exc_input_list = exc_temp
+
+
+def dendrinet_params_todict(dendrinet, logspace = False):
+    layer_sizes = dendrinet.layer_sizes
+    n_soma = dendrinet.n_soma
+    n_layers = dendrinet.n_branch_layers + 1
+
+    plot_dict = {}
+    for j in range(n_soma):
+        plot_dict[f'soma{j}'] = {}
+
+    for i in range(n_layers):
+        level = ('soma layer' 
+                 if i == dendrinet.n_branch_layers 
+                 else f'branch layer {dendrinet.n_branch_layers - i}')
+
+        layer = dendrinet.branch_layers[i]
+        branches_per_soma = int(layer_sizes[i] / n_soma)
+        
+        input_inh = layer.input_inhibitory
+        input_exc = layer.input_excitatory
+        
+        if input_inh:
+            if logspace:
+                inhibitory_synapse_pruned = layer.branch_inhibition.log_pruned_weight()
+            else:
+                inhibitory_synapse_pruned = layer.branch_inhibition.pruned_weight()
+            inhibitory_synapse_mask = layer.branch_inhibition.weight_mask()
+
+            inhibitory_synapse_pruned = inhibitory_synapse_pruned.chunk(n_soma, 
+                                                                        dim = 0)
+            inhibitory_synapse_mask = inhibitory_synapse_mask.chunk(n_soma,
+                                                                    dim = 0)
+        
+        if input_exc:
+            if logspace:
+                excitatory_synapse_pruned = layer.branch_excitation.log_pruned_weight()
+            else:
+                excitatory_synapse_pruned = layer.branch_excitation.pruned_weight()
+            excitatory_synapse_mask = layer.branch_excitation.weight_mask()
+
+            excitatory_synapse_pruned = excitatory_synapse_pruned.chunk(n_soma, 
+                                                                        dim = 0)
+            excitatory_synapse_mask = excitatory_synapse_mask.chunk(n_soma,
+                                                                    dim = 0)
+            
+        for j in range(n_soma):
+            plot_dict[f'soma{j}'][level] = {}
+            for k in range(branches_per_soma):
+                plot_dict[f'soma{j}'][level][f'branch{k}'] = {}
+                plot_dict[f'soma{j}'][level][f'branch{k}']['inh syn'] = {}
+                plot_dict[f'soma{j}'][level][f'branch{k}']['exc syn'] = {}
+
+                plot_dict[f'soma{j}'][level][f'branch{k}']['inh syn']['pruned'] = (
+                    inhibitory_synapse_pruned[j][k] if input_inh else None
+                )
+                plot_dict[f'soma{j}'][level][f'branch{k}']['inh syn']['mask'] = (
+                    inhibitory_synapse_mask[j][k] if input_inh else None
+                )
+
+                plot_dict[f'soma{j}'][level][f'branch{k}']['exc syn']['pruned'] = (
+                    excitatory_synapse_pruned[j][k] if input_exc else None
+                )
+                plot_dict[f'soma{j}'][level][f'branch{k}']['exc syn']['mask'] = (
+                    excitatory_synapse_mask[j][k] if input_exc else None
+                )
+    
+    if dendrinet.input_inhibitory:
+        if logspace:
+            (
+                sum_excitatory_synapse_pruned,
+                sum_inhibitory_synapse_pruned,
+            ) = dendrinet.log_sum_weights(pruned = True)
+        else:
+            (
+                sum_excitatory_synapse_pruned,
+                sum_inhibitory_synapse_pruned,
+            ) = dendrinet.sum_weights(pruned = True)
+    else:
+        if logspace:
+            sum_excitatory_synapse_pruned = dendrinet.log_sum_weights(pruned = True)
+        else:
+            sum_excitatory_synapse_pruned = dendrinet.sum_weights(pruned = True)
+        sum_inhibitory_synapse_pruned = [None] * n_soma
+    
+    for j in range(n_soma):
+        plot_dict[f'soma{j}']['sum weights'] = {}
+        plot_dict[f'soma{j}']['sum weights']['inh'] = sum_inhibitory_synapse_pruned[j]
+        plot_dict[f'soma{j}']['sum weights']['exc'] = sum_excitatory_synapse_pruned[j]
+    
+    return plot_dict
+
+
+def einet_params_todict(einet, logspace = False):
+    einet = einet.to('cpu')
+
+    plot_dict = {}
+
+    for i in range(len(einet.layers)):
+        inh_dendrinet = einet.layers[i].inhibitory_cells
+        exc_dendrinet = einet.layers[i].excitatory_cells
+
+        plot_dict[f'eilayer{i+1}'] = {}
+
+        plot_dict[f'eilayer{i+1}']['inh cells'] = dendrinet_params_todict(
+            dendrinet = inh_dendrinet, logspace = logspace,
+        )
+        plot_dict[f'eilayer{i+1}']['exc cells'] = dendrinet_params_todict(
+            dendrinet = exc_dendrinet, logspace = logspace,
+        )
+    
+    return plot_dict
+
+
+def dendrinet_activations_todict(
+    dendrinet, 
+    exc_input_list, 
+    inh_input_list, 
+):
+    layer_sizes = dendrinet.layer_sizes
+    n_soma = dendrinet.n_soma
+    n_branch_layers = dendrinet.n_branch_layers
+
+    plot_dict = {}
+    for n in range(n_soma):
+        plot_dict[f'soma{n}'] = {}
+
+    output_list = [None] * len(exc_input_list)
+    for i in range(n_branch_layers+1):
+        branches_per_soma = int(layer_sizes[i] / n_soma)
+
+        chunk_list = []
+
+        for j in range(len(exc_input_list)):
+            output_list[j] = dendrinet.branch_layers[i](
+                exc_input_list[j], inh_input_list[j], output_list[j])
+            # list, tuples, tensors -> numbers, somas, branches 
+            chunk_list.append(output_list[j].chunk(n_soma, dim = -1))
+
+        level = ('soma layer' 
+                 if (i == n_branch_layers) 
+                 else f'branch layer {n_branch_layers - i}')
+
+        for n in range(n_soma):
+            plot_dict[f'soma{n}'][level] = {}
+            for b in range(branches_per_soma):
+                activation_list = []
+                for k in range(len(exc_input_list)):
+                    chunk = chunk_list[k][n][:,b]
+                    activation_list.append(chunk)
+                
+                plot_dict[f'soma{n}'][level][f'branch{b}'] = {}
+                plot_dict[f'soma{n}'][level][f'branch{b}']['activation list'] = activation_list
+
+    return plot_dict
+
+
+def einet_activations_todict(einet, input_list):
+    device = 'cuda' if torch.cuda.is_available() else 'cpu'
+    einet = einet.to(device)
+
+    exc_input_list = [inputs.to(device) for inputs in input_list]
+    inh_input_list = [None] * len(input_list)
+
+    plot_dict = {}
+    
+    for i in range(len(einet.layers)):
+        inh_dendrinet = einet.layers[i].inhibitory_cells
+        exc_dendrinet = einet.layers[i].excitatory_cells
+
+        plot_dict[f'eilayer{i+1}'] = {}
+
+        plot_dict[f'eilayer{i+1}']['inh cells'] = dendrinet_activations_todict(
+            dendrinet = inh_dendrinet,
+            exc_input_list = exc_input_list,
+            inh_input_list = inh_input_list,
+        )
+
+        inh_temp = []
+        for j in range(len(input_list)):
+            inh_temp.append(inh_dendrinet(exc_input_list[j], 
+                                          inh_input_list[j]))
+        inh_input_list = inh_temp
+
+        plot_dict[f'eilayer{i+1}']['exc cells'] = dendrinet_activations_todict(
+            dendrinet = exc_dendrinet,
+            exc_input_list = exc_input_list,
+            inh_input_list = inh_input_list,
+        )
+
+        exc_temp = []
+        for j in range(len(input_list)):
+            exc_temp.append(exc_dendrinet(exc_input_list[j], 
+                                          inh_input_list[j]))
+        exc_input_list = exc_temp
+    
+    return plot_dict
+
+
+def dendrinet_gradients_todict(dendrinet):
+    layer_sizes = dendrinet.layer_sizes
+    n_soma = dendrinet.n_soma
+
+    n_layers = dendrinet.n_branch_layers + 1
+
+    plot_dict = {}
+    for n in range(n_soma):
+        plot_dict[f'soma{n}'] = {}
+
+    for i in range(n_layers):
+        level = ('soma layer' 
+                 if i == dendrinet.n_branch_layers 
+                 else f'branch layer {dendrinet.n_branch_layers - i}')
+
+        layer = dendrinet.branch_layers[i]
+        branches_per_soma = int(layer_sizes[i] / n_soma)
+        
+        inh_grad = layer.input_inhibitory
+        exc_grad = layer.input_excitatory
+
+        if inh_grad:
+            inhibitory_synapse_grad = layer.branch_inhibition.pre_w.grad
+            inhibitory_synapse_grad = inhibitory_synapse_grad.chunk(n_soma,
+                                                                    dim = 0)
+
+        if exc_grad:
+            excitatory_synapse_grad = layer.branch_excitation.pre_w.grad
+            excitatory_synapse_grad = excitatory_synapse_grad.chunk(n_soma,
+                                                                    dim = 0)
+
+        for j in range(n_soma):
+            plot_dict[f'soma{j}'][level] = {}
+            for k in range(branches_per_soma):
+                plot_dict[f'soma{j}'][level][f'branch{k}'] = {}
+                plot_dict[f'soma{j}'][level][f'branch{k}']['inh syn'] = {}
+                plot_dict[f'soma{j}'][level][f'branch{k}']['exc syn'] = {}
+
+                plot_dict[f'soma{j}'][level][f'branch{k}']['inh syn']['grad'] = (
+                    inhibitory_synapse_grad[j][k] if inh_grad else None
+                )
+                plot_dict[f'soma{j}'][level][f'branch{k}']['exc syn']['grad'] = (
+                    excitatory_synapse_grad[j][k] if exc_grad else None
+                )
+
+    return plot_dict
+
+
+def einet_gradients_todict(model, inputs, labels):
+    device = 'cuda' if torch.cuda.is_available() else 'cpu'
+    model = model.to(device)
+    model.train()
+
+    # print(inputs.shape, labels.shape, flush = True)
+    loss = model(inputs.to(device), labels.to(device))
+    loss = loss.mean(dim = 0)
+    model.zero_grad()
+    loss.backward()
+
+    einet = model.net
+    
+    plot_dict = {}
+
+    for i in range(len(einet.layers)):
+        inh_dendrinet = einet.layers[i].inhibitory_cells
+        exc_dendrinet = einet.layers[i].excitatory_cells
+
+        plot_dict[f'eilayer{i+1}'] = {}
+
+        plot_dict[f'eilayer{i+1}']['inh cells'] = dendrinet_gradients_todict(
+            dendrinet = inh_dendrinet,
+        )
+        plot_dict[f'eilayer{i+1}']['exc cells'] = dendrinet_gradients_todict(
+            dendrinet = exc_dendrinet,
+        )
+    
+    model.eval()
+    
+    return plot_dict
+
+
+def plot_einet_profiles(
+    save_root,
+    model, 
+    train_data,
+    valid_data,
+    n_tasks = 1, 
+    logspace = False, 
+    reshape_fn = None, 
+    save_in_dir = False, 
+    filename = 'image',
+):
+    plot_dict = {}
+    plot_dict['weights'] = einet_params_todict(
+        einet = model.net, logspace = logspace,
+    )
+
+    train_input, train_label = train_data[:]
+    valid_input, valid_label = valid_data[:]
+
+    if n_tasks > 1:
+        for i in range(n_tasks):
+            train_task_mask = train_input[:,i] > 0
+            valid_task_mask = valid_input[:,i] > 0
+            
+            train_task_input = train_input[train_task_mask,:]
+            train_task_label = train_label[train_task_mask]
+
+            valid_task_input = valid_input[valid_task_mask,:]
+            valid_task_label = valid_label[valid_task_mask]
+
+            valid_task_input_list = split_MNIST_inputs(valid_task_input, valid_task_label)
+
+            plot_dict[f'task{i+1}'] = {}
+
+            plot_dict[f'task{i+1}']['activations'] = einet_activations_todict(
+                einet = model.net, input_list = valid_task_input_list,
+            )
+            plot_dict[f'task{i+1}']['gradients'] = einet_gradients_todict(
+                model, inputs = train_task_input, labels = train_task_label,
+            )
+    else:
+        valid_task_input_list = split_MNIST_inputs(valid_input, valid_label)
+
+        plot_dict['task1'] = {}
+
+        plot_dict['task1']['activations'] = einet_activations_todict(
+            einet = model.net, input_list = valid_task_input_list,
+        )
+        plot_dict['task1']['gradients'] = einet_gradients_todict(
+            model, inputs = train_input, labels = train_label,
+        )
+
+    
+    def plot_compartment_profile(
+        eil_ind, cell_ind, soma_ind, brl_ind, branch_ind,
+    ):
+        inh_syn_mask = plot_dict['weights'][f'eilayer{eil_ind}'][cell_ind][f'soma{soma_ind}'][brl_ind][f'branch{branch_ind}']['inh syn']['mask']
+        inh_soma_ind = None if inh_syn_mask is None else [ind.item() for ind in inh_syn_mask.nonzero()]
+
+        nrows = 1 + 2*n_tasks
+        ncols = 1 if inh_soma_ind is None else 1 + len(inh_soma_ind)
+
+        fig = plt.figure(figsize = (8, 12), dpi = 200)
+
+        gs = GridSpec(nrows, ncols, figure = fig)
+
+        weight_list = [plot_dict['weights'][f'eilayer{eil_ind}'][cell_ind][f'soma{soma_ind}'][brl_ind][f'branch{branch_ind}']['exc syn']['pruned']]
+
+        col_title_list = ['log exc syn' if logspace else 'exc syn']
+
+        if inh_soma_ind is not None:
+            for ind in inh_soma_ind:
+                weight_list.append(plot_dict['weights'][f'eilayer{eil_ind}']['inh cells'][f'soma{ind}']['sum weights']['exc'])
+                col_title_list.append(f'log sum inh soma{ind}' if logspace else f'sum inh soma{ind}')
+        
+        weight_list = shape_helper(True, reshape_fn, weight_list)
+
+        ax_list = []
+        im_list = []
+
+        for c in range(ncols):
+            w_ax = fig.add_subplot(gs[0,c])
+            w_im = w_ax.imshow(weight_list[c].detach().cpu().numpy(), cmap = 'viridis')
+            w_ax.set_xticks([])
+            w_ax.set_yticks([])
+            w_ax.set_title(col_title_list[c])
+            
+            ax_list.append(w_ax)
+            im_list.append(w_im)
+
+        for t in range(n_tasks):
+
+            activation_list_list = [plot_dict[f'task{t+1}']['activations'][f'eilayer{eil_ind}'][cell_ind][f'soma{soma_ind}'][brl_ind][f'branch{branch_ind}']['activation list']]
+            gradient_list = [plot_dict[f'task{t+1}']['gradients'][f'eilayer{eil_ind}'][cell_ind][f'soma{soma_ind}'][brl_ind][f'branch{branch_ind}']['exc syn']['grad']]
+
+            if inh_soma_ind is not None:
+                for ind in inh_soma_ind:
+                    activation_list_list.append(
+                        plot_dict[f'task{t+1}']['activations'][f'eilayer{eil_ind}']['inh cells'][f'soma{ind}']['soma layer']['branch0']['activation list']
+                    )
+                    gradient_list.append(
+                        plot_dict[f'task{t+1}']['gradients'][f'eilayer{eil_ind}']['inh cells'][f'soma{ind}']['soma layer']['branch0']['exc syn']['grad']
+                    )
+            
+            gradient_list = shape_helper(True, reshape_fn, gradient_list)
+
+            for c in range(ncols):
+                activation_list = [act.detach().cpu().numpy() for act in activation_list_list[c]]
+
+                act_ax = fig.add_subplot(gs[2*t+1,c])
+                act_ax.boxplot(activation_list)
+                act_ax.set_yticks([0, 0.5, 1])
+                act_ax.set_ylim(0, 1)
+                act_ax.yaxis.tick_right()
+                if c != ncols - 1:
+                    act_ax.set_yticklabels([])
+                act_ax.set_xticklabels([tick for tick in range(10)])
+
+                grad_ax = fig.add_subplot(gs[2*(t+1),c])
+                maxabs = torch.max(gradient_list[c].abs()).item() + 1e-9
+                norm = TwoSlopeNorm(vcenter = 0, vmin = -maxabs, vmax = maxabs)
+                grad_im = grad_ax.imshow(
+                    gradient_list[c].detach().cpu().numpy(), 
+                    cmap = 'PRGn', norm = norm,
+                )
+                grad_ax.set_xticks([])
+                grad_ax.set_yticks([])
+
+                ax_list.append(grad_ax)
+                im_list.append(grad_im)
+        
+        add_colorbars(fig, ax_list, im_list, 'right', '5%', 0.05)
+
+        save_path = os.path.join(save_root, f'eilayer{eil_ind}', cell_ind, brl_ind)
+
+        if save_in_dir:
+            save_path = os.path.join(save_path, f'soma{soma_ind}_branch{branch_ind}')
+            file_path = os.path.join(save_path, f'{filename}.jpeg')
+        else:
+            file_path = os.path.join(save_path, f'soma{soma_ind}_branch{branch_ind}.jpeg')
+        
+        if not os.path.exists(save_path):
+            os.makedirs(save_path, exist_ok = True)
+        
+        fig.savefig(file_path)
+        plt.close(fig)
+
+    
+    # def plot_branch_profile(
+    #     save_path, 
+    #     branches_to_output, 
+    #     logspace = False,
+    #     save_in_dir = False,
+    #     filename = 'image',
+    #     ):
+    #     if logspace:
+    #         branch_param = branches_to_output.log_block()
+    #         param_title = 'Upstream Branch Log Weights'
+    #     else:
+    #         branch_param = branches_to_output.block()
+    #         param_title = 'Upstream Branch Weights'
+        
+    #     branch_grad = branches_to_output.grad_block()
+        
+    #     fig, ax = plt.subplots(nrows = 1, ncols = 2)
+    #     fig.suptitle(needs title)
+    #     im1 = ax[0].imshow(branch_param.detach().cpu().numpy(), cmap = 'viridis')
+
+    #     maxabs = torch.max(branch_grad.abs()).item() + 1e-9
+    #     norm = TwoSlopeNorm(vcenter = 0, vmin = -maxabs, vmax = maxabs)
+    #     im = ax.imshow(
+    #         branch_grad.detach().cpu().numpy(), 
+    #         cmap = 'PRGn', norm = norm,
+    #     )
+
+    #     add_colorbars(fig, [ax], [im], 'right', '5%', 0.05)
+
+    #     if save_in_dir:
+    #         save_path = os.path.join(save_path, 'branch_weights')
+    #         file_path = os.path.join(save_path, f'{filename}.jpeg')
+    #     else:
+    #         file_path = os.path.join(save_path, 'branch_weights.jpeg')
+        
+    #     if not os.path.exists(save_path):
+    #         os.makedirs(save_path, exist_ok = True)    
+        
+    #     fig.savefig(file_path)
+    #     plt.close(fig)
+    
+    # def plot_branch_gradients(
+    #     save_path, 
+    #     branches_to_output, 
+    #     save_in_dir = False,
+    #     filename = 'image',
+    #     ):
+    #     branch_grad = branches_to_output.grad_block()
+
+    #     fig, ax = plt.subplots()
+    #     fig.suptitle('Upstream Branch Gradients')
+    #     maxabs = torch.max(branch_grad.abs()).item() + 1e-9
+    #     norm = TwoSlopeNorm(vcenter = 0, vmin = -maxabs, vmax = maxabs)
+    #     im = ax.imshow(
+    #         branch_grad.detach().cpu().numpy(), 
+    #         cmap = 'PRGn', norm = norm,
+    #     )
+
+    #     add_colorbars(fig, [ax], [im], 'right', '5%', 0.05)
+
+    #     if save_in_dir:
+    #         save_path = os.path.join(save_path, 'branch_grads')
+    #         file_path = os.path.join(save_path, f'{filename}.jpeg')
+    #     else:
+    #         file_path = os.path.join(save_path, 'branch_grads.jpeg')
+        
+    #     if not os.path.exists(save_path):
+    #         os.makedirs(save_path, exist_ok = True)    
+        
+    #     fig.savefig(file_path)
+    #     plt.close(fig)
+
+    
+    for eil, eilayer in enumerate(model.net.layers):
+        inh_dendrinet = eilayer.inhibitory_cells
+
+        layer_sizes = inh_dendrinet.layer_sizes
+        n_soma = inh_dendrinet.n_soma
+
+        n_layers = inh_dendrinet.n_branch_layers + 1
+
+        for brl in range(len(inh_dendrinet.branch_layers)):
+            level = (
+                'soma layer' if brl == n_layers - 1 
+                else f'branch layer {n_layers - 1 - brl}'
+            )
+            branches_per_soma = int(layer_sizes[brl] / n_soma)
+
+            # plot branch profiles here
+
+            for n in range(n_soma):
+                for b in range(branches_per_soma):
+                    plot_compartment_profile(
+                        eil_ind = eil + 1, 
+                        cell_ind = 'inh cells', 
+                        soma_ind = n, 
+                        brl_ind = level, 
+                        branch_ind = b,
+                    )
+        
+        exc_dendrinet = eilayer.excitatory_cells
+
+        layer_sizes = exc_dendrinet.layer_sizes
+        n_soma = exc_dendrinet.n_soma
+
+        n_layers = exc_dendrinet.n_branch_layers + 1
+
+        for brl in range(len(exc_dendrinet.branch_layers)):
+            level = (
+                'soma layer' if brl == n_layers - 1 
+                else f'branch layer {n_layers - 1 - brl}'
+            )
+            branches_per_soma = int(layer_sizes[brl] / n_soma)
+
+            # plot branch profiles here
+
+            for n in range(n_soma):
+                for b in range(branches_per_soma):
+                    plot_compartment_profile(
+                        eil_ind = eil + 1, 
+                        cell_ind = 'exc cells', 
+                        soma_ind = n, 
+                        brl_ind = level, 
+                        branch_ind = b,
+                    )
+
+
+
 
 
 def dendrinet_activations_to_csv(
