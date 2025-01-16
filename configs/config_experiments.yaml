@@ -1,5 +1,5 @@
 train:
-  dataset_name: "line"           # "line", "center_surround", "orientation_bars", "multi_xor", or "mnist"
+  dataset_name: "mnist"           # "line", "center_surround", "orientation_bars", "multi_xor", or "mnist"
   train_size: 8000
   valid_size: 1000
   test_size: 1000

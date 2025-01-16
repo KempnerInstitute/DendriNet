@@ -1,11 +1,14 @@
-# conf.py
+# config.py
 from pathlib import Path
 from typing import List, Union
 from dataclasses import dataclass, field, asdict
 
 from omegaconf import OmegaConf as om
 
-# Base configuration class
+########################################################
+# BaseConfig
+########################################################
+
 class BaseConfig:
     @classmethod
     def load(cls, path: str):
@@ -17,151 +20,211 @@ class BaseConfig:
 
     def asdict(self):
         return asdict(self)
-    
-# Base class for all network parameters
-@dataclass
-class BaseNetworkParameters(BaseConfig):
-    """ Base class for all network parameters """
-    pass
 
-# Parameters for EINet network
+########################################################
+# Network parameter classes
+########################################################
+
 @dataclass
-class EINetParameters(BaseNetworkParameters):
-    """ Parameters for EINet network """
+class EINetParameters(BaseConfig):
+    """Parameters for the EINet-based dendritic model."""
     input_dim: int = 784
-    excitatory_layer_sizes: list = field(default_factory=lambda: [10])
-    inhibitory_layer_sizes: list = field(default_factory=lambda: [20])
-    excitatory_branch_factors: list = field(default_factory=lambda: [24])
-    inhibitory_branch_factors: list = field(default_factory=list)
-    ee_synapses_per_branch_per_layer: list = field(default_factory=lambda: [24])
-    ei_synapses_per_branch_per_layer: list = field(default_factory=lambda: [100])
-    ie_synapses_per_branch_per_layer: list = field(default_factory=lambda: [1])
-    ii_synapses_per_branch_per_layer: list = field(default_factory=list)
+    excitatory_layer_sizes: List[int] = field(default_factory=lambda: [10])
+    inhibitory_layer_sizes: List[int] = field(default_factory=lambda: [20])
+    excitatory_branch_factors: List[int] = field(default_factory=lambda: [1,2])
+    inhibitory_branch_factors: List[int] = field(default_factory=list)
+
+    ee_synapses_per_branch_per_layer: List[int] = field(default_factory=lambda: [24])
+    ei_synapses_per_branch_per_layer: List[int] = field(default_factory=lambda: [100])
+    ie_synapses_per_branch_per_layer: List[int] = field(default_factory=lambda: [1])
+    ii_synapses_per_branch_per_layer: List[int] = field(default_factory=list)
+
     reactivate: bool = True
     somatic_synapses: bool = True
     topk_init_method: str = "xavier_normal"
     use_shunting: bool = True
 
-# Parameters for feedforward network
 @dataclass
-class FeedForwardParameters(BaseNetworkParameters):
-    """ Parameters for feedforward network """
+class FeedForwardParameters(BaseConfig):
+    """Parameters for a simple feedforward network."""
     input_dim: int = 784
-    hidden_layer_sizes:  List[int] = field(default_factory=lambda: [128, 64])
+    hidden_layer_sizes: List[int] = field(default_factory=lambda: [128, 64])
     activation: str = "relu"
     dropout: float = 0.2
     output_dim: int = 10
 
+########################################################
+# Task config
+########################################################
 
 @dataclass
 class BaseTaskParameters(BaseConfig):
-    """ Base class for all task parameters """
     pass
 
 @dataclass
-class LineParameters(BaseTaskParameters):
-    """ Parameters for line task """
-    train_size: int = 1000
-    valid_size: int = 100
-    test_size: int = 100
+class GenericTaskParameters(BaseTaskParameters):
+    train_size: int = 8000
+    valid_size: int = 1000
+    test_size: int = 1000
     image_size: int = 10
-    seed: int = 42
+    seed: int = 0
 
-
-# Task configuration
 @dataclass
 class TaskConfig(BaseConfig):
-    """ Configuration for task hyperparameters """
+    """ Specifies which dataset and parameters to use. """
     dataset: str = "line"
-    parameters: Union[LineParameters] = field(default_factory=LineParameters)
+    parameters: GenericTaskParameters = field(default_factory=GenericTaskParameters)
 
+########################################################
+# Model config
+########################################################
 
-
-# Network configuration
 @dataclass
 class NetworkConfig(BaseConfig):
-    """ Configuration for network hyperparameters """
-    type: str = "EINet"
+    """Holds type plus EInet / Feedforward parameters."""
+    type: str = "einet"  # or 'feedforward'
     parameters: Union[EINetParameters, FeedForwardParameters] = field(default_factory=EINetParameters)
-
-
-@dataclass
-class WandbConfig(BaseConfig):
-    """Configuration for Weights & Biases (W&B) integration."""
-    entity: str = "your_wandb_entity"
-    project: str = "dendritic_modeling_pr"
-    group: str = "debug"
-    tags: list = field(default_factory=list)
 
 @dataclass
 class ModelConfig(BaseConfig):
-    """Configuration for model hyperparameters."""
     task: str = "classification"
     probabilistic: bool = False
     network: NetworkConfig = field(default_factory=NetworkConfig)
 
+    def asdict(self):
+        """
+        Convert to dict, but also flatten network config.
+        """
+        return {
+            "task": self.task,
+            "probabilistic": self.probabilistic,
+            "network": {
+                "type": self.network.type,
+                "parameters": asdict(self.network.parameters),
+            }
+        }
+
+########################################################
+# Train config
+########################################################
 
 @dataclass
 class TrainConfig(BaseConfig):
-    """Configuration for training hyperparameters."""
     run_name: str = "dm_test"
     seed: int = 42
-    train_valid_split: float = 0.8
+    train_valid_split: float = 1.0
     lr: float = 1e-3
-    epochs: int = 200
-    batch_size: int = 32
+    epochs: int = 20
+    batch_size: int = 64
     grad_clip_value: float = 0.5
     weight_decay: float = 0.0
 
+    def asdict(self):
+        return {
+            "run_name": self.run_name,
+            "seed": self.seed,
+            "train_valid_split": self.train_valid_split,
+            "lr": self.lr,
+            "epochs": self.epochs,
+            "batch_size": self.batch_size,
+            "grad_clip_value": self.grad_clip_value,
+            "weight_decay": self.weight_decay,
+        }
 
-# Settings configuration (all other parameters)
+########################################################
+# Wandb config
+########################################################
+
+@dataclass
+class WandbConfig(BaseConfig):
+    entity: str = ""
+    project: str = "dendritic_modeling_pr"
+    group: str = "debug"
+    tags: list = field(default_factory=list)
+
+########################################################
+# Settings config
+########################################################
+
 @dataclass
 class SettingsConfig(BaseConfig):
-    """Configuration for all other settings."""
     visualizations: bool = False
 
+########################################################
+# Primary aggregator
+########################################################
+
 @dataclass
-class Config:
-    """Primary configuration that combines model and training configs."""
+class Config(BaseConfig):
     model: ModelConfig = field(default_factory=ModelConfig)
     train: TrainConfig = field(default_factory=TrainConfig)
+    task: TaskConfig = field(default_factory=TaskConfig)
     wandb: WandbConfig = field(default_factory=WandbConfig)
     settings: SettingsConfig = field(default_factory=SettingsConfig)
-    task: TaskConfig = field(default_factory=TaskConfig)
 
     def asdict(self, exclude=None):
-        """Convert the Config class to a dictionary, with options to exclude keys."""
         exclude = exclude or []
         config_dict = {
-            "model": self.model.asdict() if hasattr(self.model, 
-                                                    'asdict') else self.model,
-            "train": self.train.asdict() if hasattr(self.train, 
-                                                    'asdict') else self.train,
-            "wandb": self.wandb,
-            "settings": self.settings,
-            "task": self.task.asdict() if hasattr(self.task, 
-                                                  'asdict') else self.task
+            "model": self.model.asdict(),
+            "train": self.train.asdict(),
+            "task": asdict(self.task),
+            "wandb": asdict(self.wandb),
+            "settings": asdict(self.settings),
         }
-        
-        # Remove excluded keys
         for key in exclude:
             config_dict.pop(key, None)
-        
         return config_dict
 
 
-
+########################################################
+# load_config
+########################################################
 
 def load_config(path: str = None) -> Config:
-    """Load configuration from a file or use defaults."""
     if path:
         raw_conf = om.load(path)
-        return Config(
-            model=ModelConfig(**raw_conf.get("model", {})),
-            train=TrainConfig(**raw_conf.get("train", {})),
-            wandb=WandbConfig(**raw_conf.get("wandb", {})),
-            settings=SettingsConfig(**raw_conf.get("settings", {}))
+
+        # Build model config
+        raw_model = raw_conf.get("model", {})
+        model_cfg = ModelConfig(
+            task=raw_model.get("task", "classification"),
+            probabilistic=raw_model.get("probabilistic", False),
+            network=NetworkConfig(
+                type=raw_model.get("network", {}).get("type", "einet"),
+                parameters=EINetParameters(**raw_model["network"]["parameters"])
+                  if raw_model["network"]["type"].lower() == "einet" 
+                  else FeedForwardParameters(**raw_model["network"]["parameters"])
+            )
         )
-    return Config()
 
+        # Build train config
+        raw_train = raw_conf.get("train", {})
+        train_cfg = TrainConfig(**raw_train)
 
+        # Build task config
+        raw_task = raw_conf.get("task", {})
+        # We might store parameters in raw_task['parameters']
+        param_obj = GenericTaskParameters(**raw_task.get("parameters", {}))
+        task_cfg = TaskConfig(
+            dataset=raw_task.get("dataset", "line"),
+            parameters=param_obj
+        )
+
+        # Build wandb config
+        raw_wandb = raw_conf.get("wandb", {})
+        wandb_cfg = WandbConfig(**raw_wandb)
+
+        # Build settings config
+        raw_settings = raw_conf.get("settings", {})
+        settings_cfg = SettingsConfig(**raw_settings)
+
+        return Config(
+            model=model_cfg,
+            train=train_cfg,
+            task=task_cfg,
+            wandb=wandb_cfg,
+            settings=settings_cfg
+        )
+    else:
+        # Return defaults
+        return Config()

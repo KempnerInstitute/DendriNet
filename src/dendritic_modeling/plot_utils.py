@@ -30,7 +30,37 @@ def plotWithColor(data, title=''):
 
             plt.show()
 
+def plot_NLL_loss_curves(
+    train_losses, 
+    valid_losses, 
+    num_epochs,
+    save_path = None,
+):
+    Train_losses = np.array(train_losses)
+    Train_losses[np.where(Train_losses > 5)] = 5
+    
+    Valid_losses = np.array(valid_losses)
+    Valid_losses[np.where(Valid_losses > 5)] = 5
+    
+    fig = plt.figure()
+    
+    plt.plot(range(1,num_epochs+1), Train_losses, '0.4', label = 'training')
+    plt.plot(range(1,num_epochs+1), Valid_losses, 'b', label = 'validation')
+    
+    plt.xlabel('Epochs')
+    plt.xticks(range(0,num_epochs+1,int(num_epochs // 10)))
+    plt.ylabel('Negative Log Likelihood')
+    plt.title('Loss Curves')
+    plt.legend()
 
+    if save_path is not None:
+        if not os.path.exists(save_path):
+            os.makedirs(save_path, exist_ok = True)
+        fig.savefig(os.path.join(save_path, 'nll_loss_curves.jpeg'))
+        plt.close(fig)
+    else:
+        return fig
+    
 def add_colorbars(
     fig, ax_iterable, im_iterable, position, size, pad,
     ):
