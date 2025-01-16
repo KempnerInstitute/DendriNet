@@ -341,8 +341,8 @@ def get_unified_datasets(
     train_valid_split = train_cfg['train_valid_split']
     
 
-    # if dataset_name == "mnist":
-    #     return load_mnist_as_datasets(train_valid_split=train_valid_split)
+    if dataset_name == "mnist":
+        return load_mnist_as_datasets(train_valid_split=train_valid_split)
 
     if dataset_name == "line":
         image_size = task_cfg['parameters']['image_size']
