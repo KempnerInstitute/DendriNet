@@ -1,18 +1,10 @@
-<<<<<<< HEAD
-# synthetic_datasets.py
-=======
->>>>>>> 36b16bfaa7370a8eab620257f5609e43d9a2426e
 import torch
 import numpy as np
 from torch.utils.data import Dataset, random_split, TensorDataset
 
-<<<<<<< HEAD
-from dendritic_modeling.utils import load_MNIST  # Adjust path if needed
-=======
 from dendritic_modeling.utils import load_MNIST  
 from torchvision.datasets import MNIST
 import torchvision.transforms as T
->>>>>>> 36b16bfaa7370a8eab620257f5609e43d9a2426e
 
 
 ########################################
@@ -202,26 +194,6 @@ def load_mnist_as_datasets(train_valid_split=0.9):
     """
     data = load_MNIST(train_valid_split=train_valid_split)
     # data['train'] => (X_train, Y_train)
-<<<<<<< HEAD
-    train_dataset = torch.utils.data.TensorDataset(*data['train'][:])
-    valid_dataset = torch.utils.data.TensorDataset(*data['valid'][:])
-    test_dataset  = torch.utils.data.TensorDataset(*data['test'][:])
-    return train_dataset, valid_dataset, test_dataset
-
-
-########################################
-# 5) Unified function to get ANY dataset
-########################################
-def get_unified_datasets(
-    dataset_name="mnist",
-    train_size=8000,
-    valid_size=1000,
-    test_size=1000,
-    image_size=10,
-    n_orient_classes=8,
-    n_bits=8,
-    mnist_train_valid_split=0.9
-=======
     train_dataset = TensorDataset(*data['train'][:])
     valid_dataset = TensorDataset(*data['valid'][:])
     test_dataset  = TensorDataset(*data['test'][:])
@@ -358,7 +330,6 @@ class MNISTSparse(Dataset):
     
 def get_unified_datasets(
     task_cfg, train_cfg
->>>>>>> 36b16bfaa7370a8eab620257f5609e43d9a2426e
 ):
     """
     Returns (train_dataset, valid_dataset, test_dataset) as raw Dataset objects
@@ -366,16 +337,6 @@ def get_unified_datasets(
     The main script or trainer can then create DataLoaders from these Datasets.
     """
 
-<<<<<<< HEAD
-    if dataset_name == "mnist":
-        # If we want MNIST, load from your utility
-        return load_mnist_as_datasets(train_valid_split=mnist_train_valid_split)
-
-    elif dataset_name == "line":
-        total = train_size + valid_size + test_size
-        full_dataset = LineDataset(n_samples=total, image_size=image_size)
-        train_ds, valid_ds, test_ds = torch.utils.data.random_split(
-=======
     dataset_name = task_cfg['dataset']
     train_valid_split = train_cfg['train_valid_split']
     
@@ -391,40 +352,10 @@ def get_unified_datasets(
         n_samples = train_size + valid_size + test_size 
         full_dataset = LineDataset(n_samples=n_samples, image_size=image_size)
         train_ds, valid_ds, test_ds = random_split(
->>>>>>> 36b16bfaa7370a8eab620257f5609e43d9a2426e
             full_dataset, [train_size, valid_size, test_size]
         )
         return train_ds, valid_ds, test_ds
 
-<<<<<<< HEAD
-    elif dataset_name == "center_surround":
-        total = train_size + valid_size + test_size
-        full_dataset = CenterSurroundDataset(n_samples=total, image_size=image_size)
-        train_ds, valid_ds, test_ds = torch.utils.data.random_split(
-            full_dataset, [train_size, valid_size, test_size]
-        )
-        return train_ds, valid_ds, test_ds
-
-    elif dataset_name == "orientation_bars":
-        total = train_size + valid_size + test_size
-        full_dataset = OrientationBarsDataset(
-            n_samples=total,
-            image_size=image_size,
-            n_orient_classes=n_orient_classes
-        )
-        train_ds, valid_ds, test_ds = torch.utils.data.random_split(
-            full_dataset, [train_size, valid_size, test_size]
-        )
-        return train_ds, valid_ds, test_ds
-
-    elif dataset_name == "multi_xor":
-        total = train_size + valid_size + test_size
-        full_dataset = MultiXORDataset(n_samples=total, n_bits=n_bits)
-        train_ds, valid_ds, test_ds = torch.utils.data.random_split(
-            full_dataset, [train_size, valid_size, test_size]
-        )
-        return train_ds, valid_ds, test_ds
-=======
     # elif dataset_name == "center_surround":
     #     total = train_size + valid_size + test_size
     #     full_dataset = CenterSurroundDataset(n_samples=total, image_size=image_size)
@@ -495,7 +426,6 @@ def get_unified_datasets(
     #         full_dataset, [train_size, valid_size, test_size]
     #     )
     #     return train_ds, valid_ds, test_ds
->>>>>>> 36b16bfaa7370a8eab620257f5609e43d9a2426e
 
     else:
         raise ValueError(f"Unknown dataset name: {dataset_name}")
