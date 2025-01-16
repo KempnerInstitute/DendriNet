@@ -1,16 +1,32 @@
-test_config_0.yaml: {'model.topk_init_method': 'xavier_normal', 'model.reactivate': 'True', 'model.somatic_synapses': 'True'} 
-test_config_1.yaml: {'model.topk_init_method': 'xavier_normal', 'model.reactivate': 'True', 'model.somatic_synapses': 'False'} 
-test_config_2.yaml: {'model.topk_init_method': 'xavier_normal', 'model.reactivate': 'False', 'model.somatic_synapses': 'True'} 
-test_config_3.yaml: {'model.topk_init_method': 'xavier_normal', 'model.reactivate': 'False', 'model.somatic_synapses': 'False'} 
-test_config_4.yaml: {'model.topk_init_method': 'xavier_uniform', 'model.reactivate': 'True', 'model.somatic_synapses': 'True'} 
-test_config_5.yaml: {'model.topk_init_method': 'xavier_uniform', 'model.reactivate': 'True', 'model.somatic_synapses': 'False'} 
-test_config_6.yaml: {'model.topk_init_method': 'xavier_uniform', 'model.reactivate': 'False', 'model.somatic_synapses': 'True'} 
-test_config_7.yaml: {'model.topk_init_method': 'xavier_uniform', 'model.reactivate': 'False', 'model.somatic_synapses': 'False'} 
-test_config_8.yaml: {'model.topk_init_method': 'normal', 'model.reactivate': 'True', 'model.somatic_synapses': 'True'} 
-test_config_9.yaml: {'model.topk_init_method': 'normal', 'model.reactivate': 'True', 'model.somatic_synapses': 'False'} 
-test_config_10.yaml: {'model.topk_init_method': 'normal', 'model.reactivate': 'False', 'model.somatic_synapses': 'True'} 
-test_config_11.yaml: {'model.topk_init_method': 'normal', 'model.reactivate': 'False', 'model.somatic_synapses': 'False'} 
-test_config_12.yaml: {'model.topk_init_method': 'uniform', 'model.reactivate': 'True', 'model.somatic_synapses': 'True'} 
-test_config_13.yaml: {'model.topk_init_method': 'uniform', 'model.reactivate': 'True', 'model.somatic_synapses': 'False'} 
-test_config_14.yaml: {'model.topk_init_method': 'uniform', 'model.reactivate': 'False', 'model.somatic_synapses': 'True'} 
-test_config_15.yaml: {'model.topk_init_method': 'uniform', 'model.reactivate': 'False', 'model.somatic_synapses': 'False'} 
+test_config_0.yaml: {'model.topk_init_method': 'xavier_normal', 'model.reactivate': 'True', 'model.somatic_synapses': 'True', 'model.use_shunting': 'True'} 
+test_config_1.yaml: {'model.topk_init_method': 'xavier_normal', 'model.reactivate': 'True', 'model.somatic_synapses': 'True', 'model.use_shunting': 'False'} 
+test_config_2.yaml: {'model.topk_init_method': 'xavier_normal', 'model.reactivate': 'True', 'model.somatic_synapses': 'False', 'model.use_shunting': 'True'} 
+test_config_3.yaml: {'model.topk_init_method': 'xavier_normal', 'model.reactivate': 'True', 'model.somatic_synapses': 'False', 'model.use_shunting': 'False'} 
+test_config_4.yaml: {'model.topk_init_method': 'xavier_normal', 'model.reactivate': 'False', 'model.somatic_synapses': 'True', 'model.use_shunting': 'True'} 
+test_config_5.yaml: {'model.topk_init_method': 'xavier_normal', 'model.reactivate': 'False', 'model.somatic_synapses': 'True', 'model.use_shunting': 'False'} 
+test_config_6.yaml: {'model.topk_init_method': 'xavier_normal', 'model.reactivate': 'False', 'model.somatic_synapses': 'False', 'model.use_shunting': 'True'} 
+test_config_7.yaml: {'model.topk_init_method': 'xavier_normal', 'model.reactivate': 'False', 'model.somatic_synapses': 'False', 'model.use_shunting': 'False'} 
+test_config_8.yaml: {'model.topk_init_method': 'xavier_uniform', 'model.reactivate': 'True', 'model.somatic_synapses': 'True', 'model.use_shunting': 'True'} 
+test_config_9.yaml: {'model.topk_init_method': 'xavier_uniform', 'model.reactivate': 'True', 'model.somatic_synapses': 'True', 'model.use_shunting': 'False'} 
+test_config_10.yaml: {'model.topk_init_method': 'xavier_uniform', 'model.reactivate': 'True', 'model.somatic_synapses': 'False', 'model.use_shunting': 'True'} 
+test_config_11.yaml: {'model.topk_init_method': 'xavier_uniform', 'model.reactivate': 'True', 'model.somatic_synapses': 'False', 'model.use_shunting': 'False'} 
+test_config_12.yaml: {'model.topk_init_method': 'xavier_uniform', 'model.reactivate': 'False', 'model.somatic_synapses': 'True', 'model.use_shunting': 'True'} 
+test_config_13.yaml: {'model.topk_init_method': 'xavier_uniform', 'model.reactivate': 'False', 'model.somatic_synapses': 'True', 'model.use_shunting': 'False'} 
+test_config_14.yaml: {'model.topk_init_method': 'xavier_uniform', 'model.reactivate': 'False', 'model.somatic_synapses': 'False', 'model.use_shunting': 'True'} 
+test_config_15.yaml: {'model.topk_init_method': 'xavier_uniform', 'model.reactivate': 'False', 'model.somatic_synapses': 'False', 'model.use_shunting': 'False'} 
+test_config_16.yaml: {'model.topk_init_method': 'normal', 'model.reactivate': 'True', 'model.somatic_synapses': 'True', 'model.use_shunting': 'True'} 
+test_config_17.yaml: {'model.topk_init_method': 'normal', 'model.reactivate': 'True', 'model.somatic_synapses': 'True', 'model.use_shunting': 'False'} 
+test_config_18.yaml: {'model.topk_init_method': 'normal', 'model.reactivate': 'True', 'model.somatic_synapses': 'False', 'model.use_shunting': 'True'} 
+test_config_19.yaml: {'model.topk_init_method': 'normal', 'model.reactivate': 'True', 'model.somatic_synapses': 'False', 'model.use_shunting': 'False'} 
+test_config_20.yaml: {'model.topk_init_method': 'normal', 'model.reactivate': 'False', 'model.somatic_synapses': 'True', 'model.use_shunting': 'True'} 
+test_config_21.yaml: {'model.topk_init_method': 'normal', 'model.reactivate': 'False', 'model.somatic_synapses': 'True', 'model.use_shunting': 'False'} 
+test_config_22.yaml: {'model.topk_init_method': 'normal', 'model.reactivate': 'False', 'model.somatic_synapses': 'False', 'model.use_shunting': 'True'} 
+test_config_23.yaml: {'model.topk_init_method': 'normal', 'model.reactivate': 'False', 'model.somatic_synapses': 'False', 'model.use_shunting': 'False'} 
+test_config_24.yaml: {'model.topk_init_method': 'uniform', 'model.reactivate': 'True', 'model.somatic_synapses': 'True', 'model.use_shunting': 'True'} 
+test_config_25.yaml: {'model.topk_init_method': 'uniform', 'model.reactivate': 'True', 'model.somatic_synapses': 'True', 'model.use_shunting': 'False'} 
+test_config_26.yaml: {'model.topk_init_method': 'uniform', 'model.reactivate': 'True', 'model.somatic_synapses': 'False', 'model.use_shunting': 'True'} 
+test_config_27.yaml: {'model.topk_init_method': 'uniform', 'model.reactivate': 'True', 'model.somatic_synapses': 'False', 'model.use_shunting': 'False'} 
+test_config_28.yaml: {'model.topk_init_method': 'uniform', 'model.reactivate': 'False', 'model.somatic_synapses': 'True', 'model.use_shunting': 'True'} 
+test_config_29.yaml: {'model.topk_init_method': 'uniform', 'model.reactivate': 'False', 'model.somatic_synapses': 'True', 'model.use_shunting': 'False'} 
+test_config_30.yaml: {'model.topk_init_method': 'uniform', 'model.reactivate': 'False', 'model.somatic_synapses': 'False', 'model.use_shunting': 'True'} 
+test_config_31.yaml: {'model.topk_init_method': 'uniform', 'model.reactivate': 'False', 'model.somatic_synapses': 'False', 'model.use_shunting': 'False'} 

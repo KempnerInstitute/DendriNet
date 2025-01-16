@@ -40,7 +40,9 @@ def main(config_path: str, output_dir: str,  experiment_name: str):
     config = load_config(config_path)
     model_hp = config.model.asdict()
     train_hp = config.train.asdict()
-
+    dendrinet_init = config.get("dendrinet_init", None)
+    grad_flow_cfg = config.get("grad_flow", None)
+    
     logger.debug("="*50)
     logger.debug(" "*10 + "Config and run hyperparameters" + " "*10)
     logger.debug("="*50)

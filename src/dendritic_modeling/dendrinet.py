@@ -426,11 +426,13 @@ class DendriticBranchLayer(nn.Module):
         input_branch_factor = None, 
         reactivate = True,
         topk_init_method = 'xavier_normal',
-        use_shunting = self.use_shunting,
+        use_shunting = True,
         ):
         
         # initialize dendritic branch layer
         super(DendriticBranchLayer, self).__init__()
+        self.use_shunting = use_shunting  # store it on `self` inside __init__
+
         # module for computing excitation along branches in layer
         self.input_excitatory = excitatory_input_dim is not None
         if self.input_excitatory:
@@ -534,12 +536,17 @@ class DendriticBranchLayer(nn.Module):
             # compute total conductance of upstream branches and add to denominator
             denominator +=  self.branches_to_output.sum_conductances()
         # current divided by conductance is voltage
+        denominator *= self.distance_scale
         voltage = numerator / denominator
         return self.reactivation(voltage) if self.reactivate else voltage
 
     def reactivation(self, V):
         m, b = self.log_m.exp(), self.log_b.exp()
-        return (torch.tanh(m * (V - b)) + 1) / 2
+        # originally: out = ( torch.tanh( m*(V - b) ) + 1 ) / 2
+        # if we have reactivation_slope > 1, we can do:
+        slope = self.reactivation_slope if self.reactivation_slope_scaling_enabled else 1.0
+        out = (torch.tanh(slope * m * (V - b)) + 1) / 2
+        return out    
     
     def get_weights(self):
         if self.input_inhibitory:

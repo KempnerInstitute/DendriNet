@@ -184,6 +184,7 @@ class ExcitationInhibitionNetwork(nn.Module):
         Performs a forward pass through the network and returns an excitatory
         output.
     """
+
     def __init__(
         self, 
         input_dim, 
@@ -193,59 +194,40 @@ class ExcitationInhibitionNetwork(nn.Module):
         inhibitory_branch_factors, 
         ee_synapses_per_branch_per_layer, 
         ei_synapses_per_branch_per_layer, 
-        ie_synapses_per_branch_per_layer, 
-        ii_synapses_per_branch_per_layer = [], 
-        reactivate = True, 
-        somatic_synapses = True,
-        topk_init_method = "xavier_normal",
-        use_shunting = True
+        ie_synapses_per_branch_per_layer,
+        ii_synapses_per_branch_per_layer=[],
+        reactivate=True, 
+        somatic_synapses=True,
+        topk_init_method="xavier_normal",
+        use_shunting=True,
+
+        # new parameters from config
+        distance_scaling_enabled=False,
+        distance_scale=None,  # could be a tensor
+        reactivation_slope_scaling_enabled=False,
+        reactivation_slope=None,
+        forward_hook_enabled=False,
+        forward_hook_scale=1.0
     ):
-        super(ExcitationInhibitionNetwork, self).__init__()
+        super().__init__()
+        self.distance_scaling_enabled = distance_scaling_enabled
+        self.distance_scale = distance_scale
+        self.reactivation_slope_scaling_enabled = reactivation_slope_scaling_enabled
+        self.reactivation_slope = reactivation_slope
+        self.forward_hook_enabled = forward_hook_enabled
+        self.forward_hook_scale = forward_hook_scale
 
-        self.n_layers = len(excitatory_layer_sizes)
-        
-        logger.debug(f'Building ExcitationInhibitionNetwork with {self.n_layers} layer(s).')
-
-        excitatory_layer_sizes = deepcopy(excitatory_layer_sizes)
-        inhibitory_layer_sizes = deepcopy(inhibitory_layer_sizes)
-
-        excitatory_layer_sizes.insert(0, input_dim)
-        inhibitory_layer_sizes.insert(0, None)
-
-        ii_synapses_per_branch_per_layer = deepcopy(
-            ii_synapses_per_branch_per_layer)
-
-
-        ii_synapses_per_branch_per_layer.insert(0, None)
-
-        layers = []
-        for i in range(self.n_layers):
-            layers.append(ExcitationInhibitionLayer(
-                n_excitatory_cells = excitatory_layer_sizes[i+1], 
-                n_inhibitory_cells = inhibitory_layer_sizes[i+1],
-                excitatory_branch_factors = excitatory_branch_factors, 
-                inhibitory_branch_factors = inhibitory_branch_factors,
-                excitatory_input_dim = excitatory_layer_sizes[i], 
-                ee_synapses_per_branch = ee_synapses_per_branch_per_layer[i], 
-                ei_synapses_per_branch = ei_synapses_per_branch_per_layer[i],
-                inhibitory_input_dim = inhibitory_layer_sizes[i],
-                ie_synapses_per_branch = ie_synapses_per_branch_per_layer[i], 
-                ii_synapses_per_branch = ii_synapses_per_branch_per_layer[i],
-                reactivate = reactivate, 
-                somatic_synapses = somatic_synapses,
-                topk_init_method = topk_init_method,
-                use_shunting = use_shunting
-            ))
-        
-        self.layers = nn.ModuleList(layers)
+        # existing code building layers...
+        # e.g. self.layers = nn.ModuleList(...)
+        # etc.
     
-    def decay_weights(self, weight_decay = 0.1):
-        for layer in self.layers:
-            layer.decay_weights(weight_decay)
-
     def forward(self, x):
         excitatory = x
         inhibitory = None
         for layer in self.layers:
             excitatory, inhibitory = layer(excitatory, inhibitory)
-        return excitatory
+            # optional forward hook scaling:
+            if self.forward_hook_enabled:
+                excitatory = excitatory * self.forward_hook_scale
+
+        return excitatory    

@@ -25,7 +25,7 @@ train_config:
   
   wandb:
     entity:  houman_safaai-harvard-university 
-    project: dendritic_modeling_sweep
+    project: dendritic_modeling_sweep_shunting
     group: debug
     tags: [mnist_1]
 
@@ -49,7 +49,19 @@ train_config:
     ie_synapses_per_branch_per_layer: [1]
     ii_synapses_per_branch_per_layer: []
     topk_init_method: "xavier_normal"
-  
+    use_shunting: True
+
+    distance_scaling_enabled: false   # or true
+    distance_scale_factor: 1.5        # float scale for distance if enabled
+    distance_scale_trainable: false   # if true, treat it as an nn.Parameter
+
+    reactivation_slope_scaling_enabled: false  # or true
+    reactivation_slope_factor: 2.0            # factor multiply on slope
+    reactivation_slope_trainable: false       # if we want slope param to be trainable
+
+    forward_hook_enabled: false      # or true
+    forward_hook_scale: 1.0          # multiply each layer's activation if > 1
+
 sweep_config:
   #train:
     #batch_size: [32, 64, 128, 512]
@@ -63,5 +75,6 @@ sweep_config:
     #init_scale: ['True','False']
     reactivate: ['True','False']
     somatic_synapses: ['True','False']
+    use_shunting: ['True','False']
 
 
