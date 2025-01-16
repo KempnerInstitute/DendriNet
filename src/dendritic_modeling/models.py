@@ -6,7 +6,6 @@ This module contains the neural network models for the dendritic_modeling.
 
 import torch
 import torch.nn as nn
-import torch.nn.functional as F
 from torch.distributions import Categorical
 
 from dendritic_modeling.networks import ExcitationInhibitionNetwork
@@ -59,98 +58,7 @@ class ProbabilisticClassifier(BaseModel):
         dist = self.forward(x, sampler=True)  # Get categorical distribution
         return dist.log_prob(y)
     
-<<<<<<< HEAD
-    >>> import torch
-    >>> classifier = EINetClassifier(
-    ...     input_dim=784,
-    ...     excitatory_layer_sizes=[10,],
-    ...     inhibitory_layer_sizes=[20,],
-    ...     excitatory_branch_factors=[24,],
-    ...     inhibitory_branch_factors=[],
-    ...     ee_synapses_per_branch_per_layer=[24,],
-    ...     ei_synapses_per_branch_per_layer=[100,],
-    ...     ie_synapses_per_branch_per_layer=[1,],
-    ...     ii_synapses_per_branch_per_layer=[],
-    ...     reactivate=True,
-    ...     somatic_synapses=True,
-    ... )
-    >>> x = torch.randn(10, 784)  # Batch of 10 samples with 784 features
-    >>> output = classifier.forward(x)
-    >>> predicted_classes = output.sample()
-    >>> print(predicted_classes.shape)
-    torch.Size([10])
-    """
-
-    def __init__(
-        self, 
-        input_dim,
-        excitatory_layer_sizes,
-        inhibitory_layer_sizes,
-        excitatory_branch_factors,
-        inhibitory_branch_factors, 
-        ee_synapses_per_branch_per_layer, 
-        ei_synapses_per_branch_per_layer, 
-        ie_synapses_per_branch_per_layer,
-        ii_synapses_per_branch_per_layer = [], 
-        reactivate = False, 
-        somatic_synapses = True,
-        topk_init_method = "xavier_normal",
-    ):
-        super(EINetClassifier, self).__init__()
-
-        self.net = ExcitationInhibitionNetwork(
-            input_dim = input_dim, 
-            excitatory_layer_sizes = excitatory_layer_sizes, 
-            inhibitory_layer_sizes = inhibitory_layer_sizes,
-            excitatory_branch_factors = excitatory_branch_factors, 
-            inhibitory_branch_factors = inhibitory_branch_factors,
-            ee_synapses_per_branch_per_layer = ee_synapses_per_branch_per_layer, 
-            ei_synapses_per_branch_per_layer = ei_synapses_per_branch_per_layer,
-            ie_synapses_per_branch_per_layer = ie_synapses_per_branch_per_layer, 
-            ii_synapses_per_branch_per_layer = ii_synapses_per_branch_per_layer,
-            reactivate = reactivate, somatic_synapses = somatic_synapses,
-            topk_init_method = topk_init_method,
-        )
-        self.log_output_scale = nn.Parameter(
-            torch.zeros((excitatory_layer_sizes[-1],)), requires_grad = True)
-        self.final = nn.LogSoftmax(dim = -1)
-    
-    def decay_weights(self, weight_decay = 0.1):
-        self.net.decay_weights(weight_decay)
-
-    def forward(self, x):
-        net_output = self.net(x)
-        final_logits = self.final(self.log_output_scale.exp() * net_output)
-        return Categorical(logits =final_logits)
-    
-
-class EINetClassifierNLL(EINetClassifier):
-    """
-    A probabilistic classifier based on an Excitation-Inhibition Network (EINet)
-    architecture that uses the negative log-likelihood loss for training.
-
-    This classifier extends the `EINetClassifier` class and includes a method
-    for computing the negative log-likelihood loss for training the model.
-
-    Parameters
-    ----------
-    See `EINetClassifier` for parameter descriptions.
-
-    Methods
-    -------
-    forward(x, y=None)
-        Computes the negative log-likelihood loss for the given input-output 
-        pair.
-
-    Notes
-    -----
-    `y=None` is provided to allow for the model to be used in `torchinfo.summary`.  
-    """
-      
-    def forward(self, x, y = None, sampler = False):
-=======
     def forward(self, x, y=None, sampler=False):
->>>>>>> 36b16bfaa7370a8eab620257f5609e43d9a2426e
         """
         Forward pass for the classifier. Returns either logits, a categorical
         distribution, or the negative log-likelihood loss depending on the
@@ -205,8 +113,6 @@ class EINetClassifierNLL(EINetClassifier):
         nll = self.forward(x, y=y)
         return nll.mean(dim=0)
 
- 
-    
 
 class Classifier(BaseModel):
     """
