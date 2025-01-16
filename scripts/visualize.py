@@ -12,6 +12,7 @@ from dendritic_modeling.plot_utils import (
     plot_einet_params, 
     plot_einet_gradients,
     plot_einet_activations,
+    plot_einet_profiles,
     einet_activations_to_csv,
     plot_NLL_loss_curves,
 )
@@ -36,6 +37,7 @@ logger.info('imports complete\n')
 def get_and_save_performance_and_visuals(
     clf, 
     data, 
+    n_tasks,
     input_list, 
     reshape_fn, 
     reshape_exc_syn, 
@@ -53,6 +55,20 @@ def get_and_save_performance_and_visuals(
         dict_obj = performance, 
         save_path = os.path.join(save_path, 'performance'), 
         fname = f'{filename}.json',
+    )
+    logger.info('  done..')
+
+    logger.info('creating profile visuals.....')
+    plot_einet_profiles(
+        save_root = os.path.join(save_path, 'profiles'),
+        model = clf,
+        train_data = data['train'],
+        valid_data = data['valid'],
+        n_tasks = n_tasks,
+        logspace = logspace,
+        reshape_fn = reshape_fn,
+        save_in_dir = True,
+        filename = filename,
     )
     logger.info('  done..')
 
@@ -82,15 +98,15 @@ def get_and_save_performance_and_visuals(
     )
     logger.info('  done..')
 
-    logger.info('creating activation visuals.....')
-    plot_einet_activations(
-        einet = clf.net, 
-        input_list = input_list,
-        save_root = os.path.join(save_path, 'activation_visuals'),
-        save_in_dir = True,
-        filename = filename,
-    )
-    logger.info('  done..')
+    # logger.info('creating activation visuals.....')
+    # plot_einet_activations(
+    #     einet = clf.net, 
+    #     input_list = input_list,
+    #     save_root = os.path.join(save_path, 'activation_visuals'),
+    #     save_in_dir = True,
+    #     filename = filename,
+    # )
+    # logger.info('  done..')
 
     # logger.info('creating activation component tables.....')
     # einet_activations_to_csv(
@@ -111,8 +127,8 @@ if __name__ == '__main__':
         'input_dim' : 784,
         'excitatory_layer_sizes' : [10,],
         'inhibitory_layer_sizes' : [20,],
-        'excitatory_branch_factors' : [2,],
-        'inhibitory_branch_factors' : [1,],
+        'excitatory_branch_factors' : [2,2],
+        'inhibitory_branch_factors' : [],
         'ee_synapses_per_branch_per_layer' : [24,],
         'ei_synapses_per_branch_per_layer' : [100,],
         'ie_synapses_per_branch_per_layer' : [2,],
@@ -124,21 +140,24 @@ if __name__ == '__main__':
     # define training hparams
     visualize_hp = {
         'train_valid_split' : 0.8,
+        'n_tasks' : 1,
         'lr' : 1e-3,
-        'total_epochs' : 100,
-        'plot_epochs' : [1, 100],
+        'total_epochs' : 300,
+        'plot_epochs' : [10, 100, 300],
         'batch_size' : 1024,
         'logspace' : True,
         'weight_decay' : 0.1,
     }
 
     logger.info('loading mnist ...')
-    # data = load_MNIST(train_valid_split = visualize_hp['train_valid_split'], 
-    #                   cache_dir=os.getcwd())
-    data = load_MNIST_task_switch(
-        train_valid_split = visualize_hp['train_valid_split'],
+    data = load_MNIST(
+        train_valid_split = visualize_hp['train_valid_split'], 
         cache_dir = os.getcwd(),
     )
+    # data = load_MNIST_task_switch(
+    #     train_valid_split = visualize_hp['train_valid_split'],
+    #     cache_dir = os.getcwd(),
+    # )
     # split inputs into list of tensors
     #   each element in list is tensor of all samples with same label
     input_list = split_MNIST_inputs(*data['valid'][:])
@@ -168,6 +187,7 @@ if __name__ == '__main__':
     get_and_save_performance_and_visuals(
         clf = clf,
         data = data,
+        n_tasks = visualize_hp['n_tasks'],
         input_list = input_list,
         reshape_fn = shaper.reshape,
         reshape_exc_syn = True,
@@ -205,12 +225,15 @@ if __name__ == '__main__':
             shuffle = True,
             plot_losses = False,
         )
+        
         train_losses += results['train losses']
         valid_losses += results['valid losses']
         logger.info('  done..')
+
         get_and_save_performance_and_visuals(
             clf = clf,
             data = data,
+            n_tasks = visualize_hp['n_tasks'],
             input_list = input_list,
             reshape_fn = shaper.reshape,
             reshape_exc_syn = True,
