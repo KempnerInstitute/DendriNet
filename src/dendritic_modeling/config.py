@@ -5,9 +5,9 @@ from dataclasses import dataclass, field, asdict
 
 from omegaconf import OmegaConf as om
 
-########################################################
-# BaseConfig
-########################################################
+###################################################
+# Base classes
+###################################################
 
 class BaseConfig:
     @classmethod
@@ -21,13 +21,30 @@ class BaseConfig:
     def asdict(self):
         return asdict(self)
 
-########################################################
-# Network parameter classes
-########################################################
+@dataclass
+class GenericTaskParameters(BaseConfig):
+    train_size: int = 8000
+    valid_size: int = 1000
+    test_size: int = 1000
+    image_size: int = 10
+    n_orient_classes: int = 8
+    n_bits: int = 8
+    seed: int = 0
+
+@dataclass
+class TaskConfig(BaseConfig):
+    """
+    Holds the dataset name and sub-parameters for your experiments.
+    dataset can be:
+       "line", "center_surround", "orientation_bars", "multi_xor", "mnist",
+       "info_shunting", "noise_resilience", "feature_selectivity",
+       "context_gating", "learning_dynamics", "hierarchical_processing"
+    """
+    dataset: str = "line"
+    parameters: GenericTaskParameters = field(default_factory=GenericTaskParameters)
 
 @dataclass
 class EINetParameters(BaseConfig):
-    """Parameters for the EINet-based dendritic model."""
     input_dim: int = 784
     excitatory_layer_sizes: List[int] = field(default_factory=lambda: [10])
     inhibitory_layer_sizes: List[int] = field(default_factory=lambda: [20])
@@ -46,43 +63,15 @@ class EINetParameters(BaseConfig):
 
 @dataclass
 class FeedForwardParameters(BaseConfig):
-    """Parameters for a simple feedforward network."""
     input_dim: int = 784
-    hidden_layer_sizes: List[int] = field(default_factory=lambda: [128, 64])
+    hidden_layer_sizes: List[int] = field(default_factory=lambda: [128,64])
     activation: str = "relu"
     dropout: float = 0.2
     output_dim: int = 10
 
-########################################################
-# Task config
-########################################################
-
-@dataclass
-class BaseTaskParameters(BaseConfig):
-    pass
-
-@dataclass
-class GenericTaskParameters(BaseTaskParameters):
-    train_size: int = 8000
-    valid_size: int = 1000
-    test_size: int = 1000
-    image_size: int = 10
-    seed: int = 0
-
-@dataclass
-class TaskConfig(BaseConfig):
-    """ Specifies which dataset and parameters to use. """
-    dataset: str = "line"
-    parameters: GenericTaskParameters = field(default_factory=GenericTaskParameters)
-
-########################################################
-# Model config
-########################################################
-
 @dataclass
 class NetworkConfig(BaseConfig):
-    """Holds type plus EInet / Feedforward parameters."""
-    type: str = "einet"  # or 'feedforward'
+    type: str = "einet"  # or "feedforward"
     parameters: Union[EINetParameters, FeedForwardParameters] = field(default_factory=EINetParameters)
 
 @dataclass
@@ -92,9 +81,6 @@ class ModelConfig(BaseConfig):
     network: NetworkConfig = field(default_factory=NetworkConfig)
 
     def asdict(self):
-        """
-        Convert to dict, but also flatten network config.
-        """
         return {
             "task": self.task,
             "probabilistic": self.probabilistic,
@@ -104,16 +90,10 @@ class ModelConfig(BaseConfig):
             }
         }
 
-########################################################
-# Train config
-########################################################
-
 @dataclass
 class TrainConfig(BaseConfig):
-    run_name: str = "dm_test"
-    seed: int = 42
     train_valid_split: float = 1.0
-    lr: float = 1e-3
+    lr: float = 0.001
     epochs: int = 20
     batch_size: int = 64
     grad_clip_value: float = 0.5
@@ -121,8 +101,6 @@ class TrainConfig(BaseConfig):
 
     def asdict(self):
         return {
-            "run_name": self.run_name,
-            "seed": self.seed,
             "train_valid_split": self.train_valid_split,
             "lr": self.lr,
             "epochs": self.epochs,
@@ -131,28 +109,16 @@ class TrainConfig(BaseConfig):
             "weight_decay": self.weight_decay,
         }
 
-########################################################
-# Wandb config
-########################################################
-
 @dataclass
 class WandbConfig(BaseConfig):
     entity: str = ""
-    project: str = "dendritic_modeling_pr"
+    project: str = "dendritic_modeling"
     group: str = "debug"
     tags: list = field(default_factory=list)
-
-########################################################
-# Settings config
-########################################################
 
 @dataclass
 class SettingsConfig(BaseConfig):
     visualizations: bool = False
-
-########################################################
-# Primary aggregator
-########################################################
 
 @dataclass
 class Config(BaseConfig):
@@ -175,46 +141,42 @@ class Config(BaseConfig):
             config_dict.pop(key, None)
         return config_dict
 
-
-########################################################
-# load_config
-########################################################
-
 def load_config(path: str = None) -> Config:
     if path:
         raw_conf = om.load(path)
-
-        # Build model config
+        # Build model
         raw_model = raw_conf.get("model", {})
+        network_type = raw_model.get("network", {}).get("type", "einet").lower()
+        net_params = raw_model.get("network", {}).get("parameters", {})
+
+        if network_type == "einet":
+            netp = EINetParameters(**net_params)
+        else:
+            netp = FeedForwardParameters(**net_params)
+
         model_cfg = ModelConfig(
             task=raw_model.get("task", "classification"),
             probabilistic=raw_model.get("probabilistic", False),
             network=NetworkConfig(
-                type=raw_model.get("network", {}).get("type", "einet"),
-                parameters=EINetParameters(**raw_model["network"]["parameters"])
-                  if raw_model["network"]["type"].lower() == "einet" 
-                  else FeedForwardParameters(**raw_model["network"]["parameters"])
+                type=network_type,
+                parameters=netp
             )
         )
 
-        # Build train config
         raw_train = raw_conf.get("train", {})
         train_cfg = TrainConfig(**raw_train)
 
-        # Build task config
         raw_task = raw_conf.get("task", {})
-        # We might store parameters in raw_task['parameters']
-        param_obj = GenericTaskParameters(**raw_task.get("parameters", {}))
+        generic_params = raw_task.get("parameters", {})
+        task_params = GenericTaskParameters(**generic_params)
         task_cfg = TaskConfig(
             dataset=raw_task.get("dataset", "line"),
-            parameters=param_obj
+            parameters=task_params
         )
 
-        # Build wandb config
         raw_wandb = raw_conf.get("wandb", {})
         wandb_cfg = WandbConfig(**raw_wandb)
 
-        # Build settings config
         raw_settings = raw_conf.get("settings", {})
         settings_cfg = SettingsConfig(**raw_settings)
 
@@ -226,5 +188,4 @@ def load_config(path: str = None) -> Config:
             settings=settings_cfg
         )
     else:
-        # Return defaults
         return Config()

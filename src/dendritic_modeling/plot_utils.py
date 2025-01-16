@@ -5,7 +5,7 @@ This module contains utility functions for plotting dendritic model parameters.
 """
 
 import os
-
+import numpy as np
 import torch
 import pandas as pd
 import networkx as nx

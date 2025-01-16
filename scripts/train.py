@@ -39,7 +39,7 @@ if __name__ == '__main__':
         'excitatory_branch_factors' : [1,2],
         'inhibitory_branch_factors' : [],
         'ee_synapses_per_branch_per_layer' : [24,],
-        'ei_synapses_per_branch_per_layer' : [100,],
+        'ei_synapses_per_branch_per_layer' : [200,],
         'ie_synapses_per_branch_per_layer' : [1,],
         'ii_synapses_per_branch_per_layer' : [],
         'reactivate' : True,
