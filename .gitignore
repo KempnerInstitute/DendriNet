@@ -6,11 +6,11 @@ results/*
 dendritic_modeling.egg-info/*
 dendritic_modeling/__pycache__/*
 notebooks/data/*
-notebook/wandb/*
-notebook/votage_plots/*
-notebook/*.log
-notebook/test/*
-notebook/*
+notebooks/wandb/*
+notebooks/votage_plots/*
+notebooks/*.log
+notebooks/test/*
+notebooks/*
 *.sh
 *.out
 data/*
