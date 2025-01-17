@@ -30,7 +30,7 @@ def read_config(directory = "configs",
     except Exception as e:
         print(f"Error reading config file: {e}")
         return None
-    
+
 def custom_yaml_dump(data, indent=0):
         """
         Custom YAML dump function to print a dictionary as YAML,
