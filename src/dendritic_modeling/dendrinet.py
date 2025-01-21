@@ -543,17 +543,17 @@ class DendriticBranchLayer(nn.Module):
         # compute excitation and inhibition along each branch in layer
         if self.input_excitatory:
             excitation = self.branch_excitation(x)
-            numerator = numerator + excitation
-            denominator = denominator + excitation
+            numerator += excitation
+            denominator += excitation
         # if receiving inhibitory inputs
         if self.input_inhibitory:
-            denominator = denominator + self.branch_inhibition(inhibitory_input)
+            denominator += self.branch_inhibition(inhibitory_input)
         # if receiving inputs from upstream branches
         if self.input_branches:
             # compute current contribution from upstream branches and add to numerator
-            numerator = numerator + self.branches_to_output(branch_input)
+            numerator += self.branches_to_output(branch_input)
             # compute total conductance of upstream branches and add to denominator
-            denominator = denominator + self.branches_to_output.sum_conductances()
+            denominator += self.branches_to_output.sum_conductances()
             if self.training:
                 self.set_branches_to_output_grad_scale()
         # current divided by conductance is voltage
