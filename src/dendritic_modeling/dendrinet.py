@@ -737,7 +737,7 @@ class DendriNet(nn.Module):
                 inhibitory_synapses_per_branch = inhibitory_synapses_per_branch, 
                 input_branch_factor = branch_factors[i], 
                 topk_init_method = topk_init_method,
-                self.use_shunting = use_shunting,
+                use_shunting = use_shunting,
             ))
         
         # branches to soma
@@ -750,7 +750,7 @@ class DendriNet(nn.Module):
                 inhibitory_synapses_per_branch = inhibitory_synapses_per_branch,
                 input_branch_factor = branch_factors[-1], 
                 topk_init_method = topk_init_method,
-                self.use_shunting = use_shunting,
+                use_shunting = use_shunting,
             ))
         else:
             branch_layers.append(DendriticBranchLayer(
@@ -761,7 +761,7 @@ class DendriNet(nn.Module):
                 inhibitory_synapses_per_branch = None,
                 input_branch_factor = branch_factors[-1], 
                 topk_init_method = topk_init_method,
-                self.use_shunting = use_shunting,
+                use_shunting = use_shunting,
             ))
 
         # wrap list of branch layers in ModuleList
