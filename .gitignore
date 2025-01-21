@@ -7,11 +7,17 @@ dendritic_modeling.egg-info/*
 dendritic_modeling/__pycache__/*
 *.sh
 *.out
-
+notebooks/data/*
+notebook/wandb/*
+notebook/votage_plots/*
+notebook/*.log
+notebook/test/*
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
 *$py.class
+data/*
+configs/*.txt
 
 # C extensions
 *.so
