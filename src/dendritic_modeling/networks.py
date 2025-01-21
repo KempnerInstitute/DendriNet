@@ -6,9 +6,8 @@ ExcitationInhibitionNetwork classes.
 """
 
 from copy import deepcopy
-
 from torch import nn
-
+from typing import List
 from dendritic_modeling.dendrinet import DendriNet
 from dendritic_modeling import logger
 
