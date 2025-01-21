@@ -603,7 +603,7 @@ class DendriticBranchLayer(nn.Module):
 class DendriNet(nn.Module):
     """
     Generates a linear layer of neurons, each of which consists of a sequential 
-    structure of dendrtic branches and inhibitory/excitatory inputs.
+    structure of dendritic branches and inhibitory/excitatory inputs.
 
     This network models the complex interactions between excitatory and 
     inhibitory inputs across multiple dendritic branches, simulating dendritic 
@@ -683,6 +683,7 @@ class DendriNet(nn.Module):
         reactivate = False, 
         somatic_synapses = True,
         topk_init_method = 'xavier_normal',
+        self.use_shunting = use_shunting
     ):
         super(DendriNet, self).__init__()
         
@@ -736,6 +737,7 @@ class DendriNet(nn.Module):
                 inhibitory_synapses_per_branch = inhibitory_synapses_per_branch, 
                 input_branch_factor = branch_factors[i], 
                 topk_init_method = topk_init_method,
+                self.use_shunting = use_shunting,
             ))
         
         # branches to soma
@@ -748,6 +750,7 @@ class DendriNet(nn.Module):
                 inhibitory_synapses_per_branch = inhibitory_synapses_per_branch,
                 input_branch_factor = branch_factors[-1], 
                 topk_init_method = topk_init_method,
+                self.use_shunting = use_shunting,
             ))
         else:
             branch_layers.append(DendriticBranchLayer(
@@ -758,6 +761,7 @@ class DendriNet(nn.Module):
                 inhibitory_synapses_per_branch = None,
                 input_branch_factor = branch_factors[-1], 
                 topk_init_method = topk_init_method,
+                self.use_shunting = use_shunting,
             ))
 
         # wrap list of branch layers in ModuleList
@@ -822,8 +826,8 @@ class DendriNet(nn.Module):
     def log_sum_weights(self, pruned = False):
         if self.input_inhibitory:
             exc_total, inh_total = self.sum_weights(pruned = pruned)
-            return (exc_total + 1e-6).log(), (inh_total + 1e-6).log()
+            return (exc_total + 1e-8).log(), (inh_total + 1e-8).log()
         else:
             exc_total = self.sum_weights(pruned = pruned)
-            return (exc_total + 1e-6).log()
+            return (exc_total + 1e-8).log()
 
