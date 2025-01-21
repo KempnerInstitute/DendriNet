@@ -25,13 +25,20 @@ TOPK_INIT_METHODS = {
 }
 
 
+# Simple gradient-scaling hooks
 def scale_layer_gradients(module, grad_input, grad_output, scale_factor):
+    if grad_input is None:
+        return None
     return tuple(
-        grad * scale_factor if grad is not None else None for grad in grad_input
+        g * scale_factor if (g is not None) else None
+        for g in grad_input
     )
 
-
 def scale_reactivation_gradients(module, grad_input, grad_output):
+    """
+    Example: identity or custom. 
+    By default, we do no special scaling, but you can adapt it.
+    """
     return grad_output
 
 
@@ -200,7 +207,7 @@ class TopKLinear(nn.Module):
             synapse_weights = self.weight()
         
         weighted_synapses = cell_weights[:,None] * synapse_weights
-        return weighted_synapses.sum(dim = 0 )
+        return weighted_synapses.sum(dim = 0)
 
 
 class BlockLinear(nn.Module):
