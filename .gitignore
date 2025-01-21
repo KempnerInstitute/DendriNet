@@ -12,12 +12,13 @@ notebook/wandb/*
 notebook/votage_plots/*
 notebook/*.log
 notebook/test/*
+data/*
+configs/*.txt
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
 *$py.class
-data/*
-configs/*.txt
 
 # C extensions
 *.so
