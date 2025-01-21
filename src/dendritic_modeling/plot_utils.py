@@ -13,6 +13,7 @@ import matplotlib.pyplot as plt
 from matplotlib.colors import TwoSlopeNorm
 from matplotlib.gridspec import GridSpec
 from mpl_toolkits.axes_grid1 import make_axes_locatable
+import networkx as nx
 
 from dendritic_modeling.utils import split_MNIST_inputs
 
@@ -1952,3 +1953,54 @@ def plot_voltage_before_activation(einet, input_list, save_root=None):
                 print(f"Saved voltage plot for input {idx + 1} at {save_path}")
             else:
                 plt.show()
+                
+                
+                
+
+def build_dendritic_tree_graph(model, branch_info=None, ablation_info=None):
+    """
+    Creates a networkx DiGraph where each node corresponds to a (layer_idx, branch_id).
+    We'll store 'info' and 'ablation' as node attributes if provided.
+    """
+    G = nx.DiGraph()
+    for i, layer in enumerate(model.branch_layers):
+        out_dim = layer.branch_excitation.out_features  # or layer.output_dim
+        for b_id in range(out_dim):
+            node_id = (i, b_id)
+            G.add_node(node_id)
+            # store info
+            if branch_info and i in branch_info:
+
+                G.nodes[node_id]['info'] = branch_info[i]
+            if ablation_info and i in ablation_info:
+                G.nodes[node_id]['ablation'] = ablation_info[i]
+            else:
+                G.nodes[node_id]['ablation'] = 0
+
+    for i in range(model.n_branch_layers - 1):
+        out_dim_i = model.branch_layers[i].branch_excitation.out_features
+        out_dim_next = model.branch_layers[i+1].branch_excitation.out_features
+        for b1 in range(out_dim_i):
+            for b2 in range(out_dim_next):
+                G.add_edge((i,b1), (i+1, b2))
+
+    if hasattr(model, 'soma_layer'):
+        i_soma = model.n_branch_layers
+        out_dim_soma = model.soma_layer.branch_excitation.out_features \
+                       if model.soma_layer.input_excitatory else model.n_soma
+        for b_id in range(out_dim_soma):
+            node_id = (i_soma, b_id)
+            G.add_node(node_id)
+            if branch_info and i_soma in branch_info:
+                G.nodes[node_id]['info'] = branch_info[i_soma]
+            else:
+                G.nodes[node_id]['info'] = 0
+            G.nodes[node_id]['ablation'] = 0
+        out_dim_last = model.branch_layers[-1].branch_excitation.out_features
+        for b1 in range(out_dim_last):
+            for b2 in range(out_dim_soma):
+                G.add_edge((model.n_branch_layers-1,b1), (i_soma, b2))
+
+    return G
+
+
