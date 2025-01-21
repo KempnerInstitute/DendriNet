@@ -575,3 +575,25 @@ def analyze_branch_ablation(model, dataset, layer_idx, branch_ids,
             p.data.copy_(original[n])
     
     return baseline_acc, results
+
+
+
+def compute_entropy(prob_dist):
+    """
+    Given a discrete probability distribution (torch tensor),
+    compute the Shannon entropy: H = - sum(p * log2 p).
+    """
+    prob_dist = prob_dist.clamp(min=1e-12)
+    return -(prob_dist * prob_dist.log2()).sum(dim=-1)
+
+def compute_mutual_information(joint_prob, marginal_x, marginal_y):
+    """
+    MI(X,Y) = sum_{x,y} p(x,y) log( p(x,y) / [p(x)p(y)] ).
+    All inputs are torch tensors of probabilities.
+    """
+    joint_prob = joint_prob.clamp(min=1e-12)
+    marginal_x = marginal_x.clamp(min=1e-12)
+    marginal_y = marginal_y.clamp(min=1e-12)
+    
+    ratio = joint_prob / (marginal_x[:,None] * marginal_y[None,:])
+    return (joint_prob * ratio.log2()).sum()
