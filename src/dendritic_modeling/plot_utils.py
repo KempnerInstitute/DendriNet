@@ -2004,3 +2004,39 @@ def build_dendritic_tree_graph(model, branch_info=None, ablation_info=None):
     return G
 
 
+
+def visualize_dendritic_tree(G, mode='info'):
+    """
+    G: networkx DiGraph
+    mode: 'info' or 'ablation' or any node attribute.
+    We'll do a simple layout, color by the chosen attribute.
+    """
+    pos = nx.spring_layout(G, seed=42)
+    node_vals = []
+    for n in G.nodes():
+        val = G.nodes[n].get(mode, 0)
+        node_vals.append(val)
+
+    plt.figure(figsize=(8,6))
+    nc = nx.draw_networkx_nodes(G, pos, node_color=node_vals, 
+                                cmap='viridis', node_size=400)
+    nx.draw_networkx_edges(G, pos, arrows=True)
+    nx.draw_networkx_labels(G, pos, font_color='white')
+    plt.colorbar(nc, label=mode)
+    plt.title(f"Dendritic Tree colored by {mode}")
+    plt.axis('off')
+    plt.show()
+
+
+def plot_depth_info(branch_info):
+    """
+    If branch_info is {layer_idx: MI}, we can just do a line plot vs layer_idx.
+    """
+    layers = sorted(branch_info.keys())
+    values = [branch_info[l] for l in layers]
+    plt.figure()
+    plt.plot(layers, values, marker='o')
+    plt.xlabel("Layer index (depth)")
+    plt.ylabel("Information (MI)")
+    plt.title("Branch Info by Depth")
+    plt.show()
