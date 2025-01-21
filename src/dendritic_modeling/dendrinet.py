@@ -275,7 +275,7 @@ class BlockLinear(nn.Module):
         self.out_features = out_features
         self.block_size = block_size
 
-        self.grad_scale = 1
+        self.grad_scale = 1    ##### TODO
         self.register_full_backward_hook(
             lambda module, grad_input, grad_output : scale_layer_gradients(
                 module = module, 
@@ -445,6 +445,7 @@ class DendriticBranchLayer(nn.Module):
         inhibitory_synapses_per_branch = None, 
         input_branch_factor = None, 
         topk_init_method = 'xavier_normal',
+        use_shunting = True,
     ):
         
         # initialize dendritic branch layer
@@ -489,60 +490,6 @@ class DendriticBranchLayer(nn.Module):
 
         self.initialize()
     
-    # def initialize(self):
-    #     with torch.no_grad():
-    #         if self.input_excitatory:
-    #             exc_std = sqrt(2 / (self.excitatory_input_dim + 1))
-    #             E_w_exc = compute_expectation_truncated_log_normal(
-    #                 mean = 0, std = exc_std, 
-    #                 upper_quantile = self.branch_excitation.K / self.excitatory_input_dim,
-    #             )
-    #             _no_grad_normal_(self.branch_excitation.pre_w, 0, exc_std)
-            
-    #         if self.input_inhibitory:
-    #             inh_upper_quantile = self.branch_inhibition.K / self.inhibitory_input_dim
-
-    #             if self.input_excitatory:
-    #                 ie_ratio = self.branch_inhibition.K / self.branch_excitation.K
-
-    #                 inh_std = exc_std
-    #                 step = .01
-    #                 done = False
-    #                 while not done:
-    #                     E_w_inh = compute_expectation_truncated_log_normal(
-    #                         mean = 0, std = inh_std,
-    #                         upper_quantile = inh_upper_quantile,
-    #                     )
-    #                     if E_w_exc <= ie_ratio * E_w_inh:
-    #                         done = True
-    #                     else:
-    #                         count += 1
-    #                         inh_std += step
-                    
-    #             else:
-    #                 inh_std = sqrt(2 / (self.inhibitory_input_dim + 1))
-    #                 E_w_inh = compute_expectation_truncated_log_normal(
-    #                     mean = 0, std = inh_std,
-    #                     upper_quantile = inh_upper_quantile,
-    #                 )
-    #                 _no_grad_normal_(self.branch_inhibition.pre_w, 0, inh_std)
-            
-    #         if self.input_branches:
-    #             if self.input_excitatory or self.input_inhibitory:
-    #                 sum_synapse_conductances = 0
-    #                 if self.input_excitatory:
-    #                     sum_synapse_conductances += self.branch_excitation.weight().sum(dim = 1)
-    #                 if self.input_inhibitory:
-    #                     sum_synapse_conductances += self.branch_inhibition.weight().sum(dim = 1)
-    #             else:
-    #                 sum_synapse_conductances = None
-    #             self.branches_to_output.initialize(sum_synapse_conductances)
-            
-    #         if self.reactivate:
-    #             # nn.init.constant_(self.log_m, 1.8)
-    #             # nn.init.constant_(self.log_b, -0.7)
-    #             nn.init.constant_(self.log_m, log(3))
-    #             nn.init.constant_(self.log_b, log(0.5))
         
     def initialize(self):
         with torch.no_grad():
@@ -551,7 +498,10 @@ class DendriticBranchLayer(nn.Module):
             
             if self.input_inhibitory:
                 self.branch_inhibition.initialize()
-            
+                self.branch_inhibition.pre_w + log(
+                    self.branch_excitation.K / self.branch_inhibition.K
+                )
+                
             if self.input_branches:
                 if self.input_excitatory or self.input_inhibitory:
                     sum_synapse_conductances = 0
