@@ -33,7 +33,7 @@ class ModelConfig(BaseConfig):
     excitatory_branch_factors: list = field(default_factory=lambda: [24])
     inhibitory_branch_factors: list = field(default_factory=list)
     ee_synapses_per_branch_per_layer: list = field(default_factory=lambda: [24])
-    ei_synapses_per_branch_per_layer: list = field(default_factory=lambda: [100])
+    ei_synapses_per_branch_per_layer: list = field(default_factory=lambda: [100]) 
     ie_synapses_per_branch_per_layer: list = field(default_factory=lambda: [1])
     ii_synapses_per_branch_per_layer: list = field(default_factory=list)
     reactivate: bool = True
