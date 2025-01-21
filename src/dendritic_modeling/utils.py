@@ -421,3 +421,63 @@ def record_branch_activations(model, dataset, batch_size=64, device='cpu'):
 
     return branch_activations, all_labels
 
+
+################################################################################
+# 2) SIMPLE MUTUAL INFORMATION
+################################################################################
+def compute_MI(activations, labels, n_bins=10):
+    """
+    Estimate the mutual information I(activations; labels).
+    Here, we do a 1D approach:
+      - if activations is [N], or [N,1], we bin them
+      - build joint histogram with labels
+      - compute I(X;Y) = sum p(x,y) log [ p(x,y)/(p(x)p(y)) ]
+
+    If activations has shape [N, out_dim] with out_dim>1, 
+    you might do a dimension reduction or loop over dims. 
+    For simplicity, we'll do mean across dim if >1.
+    """
+    if activations.ndim > 1 and activations.shape[1] > 1:
+        # e.g. reduce dimension
+        activations = activations.mean(dim=1)
+
+    N = len(activations)
+    # bin the activation
+    act_min, act_max = activations.min().item(), activations.max().item()
+    if act_min == act_max:
+        return 0.0
+
+    edges = torch.linspace(act_min, act_max, n_bins+1)
+    bin_indices = torch.bucketize(activations, edges) - 1  # [0..n_bins-1]
+
+    num_classes = int(labels.max().item() + 1)
+    joint_hist = torch.zeros((n_bins, num_classes), dtype=torch.float)
+    for b, c in zip(bin_indices, labels):
+        joint_hist[b, c] += 1
+
+    joint_prob = joint_hist / joint_hist.sum()
+    act_prob = joint_prob.sum(dim=1, keepdim=True)   # shape [n_bins,1]
+    label_prob = joint_prob.sum(dim=0, keepdim=True) # shape [1,num_classes]
+
+    eps = 1e-12
+    ratio = (joint_prob+eps) / ((act_prob+eps)*(label_prob+eps))
+    mi = (joint_prob * ratio.log2()).sum()
+    return mi.item()
+
+################################################################################
+# 3) COMPUTE BRANCH INFO
+################################################################################
+def analyze_branch_information(model, dataset, 
+                               batch_size=64, device='cpu', n_bins=10):
+    """
+    1) Gathers branch activations
+    2) For each branch (layer_idx), compute MI with the label
+    3) Return dict {layer_idx: MI_value}
+    """
+    branch_acts, labels = record_branch_activations(model, dataset, batch_size, device)
+    branch_info = {}
+    for layer_idx, act in branch_acts.items():
+        mi_val = compute_MI(act, labels, n_bins=n_bins)
+        branch_info[layer_idx] = mi_val
+    return branch_info
+
