@@ -288,7 +288,7 @@ class BlockLinear(nn.Module):
         if sum_synapse_conductances is None:
             nn.init.constant_(self.log_weight, 0)
         else:
-            self.log_weight.data = (1*sum_synapse_conductances).log()[:,None].expand(
+            self.log_weight.data = (sum_synapse_conductances).log()[:,None].expand(
                 self.out_features, self.block_size).clone()
     
     def block(self):
@@ -683,7 +683,7 @@ class DendriNet(nn.Module):
         reactivate = False, 
         somatic_synapses = True,
         topk_init_method = 'xavier_normal',
-        self.use_shunting = use_shunting
+        use_shunting = True,
     ):
         super(DendriNet, self).__init__()
         
