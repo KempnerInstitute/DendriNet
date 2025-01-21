@@ -832,7 +832,6 @@ class DendriNet(nn.Module):
             return (exc_total + 1e-8).log()
 
 
-
 class DendriNetWithOutputs(DendriNet):
     """
     Extends the existing DendriNet to provide a method that returns
