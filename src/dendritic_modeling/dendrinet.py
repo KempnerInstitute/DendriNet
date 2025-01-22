@@ -127,10 +127,12 @@ class TopKLinear(nn.Module):
             K, 
             param_space = 'log',
             init_method = 'xavier_normal',
-            init_params = None,
+            init_gain=1.0,
         ):
         super(TopKLinear, self).__init__()
-
+        self.init_method = init_method
+        self.init_gain = init_gain
+        
         self.pre_w = nn.Parameter(
             torch.empty((out_features, in_features)), requires_grad = True)
 
@@ -153,8 +155,7 @@ class TopKLinear(nn.Module):
         if self.init_method in TOPK_INIT_METHODS:
             init_func = TOPK_INIT_METHODS[self.init_method]
             init_func(self.pre_w)
-            #TODO: Accept hyperparameters for initialization
-            # init_func(self.pre_w, **self.init_params) 
+            self.pre_w.data.mul_(self.init_gain)  # scale
         else:
             raise ValueError(
                 f'Invalid initialization method: {self.init_method}. ',
@@ -353,17 +354,17 @@ class BlockLinear(nn.Module):
 
 class Reactivation(nn.Module):
 
-    def __init__(self, output_dim):
+    def __init__(self, output_dim, init_m=1.5, init_b=1.0):
         super(Reactivation, self).__init__()
-        
-        self.log_m = nn.Parameter(
-            torch.empty((output_dim,)), requires_grad = True)
-        self.log_b = nn.Parameter(
-            torch.empty((output_dim,)), requires_grad = True)
-        
-        nn.init.constant_(self.log_m, 1.8)
-        nn.init.constant_(self.log_b, -0.7)
+        self.log_m = nn.Parameter(torch.empty((output_dim,)), requires_grad=True)
+        self.log_b = nn.Parameter(torch.empty((output_dim,)), requires_grad=True)
 
+        # new approach
+        with torch.no_grad():
+            self.log_m.data.fill_(math.log(init_m))  # so that exp(log_m)=init_m
+            self.log_b.data.fill_(math.log(init_b))
+
+        # optional gradient scaling hook
         self.register_full_backward_hook(scale_reactivation_gradients)
     
     def forward(self, V):
@@ -453,18 +454,28 @@ class DendriticBranchLayer(nn.Module):
         input_branch_factor = None, 
         topk_init_method = 'xavier_normal',
         use_shunting = True,
+        init_gain=1.0,
+        init_inhib_offset=0.0,
+        gradient_strategy='none',
+        gradient_scale_factor=1.0,
     ):
         
         # initialize dendritic branch layer
         super(DendriticBranchLayer, self).__init__()
+        
+        self.init_inhib_offset = init_inhib_offset
+        self.gradient_strategy = gradient_strategy
+        self.gradient_scale_factor = gradient_scale_factor
+        
         # module for computing excitation along branches in layer
         self.input_excitatory = excitatory_input_dim is not None
         if self.input_excitatory:
             self.branch_excitation = TopKLinear(
-                excitatory_input_dim, 
-                output_dim, 
+                in_features=excitatory_input_dim,
+                out_features=output_dim,
                 K = excitatory_synapses_per_branch,
                 init_method = topk_init_method,
+                init_gain=init_gain,                
             )
             self.excitatory_input_dim = excitatory_input_dim
         # if receiving inputs from inhibitory cells
@@ -472,10 +483,11 @@ class DendriticBranchLayer(nn.Module):
         if self.input_inhibitory:
             # module for computing inhibition along branches in layer
             self.branch_inhibition = TopKLinear(
-                inhibitory_input_dim, 
-                output_dim, 
+                in_features=inhibitory_input_dim,
+                out_features=output_dim,
                 K = inhibitory_synapses_per_branch,
                 init_method = topk_init_method,
+                init_gain=init_gain,                
             )
             self.inhibitory_input_dim = inhibitory_input_dim
         # if receiving inputs from other dendritic branches
@@ -487,13 +499,11 @@ class DendriticBranchLayer(nn.Module):
             )
         self.input_branch_factor = input_branch_factor
 
+        # register gradient scaling hook:
         self.register_full_backward_hook(
-            lambda module, grad_input, grad_output : scale_layer_gradients(
-                module = module, 
-                grad_input = grad_input, 
-                grad_output = grad_output, 
-                scale_factor = 1,
-            ))
+            lambda module, grad_in, grad_out: 
+                scale_layer_gradients(module, grad_in, grad_out, self._get_scale())
+        )
 
         self.initialize()
     
@@ -505,9 +515,11 @@ class DendriticBranchLayer(nn.Module):
             
             if self.input_inhibitory:
                 self.branch_inhibition.initialize()
-                self.branch_inhibition.pre_w + log(
-                    self.branch_excitation.K / self.branch_inhibition.K
-                )
+                # self.branch_inhibition.pre_w + log(
+                #     self.branch_excitation.K / self.branch_inhibition.K
+                # )
+                self.branch_inhibition.pre_w.data.add_(self.init_inhib_offset)
+
                 
             if self.input_branches:
                 if self.input_excitatory or self.input_inhibitory:
@@ -606,7 +618,12 @@ class DendriticBranchLayer(nn.Module):
         else:
             return self.branch_excitation.log_pruned_weight()
 
-
+    def _get_scale(self):
+        if self.gradient_strategy == 'uniform_scale':
+            return self.gradient_scale_factor
+        # if "distal_upweight", you can do something more fancy
+        return 1.0
+    
 class DendriNet(nn.Module):
     """
     Generates a linear layer of neurons, each of which consists of a sequential 
