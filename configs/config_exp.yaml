@@ -7,13 +7,13 @@ model:
       input_dim: 784
       excitatory_layer_sizes: [10]
       inhibitory_layer_sizes: [20]
-      excitatory_branch_factors: [2,2]
+      excitatory_branch_factors: [2,2,10,10]
       inhibitory_branch_factors: []
       reactivate: true
       somatic_synapses: true
-      ee_synapses_per_branch_per_layer: [24,24]
+      ee_synapses_per_branch_per_layer: [24,24,24,24]
       ei_synapses_per_branch_per_layer: [200]
-      ie_synapses_per_branch_per_layer: [1,1]
+      ie_synapses_per_branch_per_layer: [1,1,1,1]
       ii_synapses_per_branch_per_layer: []
       topk_init_method: "xavier_normal"
       use_shunting: true
@@ -28,7 +28,7 @@ model:
       gradient_strategy: "none"  # "none", "uniform_scale", "distal_upweight", "freeze_layers"
       gradient_scale_factor: 1.0 # if "uniform_scale" or "distal_upweight"
 
-      weight_decay_rate: 0.05    # how strongly we do the custom weight decay
+      weight_decay_rate: 0.1    # how strongly we do the custom weight decay
 train:
   run_name: "mnist_einet"
   seed: 42
@@ -37,7 +37,6 @@ train:
   epochs: 100
   batch_size: 500
   grad_clip_value: 0.5
-  weight_decay: 0.0
 
 
 task:
@@ -52,7 +51,7 @@ task:
 
 wandb:
   entity: houman_safaai-harvard-university # <---- Add your entity
-  project: dendritic_modeling_pr
+  project: dendritic_mnist_sweep
   group: debug
   tags: [mnist_1]
 
