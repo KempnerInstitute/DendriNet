@@ -120,7 +120,7 @@ class Classifier(BaseModel):
     """
 
     def __init__(self, net):
-        super().__init__(net)
+        super(Classifier, self).__init__(net)
         #self.final = nn.Softmax(dim=-1)
 
     # need to pass y=None to forward method to avoid consistency issue with 
@@ -131,10 +131,16 @@ class Classifier(BaseModel):
 
     # need to pass stochastic=False to predict method to avoid consistency issue
     # with ProbabilisticClassifier, TODO: refactor
+
     def predict(self, x, stochastic=False):
-        output = self.forward(x)
-        return output.argmax(dim=-1)
-    
+        # raw logits => argmax
+        with torch.no_grad():
+            logits = self.forward(x)
+            return logits.argmax(dim=-1)
+
     def compute_loss(self, x, y):
         logits = self.forward(x)
-        return nn.CrossEntropyLoss()(logits, y)
+        # cross-entropy expects raw logits
+        loss_fn = nn.CrossEntropyLoss()
+        loss = loss_fn(logits, y)
+        return loss
