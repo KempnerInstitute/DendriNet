@@ -61,22 +61,20 @@ settings:
 
 
 
-"""
-Explanation of the Methods:
-	1.	Vanilla Backprop
-→ The original code had no gradient manipulation: gradient_strategy: "none".
-	2.	Uniform Gradient Scaling
-→ Multiplies each layer’s gradient by a constant gradient_scale_factor. This partially existed in your code as scale_layer_gradients; we’ve extended it so you can toggle the factor from config.
-	3.	Distal Upweight
-→ A new approach: if you have multiple dendritic branch layers, the code can multiply gradient more strongly at distal layers that typically lose signal. (Implementation example: “scale factor depends on layer depth.”)
-	4.	Freeze-Layers
-→ A brand‐new method we introduced: train each dendritic layer in sequence, freezing the others, to ensure it sees a strong error signal.
-	5.	Local Learning Rules
-→ In theory, you can define partial local objectives. We included partial scaffolding (scale_layer_gradients hooks). A full local‐learning approach is not yet fully implemented, but can be toggled by a config field if you eventually code it.
-	6.	Initialization Tweaks
-→ New parameters init_gain (multiplier for Xavier/Kaiming) and init_inhib_offset (log‐space shift for inhibitory weights). These help keep the network from saturating the denominator of the shunting formula right from the start.
-	7.	Reactivation Scaling
-→ You can set reactivation_initial_m and reactivation_initial_b so that the tanh layer does not saturate at the beginning.
-	8.	Weight Decay
-→ Now read from YAML (train.weight_decay). Tied to the built‐in PyTorch optimizer or your CustomWeightDecayOptimizer.
-"""
+# Explanation of the Methods:
+# 	1.	Vanilla Backprop
+# → The original code had no gradient manipulation: gradient_strategy: "none".
+# 	2.	Uniform Gradient Scaling
+# → Multiplies each layer’s gradient by a constant gradient_scale_factor. This partially existed in your code as scale_layer_gradients; we’ve extended it so you can toggle the factor from config.
+# 	3.	Distal Upweight
+# → A new approach: if you have multiple dendritic branch layers, the code can multiply gradient more strongly at distal layers that typically lose signal. (Implementation example: “scale factor depends on layer depth.”)
+# 	4.	Freeze-Layers
+# → A brand‐new method we introduced: train each dendritic layer in sequence, freezing the others, to ensure it sees a strong error signal.
+# 	5.	Local Learning Rules
+# → In theory, you can define partial local objectives. We included partial scaffolding (scale_layer_gradients hooks). A full local‐learning approach is not yet fully implemented, but can be toggled by a config field if you eventually code it.
+# 	6.	Initialization Tweaks
+# → New parameters init_gain (multiplier for Xavier/Kaiming) and init_inhib_offset (log‐space shift for inhibitory weights). These help keep the network from saturating the denominator of the shunting formula right from the start.
+# 	7.	Reactivation Scaling
+# → You can set reactivation_initial_m and reactivation_initial_b so that the tanh layer does not saturate at the beginning.
+# 	8.	Weight Decay
+# → Now read from YAML (train.weight_decay). Tied to the built‐in PyTorch optimizer or your CustomWeightDecayOptimizer.
