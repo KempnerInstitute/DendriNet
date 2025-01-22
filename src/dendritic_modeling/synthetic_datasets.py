@@ -340,10 +340,10 @@ def get_unified_datasets(task_cfg, train_cfg):
     dataset_name = task_cfg['dataset']  # e.g. "line", "mnist", etc.
     p = task_cfg['parameters']
 
-    train_size = p['train_size',8000]
-    valid_size = p['valid_size',1000]
-    test_size  = p['test_size',1000]
-    image_size = p['image_size',784]
+    train_size = p.get('train_size',8000)
+    valid_size = p.get('valid_size',1000)
+    test_size  = p.get('test_size',1000)
+    image_size = p.get('image_size',784)
     n_orient_classes = p.get('n_orient_classes',8)
     n_bits = p.get('n_bits',8)
 
