@@ -39,7 +39,14 @@ class EINetParameters(BaseConfig):
     somatic_synapses: bool = True
     topk_init_method: str = "xavier_normal"
     use_shunting: bool = True
-
+    # new:
+    init_gain: float = 1.0
+    init_inhib_offset: float = 0.0
+    reactivation_initial_m: float = 1.5
+    reactivation_initial_b: float = 1.0
+    gradient_strategy: str = "none"  # could be "none", "uniform_scale", ...
+    gradient_scale_factor: float = 1.0
+    weight_decay_rate: float = 0.0
 @dataclass
 class FeedForwardParameters(BaseConfig):
     """ Parameters for feedforward network """
