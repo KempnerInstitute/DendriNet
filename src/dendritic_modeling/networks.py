@@ -89,9 +89,17 @@ class ExcitationInhibitionLayer(nn.Module):
         somatic_synapses = True,
         topk_init_method = "xavier_normal",
         use_shunting = True,
+        init_gain=1.0,
+        init_inhib_offset=0.0,
+        gradient_strategy="none",
+        gradient_scale_factor=1.0,
     ):
         super(ExcitationInhibitionLayer, self).__init__()
-
+        self.init_gain = init_gain
+        self.init_inhib_offset = init_inhib_offset
+        self.gradient_strategy = gradient_strategy
+        self.gradient_scale_factor = gradient_scale_factor
+        
         self.inhibitory_cells = DendriNet(
             n_soma = n_inhibitory_cells, 
             branch_factors = inhibitory_branch_factors,
@@ -103,6 +111,10 @@ class ExcitationInhibitionLayer(nn.Module):
             somatic_synapses = somatic_synapses, 
             topk_init_method = topk_init_method,
             use_shunting=use_shunting,
+            init_gain = self.init_gain,
+            init_inhib_offset = self.init_inhib_offset,
+            gradient_strategy = self.gradient_strategy,
+            gradient_scale_factor = self.gradient_scale_factor,
         )
 
         self.excitatory_cells = DendriNet(
@@ -116,6 +128,10 @@ class ExcitationInhibitionLayer(nn.Module):
             somatic_synapses = somatic_synapses,
             topk_init_method = topk_init_method,
             use_shunting=use_shunting,
+            init_gain = self.init_gain,
+            init_inhib_offset = self.init_inhib_offset,
+            gradient_strategy = self.gradient_strategy,
+            gradient_scale_factor = self.gradient_scale_factor,
         )
     
     def decay_weights(self, weight_decay = 0.1):
@@ -198,10 +214,18 @@ class ExcitationInhibitionNetwork(nn.Module):
         somatic_synapses = True,
         topk_init_method = "xavier_normal",
         use_shunting=True,
+        init_gain=1.0,
+        init_inhib_offset=0.0,
+        gradient_strategy="none",
+        gradient_scale_factor=1.0,
     ):
         super(ExcitationInhibitionNetwork, self).__init__()
 
         self.n_layers = len(excitatory_layer_sizes)
+        self.init_gain = init_gain
+        self.init_inhib_offset = init_inhib_offset
+        self.gradient_strategy = gradient_strategy
+        self.gradient_scale_factor = gradient_scale_factor
         
         logger.debug(f'Building ExcitationInhibitionNetwork with {self.n_layers} layer(s).')
 
@@ -234,6 +258,10 @@ class ExcitationInhibitionNetwork(nn.Module):
                 somatic_synapses = somatic_synapses,
                 topk_init_method = topk_init_method,
                 use_shunting=use_shunting,
+                init_gain = self.init_gain,
+                init_inhib_offset = self.init_inhib_offset,
+                gradient_strategy = self.gradient_strategy,
+                gradient_scale_factor = self.gradient_scale_factor,
             ))
         
         self.layers = nn.ModuleList(layers)
