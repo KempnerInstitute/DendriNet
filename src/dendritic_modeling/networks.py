@@ -70,7 +70,6 @@ class ExcitationInhibitionLayer(nn.Module):
     forward(x, inhibitory_input)
         Performs a forward pass through the layer and returns excitatory and 
         inhibitory outputs.
-    
     """
 
     def __init__(
@@ -93,13 +92,17 @@ class ExcitationInhibitionLayer(nn.Module):
         init_inhib_offset=0.0,
         gradient_strategy="none",
         gradient_scale_factor=1.0,
+
+        # new reactivation init fields
+        reactivation_initial_m=1.5,
+        reactivation_initial_b=1.0,
     ):
         super(ExcitationInhibitionLayer, self).__init__()
         self.init_gain = init_gain
         self.init_inhib_offset = init_inhib_offset
         self.gradient_strategy = gradient_strategy
         self.gradient_scale_factor = gradient_scale_factor
-        
+
         self.inhibitory_cells = DendriNet(
             n_soma = n_inhibitory_cells, 
             branch_factors = inhibitory_branch_factors,
@@ -111,10 +114,8 @@ class ExcitationInhibitionLayer(nn.Module):
             somatic_synapses = somatic_synapses, 
             topk_init_method = topk_init_method,
             use_shunting=use_shunting,
-            init_gain = self.init_gain,
-            init_inhib_offset = self.init_inhib_offset,
-            gradient_strategy = self.gradient_strategy,
-            gradient_scale_factor = self.gradient_scale_factor,
+            reactivation_initial_m=reactivation_initial_m,
+            reactivation_initial_b=reactivation_initial_b,
         )
 
         self.excitatory_cells = DendriNet(
@@ -128,13 +129,11 @@ class ExcitationInhibitionLayer(nn.Module):
             somatic_synapses = somatic_synapses,
             topk_init_method = topk_init_method,
             use_shunting=use_shunting,
-            init_gain = self.init_gain,
-            init_inhib_offset = self.init_inhib_offset,
-            gradient_strategy = self.gradient_strategy,
-            gradient_scale_factor = self.gradient_scale_factor,
+            reactivation_initial_m=reactivation_initial_m,
+            reactivation_initial_b=reactivation_initial_b,
         )
     
-    def decay_weights(self, weight_decay = 0.1):
+    def decay_weights(self, weight_decay):
         self.inhibitory_cells.decay_weights(weight_decay)
         self.excitatory_cells.decay_weights(weight_decay)
 
@@ -218,8 +217,13 @@ class ExcitationInhibitionNetwork(nn.Module):
         init_inhib_offset=0.0,
         gradient_strategy="none",
         gradient_scale_factor=1.0,
+        weight_decay_rate=0.1,  
+        # new reactivation fields
+        reactivation_initial_m=1.5,
+        reactivation_initial_b=1.0,
     ):
         super(ExcitationInhibitionNetwork, self).__init__()
+        self.weight_decay_rate = weight_decay_rate  # <--- Store it
 
         self.n_layers = len(excitatory_layer_sizes)
         self.init_gain = init_gain
@@ -237,8 +241,6 @@ class ExcitationInhibitionNetwork(nn.Module):
 
         ii_synapses_per_branch_per_layer = deepcopy(
             ii_synapses_per_branch_per_layer)
-
-
         ii_synapses_per_branch_per_layer.insert(0, None)
 
         layers = []
@@ -262,13 +264,22 @@ class ExcitationInhibitionNetwork(nn.Module):
                 init_inhib_offset = self.init_inhib_offset,
                 gradient_strategy = self.gradient_strategy,
                 gradient_scale_factor = self.gradient_scale_factor,
+                reactivation_initial_m = reactivation_initial_m,
+                reactivation_initial_b = reactivation_initial_b,
             ))
         
         self.layers = nn.ModuleList(layers)
     
-    def decay_weights(self, weight_decay = 0.1):
+    # def decay_weights(self, weight_decay = 0.1):
+    #     for layer in self.layers:
+    #         layer.decay_weights(weight_decay)
+    def decay_weights(self):
+        """
+        Apply custom weight decay to each ExcitationInhibitionLayer
+        using self.weight_decay_rate.
+        """
         for layer in self.layers:
-            layer.decay_weights(weight_decay)
+            layer.decay_weights(self.weight_decay_rate)
 
     def forward(self, x):
         excitatory = x
@@ -276,10 +287,8 @@ class ExcitationInhibitionNetwork(nn.Module):
         for layer in self.layers:
             excitatory, inhibitory = layer(excitatory, inhibitory)
         return excitatory
-    
-    
-    
-    
+
+
 class FeedforwardNN(nn.Module):
     """
     A configurable feedforward neural network as a baseline for comparison
@@ -295,40 +304,32 @@ class FeedforwardNN(nn.Module):
     ):
         super(FeedforwardNN, self).__init__()
 
-        # Map string activation to PyTorch activation functions
         activation_mapping = {
             "relu": nn.ReLU,
             "sigmoid": nn.Sigmoid,
             "tanh": nn.Tanh,
             "leaky_relu": nn.LeakyReLU
         }
-
-        # Raise an error if the activation is not supported
         if activation not in activation_mapping:
             raise ValueError(f"Unsupported activation function: {activation}. "
                              f"Supported: {list(activation_mapping.keys())}")
 
-        # Define layers dynamically
         layers = []
         current_dim = input_dim
-
         for layer_size in hidden_layer_sizes:
             layers.append(nn.Linear(current_dim, layer_size))
             layers.append(activation_mapping[activation]())
-            if dropout > 0:  # Apply dropout only if it's greater than 0
+            if dropout > 0:
                 layers.append(nn.Dropout(dropout))
             current_dim = layer_size
-
-        # Add the output layer
         layers.append(nn.Linear(current_dim, output_dim))
 
-        # Combine layers into a sequential model
         self.model = nn.Sequential(*layers)
 
     def forward(self, x):
         return self.model(x)
-    
-    
+
+
 class MLPBaseline(nn.Module):
     """
     A simple feedforward MLP with one hidden layer, for baseline comparison.
@@ -339,5 +340,6 @@ class MLPBaseline(nn.Module):
         self.fc2 = nn.Linear(hidden_dim, output_dim)
 
     def forward(self, x):
+        import torch.nn.functional as F
         x = F.relu(self.fc1(x))
         return self.fc2(x)  # raw logits
