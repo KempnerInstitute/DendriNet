@@ -45,12 +45,21 @@ def initialize_model(model_hp):
                 f" {'probabilistic' if probabilistic else 'simple'} classifier")
             net = FeedforwardNN(**network_parameters)
             output_dim = network_parameters.get('output_dim')
-        elif network_type == 'einet':
+            if model_hp["probabilistic"]:
+                return ProbabilisticClassifier(net, output_dim=network_params["output_dim"])
+            else:
+                return Classifier(net)
+        elif network_type == 'EINet':
             logger.info(
                 f"Running EINet with "
                 f"{'probabilistic' if probabilistic else 'simple'} classifier")
             net = ExcitationInhibitionNetwork(**network_parameters)
             output_dim = network_parameters['excitatory_layer_sizes'][-1]
+            if model_hp["probabilistic"]:
+                # 10 is your number of classes in MNIST
+                return ProbabilisticClassifier(net, output_dim)
+            else:
+                return Classifier(net)            
         else:
             raise ValueError(f"Invalid network type: {network_type}")
 
