@@ -15,9 +15,16 @@ model:
       ei_synapses_per_branch_per_layer: [200]
       ie_synapses_per_branch_per_layer: [1,1]
       ii_synapses_per_branch_per_layer: []
-      topk_init_method: "xavier_normal"
+      topk_init_method: "normal"
       use_shunting: true
-
+      # NEW or EXTENDED:
+      init_gain: 1.0             # global scale factor in initialization
+      init_inhib_offset: 0.0     # offset in log space for inhibitory vs. excit.
+      reactivation_initial_m: 1.5 # sets initial log_m or something
+      reactivation_initial_b: 1.0 # sets initial log_b
+      gradient_strategy: "none"  # "none", "uniform_scale", "distal_upweight", "freeze_layers"
+      gradient_scale_factor: 1.0 # if "uniform_scale" or "distal_upweight"
+      weight_decay_rate: 0.05    # how strongly we do the custom weight decay
 train:
   run_name: "mnist_einet"
   seed: 42
