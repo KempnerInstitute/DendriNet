@@ -12,7 +12,8 @@ from torch.utils.data import DataLoader
 
 from dendritic_modeling import logger, logger_manager
 from dendritic_modeling.training import TrainerMLE
-from dendritic_modeling.models import ProbabilisticClassifier, Classifier
+from dendritic_modeling.models import (ProbabilisticClassifier, Classifier, 
+                                       EINetClassifierNLL)  # <-- import new
 from dendritic_modeling.plot_utils import (plot_einet_params, 
                                            plot_einet_activations)
 from dendritic_modeling.utils import (load_MNIST, 
@@ -30,6 +31,10 @@ from dendritic_modeling.networks import (ExcitationInhibitionNetwork,
                                          MLPBaseline)
 
 def initialize_model(model_hp):
+    """
+    We detect model.task. If 'einet_nll', we build EINetClassifierNLL 
+    else if 'classification' we do the usual approach, etc.
+    """
     task = model_hp['task']
     probabilistic = model_hp['probabilistic']
     network_type = model_hp['network']['type']
@@ -47,6 +52,7 @@ def initialize_model(model_hp):
                 return ProbabilisticClassifier(net, output_dim=output_dim)
             else:
                 return Classifier(net)
+
         elif network_type == 'EINet':
             logger.info(
                 f"Running EINet with "
@@ -58,15 +64,26 @@ def initialize_model(model_hp):
                 return ProbabilisticClassifier(net, output_dim)
             else:
                 return Classifier(net)
+
         else:
             raise ValueError(f"Invalid network type: {network_type}")
+
+    elif task == 'einet_nll':
+        # a new 'task' if you prefer to unify everything in that dimension
+        logger.info("Running EINetClassifierNLL approach")
+        output_dim = network_parameters['excitatory_layer_sizes'][-1]
+        net = ExcitationInhibitionNetwork(**network_parameters)
+        return EINetClassifierNLL(net, output_dim)
+
     elif task == 'regression':
         if probabilistic:
             raise NotImplementedError("Probabilistic regression not implemented yet.")
         else:
             raise NotImplementedError("Non-probabilistic regression not yet implemented.")
+
     else:
         raise ValueError(f"Invalid task: {task}")
+
 
 def main(config_path: str, output_dir: str, experiment_name: str):
     save_path = output_dir
@@ -105,13 +122,17 @@ def main(config_path: str, output_dir: str, experiment_name: str):
     )
     logger.info(f"Loaded dataset: {task_hp['dataset']}")
 
-    train_data_loader = DataLoader(train_dataset, batch_size=train_hp["batch_size"], shuffle=False)
+    train_data_loader = DataLoader(train_dataset, 
+                                   batch_size=train_hp["batch_size"], 
+                                   shuffle=False)
     sample_x, sample_y = next(iter(train_data_loader))
     input_dim = sample_x.shape[1]
     num_classes = len(torch.unique(sample_y))
 
+    # build model
     clf = initialize_model(model_hp)
 
+    # optional summary
     try:
         summary = torchinfo.summary(
             clf,
@@ -148,7 +169,7 @@ def main(config_path: str, output_dir: str, experiment_name: str):
             model=clf,
             train_data=train_dataset,
             valid_data=valid_dataset,
-            epochs_per_layer=5,
+            epochs_per_layer=train_hp.get("epochs_per_layer", 5),
             batch_size=train_hp.get("batch_size", 64),
             shuffle=True,
             grad_clip_value=train_hp.get("grad_clip_value", 5),
@@ -169,9 +190,12 @@ def main(config_path: str, output_dir: str, experiment_name: str):
         )
 
     logger.info("Evaluating performance...")
-    eval_train_loader = DataLoader(train_dataset, batch_size=train_hp.get("batch_size", 64), shuffle=False)
-    eval_valid_loader = DataLoader(valid_dataset, batch_size=train_hp.get("batch_size", 64), shuffle=False)
-    eval_test_loader  = DataLoader(test_dataset,  batch_size=train_hp.get("batch_size", 64), shuffle=False)
+    eval_train_loader = DataLoader(train_dataset, 
+      batch_size=train_hp.get("batch_size", 64), shuffle=False)
+    eval_valid_loader = DataLoader(valid_dataset, 
+      batch_size=train_hp.get("batch_size", 64), shuffle=False)
+    eval_test_loader  = DataLoader(test_dataset,  
+      batch_size=train_hp.get("batch_size", 64), shuffle=False)
 
     t0 = time.time()
     train_acc = accuracy_score(clf, *next(iter(eval_train_loader))).item()
@@ -190,11 +214,14 @@ def main(config_path: str, output_dir: str, experiment_name: str):
         wandb.log(performance)
         wandb.finish()
 
+    # optional ablation / mutual info
     if hasattr(clf, 'net') and hasattr(clf.net, 'forward_with_branch_outputs'):
         if analysis_hp.get('enable_mutual_info', False):
-            branch_info = analyze_branch_information(clf.net, train_dataset, 
-                                                     batch_size=train_hp.get("batch_size", 64),
-                                                     device='cpu', n_bins=10)
+            branch_info = analyze_branch_information(
+                clf.net, train_dataset, 
+                batch_size=train_hp.get("batch_size", 64),
+                device='cpu', n_bins=10
+            )
             logger.info(f"Branch Info (MI per layer): {branch_info}")
 
         if analysis_hp.get('enable_ablation', False):
@@ -212,9 +239,18 @@ def main(config_path: str, output_dir: str, experiment_name: str):
         logger.info("No dendritic analysis performed.")
 
 if __name__ == '__main__':
-    parser = argparse.ArgumentParser(description='Run dendritic modeling training and evaluation.')
-    parser.add_argument("config", help="Path to the configuration YAML file.")
-    parser.add_argument("--output_dir", default="results", help="Optional output directory.")
-    parser.add_argument("--experiment_name", default="example", help="Optional experiment name.")
+    parser = argparse.ArgumentParser(
+        description='Run dendritic modeling training and evaluation.'
+    )
+    parser.add_argument("config", 
+                        help="Path to the configuration YAML file.")
+    parser.add_argument("--output_dir", 
+                        default="results", 
+                        help="Optional output directory.")
+    parser.add_argument("--experiment_name", 
+                        default="example", 
+                        help="Optional experiment name.")
     args = parser.parse_args()
-    main(config_path=args.config, output_dir=args.output_dir, experiment_name=args.experiment_name)
+    main(config_path=args.config, 
+         output_dir=args.output_dir, 
+         experiment_name=args.experiment_name)
