@@ -1,5 +1,5 @@
 model:
-  task: classification
+  task: einet_nll #classification einet_nll
   probabilistic: True
   network:
     type: "EINet"
