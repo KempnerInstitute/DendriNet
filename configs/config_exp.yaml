@@ -18,10 +18,8 @@ model:
       topk_init_method: "xavier_normal"
       use_shunting: true
 
-      # NEW or EXTENDED:
       init_gain: 1.0             # global scale factor in initialization
       init_inhib_offset: 0.0     # offset in log space for inhibitory vs. excit.
-
       reactivation_initial_m: 1.5 # sets initial log_m or something
       reactivation_initial_b: 1.0 # sets initial log_b
 
@@ -29,6 +27,10 @@ model:
       gradient_scale_factor: 1.0 # if "uniform_scale" or "distal_upweight"
 
       weight_decay_rate: 0.1    # how strongly we do the custom weight decay
+
+      local_learning: "backprop_alignment"  # or "none"
+      local_loss_weight: 0.5               # scale factor for local objectives
+
 train:
   run_name: "mnist_einet"
   seed: 42
@@ -48,7 +50,6 @@ task:
     # image_size: 10
     # seed: 0
 
-
 wandb:
   entity: houman_safaai-harvard-university # <---- Add your entity
   project: dendritic_mnist_sweep
@@ -58,7 +59,10 @@ wandb:
 settings:
   visualizations: False
 
-
+analysis:
+  enable_ablation: true
+  enable_mutual_info: true
+  # could add more toggles for local learning debugging, advanced plots, etc.
 
 # Explanation of the Methods:
 # 	1.	Vanilla Backprop
