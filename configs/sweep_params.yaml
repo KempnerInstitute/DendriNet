@@ -72,3 +72,7 @@ sweep_config:
   model.network.parameters.weight_decay_rate: [0.0, 0.1]
   model.network.parameters.local_learning: ["none", "backprop_alignment"]
   model.network.parameters.local_loss_weight: [0.0, 0.5]
+
+
+
+# python generate_sweep_configs.py configs sweep_params.yaml
