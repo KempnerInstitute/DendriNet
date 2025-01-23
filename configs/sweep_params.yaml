@@ -1,11 +1,10 @@
 slurm_config:
-  output_dir: /n/netscratch/kempner_dev/hsafaai/dendritic_modeling #/n/holylabs/LABS/kempner_dev/Users/hsafaai/results/dendritic_modeling # <--- Add your output directory path
-  conda_env_path: /n/home13/hsafaai/.conda/envs/dendritic_env # <--- Add your conda environment path
-  modules_to_load: ["python/3.12.5-fasrc01", "cuda/12.4.1-fasrc01", "cudnn/8.9.2.26_cuda12-fasrc01"] # <--- Modify this based on your requirements
+  output_dir: /n/netscratch/kempner_dev/hsafaai/dendritic_modeling
+  conda_env_path: /n/home13/hsafaai/.conda/envs/dendritic_env
+  modules_to_load: ["python/3.12.5-fasrc01", "cuda/12.4.1-fasrc01", "cudnn/8.9.2.26_cuda12-fasrc01"]
   max_concurrent_jobs: 8
-  training_script: "/n/holylabs/LABS/kempner_dev/Users/hsafaai/Code/dendritic-modeling/scripts/train_mnist.py"
+  training_script: "/n/holylabs/LABS/kempner_dev/Users/hsafaai/Code/dendritic-modeling/scripts/train_experiments.py"
   config_filename_init: "test_config"
-
   account: "kempner_dev"
   nodes: 1
   ntasks_per_node: 1
@@ -14,52 +13,62 @@ slurm_config:
   mem: 1200GB
   time: "0:30:00"
   partition: "kempner_h100"
-
+  run_name: "dendritic_sweep_job"
 
 train_config:
+  model:
+    task: classification
+    probabilistic: True
+    network:
+      type: "EINet"
+      parameters:
+        input_dim: 784
+        excitatory_layer_sizes: [10]
+        inhibitory_layer_sizes: [20]
+        excitatory_branch_factors: [1,2]
+        inhibitory_branch_factors: []
+        reactivate: True
+        somatic_synapses: True
+        ee_synapses_per_branch_per_layer: [24]
+        ei_synapses_per_branch_per_layer: [200]
+        ie_synapses_per_branch_per_layer: [1]
+        ii_synapses_per_branch_per_layer: []
+        topk_init_method: "xavier_normal"
+        use_shunting: True
+        init_gain: 1.0
+        init_inhib_offset: 0.0
+        reactivation_initial_m: 1.2
+        reactivation_initial_b: 1.0
+        gradient_strategy: "distal_upweight"
+        gradient_scale_factor: 1.0
+        weight_decay_rate: 0.1
+        local_learning: "backprop_alignment"
+        local_loss_weight: 0.5
+
   train:
     run_name: "dendritic_modeling_sweep"
     seed: 0
     epochs: 100
     batch_size: 500
-  
+    grad_clip_value: 0.5
+
   wandb:
-    entity:  houman_safaai-harvard-university 
-    project: dendritic_modeling_sweep
+    entity: "houman_safaai-harvard-university"
+    project: "dendritic_modeling_sweep"
     group: debug
     tags: [mnist_1]
 
-  optimizer:
-    name: "adam"
-    learning_rate: 0.01
+  analysis:
+    enable_ablation: False
+    enable_mutual_info: False
 
-  scheduler:
-    name: "none"
-  
-  model:
-    input_dim: 784
-    excitatory_layer_sizes: [10]
-    inhibitory_layer_sizes: [20]
-    excitatory_branch_factors: [1,2]
-    inhibitory_branch_factors: []
-    reactivate: True
-    somatic_synapses: True
-    ee_synapses_per_branch_per_layer: [24]
-    ei_synapses_per_branch_per_layer: [200]
-    ie_synapses_per_branch_per_layer: [1]
-    ii_synapses_per_branch_per_layer: []
-    topk_init_method: "xavier_normal"
-  
 sweep_config:
-  #train:
-    #batch_size: [32, 64, 128, 512]
-  model:
-    topk_init_method: ['xavier_normal', 'xavier_uniform', 'normal', 'uniform']
-    #ie_synapses_per_branch_per_layer: [[1], [2], [3], [4], [5], [6], [7], [8], [9], [10],
-                                      #  [11], [12], [13], [14], [15], [16], [17], [18], [19], [20],
-                                      #  [21], [22], [23], [24], [25], [26], [27], [28], [29], [30],
-                                      #  [31], [32], [33], [34], [35], [36], [37], [38], [39], [40]]
-    
-    #init_scale: ['True','False']
-    reactivate: ['True','False']
-    somatic_synapses: ['True','False']
+  model.network.parameters.init_gain: [0.5, 1.0, 2.0]
+  model.network.parameters.init_inhib_offset: [0.0, -0.5, 0.5]
+  model.network.parameters.reactivation_initial_m: [1.0, 1.2, 2.0]
+  model.network.parameters.reactivation_initial_b: [0.8, 1.0]
+  model.network.parameters.gradient_strategy: ["none", "distal_upweight", "freeze_layers"]
+  model.network.parameters.gradient_scale_factor: [1.0, 2.0]
+  model.network.parameters.weight_decay_rate: [0.0, 0.1]
+  model.network.parameters.local_learning: ["none", "backprop_alignment"]
+  model.network.parameters.local_loss_weight: [0.0, 0.5]
