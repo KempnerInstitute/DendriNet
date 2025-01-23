@@ -1,5 +1,5 @@
 """
-excitation_inhibition.py
+networks.py
 ========================
 This module contains the ExcitationInhibitionLayer and 
 ExcitationInhibitionNetwork classes.
@@ -11,67 +11,10 @@ from typing import List
 from dendritic_modeling.dendrinet import DendriNet
 from dendritic_modeling import logger
 
-
 class ExcitationInhibitionLayer(nn.Module):
     """
-    A neural network layer modeling interactions between excitatory and 
-    inhibitory neurons.
-
-    This layer implements an excitation-inhibition mechanism using two 
-    `DendriNet` models: one representing inhibitory neurons and the other 
-    representing excitatory neurons.
-
-    Parameters
-    ----------
-
-    n_excitatory_cells : int
-        The number of excitatory neurons in the layer.
-    
-    n_inhibitory_cells : int
-        The number of inhibitory neurons in the layer.
-
-    excitatory_branch_factors : list of int
-        The branching factor for excitatory neurons.
-
-    inhibitory_branch_factors : list of int
-        The branching factor for inhibitory neurons.
-
-    excitatory_input_dim : int
-        The number of excitatory inputs to the ExcitationInhibitionLayer.
-
-    ee_synapses_per_branch : int
-        The number of excitatory-to-excitatory synapses per branch.
-
-    ei_synapses_per_branch : int
-        The number of excitatory-to-inhibitory synapses per branch.
-
-    inhibitory_input_dim : int, optional
-        The number of inhibitory inputs to the ExcitationInhibitionLayer. 
-        Defaults to `None`.
-
-    ie_synapses_per_branch : int
-        The number of inhibitory-to-excitatory synapses per branch. 
-        
-    ii_synapses_per_branch : int, optional
-        The number of inhibitory-to-inhibitory synapses per branch. Defaults to
-        `None`.
-    
-    reactivate : bool, optional
-        If `True`, applies a reactivation function simulating dendritic/somatic 
-        spiking behavior. Defaults to `False`.
-
-    somatic_synapses : bool, optional
-        If `True`, includes direct synaptic inputs to the soma layer. Defaults 
-        to `True`.
-
-    Methods
-    -------
-
-    forward(x, inhibitory_input)
-        Performs a forward pass through the layer and returns excitatory and 
-        inhibitory outputs.
+    ...
     """
-
     def __init__(
         self, 
         n_excitatory_cells,
@@ -92,8 +35,6 @@ class ExcitationInhibitionLayer(nn.Module):
         init_inhib_offset=0.0,
         gradient_strategy="none",
         gradient_scale_factor=1.0,
-
-        # new reactivation init fields
         reactivation_initial_m=1.5,
         reactivation_initial_b=1.0,
     ):
@@ -103,6 +44,7 @@ class ExcitationInhibitionLayer(nn.Module):
         self.gradient_strategy = gradient_strategy
         self.gradient_scale_factor = gradient_scale_factor
 
+        # inhibitory cells
         self.inhibitory_cells = DendriNet(
             n_soma = n_inhibitory_cells, 
             branch_factors = inhibitory_branch_factors,
@@ -118,6 +60,7 @@ class ExcitationInhibitionLayer(nn.Module):
             reactivation_initial_b=reactivation_initial_b,
         )
 
+        # excitatory cells
         self.excitatory_cells = DendriNet(
             n_soma = n_excitatory_cells, 
             branch_factors = excitatory_branch_factors,
@@ -145,58 +88,7 @@ class ExcitationInhibitionLayer(nn.Module):
 
 class ExcitationInhibitionNetwork(nn.Module):
     """
-    A neural network module implementing an excitation-inhibition multilayer 
-    architecture.
-
-    This class constructs a network composed of TBD
-
-    Parameters
-    ----------
-    input_dim : int
-        The number of input features.
-
-    excitatory_layer_sizes : list of int
-        The number of excitatory neurons in each layer.
-    
-    inhibitory_layer_sizes : list of int
-        The number of inhibitory neurons in each layer.
-
-    excitatory_branch_factors : list of int
-        The branching factor for excitatory neurons at each layer.
-
-    inhibitory_branch_factors : list of int
-        The branching factor for inhibitory neurons at each layer.
-
-    ee_synapses_per_branch_per_layer : list of int
-        The number of excitatory-to-excitatory synapses per branch at each 
-        layer.
-
-    ei_synapses_per_branch_per_layer : list of int
-        The number of excitatory-to-inhibitory synapses per branch at each 
-        layer.
-
-    ie_synapses_per_branch_per_layer : list of int
-        The number of inhibitory-to-excitatory synapses per branch at each 
-        layer.
-    
-    ii_synapses_per_branch_per_layer : list of int, optional
-        The number of inhibitory-to-inhibitory synapses per branch at each 
-        layer. Defaults to an empty list `[]`.
-    
-    reactivate : bool, optional
-        If `True`, applies a reactivation function simulating dendritic/somatic 
-        spiking behavior. Defaults to `False`.
-    
-    somatic_synapses : bool, optional
-        If `True`, includes direct synaptic inputs to the soma layer. Defaults 
-        to `True`.
-
-    Methods
-    -------
-
-    forward(x)
-        Performs a forward pass through the network and returns an excitatory
-        output.
+    ...
     """
     def __init__(
         self, 
@@ -217,20 +109,27 @@ class ExcitationInhibitionNetwork(nn.Module):
         init_inhib_offset=0.0,
         gradient_strategy="none",
         gradient_scale_factor=1.0,
-        weight_decay_rate=0.1,  
-        # new reactivation fields
+        weight_decay_rate=0.1,
         reactivation_initial_m=1.5,
         reactivation_initial_b=1.0,
+
+        # NEW FEATURE: local learning
+        local_learning="none", 
+        local_loss_weight=0.0,
     ):
         super(ExcitationInhibitionNetwork, self).__init__()
-        self.weight_decay_rate = weight_decay_rate  # <--- Store it
+        self.weight_decay_rate = weight_decay_rate
 
         self.n_layers = len(excitatory_layer_sizes)
         self.init_gain = init_gain
         self.init_inhib_offset = init_inhib_offset
         self.gradient_strategy = gradient_strategy
         self.gradient_scale_factor = gradient_scale_factor
-        
+
+        # local learning approach
+        self.local_learning = local_learning
+        self.local_loss_weight = local_loss_weight
+
         logger.debug(f'Building ExcitationInhibitionNetwork with {self.n_layers} layer(s).')
 
         excitatory_layer_sizes = deepcopy(excitatory_layer_sizes)
@@ -239,8 +138,7 @@ class ExcitationInhibitionNetwork(nn.Module):
         excitatory_layer_sizes.insert(0, input_dim)
         inhibitory_layer_sizes.insert(0, None)
 
-        ii_synapses_per_branch_per_layer = deepcopy(
-            ii_synapses_per_branch_per_layer)
+        ii_synapses_per_branch_per_layer = deepcopy(ii_synapses_per_branch_per_layer)
         ii_synapses_per_branch_per_layer.insert(0, None)
 
         layers = []
@@ -270,9 +168,6 @@ class ExcitationInhibitionNetwork(nn.Module):
         
         self.layers = nn.ModuleList(layers)
     
-    # def decay_weights(self, weight_decay = 0.1):
-    #     for layer in self.layers:
-    #         layer.decay_weights(weight_decay)
     def decay_weights(self):
         """
         Apply custom weight decay to each ExcitationInhibitionLayer
@@ -284,62 +179,45 @@ class ExcitationInhibitionNetwork(nn.Module):
     def forward(self, x):
         excitatory = x
         inhibitory = None
-        for layer in self.layers:
+        for i, layer in enumerate(self.layers):
+            # if gradient_strategy == "distal_upweight", 
+            # we can do a custom scale factor that depends on layer index
+            if self.gradient_strategy == "distal_upweight":
+                # For example: deeper layers get bigger scale
+                # This is only conceptual: layer 0 => scale=2, layer 1 => scale=1.5, ...
+                # You can store a map or formula:
+                scale = 2.0/(i+1)
+                layer.gradient_scale_factor = scale
+
             excitatory, inhibitory = layer(excitatory, inhibitory)
         return excitatory
 
+    # NEW FEATURE: local learning example
+    def compute_local_loss(self, x, y=None):
+        """
+        Demonstration of local objectives at each layer.
+        We sum them up with self.local_loss_weight.
 
-class FeedforwardNN(nn.Module):
-    """
-    A configurable feedforward neural network as a baseline for comparison
-    on the flattened MNIST dataset.
-    """
-    def __init__(
-        self,
-        input_dim: int = 784,
-        hidden_layer_sizes: List[int] = [128, 64],
-        activation: str = "relu",
-        dropout: float = 0.2,
-        output_dim: int = 10,
-    ):
-        super(FeedforwardNN, self).__init__()
+        E.g. "backprop_alignment": for each layer, we do partial alignment with 
+        final target or random projection. (This is a conceptual placeholder.)
+        """
+        if self.local_learning == "none":
+            return 0.0
 
-        activation_mapping = {
-            "relu": nn.ReLU,
-            "sigmoid": nn.Sigmoid,
-            "tanh": nn.Tanh,
-            "leaky_relu": nn.LeakyReLU
-        }
-        if activation not in activation_mapping:
-            raise ValueError(f"Unsupported activation function: {activation}. "
-                             f"Supported: {list(activation_mapping.keys())}")
+        local_losses = []
+        # For demonstration: we re-forward pass
+        excitatory = x
+        inhibitory = None
+        for layer_idx, layer in enumerate(self.layers):
+            excitatory, inhibitory = layer(excitatory, inhibitory)
+            # Possibly define a "local" label or partial target
+            if self.local_learning == "backprop_alignment":
+                # We can do a silly example: MSE vs. a random vector 
+                # or alignment with final label onehot
+                # Conceptual only:
+                # shape: excitatory => [batch_size, n_excitatory_cells]
+                local_obj = excitatory.mean(dim=1).sum()
+                local_losses.append(local_obj)
 
-        layers = []
-        current_dim = input_dim
-        for layer_size in hidden_layer_sizes:
-            layers.append(nn.Linear(current_dim, layer_size))
-            layers.append(activation_mapping[activation]())
-            if dropout > 0:
-                layers.append(nn.Dropout(dropout))
-            current_dim = layer_size
-        layers.append(nn.Linear(current_dim, output_dim))
-
-        self.model = nn.Sequential(*layers)
-
-    def forward(self, x):
-        return self.model(x)
-
-
-class MLPBaseline(nn.Module):
-    """
-    A simple feedforward MLP with one hidden layer, for baseline comparison.
-    """
-    def __init__(self, input_dim, hidden_dim, output_dim):
-        super(MLPBaseline, self).__init__()
-        self.fc1 = nn.Linear(input_dim, hidden_dim)
-        self.fc2 = nn.Linear(hidden_dim, output_dim)
-
-    def forward(self, x):
-        import torch.nn.functional as F
-        x = F.relu(self.fc1(x))
-        return self.fc2(x)  # raw logits
+        total_local = torch.stack(local_losses).mean()
+        return self.local_loss_weight * total_local
