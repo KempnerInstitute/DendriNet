@@ -29,9 +29,9 @@ train_config:
         inhibitory_branch_factors: []
         reactivate: True
         somatic_synapses: True
-        ee_synapses_per_branch_per_layer: [24]
+        ee_synapses_per_branch_per_layer: [24,24]
         ei_synapses_per_branch_per_layer: [200]
-        ie_synapses_per_branch_per_layer: [1]
+        ie_synapses_per_branch_per_layer: [1,1]
         ii_synapses_per_branch_per_layer: []
         topk_init_method: "xavier_normal"
         use_shunting: True

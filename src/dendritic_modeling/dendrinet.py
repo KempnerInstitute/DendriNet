@@ -428,10 +428,11 @@ class DendriticBranchLayer(nn.Module):
         init_inhib_offset=0.0,
         gradient_strategy='none',
         gradient_scale_factor=1.0,
+        layer_idx=0,
     ):
         
         super(DendriticBranchLayer, self).__init__()
-        
+        self.layer_idx = layer_idx          
         self.init_inhib_offset = init_inhib_offset
         self.gradient_strategy = gradient_strategy
         self.gradient_scale_factor = gradient_scale_factor
@@ -569,8 +570,24 @@ class DendriticBranchLayer(nn.Module):
 
     def _get_scale(self):
         if self.gradient_strategy == 'uniform_scale':
+            # same factor for all layers
             return self.gradient_scale_factor
-        return 1.0
+
+        elif self.gradient_strategy == 'distal_upweight':
+            # Use your set_branches_to_output_grad_scale() logic
+            # i.e. read self.branches_to_output.grad_scale
+            if self.input_branch_factor and hasattr(self.branches_to_output, 'grad_scale'):
+                # for example, average the vector
+                return self.branches_to_output.grad_scale.mean().item() * self.gradient_scale_factor
+            else:
+                return self.gradient_scale_factor
+
+        elif self.gradient_strategy == 'distal_upweight_by_idx':
+            # A simpler layer-based formula: scale = (1 + layer_idx)* factor
+            return (1 + self.layer_idx) * self.gradient_scale_factor
+
+        else:
+            return 1.0
     
 
 class DendriNet(nn.Module):
@@ -696,6 +713,7 @@ class DendriNet(nn.Module):
                 input_branch_factor = branch_factors[i], 
                 topk_init_method = topk_init_method,
                 use_shunting = use_shunting,
+                layer_idx = i,
             ))
         if somatic_synapses:
             branch_layers.append(DendriticBranchLayer(
