@@ -10,66 +10,79 @@ slurm_config:
   ntasks_per_node: 1
   gpus_per_node: 1
   cpus_per_task: 10
-  mem: 1200GB
+  mem: 120GB
   time: "0:30:00"
   partition: "kempner_h100"
   run_name: "dendritic_sweep_job"
 
-train_config:
-  model:
-    task: classification
-    probabilistic: True
-    network:
-      type: "EINet"
-      parameters:
-        input_dim: 784
-        excitatory_layer_sizes: [10]
-        inhibitory_layer_sizes: [20]
-        excitatory_branch_factors: [1,2]
-        inhibitory_branch_factors: []
-        reactivate: True
-        somatic_synapses: True
-        ee_synapses_per_branch_per_layer: [24,24]
-        ei_synapses_per_branch_per_layer: [200]
-        ie_synapses_per_branch_per_layer: [1,1]
-        ii_synapses_per_branch_per_layer: []
-        topk_init_method: "xavier_normal"
-        use_shunting: True
-        init_gain: 1.0
-        init_inhib_offset: 0.0
-        reactivation_initial_m: 1.2
-        reactivation_initial_b: 1.0
-        gradient_strategy: "distal_upweight"
-        gradient_scale_factor: 1.0
-        weight_decay_rate: 0.1
-        local_learning: "backprop_alignment"
-        local_loss_weight: 0.5
+model:
+  task: classification
+  probabilistic: True
+  network:
+    type: "EINet"
+    parameters:
+      input_dim: 784
+      excitatory_layer_sizes: [10]
+      inhibitory_layer_sizes: [20]
+      excitatory_branch_factors: [2, 2]
+      inhibitory_branch_factors: []
+      reactivate: True
+      somatic_synapses: True
+      ee_synapses_per_branch_per_layer: [24, 24]
+      ei_synapses_per_branch_per_layer: [200]
+      ie_synapses_per_branch_per_layer: [1, 1]
+      ii_synapses_per_branch_per_layer: []
+      topk_init_method: "xavier_normal"
+      use_shunting: True
 
-  train:
-    run_name: "dendritic_modeling_sweep"
-    seed: 0
-    epochs: 100
-    batch_size: 500
-    grad_clip_value: 0.5
+      init_gain: 1.0
+      init_inhib_offset: 3
+      
+      reactivation_initial_m: 1.2
+      reactivation_initial_b: 1.0
+      
+      gradient_strategy: "none"
+      gradient_scale_factor: 1.0
+      
+      weight_decay_rate: 0.1
+      
+      local_learning: "none"
+      local_loss_weight: 0.5
 
-  wandb:
-    entity: "houman_safaai-harvard-university"
-    project: "dendritic_modeling_sweep"
-    group: debug
-    tags: [mnist_1]
+task:
+  dataset: "mnist"
+  parameters: {}
 
-  analysis:
-    enable_ablation: False
-    enable_mutual_info: False
+train:
+  run_name: "dendritic_modeling_sweep"
+  seed: 0
+  epochs: 100
+  batch_size: 500
+  grad_clip_value: 0.5
+  weight_decay: 0.0
+  epochs_per_layer: 50
+
+wandb:
+  entity: "houman_safaai-harvard-university"
+  project: "dendritic_modeling_sweep"
+  group: debug
+  tags: [mnist_1]
+
+settings:
+  visualizations: False
+
+analysis:
+  enable_ablation: False
+  enable_mutual_info: False
 
 sweep_config:
-  model.network.parameters.init_gain: [0.5, 1.0, 2.0]
-  model.network.parameters.init_inhib_offset: [0.0, -0.5, 0.5]
-  model.network.parameters.reactivation_initial_m: [1.0, 1.2, 2.0]
-  model.network.parameters.reactivation_initial_b: [0.8, 1.0]
-  model.network.parameters.gradient_strategy: ["none", "distal_upweight", "freeze_layers"]
+  #model.network.parameters.init_gain: [0.5, 1.0, 2.0]
+  #model.network.parameters.init_inhib_offset: [0.0, -0.5, 0.5]
+  #model.network.parameters.reactivation_initial_m: [1.0, 1.2, 2.0]
+  #model.network.parameters.reactivation_initial_b: [0.8, 1.0]
+  model.network.parameters.gradient_strategy: ["none", "distal_upweight", "distal_upweight_by_layer", "freeze_layers"]
   model.network.parameters.gradient_scale_factor: [1.0, 2.0]
-  model.network.parameters.weight_decay_rate: [0.0, 0.1]
+  #model.network.parameters.weight_decay_rate: [0.0, 0.1]
   model.network.parameters.local_learning: ["none", "backprop_alignment"]
   model.network.parameters.local_loss_weight: [0.0, 0.5]
 
