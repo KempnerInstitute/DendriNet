@@ -5,6 +5,7 @@ This module contains the ExcitationInhibitionLayer and
 ExcitationInhibitionNetwork classes.
 """
 
+
 from copy import deepcopy
 from torch import nn
 from typing import List
@@ -126,8 +127,19 @@ class ExcitationInhibitionNetwork(nn.Module):
         excitatory_layer_sizes.insert(0, input_dim)
         inhibitory_layer_sizes.insert(0, None)
 
-        ii_synapses_per_branch_per_layer = deepcopy(ii_synapses_per_branch_per_layer)
-        ii_synapses_per_branch_per_layer.insert(0, None)
+        # fix any short lists by padding
+        ee_syn = list(ee_synapses_per_branch_per_layer)
+        ei_syn = list(ei_synapses_per_branch_per_layer)
+        ie_syn = list(ie_synapses_per_branch_per_layer)
+        ii_syn = list(ii_synapses_per_branch_per_layer)
+        while len(ee_syn) < self.n_layers:
+            ee_syn.append(ee_syn[-1])
+        while len(ei_syn) < self.n_layers:
+            ei_syn.append(ei_syn[-1])
+        while len(ie_syn) < self.n_layers:
+            ie_syn.append(ie_syn[-1])
+        while len(ii_syn) < self.n_layers:
+            ii_syn.append(None)
 
         layers = []
         for i in range(self.n_layers):
@@ -137,11 +149,11 @@ class ExcitationInhibitionNetwork(nn.Module):
                 excitatory_branch_factors = excitatory_branch_factors, 
                 inhibitory_branch_factors = inhibitory_branch_factors,
                 excitatory_input_dim = excitatory_layer_sizes[i], 
-                ee_synapses_per_branch = ee_synapses_per_branch_per_layer[i], 
-                ei_synapses_per_branch = ei_synapses_per_branch_per_layer[i],
+                ee_synapses_per_branch = ee_syn[i], 
+                ei_synapses_per_branch = ei_syn[i],
                 inhibitory_input_dim = inhibitory_layer_sizes[i],
-                ie_synapses_per_branch = ie_synapses_per_branch_per_layer[i], 
-                ii_synapses_per_branch = ii_synapses_per_branch_per_layer[i],
+                ie_synapses_per_branch = ie_syn[i], 
+                ii_synapses_per_branch = ii_syn[i],
                 reactivate = reactivate, 
                 somatic_synapses = somatic_synapses,
                 topk_init_method = topk_init_method,
@@ -198,7 +210,6 @@ class ExcitationInhibitionNetwork(nn.Module):
             return self.local_loss_weight * torch.stack(local_losses).mean()
         else:
             return 0.0
-        
 class FeedforwardNN(nn.Module):
     """
     A configurable feedforward neural network as a baseline for comparison

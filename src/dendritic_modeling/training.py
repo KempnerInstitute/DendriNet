@@ -26,7 +26,6 @@ from torch.nn.utils import clip_grad_value_
 from dendritic_modeling import logger
 from dendritic_modeling.plot_utils import plot_NLL_loss_curves
 
-
 class CustomWeightDecayOptimizer(object):
     def __init__(self, model, optimizer, weight_decay = 0.1):
         self.model = model
@@ -76,8 +75,8 @@ class TrainerMLE(object):
         device = 'cuda' if torch.cuda.is_available() else 'cpu'
         model = model.to(device)
         
-        train_dataloader = DataLoader(train_data, batch_size = batch_size, shuffle = shuffle)
-        valid_dataloader = DataLoader(valid_data, batch_size = batch_size, shuffle = shuffle)
+        train_dataloader = DataLoader(train_data, batch_size=batch_size, shuffle=shuffle)
+        valid_dataloader = DataLoader(valid_data, batch_size=batch_size, shuffle=shuffle)
         
         train_losses = []
         valid_losses = []
@@ -87,9 +86,9 @@ class TrainerMLE(object):
         best_state_dict = deepcopy(model.state_dict())
         best_epoch = 1
 
-        for epoch in range(1,epochs+1):        
-            train_loss = 0
-            valid_loss = 0
+        for epoch in range(1,epochs+1):
+            train_loss = 0.0
+            valid_loss = 0.0
             
             model.train()
             for input_batch, label_batch in train_dataloader:
@@ -122,7 +121,7 @@ class TrainerMLE(object):
                         label_batch = label_batch.to(device)
                         nll = model.compute_loss(input_batch, label_batch)
                         valid_loss += nll.item()
-                        pred  = model.predict(input_batch)
+                        pred = model.predict(input_batch)
                         all_preds.append(pred.cpu())
                         all_labels.append(label_batch.cpu())
                     except Exception as e:
@@ -155,7 +154,7 @@ class TrainerMLE(object):
                 if save_boolean:
                     torch.save(best_state_dict, os.path.join(save_path,'state_dict.pt'))
                     with open(os.path.join(save_path,'losses.json'), 'w') as f:
-                        json.dump({'best epoch' : best_epoch, 'train losses' : train_losses, 'valid losses': valid_losses}, f)
+                        json.dump({'best epoch': best_epoch, 'train losses': train_losses, 'valid losses': valid_losses}, f)
 
             if not self.suppress:
                 if epoch % self.print_every == 0:
@@ -171,9 +170,9 @@ class TrainerMLE(object):
                            "epoch": epoch})
 
         results = {
-            'best epoch' : best_epoch, 
-            'train losses' : train_losses, 
-            'valid losses' : valid_losses,
+            'best epoch': best_epoch,
+            'train losses': train_losses,
+            'valid losses': valid_losses
         }
         if load_best_state_dict:
             model.load_state_dict(best_state_dict)
@@ -186,7 +185,6 @@ class TrainerMLE(object):
             else:
                 results['loss curves'] = plot_NLL_loss_curves(train_losses, valid_losses, epochs)
         return results
-
 
     def train_freeze_layers(
             self,
@@ -202,20 +200,16 @@ class TrainerMLE(object):
         ):
         device = 'cuda' if torch.cuda.is_available() else 'cpu'
         model.to(device)
-
         if not hasattr(model, 'net') or not hasattr(model.net, 'layers'):
             logger.info('Model has no "net.layers" to freeze. Doing normal train.')
             return self.train(model, train_data, valid_data, grad_clip_value=grad_clip_value, epochs=epochs_per_layer, batch_size=batch_size, shuffle=shuffle, plot_losses=plot_losses, save_path=save_path)
 
         n_layers = len(model.net.layers)
         logger.info(f"Freezing/unfreezing approach: found {n_layers} layers in model.net.layers.")
-
         train_loader = DataLoader(train_data, batch_size=batch_size, shuffle=shuffle)
         valid_loader = DataLoader(valid_data, batch_size=batch_size, shuffle=False)
-
         train_losses = []
         valid_losses = []
-
         for layer_idx in range(n_layers):
             for name, param in model.named_parameters():
                 param.requires_grad = False
@@ -223,7 +217,6 @@ class TrainerMLE(object):
                 if f"layers.{layer_idx}." in name:
                     param.requires_grad = True
             logger.info(f"Training only layer {layer_idx}, freezing others.")
-
             for epoch in range(1, epochs_per_layer + 1):
                 model.train()
                 epoch_train_loss = 0
@@ -238,7 +231,6 @@ class TrainerMLE(object):
                     epoch_train_loss += nll.item()
                 epoch_train_loss /= len(train_loader)
                 train_losses.append(epoch_train_loss)
-
                 model.eval()
                 epoch_valid_loss = 0
                 with torch.no_grad():
@@ -250,7 +242,6 @@ class TrainerMLE(object):
                 epoch_valid_loss /= len(valid_loader)
                 valid_losses.append(epoch_valid_loss)
                 logger.info(f"Layer {layer_idx} | Epoch {epoch}/{epochs_per_layer} | Train Loss={epoch_train_loss:.4f}, Valid Loss={epoch_valid_loss:.4f}")
-
         logger.info("Unfreezing all layers for a final joint tune.")
         for name, param in model.named_parameters():
             param.requires_grad = True
@@ -268,7 +259,6 @@ class TrainerMLE(object):
                 self.optimizer.step()
                 epoch_train_loss += nll.item()
             epoch_train_loss /= len(train_loader)
-
             model.eval()
             epoch_valid_loss = 0
             with torch.no_grad():
@@ -278,11 +268,6 @@ class TrainerMLE(object):
                     epoch_valid_loss += val_nll.item()
             epoch_valid_loss /= len(valid_loader)
             logger.info(f"[Final Joint] Epoch {epoch}/{final_epochs} | Train Loss={epoch_train_loss:.4f}, Valid Loss={epoch_valid_loss:.4f}")
-
         if plot_losses and save_path and os.path.exists(save_path):
             plot_NLL_loss_curves(train_losses, valid_losses, len(train_losses), save_path, title="Layerwise-Freeze Training Loss Curves")
-
-        return {
-            'train losses': train_losses,
-            'valid losses': valid_losses
-        }
+        return {'train losses': train_losses, 'valid losses': valid_losses}

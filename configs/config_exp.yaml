@@ -75,3 +75,25 @@ analysis:
 # → we can set reactivation_initial_m and reactivation_initial_b so that the tanh layer does not saturate at the beginning.
 # 	8.	Weight Decay
 # → Now read from YAML (train.weight_decay). Tied to the built‐in PyTorch optimizer or CustomWeightDecayOptimizer.
+
+
+# 1.	model.network.parameters.gradient_strategy
+# "none", "uniform_scale", "distal_upweight", or "freeze_layers"
+# 	2.	model.network.parameters.gradient_scale_factor
+# A float, e.g. 1.0
+# 	3.	model.network.parameters.weight_decay_rate
+# A float for custom weight decay in the network, e.g. 0.05
+# 	4.	model.network.parameters.local_learning
+# "none" or "backprop_alignment"
+# 	5.	model.network.parameters.local_loss_weight
+# A float, e.g. 0.5
+# 	6.	model.network.parameters.init_gain
+# A float for weight initialization scale, e.g. 1.0
+# 	7.	model.network.parameters.init_inhib_offset
+# A float for inhibitory offset in log space, e.g. -0.5
+# 	8.	analysis.enable_ablation
+# Boolean; if true, ablate after training
+# 	9.	analysis.enable_mutual_info
+# Boolean; if true, compute layerwise MI
+# 	10.	train.*
+# Standard fields (epochs, batch_size, lr, etc.)
