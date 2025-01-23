@@ -5,9 +5,6 @@ from dataclasses import dataclass, field, asdict
 
 from omegaconf import OmegaConf as om
 
-#
-# 1) Base configuration class
-#
 class BaseConfig:
     @classmethod
     def load(cls, path: str):
@@ -20,9 +17,7 @@ class BaseConfig:
     def asdict(self):
         return asdict(self)
 
-#
-# 2) EINetParameters & FeedForwardParameters
-#
+
 @dataclass
 class EINetParameters(BaseConfig):
     """ Parameters for EINet network """
@@ -39,14 +34,20 @@ class EINetParameters(BaseConfig):
     somatic_synapses: bool = True
     topk_init_method: str = "xavier_normal"
     use_shunting: bool = True
-    # new:
+
+    # existing new fields
     init_gain: float = 1.0
     init_inhib_offset: float = 0.0
     reactivation_initial_m: float = 1.5
     reactivation_initial_b: float = 1.0
-    gradient_strategy: str = "none"  # could be "none", "uniform_scale", ...
+    gradient_strategy: str = "none"  
     gradient_scale_factor: float = 1.0
     weight_decay_rate: float = 0.0
+
+    # NEW: local learning approach 
+    local_learning: str = "none"   # e.g. "none", "backprop_alignment", "FA", etc.
+    local_loss_weight: float = 0.0 # weight for local objective
+
 @dataclass
 class FeedForwardParameters(BaseConfig):
     """ Parameters for feedforward network """
@@ -56,17 +57,13 @@ class FeedForwardParameters(BaseConfig):
     dropout: float = 0.2
     output_dim: int = 10
 
-#
-# 3) Task configuration
-#
+
 @dataclass
 class BaseTaskParameters(BaseConfig):
-    """ Base class for all task parameters """
     pass
 
 @dataclass
 class LineParameters(BaseTaskParameters):
-    """ Parameters for line task """
     train_size: int = 1000
     valid_size: int = 100
     test_size: int = 100
@@ -75,18 +72,16 @@ class LineParameters(BaseTaskParameters):
 
 @dataclass
 class TaskConfig(BaseConfig):
-    """ Configuration for task hyperparameters """
     dataset: str = "line"
     parameters: Union[LineParameters] = field(default_factory=LineParameters)
 
-#
-# 4) Model config 
-#
+
 @dataclass
 class NetworkConfig(BaseConfig):
     """ Configuration for network hyperparameters """
     type: str = "EINet"
     parameters: Union[EINetParameters, FeedForwardParameters] = field(default_factory=EINetParameters)
+
 
 @dataclass
 class ModelConfig(BaseConfig):
@@ -95,12 +90,9 @@ class ModelConfig(BaseConfig):
     probabilistic: bool = False
     network: NetworkConfig = field(default_factory=NetworkConfig)
 
-#
-# 5) Train & Wandb & Settings
-#
+
 @dataclass
 class TrainConfig(BaseConfig):
-    """Configuration for training hyperparameters."""
     run_name: str = "dm_test"
     seed: int = 42
     train_valid_split: float = 0.8
@@ -112,7 +104,6 @@ class TrainConfig(BaseConfig):
 
 @dataclass
 class WandbConfig(BaseConfig):
-    """Configuration for Weights & Biases (W&B) integration."""
     entity: str = "your_wandb_entity"
     project: str = "dendritic_modeling_pr"
     group: str = "debug"
@@ -120,20 +111,24 @@ class WandbConfig(BaseConfig):
 
 @dataclass
 class SettingsConfig(BaseConfig):
-    """Configuration for all other settings."""
     visualizations: bool = False
 
-#
-# 6) The main Config
-#
+@dataclass
+class AnalysisConfig(BaseConfig):
+    """Optional new analysis config block."""
+    enable_ablation: bool = False
+    enable_mutual_info: bool = False
+    # can add more toggles
+
 @dataclass
 class Config:
-    """Primary configuration that combines everything."""
     model: ModelConfig = field(default_factory=ModelConfig)
     train: TrainConfig = field(default_factory=TrainConfig)
     wandb: WandbConfig = field(default_factory=WandbConfig)
     settings: SettingsConfig = field(default_factory=SettingsConfig)
     task: TaskConfig = field(default_factory=TaskConfig)
+    # optional new block:
+    analysis: AnalysisConfig = field(default_factory=AnalysisConfig)
 
     def asdict(self, exclude=None):
         exclude = exclude or []
@@ -143,18 +138,17 @@ class Config:
             "wandb": self.wandb.asdict() if hasattr(self.wandb, 'asdict') else self.wandb,
             "settings": self.settings.asdict() if hasattr(self.settings, 'asdict') else self.settings,
             "task": self.task.asdict() if hasattr(self.task, 'asdict') else self.task,
+            "analysis": self.analysis.asdict() if hasattr(self.analysis, 'asdict') else self.analysis,
         }
         for key in exclude:
             config_dict.pop(key, None)
         return config_dict
 
-#
-# 7) load_config function
-#
+
 def load_config(path: str = None) -> Config:
     """
     Load from YAML at `path`. We assume the YAML has top-level keys:
-      model, train, wandb, settings, task
+      model, train, wandb, settings, task, [analysis]
     If missing, we default them.
     """
     if path:
@@ -165,6 +159,7 @@ def load_config(path: str = None) -> Config:
             wandb=WandbConfig(**raw_conf.get("wandb", {})),
             settings=SettingsConfig(**raw_conf.get("settings", {})),
             task=TaskConfig(**raw_conf.get("task", {})),
+            analysis=AnalysisConfig(**raw_conf.get("analysis", {})),
         )
     else:
         return Config()
