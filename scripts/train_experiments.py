@@ -5,8 +5,8 @@ import argparse
 from pathlib import Path
 
 import wandb
-import torch
 import torchinfo
+import torch
 from omegaconf import OmegaConf
 from torch.utils.data import DataLoader
 
@@ -24,12 +24,10 @@ from dendritic_modeling.config import load_config
 from dendritic_modeling.synthetic_datasets import get_unified_datasets
 from dendritic_modeling.utils import (analyze_branch_ablation,
                                       analyze_branch_information,
-                                      record_branch_activations, 
-                                      measure_performance)
+                                      record_branch_activations)
 from dendritic_modeling.networks import (ExcitationInhibitionNetwork, 
                                          FeedforwardNN,
                                          MLPBaseline)
-
 
 def initialize_model(model_hp):
     task = model_hp['task']
@@ -39,16 +37,21 @@ def initialize_model(model_hp):
     
     if task == 'classification':
         if network_type == 'feedforward':
-            logger.info(f"Running simple feedforward neural network with {'probabilistic' if probabilistic else 'simple'} classifier")
+            logger.info(
+                f"Running simple feedforward neural network with "
+                f"{'probabilistic' if probabilistic else 'simple'} classifier"
+            )
             net = FeedforwardNN(**network_parameters)
             output_dim = network_parameters.get('output_dim', 10)
             if probabilistic:
                 return ProbabilisticClassifier(net, output_dim=output_dim)
             else:
                 return Classifier(net)
-
         elif network_type == 'EINet':
-            logger.info(f"Running EINet with {'probabilistic' if probabilistic else 'simple'} classifier")
+            logger.info(
+                f"Running EINet with "
+                f"{'probabilistic' if probabilistic else 'simple'} classifier"
+            )
             net = ExcitationInhibitionNetwork(**network_parameters)
             output_dim = network_parameters['excitatory_layer_sizes'][-1]
             if probabilistic:
@@ -57,7 +60,6 @@ def initialize_model(model_hp):
                 return Classifier(net)
         else:
             raise ValueError(f"Invalid network type: {network_type}")
-
     elif task == 'regression':
         if probabilistic:
             raise NotImplementedError("Probabilistic regression not implemented yet.")
@@ -66,29 +68,16 @@ def initialize_model(model_hp):
     else:
         raise ValueError(f"Invalid task: {task}")
 
-
 def main(config_path: str, output_dir: str, experiment_name: str):
     save_path = output_dir
     os.makedirs(save_path, exist_ok=True)
-
     logger_manager.set_log_file(os.path.join(output_dir, "dendritic_modeling.log"))
 
     config = load_config(config_path)
     model_hp = config.model.asdict()
     train_hp = config.train.asdict()
     task_hp = config.task.asdict()
-    analysis_hp = config.analysis.asdict()  # optional new analysis toggles
-
-    logger.debug("="*50)
-    logger.debug(" "*10 + "Config and run hyperparameters" + " "*10)
-    logger.debug("="*50)
-
-    logger.debug(f" Experiment Name: {experiment_name}")
-    logger.debug(" Model Hyperparameters:\n" + str(model_hp))
-    logger.debug(" Training Hyperparameters:\n" + str(train_hp))
-    logger.debug(f" Output Directory: {save_path}")
-
-    logger.debug("="*50)
+    analysis_hp = config.analysis.asdict()
 
     if config.wandb is not None:
         try:
@@ -104,24 +93,23 @@ def main(config_path: str, output_dir: str, experiment_name: str):
                 tags=config.wandb.tags,
                 config=config.asdict(exclude=["wandb"]),
             )
-            logger.debug("W&B initialized successfully.")
         except Exception as e:
             logger.error(f"Error initializing W&B: {e}")
             logger.error("Continuing without W&B ... ")
             config.wandb = None
 
     logger.info('Loading mnist ...')
-    dataset_name = task_hp['dataset']
-    train_dataset, valid_dataset, test_dataset = get_unified_datasets(task_cfg=task_hp, train_cfg=train_hp)
-    logger.info(f"Loaded dataset: {dataset_name}")
+    train_dataset, valid_dataset, test_dataset = get_unified_datasets(
+        task_cfg=task_hp,
+        train_cfg=train_hp
+    )
+    logger.info(f"Loaded dataset: {task_hp['dataset']}")
 
-    # shape test
     train_data_loader = DataLoader(train_dataset, batch_size=train_hp["batch_size"], shuffle=False)
     sample_x, sample_y = next(iter(train_data_loader))
-    input_dim = sample_x.shape[1]  # e.g. 784
+    input_dim = sample_x.shape[1]
     num_classes = len(torch.unique(sample_y))
 
-    # build model
     clf = initialize_model(model_hp)
 
     try:
@@ -142,11 +130,10 @@ def main(config_path: str, output_dir: str, experiment_name: str):
     except:
         pass
 
-    # Instead of passing weight_decay to optimizer, we rely on network's internal decay:
     optimizer = torch.optim.Adam(
         clf.parameters(), 
         lr=train_hp.get("lr", 1e-3),
-        weight_decay=train_hp.get("weight_decay", 0.0)  # still might be zero if we do purely custom
+        weight_decay=train_hp.get("weight_decay", 0.0)
     )
     trainer = TrainerMLE(
         optimizer=optimizer,
@@ -154,14 +141,8 @@ def main(config_path: str, output_dir: str, experiment_name: str):
         print_every=10,
     )
 
-    # check gradient strategy
     einet_params = model_hp["network"].get("parameters", {})
     grad_strat = einet_params.get("gradient_strategy", "none")
-    logger.info(f"Gradient strategy in config: {grad_strat}")
-
-    start_time = time.time()
-
-    # freeze-layers or normal
     if grad_strat == "freeze_layers":
         trainer.train_freeze_layers(
             model=clf,
@@ -187,10 +168,6 @@ def main(config_path: str, output_dir: str, experiment_name: str):
             save_path=output_dir
         )
 
-    training_time = time.time() - start_time
-    logger.info(f"Training completed in {training_time/60:.2f} min.")
-
-    # Evaluate final performance
     logger.info("Evaluating performance...")
     eval_train_loader = DataLoader(train_dataset, batch_size=train_hp.get("batch_size", 64), shuffle=False)
     eval_valid_loader = DataLoader(valid_dataset, batch_size=train_hp.get("batch_size", 64), shuffle=False)
@@ -205,9 +182,7 @@ def main(config_path: str, output_dir: str, experiment_name: str):
     performance = {
         "train accuracy": train_acc,
         "valid accuracy": valid_acc,
-        "test accuracy":  test_acc,
-        "training time": f"{training_time:.3f} sec",
-        "inference time": f"{inference_time:.3f} sec"
+        "test accuracy":  test_acc
     }
     logger.info(f"Performance: {performance}")
 
@@ -215,38 +190,31 @@ def main(config_path: str, output_dir: str, experiment_name: str):
         wandb.log(performance)
         wandb.finish()
 
-    logger.info("----------- Training & Basic Eval Done! -----------")
-
-    # Additional analysis toggles
-    if hasattr(clf, 'net') and isinstance(clf.net, ExcitationInhibitionNetwork):
+    if hasattr(clf, 'net') and hasattr(clf.net, 'forward_with_branch_outputs'):
         if analysis_hp.get('enable_mutual_info', False):
-            branch_info = analyze_branch_information(clf, train_dataset, batch_size=train_hp.get("batch_size", 64))
+            branch_info = analyze_branch_information(clf.net, train_dataset, 
+                                                     batch_size=train_hp.get("batch_size", 64),
+                                                     device='cpu', n_bins=10)
             logger.info(f"Branch Info (MI per layer): {branch_info}")
 
         if analysis_hp.get('enable_ablation', False):
-            # Just an example: ablate layer 0, branch [0,1]
+            layer_idx = 0
+            branch_ids = [0,1]
             baseline_acc, ablation_res = analyze_branch_ablation(
                 clf.net, test_dataset, 
-                layer_idx=0, branch_ids=[0,1], 
+                layer_idx=layer_idx, branch_ids=branch_ids, 
                 mode='direct', device='cpu'
             )
             logger.info(f"Ablation baseline acc on test = {baseline_acc}")
             for b_id, (acc_after, delta) in ablation_res.items():
-                logger.info(f"Layer 0, branch {b_id}: acc={acc_after:.3f}, drop={delta:.3f}")
-
+                logger.info(f"Layer {layer_idx}, branch {b_id}: acc={acc_after:.3f}, drop={delta:.3f}")
     else:
-        logger.info("No advanced analysis performed (model is not EINet).")
-
+        logger.info("No dendritic analysis performed.")
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Run dendritic modeling training and evaluation.')
     parser.add_argument("config", help="Path to the configuration YAML file.")
     parser.add_argument("--output_dir", default="results", help="Optional output directory.")
     parser.add_argument("--experiment_name", default="example", help="Optional experiment name.")
-
     args = parser.parse_args()
-    main(
-        config_path=args.config, 
-        output_dir=args.output_dir,
-        experiment_name=args.experiment_name
-    )
+    main(config_path=args.config, output_dir=args.output_dir, experiment_name=args.experiment_name)

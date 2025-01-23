@@ -8,13 +8,11 @@ ExcitationInhibitionNetwork classes.
 from copy import deepcopy
 from torch import nn
 from typing import List
+import torch
 from dendritic_modeling.dendrinet import DendriNet
 from dendritic_modeling import logger
 
 class ExcitationInhibitionLayer(nn.Module):
-    """
-    ...
-    """
     def __init__(
         self, 
         n_excitatory_cells,
@@ -44,7 +42,6 @@ class ExcitationInhibitionLayer(nn.Module):
         self.gradient_strategy = gradient_strategy
         self.gradient_scale_factor = gradient_scale_factor
 
-        # inhibitory cells
         self.inhibitory_cells = DendriNet(
             n_soma = n_inhibitory_cells, 
             branch_factors = inhibitory_branch_factors,
@@ -60,7 +57,6 @@ class ExcitationInhibitionLayer(nn.Module):
             reactivation_initial_b=reactivation_initial_b,
         )
 
-        # excitatory cells
         self.excitatory_cells = DendriNet(
             n_soma = n_excitatory_cells, 
             branch_factors = excitatory_branch_factors,
@@ -87,9 +83,6 @@ class ExcitationInhibitionLayer(nn.Module):
 
 
 class ExcitationInhibitionNetwork(nn.Module):
-    """
-    ...
-    """
     def __init__(
         self, 
         input_dim, 
@@ -112,24 +105,19 @@ class ExcitationInhibitionNetwork(nn.Module):
         weight_decay_rate=0.1,
         reactivation_initial_m=1.5,
         reactivation_initial_b=1.0,
-
-        # NEW FEATURE: local learning
-        local_learning="none", 
+        local_learning="none",
         local_loss_weight=0.0,
     ):
         super(ExcitationInhibitionNetwork, self).__init__()
         self.weight_decay_rate = weight_decay_rate
-
         self.n_layers = len(excitatory_layer_sizes)
         self.init_gain = init_gain
         self.init_inhib_offset = init_inhib_offset
         self.gradient_strategy = gradient_strategy
         self.gradient_scale_factor = gradient_scale_factor
-
-        # local learning approach
         self.local_learning = local_learning
         self.local_loss_weight = local_loss_weight
-
+        
         logger.debug(f'Building ExcitationInhibitionNetwork with {self.n_layers} layer(s).')
 
         excitatory_layer_sizes = deepcopy(excitatory_layer_sizes)
@@ -167,12 +155,16 @@ class ExcitationInhibitionNetwork(nn.Module):
             ))
         
         self.layers = nn.ModuleList(layers)
-    
+
+        self.feedback_mats = nn.ParameterList()
+        for i in range(self.n_layers):
+            if self.local_learning != "none":
+                fb = nn.Parameter(torch.randn(excitatory_layer_sizes[i+1], 10)*0.01, requires_grad=False)
+                self.feedback_mats.append(fb)
+            else:
+                self.feedback_mats.append(None)
+
     def decay_weights(self):
-        """
-        Apply custom weight decay to each ExcitationInhibitionLayer
-        using self.weight_decay_rate.
-        """
         for layer in self.layers:
             layer.decay_weights(self.weight_decay_rate)
 
@@ -180,48 +172,33 @@ class ExcitationInhibitionNetwork(nn.Module):
         excitatory = x
         inhibitory = None
         for i, layer in enumerate(self.layers):
-            # if gradient_strategy == "distal_upweight", 
-            # we can do a custom scale factor that depends on layer index
-            if self.gradient_strategy == "distal_upweight":
-                # For example: deeper layers get bigger scale
-                # This is only conceptual: layer 0 => scale=2, layer 1 => scale=1.5, ...
-                # You can store a map or formula:
-                scale = 2.0/(i+1)
-                layer.gradient_scale_factor = scale
-
             excitatory, inhibitory = layer(excitatory, inhibitory)
         return excitatory
 
-    # NEW FEATURE: local learning example
     def compute_local_loss(self, x, y=None):
-        """
-        Demonstration of local objectives at each layer.
-        We sum them up with self.local_loss_weight.
-
-        E.g. "backprop_alignment": for each layer, we do partial alignment with 
-        final target or random projection. (This is a conceptual placeholder.)
-        """
         if self.local_learning == "none":
             return 0.0
-
+        device = next(self.parameters()).device
         local_losses = []
-        # For demonstration: we re-forward pass
-        excitatory = x
+        excitatory = x.to(device)
         inhibitory = None
-        for layer_idx, layer in enumerate(self.layers):
+        if y is not None:
+            y = y.to(device)
+            y_onehot = torch.zeros(y.size(0), 10, device=device).scatter_(1, y.unsqueeze(1), 1.0)
+        else:
+            y_onehot = None
+        for i, layer in enumerate(self.layers):
             excitatory, inhibitory = layer(excitatory, inhibitory)
-            # Possibly define a "local" label or partial target
-            if self.local_learning == "backprop_alignment":
-                # We can do a silly example: MSE vs. a random vector 
-                # or alignment with final label onehot
-                # Conceptual only:
-                # shape: excitatory => [batch_size, n_excitatory_cells]
-                local_obj = excitatory.mean(dim=1).sum()
+            if self.local_learning == "backprop_alignment" and y_onehot is not None:
+                fb = self.feedback_mats[i]
+                desired_acts = y_onehot @ fb.T
+                local_obj = 0.5*((excitatory - desired_acts)**2).mean()
                 local_losses.append(local_obj)
-
-        total_local = torch.stack(local_losses).mean()
-        return self.local_loss_weight * total_local
-    
+        if len(local_losses) > 0:
+            return self.local_loss_weight * torch.stack(local_losses).mean()
+        else:
+            return 0.0
+        
 class FeedforwardNN(nn.Module):
     """
     A configurable feedforward neural network as a baseline for comparison

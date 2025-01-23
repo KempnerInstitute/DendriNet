@@ -1,9 +1,9 @@
-# config.py
 from pathlib import Path
 from typing import List, Union
 from dataclasses import dataclass, field, asdict
 
 from omegaconf import OmegaConf as om
+
 
 class BaseConfig:
     @classmethod
@@ -17,10 +17,8 @@ class BaseConfig:
     def asdict(self):
         return asdict(self)
 
-
 @dataclass
 class EINetParameters(BaseConfig):
-    """ Parameters for EINet network """
     input_dim: int = 784
     excitatory_layer_sizes: list = field(default_factory=lambda: [10])
     inhibitory_layer_sizes: list = field(default_factory=lambda: [20])
@@ -34,29 +32,23 @@ class EINetParameters(BaseConfig):
     somatic_synapses: bool = True
     topk_init_method: str = "xavier_normal"
     use_shunting: bool = True
-
-    # existing new fields
     init_gain: float = 1.0
     init_inhib_offset: float = 0.0
     reactivation_initial_m: float = 1.5
     reactivation_initial_b: float = 1.0
-    gradient_strategy: str = "none"  
+    gradient_strategy: str = "none"
     gradient_scale_factor: float = 1.0
     weight_decay_rate: float = 0.0
-
-    # NEW: local learning approach 
-    local_learning: str = "none"   # e.g. "none", "backprop_alignment", "FA", etc.
-    local_loss_weight: float = 0.0 # weight for local objective
+    local_learning: str = "none"
+    local_loss_weight: float = 0.0
 
 @dataclass
 class FeedForwardParameters(BaseConfig):
-    """ Parameters for feedforward network """
     input_dim: int = 784
-    hidden_layer_sizes:  List[int] = field(default_factory=lambda: [128, 64])
+    hidden_layer_sizes: List[int] = field(default_factory=lambda: [128, 64])
     activation: str = "relu"
     dropout: float = 0.2
     output_dim: int = 10
-
 
 @dataclass
 class BaseTaskParameters(BaseConfig):
@@ -75,21 +67,16 @@ class TaskConfig(BaseConfig):
     dataset: str = "line"
     parameters: Union[LineParameters] = field(default_factory=LineParameters)
 
-
 @dataclass
 class NetworkConfig(BaseConfig):
-    """ Configuration for network hyperparameters """
     type: str = "EINet"
     parameters: Union[EINetParameters, FeedForwardParameters] = field(default_factory=EINetParameters)
 
-
 @dataclass
 class ModelConfig(BaseConfig):
-    """Configuration for model hyperparameters."""
     task: str = "classification"
     probabilistic: bool = False
     network: NetworkConfig = field(default_factory=NetworkConfig)
-
 
 @dataclass
 class TrainConfig(BaseConfig):
@@ -115,10 +102,8 @@ class SettingsConfig(BaseConfig):
 
 @dataclass
 class AnalysisConfig(BaseConfig):
-    """Optional new analysis config block."""
     enable_ablation: bool = False
     enable_mutual_info: bool = False
-    # can add more toggles
 
 @dataclass
 class Config:
@@ -127,7 +112,6 @@ class Config:
     wandb: WandbConfig = field(default_factory=WandbConfig)
     settings: SettingsConfig = field(default_factory=SettingsConfig)
     task: TaskConfig = field(default_factory=TaskConfig)
-    # optional new block:
     analysis: AnalysisConfig = field(default_factory=AnalysisConfig)
 
     def asdict(self, exclude=None):
@@ -144,13 +128,7 @@ class Config:
             config_dict.pop(key, None)
         return config_dict
 
-
 def load_config(path: str = None) -> Config:
-    """
-    Load from YAML at `path`. We assume the YAML has top-level keys:
-      model, train, wandb, settings, task, [analysis]
-    If missing, we default them.
-    """
     if path:
         raw_conf = om.load(path)
         return Config(
