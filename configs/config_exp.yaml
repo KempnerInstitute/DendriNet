@@ -7,7 +7,7 @@ model:
       input_dim: 784
       excitatory_layer_sizes: [10]
       inhibitory_layer_sizes: [20]
-      excitatory_branch_factors: [1, 2]
+      excitatory_branch_factors: [2, 2]
       inhibitory_branch_factors: []
       reactivate: true
       somatic_synapses: true
@@ -24,12 +24,12 @@ model:
       reactivation_initial_b: 1.0
 
       gradient_strategy: "distal_upweight" #"none", "distal_upweight", "distal_upweight_by_idx", "freeze_layer" , "uniform_scale"
-      gradient_scale_factor: 20
+      gradient_scale_factor: 2
 
       weight_decay_rate: 0.1
 
-      local_learning: "backprop_alignment" #"none", "backprop_alignment"
-      local_loss_weight: 0.5
+      local_learning: "none" #"none", "backprop_alignment"
+      local_loss_weight: 2 #0.5
 
 train:
   run_name: "mnist_einet"
@@ -40,7 +40,7 @@ train:
   batch_size: 500
   grad_clip_value: 5
   weight_decay: 0.0  # for the built-in Adam L2, typically set 0 if we use custom
-  #epochs_per_layer: 50 ### this is for when we use "freeze_layer for gradient_strategy"
+  epochs_per_layer: 50 ### this is for when we use "freeze_layer for gradient_strategy"
 
 task:
   dataset: "mnist"
