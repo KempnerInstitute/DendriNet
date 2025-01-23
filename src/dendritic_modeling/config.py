@@ -88,7 +88,8 @@ class TrainConfig(BaseConfig):
     batch_size: int = 32
     grad_clip_value: float = 0.5
     weight_decay: float = 0.0
-
+    epochs_per_layer: int = 5
+    
 @dataclass
 class WandbConfig(BaseConfig):
     entity: str = "your_wandb_entity"

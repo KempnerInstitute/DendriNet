@@ -1,0 +1,49 @@
+model:
+  task: classification
+  probabilistic: True
+  network:
+    type: EINet
+    parameters:
+      input_dim: 784
+      excitatory_layer_sizes: [10]
+      inhibitory_layer_sizes: [20]
+      excitatory_branch_factors: [2, 2]
+      inhibitory_branch_factors: []
+      reactivate: True
+      somatic_synapses: True
+      ee_synapses_per_branch_per_layer: [24, 24]
+      ei_synapses_per_branch_per_layer: [200]
+      ie_synapses_per_branch_per_layer: [1, 1]
+      ii_synapses_per_branch_per_layer: []
+      topk_init_method: xavier_normal
+      use_shunting: True
+      init_gain: 1.0
+      init_inhib_offset: 3
+      reactivation_initial_m: 1.2
+      reactivation_initial_b: 1.0
+      gradient_strategy: distal_upweight_by_layer
+      gradient_scale_factor: 2.0
+      weight_decay_rate: 0.1
+      local_learning: none
+      local_loss_weight: 0.0
+task:
+  dataset: mnist
+  parameters:
+train:
+  run_name: dendritic_modeling_sweep
+  seed: 0
+  epochs: 100
+  batch_size: 500
+  grad_clip_value: 0.5
+  weight_decay: 0.0
+  epochs_per_layer: 50
+wandb:
+  entity: houman_safaai-harvard-university
+  project: dendritic_modeling_sweep
+  group: debug
+  tags: ['mnist_1']
+settings:
+  visualizations: False
+analysis:
+  enable_ablation: False
+  enable_mutual_info: False
