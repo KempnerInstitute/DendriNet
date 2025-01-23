@@ -221,3 +221,65 @@ class ExcitationInhibitionNetwork(nn.Module):
 
         total_local = torch.stack(local_losses).mean()
         return self.local_loss_weight * total_local
+    
+class FeedforwardNN(nn.Module):
+    """
+    A configurable feedforward neural network as a baseline for comparison
+    on the flattened MNIST dataset.
+    """
+    def __init__(
+        self,
+        input_dim: int = 784,
+        hidden_layer_sizes: List[int] = [128, 64],
+        activation: str = "relu",
+        dropout: float = 0.2,
+        output_dim: int = 10,
+    ):
+        super(FeedforwardNN, self).__init__()
+
+        # Map string activation to PyTorch activation functions
+        activation_mapping = {
+            "relu": nn.ReLU,
+            "sigmoid": nn.Sigmoid,
+            "tanh": nn.Tanh,
+            "leaky_relu": nn.LeakyReLU
+        }
+
+        # Raise an error if the activation is not supported
+        if activation not in activation_mapping:
+            raise ValueError(f"Unsupported activation function: {activation}. "
+                             f"Supported: {list(activation_mapping.keys())}")
+
+        # Define layers dynamically
+        layers = []
+        current_dim = input_dim
+
+        for layer_size in hidden_layer_sizes:
+            layers.append(nn.Linear(current_dim, layer_size))
+            layers.append(activation_mapping[activation]())
+            if dropout > 0:  # Apply dropout only if it's greater than 0
+                layers.append(nn.Dropout(dropout))
+            current_dim = layer_size
+
+        # Add the output layer
+        layers.append(nn.Linear(current_dim, output_dim))
+
+        # Combine layers into a sequential model
+        self.model = nn.Sequential(*layers)
+
+    def forward(self, x):
+        return self.model(x)
+    
+    
+class MLPBaseline(nn.Module):
+    """
+    A simple feedforward MLP with one hidden layer, for baseline comparison.
+    """
+    def __init__(self, input_dim, hidden_dim, output_dim):
+        super(MLPBaseline, self).__init__()
+        self.fc1 = nn.Linear(input_dim, hidden_dim)
+        self.fc2 = nn.Linear(hidden_dim, output_dim)
+
+    def forward(self, x):
+        x = F.relu(self.fc1(x))
+        return self.fc2(x)  # raw logits
