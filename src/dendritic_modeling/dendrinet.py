@@ -12,7 +12,8 @@ import torch
 import torch.nn as nn
 from torch.nn.init import _no_grad_normal_
 from dendritic_modeling.initialize import compute_expectation_truncated_log_normal
-
+from dendritic_modeling.gradient_scaling import GradientScalingStrategies
+from dendritic_modeling.learning_rules import LocalLearningRules
 
 TOPK_INIT_METHODS = {
     'xavier_normal': nn.init.xavier_normal_,
