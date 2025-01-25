@@ -61,60 +61,29 @@ class ProbabilisticClassifier(BaseModel):
         main_loss = nll.mean(dim=0)
         return main_loss
 
-class Classifier(BaseModel):
-    """
-    A standard classifier that returns raw logits; 
-    cross-entropy is used for compute_loss.
-    """
-    def __init__(self, net):
-        super(Classifier, self).__init__(net)
 
-    def forward(self, x, y=None):
-        output = self.net(x)
-        return output
+class Classifier(nn.Module):
+    def __init__(self, net, num_classes=10):
+        super().__init__()
+        self.net = net
+        self.criterion = nn.CrossEntropyLoss()
+        self.num_classes = num_classes
 
-    def predict(self, x, stochastic=False):
-        with torch.no_grad():
-            logits = self.forward(x)
-            return logits.argmax(dim=-1)
+    def forward(self, x):
+        """
+        Return raw logits from the net. 
+        net(x) should be shape [batch_size, self.num_classes].
+        """
+        return self.net(x)
 
     def compute_loss(self, x, y):
         logits = self.forward(x)
-        loss_fn = nn.CrossEntropyLoss()
-        main_loss = loss_fn(logits, y)
-        return main_loss
+        return self.criterion(logits, y)
 
-class EINetClassifierNLL(BaseModel):
-    """
-    A negative-log-likelihood style classifier that also uses a 
-    Categorical distribution under the hood. 
-    """
-
-    def __init__(self, net, output_dim):
-        super(EINetClassifierNLL, self).__init__(net)
-        self.output_dim = output_dim
-        self.final = nn.LogSoftmax(dim=-1)
-        self.log_output_scale = nn.Parameter(torch.zeros((self.output_dim,)), requires_grad=True)
-
-    def forward(self, x, y=None, sampler=False):
-        net_output = self.net(x)
-        final_logits = self.final(self.log_output_scale.exp() * net_output)
-        categorical_dist = Categorical(logits=final_logits)
-
-        if y is None:
-            return categorical_dist if sampler else categorical_dist.logits
-        else:
-            nll = -categorical_dist.log_prob(y)
-            return nll
-
-    def predict(self, x, stochastic=False):
-        distribution = self.forward(x, y=None, sampler=True)
-        if stochastic:
-            return distribution.sample()
-        else:
-            return distribution.logits.argmax(dim=-1)
-
-    def compute_loss(self, x, y):
-        nll = self.forward(x, y=y)
-        main_loss = nll.mean(dim=0)
-        return main_loss
+    def predict(self, x):
+        """
+        Return class indices with max logit.
+        """
+        with torch.no_grad():
+            logits = self.forward(x)
+            return logits.argmax(dim=-1)
