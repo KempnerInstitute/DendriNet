@@ -21,7 +21,6 @@ class BaseModel(nn.Module):
     def predict(self, x):
         raise NotImplementedError("Predict method must be implemented in subclass.")
 
-
 class ProbabilisticClassifier(BaseModel):
     """
     A probabilistic classifier that outputs a categorical distribution
@@ -60,12 +59,7 @@ class ProbabilisticClassifier(BaseModel):
     def compute_loss(self, x, y):
         nll = self.forward(x, y=y)
         main_loss = nll.mean(dim=0)
-        if hasattr(self.net, 'compute_local_loss'):
-            local_obj = self.net.compute_local_loss(x, y)
-            return main_loss + local_obj
-        else:
-            return main_loss
-
+        return main_loss
 
 class Classifier(BaseModel):
     """
@@ -88,25 +82,18 @@ class Classifier(BaseModel):
         logits = self.forward(x)
         loss_fn = nn.CrossEntropyLoss()
         main_loss = loss_fn(logits, y)
-        if hasattr(self.net, 'compute_local_loss'):
-            local_obj = self.net.compute_local_loss(x, y)
-            return main_loss + local_obj
-        else:
-            return main_loss
-
+        return main_loss
 
 class EINetClassifierNLL(BaseModel):
     """
     A negative-log-likelihood style classifier that also uses a 
     Categorical distribution under the hood. 
-    This matches your older EINetClassifier logic.
     """
 
     def __init__(self, net, output_dim):
         super(EINetClassifierNLL, self).__init__(net)
         self.output_dim = output_dim
         self.final = nn.LogSoftmax(dim=-1)
-        # learnable scale of final layer
         self.log_output_scale = nn.Parameter(torch.zeros((self.output_dim,)), requires_grad=True)
 
     def forward(self, x, y=None, sampler=False):
@@ -130,8 +117,4 @@ class EINetClassifierNLL(BaseModel):
     def compute_loss(self, x, y):
         nll = self.forward(x, y=y)
         main_loss = nll.mean(dim=0)
-        if hasattr(self.net, 'compute_local_loss'):
-            local_obj = self.net.compute_local_loss(x, y)
-            return main_loss + local_obj
-        else:
-            return main_loss
+        return main_loss
