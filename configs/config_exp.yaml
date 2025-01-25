@@ -1,13 +1,13 @@
 model:
-  task: classification #classification einet_nll
-  probabilistic: True
+  task: classification # #classification einet_nll 
+  probabilistic: False
   network:
     type: "EINet"
     parameters:
       input_dim: 784
       excitatory_layer_sizes: [10]
       inhibitory_layer_sizes: [20]
-      excitatory_branch_factors: [1, 2]
+      excitatory_branch_factors: [2, 2]
       inhibitory_branch_factors: []
       reactivate: true
       somatic_synapses: true
@@ -67,29 +67,7 @@ analysis:
   enable_mutual_info: false
 
 
-# Explanation of the Methods:
-# 1.  Vanilla Backprop
-#    → The original code had no gradient manipulation: gradient_strategy: "none".
-# 2.  Uniform Gradient Scaling
-#    → Multiplies each layer’s gradient by a constant gradient_scale_factor. 
-# 3.  Distal Upweight
-#    → A new approach: if we have multiple dendritic branch layers, 
-#      multiply gradient more strongly at distal layers that typically lose signal.
-# 4.  Freeze-Layers
-#    → A brand‐new method: train each dendritic layer in sequence, 
-#      freezing the others, to ensure it sees a strong error signal.
-# 5.  Local Learning Rules
-# 6.  Initialization Tweaks
-#    → init_gain (multiplier for Xavier/Kaiming) and init_inhib_offset (log‐space shift 
-#      for inhibitory weights).
-# 7.  Reactivation Scaling
-#    → reactivation_initial_m and reactivation_initial_b so that the tanh doesn’t saturate 
-#      initially. You can also choose reactivation_type: "relu", "sigmoid", etc.
-# 8.  Weight Decay
-#    → read from YAML (train.weight_decay). Tied to built‐in PyTorch optimizer or 
-#      CustomWeightDecayOptimizer.
-#
-# 
+
 # 1. model.network.parameters.gradient_strategy 
 #    # "none", "uniform_scale", "distal_upweight", "freeze_layers"
 # 2. model.network.parameters.gradient_scale_factor 
