@@ -12,8 +12,7 @@ from torch.utils.data import DataLoader
 
 from dendritic_modeling import logger, logger_manager
 from dendritic_modeling.training import TrainerMLE
-from dendritic_modeling.models import (ProbabilisticClassifier, Classifier, 
-                                       EINetClassifierNLL)  # <-- import new
+from dendritic_modeling.models import (ProbabilisticClassifier, Classifier)  
 from dendritic_modeling.plot_utils import (plot_einet_params, 
                                            plot_einet_activations)
 from dendritic_modeling.utils import (load_MNIST, 
@@ -69,7 +68,7 @@ def initialize_model(model_hp):
             raise ValueError(f"Invalid network type: {network_type}")
 
     elif task == 'einet_nll':
-        # a new 'task' if you prefer to unify everything in that dimension
+
         logger.info("Running EINetClassifierNLL approach")
         output_dim = network_parameters['excitatory_layer_sizes'][-1]
         net = ExcitationInhibitionNetwork(**network_parameters)
