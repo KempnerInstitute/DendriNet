@@ -26,7 +26,6 @@ TOPK_INIT_METHODS = {
     'eye': nn.init.eye_,
 }
 
-
 # Simple gradient-scaling hooks
 def scale_layer_gradients(module, grad_input, grad_output, scale_factor):
     if grad_input is None:
