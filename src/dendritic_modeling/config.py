@@ -88,7 +88,10 @@ class TrainConfig(BaseConfig):
     batch_size: int = 32
     grad_clip_value: float = 0.5
     weight_decay: float = 0.0
-    epochs_per_layer: int = 5
+    epochs_per_layer: int = 50
+    two_step_training: bool = False
+    pretrain_epochs: int = 5
+    maintrain_epochs: int = 45
     
 @dataclass
 class WandbConfig(BaseConfig):
