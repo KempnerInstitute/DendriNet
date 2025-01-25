@@ -210,6 +210,9 @@ class TrainerMLE(object):
         valid_loader = DataLoader(valid_data, batch_size=batch_size, shuffle=False)
         train_losses = []
         valid_losses = []
+        best_state_dict = deepcopy(model.state_dict())
+        best_loss = float('inf')
+
         for layer_idx in range(n_layers):
             for name, param in model.named_parameters():
                 param.requires_grad = False
@@ -230,7 +233,6 @@ class TrainerMLE(object):
                     self.optimizer.step()
                     epoch_train_loss += nll.item()
                 epoch_train_loss /= len(train_loader)
-                train_losses.append(epoch_train_loss)
                 model.eval()
                 epoch_valid_loss = 0
                 with torch.no_grad():
@@ -240,8 +242,13 @@ class TrainerMLE(object):
                         val_nll = model.compute_loss(x_val, y_val)
                         epoch_valid_loss += val_nll.item()
                 epoch_valid_loss /= len(valid_loader)
+                if epoch_valid_loss < best_loss:
+                    best_loss = epoch_valid_loss
+                    best_state_dict = deepcopy(model.state_dict())
+                train_losses.append(epoch_train_loss)
                 valid_losses.append(epoch_valid_loss)
                 logger.info(f"Layer {layer_idx} | Epoch {epoch}/{epochs_per_layer} | Train Loss={epoch_train_loss:.4f}, Valid Loss={epoch_valid_loss:.4f}")
+
         logger.info("Unfreezing all layers for a final joint tune.")
         for name, param in model.named_parameters():
             param.requires_grad = True
@@ -267,7 +274,12 @@ class TrainerMLE(object):
                     val_nll = model.compute_loss(x_val, y_val)
                     epoch_valid_loss += val_nll.item()
             epoch_valid_loss /= len(valid_loader)
+            if epoch_valid_loss < best_loss:
+                best_loss = epoch_valid_loss
+                best_state_dict = deepcopy(model.state_dict())
             logger.info(f"[Final Joint] Epoch {epoch}/{final_epochs} | Train Loss={epoch_train_loss:.4f}, Valid Loss={epoch_valid_loss:.4f}")
+
+        model.load_state_dict(best_state_dict)
         if plot_losses and save_path and os.path.exists(save_path):
             plot_NLL_loss_curves(train_losses, valid_losses, len(train_losses), save_path, title="Layerwise-Freeze Training Loss Curves")
         return {'train losses': train_losses, 'valid losses': valid_losses}
