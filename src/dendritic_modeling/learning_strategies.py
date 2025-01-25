@@ -2,7 +2,7 @@
 learning_strategies.py
 ======================
 This module defines different learning rules and strategies, such as
-local credit assignment, freeze-reactivation-m, and two-step training
+local credit assignment, freeze-reactivation-m, and a two-step training
 (for initialization + real training).
 """
 
@@ -11,14 +11,11 @@ import torch.nn as nn
 import torch.nn.functional as F
 from copy import deepcopy
 
+
 class LocalCreditAssignment:
     """
     Example local learning rule that attempts to estimate updates locally
     via some feedback alignment or target-propagation approach.
-
-    If you previously had code in ExcitationInhibitionNetwork for 'compute_local_loss',
-    you can centralize it here. For demonstration, we use the idea of a
-    'feedback_mats' to define a local target for each layer.
     """
 
     def __init__(self, feedback_mats, local_loss_weight=0.0):
@@ -53,7 +50,7 @@ class LocalCreditAssignment:
         device = next(model.parameters()).device
         x = x.to(device)
         y = y.to(device)
-        # Assume we have a fixed # of classes = 10 for example
+        # Assume # of classes = 10 for example
         y_onehot = torch.zeros(y.size(0), 10, device=device).scatter_(1, y.unsqueeze(1), 1.0)
 
         local_losses = []
@@ -62,7 +59,7 @@ class LocalCreditAssignment:
 
         for i, layer in enumerate(model.layers):
             excitatory, inhibitory = layer(excitatory, inhibitory)
-            # local loss
+            # compute local loss
             local_obj = self.compute_local_loss(i, excitatory, y_onehot)
             if local_obj != 0.0:
                 local_losses.append(local_obj)
@@ -75,15 +72,13 @@ class LocalCreditAssignment:
 
 class TrainOnlyBReactivation:
     """
-    A helper that, given a Reactivation layer, freezes log_m (m) and
-    trains only log_b (b).
+    A helper that, given a reactivation layer, can freeze log_m (m) so that only b is trained.
     """
 
     def __init__(self, freeze_m=True):
         """
         freeze_m : bool
-            If True, we freeze the reactivation m parameter (log_m),
-            so that only b is trained.
+            If True, we freeze the reactivation m parameter (log_m).
         """
         self.freeze_m = freeze_m
 
@@ -117,9 +112,9 @@ class TwoStepTrainer:
         initialization. For demonstration, we define a simple MSE
         between each layer's output and a one-hot label.
 
-        If your model is not a simple feedforward but a DendriNet,
-        you might adapt or use 'DendriNetWithOutputs' to get
-        per-layer outputs. We'll do a demonstration approach here.
+        If the model is not a simple feedforward but a DendriNet,
+        we might adapt or use 'DendriNetWithOutputs' to get
+        per-layer outputs.
         """
         self.model.to(self.device)
         best_loss = float('inf')
@@ -128,14 +123,13 @@ class TwoStepTrainer:
         for epoch in range(1, epochs+1):
             epoch_loss = 0.0
             self.model.train()
+
             for x_batch, y_batch in dataloader:
                 x_batch = x_batch.to(self.device)
                 y_batch = y_batch.to(self.device)
                 y_onehot = torch.zeros(y_batch.size(0), 10, device=self.device).scatter_(1, y_batch.unsqueeze(1), 1.0)
 
-                # We do a forward pass capturing outputs at each layer
-                # For illustration, if your model has a method to return
-                # all layer outputs, use that. Otherwise, do something custom.
+                # capture outputs at each layer
                 layer_outputs = []
                 excitatory = x_batch
                 inhibitory = None
@@ -143,9 +137,7 @@ class TwoStepTrainer:
                     excitatory, inhibitory = layer(excitatory, inhibitory)
                     layer_outputs.append(excitatory)
 
-                # Suppose we define the cost as sum_i MSE(layer_i, y_onehot)
-                # to push each layer to represent the label. 
-                # This can help gradient flow. It's a placeholder approach.
+                # sum of MSE across layers to the one-hot
                 losses = []
                 for out in layer_outputs:
                     losses.append(F.mse_loss(out, y_onehot))
@@ -185,7 +177,6 @@ class TwoStepTrainer:
                 x_batch = x_batch.to(self.device)
                 y_batch = y_batch.to(self.device)
 
-                # standard forward
                 out = self.model(x_batch)
                 main_loss = loss_fn(out, y_batch)
 
@@ -198,5 +189,3 @@ class TwoStepTrainer:
                 epoch_loss += main_loss.item()
 
             epoch_loss /= len(dataloader)
-            # (You can record or print epoch_loss if desired)
-            # print(f"Main training epoch {epoch}, loss={epoch_loss:.4f}")

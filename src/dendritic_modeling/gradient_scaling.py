@@ -10,7 +10,6 @@ import torch
 
 def scale_layer_gradients(module, grad_input, grad_output, scale_factor):
     """
-    Original function from dendrinet.py, now relocated here.
     Scales layer gradients by a constant factor.
     """
     if grad_input is None:
@@ -22,8 +21,7 @@ def scale_layer_gradients(module, grad_input, grad_output, scale_factor):
 
 def scale_reactivation_gradients(module, grad_input, grad_output):
     """
-    Original function from dendrinet.py, now relocated here.
-    By default, does no special scaling, but you can adapt it.
+    By default, does no special scaling now, but we can adapt it as needed.
     """
     return grad_output
 
@@ -53,15 +51,13 @@ class GradientScaler:
         """
         Decide how to compute the scale for the gradient.
 
-        If you had more advanced logic, you could incorporate or
+        we might come up with more advanced logic, and incorporate or
         read data from 'block_linear_obj' or the layer's state.
         """
         if self.strategy == 'uniform_scale':
             return self.scale_factor
 
         elif self.strategy == 'distal_upweight':
-            # If you have a block_linear or advanced logic
-            # that sets e.g. block_linear_obj.grad_scale, you can use it
             if block_linear_obj and hasattr(block_linear_obj, 'grad_scale'):
                 return block_linear_obj.grad_scale.mean().item() * self.scale_factor
             else:
@@ -72,6 +68,7 @@ class GradientScaler:
             return (1 + self.layer_idx) * self.scale_factor
 
         else:
+            # 'none' or unknown
             return 1.0
 
     def register_block_linear(self, block_linear_layer):
@@ -87,7 +84,7 @@ class GradientScaler:
 
     def register_reactivation(self, reactivation_layer):
         """
-        Attaches a backward hook to the Reactivation object (for example).
+        Attaches a backward hook to a reactivation module.
         """
         reactivation_layer.register_full_backward_hook(scale_reactivation_gradients)
 
