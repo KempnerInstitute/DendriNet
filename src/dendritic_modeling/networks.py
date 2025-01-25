@@ -5,7 +5,6 @@ This module contains the ExcitationInhibitionLayer and
 ExcitationInhibitionNetwork classes.
 """
 
-
 from copy import deepcopy
 from torch import nn
 from typing import List
@@ -36,6 +35,8 @@ class ExcitationInhibitionLayer(nn.Module):
         gradient_scale_factor=1.0,
         reactivation_initial_m=1.5,
         reactivation_initial_b=1.0,
+        reactivation_type='param_tanh',
+        train_reactivation_b_only=False,
     ):
         super(ExcitationInhibitionLayer, self).__init__()
         self.init_gain = init_gain
@@ -54,8 +55,10 @@ class ExcitationInhibitionLayer(nn.Module):
             somatic_synapses = somatic_synapses, 
             topk_init_method = topk_init_method,
             use_shunting=use_shunting,
+            reactivation_type=reactivation_type,
             reactivation_initial_m=reactivation_initial_m,
             reactivation_initial_b=reactivation_initial_b,
+            train_reactivation_b_only=train_reactivation_b_only,
         )
 
         self.excitatory_cells = DendriNet(
@@ -69,8 +72,10 @@ class ExcitationInhibitionLayer(nn.Module):
             somatic_synapses = somatic_synapses,
             topk_init_method = topk_init_method,
             use_shunting=use_shunting,
+            reactivation_type=reactivation_type,
             reactivation_initial_m=reactivation_initial_m,
             reactivation_initial_b=reactivation_initial_b,
+            train_reactivation_b_only=train_reactivation_b_only,
         )
     
     def decay_weights(self, weight_decay):
@@ -81,7 +86,6 @@ class ExcitationInhibitionLayer(nn.Module):
         inhibitory_output = self.inhibitory_cells(x, inhibitory_input)
         excitatory_output = self.excitatory_cells(x, inhibitory_output)
         return excitatory_output, inhibitory_output
-
 
 class ExcitationInhibitionNetwork(nn.Module):
     def __init__(
@@ -106,6 +110,8 @@ class ExcitationInhibitionNetwork(nn.Module):
         weight_decay_rate=0.1,
         reactivation_initial_m=1.5,
         reactivation_initial_b=1.0,
+        reactivation_type='param_tanh',
+        train_reactivation_b_only=False,
         local_learning="none",
         local_loss_weight=0.0,
     ):
@@ -127,7 +133,6 @@ class ExcitationInhibitionNetwork(nn.Module):
         excitatory_layer_sizes.insert(0, input_dim)
         inhibitory_layer_sizes.insert(0, None)
 
-        # fix any short lists by padding
         ee_syn = list(ee_synapses_per_branch_per_layer)
         ei_syn = list(ei_synapses_per_branch_per_layer)
         ie_syn = list(ie_synapses_per_branch_per_layer)
@@ -164,6 +169,8 @@ class ExcitationInhibitionNetwork(nn.Module):
                 gradient_scale_factor = self.gradient_scale_factor,
                 reactivation_initial_m = reactivation_initial_m,
                 reactivation_initial_b = reactivation_initial_b,
+                reactivation_type = reactivation_type,
+                train_reactivation_b_only = train_reactivation_b_only,
             ))
         
         self.layers = nn.ModuleList(layers)
@@ -188,28 +195,8 @@ class ExcitationInhibitionNetwork(nn.Module):
         return excitatory
 
     def compute_local_loss(self, x, y=None):
-        if self.local_learning == "none":
-            return 0.0
-        device = next(self.parameters()).device
-        local_losses = []
-        excitatory = x.to(device)
-        inhibitory = None
-        if y is not None:
-            y = y.to(device)
-            y_onehot = torch.zeros(y.size(0), 10, device=device).scatter_(1, y.unsqueeze(1), 1.0)
-        else:
-            y_onehot = None
-        for i, layer in enumerate(self.layers):
-            excitatory, inhibitory = layer(excitatory, inhibitory)
-            if self.local_learning == "backprop_alignment" and y_onehot is not None:
-                fb = self.feedback_mats[i]
-                desired_acts = y_onehot @ fb.T
-                local_obj = 0.5*((excitatory - desired_acts)**2).mean()
-                local_losses.append(local_obj)
-        if len(local_losses) > 0:
-            return self.local_loss_weight * torch.stack(local_losses).mean()
-        else:
-            return 0.0
+        # Placeholder; actual local learning logic is in learning_strategies.py
+        return 0.0
 class FeedforwardNN(nn.Module):
     """
     A configurable feedforward neural network as a baseline for comparison
