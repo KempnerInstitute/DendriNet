@@ -6,7 +6,7 @@ the desired activation function from config.
 
 Example usage:
     act_fn = ActivationFactory.create(
-        act_type="param_tanh",  # or "relu", "sigmoid", "tanh", etc.
+        act_type="param_tanh",  # or "relu", "sigmoid", "tanh", "none"
         output_dim=128,
         init_m=1.5,
         init_b=1.0,
@@ -23,8 +23,8 @@ class ParametricTanh(nn.Module):
     """
     A parametric tanh reactivation function with learnable parameters m and b.
 
-    This matches your old 'Reactivation' logic, but is now a self-contained
-    activation module. If 'train_b_only' is True, it freezes m.
+    Similar to the original 'Reactivation' logic. If 'train_b_only' is True,
+    it freezes m so that only b is trained.
     """
     def __init__(self, output_dim, init_m=1.5, init_b=1.0, train_b_only=False):
         super(ParametricTanh, self).__init__()
@@ -39,10 +39,8 @@ class ParametricTanh(nn.Module):
             self.log_m.requires_grad = False
 
     def forward(self, V):
-        m = self.log_m.exp()  # shape [output_dim]
-        b = self.log_b.exp()  # shape [output_dim]
-        # shape broadcasting: if V is [batch_size, output_dim],
-        # then (V - b) is broadcast per-dim.
+        m = self.log_m.exp()  # [output_dim]
+        b = self.log_b.exp()  # [output_dim]
         return (torch.tanh(m * (V - b)) + 1) / 2
 
 
@@ -81,7 +79,7 @@ class SimpleTanh(nn.Module):
 
 class ActivationFactory:
     """
-    A factory for building different reactivation/activation modules
+    A factory for building different activation/ reactivation modules
     depending on the config or arguments.
     """
 
@@ -101,7 +99,7 @@ class ActivationFactory:
         act_type : str
             One of ["none", "param_tanh", "relu", "sigmoid", "tanh"].
         output_dim : int or None
-            Used by param_tanh (must be set).
+            Used by param_tanh (must be set if act_type="param_tanh").
         init_m : float
             Initial value for m in parametric Tanh.
         init_b : float
@@ -117,7 +115,6 @@ class ActivationFactory:
         act_type = act_type.lower()
 
         if act_type == "none":
-            # Return an identity function if no activation is desired
             return nn.Identity()
 
         elif act_type == "param_tanh":
