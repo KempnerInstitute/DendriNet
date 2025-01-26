@@ -59,7 +59,7 @@ wandb:
 
 visualization:
   enabled: true
-  save_path: "/n/netscratch/kempner_dev/hsafaai/results/visuals"
+  save_path: /n/holylabs/LABS/kempner_dev/Users/hsafaai/results/dendritic_modeling/results #"/n/netscratch/kempner_dev/hsafaai/results/visuals"
   # A list of which plots/analyses to generate:
   plots: 
     - "weights"      # Plot dendritic or EI-net weights
