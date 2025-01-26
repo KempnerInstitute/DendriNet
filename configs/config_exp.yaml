@@ -1,13 +1,13 @@
 model:
-  task: classification  # classification or regression
+  task: classification  # "classification" or "einet_nll"
   probabilistic: True
   network:
-    type: "EINet" # EINet, or FeedForward
+    type: "EINet"
     parameters:
       input_dim: 784
       excitatory_layer_sizes: [10]
       inhibitory_layer_sizes: [20]
-      excitatory_branch_factors: [2, 2]
+      excitatory_branch_factors: [1, 2]
       inhibitory_branch_factors: []
       reactivate: true
       somatic_synapses: true
@@ -15,24 +15,21 @@ model:
       ei_synapses_per_branch_per_layer: [200]
       ie_synapses_per_branch_per_layer: [1, 1]
       ii_synapses_per_branch_per_layer: []
-      topk_init_method: xavier_normal 
+      topk_init_method: xavier_normal  # e.g. "kaiming_normal"
       use_shunting: true
-
       init_gain: 1.0
       init_inhib_offset: 1.3
       reactivation_initial_m: 2
       reactivation_initial_b: 0.5
+      reactivation_type: param_tanh
+      train_reactivation_b_only: false
 
-      reactivation_type: param_tanh  # "none", "param_tanh", "relu", "sigmoid", "tanh"
-      train_reactivation_b_only: true  # if true, freeze m, train only b
-
-      gradient_strategy: none #"none", "distal_upweight", "distal_upweight_by_idx", "freeze_layer" , "uniform_scale"
+      gradient_strategy: none  # "none", "distal_upweight", "distal_upweight_by_idx", "freeze_layer", "uniform_scale"
       gradient_scale_factor: 1
-
       weight_decay_rate: 0.1
 
-      local_learning: none #"none", "backprop_alignment"
-      local_loss_weight: 0 #0.5
+      local_learning: none     # "none", "backprop_alignment"
+      local_loss_weight: 0     # 0.5
 
 train:
   run_name: "mnist_einet"
@@ -42,16 +39,16 @@ train:
   epochs: 50
   batch_size: 1000
   grad_clip_value: 5
-  weight_decay: 0.0  # for the built-in Adam L2, typically set 0 if we use custom
-  epochs_per_layer: 50 ### this is for when we use "freeze_layer" for gradient_strategy
+  epochs_per_layer: 50  # used if gradient_strategy == "freeze_layer"
 
-  two_step_training: false  # true or false
-  pretrain_epochs: 5
-  maintrain_epochs: 45
-
-task:
-  dataset: "mnist"
-  parameters: {}
+visualization:
+  enabled: true
+  save_path: "results/visuals"
+  # possible items: "weights", "activations", "gradients", "branch_info", "ablation", "mutual_info"
+  plots: 
+    - "weights"
+    - "activations"
+    - "ablation"
 
 wandb:
   entity: houman_safaai-harvard-university
@@ -59,13 +56,9 @@ wandb:
   group: "debug"
   tags: [mnist_1]
 
-settings:
-  visualizations: False
-
-analysis:
-  enable_ablation: true
-  enable_mutual_info: false
-
+task:
+  dataset: "mnist"
+  parameters: {}
 
 
 # 1. model.network.parameters.gradient_strategy 
