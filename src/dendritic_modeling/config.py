@@ -17,6 +17,7 @@ class BaseConfig:
     def asdict(self):
         return asdict(self)
 
+
 @dataclass
 class EINetParameters(BaseConfig):
     input_dim: int = 784
@@ -42,6 +43,7 @@ class EINetParameters(BaseConfig):
     local_learning: str = "none"
     local_loss_weight: float = 0.0
 
+
 @dataclass
 class FeedForwardParameters(BaseConfig):
     input_dim: int = 784
@@ -50,9 +52,11 @@ class FeedForwardParameters(BaseConfig):
     dropout: float = 0.2
     output_dim: int = 10
 
+
 @dataclass
 class BaseTaskParameters(BaseConfig):
     pass
+
 
 @dataclass
 class LineParameters(BaseTaskParameters):
@@ -62,21 +66,25 @@ class LineParameters(BaseTaskParameters):
     image_size: int = 10
     seed: int = 42
 
+
 @dataclass
 class TaskConfig(BaseConfig):
     dataset: str = "line"
     parameters: Union[LineParameters] = field(default_factory=LineParameters)
+
 
 @dataclass
 class NetworkConfig(BaseConfig):
     type: str = "EINet"
     parameters: Union[EINetParameters, FeedForwardParameters] = field(default_factory=EINetParameters)
 
+
 @dataclass
 class ModelConfig(BaseConfig):
     task: str = "classification"
     probabilistic: bool = False
     network: NetworkConfig = field(default_factory=NetworkConfig)
+
 
 @dataclass
 class TrainConfig(BaseConfig):
@@ -87,12 +95,12 @@ class TrainConfig(BaseConfig):
     epochs: int = 200
     batch_size: int = 32
     grad_clip_value: float = 0.5
-    weight_decay: float = 0.0
     epochs_per_layer: int = 50
     two_step_training: bool = False
     pretrain_epochs: int = 5
     maintrain_epochs: int = 45
-    
+
+
 @dataclass
 class WandbConfig(BaseConfig):
     entity: str = "your_wandb_entity"
@@ -100,23 +108,35 @@ class WandbConfig(BaseConfig):
     group: str = "debug"
     tags: list = field(default_factory=list)
 
-@dataclass
-class SettingsConfig(BaseConfig):
-    visualizations: bool = False
 
 @dataclass
 class AnalysisConfig(BaseConfig):
     enable_ablation: bool = False
     enable_mutual_info: bool = False
 
+
+@dataclass
+class VisualizationConfig(BaseConfig):
+    """
+    A new dataclass for visualization settings.
+    """
+    enabled: bool = False
+    save_path: str = "results/visuals"
+    plots: List[str] = field(default_factory=list)
+
+
 @dataclass
 class Config:
+    """
+    Main config. Removed the old SettingsConfig reference. 
+    """
     model: ModelConfig = field(default_factory=ModelConfig)
     train: TrainConfig = field(default_factory=TrainConfig)
     wandb: WandbConfig = field(default_factory=WandbConfig)
-    settings: SettingsConfig = field(default_factory=SettingsConfig)
     task: TaskConfig = field(default_factory=TaskConfig)
     analysis: AnalysisConfig = field(default_factory=AnalysisConfig)
+
+    visualization: VisualizationConfig = field(default_factory=VisualizationConfig)
 
     def asdict(self, exclude=None):
         exclude = exclude or []
@@ -124,24 +144,30 @@ class Config:
             "model": self.model.asdict() if hasattr(self.model, 'asdict') else self.model,
             "train": self.train.asdict() if hasattr(self.train, 'asdict') else self.train,
             "wandb": self.wandb.asdict() if hasattr(self.wandb, 'asdict') else self.wandb,
-            "settings": self.settings.asdict() if hasattr(self.settings, 'asdict') else self.settings,
             "task": self.task.asdict() if hasattr(self.task, 'asdict') else self.task,
             "analysis": self.analysis.asdict() if hasattr(self.analysis, 'asdict') else self.analysis,
+            # new addition:
+            "visualization": self.visualization.asdict() if hasattr(self.visualization, 'asdict') else self.visualization,
         }
         for key in exclude:
             config_dict.pop(key, None)
         return config_dict
 
+
 def load_config(path: str = None) -> Config:
+    """
+    Loads from a YAML path using OmegaConf, constructs and returns a Config object.
+    """
     if path:
         raw_conf = om.load(path)
         return Config(
             model=ModelConfig(**raw_conf.get("model", {})),
             train=TrainConfig(**raw_conf.get("train", {})),
             wandb=WandbConfig(**raw_conf.get("wandb", {})),
-            settings=SettingsConfig(**raw_conf.get("settings", {})),
             task=TaskConfig(**raw_conf.get("task", {})),
             analysis=AnalysisConfig(**raw_conf.get("analysis", {})),
+
+            visualization=VisualizationConfig(**raw_conf.get("visualization", {})),
         )
     else:
         return Config()
