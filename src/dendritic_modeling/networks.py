@@ -12,6 +12,7 @@ import torch
 from dendritic_modeling.dendrinet import DendriNet
 from dendritic_modeling import logger
 
+
 class ExcitationInhibitionLayer(nn.Module):
     def __init__(
         self, 
@@ -195,7 +196,7 @@ class ExcitationInhibitionNetwork(nn.Module):
         return excitatory
 
     def compute_local_loss(self, x, y=None):
-        # Placeholder; actual local learning logic is in learning_strategies.py
+        # no-op or minimal
         return 0.0
 class FeedforwardNN(nn.Module):
     """
