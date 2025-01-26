@@ -20,9 +20,8 @@ from dendritic_modeling.visualization_manager import PlotManager
 def initialize_model(model_hp):
     """
     Builds the specified model: 
-    'classification' uses ProbabilisticClassifier or Classifier,
-    'einet_nll' uses EINetClassifierNLL,
-    etc.
+    'classification' uses ProbabilisticClassifier or Classifier.
+    If 'einet_nll' existed, it would require EINetClassifierNLL, etc.
     """
     task = model_hp['task']
     probabilistic = model_hp['probabilistic']
@@ -49,12 +48,9 @@ def initialize_model(model_hp):
         else:
             raise ValueError(f"Invalid network type: {net_type}")
 
-    elif task == 'einet_nll':
-        logger.info("Running EINetClassifierNLL approach")
-        output_dim = net_params['excitatory_layer_sizes'][-1]
-        net = ExcitationInhibitionNetwork(**net_params)
-        return EINetClassifierNLL(net, output_dim)
-
+    # If one wanted EINetClassifierNLL, they'd define that case here, for example:
+    # elif task == 'einet_nll':
+    #     ...
     else:
         raise ValueError(f"Invalid task: {task}")
 
@@ -62,13 +58,17 @@ def main(config_path: str, output_dir: str, experiment_name: str):
     os.makedirs(output_dir, exist_ok=True)
     logger_manager.set_log_file(os.path.join(output_dir, "dendritic_modeling.log"))
 
+    # Load config
     config = load_config(config_path)
+
     model_hp = config.model.asdict()
     train_hp = config.train.asdict()
-    vis_cfg = config.get("visualization", {})
-    wandb_cfg = config.get("wandb", None)
 
-    if wandb_cfg is not None:
+    # Now we directly access config.visualization, because it's a dataclass field
+    vis_cfg = config.visualization
+    wandb_cfg = config.wandb
+
+    if wandb_cfg is not None and wandb_cfg.entity:
         try:
             wandb_dir = Path(output_dir) / "wandb"
             wandb_run_name = experiment_name
@@ -92,13 +92,13 @@ def main(config_path: str, output_dir: str, experiment_name: str):
     
     clf = initialize_model(model_hp)
 
-    # Try printing model summary
+    # Attempt printing model summary
     try:
         sample_input_dim = data['train'].x.shape[1]
         summary = torchinfo.summary(
             clf,
-            input_size=(train_hp.get("batch_size",64), sample_input_dim),
-            col_names=["input_size","output_size","num_params"],
+            input_size=(train_hp.get("batch_size", 64), sample_input_dim),
+            col_names=["input_size", "output_size", "num_params"],
             col_width=25,
             row_settings=["depth"],
             depth=7
@@ -112,10 +112,12 @@ def main(config_path: str, output_dir: str, experiment_name: str):
     except:
         pass
 
+    # Build optimizer (no built-in weight_decay references)
     optimizer = torch.optim.Adam(clf.parameters(), lr=train_hp.get("lr", 1e-3))
     trainer = TrainerMLE(optimizer=optimizer, suppress_prints=False, print_every=10)
-    grad_strat = model_hp["network"]["parameters"].get("gradient_strategy", "none")
 
+    # If user set gradient_strategy = "freeze_layer", do layerwise approach
+    grad_strat = model_hp["network"]["parameters"].get("gradient_strategy", "none")
     if grad_strat == "freeze_layer":
         trainer.train_freeze_layers(
             model=clf,
@@ -147,7 +149,7 @@ def main(config_path: str, output_dir: str, experiment_name: str):
 
     def evaluate_accuracy(model, dataset):
         from torch.utils.data import DataLoader
-        loader = DataLoader(dataset, batch_size=train_hp.get("batch_size",64), shuffle=False)
+        loader = DataLoader(dataset, batch_size=train_hp.get("batch_size", 64), shuffle=False)
         all_preds = []
         all_labels = []
         with torch.no_grad():
@@ -169,12 +171,14 @@ def main(config_path: str, output_dir: str, experiment_name: str):
         wandb.finish()
 
     # Visualization/analysis phase
-    if vis_cfg.get("enabled", False):
+    if vis_cfg.enabled:
+        # Pass entire config, data, etc. to PlotManager
         plot_manager = PlotManager(clf, data, config, device=device)
-        for plot_name in vis_cfg.get("plots", []):
+        for plot_name in vis_cfg.plots:
             plot_manager.run_plot(plot_name)
 
     logger.info("All done.")
+
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Run dendritic modeling training and evaluation.')

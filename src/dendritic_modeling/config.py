@@ -17,7 +17,7 @@ class BaseConfig:
     def asdict(self):
         return asdict(self)
 
-
+ 
 @dataclass
 class EINetParameters(BaseConfig):
     input_dim: int = 784
