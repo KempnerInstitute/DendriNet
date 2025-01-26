@@ -5,7 +5,7 @@ Contains a PlotManager class that holds references to all visualization
 and analysis functions in one place.
 
 New plots or analyses can be added by creating another method and
-registering it in the plot_methods dictionary. 
+registering it in the plot_methods dictionary.
 """
 
 import os
@@ -27,7 +27,7 @@ class PlotManager:
     """
     A manager that stores all known plot/analysis methods in a dictionary.
     The main experiment only calls PlotManager.run_plot(plot_name, ...),
-    so one does not need to modify train_experiments.py each time.
+    so no need to modify train_experiments.py each time a new plot is added.
     """
 
     def __init__(self, model, data, config, device='cpu'):
@@ -37,16 +37,16 @@ class PlotManager:
         config : the loaded config
         device : string, 'cuda' or 'cpu'
         """
+
         self.model = model
         self.data = data
         self.config = config
         self.device = device
 
-        vis_cfg = self.config.get("visualization", {})
-        self.save_path = vis_cfg.get("save_path", "results/visuals")
+        vis_cfg = self.config.visualization
+        self.save_path = vis_cfg.save_path
         os.makedirs(self.save_path, exist_ok=True)
 
-        # This dictionary links string keys to methods in this class
         self.plot_methods = {
             "weights": self._plot_weights,
             "activations": self._plot_activations,
@@ -71,9 +71,8 @@ class PlotManager:
         Plots or saves parameter visuals for an EINet if it exists.
         """
         if hasattr(self.model, 'net'):
-            # For example: plot all dendritic/EI layers
             save_dir = os.path.join(self.save_path, "param_visuals")
-            shaper = Shaper(shape=(28,28))
+            shaper = Shaper(shape=(28, 28))
             plot_einet_params(
                 einet=self.model.net,
                 save_root=save_dir,
