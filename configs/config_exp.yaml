@@ -15,7 +15,7 @@ model:
       ei_synapses_per_branch_per_layer: [200]
       ie_synapses_per_branch_per_layer: [1, 1]
       ii_synapses_per_branch_per_layer: []
-      topk_init_method: xavier_normal #"kaiming_normal"
+      topk_init_method: xavier_normal 
       use_shunting: true
 
       init_gain: 1.0
@@ -42,7 +42,7 @@ train:
   epochs: 50
   batch_size: 1000
   grad_clip_value: 5
-  epochs_per_layer: 50 ### this is for when we use "freeze_layer" for gradient_strategy
+  epochs_per_layer: 50 
   # Removed weight_decay from here
 
 task:
@@ -55,39 +55,37 @@ wandb:
   group: "debug"
   tags: [mnist_1]
 
+analysis:
+  placeholder: "deprecated"
 
 visualization:
   enabled: true
   save_path: "results/visuals"
-  # A list of which plots to generate or analyses to run:
-  # "weights", "activations", and "gradients" produce standard plots from plot_utils
-  # "branch_info" calls analyze_branch_information to compute MI, then plots or logs it
-  # "ablation" calls analyze_branch_ablation to do zeroing out branches and measure accuracy
-  plots:
-    - "weights"
-    - "activations"
-    - "gradients"
-    - "branch_info"
-    - "ablation"
-
+  # A list of which plots/analyses to generate:
+  plots: 
+    - "weights"      # Plot dendritic or EI-net weights
+    - "activations"  # Plot per-digit activation distribution
+    - "gradients"    # Plot synapse or branch gradients
+    - "branch_info"  # e.g. mutual information
+    - "ablation"     # ablation approach
 
 # Explanation of the Methods:
-# 1. Vanilla Backprop
-#    → gradient_strategy: "none"
-# 2. Uniform Gradient Scaling
-#    → gradient_strategy: "uniform_scale"
-# 3. Distal Upweight
-#    → gradient_strategy: "distal_upweight" or "distal_upweight_by_idx"
-# 4. Freeze-Layers
-#    → gradient_strategy: "freeze_layer"
-# 5. Local Learning Rules
-# 6. Initialization Tweaks
-#    → init_gain, init_inhib_offset, etc.
-# 7. Reactivation Scaling
-#    → reactivation_initial_m, reactivation_initial_b, reactivation_type
-# 8. Weight Decay
-#    → Now exclusively defined as model.network.parameters.weight_decay_rate
-# 9. The `visualization` block is new:
-#    → 'enabled' toggles plotting on/off
-#    → 'save_path' sets the directory to store plots
-#    → 'plots' is a list of strings that each correspond to a specific plotting/analysis
+#  1. Vanilla Backprop
+#     -> gradient_strategy: "none"
+#  2. Uniform Gradient Scaling
+#     -> gradient_strategy: "uniform_scale"
+#  3. Distal Upweight
+#     -> gradient_strategy: "distal_upweight" or "distal_upweight_by_idx"
+#  4. Freeze-Layers
+#     -> gradient_strategy: "freeze_layer"
+#  5. Local Learning Rules
+#  6. Initialization Tweaks
+#     -> init_gain, init_inhib_offset, etc.
+#  7. Reactivation Scaling
+#     -> reactivation_initial_m, reactivation_initial_b, reactivation_type
+#  8. Weight Decay
+#     -> use model.network.parameters.weight_decay_rate if desired
+#  9. The `visualization` block
+#     -> 'enabled' toggles plotting or not
+#     -> 'save_path' is directory for figure outputs
+#     -> 'plots' is a list of keys recognized by the PlotManager
