@@ -43,47 +43,41 @@ class ProbabilisticClassifier(BaseModel):
         categorical_dist = Categorical(logits=final_logits)
         if y is None:
             return categorical_dist if sampler else categorical_dist.logits
-        elif y is not None:
+        else:
             nll = -categorical_dist.log_prob(y)
             return nll
-        else:
-            raise ValueError("Invalid input-output pair for forward method.")
         
-    def predict(self, x, stochastic = False):
+    def predict(self, x, stochastic=False):
         distribution = self.forward(x, y=None, sampler=True)
         if stochastic:
             return distribution.sample()
         else:
-            return distribution.logits.argmax(dim = -1)
+            return distribution.logits.argmax(dim=-1)
         
     def compute_loss(self, x, y):
         nll = self.forward(x, y=y)
         main_loss = nll.mean(dim=0)
         return main_loss
 
+class Classifier(BaseModel):
+    """
+    A standard classifier that returns raw logits; 
+    cross-entropy is used for compute_loss.
+    """
+    def __init__(self, net):
+        super(Classifier, self).__init__(net)
 
-class Classifier(nn.Module):
-    def __init__(self, net, num_classes=10):
-        super().__init__()
-        self.net = net
-        self.criterion = nn.CrossEntropyLoss()
-        self.num_classes = num_classes
+    def forward(self, x, y=None):
+        output = self.net(x)
+        return output
 
-    def forward(self, x):
-        """
-        Return raw logits from the net. 
-        net(x) should be shape [batch_size, self.num_classes].
-        """
-        return self.net(x)
-
-    def compute_loss(self, x, y):
-        logits = self.forward(x)
-        return self.criterion(logits, y)
-
-    def predict(self, x):
-        """
-        Return class indices with max logit.
-        """
+    def predict(self, x, stochastic=False):
         with torch.no_grad():
             logits = self.forward(x)
             return logits.argmax(dim=-1)
+
+    def compute_loss(self, x, y):
+        logits = self.forward(x)
+        loss_fn = nn.CrossEntropyLoss()
+        main_loss = loss_fn(logits, y)
+        return main_loss
