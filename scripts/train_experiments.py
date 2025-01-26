@@ -11,7 +11,7 @@ from omegaconf import OmegaConf
 
 from dendritic_modeling import logger, logger_manager
 from dendritic_modeling.training import TrainerMLE
-from dendritic_modeling.models import (ProbabilisticClassifier, Classifier, EINetClassifierNLL)
+from dendritic_modeling.models import (ProbabilisticClassifier, Classifier)
 from dendritic_modeling.networks import (ExcitationInhibitionNetwork, FeedforwardNN)
 from dendritic_modeling.config import load_config
 from dendritic_modeling.utils import load_MNIST, accuracy_score
