@@ -11,9 +11,9 @@ model:
       inhibitory_branch_factors: []
       reactivate: true
       somatic_synapses: true
-      ee_synapses_per_branch_per_layer: [24, 24]
+      ee_synapses_per_branch_per_layer: [24]
       ei_synapses_per_branch_per_layer: [200]
-      ie_synapses_per_branch_per_layer: [1, 1]
+      ie_synapses_per_branch_per_layer: [1]
       ii_synapses_per_branch_per_layer: []
       topk_init_method: xavier_normal 
       use_shunting: true
@@ -43,7 +43,6 @@ train:
   batch_size: 1000
   grad_clip_value: 5
   epochs_per_layer: 50 
-  # Removed weight_decay from here
 
 task:
   dataset: "mnist"
@@ -55,8 +54,8 @@ wandb:
   group: "debug"
   tags: [mnist_1]
 
-analysis:
-  placeholder: "deprecated"
+# analysis:
+#   placeholder: "deprecated"
 
 visualization:
   enabled: true
