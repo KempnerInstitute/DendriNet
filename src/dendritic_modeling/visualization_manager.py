@@ -2,40 +2,47 @@
 visualization_manager.py
 ========================
 Contains a PlotManager class that holds references to all visualization
-and analysis functions in one place.
-
-New plots or analyses can be added by creating another method and
-registering it in the plot_methods dictionary.
+and analysis functions in one place. We expand it to produce actual
+visualizations for "gradients", "branch_info", and "ablation" using
+plot_utils.py functions like plot_einet_gradients, plot_depth_info,
+visualize_dendritic_tree, etc.
 """
 
 import os
 import logging
 
-import torch
+import matplotlib.pyplot as plt
+from torch.utils.data import DataLoader
+
 from dendritic_modeling.utils import split_MNIST_inputs
-from dendritic_modeling.plot_utils import (
-    plot_einet_params,
-    plot_einet_activations
-)
 from dendritic_modeling.utils import (
     Shaper,
     analyze_branch_ablation,
     analyze_branch_information
 )
+from dendritic_modeling.plot_utils import (
+    plot_einet_params,
+    plot_einet_activations,
+    plot_einet_gradients,
+    plot_depth_info,
+    build_dendritic_tree_graph,
+    visualize_dendritic_tree
+)
+
 
 class PlotManager:
     """
     A manager that stores all known plot/analysis methods in a dictionary.
-    The main experiment only calls PlotManager.run_plot(plot_name, ...),
-    so no need to modify train_experiments.py each time a new plot is added.
+    The main experiment code can call PlotManager.run_plot(plot_name),
+    without needing to manually code each function call in train_experiments.py.
     """
 
     def __init__(self, model, data, config, device='cpu'):
         """
         model : the trained classifier (with .net for EINet)
         data : dict of 'train', 'valid', 'test' datasets
-        config : the loaded config
-        device : string, 'cuda' or 'cpu'
+        config : the loaded config (with .visualization section)
+        device : 'cuda' or 'cpu'
         """
 
         self.model = model
@@ -72,7 +79,10 @@ class PlotManager:
         """
         if hasattr(self.model, 'net'):
             save_dir = os.path.join(self.save_path, "param_visuals")
+            os.makedirs(save_dir, exist_ok=True)
+            # Possibly reshape weights for MNIST  , should be checked or corrected for other experiments
             shaper = Shaper(shape=(28, 28))
+
             plot_einet_params(
                 einet=self.model.net,
                 save_root=save_dir,
@@ -88,6 +98,7 @@ class PlotManager:
         """
         if hasattr(self.model, 'net'):
             save_dir = os.path.join(self.save_path, "activation_visuals")
+            os.makedirs(save_dir, exist_ok=True)
             train_input, train_label = self.data['train'][:]
             input_list = split_MNIST_inputs(train_input, train_label)
             plot_einet_activations(
@@ -100,42 +111,117 @@ class PlotManager:
 
     def _plot_gradients(self):
         """
-        Placeholder for gradient visualization if needed.
+        Generates gradient visualizations by calling plot_einet_gradients.
         """
-        logging.info("No explicit gradient plotting function here. Could implement if needed.")
+        if hasattr(self.model, 'net'):
+            save_dir = os.path.join(self.save_path, "grad_visuals")
+            os.makedirs(save_dir, exist_ok=True)
+
+            train_input, train_label = self.data['train'][:]
+
+            plot_einet_gradients(
+                model=self.model,
+                inputs=train_input,
+                labels=train_label,
+                save_root=save_dir,
+                reshape_fn=None,       # if we want to reshape gradients, we can pass a Shaper
+                reshape_exc_syn=True, 
+                save_in_dir=True,
+                filename="gradients"
+            )
+            logging.info(f"Saved gradient visualizations in {save_dir}")
+        else:
+            logging.info("No 'net' attribute found. Skipping gradient plotting.")
 
     def _branch_info(self):
         """
-        Computes mutual information or branch-based info
-        if forward_with_branch_outputs is available.
+        Computes mutual information across layers/branches, then plots
+        or visualizes the results (depth plot, dendritic tree).
         """
-        if hasattr(self.model.net, 'forward_with_branch_outputs'):
-            branch_info = analyze_branch_information(
-                self.model.net,
-                self.data['train'],
-                batch_size=self.config.train.get('batch_size', 64),
-                device=self.device,
-                n_bins=10
-            )
-            logging.info(f"Branch Info (MI) per layer: {branch_info}")
-        else:
+        if not hasattr(self.model, 'net'):
+            logging.info("No 'net' attribute found. Skipping branch_info.")
+            return
+        net = self.model.net
+
+        # Must have forward_with_branch_outputs for analyze_branch_information
+        if not hasattr(net, 'forward_with_branch_outputs'):
             logging.info("No forward_with_branch_outputs found. Skipping branch_info analysis.")
+            return
+
+        logging.info("Computing branch mutual info ...")
+        branch_info = analyze_branch_information(
+            net,
+            self.data['train'],  # or 'valid'
+            batch_size=self.config.train.get('batch_size', 64),
+            device=self.device,
+            n_bins=10
+        )
+        logging.info(f"Branch Info (MI) per layer: {branch_info}")
+
+        save_dir = os.path.join(self.save_path, "branch_info_plots")
+        os.makedirs(save_dir, exist_ok=True)
+
+        logging.info("Plotting MI vs. layer depth ...")
+        plot_depth_info(branch_info)  
+        plt.savefig(os.path.join(save_dir, "branch_info_depth_plot.png"))
+        plt.close()
+        logging.info(f"Saved branch_info_depth_plot.png in {save_dir}")
+
+        # Optionally build dendritic tree colored by 'info'
+        logging.info("Building dendritic tree graph colored by 'info' ...")
+        G = build_dendritic_tree_graph(net, branch_info=branch_info)
+        visualize_dendritic_tree(G, mode='info')
+        plt.savefig(os.path.join(save_dir, "branch_info_tree_graph.png"))
+        plt.close()
+        logging.info(f"Saved branch_info_tree_graph.png in {save_dir}")
 
     def _ablation(self):
         """
-        Example ablation test on layer 0 branches.
+        Performs an ablation test on layer 0 branches and logs results.
+        Also draws a bar chart of accuracy drop, plus a tree graph
+        colored by ablation values.
         """
-        if hasattr(self.model.net, 'forward_with_branch_outputs'):
-            baseline_acc, ablation_res = analyze_branch_ablation(
-                self.model.net,
-                self.data['test'],
-                layer_idx=0,
-                branch_ids=[0,1],
-                mode='direct',
-                device=self.device
-            )
-            logging.info(f"Ablation baseline acc on test = {baseline_acc}")
-            for b_id, (acc_after, delta) in ablation_res.items():
-                logging.info(f"Layer 0, branch {b_id}: acc={acc_after:.3f}, drop={delta:.3f}")
-        else:
+        if not hasattr(self.model, 'net'):
+            logging.info("No 'net' attribute found. Skipping ablation.")
+            return
+        net = self.model.net
+
+        if not hasattr(net, 'forward_with_branch_outputs'):
             logging.info("No forward_with_branch_outputs found. Skipping ablation.")
+            return
+
+        logging.info("Performing ablation test on layer 0, branches [0, 1] ...")
+        baseline_acc, ablation_res = analyze_branch_ablation(
+            net,
+            self.data['test'],
+            layer_idx=0,
+            branch_ids=[0, 1],
+            mode='direct',
+            device=self.device
+        )
+        logging.info(f"Ablation baseline acc on test = {baseline_acc}")
+        for b_id, (acc_after, delta) in ablation_res.items():
+            logging.info(f"Layer 0, branch {b_id}: acc={acc_after:.3f}, drop={delta:.3f}")
+
+        save_dir = os.path.join(self.save_path, "ablation_plots")
+        os.makedirs(save_dir, exist_ok=True)
+
+        branch_ids = list(ablation_res.keys())
+        drops = [ablation_res[b_id][1] for b_id in branch_ids]
+
+        plt.figure()
+        plt.title("Ablation: Accuracy Drop by Branch")
+        plt.bar([str(b_id) for b_id in branch_ids], drops, color='orange')
+        plt.xlabel("Branch ID")
+        plt.ylabel("Accuracy Drop")
+        plt.savefig(os.path.join(save_dir, "ablation_accuracy_drop.png"))
+        plt.close()
+        logging.info(f"Saved ablation_accuracy_drop.png in {save_dir}")
+
+        logging.info("Building dendritic tree graph colored by 'ablation' ...")
+        ablation_dict = {b_id: drops[i] for i, b_id in enumerate(branch_ids)}
+        G = build_dendritic_tree_graph(net, ablation_info=ablation_dict)
+        visualize_dendritic_tree(G, mode='ablation')
+        plt.savefig(os.path.join(save_dir, "ablation_tree_graph.png"))
+        plt.close()
+        logging.info(f"Saved ablation_tree_graph.png in {save_dir}")
