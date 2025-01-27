@@ -174,3 +174,54 @@ class PlotManager:
         plt.savefig(os.path.join(save_dir, "branch_info_tree_graph.png"))
         plt.close()
         logging.info(f"Saved branch_info_tree_graph.png in {save_dir}")
+
+    def _ablation(self):
+        """
+        Performs an ablation test on layer 0 branches and logs results.
+        Also draws a bar chart of accuracy drop, plus a tree graph
+        colored by ablation values.
+        """
+        if not hasattr(self.model, 'net'):
+            logging.info("No 'net' attribute found. Skipping ablation.")
+            return
+        net = self.model.net
+
+        if not hasattr(net, 'forward_with_branch_outputs'):
+            logging.info("No forward_with_branch_outputs found. Skipping ablation.")
+            return
+
+        logging.info("Performing ablation test on layer 0, branches [0, 1] ...")
+        baseline_acc, ablation_res = analyze_branch_ablation(
+            net,
+            self.data['test'],
+            layer_idx=0,
+            branch_ids=[0, 1],
+            mode='direct',
+            device=self.device
+        )
+        logging.info(f"Ablation baseline acc on test = {baseline_acc}")
+        for b_id, (acc_after, delta) in ablation_res.items():
+            logging.info(f"Layer 0, branch {b_id}: acc={acc_after:.3f}, drop={delta:.3f}")
+
+        save_dir = os.path.join(self.save_path, "ablation_plots")
+        os.makedirs(save_dir, exist_ok=True)
+
+        branch_ids = list(ablation_res.keys())
+        drops = [ablation_res[b_id][1] for b_id in branch_ids]
+
+        plt.figure()
+        plt.title("Ablation: Accuracy Drop by Branch")
+        plt.bar([str(b_id) for b_id in branch_ids], drops, color='orange')
+        plt.xlabel("Branch ID")
+        plt.ylabel("Accuracy Drop")
+        plt.savefig(os.path.join(save_dir, "ablation_accuracy_drop.png"))
+        plt.close()
+        logging.info(f"Saved ablation_accuracy_drop.png in {save_dir}")
+
+        logging.info("Building dendritic tree graph colored by 'ablation' ...")
+        ablation_dict = {b_id: drops[i] for i, b_id in enumerate(branch_ids)}
+        G = build_dendritic_tree_graph(net, ablation_info=ablation_dict)
+        visualize_dendritic_tree(G, mode='ablation')
+        plt.savefig(os.path.join(save_dir, "ablation_tree_graph.png"))
+        plt.close()
+        logging.info(f"Saved ablation_tree_graph.png in {save_dir}")
