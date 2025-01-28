@@ -80,7 +80,7 @@ class PlotManager:
         if hasattr(self.model, 'net'):
             save_dir = os.path.join(self.save_path, "param_visuals")
             os.makedirs(save_dir, exist_ok=True)
-            # Possibly reshape weights for MNIST  , should be checked or corrected for other experiments
+            # Possibly reshape weights for e.g. MNIST
             shaper = Shaper(shape=(28, 28))
 
             plot_einet_params(
@@ -158,16 +158,18 @@ class PlotManager:
         )
         logging.info(f"Branch Info (MI) per layer: {branch_info}")
 
+        print(888888444444888888444444888888444444888888444444888888444444888888444444)
         save_dir = os.path.join(self.save_path, "branch_info_plots")
         os.makedirs(save_dir, exist_ok=True)
 
+        # 1) Plot MI vs. layer depth
         logging.info("Plotting MI vs. layer depth ...")
         plot_depth_info(branch_info)  
         plt.savefig(os.path.join(save_dir, "branch_info_depth_plot.png"))
         plt.close()
         logging.info(f"Saved branch_info_depth_plot.png in {save_dir}")
 
-        # Optionally build dendritic tree colored by 'info'
+        # 2) Build dendritic tree colored by 'info'
         logging.info("Building dendritic tree graph colored by 'info' ...")
         G = build_dendritic_tree_graph(net, branch_info=branch_info)
         visualize_dendritic_tree(G, mode='info')
@@ -206,6 +208,7 @@ class PlotManager:
         save_dir = os.path.join(self.save_path, "ablation_plots")
         os.makedirs(save_dir, exist_ok=True)
 
+        # 1) Bar chart of accuracy drop
         branch_ids = list(ablation_res.keys())
         drops = [ablation_res[b_id][1] for b_id in branch_ids]
 
@@ -218,6 +221,7 @@ class PlotManager:
         plt.close()
         logging.info(f"Saved ablation_accuracy_drop.png in {save_dir}")
 
+        # 2) Build dendritic tree colored by 'ablation'
         logging.info("Building dendritic tree graph colored by 'ablation' ...")
         ablation_dict = {b_id: drops[i] for i, b_id in enumerate(branch_ids)}
         G = build_dendritic_tree_graph(net, ablation_info=ablation_dict)
