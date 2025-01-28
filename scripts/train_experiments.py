@@ -28,6 +28,9 @@ def initialize_model(model_hp):
     net_type = model_hp['network']['type']
     net_params = model_hp['network']['parameters']
 
+    # We add a default to False if not present:
+    enable_branch_outputs = net_params.get('enable_branch_outputs', False)
+
     if task == 'classification':
         if net_type == 'feedforward':
             logger.info(f"Running feedforward with {'probabilistic' if probabilistic else 'simple'} classifier")
@@ -39,7 +42,10 @@ def initialize_model(model_hp):
                 return Classifier(net)
         elif net_type == 'EINet':
             logger.info(f"Running EINet with {'probabilistic' if probabilistic else 'simple'} classifier")
-            net = ExcitationInhibitionNetwork(**net_params)
+            net = ExcitationInhibitionNetwork(
+                **net_params,
+                enable_branch_outputs=enable_branch_outputs  # pass to constructor
+            )
             output_dim = net_params['excitatory_layer_sizes'][-1]
             if probabilistic:
                 return ProbabilisticClassifier(net, output_dim)
@@ -48,9 +54,6 @@ def initialize_model(model_hp):
         else:
             raise ValueError(f"Invalid network type: {net_type}")
 
-    # If one wanted EINetClassifierNLL, they'd define that case here, for example:
-    # elif task == 'einet_nll':
-    #     ...
     else:
         raise ValueError(f"Invalid task: {task}")
 
@@ -112,7 +115,6 @@ def main(config_path: str, output_dir: str, experiment_name: str):
     optimizer = torch.optim.Adam(clf.parameters(), lr=train_hp.get("lr", 1e-3))
     trainer = TrainerMLE(optimizer=optimizer, suppress_prints=False, print_every=10)
 
-    # set gradient_strategy = "freeze_layer", do layerwise  
     grad_strat = model_hp["network"]["parameters"].get("gradient_strategy", "none")
     if grad_strat == "freeze_layer":
         trainer.train_freeze_layers(
@@ -166,8 +168,6 @@ def main(config_path: str, output_dir: str, experiment_name: str):
         wandb.log({"train_acc": train_acc, "valid_acc": valid_acc, "test_acc": test_acc})
         wandb.finish()
 
-    print("Done.-----------+++++++++++++ ",vis_cfg.enabled)
-    # Visualization/analysis phase
     if vis_cfg.enabled:
         plot_manager = PlotManager(clf, data, config, device=device)
         for plot_name in vis_cfg.plots:
@@ -175,7 +175,6 @@ def main(config_path: str, output_dir: str, experiment_name: str):
             plot_manager.run_plot(plot_name)
 
     logger.info("All done.")
-
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Run dendritic modeling training and evaluation.')
