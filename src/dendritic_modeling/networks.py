@@ -9,7 +9,7 @@ from copy import deepcopy
 from torch import nn
 from typing import List
 import torch
-from dendritic_modeling.dendrinet import DendriNet
+from dendritic_modeling.dendrinet import DendriNet, DendriNetWithOutputs
 from dendritic_modeling import logger
 
 
@@ -38,6 +38,7 @@ class ExcitationInhibitionLayer(nn.Module):
         reactivation_initial_b=1.0,
         reactivation_type='param_tanh',
         train_reactivation_b_only=False,
+        enable_branch_outputs=False  # added
     ):
         super(ExcitationInhibitionLayer, self).__init__()
         self.init_gain = init_gain
@@ -45,39 +46,72 @@ class ExcitationInhibitionLayer(nn.Module):
         self.gradient_strategy = gradient_strategy
         self.gradient_scale_factor = gradient_scale_factor
 
-        self.inhibitory_cells = DendriNet(
-            n_soma = n_inhibitory_cells, 
-            branch_factors = inhibitory_branch_factors,
-            excitatory_input_dim = excitatory_input_dim, 
-            excitatory_synapses_per_branch = ei_synapses_per_branch,
-            inhibitory_input_dim = inhibitory_input_dim, 
-            inhibitory_synapses_per_branch = ii_synapses_per_branch,
-            reactivate = reactivate, 
-            somatic_synapses = somatic_synapses, 
-            topk_init_method = topk_init_method,
-            use_shunting=use_shunting,
-            reactivation_type=reactivation_type,
-            reactivation_initial_m=reactivation_initial_m,
-            reactivation_initial_b=reactivation_initial_b,
-            train_reactivation_b_only=train_reactivation_b_only,
-        )
-
-        self.excitatory_cells = DendriNet(
-            n_soma = n_excitatory_cells, 
-            branch_factors = excitatory_branch_factors,
-            excitatory_input_dim = excitatory_input_dim, 
-            excitatory_synapses_per_branch = ee_synapses_per_branch,
-            inhibitory_input_dim = n_inhibitory_cells, 
-            inhibitory_synapses_per_branch = ie_synapses_per_branch,
-            reactivate = reactivate, 
-            somatic_synapses = somatic_synapses,
-            topk_init_method = topk_init_method,
-            use_shunting=use_shunting,
-            reactivation_type=reactivation_type,
-            reactivation_initial_m=reactivation_initial_m,
-            reactivation_initial_b=reactivation_initial_b,
-            train_reactivation_b_only=train_reactivation_b_only,
-        )
+        if enable_branch_outputs:
+            self.inhibitory_cells = DendriNetWithOutputs(
+                n_soma = n_inhibitory_cells, 
+                branch_factors = inhibitory_branch_factors,
+                excitatory_input_dim = excitatory_input_dim, 
+                excitatory_synapses_per_branch = ei_synapses_per_branch,
+                inhibitory_input_dim = inhibitory_input_dim, 
+                inhibitory_synapses_per_branch = ii_synapses_per_branch,
+                reactivate = reactivate, 
+                somatic_synapses = somatic_synapses, 
+                topk_init_method = topk_init_method,
+                use_shunting=use_shunting,
+                reactivation_type=reactivation_type,
+                reactivation_initial_m=reactivation_initial_m,
+                reactivation_initial_b=reactivation_initial_b,
+                train_reactivation_b_only=train_reactivation_b_only,
+            )
+            self.excitatory_cells = DendriNetWithOutputs(
+                n_soma = n_excitatory_cells, 
+                branch_factors = excitatory_branch_factors,
+                excitatory_input_dim = excitatory_input_dim, 
+                excitatory_synapses_per_branch = ee_synapses_per_branch,
+                inhibitory_input_dim = n_inhibitory_cells, 
+                inhibitory_synapses_per_branch = ie_synapses_per_branch,
+                reactivate = reactivate, 
+                somatic_synapses = somatic_synapses,
+                topk_init_method = topk_init_method,
+                use_shunting=use_shunting,
+                reactivation_type=reactivation_type,
+                reactivation_initial_m=reactivation_initial_m,
+                reactivation_initial_b=reactivation_initial_b,
+                train_reactivation_b_only=train_reactivation_b_only,
+            )
+        else:
+            self.inhibitory_cells = DendriNet(
+                n_soma = n_inhibitory_cells, 
+                branch_factors = inhibitory_branch_factors,
+                excitatory_input_dim = excitatory_input_dim, 
+                excitatory_synapses_per_branch = ei_synapses_per_branch,
+                inhibitory_input_dim = inhibitory_input_dim, 
+                inhibitory_synapses_per_branch = ii_synapses_per_branch,
+                reactivate = reactivate, 
+                somatic_synapses = somatic_synapses, 
+                topk_init_method = topk_init_method,
+                use_shunting=use_shunting,
+                reactivation_type=reactivation_type,
+                reactivation_initial_m=reactivation_initial_m,
+                reactivation_initial_b=reactivation_initial_b,
+                train_reactivation_b_only=train_reactivation_b_only,
+            )
+            self.excitatory_cells = DendriNet(
+                n_soma = n_excitatory_cells, 
+                branch_factors = excitatory_branch_factors,
+                excitatory_input_dim = excitatory_input_dim, 
+                excitatory_synapses_per_branch = ee_synapses_per_branch,
+                inhibitory_input_dim = n_inhibitory_cells, 
+                inhibitory_synapses_per_branch = ie_synapses_per_branch,
+                reactivate = reactivate, 
+                somatic_synapses = somatic_synapses,
+                topk_init_method = topk_init_method,
+                use_shunting=use_shunting,
+                reactivation_type=reactivation_type,
+                reactivation_initial_m=reactivation_initial_m,
+                reactivation_initial_b=reactivation_initial_b,
+                train_reactivation_b_only=train_reactivation_b_only,
+            )
     
     def decay_weights(self, weight_decay):
         self.inhibitory_cells.decay_weights(weight_decay)
@@ -87,6 +121,7 @@ class ExcitationInhibitionLayer(nn.Module):
         inhibitory_output = self.inhibitory_cells(x, inhibitory_input)
         excitatory_output = self.excitatory_cells(x, inhibitory_output)
         return excitatory_output, inhibitory_output
+
 
 class ExcitationInhibitionNetwork(nn.Module):
     def __init__(
@@ -115,6 +150,7 @@ class ExcitationInhibitionNetwork(nn.Module):
         train_reactivation_b_only=False,
         local_learning="none",
         local_loss_weight=0.0,
+        enable_branch_outputs=False  # added
     ):
         super(ExcitationInhibitionNetwork, self).__init__()
         self.weight_decay_rate = weight_decay_rate
@@ -172,6 +208,7 @@ class ExcitationInhibitionNetwork(nn.Module):
                 reactivation_initial_b = reactivation_initial_b,
                 reactivation_type = reactivation_type,
                 train_reactivation_b_only = train_reactivation_b_only,
+                enable_branch_outputs = enable_branch_outputs  # added
             ))
         
         self.layers = nn.ModuleList(layers)
@@ -196,66 +233,4 @@ class ExcitationInhibitionNetwork(nn.Module):
         return excitatory
 
     def compute_local_loss(self, x, y=None):
-        # no-op or minimal
         return 0.0
-class FeedforwardNN(nn.Module):
-    """
-    A configurable feedforward neural network as a baseline for comparison
-    on the flattened MNIST dataset.
-    """
-    def __init__(
-        self,
-        input_dim: int = 784,
-        hidden_layer_sizes: List[int] = [128, 64],
-        activation: str = "relu",
-        dropout: float = 0.2,
-        output_dim: int = 10,
-    ):
-        super(FeedforwardNN, self).__init__()
-
-        # Map string activation to PyTorch activation functions
-        activation_mapping = {
-            "relu": nn.ReLU,
-            "sigmoid": nn.Sigmoid,
-            "tanh": nn.Tanh,
-            "leaky_relu": nn.LeakyReLU
-        }
-
-        # Raise an error if the activation is not supported
-        if activation not in activation_mapping:
-            raise ValueError(f"Unsupported activation function: {activation}. "
-                             f"Supported: {list(activation_mapping.keys())}")
-
-        # Define layers dynamically
-        layers = []
-        current_dim = input_dim
-
-        for layer_size in hidden_layer_sizes:
-            layers.append(nn.Linear(current_dim, layer_size))
-            layers.append(activation_mapping[activation]())
-            if dropout > 0:  # Apply dropout only if it's greater than 0
-                layers.append(nn.Dropout(dropout))
-            current_dim = layer_size
-
-        # Add the output layer
-        layers.append(nn.Linear(current_dim, output_dim))
-
-        # Combine layers into a sequential model
-        self.model = nn.Sequential(*layers)
-
-    def forward(self, x):
-        return self.model(x)
-    
-    
-class MLPBaseline(nn.Module):
-    """
-    A simple feedforward MLP with one hidden layer, for baseline comparison.
-    """
-    def __init__(self, input_dim, hidden_dim, output_dim):
-        super(MLPBaseline, self).__init__()
-        self.fc1 = nn.Linear(input_dim, hidden_dim)
-        self.fc2 = nn.Linear(hidden_dim, output_dim)
-
-    def forward(self, x):
-        x = F.relu(self.fc1(x))
-        return self.fc2(x)  # raw logits
