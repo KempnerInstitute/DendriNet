@@ -1,5 +1,5 @@
 model:
-  task: classification #classification einet_nll
+  task: classification #classification or einet_nll
   probabilistic: True
   network:
     type: "EINet"
@@ -54,19 +54,16 @@ wandb:
   group: "debug"
   tags: [mnist_1]
 
-# analysis:
-#   placeholder: "deprecated"
-
 visualization:
   enabled: true
   save_path: /n/holylabs/LABS/kempner_dev/Users/hsafaai/results/dendritic_modeling/results #"/n/netscratch/kempner_dev/hsafaai/results/visuals"
   # A list of which plots/analyses to generate:
   plots: 
-    - "weights"      # Plot dendritic or EI-net weights
-    - "activations"  # Plot per-digit activation distribution
-    - "gradients"    # Plot synapse or branch gradients
-    - "branch_info"  # e.g. mutual information
-    - "ablation"     # ablation approach
+    #- "weights"      # Plot dendritic or EI-net weights
+    #- "activations"  # Plot per-digit activation distribution
+    #- "gradients"    # Plot synapse or branch gradients
+    - "branch_info"  # mutual information
+    - "ablation"     # ablation 
 
 # Explanation of the Methods:
 #  1. Vanilla Backprop
@@ -82,9 +79,7 @@ visualization:
 #     -> init_gain, init_inhib_offset, etc.
 #  7. Reactivation Scaling
 #     -> reactivation_initial_m, reactivation_initial_b, reactivation_type
-#  8. Weight Decay
-#     -> use model.network.parameters.weight_decay_rate if desired
-#  9. The `visualization` block
+#  8. The `visualization` block
 #     -> 'enabled' toggles plotting or not
 #     -> 'save_path' is directory for figure outputs
 #     -> 'plots' is a list of keys recognized by the PlotManager
