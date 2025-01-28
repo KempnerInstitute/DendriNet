@@ -142,7 +142,8 @@ class PlotManager:
             logging.info("No 'net' attribute found. Skipping branch_info.")
             return
         net = self.model.net
-
+        
+        print(hasattr(net, 'forward_with_branch_outputs'))
         # Must have forward_with_branch_outputs for analyze_branch_information
         if not hasattr(net, 'forward_with_branch_outputs'):
             logging.info("No forward_with_branch_outputs found. Skipping branch_info analysis.")
