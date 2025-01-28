@@ -21,7 +21,6 @@ def initialize_model(model_hp):
     """
     Builds the specified model: 
     'classification' uses ProbabilisticClassifier or Classifier.
-    If 'einet_nll' existed, it would require EINetClassifierNLL, etc.
     """
     task = model_hp['task']
     probabilistic = model_hp['probabilistic']
