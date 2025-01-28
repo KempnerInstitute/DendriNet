@@ -36,7 +36,6 @@ model:
 
       enable_branch_outputs: true
 
-      
 train:
   run_name: "mnist_einet"
   seed: 0
