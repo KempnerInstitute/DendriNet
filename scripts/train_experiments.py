@@ -58,13 +58,11 @@ def main(config_path: str, output_dir: str, experiment_name: str):
     os.makedirs(output_dir, exist_ok=True)
     logger_manager.set_log_file(os.path.join(output_dir, "dendritic_modeling.log"))
 
-    # Load config
     config = load_config(config_path)
 
     model_hp = config.model.asdict()
     train_hp = config.train.asdict()
 
-    # Now we directly access config.visualization, because it's a dataclass field
     vis_cfg = config.visualization
     wandb_cfg = config.wandb
 
@@ -92,7 +90,6 @@ def main(config_path: str, output_dir: str, experiment_name: str):
     
     clf = initialize_model(model_hp)
 
-    # Attempt printing model summary
     try:
         sample_input_dim = data['train'].x.shape[1]
         summary = torchinfo.summary(
@@ -112,11 +109,10 @@ def main(config_path: str, output_dir: str, experiment_name: str):
     except:
         pass
 
-    # Build optimizer (no built-in weight_decay references)
     optimizer = torch.optim.Adam(clf.parameters(), lr=train_hp.get("lr", 1e-3))
     trainer = TrainerMLE(optimizer=optimizer, suppress_prints=False, print_every=10)
 
-    # If user set gradient_strategy = "freeze_layer", do layerwise approach
+    # set gradient_strategy = "freeze_layer", do layerwise  
     grad_strat = model_hp["network"]["parameters"].get("gradient_strategy", "none")
     if grad_strat == "freeze_layer":
         trainer.train_freeze_layers(
@@ -170,11 +166,12 @@ def main(config_path: str, output_dir: str, experiment_name: str):
         wandb.log({"train_acc": train_acc, "valid_acc": valid_acc, "test_acc": test_acc})
         wandb.finish()
 
+    print("Done.-----------+++++++++++++ ",vis_cfg.enabled)
     # Visualization/analysis phase
     if vis_cfg.enabled:
-        # Pass entire config, data, etc. to PlotManager
         plot_manager = PlotManager(clf, data, config, device=device)
         for plot_name in vis_cfg.plots:
+            print(plot_name)
             plot_manager.run_plot(plot_name)
 
     logger.info("All done.")
