@@ -28,8 +28,7 @@ def initialize_model(model_hp):
     net_type = model_hp['network']['type']
     net_params = model_hp['network']['parameters']
 
-    # We add a default to False if not present:
-    enable_branch_outputs = net_params.get('enable_branch_outputs', False)
+    enable_branch_outputs = net_params.pop('enable_branch_outputs', False)
 
     if task == 'classification':
         if net_type == 'feedforward':
@@ -40,17 +39,20 @@ def initialize_model(model_hp):
                 return ProbabilisticClassifier(net, output_dim)
             else:
                 return Classifier(net)
+
         elif net_type == 'EINet':
             logger.info(f"Running EINet with {'probabilistic' if probabilistic else 'simple'} classifier")
+
             net = ExcitationInhibitionNetwork(
                 **net_params,
-                enable_branch_outputs=enable_branch_outputs  # pass to constructor
+                enable_branch_outputs=enable_branch_outputs
             )
             output_dim = net_params['excitatory_layer_sizes'][-1]
             if probabilistic:
                 return ProbabilisticClassifier(net, output_dim)
             else:
                 return Classifier(net)
+
         else:
             raise ValueError(f"Invalid network type: {net_type}")
 

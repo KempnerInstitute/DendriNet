@@ -13,10 +13,3 @@ def compute_expectation_truncated_log_normal(
 
     expectation = numerator / denominator
     return expectation
-
-
-
-
-
-
-
