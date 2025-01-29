@@ -93,14 +93,8 @@ class Classifier(BaseModel):
         self.use_output_layer = use_output_layer
 
         if self.use_output_layer:
-            # user wants an additional FC. We'll assume net's forward returns [batch_size, hidden_dim].
-            # We'll guess hidden_dim from net. E.g. net.excitatory_layer_sizes[-1].
-            # For a robust approach, do a dummy forward. 
-            # We'll do a small trick:
-            self.final_fc = nn.Linear(self.output_dim, self.output_dim)  # dummy
-            # or better approach: do a dummy pass or ask config for hidden size. 
-            # We'll just keep it as example.
-
+            self.final_fc = nn.Linear(self.output_dim, self.output_dim) 
+            
     def forward(self, x, y=None):
         logits = self.net(x)
         if hasattr(self, 'final_fc'):
