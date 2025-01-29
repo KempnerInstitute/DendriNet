@@ -166,11 +166,11 @@ class PlotManager:
         plt.close()
         logging.info(f"Saved branch_info_depth_plot.png in {save_dir}")
 
-
     def _ablation(self):
         """
-        Layer-wise ablation approach: zero out all excitatory branch layers
-        in net.branch_layers, measuring performance drop vs. baseline.
+        Layer-wise ablation approach: we only zero out the direct excit/inhib
+        columns for each branch layer. This ensures that upstream signals
+        (the block from previous dendrites) can still propagate.
         """
         if not hasattr(self.model, 'net'):
             logging.info("No 'net' attribute found. Skipping ablation.")
@@ -183,7 +183,6 @@ class PlotManager:
 
         logging.info("Performing layer-wise ablation ...")
 
-        # measure baseline
         baseline_acc = measure_performance(net, self.data['test'], device=self.device)
         logging.info(f"Ablation baseline acc on test = {baseline_acc}")
 
@@ -195,16 +194,27 @@ class PlotManager:
         layer_idxs = []
         perf_drops = []
 
-        # net.branch_layers gives us each excitatory DendriticBranchLayer 
-        # so we'll ablate each of these in turn:
-        for i, exc_branch_layer in enumerate(net.branch_layers):
-            logging.info(f"Ablating excitatory branch layer {i} ...")
+        # net.branch_layers -> list of excitatory DendriticBranchLayer objects
+        # If we zero out the entire pre_w, it also kills signals from upstream.
+        # Instead, we zero only the portion that corresponds to direct input
+        # from x or global inhib. The 'branches_to_output' or block input
+        # is usually in a separate 'BlockLinear' or is not in these pre_w's.
 
-            # zero out this entire branch layer
-            if hasattr(exc_branch_layer, 'branch_excitation'):
-                exc_branch_layer.branch_excitation.pre_w.data.zero_()
-            if hasattr(exc_branch_layer, 'branch_inhibition'):
-                exc_branch_layer.branch_inhibition.pre_w.data.zero_()
+        for i, exc_branch_layer in enumerate(net.branch_layers):
+            logging.info(f"Ablating direct input for excitatory branch layer {i} ...")
+
+            # Zero direct excit columns if input_excitatory is True
+            if hasattr(exc_branch_layer, 'branch_excitation') and exc_branch_layer.input_excitatory:
+                in_dim = exc_branch_layer.excitatory_input_dim  # direct external input dimension
+                # If the shape is [out_features, in_features], we zero columns [0..in_dim-1]
+                # to remove direct external input. 
+                # Leave the rest so that signals from previous branches still flow.
+                exc_branch_layer.branch_excitation.pre_w.data[:, :in_dim] = 0.
+
+            # Zero direct inhib columns if input_inhibitory is True
+            if hasattr(exc_branch_layer, 'branch_inhibition') and exc_branch_layer.input_inhibitory:
+                in_dim_inh = exc_branch_layer.inhibitory_input_dim
+                exc_branch_layer.branch_inhibition.pre_w.data[:, :in_dim_inh] = 0.
 
             acc_after = measure_performance(net, self.data['test'], device=self.device)
             delta = baseline_acc - acc_after
@@ -213,10 +223,10 @@ class PlotManager:
             layer_idxs.append(i)
             perf_drops.append(delta)
 
+            # restore after each ablation test
             for n, p in net.named_parameters():
                 p.data.copy_(original[n])
 
-        # Plot performance drop vs. layer index
         save_dir = os.path.join(self.save_path, "ablation_plots")
         os.makedirs(save_dir, exist_ok=True)
 
@@ -224,8 +234,7 @@ class PlotManager:
         ax.plot(layer_idxs, perf_drops, marker='o', color='orange')
         ax.set_xlabel("Branch Layer Index")
         ax.set_ylabel("Accuracy Drop")
-        ax.set_title("Excitatory Layer-wise Ablation")
+        ax.set_title("Ablation of Direct Input vs. Layer Index")
         fig.savefig(os.path.join(save_dir, "ablation_vs_layer_index.png"))
         plt.close(fig)
         logging.info(f"Saved ablation_vs_layer_index.png in {save_dir}")
-
