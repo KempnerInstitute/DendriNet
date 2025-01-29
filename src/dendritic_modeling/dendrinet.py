@@ -25,7 +25,6 @@ TOPK_INIT_METHODS = {
     'eye': nn.init.eye_,
 }
 
-
 class TopKLinear(nn.Module):
     """
     A linear layer that retains only the top K strongest synaptic weights for
@@ -103,6 +102,12 @@ class TopKLinear(nn.Module):
             init_gain=1.0,
         ):
         super(TopKLinear, self).__init__()
+        
+        # -- Fix: Store in_features/out_features so code can access .out_features
+        self.in_features = in_features
+        self.out_features = out_features
+        # --------------------------------------------------
+
         self.init_method = init_method
         self.init_gain = init_gain
         
@@ -179,7 +184,6 @@ class TopKLinear(nn.Module):
         
         weighted_synapses = cell_weights[:,None] * synapse_weights
         return weighted_synapses.sum(dim = 0)
-
 
 class BlockLinear(nn.Module):
     """
@@ -294,7 +298,6 @@ class BlockLinear(nn.Module):
     def sum_conductances(self):
         sum_g = self.log_weight.exp().sum(dim = 1)
         return sum_g
-
 
 class DendriticBranchLayer(nn.Module):
     """
@@ -487,7 +490,6 @@ class DendriticBranchLayer(nn.Module):
         else:
             return self.branch_excitation.log_pruned_weight()
 
-
 class DendriNet(nn.Module):
     """
     Generates a linear layer of neurons, each of which consists of a sequential 
@@ -673,7 +675,6 @@ class DendriNet(nn.Module):
         else:
             exc_total = self.sum_weights(pruned = pruned)
             return (exc_total + 1e-8).log()
-
 
 class DendriNetWithOutputs(DendriNet):
     """

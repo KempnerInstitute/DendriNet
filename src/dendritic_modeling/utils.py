@@ -15,7 +15,7 @@ import torch
 import torchvision
 from torchvision import transforms
 from omegaconf import OmegaConf, DictConfig, ListConfig
-
+from torch.utils.data import DataLoader
 
 class Data(torch.utils.data.Dataset):
     """
