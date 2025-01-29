@@ -142,7 +142,6 @@ class PlotManager:
             return
         net = self.model.net
         
-        print(hasattr(net, 'forward_with_branch_outputs'))
         # Must have forward_with_branch_outputs for analyze_branch_information
         if not hasattr(net, 'forward_with_branch_outputs'):
             logging.info("No forward_with_branch_outputs found. Skipping branch_info analysis.")
@@ -158,7 +157,6 @@ class PlotManager:
         )
         logging.info(f"Branch Info (MI) per layer: {branch_info}")
 
-        print(888888444444888888444444888888444444888888444444888888444444888888444444)
         save_dir = os.path.join(self.save_path, "branch_info_plots")
         os.makedirs(save_dir, exist_ok=True)
 
