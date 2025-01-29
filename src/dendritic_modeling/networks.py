@@ -254,6 +254,20 @@ class ExcitationInhibitionNetwork(nn.Module):
     def compute_local_loss(self, x, y=None):
         return 0.0
 
+    @property
+    def branch_layers(self):
+        """
+        Provide a combined list of DendriticBranchLayer modules from all
+        excitatory sub-nets so that code expecting `model.branch_layers`
+        won't crash with AttributeError. Each item in the returned list
+        is a DendriticBranchLayer, which has `branch_excitation`.
+        """
+        all_branch_layers = []
+        for ei_layer in self.layers:
+            # gather the DendriNet's branch_layers from the excitatory sub-net
+            all_branch_layers.extend(ei_layer.excitatory_cells.branch_layers)
+        return all_branch_layers
+
 
 class FeedforwardNN(nn.Module):
     """
