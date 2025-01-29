@@ -12,7 +12,6 @@ import torch
 from dendritic_modeling.dendrinet import DendriNet, DendriNetWithOutputs
 from dendritic_modeling import logger
 
-
 class ExcitationInhibitionLayer(nn.Module):
     def __init__(
         self, 
@@ -121,6 +120,17 @@ class ExcitationInhibitionLayer(nn.Module):
         inhibitory_output = self.inhibitory_cells(x, inhibitory_input)
         excitatory_output = self.excitatory_cells(x, inhibitory_output)
         return excitatory_output, inhibitory_output
+
+    def forward_with_branch_outputs(self, x, inhibitory_input=None):
+        if not hasattr(self.inhibitory_cells, 'forward_with_branch_outputs'):
+            inhibitory_output = self.inhibitory_cells(x, inhibitory_input)
+            excitatory_output = self.excitatory_cells(x, inhibitory_output)
+            return excitatory_output, inhibitory_output, [], []
+        else:
+            inhibitory_final, inh_acts = self.inhibitory_cells.forward_with_branch_outputs(x, inhibitory_input)
+            excitatory_final, exc_acts = self.excitatory_cells.forward_with_branch_outputs(x, inhibitory_final)
+            # Return them separately so the top net can decide which acts to store
+            return excitatory_final, inhibitory_final, inh_acts, exc_acts
 
 
 class ExcitationInhibitionNetwork(nn.Module):
@@ -232,8 +242,51 @@ class ExcitationInhibitionNetwork(nn.Module):
             excitatory, inhibitory = layer(excitatory, inhibitory)
         return excitatory
 
+    def forward_with_branch_outputs(self, x):
+        """
+        Returns final excitatory output,
+        plus a list of excitatory-layer activations only
+        so that we see exactly n_branch_layers + 1
+        (the 5 dendritic layers + final soma = 6) 
+        if excitatory_branch_factors=[2,2,2,2,2].
+        """
+        excitatory = x
+        inhibitory = None
+        all_excitatory_acts = []  # skip inhibitory
+        for i, layer in enumerate(self.layers):
+            exc_final, inh_final, _, exc_acts = layer.forward_with_branch_outputs(excitatory, inhibitory)
+            excitatory, inhibitory = exc_final, inh_final
+            # store only excitatory acts so we don't end up with extras
+            all_excitatory_acts.extend(exc_acts)
+        # now all_excitatory_acts should have exactly n_branch_layers + 1 entries
+        return excitatory, all_excitatory_acts
+
     def compute_local_loss(self, x, y=None):
         return 0.0
+
+    @property
+    def branch_layers(self):
+        """
+        Provide a combined list of DendriticBranchLayer modules from all
+        excitatory sub-nets so that code expecting `model.branch_layers`
+        won't crash. Each item is a DendriticBranchLayer, typically
+        found in excitatory_cells.branch_layers.
+        """
+        all_branch_layers = []
+        for ei_layer in self.layers:
+            all_branch_layers.extend(ei_layer.excitatory_cells.branch_layers)
+        return all_branch_layers
+
+    @property
+    def n_branch_layers(self):
+        """
+        Provide the number of branch layers. For code referencing
+        `model.n_branch_layers`, we match DendriNet's definition by counting
+        how many DendriticBranchLayer modules the excitatory sub-nets hold.
+        """
+        return len(self.branch_layers)
+
+
 class FeedforwardNN(nn.Module):
     """
     A configurable feedforward neural network as a baseline for comparison
