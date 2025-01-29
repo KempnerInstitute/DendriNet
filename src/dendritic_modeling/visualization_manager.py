@@ -26,8 +26,6 @@ from dendritic_modeling.plot_utils import (
     plot_einet_activations,
     plot_einet_gradients,
     plot_depth_info,
-    # build_dendritic_tree_graph,  # removed for no dendritic tree graph
-    # visualize_dendritic_tree     # removed for no dendritic tree graph
 )
 
 class PlotManager:
@@ -143,7 +141,6 @@ class PlotManager:
             return
         net = self.model.net
         
-        print(hasattr(net, 'forward_with_branch_outputs'))
         # Must have forward_with_branch_outputs for analyze_branch_information
         if not hasattr(net, 'forward_with_branch_outputs'):
             logging.info("No forward_with_branch_outputs found. Skipping branch_info analysis.")
@@ -159,7 +156,6 @@ class PlotManager:
         )
         logging.info(f"Branch Info (MI) per layer: {branch_info}")
 
-        print(888888444444888888444444888888444444888888444444888888444444888888444444)
         save_dir = os.path.join(self.save_path, "branch_info_plots")
         os.makedirs(save_dir, exist_ok=True)
 
@@ -170,7 +166,6 @@ class PlotManager:
         plt.close()
         logging.info(f"Saved branch_info_depth_plot.png in {save_dir}")
 
-        # We no longer call build_dendritic_tree_graph or visualize_dendritic_tree.
 
     def _ablation(self):
         """
