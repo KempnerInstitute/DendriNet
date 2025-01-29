@@ -387,7 +387,7 @@ def ablate_branch(model, layer_idx, branch_ids=None, mode='direct'):
     This ensures we don't remove signals from previous layers, so deeper layers
     can still matter after ablating a lower layer.
 
-    We nedd to adjust to match DendriticBranchLayer structure. Typically:
+    We need to adjust to match DendriticBranchLayer structure. Typically:
       model.branch_layers[layer_idx] -> has .branch_excitation and .branch_inhibition
     """
     layer = model.branch_layers[layer_idx]
