@@ -26,7 +26,7 @@ model:
       reactivation_type: param_tanh  # "none", "param_tanh", "relu", "sigmoid", "tanh"
       train_reactivation_b_only: false
 
-      gradient_strategy: none #"none", "distal_upweight", "distal_upweight_by_idx", "freeze_layer" , "uniform_scale"
+      gradient_strategy: none #"none", "distal_upweight", "distal_upweight_by_idx", "freeze_layer" , "uniform_scale", "block_conductance_dynamic"
       gradient_scale_factor: 1
 
       weight_decay_rate: 0.1
