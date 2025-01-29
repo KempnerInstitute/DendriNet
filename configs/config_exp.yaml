@@ -49,7 +49,7 @@ train:
 task:
   dataset: "mnist"
   parameters: {}
-
+pl
 wandb:
   entity: houman_safaai-harvard-university
   project: "dendritic_mnist_new_config"

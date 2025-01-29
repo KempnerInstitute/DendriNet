@@ -129,6 +129,7 @@ class ExcitationInhibitionLayer(nn.Module):
         else:
             inhibitory_final, inh_acts = self.inhibitory_cells.forward_with_branch_outputs(x, inhibitory_input)
             excitatory_final, exc_acts = self.excitatory_cells.forward_with_branch_outputs(x, inhibitory_final)
+            # Return them separately so the top net can decide which acts to store
             return excitatory_final, inhibitory_final, inh_acts, exc_acts
 
 
@@ -242,14 +243,23 @@ class ExcitationInhibitionNetwork(nn.Module):
         return excitatory
 
     def forward_with_branch_outputs(self, x):
+        """
+        Returns final excitatory output,
+        plus a list of excitatory-layer activations only
+        so that we see exactly n_branch_layers + 1
+        (the 5 dendritic layers + final soma = 6) 
+        if excitatory_branch_factors=[2,2,2,2,2].
+        """
         excitatory = x
         inhibitory = None
-        all_acts = []
+        all_excitatory_acts = []  # skip inhibitory
         for i, layer in enumerate(self.layers):
-            excitatory, inhibitory, inh_acts, exc_acts = layer.forward_with_branch_outputs(excitatory, inhibitory)
-            all_acts.extend(inh_acts)
-            all_acts.extend(exc_acts)
-        return excitatory, all_acts
+            exc_final, inh_final, _, exc_acts = layer.forward_with_branch_outputs(excitatory, inhibitory)
+            excitatory, inhibitory = exc_final, inh_final
+            # store only excitatory acts so we don't end up with extras
+            all_excitatory_acts.extend(exc_acts)
+        # now all_excitatory_acts should have exactly n_branch_layers + 1 entries
+        return excitatory, all_excitatory_acts
 
     def compute_local_loss(self, x, y=None):
         return 0.0
