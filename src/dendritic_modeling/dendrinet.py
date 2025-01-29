@@ -14,6 +14,9 @@ from torch.nn.init import _no_grad_normal_
 from dendritic_modeling.initialize import compute_expectation_truncated_log_normal
 from dendritic_modeling.activation_functions import ActivationFactory
 
+# --- New import for gradient scaling hooks
+from dendritic_modeling.gradient_scaling import GradientScaler
+
 TOPK_INIT_METHODS = {
     'xavier_normal': nn.init.xavier_normal_,
     'xavier_uniform': nn.init.xavier_uniform_,
@@ -544,6 +547,10 @@ class DendriNet(nn.Module):
         reactivation_initial_m = 1.5,
         reactivation_initial_b = 1.0,
         train_reactivation_b_only = False,
+
+        # new:
+        gradient_strategy="none",
+        gradient_scale_factor=1.0,
     ):
         super(DendriNet, self).__init__()
         
@@ -580,7 +587,7 @@ class DendriNet(nn.Module):
         branch_factors.insert(0, None)
         branch_layers = []
         for i in range(self.n_branch_layers):
-            branch_layers.append(DendriticBranchLayer(
+            lyr = DendriticBranchLayer(
                 output_dim = layer_sizes[i], 
                 excitatory_input_dim = excitatory_input_dim, 
                 excitatory_synapses_per_branch = excitatory_synapses_per_branch,
@@ -590,7 +597,11 @@ class DendriNet(nn.Module):
                 topk_init_method = topk_init_method,
                 use_shunting = use_shunting,
                 layer_idx = i,
-            ))
+                gradient_strategy = gradient_strategy,
+                gradient_scale_factor = gradient_scale_factor
+            )
+            branch_layers.append(lyr)
+        
         if somatic_synapses:
             branch_layers.append(DendriticBranchLayer(
                 output_dim = n_soma, 
@@ -601,6 +612,8 @@ class DendriNet(nn.Module):
                 input_branch_factor = branch_factors[-1], 
                 topk_init_method = topk_init_method,
                 use_shunting = use_shunting,
+                gradient_strategy = gradient_strategy,
+                gradient_scale_factor = gradient_scale_factor
             ))
         else:
             branch_layers.append(DendriticBranchLayer(
@@ -612,6 +625,8 @@ class DendriNet(nn.Module):
                 input_branch_factor = branch_factors[-1], 
                 topk_init_method = topk_init_method,
                 use_shunting = use_shunting,
+                gradient_strategy = gradient_strategy,
+                gradient_scale_factor = gradient_scale_factor
             ))
         self.branch_layers = nn.ModuleList(branch_layers)
 
@@ -633,7 +648,28 @@ class DendriNet(nn.Module):
         self.input_inhibitory = inhibitory_input_dim is not None
         self.n_soma = n_soma
         self.somatic_synapses = somatic_synapses
-    
+
+        # auto-register block_linear dynamic hooking if needed
+        if gradient_strategy == "block_conductance_dynamic":
+            from dendritic_modeling.gradient_scaling import GradientScaler
+            self.scaler = GradientScaler(strategy=gradient_strategy, scale_factor=gradient_scale_factor)
+            self._register_block_linear_hooks()
+
+
+    def _register_block_linear_hooks(self):
+        """
+        For each branch layer with self.branches_to_output, attach the dynamic 
+        gradient scaling hook from gradient_scaling.py.
+        """
+        for b_layer in self.branch_layers:
+            if hasattr(b_layer, 'branches_to_output') and (b_layer.branches_to_output is not None):
+                # register the dynamic hook
+                self.scaler.register_block_linear_dynamic(
+                    block_linear_layer=b_layer.branches_to_output,
+                    branch_excitation=b_layer.branch_excitation if b_layer.input_excitatory else None,
+                    branch_inhibition=b_layer.branch_inhibition if b_layer.input_inhibitory else None
+                )
+
     def decay_weights(self, weight_decay):
         for branch_layer in self.branch_layers:
             branch_layer.decay_weights(weight_decay)
@@ -675,6 +711,7 @@ class DendriNet(nn.Module):
         else:
             exc_total = self.sum_weights(pruned = pruned)
             return (exc_total + 1e-8).log()
+
 
 class DendriNetWithOutputs(DendriNet):
     """
