@@ -18,17 +18,15 @@ from dendritic_modeling.utils import split_MNIST_inputs
 from dendritic_modeling.utils import (
     Shaper,
     analyze_branch_ablation,
-    analyze_branch_information
+    analyze_branch_information,
+    measure_performance
 )
 from dendritic_modeling.plot_utils import (
     plot_einet_params,
     plot_einet_activations,
     plot_einet_gradients,
     plot_depth_info,
-    build_dendritic_tree_graph,
-    visualize_dendritic_tree
 )
-
 
 class PlotManager:
     """
@@ -136,14 +134,13 @@ class PlotManager:
     def _branch_info(self):
         """
         Computes mutual information across layers/branches, then plots
-        or visualizes the results (depth plot, dendritic tree).
+        or visualizes the results (depth plot).
         """
         if not hasattr(self.model, 'net'):
             logging.info("No 'net' attribute found. Skipping branch_info.")
             return
         net = self.model.net
         
-        print(hasattr(net, 'forward_with_branch_outputs'))
         # Must have forward_with_branch_outputs for analyze_branch_information
         if not hasattr(net, 'forward_with_branch_outputs'):
             logging.info("No forward_with_branch_outputs found. Skipping branch_info analysis.")
@@ -153,13 +150,12 @@ class PlotManager:
         branch_info = analyze_branch_information(
             net,
             self.data['train'],  # or 'valid'
-            batch_size=self.config.train.get('batch_size', 64),
+            batch_size=getattr(self.config.train, 'batch_size', 64),
             device=self.device,
             n_bins=10
         )
         logging.info(f"Branch Info (MI) per layer: {branch_info}")
 
-        print(888888444444888888444444888888444444888888444444888888444444888888444444)
         save_dir = os.path.join(self.save_path, "branch_info_plots")
         os.makedirs(save_dir, exist_ok=True)
 
@@ -170,19 +166,11 @@ class PlotManager:
         plt.close()
         logging.info(f"Saved branch_info_depth_plot.png in {save_dir}")
 
-        # 2) Build dendritic tree colored by 'info'
-        logging.info("Building dendritic tree graph colored by 'info' ...")
-        G = build_dendritic_tree_graph(net, branch_info=branch_info)
-        visualize_dendritic_tree(G, mode='info')
-        plt.savefig(os.path.join(save_dir, "branch_info_tree_graph.png"))
-        plt.close()
-        logging.info(f"Saved branch_info_tree_graph.png in {save_dir}")
-
     def _ablation(self):
         """
-        Performs an ablation test on layer 0 branches and logs results.
-        Also draws a bar chart of accuracy drop, plus a tree graph
-        colored by ablation values.
+        Layer-wise ablation approach: we only zero out the direct excit/inhib
+        columns for each branch layer. This ensures that upstream signals
+        (the block from previous dendrites) can still propagate.
         """
         if not hasattr(self.model, 'net'):
             logging.info("No 'net' attribute found. Skipping ablation.")
@@ -193,40 +181,60 @@ class PlotManager:
             logging.info("No forward_with_branch_outputs found. Skipping ablation.")
             return
 
-        logging.info("Performing ablation test on layer 0, branches [0, 1] ...")
-        baseline_acc, ablation_res = analyze_branch_ablation(
-            net,
-            self.data['test'],
-            layer_idx=0,
-            branch_ids=[0, 1],
-            mode='direct',
-            device=self.device
-        )
+        logging.info("Performing layer-wise ablation ...")
+
+        baseline_acc = measure_performance(net, self.data['test'], device=self.device)
         logging.info(f"Ablation baseline acc on test = {baseline_acc}")
-        for b_id, (acc_after, delta) in ablation_res.items():
-            logging.info(f"Layer 0, branch {b_id}: acc={acc_after:.3f}, drop={delta:.3f}")
+
+        # store original weights
+        original = {}
+        for n, p in net.named_parameters():
+            original[n] = p.detach().clone()
+
+        layer_idxs = []
+        perf_drops = []
+
+        # net.branch_layers -> list of excitatory DendriticBranchLayer objects
+        # If we zero out the entire pre_w, it also kills signals from upstream.
+        # Instead, we zero only the portion that corresponds to direct input
+        # from x or global inhib. The 'branches_to_output' or block input
+        # is usually in a separate 'BlockLinear' or is not in these pre_w's.
+
+        for i, exc_branch_layer in enumerate(net.branch_layers):
+            logging.info(f"Ablating direct input for excitatory branch layer {i} ...")
+
+            # Zero direct excit columns if input_excitatory is True
+            if hasattr(exc_branch_layer, 'branch_excitation') and exc_branch_layer.input_excitatory:
+                in_dim = exc_branch_layer.excitatory_input_dim  # direct external input dimension
+                # If the shape is [out_features, in_features], we zero columns [0..in_dim-1]
+                # to remove direct external input. 
+                # Leave the rest so that signals from previous branches still flow.
+                exc_branch_layer.branch_excitation.pre_w.data[:, :in_dim] = 0.
+
+            # Zero direct inhib columns if input_inhibitory is True
+            if hasattr(exc_branch_layer, 'branch_inhibition') and exc_branch_layer.input_inhibitory:
+                in_dim_inh = exc_branch_layer.inhibitory_input_dim
+                exc_branch_layer.branch_inhibition.pre_w.data[:, :in_dim_inh] = 0.
+
+            acc_after = measure_performance(net, self.data['test'], device=self.device)
+            delta = baseline_acc - acc_after
+            logging.info(f"Layer {i}: new acc={acc_after:.3f}, drop={delta:.3f}")
+
+            layer_idxs.append(i)
+            perf_drops.append(delta)
+
+            # restore after each ablation test
+            for n, p in net.named_parameters():
+                p.data.copy_(original[n])
 
         save_dir = os.path.join(self.save_path, "ablation_plots")
         os.makedirs(save_dir, exist_ok=True)
 
-        # 1) Bar chart of accuracy drop
-        branch_ids = list(ablation_res.keys())
-        drops = [ablation_res[b_id][1] for b_id in branch_ids]
-
-        plt.figure()
-        plt.title("Ablation: Accuracy Drop by Branch")
-        plt.bar([str(b_id) for b_id in branch_ids], drops, color='orange')
-        plt.xlabel("Branch ID")
-        plt.ylabel("Accuracy Drop")
-        plt.savefig(os.path.join(save_dir, "ablation_accuracy_drop.png"))
-        plt.close()
-        logging.info(f"Saved ablation_accuracy_drop.png in {save_dir}")
-
-        # 2) Build dendritic tree colored by 'ablation'
-        logging.info("Building dendritic tree graph colored by 'ablation' ...")
-        ablation_dict = {b_id: drops[i] for i, b_id in enumerate(branch_ids)}
-        G = build_dendritic_tree_graph(net, ablation_info=ablation_dict)
-        visualize_dendritic_tree(G, mode='ablation')
-        plt.savefig(os.path.join(save_dir, "ablation_tree_graph.png"))
-        plt.close()
-        logging.info(f"Saved ablation_tree_graph.png in {save_dir}")
+        fig, ax = plt.subplots()
+        ax.plot(layer_idxs, perf_drops, marker='o', color='orange')
+        ax.set_xlabel("Branch Layer Index")
+        ax.set_ylabel("Accuracy Drop")
+        ax.set_title("Ablation of Direct Input vs. Layer Index")
+        fig.savefig(os.path.join(save_dir, "ablation_vs_layer_index.png"))
+        plt.close(fig)
+        logging.info(f"Saved ablation_vs_layer_index.png in {save_dir}")

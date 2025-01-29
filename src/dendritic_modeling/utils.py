@@ -15,7 +15,7 @@ import torch
 import torchvision
 from torchvision import transforms
 from omegaconf import OmegaConf, DictConfig, ListConfig
-
+from torch.utils.data import DataLoader
 
 class Data(torch.utils.data.Dataset):
     """
@@ -376,18 +376,31 @@ def measure_performance(model, dataset, batch_size=64, device='cpu'):
 
     return total_correct / total
 
-def ablate_branch(model, layer_idx, branch_ids, mode='direct'):
+
+def ablate_branch(model, layer_idx, branch_ids=None, mode='direct'):
     """
     Zero out excitatory/inhibitory weights for branch(es) at layer_idx.
-    - mode='direct': only zero out excit/inhib pre_w for these branches
-    - mode='full': also cut upstream if desired
+    - If branch_ids is None, ablate ALL dendrites at this layer.
+    - If branch_ids is a list of indices, ablate only those branches.
+    - 'mode=direct' zeros only excit/inhib pre_w, not blockLinear or upstream.
 
-    Adjust to match your DendriticBranchLayer structure. This is conceptual:
-      model.branch_layers[layer_idx] -> e.g. has .branch_excitation.pre_w, .branch_inhibition.pre_w
+    This ensures we don't remove signals from previous layers, so deeper layers
+    can still matter after ablating a lower layer.
+
+    We need to adjust to match DendriticBranchLayer structure. Typically:
+      model.branch_layers[layer_idx] -> has .branch_excitation and .branch_inhibition
     """
     layer = model.branch_layers[layer_idx]
     
-    if mode == 'direct':
+    if branch_ids is None:
+        # Zero ALL excitatory + inhibitory inputs
+        if layer.input_excitatory:
+            layer.branch_excitation.pre_w.data.zero_()
+        if layer.input_inhibitory and hasattr(layer, 'branch_inhibition'):
+            layer.branch_inhibition.pre_w.data.zero_()
+
+    elif mode == 'direct':
+        # Zero only the specified branches, leaving the rest
         if layer.input_excitatory:
             for b_id in branch_ids:
                 layer.branch_excitation.pre_w.data[b_id, :] = 0.
@@ -396,21 +409,23 @@ def ablate_branch(model, layer_idx, branch_ids, mode='direct'):
                 layer.branch_inhibition.pre_w.data[b_id, :] = 0.
 
     elif mode == 'full':
-        # do the direct ablation plus any 'branches_to_output'
-        # or block connections that feed from upstream. 
-        # Implementation depends on your actual code structure.
+        # same as above plus removing anything else if desired
+        # but we skip messing with branches_to_output so upstream signals pass
         if layer.input_excitatory:
-            for b_id in branch_ids:
-                layer.branch_excitation.pre_w.data[b_id, :] = 0.
+            if branch_ids is None:
+                layer.branch_excitation.pre_w.data.zero_()
+            else:
+                for b_id in branch_ids:
+                    layer.branch_excitation.pre_w.data[b_id, :] = 0.
         if layer.input_inhibitory and hasattr(layer, 'branch_inhibition'):
-            for b_id in branch_ids:
-                layer.branch_inhibition.pre_w.data[b_id, :] = 0.
-        # plus zero out blockLinear if used
-        if layer.input_branches and hasattr(layer, 'branches_to_output'):
-            # ex: zero out the relevant rows/cols in layer.branches_to_output.log_weight
-            # or do something that cuts the entire sub-tree. 
-            # This is a conceptual placeholder.
-            pass
+            if branch_ids is None:
+                layer.branch_inhibition.pre_w.data.zero_()
+            else:
+                for b_id in branch_ids:
+                    layer.branch_inhibition.pre_w.data[b_id, :] = 0.
+        # We do NOT zero out blockLinear or anything that kills upstream input.
+        # That way deeper layers still get signals from earlier layers.
+
 
 def analyze_branch_ablation(model, dataset, layer_idx, branch_ids,
                             mode='direct', device='cpu'):
@@ -418,6 +433,8 @@ def analyze_branch_ablation(model, dataset, layer_idx, branch_ids,
     1) measure baseline accuracy
     2) for each branch_id in branch_ids, ablate, measure accuracy drop
     3) restore weights
+
+    If we pass branch_ids=None, it ablates the entire layer. 
     """
     baseline_acc = measure_performance(model, dataset, device=device)
     results = {}
@@ -426,17 +443,31 @@ def analyze_branch_ablation(model, dataset, layer_idx, branch_ids,
     for n, p in model.named_parameters():
         original[n] = p.detach().clone()
 
-    for b_id in branch_ids:
-        ablate_branch(model, layer_idx, [b_id], mode=mode)
+    # If branch_ids is None, we do a single ablation of the whole layer
+    # If it's a list, we do one ablation per branch in that list
+    if branch_ids is None:
+        ablate_branch(model, layer_idx, branch_ids=None, mode=mode)
         acc_after = measure_performance(model, dataset, device=device)
         delta = baseline_acc - acc_after
-        results[b_id] = (acc_after, delta)
-
+        results["all_branches"] = (acc_after, delta)
         # restore
         for n, p in model.named_parameters():
             p.data.copy_(original[n])
+    else:
+        # ablate each branch ID separately
+        for b_id in branch_ids:
+            ablate_branch(model, layer_idx, [b_id], mode=mode)
+            acc_after = measure_performance(model, dataset, device=device)
+            delta = baseline_acc - acc_after
+            results[b_id] = (acc_after, delta)
+
+            # restore
+            for n, p in model.named_parameters():
+                p.data.copy_(original[n])
     
     return baseline_acc, results
+
+
 
 
 
