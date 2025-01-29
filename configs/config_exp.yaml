@@ -5,16 +5,16 @@ model:
     type: "EINet"
     parameters:
       input_dim: 784
-      excitatory_layer_sizes: [10]
-      inhibitory_layer_sizes: [20]
-      excitatory_branch_factors: [10,10,10,10]
+      excitatory_layer_sizes: [100,10]
+      inhibitory_layer_sizes: [20,20]
+      excitatory_branch_factors: [1,2]
       inhibitory_branch_factors: []
       reactivate: true
       somatic_synapses: true
-      ee_synapses_per_branch_per_layer: [24]
-      ei_synapses_per_branch_per_layer: [200]
-      ie_synapses_per_branch_per_layer: [1]
-      ii_synapses_per_branch_per_layer: []
+      ee_synapses_per_branch_per_layer: [24,24]
+      ei_synapses_per_branch_per_layer: [200,5]
+      ie_synapses_per_branch_per_layer: [1,1]
+      ii_synapses_per_branch_per_layer: [1,1]
       topk_init_method: xavier_normal 
       use_shunting: true
 
