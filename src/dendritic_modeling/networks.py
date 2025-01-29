@@ -12,7 +12,6 @@ import torch
 from dendritic_modeling.dendrinet import DendriNet, DendriNetWithOutputs
 from dendritic_modeling import logger
 
-
 class ExcitationInhibitionLayer(nn.Module):
     def __init__(
         self, 
@@ -121,6 +120,16 @@ class ExcitationInhibitionLayer(nn.Module):
         inhibitory_output = self.inhibitory_cells(x, inhibitory_input)
         excitatory_output = self.excitatory_cells(x, inhibitory_output)
         return excitatory_output, inhibitory_output
+
+    def forward_with_branch_outputs(self, x, inhibitory_input=None):
+        if not hasattr(self.inhibitory_cells, 'forward_with_branch_outputs'):
+            inhibitory_output = self.inhibitory_cells(x, inhibitory_input)
+            excitatory_output = self.excitatory_cells(x, inhibitory_output)
+            return excitatory_output, inhibitory_output, [], []
+        else:
+            inhibitory_final, inh_acts = self.inhibitory_cells.forward_with_branch_outputs(x, inhibitory_input)
+            excitatory_final, exc_acts = self.excitatory_cells.forward_with_branch_outputs(x, inhibitory_final)
+            return excitatory_final, inhibitory_final, inh_acts, exc_acts
 
 
 class ExcitationInhibitionNetwork(nn.Module):
@@ -232,8 +241,20 @@ class ExcitationInhibitionNetwork(nn.Module):
             excitatory, inhibitory = layer(excitatory, inhibitory)
         return excitatory
 
+    def forward_with_branch_outputs(self, x):
+        excitatory = x
+        inhibitory = None
+        all_acts = []
+        for i, layer in enumerate(self.layers):
+            excitatory, inhibitory, inh_acts, exc_acts = layer.forward_with_branch_outputs(excitatory, inhibitory)
+            all_acts.extend(inh_acts)
+            all_acts.extend(exc_acts)
+        return excitatory, all_acts
+
     def compute_local_loss(self, x, y=None):
         return 0.0
+
+
 class FeedforwardNN(nn.Module):
     """
     A configurable feedforward neural network as a baseline for comparison

@@ -29,7 +29,6 @@ from dendritic_modeling.plot_utils import (
     visualize_dendritic_tree
 )
 
-
 class PlotManager:
     """
     A manager that stores all known plot/analysis methods in a dictionary.
@@ -153,7 +152,7 @@ class PlotManager:
         branch_info = analyze_branch_information(
             net,
             self.data['train'],  # or 'valid'
-            batch_size=self.config.train.get('batch_size', 64),
+            batch_size=getattr(self.config.train, 'batch_size', 64),
             device=self.device,
             n_bins=10
         )
