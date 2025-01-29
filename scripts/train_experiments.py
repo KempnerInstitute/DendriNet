@@ -175,7 +175,6 @@ def main(config_path: str, output_dir: str, experiment_name: str):
     if vis_cfg.enabled:
         plot_manager = PlotManager(clf, data, config, device=device)
         for plot_name in vis_cfg.plots:
-            print(plot_name)
             plot_manager.run_plot(plot_name)
 
     logger.info("All done.")
