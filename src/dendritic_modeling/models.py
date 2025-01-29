@@ -59,6 +59,10 @@ class ProbabilisticClassifier(BaseModel):
         main_loss = nll.mean(dim=0)
         return main_loss
 
+    def forward_with_branch_outputs(self, x):
+        return self.net.forward_with_branch_outputs(x)
+
+
 class Classifier(BaseModel):
     """
     A standard classifier that returns raw logits; 
@@ -81,3 +85,6 @@ class Classifier(BaseModel):
         loss_fn = nn.CrossEntropyLoss()
         main_loss = loss_fn(logits, y)
         return main_loss
+
+    def forward_with_branch_outputs(self, x):
+        return self.net.forward_with_branch_outputs(x)
