@@ -26,8 +26,8 @@ from dendritic_modeling.plot_utils import (
     plot_einet_activations,
     plot_einet_gradients,
     plot_depth_info,
-    # build_dendritic_tree_graph,         # we'll omit the tree graph
-    # visualize_dendritic_tree            # no dendritic tree plotting
+    # build_dendritic_tree_graph,  # removed for no dendritic tree graph
+    # visualize_dendritic_tree     # removed for no dendritic tree graph
 )
 
 class PlotManager:
@@ -170,12 +170,12 @@ class PlotManager:
         plt.close()
         logging.info(f"Saved branch_info_depth_plot.png in {save_dir}")
 
-        # 2) We remove the dendritic tree graph calls, so no build_dendritic_tree_graph
+        # We no longer call build_dendritic_tree_graph or visualize_dendritic_tree.
 
     def _ablation(self):
         """
-        Layer-wise ablation approach: zero out all dendrites in each layer 
-        and measure performance drop. Then plot performance change vs layer index.
+        Layer-wise ablation approach: zero out all excitatory branch layers
+        in net.branch_layers, measuring performance drop vs. baseline.
         """
         if not hasattr(self.model, 'net'):
             logging.info("No 'net' attribute found. Skipping ablation.")
@@ -200,27 +200,16 @@ class PlotManager:
         layer_idxs = []
         perf_drops = []
 
-        # Loop over each layer index in net.n_branch_layers
-        # The user wants to set *all* dendrites in the same depth to zero
-        for i in range(net.n_branch_layers):
-            logging.info(f"Ablating layer {i} ...")
-            # zero out entire excitatory sub-net (and optionally inhibitory)
-            # We'll do excitatory + inhibitory for that layer
-            ei_layer = net.layers[i]  # ExcitationInhibitionLayer
+        # net.branch_layers gives us each excitatory DendriticBranchLayer 
+        # so we'll ablate each of these in turn:
+        for i, exc_branch_layer in enumerate(net.branch_layers):
+            logging.info(f"Ablating excitatory branch layer {i} ...")
 
-            # excitatory sub-net
-            for dend_layer in ei_layer.excitatory_cells.branch_layers:
-                if hasattr(dend_layer, 'branch_excitation'):
-                    dend_layer.branch_excitation.pre_w.data.zero_()
-                if hasattr(dend_layer, 'branch_inhibition'):
-                    dend_layer.branch_inhibition.pre_w.data.zero_()
-
-            # inhibitory sub-net
-            for dend_layer in ei_layer.inhibitory_cells.branch_layers:
-                if hasattr(dend_layer, 'branch_excitation'):
-                    dend_layer.branch_excitation.pre_w.data.zero_()
-                if hasattr(dend_layer, 'branch_inhibition'):
-                    dend_layer.branch_inhibition.pre_w.data.zero_()
+            # zero out this entire branch layer
+            if hasattr(exc_branch_layer, 'branch_excitation'):
+                exc_branch_layer.branch_excitation.pre_w.data.zero_()
+            if hasattr(exc_branch_layer, 'branch_inhibition'):
+                exc_branch_layer.branch_inhibition.pre_w.data.zero_()
 
             acc_after = measure_performance(net, self.data['test'], device=self.device)
             delta = baseline_acc - acc_after
@@ -229,19 +218,18 @@ class PlotManager:
             layer_idxs.append(i)
             perf_drops.append(delta)
 
-            # restore weights
             for n, p in net.named_parameters():
                 p.data.copy_(original[n])
 
-        # Now plot performance drop vs. layer index
+        # Plot performance drop vs. layer index
         save_dir = os.path.join(self.save_path, "ablation_plots")
         os.makedirs(save_dir, exist_ok=True)
 
         fig, ax = plt.subplots()
         ax.plot(layer_idxs, perf_drops, marker='o', color='orange')
-        ax.set_xlabel("Layer Index")
+        ax.set_xlabel("Branch Layer Index")
         ax.set_ylabel("Accuracy Drop")
-        ax.set_title("Layer-wise Ablation: Performance Drop vs. Layer Index")
+        ax.set_title("Excitatory Layer-wise Ablation")
         fig.savefig(os.path.join(save_dir, "ablation_vs_layer_index.png"))
         plt.close(fig)
         logging.info(f"Saved ablation_vs_layer_index.png in {save_dir}")
