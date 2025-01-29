@@ -259,14 +259,22 @@ class ExcitationInhibitionNetwork(nn.Module):
         """
         Provide a combined list of DendriticBranchLayer modules from all
         excitatory sub-nets so that code expecting `model.branch_layers`
-        won't crash with AttributeError. Each item in the returned list
-        is a DendriticBranchLayer, which has `branch_excitation`.
+        won't crash. Each item is a DendriticBranchLayer, typically
+        found in excitatory_cells.branch_layers.
         """
         all_branch_layers = []
         for ei_layer in self.layers:
-            # gather the DendriNet's branch_layers from the excitatory sub-net
             all_branch_layers.extend(ei_layer.excitatory_cells.branch_layers)
         return all_branch_layers
+
+    @property
+    def n_branch_layers(self):
+        """
+        Provide the number of branch layers. For code referencing
+        `model.n_branch_layers`, we match DendriNet's definition by counting
+        how many DendriticBranchLayer modules the excitatory sub-nets hold.
+        """
+        return len(self.branch_layers)
 
 
 class FeedforwardNN(nn.Module):
