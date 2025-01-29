@@ -3,6 +3,22 @@ networks.py
 ========================
 This module contains the ExcitationInhibitionLayer and 
 ExcitationInhibitionNetwork classes.
+
+The conductance based gradient scaling can be activated by setting
+gradient_strategy: block_conductance_dynamic
+Then, from the code, we can attach a backward hook to each 
+BlockLinear in the net using: 
+
+    from dendritic_modeling.gradient_scaling import GradientScaler
+    scaler = GradientScaler(strategy='block_conductance_dynamic')
+    scaler.register_block_linear_dynamic(...)
+
+Possible gradient strategies in the config:
+    - none
+    - uniform_scale
+    - distal_upweight
+    - distal_upweight_by_idx
+    - block_conductance_dynamic
 """
 
 from copy import deepcopy
@@ -160,8 +176,6 @@ class ExcitationInhibitionNetwork(nn.Module):
         local_learning="none",
         local_loss_weight=0.0,
         enable_branch_outputs=False,  # added
-
-        # we ignore output_layer, output_dim here
         output_layer=False,
         output_dim=10
     ):
