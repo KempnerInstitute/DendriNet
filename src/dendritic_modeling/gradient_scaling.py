@@ -1,16 +1,43 @@
 """
 gradient_scaling.py
 ===================
-This module defines classes/functions for gradient-scaling strategies,
-removing direct references from dendritic modules. We collect all
-gradient-scaling logic here and can apply it to modules from the outside.
+Provides a GradientScaler class that registers backward hooks to implement 
+various gradient-scaling strategies for BlockLinear or other modules.
+
+Recognized strategies:
+    - 'none'  : No special scaling
+    - 'distal_upweight_by_idx' : Multiply gradient by (layer_idx+1) * scale_factor
+    - 'block_conductance_dynamic' : Dynamic conduction-based scaling
+      (flatten approach per-parameter)
 """
 
 import torch
 
-def scale_layer_gradients(module, grad_input, grad_output, scale_factor):
+def scale_layer_gradients_elementwise(module, grad_input, grad_output, scale_vec):
     """
-    Scales layer gradients by a constant factor.
+    Multiply 'grad_input[0]' (the parameter gradient) by 'scale_vec' elementwise.
+    We assume grad_input is (grad_w, ...), with grad_w shape [N]. 
+    We'll do a flatten-based approach for safety.
+    """
+    if grad_input is None or len(grad_input) < 1 or grad_input[0] is None:
+        return grad_input
+
+    g = grad_input[0]  # param gradient
+    shape_g = g.shape
+    gf = g.view(-1)  # shape [N]
+    if scale_vec.numel() == gf.numel():
+        gf_scaled = gf * scale_vec
+    else:
+        # fallback: if mismatch, do simple average
+        gf_scaled = gf * scale_vec.mean()
+
+    new_grad = gf_scaled.view(shape_g)
+    return (new_grad,) + grad_input[1:]
+
+
+def scale_layer_gradients_scalar(module, grad_input, grad_output, scale_factor):
+    """
+    Multiply entire grad_input by a single scalar factor.
     """
     if grad_input is None:
         return None
@@ -19,16 +46,10 @@ def scale_layer_gradients(module, grad_input, grad_output, scale_factor):
         for g in grad_input
     )
 
-def scale_reactivation_gradients(module, grad_input, grad_output):
-    """
-    By default, does no special scaling now, but we can adapt it as needed.
-    """
-    return grad_output
-
 class GradientScaler:
     """
-    A class to manage registration of gradient-scaling hooks and
-    methods based on a config or argument.
+    A class for hooking into BlockLinear or other modules to apply
+    user-selected gradient scaling strategies.
     """
 
     def __init__(self, strategy="none", scale_factor=1.0, layer_idx=0):
@@ -36,64 +57,65 @@ class GradientScaler:
         Parameters
         ----------
         strategy : str
-            The gradient scaling strategy (e.g. 'none', 'uniform_scale',
-            'distal_upweight', 'distal_upweight_by_idx', etc.).
+            One of ['none', 'distal_upweight_by_idx', 'block_conductance_dynamic'].
         scale_factor : float
-            Base scaling factor used by some strategies.
+            Base scaling factor for certain strategies.
         layer_idx : int
-            Layer index, if needed by certain strategies (e.g. 'distal_upweight_by_idx').
+            For 'distal_upweight_by_idx' if needed.
         """
         self.strategy = strategy
         self.scale_factor = scale_factor
         self.layer_idx = layer_idx
 
-    def compute_scale(self, block_linear_obj=None):
+    def register_block_linear_dynamic(self, block_linear_layer, branch_excitation=None, branch_inhibition=None):
         """
-        Decide how to compute the scale for the gradient.
+        If strategy='block_conductance_dynamic', attach a backward hook that 
+        computes conduction-based scaling from the current block plus excit/inhib.
 
-        we might come up with more advanced logic, and incorporate or
-        read data from 'block_linear_obj' or the layer's state.
+        If 'distal_upweight_by_idx', we do (layer_idx+1) * scale_factor for entire param.
+        If 'none', no special scaling.
         """
-        if self.strategy == 'uniform_scale':
-            return self.scale_factor
 
-        elif self.strategy == 'distal_upweight':
-            if block_linear_obj and hasattr(block_linear_obj, 'grad_scale'):
-                return block_linear_obj.grad_scale.mean().item() * self.scale_factor
-            else:
-                return self.scale_factor
-
-        elif self.strategy == 'distal_upweight_by_idx':
-            # A simpler layer-based formula: scale = (1 + layer_idx)* factor
-            return (1 + self.layer_idx) * self.scale_factor
-
-        else:
-            # 'none' or unknown
-            return 1.0
-
-    def register_block_linear(self, block_linear_layer):
-        """
-        Attaches a backward hook to the BlockLinear object to scale gradients
-        according to the chosen strategy.
-        """
         def hook_fn(module, grad_input, grad_output):
-            s = self.compute_scale(block_linear_obj=block_linear_layer)
-            return scale_layer_gradients(module, grad_input, grad_output, s)
+            if self.strategy == 'block_conductance_dynamic':
+                # compute conduction-based scale as a flattened vector
+                scale_vec = compute_block_linear_grad_scale(
+                    block_linear_layer=block_linear_layer,
+                    branch_excitation=branch_excitation,
+                    branch_inhibition=branch_inhibition
+                )
+                # stash it in module for logging
+                module.last_scale_vec = scale_vec.detach().clone()
+
+                return scale_layer_gradients_elementwise(module, grad_input, grad_output, scale_vec)
+
+            elif self.strategy == 'distal_upweight_by_idx':
+                scale_val = (self.layer_idx + 1) * self.scale_factor
+                return scale_layer_gradients_scalar(module, grad_input, grad_output, scale_val)
+
+            else:
+                # 'none' or unrecognized => no special scaling
+                return grad_input
 
         block_linear_layer.register_full_backward_hook(hook_fn)
 
-    def register_reactivation(self, reactivation_layer):
-        """
-        Attaches a backward hook to a reactivation module.
-        """
-        reactivation_layer.register_full_backward_hook(scale_reactivation_gradients)
 
-    def register_generic_layer(self, layer):
-        """
-        Attaches a backward hook to a generic layer (like a DendriticBranchLayer).
-        """
-        def hook_fn(module, grad_input, grad_output):
-            s = self.compute_scale()
-            return scale_layer_gradients(module, grad_input, grad_output, s)
+def compute_block_linear_grad_scale(block_linear_layer, branch_excitation=None, branch_inhibition=None):
+    """
+    A conduction-based dynamic scale, returning a flattened vector so each weight 
+    can get a distinct multiplier. shape [out_features * block_size].
+    """
+    with torch.no_grad():
+        total_conductance = block_linear_layer.sum_conductances() + 1.0
 
-        layer.register_full_backward_hook(hook_fn)
+        if branch_excitation is not None:
+            total_conductance += branch_excitation.pruned_weight().sum(dim=1)
+        if branch_inhibition is not None:
+            total_conductance += branch_inhibition.pruned_weight().sum(dim=1)
+
+        # block_linear_layer.log_weight is [out_features, block_size]
+        block_exp = block_linear_layer.log_weight.exp()
+        ratio_2d = total_conductance[:, None] / block_exp  # shape [out_features, block_size]
+        ratio_1d = ratio_2d.flatten()                      # shape [out_features * block_size]
+
+    return ratio_1d
