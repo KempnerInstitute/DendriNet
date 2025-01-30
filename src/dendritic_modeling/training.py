@@ -79,10 +79,21 @@ class TrainerMLE(object):
         best_state_dict = deepcopy(model.state_dict())
         best_epoch = 1
 
+        # We'll get the last branch if it exists
+        last_branch = None
+        if hasattr(model, 'net') and hasattr(model.net, 'branch_layers'):
+            if len(model.net.branch_layers) > 0:
+                last_branch = model.net.branch_layers[-1]
+
         for epoch in range(1, epochs+1):
             train_loss = 0.0
             valid_loss = 0.0
             model.train()
+
+            # Accumulate sum of conduction scale means each batch
+            scale_sum = 0.0
+            scale_count = 0
+
             for input_batch, label_batch in train_loader:
                 try:
                     input_batch = input_batch.to(device)
@@ -90,9 +101,20 @@ class TrainerMLE(object):
                     nll = model.compute_loss(input_batch, label_batch)
                     self.optimizer.zero_grad()
                     nll.backward()
+
+                    # If using block_conductance_dynamic, the hook sets last_scale_vec
+                    if last_branch and hasattr(last_branch, 'branches_to_output'):
+                        block = last_branch.branches_to_output
+                        # If the conduction hook was triggered, we have block.last_scale_vec
+                        if hasattr(block, 'last_scale_vec'):
+                            scale_mean = block.last_scale_vec.mean().item()
+                            scale_sum += scale_mean
+                            scale_count += 1
+
                     clip_grad_value_(model.parameters(), grad_clip_value)
                     self.optimizer.step()
                     train_loss += nll.item()
+
                 except Exception as e:
                     print(f"Exception: {e}")
                     if not self.suppress:
@@ -126,6 +148,7 @@ class TrainerMLE(object):
             valid_loss /= len(valid_loader)
             valid_losses.append(valid_loss)
 
+            # Possibly log validation metrics
             if len(all_preds) > 0:
                 all_preds = torch.cat(all_preds, dim=0)
                 all_labels = torch.cat(all_labels, dim=0)
@@ -161,7 +184,16 @@ class TrainerMLE(object):
                     logger.info('time elapsed: %.2f s | predicted time remaining: %.2f s' % (elapsed, pred_remaining))
 
             if wandb.run is not None:
-                wandb.log({"train_loss": float(train_loss), "valid_loss": float(valid_loss), "epoch": epoch})
+                wandb_dict = {
+                    "train_loss": float(train_loss),
+                    "valid_loss": float(valid_loss),
+                    "epoch": epoch
+                }
+                # If at least 1 batch had last_scale_vec
+                if scale_count > 0:
+                    wandb_dict["grad_scale_vec_mean"] = scale_sum / scale_count
+
+                wandb.log(wandb_dict)
 
         results = {
             'best epoch': best_epoch,
