@@ -1,5 +1,13 @@
-######## train_experiments.py ########
+"""
+train_experiments.py
+====================
+Your main experiment entry script that:
 
+1) Parses arguments for config path, output_dir, experiment_name
+2) Loads that config via load_config
+3) Builds model & trainer
+4) Runs the training, logs results
+"""
 
 import os
 import json
@@ -13,22 +21,23 @@ import torchinfo
 from omegaconf import OmegaConf
 
 from dendritic_modeling import logger, logger_manager
-from dendritic_modeling.training import TrainerMLE
+from dendritic_modeling.learning_strategies import TrainerMLE
 from dendritic_modeling.models import (ProbabilisticClassifier, Classifier)
 from dendritic_modeling.networks import (ExcitationInhibitionNetwork, FeedforwardNN)
 from dendritic_modeling.config import load_config
 from dendritic_modeling.utils import load_MNIST, accuracy_score
 from dendritic_modeling.visualization_manager import PlotManager
 
-def initialize_model(model_hp):
+def initialize_model(model_cfg):
     """
-    Builds the specified model: 
-    'classification' uses ProbabilisticClassifier or Classifier.
+    Builds the specified model: 'classification' uses ProbabilisticClassifier or Classifier.
+
+    model_cfg is a ModelConfig object with .task, .probabilistic, .network, etc.
     """
-    task = model_hp['task']
-    probabilistic = model_hp['probabilistic']
-    net_type = model_hp['network']['type']
-    net_params = model_hp['network']['parameters']
+    task = model_cfg.task
+    probabilistic = model_cfg.probabilistic
+    net_type = model_cfg.network.type
+    net_params = model_cfg.network.parameters.__dict__  # or vars(...)
 
     enable_branch_outputs = net_params.pop('enable_branch_outputs', False)
 
@@ -57,7 +66,6 @@ def initialize_model(model_hp):
 
         else:
             raise ValueError(f"Invalid network type: {net_type}")
-
     else:
         raise ValueError(f"Invalid task: {task}")
 
@@ -65,15 +73,15 @@ def main(config_path: str, output_dir: str, experiment_name: str):
     os.makedirs(output_dir, exist_ok=True)
     logger_manager.set_log_file(os.path.join(output_dir, "dendritic_modeling.log"))
 
+    # 1) Load config
     config = load_config(config_path)
 
-    model_hp = config.model.asdict()
-    train_hp = config.train.asdict()
-
-    vis_cfg = config.visualization
+    model_cfg = config.model
+    train_cfg = config.train
     wandb_cfg = config.wandb
 
-    if wandb_cfg is not None and wandb_cfg.entity:
+    # 2) Possibly init W&B
+    if wandb_cfg and wandb_cfg.entity:
         try:
             wandb_dir = Path(output_dir) / "wandb"
             wandb_run_name = experiment_name
@@ -85,23 +93,26 @@ def main(config_path: str, output_dir: str, experiment_name: str):
                 group=wandb_cfg.group,
                 name=wandb_run_name,
                 tags=wandb_cfg.tags,
-                config=config.asdict(exclude=["wandb"]),
+                config=OmegaConf.to_container(config, resolve=True),
             )
         except Exception as e:
             logger.error(f"Error initializing W&B: {e}")
             logger.error("Continuing without W&B ... ")
-            wandb_cfg = None
+            # no wandb
 
+    # 3) Load dataset
     logger.info("Loading dataset...")
-    data = load_MNIST(train_valid_split=train_hp.get("train_valid_split", 1.0), cache_dir=None)
-    
-    clf = initialize_model(model_hp)
+    data = load_MNIST(train_valid_split=train_cfg.train_valid_split)
 
+    # 4) Build model
+    clf = initialize_model(model_cfg)
+
+    # 5) Optionally show summary
     try:
         sample_input_dim = data['train'].x.shape[1]
         summary = torchinfo.summary(
             clf,
-            input_size=(train_hp.get("batch_size", 64), sample_input_dim),
+            input_size=(train_cfg.batch_size, sample_input_dim),
             col_names=["input_size", "output_size", "num_params"],
             col_width=25,
             row_settings=["depth"],
@@ -116,19 +127,21 @@ def main(config_path: str, output_dir: str, experiment_name: str):
     except:
         pass
 
-    optimizer = torch.optim.Adam(clf.parameters(), lr=train_hp.get("lr", 1e-3))
+    # 6) Build optimizer
+    optimizer = torch.optim.Adam(clf.parameters(), lr=train_cfg.lr)
     trainer = TrainerMLE(optimizer=optimizer, suppress_prints=False, print_every=10)
 
-    grad_strat = model_hp["network"]["parameters"].get("gradient_strategy", "none")
+    # 7) Check if we want freeze_layer or normal MLE
+    grad_strat = getattr(model_cfg.network.parameters, "gradient_strategy", "none")
     if grad_strat == "freeze_layer":
         trainer.train_freeze_layers(
             model=clf,
             train_data=data['train'],
             valid_data=data.get('valid', None),
-            epochs_per_layer=train_hp.get("epochs_per_layer", 5),
-            batch_size=train_hp.get("batch_size", 64),
+            epochs_per_layer=train_cfg.epochs_per_layer,
+            batch_size=train_cfg.batch_size,
             shuffle=True,
-            grad_clip_value=train_hp.get("grad_clip_value", 5),
+            grad_clip_value=train_cfg.grad_clip_value,
             plot_losses=True,
             save_path=output_dir
         )
@@ -137,9 +150,9 @@ def main(config_path: str, output_dir: str, experiment_name: str):
             model=clf,
             train_data=data['train'],
             valid_data=data.get('valid', None),
-            epochs=train_hp.get("epochs", 50),
-            batch_size=train_hp.get("batch_size", 64),
-            grad_clip_value=train_hp.get("grad_clip_value", 5),
+            epochs=train_cfg.epochs,
+            batch_size=train_cfg.batch_size,
+            grad_clip_value=train_cfg.grad_clip_value,
             shuffle=True,
             plot_losses=True,
             save_path=output_dir
@@ -151,7 +164,7 @@ def main(config_path: str, output_dir: str, experiment_name: str):
 
     def evaluate_accuracy(model, dataset):
         from torch.utils.data import DataLoader
-        loader = DataLoader(dataset, batch_size=train_hp.get("batch_size", 64), shuffle=False)
+        loader = DataLoader(dataset, batch_size=train_cfg.batch_size, shuffle=False)
         all_preds = []
         all_labels = []
         with torch.no_grad():
@@ -172,9 +185,10 @@ def main(config_path: str, output_dir: str, experiment_name: str):
         wandb.log({"train_acc": train_acc, "valid_acc": valid_acc, "test_acc": test_acc})
         wandb.finish()
 
-    if vis_cfg.enabled:
+    # 8) Possibly do visualization
+    if config.visualization.enabled:
         plot_manager = PlotManager(clf, data, config, device=device)
-        for plot_name in vis_cfg.plots:
+        for plot_name in config.visualization.plots:
             plot_manager.run_plot(plot_name)
 
     logger.info("All done.")
@@ -185,4 +199,5 @@ if __name__ == '__main__':
     parser.add_argument("--output_dir", default="results", help="Optional output directory.")
     parser.add_argument("--experiment_name", default="example", help="Optional experiment name.")
     args = parser.parse_args()
+
     main(config_path=args.config, output_dir=args.output_dir, experiment_name=args.experiment_name)
