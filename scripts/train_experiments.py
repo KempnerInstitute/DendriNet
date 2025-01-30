@@ -1,12 +1,5 @@
 """
 train_experiments.py
-====================
-Your main experiment entry script that:
-
-1) Parses arguments for config path, output_dir, experiment_name
-2) Loads that config via load_config
-3) Builds model & trainer
-4) Runs the training, logs results
 """
 
 import os
@@ -21,6 +14,7 @@ import torchinfo
 from omegaconf import OmegaConf
 
 from dendritic_modeling import logger, logger_manager
+# If your TrainerMLE is in learning_strategies:
 from dendritic_modeling.learning_strategies import TrainerMLE
 from dendritic_modeling.models import (ProbabilisticClassifier, Classifier)
 from dendritic_modeling.networks import (ExcitationInhibitionNetwork, FeedforwardNN)
@@ -37,7 +31,7 @@ def initialize_model(model_cfg):
     task = model_cfg.task
     probabilistic = model_cfg.probabilistic
     net_type = model_cfg.network.type
-    net_params = model_cfg.network.parameters.__dict__  # or vars(...)
+    net_params = model_cfg.network.parameters.__dict__
 
     enable_branch_outputs = net_params.pop('enable_branch_outputs', False)
 
@@ -53,7 +47,6 @@ def initialize_model(model_cfg):
 
         elif net_type == 'EINet':
             logger.info(f"Running EINet with {'probabilistic' if probabilistic else 'simple'} classifier")
-
             net = ExcitationInhibitionNetwork(
                 **net_params,
                 enable_branch_outputs=enable_branch_outputs
@@ -80,25 +73,25 @@ def main(config_path: str, output_dir: str, experiment_name: str):
     train_cfg = config.train
     wandb_cfg = config.wandb
 
-    # 2) Possibly init W&B
-    if wandb_cfg and wandb_cfg.entity:
+    # 2) Force W&B init if config says use_wandb == true
+    if getattr(wandb_cfg, "use_wandb", False):
         try:
             wandb_dir = Path(output_dir) / "wandb"
             wandb_run_name = experiment_name
             wandb_dir.mkdir(parents=True, exist_ok=True)
             wandb.init(
-                dir=wandb_dir,
+                dir=str(wandb_dir),
+                entity=wandb_cfg.entity,           # can be empty, but let's pass it
                 project=wandb_cfg.project,
-                entity=wandb_cfg.entity,
                 group=wandb_cfg.group,
                 name=wandb_run_name,
                 tags=wandb_cfg.tags,
                 config=OmegaConf.to_container(config, resolve=True),
             )
         except Exception as e:
+            # If we can't init, let's raise an error so we see the problem
             logger.error(f"Error initializing W&B: {e}")
-            logger.error("Continuing without W&B ... ")
-            # no wandb
+            raise e  # Stop the script; we want to see the actual error
 
     # 3) Load dataset
     logger.info("Loading dataset...")
@@ -107,7 +100,7 @@ def main(config_path: str, output_dir: str, experiment_name: str):
     # 4) Build model
     clf = initialize_model(model_cfg)
 
-    # 5) Optionally show summary
+    # 5) Possibly show summary
     try:
         sample_input_dim = data['train'].x.shape[1]
         summary = torchinfo.summary(
@@ -119,7 +112,9 @@ def main(config_path: str, output_dir: str, experiment_name: str):
             depth=7
         )
         logger.debug("\n" + str(summary))
-        if wandb.run is not None:
+
+        # Unconditionally log summary if wandb is running
+        if wandb.run:
             wandb.log({
                 "total_params": summary.total_params,
                 "trainable_params": summary.trainable_params
@@ -131,7 +126,7 @@ def main(config_path: str, output_dir: str, experiment_name: str):
     optimizer = torch.optim.Adam(clf.parameters(), lr=train_cfg.lr)
     trainer = TrainerMLE(optimizer=optimizer, suppress_prints=False, print_every=10)
 
-    # 7) Check if we want freeze_layer or normal MLE
+    # 7) Decide if we do freeze_layers
     grad_strat = getattr(model_cfg.network.parameters, "gradient_strategy", "none")
     if grad_strat == "freeze_layer":
         trainer.train_freeze_layers(
@@ -181,7 +176,8 @@ def main(config_path: str, output_dir: str, experiment_name: str):
     test_acc  = evaluate_accuracy(clf, data['test'])
     logger.info(f"train acc={train_acc}, valid acc={valid_acc}, test acc={test_acc}")
 
-    if wandb.run is not None:
+    # Log final metrics if wandb is running
+    if wandb.run:
         wandb.log({"train_acc": train_acc, "valid_acc": valid_acc, "test_acc": test_acc})
         wandb.finish()
 
