@@ -5,9 +5,9 @@ model:
     type: "EINet"
     parameters:
       input_dim: 784
-      excitatory_layer_sizes: [512]
+      excitatory_layer_sizes: [10]
       inhibitory_layer_sizes: [20]
-      excitatory_branch_factors: [1,2]
+      excitatory_branch_factors: [2,2]
       inhibitory_branch_factors: []
       reactivate: true
       somatic_synapses: true
@@ -26,17 +26,17 @@ model:
       reactivation_type: param_tanh  # "none", "param_tanh", "relu", "sigmoid", "tanh"
       train_reactivation_b_only: false
 
-      gradient_strategy: none #"none", "distal_upweight", "distal_upweight_by_idx", "freeze_layer" , "uniform_scale", "block_conductance_dynamic"
-      gradient_scale_factor: 1
+      gradient_strategy: block_conductance_dynamic #"none", "distal_upweight_by_idx", "block_conductance_dynamic"
+      gradient_scale_factor: 2
 
       weight_decay_rate: 0.1
 
-      local_learning: none #"none", "backprop_alignment"
+      local_learning: none #"none", "backprop_alignment"        ###, "freeze_layer"
       local_loss_weight: 0 #0.5
 
       enable_branch_outputs: true
       
-      output_layer: bool = true
+      output_layer: bool = false
       output_dim: int = 10
 
 train:
@@ -55,7 +55,7 @@ task:
 
 wandb:
   entity: houman_safaai-harvard-university
-  project: "dendritic_mnist_new_config"
+  project: "dendritic_mnist"
   group: "debug"
   tags: [mnist_1]
 
