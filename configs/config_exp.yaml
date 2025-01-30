@@ -5,9 +5,9 @@ model:
     type: "EINet"
     parameters:
       input_dim: 784
-      excitatory_layer_sizes: [10]
-      inhibitory_layer_sizes: [20]
-      excitatory_branch_factors: [2,2]
+      excitatory_layer_sizes: [512]
+      inhibitory_layer_sizes: [200]
+      excitatory_branch_factors: [64]
       inhibitory_branch_factors: []
       reactivate: true
       somatic_synapses: true
@@ -26,7 +26,7 @@ model:
       reactivation_type: param_tanh  # "none", "param_tanh", "relu", "sigmoid", "tanh"
       train_reactivation_b_only: false
 
-      gradient_strategy: block_conductance_dynamic  #"none", "distal_upweight_by_idx", "block_conductance_dynamic"
+      gradient_strategy: none  #"none", "distal_upweight_by_idx", "block_conductance_dynamic"
       gradient_scale_factor: 2
 
       weight_decay_rate: 0.1
@@ -35,17 +35,17 @@ model:
 
       enable_branch_outputs: true
 
-      output_layer: bool = false
+      output_layer: bool = true
       output_dim: int = 10
 
 train:
-  learning_strategy: "two_step"   # or "mle", "freeze_layers", "local_credit_assignment", "train_only_b_react"
+  learning_strategy: "mle"   # or "mle", "freeze_layers", "local_credit_assignment", "train_only_b_react", "two_step"
   run_name: "mnist_einet"
   seed: 0
   train_valid_split: 0.8
   lr: 0.01
   epochs: 50
-  batch_size: 1000
+  batch_size: 128
   grad_clip_value: 5
   epochs_per_layer: 50 
 
@@ -54,14 +54,15 @@ task:
   parameters: {}
 
 wandb:
-  entity: houman_safaai-harvard-university
-  project: dendritic_mnist
+  entity: 
+  project: "dendritic_mnist"
   group: "debug"
   tags: [mnist_1]
+  use_wandb: true
 
 visualization:
   enabled: true
-  save_path: /n/holylabs/LABS/kempner_dev/Users/hsafaai/results/dendritic_modeling/results
+  save_path: 
   plots:
     #- "weights"      # Plot dendritic or EI-net weights
     #- "activations"  # Plot per-digit activation distribution
