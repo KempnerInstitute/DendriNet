@@ -3,11 +3,12 @@ training.py
 ===========
 This module contains the TrainerMLE class for training the models.
 
-MODIFICATIONS for ensuring wandb runs:
---------------------------------------
+MODIFICATIONS for ensuring wandb runs and logs train accuracy each epoch:
+--------------------------------------------------------------------------
 1) At the start of .train(...), forcibly call wandb.init(...) if wandb.run is None.
 2) Remove the condition 'if wandb.run is not None' around wandb.log(...) calls.
    Instead, we unconditionally call wandb.log(...).
+3) Collect train predictions each epoch to compute train accuracy and log it.
 """
 
 import os
@@ -31,7 +32,9 @@ from dendritic_modeling.plot_utils import plot_NLL_loss_curves
 
 def compute_metrics_classification(preds, labels):
     """
-    Computes common classification metrics. 
+    Computes common classification metrics for a single set of predictions. 
+    Both 'preds' and 'labels' should be 1D Tensors of the same shape.
+    Returns a dict with keys 'accuracy', 'precision', 'recall', 'f1_score'.
     """
     assert preds.shape == labels.shape
     preds = preds.cpu().numpy()
@@ -69,6 +72,7 @@ class TrainerMLE(object):
     ):
         """
         Trains the model using maximum-likelihood (NLL) approach.
+        Also logs train & valid accuracy each epoch to wandb.
         """
         # ------------------------
         # 1) Force wandb init if not already running
@@ -90,8 +94,8 @@ class TrainerMLE(object):
         model = model.to(device)
         
         train_loader = DataLoader(train_data, batch_size=batch_size, shuffle=shuffle)
-        valid_loader = DataLoader(valid_data, batch_size=batch_size, shuffle=shuffle)
-        
+        valid_loader = DataLoader(valid_data, batch_size=batch_size, shuffle=False)
+
         train_losses = []
         valid_losses = []
         
@@ -100,91 +104,88 @@ class TrainerMLE(object):
         best_state_dict = deepcopy(model.state_dict())
         best_epoch = 1
 
-        # We'll get the last branch if it exists
+        # We'll get the last branch if it exists (for conduction scale logging)
         last_branch = None
         if hasattr(model, 'net') and hasattr(model.net, 'branch_layers'):
             if len(model.net.branch_layers) > 0:
                 last_branch = model.net.branch_layers[-1]
 
         for epoch in range(1, epochs+1):
-            train_loss = 0.0
-            valid_loss = 0.0
+            # 1) TRAIN
             model.train()
-
-            # Accumulate sum of conduction scale means each batch
+            epoch_train_loss = 0.0
+            train_preds = []
+            train_labels = []
             scale_sum = 0.0
             scale_count = 0
 
             for input_batch, label_batch in train_loader:
-                try:
-                    input_batch = input_batch.to(device)
-                    label_batch = label_batch.to(device)
-                    nll = model.compute_loss(input_batch, label_batch)
-                    self.optimizer.zero_grad()
-                    nll.backward()
+                input_batch = input_batch.to(device)
+                label_batch = label_batch.to(device)
 
-                    # If using block_conductance_dynamic, the hook sets last_scale_vec
-                    if last_branch and hasattr(last_branch, 'branches_to_output'):
-                        block = last_branch.branches_to_output
-                        # If the conduction hook was triggered, we have block.last_scale_vec
-                        if hasattr(block, 'last_scale_vec'):
-                            scale_mean = block.last_scale_vec.mean().item()
-                            scale_sum += scale_mean
-                            scale_count += 1
+                # Forward + compute loss
+                nll = model.compute_loss(input_batch, label_batch)
 
-                    clip_grad_value_(model.parameters(), grad_clip_value)
-                    self.optimizer.step()
-                    train_loss += nll.item()
+                # Backprop
+                self.optimizer.zero_grad()
+                nll.backward()
 
-                except Exception as e:
-                    print(f"Exception: {e}")
-                    if not self.suppress:
-                        logger.info('exception occurred during parameter update step')
-                    model.load_state_dict(best_state_dict)
-                    train_loss += 10
+                # If using block_conductance_dynamic, the hook sets last_scale_vec
+                if last_branch and hasattr(last_branch, 'branches_to_output'):
+                    block = last_branch.branches_to_output
+                    if hasattr(block, 'last_scale_vec'):
+                        scale_mean = block.last_scale_vec.mean().item()
+                        scale_sum += scale_mean
+                        scale_count += 1
 
-            train_loss /= len(train_loader)
-            train_losses.append(train_loss)
-            
+                clip_grad_value_(model.parameters(), grad_clip_value)
+                self.optimizer.step()
+
+                epoch_train_loss += nll.item()
+
+                # Collect predictions for accuracy
+                preds = model.predict(input_batch)
+                train_preds.append(preds.detach().cpu())
+                train_labels.append(label_batch.detach().cpu())
+
+            epoch_train_loss /= len(train_loader)
+            train_losses.append(epoch_train_loss)
+
+            # Compute train accuracy
+            train_preds = torch.cat(train_preds, dim=0)
+            train_labels = torch.cat(train_labels, dim=0)
+            train_metrics = compute_metrics_classification(train_preds, train_labels)
+            train_acc = train_metrics['accuracy']
+
+            # 2) VALID
             model.eval()
-            all_preds = []
-            all_labels = []
+            epoch_valid_loss = 0.0
+            valid_preds = []
+            valid_labels = []
+
             with torch.no_grad():
                 for input_batch, label_batch in valid_loader:
-                    try:
-                        input_batch = input_batch.to(device)
-                        label_batch = label_batch.to(device)
-                        nll = model.compute_loss(input_batch, label_batch)
-                        valid_loss += nll.item()
-                        preds = model.predict(input_batch)
-                        all_preds.append(preds.cpu())
-                        all_labels.append(label_batch.cpu())
-                    except Exception as e:
-                        print(f"Exception: {e}")
-                        if not self.suppress:
-                            logger.info('exception occurred during parameter validation step')
-                        model.load_state_dict(best_state_dict)
-                        valid_loss += 10
+                    input_batch = input_batch.to(device)
+                    label_batch = label_batch.to(device)
 
-            valid_loss /= len(valid_loader)
-            valid_losses.append(valid_loss)
+                    nll = model.compute_loss(input_batch, label_batch)
+                    epoch_valid_loss += nll.item()
 
-            # Possibly log validation metrics
-            if len(all_preds) > 0:
-                all_preds = torch.cat(all_preds, dim=0)
-                all_labels = torch.cat(all_labels, dim=0)
-                metrics = compute_metrics_classification(all_preds, all_labels)
-                # Log unconditionally to W&B
-                wandb.log({
-                    "val_accuracy": metrics['accuracy'],
-                    "val_precision": metrics['precision'],
-                    "val_recall": metrics['recall'],
-                    "val_f1_score": metrics['f1_score'],
-                    "epoch": epoch
-                })
-            
-            if valid_loss < best_loss:
-                best_loss = valid_loss
+                    preds = model.predict(input_batch)
+                    valid_preds.append(preds.cpu())
+                    valid_labels.append(label_batch.cpu())
+
+            epoch_valid_loss /= len(valid_loader)
+            valid_losses.append(epoch_valid_loss)
+
+            valid_preds = torch.cat(valid_preds, dim=0)
+            valid_labels = torch.cat(valid_labels, dim=0)
+            valid_metrics = compute_metrics_classification(valid_preds, valid_labels)
+            valid_acc = valid_metrics['accuracy']
+
+            # Update best model if needed
+            if epoch_valid_loss < best_loss:
+                best_loss = epoch_valid_loss
                 best_epoch = epoch
                 best_state_dict = deepcopy(model.state_dict())
                 if save_boolean:
@@ -194,41 +195,49 @@ class TrainerMLE(object):
                             'best epoch': best_epoch, 
                             'train losses': train_losses, 
                             'valid losses': valid_losses
+                            'valid acc': valid_acc
                         }, f)
 
+            # 3) Print logs
             if not self.suppress:
                 if epoch % self.print_every == 0:
-                    logger.info(f' ---- Epoch {epoch} ---- ')
-                    logger.info('training loss: %.2f | validation loss: %.2f' % (train_loss, valid_loss))
+                    logger.info(f" ---- Epoch {epoch} ---- ")
+                    logger.info(f"training loss: {epoch_train_loss:.2f} | validation loss: {epoch_valid_loss:.2f}")
+                    logger.info(f"training acc: {train_acc:.3f} | validation acc: {valid_acc:.3f}")
                     elapsed = time.time() - stime
                     pred_remaining = (elapsed / epoch) * (epochs - epoch)
-                    logger.info('time elapsed: %.2f s | predicted time remaining: %.2f s' % (elapsed, pred_remaining))
+                    logger.info(f"time elapsed: {elapsed:.2f}s | predicted time remaining: {pred_remaining:.2f}s")
 
-            # Also log train/valid losses unconditionally
+            # 4) Log to wandb
             wandb_dict = {
-                "train_loss": float(train_loss),
-                "valid_loss": float(valid_loss),
-                "epoch": epoch
+                "epoch": epoch,
+                "train_loss": epoch_train_loss,
+                "valid_loss": epoch_valid_loss,
+                "train_acc": train_acc,
+                "valid_acc": valid_acc,
             }
             if scale_count > 0:
                 wandb_dict["grad_scale_vec_mean"] = scale_sum / scale_count
+
             wandb.log(wandb_dict)
 
+        # Done training
         results = {
             'best epoch': best_epoch,
             'train losses': train_losses,
-            'valid losses': valid_losses
+            'valid losses': valid_losses,
+            'valid acc': valid_acc
         }
         if load_best_state_dict:
             model.load_state_dict(best_state_dict)
         else:
             results['best state dict'] = best_state_dict
         
-        if plot_losses:
-            if save_boolean:
-                plot_NLL_loss_curves(train_losses, valid_losses, epochs, save_path)
-            else:
-                results['loss curves'] = plot_NLL_loss_curves(train_losses, valid_losses, epochs)
+        if plot_losses and save_boolean:
+            plot_NLL_loss_curves(train_losses, valid_losses, epochs, save_path)
+        elif plot_losses:
+            results['loss curves'] = plot_NLL_loss_curves(train_losses, valid_losses, epochs)
+
         return results
 
     def train_freeze_layers(
@@ -245,6 +254,8 @@ class TrainerMLE(object):
     ):
         """
         Freezes/unfreezes layers in sequence to train each individually.
+        (Here we do not replicate the train-accuracy logic 
+         but you can adapt similarly if you want.)
         """
         device = 'cuda' if torch.cuda.is_available() else 'cpu'
         model.to(device)
@@ -274,73 +285,97 @@ class TrainerMLE(object):
         best_loss = float('inf')
 
         for layer_idx in range(n_layers):
+            # Freeze everything
             for name, param in model.named_parameters():
                 param.requires_grad = False
+
+            # Unfreeze only this layer
             for name, param in model.named_parameters():
                 if f"layers.{layer_idx}." in name:
                     param.requires_grad = True
+
             logger.info(f"Training only layer {layer_idx}, freezing others.")
+
+            # standard loop
             for epoch in range(1, epochs_per_layer + 1):
                 model.train()
-                epoch_train_loss = 0
-                for x_batch, y_batch in train_loader:
-                    x_batch = x_batch.to(device)
-                    y_batch = y_batch.to(device)
-                    nll = model.compute_loss(x_batch, y_batch)
+                epoch_train_loss = 0.0
+                for xb, yb in train_loader:
+                    xb = xb.to(device)
+                    yb = yb.to(device)
+                    nll = model.compute_loss(xb, yb)
                     self.optimizer.zero_grad()
                     nll.backward()
                     clip_grad_value_(model.parameters(), grad_clip_value)
                     self.optimizer.step()
                     epoch_train_loss += nll.item()
                 epoch_train_loss /= len(train_loader)
+
+                # valid
                 model.eval()
-                epoch_valid_loss = 0
+                epoch_valid_loss = 0.0
                 with torch.no_grad():
-                    for x_val, y_val in valid_loader:
-                        x_val = x_val.to(device)
-                        y_val = y_val.to(device)
-                        val_nll = model.compute_loss(x_val, y_val)
-                        epoch_valid_loss += val_nll.item()
+                    for xval, yval in valid_loader:
+                        xval = xval.to(device)
+                        yval = yval.to(device)
+                        v_nll = model.compute_loss(xval, yval)
+                        epoch_valid_loss += v_nll.item()
                 epoch_valid_loss /= len(valid_loader)
+
                 if epoch_valid_loss < best_loss:
                     best_loss = epoch_valid_loss
                     best_state_dict = deepcopy(model.state_dict())
+
                 train_losses.append(epoch_train_loss)
                 valid_losses.append(epoch_valid_loss)
-                logger.info(f"Layer {layer_idx} | Epoch {epoch}/{epochs_per_layer} | Train Loss={epoch_train_loss:.4f}, Valid Loss={epoch_valid_loss:.4f}")
+                logger.info(f"[Freeze-layers] Layer {layer_idx}, epoch {epoch}/{epochs_per_layer} | "
+                            f"Train Loss={epoch_train_loss:.4f}, Valid Loss={epoch_valid_loss:.4f}")
 
         logger.info("Unfreezing all layers for a final joint tune.")
         for name, param in model.named_parameters():
             param.requires_grad = True
+
         final_epochs = 2
         for epoch in range(1, final_epochs + 1):
             model.train()
-            epoch_train_loss = 0
-            for x_batch, y_batch in train_loader:
-                x_batch = x_batch.to(device)
-                y_batch = y_batch.to(device)
-                nll = model.compute_loss(x_batch, y_batch)
+            epoch_train_loss = 0.0
+            for xb, yb in train_loader:
+                xb = xb.to(device)
+                yb = yb.to(device)
+                nll = model.compute_loss(xb, yb)
                 self.optimizer.zero_grad()
                 nll.backward()
                 clip_grad_value_(model.parameters(), grad_clip_value)
                 self.optimizer.step()
                 epoch_train_loss += nll.item()
             epoch_train_loss /= len(train_loader)
+
             model.eval()
-            epoch_valid_loss = 0
+            epoch_valid_loss = 0.0
             with torch.no_grad():
-                for x_val, y_val in valid_loader:
-                    x_val = x_val.to(device)
-                    y_val = y_val.to(device)
-                    val_nll = model.compute_loss(x_val, y_val)
+                for xval, yval in valid_loader:
+                    xval = xval.to(device)
+                    yval = yval.to(device)
+                    val_nll = model.compute_loss(xval, yval)
                     epoch_valid_loss += val_nll.item()
             epoch_valid_loss /= len(valid_loader)
+
             if epoch_valid_loss < best_loss:
                 best_loss = epoch_valid_loss
                 best_state_dict = deepcopy(model.state_dict())
-            logger.info(f"[Final Joint] Epoch {epoch}/{final_epochs} | Train Loss={epoch_train_loss:.4f}, Valid Loss={epoch_valid_loss:.4f}")
+
+            logger.info(f"[Final Joint] Epoch {epoch}/{final_epochs} "
+                        f"| Train Loss={epoch_train_loss:.4f}, Valid Loss={epoch_valid_loss:.4f}")
 
         model.load_state_dict(best_state_dict)
+
         if plot_losses and save_path and os.path.exists(save_path):
-            plot_NLL_loss_curves(train_losses, valid_losses, len(train_losses), save_path, title="Layerwise-Freeze Training Loss Curves")
-        return {'train losses': train_losses, 'valid losses': valid_losses}
+            plot_NLL_loss_curves(train_losses, valid_losses, 
+                                 len(train_losses), 
+                                 save_path,
+                                 title="Layerwise-Freeze Training Loss Curves")
+
+        return {
+            'train losses': train_losses, 
+            'valid losses': valid_losses
+        }
