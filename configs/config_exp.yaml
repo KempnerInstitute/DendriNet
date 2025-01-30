@@ -5,7 +5,7 @@ model:
     type: "EINet"
     parameters:
       input_dim: 784
-      excitatory_layer_sizes: [10]
+      excitatory_layer_sizes: [512]
       inhibitory_layer_sizes: [20]
       excitatory_branch_factors: [1,2]
       inhibitory_branch_factors: []
@@ -35,6 +35,9 @@ model:
       local_loss_weight: 0 #0.5
 
       enable_branch_outputs: true
+      
+      output_layer: bool = true
+      output_dim: int = 10
 
 train:
   run_name: "mnist_einet"

@@ -129,7 +129,6 @@ class ExcitationInhibitionLayer(nn.Module):
         else:
             inhibitory_final, inh_acts = self.inhibitory_cells.forward_with_branch_outputs(x, inhibitory_input)
             excitatory_final, exc_acts = self.excitatory_cells.forward_with_branch_outputs(x, inhibitory_final)
-            # Return them separately so the top net can decide which acts to store
             return excitatory_final, inhibitory_final, inh_acts, exc_acts
 
 
@@ -160,7 +159,11 @@ class ExcitationInhibitionNetwork(nn.Module):
         train_reactivation_b_only=False,
         local_learning="none",
         local_loss_weight=0.0,
-        enable_branch_outputs=False  # added
+        enable_branch_outputs=False,  # added
+
+        # we ignore output_layer, output_dim here
+        output_layer=False,
+        output_dim=10
     ):
         super(ExcitationInhibitionNetwork, self).__init__()
         self.weight_decay_rate = weight_decay_rate
@@ -218,7 +221,7 @@ class ExcitationInhibitionNetwork(nn.Module):
                 reactivation_initial_b = reactivation_initial_b,
                 reactivation_type = reactivation_type,
                 train_reactivation_b_only = train_reactivation_b_only,
-                enable_branch_outputs = enable_branch_outputs  # added
+                enable_branch_outputs = enable_branch_outputs
             ))
         
         self.layers = nn.ModuleList(layers)
@@ -243,23 +246,13 @@ class ExcitationInhibitionNetwork(nn.Module):
         return excitatory
 
     def forward_with_branch_outputs(self, x):
-        """
-        Returns final excitatory output,
-        plus a list of excitatory-layer activations only
-        so that we see exactly n_branch_layers + 1
-        (the 5 dendritic layers + final soma = 6) 
-        if excitatory_branch_factors=[2,2,2,2,2].
-        """
         excitatory = x
         inhibitory = None
-        all_excitatory_acts = []  # skip inhibitory
+        all_acts = []
         for i, layer in enumerate(self.layers):
-            exc_final, inh_final, _, exc_acts = layer.forward_with_branch_outputs(excitatory, inhibitory)
-            excitatory, inhibitory = exc_final, inh_final
-            # store only excitatory acts so we don't end up with extras
-            all_excitatory_acts.extend(exc_acts)
-        # now all_excitatory_acts should have exactly n_branch_layers + 1 entries
-        return excitatory, all_excitatory_acts
+            excitatory, inhibitory, inh_acts, exc_acts = layer.forward_with_branch_outputs(excitatory, inhibitory)
+            all_acts.extend(exc_acts)
+        return excitatory, all_acts
 
     def compute_local_loss(self, x, y=None):
         return 0.0
@@ -346,5 +339,6 @@ class MLPBaseline(nn.Module):
         self.fc2 = nn.Linear(hidden_dim, output_dim)
 
     def forward(self, x):
+        import torch.nn.functional as F
         x = F.relu(self.fc1(x))
         return self.fc2(x)  # raw logits
