@@ -40,6 +40,7 @@ model:
       output_dim: int = 10
 
 train:
+  learning_strategy: "two_step"   # or "mle", "freeze_layers", "local_credit_assignment", "train_only_b_react"
   run_name: "mnist_einet"
   seed: 0
   train_valid_split: 0.8
