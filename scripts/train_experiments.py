@@ -7,14 +7,14 @@ import json
 import time
 import argparse
 from pathlib import Path
+from dataclasses import asdict  # <-- added
 
 import wandb
 import torch
 import torchinfo
-from omegaconf import OmegaConf
+#from omegaconf import OmegaConf  # no longer needed for wandb config
 
 from dendritic_modeling import logger, logger_manager
-# If your TrainerMLE is in learning_strategies:
 from dendritic_modeling.learning_strategies import TrainerMLE
 from dendritic_modeling.models import (ProbabilisticClassifier, Classifier)
 from dendritic_modeling.networks import (ExcitationInhibitionNetwork, FeedforwardNN)
@@ -25,7 +25,6 @@ from dendritic_modeling.visualization_manager import PlotManager
 def initialize_model(model_cfg):
     """
     Builds the specified model: 'classification' uses ProbabilisticClassifier or Classifier.
-
     model_cfg is a ModelConfig object with .task, .probabilistic, .network, etc.
     """
     task = model_cfg.task
@@ -66,7 +65,7 @@ def main(config_path: str, output_dir: str, experiment_name: str):
     os.makedirs(output_dir, exist_ok=True)
     logger_manager.set_log_file(os.path.join(output_dir, "dendritic_modeling.log"))
 
-    # 1) Load config
+    # 1) Load config (a Python dataclass from your load_config)
     config = load_config(config_path)
 
     model_cfg = config.model
@@ -79,6 +78,9 @@ def main(config_path: str, output_dir: str, experiment_name: str):
             wandb_dir = Path(output_dir) / "wandb"
             wandb_run_name = experiment_name
             wandb_dir.mkdir(parents=True, exist_ok=True)
+            # Instead of OmegaConf.to_container(...), we do asdict(config):
+            wandb_dict = asdict(config)  # Python dict
+
             wandb.init(
                 dir=str(wandb_dir),
                 entity=wandb_cfg.entity,           # can be empty, but let's pass it
@@ -86,7 +88,7 @@ def main(config_path: str, output_dir: str, experiment_name: str):
                 group=wandb_cfg.group,
                 name=wandb_run_name,
                 tags=wandb_cfg.tags,
-                config=OmegaConf.to_container(config, resolve=True),
+                config=wandb_dict,  # <--- pass a normal dict
             )
         except Exception as e:
             # If we can't init, let's raise an error so we see the problem
@@ -113,7 +115,7 @@ def main(config_path: str, output_dir: str, experiment_name: str):
         )
         logger.debug("\n" + str(summary))
 
-        # Unconditionally log summary if wandb is running
+        # Log summary if wandb is running
         if wandb.run:
             wandb.log({
                 "total_params": summary.total_params,
@@ -188,6 +190,7 @@ def main(config_path: str, output_dir: str, experiment_name: str):
             plot_manager.run_plot(plot_name)
 
     logger.info("All done.")
+
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Run dendritic modeling training and evaluation.')
