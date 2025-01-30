@@ -126,7 +126,7 @@ class MultiXORDataset(Dataset):
     def _generate_data(self):
         X,Y=[],[]
         for _ in range(self.n_samples):
-            bits=np.random.randint(0,2,size=self.n_bits).astype(np.float32)
+            bits=np.random.randint(0,2,size=self.n_bits).astype(np.int32)
             y1=bits[0]^bits[1]
             y2=bits[2]^bits[3]^bits[4]
             label=(y1<<1)+y2
