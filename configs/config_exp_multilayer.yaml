@@ -5,9 +5,9 @@ model:
     type: "EINet"
     parameters:
       input_dim: 784
-      excitatory_layer_sizes: [256,10]
+      excitatory_layer_sizes: [256,256]
       inhibitory_layer_sizes: [50,50]
-      excitatory_branch_factors: [2,2,5,5]
+      excitatory_branch_factors: [2,2,5]
       inhibitory_branch_factors: [1]
       reactivate: true
       somatic_synapses: true
@@ -35,6 +35,9 @@ model:
       local_loss_weight: 0 #0.5
 
       enable_branch_outputs: true
+
+      output_layer: bool = true
+      output_dim: int = 10
 
 train:
   run_name: "mnist_einet"
