@@ -15,7 +15,7 @@ model:
       ei_synapses_per_branch_per_layer: [200]
       ie_synapses_per_branch_per_layer: [1]
       ii_synapses_per_branch_per_layer: []
-      topk_init_method: xavier_normal 
+      topk_init_method: xavier_normal
       use_shunting: true
 
       init_gain: 1.0
@@ -26,16 +26,15 @@ model:
       reactivation_type: param_tanh  # "none", "param_tanh", "relu", "sigmoid", "tanh"
       train_reactivation_b_only: false
 
-      gradient_strategy: block_conductance_dynamic #"none", "distal_upweight_by_idx", "block_conductance_dynamic"
+      gradient_strategy: block_conductance_dynamic  #"none", "distal_upweight_by_idx", "block_conductance_dynamic"
       gradient_scale_factor: 2
 
       weight_decay_rate: 0.1
 
-      local_learning: none #"none", "backprop_alignment"        ###, "freeze_layer"
-      local_loss_weight: 0 #0.5
+      # Removed local_learning, local_loss_weight
 
       enable_branch_outputs: true
-      
+
       output_layer: bool = false
       output_dim: int = 10
 
@@ -56,36 +55,26 @@ task:
 
 wandb:
   entity: houman_safaai-harvard-university
-  project: "dendritic_mnist"
+  project: dendritic_mnist
   group: "debug"
   tags: [mnist_1]
 
 visualization:
   enabled: true
-  save_path: /n/holylabs/LABS/kempner_dev/Users/hsafaai/results/dendritic_modeling/results #"/n/netscratch/kempner_dev/hsafaai/results/visuals"
-  # A list of which plots/analyses to generate:
-  plots: 
+  save_path: /n/holylabs/LABS/kempner_dev/Users/hsafaai/results/dendritic_modeling/results
+  plots:
     #- "weights"      # Plot dendritic or EI-net weights
     #- "activations"  # Plot per-digit activation distribution
     #- "gradients"    # Plot synapse or branch gradients
     - "branch_info"  # mutual information
-    - "ablation"     # ablation 
+    - "ablation"     # ablation
 
 # Explanation of the Methods:
-#  1. Vanilla Backprop
-#     -> gradient_strategy: "none"
-#  2. Uniform Gradient Scaling
-#     -> gradient_strategy: "uniform_scale"
-#  3. Distal Upweight
-#     -> gradient_strategy: "distal_upweight" or "distal_upweight_by_idx"
-#  4. Freeze-Layers
-#     -> gradient_strategy: "freeze_layer"
-#  5. Local Learning Rules
-#  6. Initialization Tweaks
-#     -> init_gain, init_inhib_offset, etc.
-#  7. Reactivation Scaling
-#     -> reactivation_initial_m, reactivation_initial_b, reactivation_type
-#  8. The `visualization` block
-#     -> 'enabled' toggles plotting or not
-#     -> 'save_path' is directory for figure outputs
-#     -> 'plots' is a list of keys recognized by the PlotManager
+#  1. Vanilla Backprop -> gradient_strategy: "none"
+#  2. Uniform Gradient Scaling -> "uniform_scale"
+#  3. Distal Upweight -> "distal_upweight" or "distal_upweight_by_idx"
+#  4. Freeze-Layers -> "freeze_layer"
+#  5. (Removed local learning)
+#  6. Initialization Tweaks -> init_gain, init_inhib_offset, etc.
+#  7. Reactivation Scaling -> reactivation_initial_m, reactivation_initial_b, reactivation_type
+#  8. 'visualization' block -> if 'enabled', will produce certain plots
