@@ -2,8 +2,20 @@ from dataclasses import dataclass, field
 from typing import List, Dict
 from omegaconf import OmegaConf as om
 
+class BaseConfig:
+    @classmethod
+    def load(cls, path: str):
+        conf = om.load(path)
+        return cls(**conf)
+
+    def save(self, path: str):
+        om.save(config=self, f=path)
+
+    def asdict(self):
+        return asdict(self)
+
 @dataclass
-class EINetParameters:
+class EINetParameters(BaseConfig):
     input_dim: int = 784
     excitatory_layer_sizes: List[int] = field(default_factory=lambda: [10])
     inhibitory_layer_sizes: List[int] = field(default_factory=lambda: [20])
@@ -31,18 +43,26 @@ class EINetParameters:
     output_dim: int = 10
 
 @dataclass
-class ModelNetworkConfig:
+class FeedForwardParameters(BaseConfig):
+    input_dim: int = 784
+    hidden_layer_sizes: List[int] = field(default_factory=lambda: [128, 64])
+    activation: str = "relu"
+    dropout: float = 0.2
+    output_dim: int = 10
+
+@dataclass
+class ModelNetworkConfig(BaseConfig):
     type: str = "EINet"
     parameters: EINetParameters = field(default_factory=EINetParameters)
 
 @dataclass
-class ModelConfig:
+class ModelConfig(BaseConfig):
     task: str = "classification"
     probabilistic: bool = True
     network: ModelNetworkConfig = field(default_factory=ModelNetworkConfig)
 
 @dataclass
-class TrainConfig:
+class TrainConfig(BaseConfig):
     learning_strategy: str = "two_step"
     run_name: str = "mnist_einet"
     seed: int = 0
@@ -56,13 +76,13 @@ class TrainConfig:
     maintrain_epochs: int = 50
     
 @dataclass
-class VisualizationConfig:
+class VisualizationConfig(BaseConfig):
     enabled: bool = True
-    save_path: str = "/n/holylabs/LABS/kempner_dev/Users/hsafaai/results/dendritic_modeling/results"
+    save_path: str = ""
     plots: List[str] = field(default_factory=lambda: ["branch_info", "ablation"])
 
 @dataclass
-class WandbConfig:
+class WandbConfig(BaseConfig):
     entity: str = ""
     project: str = ""
     group: str = ""
@@ -71,7 +91,7 @@ class WandbConfig:
 
 # Added TaskConfig to capture the top-level task block.
 @dataclass
-class TaskConfig:
+class TaskConfig(BaseConfig):
     dataset: str = "mnist"
     parameters: Dict = field(default_factory=dict)
 
