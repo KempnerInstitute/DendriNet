@@ -1,5 +1,9 @@
 """
 train_experiments.py
+--------------------
+Main script that reads config_exp.yaml, builds the model,
+chooses a training strategy, trains, and evaluates using
+a unified data-loading function from synthetic_datasets.py.
 """
 
 import os
@@ -7,31 +11,31 @@ import json
 import time
 import argparse
 from pathlib import Path
-from dataclasses import asdict  # <-- added
+from dataclasses import asdict
 
 import wandb
 import torch
 import torchinfo
-#from omegaconf import OmegaConf  # no longer needed for wandb config
 
 from dendritic_modeling import logger, logger_manager
-from dendritic_modeling.learning_strategies import TrainerMLE
+from dendritic_modeling.learning_strategies import get_trainer
 from dendritic_modeling.models import (ProbabilisticClassifier, Classifier)
 from dendritic_modeling.networks import (ExcitationInhibitionNetwork, FeedforwardNN)
 from dendritic_modeling.config import load_config
-from dendritic_modeling.utils import load_MNIST, accuracy_score
 from dendritic_modeling.visualization_manager import PlotManager
+
+from synthetic_datasets import get_unified_datasets
+
 
 def initialize_model(model_cfg):
     """
     Builds the specified model: 'classification' uses ProbabilisticClassifier or Classifier.
-    model_cfg is a ModelConfig object with .task, .probabilistic, .network, etc.
+    model_cfg is from config.model, with .task, .probabilistic, .network, etc.
     """
     task = model_cfg.task
     probabilistic = model_cfg.probabilistic
     net_type = model_cfg.network.type
     net_params = model_cfg.network.parameters.__dict__
-
     enable_branch_outputs = net_params.pop('enable_branch_outputs', False)
 
     if task == 'classification':
@@ -61,50 +65,48 @@ def initialize_model(model_cfg):
     else:
         raise ValueError(f"Invalid task: {task}")
 
+
 def main(config_path: str, output_dir: str, experiment_name: str):
     os.makedirs(output_dir, exist_ok=True)
     logger_manager.set_log_file(os.path.join(output_dir, "dendritic_modeling.log"))
 
-    # 1) Load config (a Python dataclass from your load_config)
+    # Load config
     config = load_config(config_path)
-
     model_cfg = config.model
     train_cfg = config.train
     wandb_cfg = config.wandb
 
-    # 2) Force W&B init if config says use_wandb == true
+    # Initialize W&B if desired
     if getattr(wandb_cfg, "use_wandb", False):
         try:
             wandb_dir = Path(output_dir) / "wandb"
             wandb_run_name = experiment_name
             wandb_dir.mkdir(parents=True, exist_ok=True)
-            # Instead of OmegaConf.to_container(...), we do asdict(config):
-            wandb_dict = asdict(config)  # Python dict
-
+            wandb_dict = asdict(config)  # Convert config to dict for logging
             wandb.init(
                 dir=str(wandb_dir),
-                entity=wandb_cfg.entity,           # can be empty, but let's pass it
+                entity=wandb_cfg.entity,
                 project=wandb_cfg.project,
                 group=wandb_cfg.group,
                 name=wandb_run_name,
                 tags=wandb_cfg.tags,
-                config=wandb_dict,  # <--- pass a normal dict
+                config=wandb_dict,
             )
         except Exception as e:
-            # If we can't init, let's raise an error so we see the problem
             logger.error(f"Error initializing W&B: {e}")
-            raise e  # Stop the script; we want to see the actual error
+            raise e
 
-    # 3) Load dataset
     logger.info("Loading dataset...")
-    data = load_MNIST(train_valid_split=train_cfg.train_valid_split)
 
-    # 4) Build model
+    train_ds, valid_ds, test_ds = get_unified_datasets(config.task, train_cfg)
+
+    # Build the model
     clf = initialize_model(model_cfg)
 
-    # 5) Possibly show summary
+    # Optional: log a summary. We'll guess input dim from the first training sample
     try:
-        sample_input_dim = data['train'].x.shape[1]
+        sample_input, _ = train_ds[0]  # a single (features, label)
+        sample_input_dim = sample_input.numel()  # flatten if needed
         summary = torchinfo.summary(
             clf,
             input_size=(train_cfg.batch_size, sample_input_dim),
@@ -114,8 +116,6 @@ def main(config_path: str, output_dir: str, experiment_name: str):
             depth=7
         )
         logger.debug("\n" + str(summary))
-
-        # Log summary if wandb is running
         if wandb.run:
             wandb.log({
                 "total_params": summary.total_params,
@@ -124,37 +124,66 @@ def main(config_path: str, output_dir: str, experiment_name: str):
     except:
         pass
 
-    # 6) Build optimizer
-    optimizer = torch.optim.Adam(clf.parameters(), lr=train_cfg.lr)
-    trainer = TrainerMLE(optimizer=optimizer, suppress_prints=False, print_every=10)
+    # ================== CHOOSE & RUN TRAINING STRATEGY =================
+    learning_strategy = getattr(train_cfg, "learning_strategy", "mle")
+    logger.info(f"Using learning strategy: {learning_strategy}")
 
-    # 7) Decide if we do freeze_layers
-    grad_strat = getattr(model_cfg.network.parameters, "gradient_strategy", "none")
-    if grad_strat == "freeze_layer":
+    # Create optimizer
+    optimizer = torch.optim.Adam(clf.parameters(), lr=train_cfg.lr)
+
+    # Acquire the trainer from learning_strategies.py
+    trainer = get_trainer(learning_strategy, optimizer, suppress_prints=False, print_every=10)
+
+    # If "freeze_layers"
+    if learning_strategy == "freeze_layers":
+        # Use epochs_per_layer from config
+        epochs_per_layer = getattr(train_cfg, "epochs_per_layer", 5)
         trainer.train_freeze_layers(
             model=clf,
-            train_data=data['train'],
-            valid_data=data.get('valid', None),
-            epochs_per_layer=train_cfg.epochs_per_layer,
+            train_data=train_ds,
+            valid_data=valid_ds,
+            epochs_per_layer=epochs_per_layer,
             batch_size=train_cfg.batch_size,
             shuffle=True,
             grad_clip_value=train_cfg.grad_clip_value,
             plot_losses=True,
             save_path=output_dir
         )
-    else:
+
+    elif learning_strategy == "two_step":
+        # Use pretrain & maintrain from config
+        pretrain_epochs = getattr(train_cfg, "pretrain_epochs", 5)
+        maintrain_epochs = getattr(train_cfg, "maintrain_epochs", 45)
         trainer.train(
             model=clf,
-            train_data=data['train'],
-            valid_data=data.get('valid', None),
+            train_data=train_ds,
+            valid_data=valid_ds,
+            pretrain_epochs=pretrain_epochs,
+            maintrain_epochs=maintrain_epochs,
+            batch_size=train_cfg.batch_size,
+            grad_clip_value=train_cfg.grad_clip_value,
+            shuffle=True,
+            load_best_state_dict=True,
+            plot_losses=True,
+            save_path=output_dir
+        )
+
+    else:
+        # "mle", "local_credit_assignment", "train_only_b_react"
+        trainer.train(
+            model=clf,
+            train_data=train_ds,
+            valid_data=valid_ds,
             epochs=train_cfg.epochs,
             batch_size=train_cfg.batch_size,
             grad_clip_value=train_cfg.grad_clip_value,
             shuffle=True,
+            load_best_state_dict=True,
             plot_losses=True,
             save_path=output_dir
         )
 
+    # ================== Evaluate final model ==================
     logger.info("Evaluating performance...")
     device = 'cuda' if torch.cuda.is_available() else 'cpu'
     clf = clf.to(device)
@@ -173,19 +202,19 @@ def main(config_path: str, output_dir: str, experiment_name: str):
         all_labels = torch.cat(all_labels, dim=0)
         return (all_preds == all_labels).float().mean().item()
 
-    train_acc = evaluate_accuracy(clf, data['train'])
-    valid_acc = evaluate_accuracy(clf, data['valid']) if 'valid' in data else None
-    test_acc  = evaluate_accuracy(clf, data['test'])
-    logger.info(f"train acc={train_acc}, valid acc={valid_acc}, test acc={test_acc}")
+    train_acc = evaluate_accuracy(clf, train_ds)
+    valid_acc = evaluate_accuracy(clf, valid_ds) if valid_ds else None
+    test_acc  = evaluate_accuracy(clf, test_ds)
+    logger.info(f"train acc={train_acc:.3f}, valid acc={valid_acc:.3f}, test acc={test_acc:.3f}")
 
-    # Log final metrics if wandb is running
-    if wandb.run:
+    # Log final accuracies to W&B
+    if wandb.run is not None:
         wandb.log({"train_acc": train_acc, "valid_acc": valid_acc, "test_acc": test_acc})
         wandb.finish()
 
-    # 8) Possibly do visualization
+    # ================== Visualization ==================
     if config.visualization.enabled:
-        plot_manager = PlotManager(clf, data, config, device=device)
+        plot_manager = PlotManager(clf, {"train": train_ds, "valid": valid_ds, "test": test_ds}, config, device=device)
         for plot_name in config.visualization.plots:
             plot_manager.run_plot(plot_name)
 
@@ -195,8 +224,8 @@ def main(config_path: str, output_dir: str, experiment_name: str):
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Run dendritic modeling training and evaluation.')
     parser.add_argument("config", help="Path to the configuration YAML file.")
-    parser.add_argument("--output_dir", default="results", help="Optional output directory.")
-    parser.add_argument("--experiment_name", default="example", help="Optional experiment name.")
+    parser.add_argument("--output_dir", default="results", help="Output directory.")
+    parser.add_argument("--experiment_name", default="example", help="Experiment name (used for W&B run name).")
     args = parser.parse_args()
 
     main(config_path=args.config, output_dir=args.output_dir, experiment_name=args.experiment_name)
