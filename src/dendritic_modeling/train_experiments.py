@@ -12,6 +12,7 @@ import time
 import argparse
 from pathlib import Path
 from dataclasses import asdict
+from copy import deepcopy
 
 import wandb
 import torch
@@ -25,7 +26,6 @@ from dendritic_modeling.config import load_config
 from dendritic_modeling.visualization_manager import PlotManager
 
 from synthetic_datasets import get_unified_datasets
-
 
 def initialize_model(model_cfg):
     """
@@ -47,7 +47,6 @@ def initialize_model(model_cfg):
                 return ProbabilisticClassifier(net, output_dim)
             else:
                 return Classifier(net)
-
         elif net_type == 'EINet':
             logger.info(f"Running EINet with {'probabilistic' if probabilistic else 'simple'} classifier")
             net = ExcitationInhibitionNetwork(
@@ -59,30 +58,26 @@ def initialize_model(model_cfg):
                 return ProbabilisticClassifier(net, output_dim)
             else:
                 return Classifier(net)
-
         else:
             raise ValueError(f"Invalid network type: {net_type}")
     else:
         raise ValueError(f"Invalid task: {task}")
 
-
 def main(config_path: str, output_dir: str, experiment_name: str):
     os.makedirs(output_dir, exist_ok=True)
     logger_manager.set_log_file(os.path.join(output_dir, "dendritic_modeling.log"))
 
-    # Load config
     config = load_config(config_path)
     model_cfg = config.model
     train_cfg = config.train
     wandb_cfg = config.wandb
 
-    # Initialize W&B if desired
     if getattr(wandb_cfg, "use_wandb", False):
         try:
             wandb_dir = Path(output_dir) / "wandb"
             wandb_run_name = experiment_name
             wandb_dir.mkdir(parents=True, exist_ok=True)
-            wandb_dict = asdict(config)  # Convert config to dict for logging
+            wandb_dict = asdict(config)
             wandb.init(
                 dir=str(wandb_dir),
                 entity=wandb_cfg.entity,
@@ -97,16 +92,11 @@ def main(config_path: str, output_dir: str, experiment_name: str):
             raise e
 
     logger.info("Loading dataset...")
-
     train_ds, valid_ds, test_ds = get_unified_datasets(config.task, train_cfg)
-
-    # Build the model
     clf = initialize_model(model_cfg)
-
-    # Optional: log a summary. We'll guess input dim from the first training sample
     try:
-        sample_input, _ = train_ds[0]  # a single (features, label)
-        sample_input_dim = sample_input.numel()  # flatten if needed
+        sample_input, _ = train_ds[0]
+        sample_input_dim = sample_input.numel()
         summary = torchinfo.summary(
             clf,
             input_size=(train_cfg.batch_size, sample_input_dim),
@@ -124,66 +114,82 @@ def main(config_path: str, output_dir: str, experiment_name: str):
     except:
         pass
 
-    # ================== CHOOSE & RUN TRAINING STRATEGY =================
     learning_strategy = getattr(train_cfg, "learning_strategy", "mle")
     logger.info(f"Using learning strategy: {learning_strategy}")
 
-    # Create optimizer
     optimizer = torch.optim.Adam(clf.parameters(), lr=train_cfg.lr)
-
-    # Acquire the trainer from learning_strategies.py
     trainer = get_trainer(learning_strategy, optimizer, suppress_prints=False, print_every=10)
 
-    # If "freeze_layers"
-    if learning_strategy == "freeze_layers":
-        # Use epochs_per_layer from config
-        epochs_per_layer = getattr(train_cfg, "epochs_per_layer", 5)
-        trainer.train_freeze_layers(
-            model=clf,
-            train_data=train_ds,
-            valid_data=valid_ds,
-            epochs_per_layer=epochs_per_layer,
-            batch_size=train_cfg.batch_size,
-            shuffle=True,
-            grad_clip_value=train_cfg.grad_clip_value,
-            plot_losses=True,
-            save_path=output_dir
-        )
-
-    elif learning_strategy == "two_step":
-        # Use pretrain & maintrain from config
-        pretrain_epochs = getattr(train_cfg, "pretrain_epochs", 5)
-        maintrain_epochs = getattr(train_cfg, "maintrain_epochs", 45)
-        trainer.train(
-            model=clf,
-            train_data=train_ds,
-            valid_data=valid_ds,
-            pretrain_epochs=pretrain_epochs,
-            maintrain_epochs=maintrain_epochs,
-            batch_size=train_cfg.batch_size,
-            grad_clip_value=train_cfg.grad_clip_value,
-            shuffle=True,
-            load_best_state_dict=True,
-            plot_losses=True,
-            save_path=output_dir
-        )
-
+    # If visualize_epochs is provided, train continuously and visualize at specified epochs.
+    if hasattr(train_cfg, "visualize_epochs") and train_cfg.visualize_epochs:
+        total_epochs = train_cfg.epochs
+        visualize_epochs = sorted(train_cfg.visualize_epochs)
+        current_epoch = 0
+        device = 'cuda' if torch.cuda.is_available() else 'cpu'
+        while current_epoch < total_epochs:
+            results = trainer.train(
+                model=clf,
+                train_data=train_ds,
+                valid_data=valid_ds,
+                epochs=1,
+                batch_size=train_cfg.batch_size,
+                grad_clip_value=train_cfg.grad_clip_value,
+                shuffle=True,
+                load_best_state_dict=False,
+                plot_losses=False,
+                save_path=output_dir
+            )
+            current_epoch += 1
+            logger.info(f"Completed epoch {current_epoch}/{total_epochs}")
+            if current_epoch in visualize_epochs:
+                plot_manager = PlotManager(clf, {"train": train_ds, "valid": valid_ds, "test": test_ds}, config, device=device)
+                for plot_name in config.visualization.plots:
+                    plot_manager.run_plot(plot_name, epoch=current_epoch)
+        # Optionally, load best checkpoint here if desired.
     else:
-        # "mle", "local_credit_assignment", "train_only_b_react"
-        trainer.train(
-            model=clf,
-            train_data=train_ds,
-            valid_data=valid_ds,
-            epochs=train_cfg.epochs,
-            batch_size=train_cfg.batch_size,
-            grad_clip_value=train_cfg.grad_clip_value,
-            shuffle=True,
-            load_best_state_dict=True,
-            plot_losses=True,
-            save_path=output_dir
-        )
+        if learning_strategy == "freeze_layers":
+            epochs_per_layer = getattr(train_cfg, "epochs_per_layer", 5)
+            trainer.train_freeze_layers(
+                model=clf,
+                train_data=train_ds,
+                valid_data=valid_ds,
+                epochs_per_layer=epochs_per_layer,
+                batch_size=train_cfg.batch_size,
+                shuffle=True,
+                grad_clip_value=train_cfg.grad_clip_value,
+                plot_losses=True,
+                save_path=output_dir
+            )
+        elif learning_strategy == "two_step":
+            pretrain_epochs = getattr(train_cfg, "pretrain_epochs", 5)
+            maintrain_epochs = getattr(train_cfg, "maintrain_epochs", 45)
+            trainer.train(
+                model=clf,
+                train_data=train_ds,
+                valid_data=valid_ds,
+                pretrain_epochs=pretrain_epochs,
+                maintrain_epochs=maintrain_epochs,
+                batch_size=train_cfg.batch_size,
+                grad_clip_value=train_cfg.grad_clip_value,
+                shuffle=True,
+                load_best_state_dict=True,
+                plot_losses=True,
+                save_path=output_dir
+            )
+        else:
+            trainer.train(
+                model=clf,
+                train_data=train_ds,
+                valid_data=valid_ds,
+                epochs=train_cfg.epochs,
+                batch_size=train_cfg.batch_size,
+                grad_clip_value=train_cfg.grad_clip_value,
+                shuffle=True,
+                load_best_state_dict=True,
+                plot_losses=True,
+                save_path=output_dir
+            )
 
-    # ================== Evaluate final model ==================
     logger.info("Evaluating performance...")
     device = 'cuda' if torch.cuda.is_available() else 'cpu'
     clf = clf.to(device)
@@ -207,19 +213,15 @@ def main(config_path: str, output_dir: str, experiment_name: str):
     test_acc  = evaluate_accuracy(clf, test_ds)
     logger.info(f"train acc={train_acc:.3f}, valid acc={valid_acc:.3f}, test acc={test_acc:.3f}")
 
-    # Log final accuracies to W&B
     if wandb.run is not None:
         wandb.log({"train_acc": train_acc, "valid_acc": valid_acc, "test_acc": test_acc})
         wandb.finish()
 
-    # ================== Visualization ==================
     if config.visualization.enabled:
         plot_manager = PlotManager(clf, {"train": train_ds, "valid": valid_ds, "test": test_ds}, config, device=device)
         for plot_name in config.visualization.plots:
             plot_manager.run_plot(plot_name)
-
     logger.info("All done.")
-
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Run dendritic modeling training and evaluation.')

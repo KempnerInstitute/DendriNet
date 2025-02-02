@@ -22,10 +22,13 @@ from dendritic_modeling.utils import (
     measure_performance
 )
 from dendritic_modeling.plot_utils import (
-    plot_einet_params,
+    plot_einet_params, 
     plot_einet_activations,
     plot_einet_gradients,
-    plot_depth_info,
+    plot_einet_profiles,
+    einet_activations_to_csv,
+    plot_NLL_loss_curves,
+    plot_depth_info
 )
 
 class PlotManager:
@@ -34,7 +37,6 @@ class PlotManager:
     The main experiment code can call PlotManager.run_plot(plot_name),
     without needing to manually code each function call in train_experiments.py.
     """
-
     def __init__(self, model, data, config, device='cpu'):
         """
         model : the trained classifier (with .net for EINet)
@@ -42,7 +44,6 @@ class PlotManager:
         config : the loaded config (with .visualization section)
         device : 'cuda' or 'cpu'
         """
-
         self.model = model
         self.data = data
         self.config = config
@@ -60,27 +61,30 @@ class PlotManager:
             "ablation": self._ablation,
         }
 
-    def run_plot(self, plot_name):
+    def run_plot(self, plot_name, epoch=None):
         """
         Calls the method associated with plot_name if it exists.
+        Logs the current epoch and plot type.
         """
+        if epoch is not None:
+            logging.info(f"At epoch {epoch}: generating plot '{plot_name}'...")
+        else:
+            logging.info(f"Generating plot '{plot_name}'...")
         func = self.plot_methods.get(plot_name, None)
         if func is not None:
-            logging.info(f"Running plot/analysis '{plot_name}' in PlotManager...")
             func()
+            if epoch is not None:
+                logging.info(f"Plot '{plot_name}' saved for epoch {epoch}.")
+            else:
+                logging.info(f"Plot '{plot_name}' saved.")
         else:
             logging.info(f"Plot name '{plot_name}' not recognized in PlotManager.")
 
     def _plot_weights(self):
-        """
-        Plots or saves parameter visuals for an EINet if it exists.
-        """
         if hasattr(self.model, 'net'):
             save_dir = os.path.join(self.save_path, "param_visuals")
             os.makedirs(save_dir, exist_ok=True)
-            # Possibly reshape weights for e.g. MNIST
             shaper = Shaper(shape=(28, 28))
-
             plot_einet_params(
                 einet=self.model.net,
                 save_root=save_dir,
@@ -91,9 +95,6 @@ class PlotManager:
             logging.info("No 'net' attribute found on model. Skipping _plot_weights.")
 
     def _plot_activations(self):
-        """
-        Plots or saves activation distributions for an EINet if it exists.
-        """
         if hasattr(self.model, 'net'):
             save_dir = os.path.join(self.save_path, "activation_visuals")
             os.makedirs(save_dir, exist_ok=True)
@@ -108,22 +109,17 @@ class PlotManager:
             logging.info("No 'net' attribute on model. Skipping _plot_activations.")
 
     def _plot_gradients(self):
-        """
-        Generates gradient visualizations by calling plot_einet_gradients.
-        """
         if hasattr(self.model, 'net'):
             save_dir = os.path.join(self.save_path, "grad_visuals")
             os.makedirs(save_dir, exist_ok=True)
-
             train_input, train_label = self.data['train'][:]
-
             plot_einet_gradients(
                 model=self.model,
                 inputs=train_input,
                 labels=train_label,
                 save_root=save_dir,
-                reshape_fn=None,       # if we want to reshape gradients, we can pass a Shaper
-                reshape_exc_syn=True, 
+                reshape_fn=None,
+                reshape_exc_syn=True,
                 save_in_dir=True,
                 filename="gradients"
             )
@@ -132,104 +128,62 @@ class PlotManager:
             logging.info("No 'net' attribute found. Skipping gradient plotting.")
 
     def _branch_info(self):
-        """
-        Computes mutual information across layers/branches, then plots
-        or visualizes the results (depth plot).
-        """
         if not hasattr(self.model, 'net'):
             logging.info("No 'net' attribute found. Skipping branch_info.")
             return
         net = self.model.net
-        
-        # Must have forward_with_branch_outputs for analyze_branch_information
         if not hasattr(net, 'forward_with_branch_outputs'):
             logging.info("No forward_with_branch_outputs found. Skipping branch_info analysis.")
             return
-
         logging.info("Computing branch mutual info ...")
+        from dendritic_modeling.utils import analyze_branch_information
         branch_info = analyze_branch_information(
             net,
-            self.data['train'],  # or 'valid'
+            self.data['train'],
             batch_size=getattr(self.config.train, 'batch_size', 64),
             device=self.device,
             n_bins=10
         )
         logging.info(f"Branch Info (MI) per layer: {branch_info}")
-
         save_dir = os.path.join(self.save_path, "branch_info_plots")
         os.makedirs(save_dir, exist_ok=True)
-
-        # 1) Plot MI vs. layer depth
-        logging.info("Plotting MI vs. layer depth ...")
-        plot_depth_info(branch_info)  
+        plot_depth_info(branch_info)
         plt.savefig(os.path.join(save_dir, "branch_info_depth_plot.png"))
         plt.close()
         logging.info(f"Saved branch_info_depth_plot.png in {save_dir}")
 
     def _ablation(self):
-        """
-        Layer-wise ablation approach: we only zero out the direct excit/inhib
-        columns for each branch layer. This ensures that upstream signals
-        (the block from previous dendrites) can still propagate.
-        """
         if not hasattr(self.model, 'net'):
             logging.info("No 'net' attribute found. Skipping ablation.")
             return
         net = self.model.net
-
         if not hasattr(net, 'forward_with_branch_outputs'):
             logging.info("No forward_with_branch_outputs found. Skipping ablation.")
             return
-
         logging.info("Performing layer-wise ablation ...")
-
+        from dendritic_modeling.utils import measure_performance
         baseline_acc = measure_performance(net, self.data['test'], device=self.device)
         logging.info(f"Ablation baseline acc on test = {baseline_acc}")
-
-        # store original weights
         original = {}
         for n, p in net.named_parameters():
             original[n] = p.detach().clone()
-
         layer_idxs = []
         perf_drops = []
-
-        # net.branch_layers -> list of excitatory DendriticBranchLayer objects
-        # If we zero out the entire pre_w, it also kills signals from upstream.
-        # Instead, we zero only the portion that corresponds to direct input
-        # from x or global inhib. The 'branches_to_output' or block input
-        # is usually in a separate 'BlockLinear' or is not in these pre_w's.
-
-        for i, exc_branch_layer in enumerate(net.branch_layers):
-            logging.info(f"Ablating direct input for excitatory branch layer {i} ...")
-
-            # Zero direct excit columns if input_excitatory is True
-            if hasattr(exc_branch_layer, 'branch_excitation') and exc_branch_layer.input_excitatory:
-                in_dim = exc_branch_layer.excitatory_input_dim  # direct external input dimension
-                # If the shape is [out_features, in_features], we zero columns [0..in_dim-1]
-                # to remove direct external input. 
-                # Leave the rest so that signals from previous branches still flow.
-                exc_branch_layer.branch_excitation.pre_w.data[:, :in_dim] = 0.
-
-            # Zero direct inhib columns if input_inhibitory is True
-            if hasattr(exc_branch_layer, 'branch_inhibition') and exc_branch_layer.input_inhibitory:
-                in_dim_inh = exc_branch_layer.inhibitory_input_dim
-                exc_branch_layer.branch_inhibition.pre_w.data[:, :in_dim_inh] = 0.
-
+        for i in range(len(net.branch_layers)):
+            logging.info(f"Ablating direct inputs for layer {i} ...")
+            if hasattr(net.branch_layers[i], 'branch_excitation'):
+                net.branch_layers[i].branch_excitation.pre_w.data[:, :net.branch_layers[i].excitatory_input_dim] = 0.
+            if hasattr(net.branch_layers[i], 'branch_inhibition'):
+                net.branch_layers[i].branch_inhibition.pre_w.data[:, :net.branch_layers[i].inhibitory_input_dim] = 0.
             acc_after = measure_performance(net, self.data['test'], device=self.device)
             delta = baseline_acc - acc_after
             logging.info(f"Layer {i}: new acc={acc_after:.3f}, drop={delta:.3f}")
-
             layer_idxs.append(i)
             perf_drops.append(delta)
-
-            # restore after each ablation test
             for n, p in net.named_parameters():
                 p.data.copy_(original[n])
-
         save_dir = os.path.join(self.save_path, "ablation_plots")
         os.makedirs(save_dir, exist_ok=True)
-
         fig, ax = plt.subplots()
         ax.plot(layer_idxs, perf_drops, marker='o', color='orange')
         ax.set_xlabel("Branch Layer Index")
