@@ -48,6 +48,7 @@ train:
   epochs_per_layer: 50  ## this is only for "freeze_layers" and any other method which has sequential single layer training
   pretrain_epochs: 10   ## for "two_step"
   maintrain_epochs: 50  ## for "two_step"
+  visualize_epochs: [1, 10, 50]  # list of epochs at which to produce intermediate visualizations
 
 task:
   dataset: "mnist"
@@ -72,9 +73,9 @@ visualization:
   enabled: true
   save_path: # output path for plots
   plots:
-    #- "weights"      # Plot dendritic or EI-net weights
-    #- "activations"  # Plot per-digit activation distribution
-    #- "gradients"    # Plot synapse or branch gradients
+    - "weights"      # Plot dendritic or EI-net weights
+    - "activations"  # Plot per-digit activation distribution
+    - "gradients"    # Plot synapse or branch gradients
     - "branch_info"  # mutual information
     - "ablation"     # ablation
 
