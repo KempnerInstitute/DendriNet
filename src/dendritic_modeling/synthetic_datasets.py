@@ -126,7 +126,7 @@ class MultiXORDataset(Dataset):
     def _generate_data(self):
         X,Y=[],[]
         for _ in range(self.n_samples):
-            bits=np.random.randint(0,2,size=self.n_bits).astype(np.float32)
+            bits=np.random.randint(0,2,size=self.n_bits).astype(np.int32)
             y1=bits[0]^bits[1]
             y2=bits[2]^bits[3]^bits[4]
             label=(y1<<1)+y2
@@ -148,10 +148,6 @@ def load_mnist_as_datasets(train_valid_split=0.8):
     test_ds=TensorDataset(*data['test'][:])
     return train_ds, valid_ds, test_ds
 
-########################################
-# New tasks: info_shunting, noise_resilience, feature_selectivity,
-#            context_gating, learning_dynamics, hierarchical_processing
-########################################
 
 class InfoShuntingDataset(Dataset):
     """
@@ -326,88 +322,58 @@ class CompositionalMNIST(Dataset):
 ########################################
 # The single get_unified_datasets(...) function
 ########################################
-
 def get_unified_datasets(task_cfg, train_cfg):
-    """
-    Returns (train_dataset, valid_dataset, test_dataset)
-    for any of the recognized dataset_name from 'task_cfg["dataset"]'.
+    try:
+        dataset_name = task_cfg['dataset']
+        p = task_cfg.get('parameters', {})
+    except TypeError:
+        dataset_name = task_cfg.dataset
+        p = task_cfg.parameters
 
-    The function uses train_cfg["train_valid_split"] if needed for MNIST
-    or other tasks. 
-    Each dataset is of type torch.utils.data.Dataset.
-    """
+    train_valid_split = getattr(train_cfg, "train_valid_split", 1.0)
+    train_size = p.get('train_size', 8000)
+    valid_size = p.get('valid_size', 1000)
+    test_size  = p.get('test_size', 1000)
+    image_size = p.get('image_size', 784)
+    n_orient_classes = p.get('n_orient_classes', 8)
+    n_bits = p.get('n_bits', 8)
+    total = train_size + valid_size + test_size
 
-    dataset_name = task_cfg['dataset']  # e.g. "line", "mnist", etc.
-    p = task_cfg['parameters']
-
-    train_size = p.get('train_size',8000)
-    valid_size = p.get('valid_size',1000)
-    test_size  = p.get('test_size',1000)
-    image_size = p.get('image_size',784)
-    n_orient_classes = p.get('n_orient_classes',8)
-    n_bits = p.get('n_bits',8)
-
-    train_valid_split = train_cfg.get("train_valid_split",1.0)
-
-    total = train_size+valid_size+test_size
-
-    if dataset_name=="line":
-        full_ds=LineDataset(n_samples=total, image_size=image_size)
-        return random_split(full_ds,[train_size, valid_size, test_size])
-
-    elif dataset_name=="center_surround":
-        full_ds=CenterSurroundDataset(n_samples=total, image_size=image_size)
-        return random_split(full_ds,[train_size, valid_size, test_size])
-
-    elif dataset_name=="orientation_bars":
-        full_ds=OrientationBarsDataset(n_samples=total,
-                                       image_size=image_size,
-                                       n_orient_classes=n_orient_classes)
-        return random_split(full_ds,[train_size, valid_size, test_size])
-
-    elif dataset_name=="multi_xor":
-        full_ds=MultiXORDataset(n_samples=total,n_bits=n_bits)
-        return random_split(full_ds,[train_size, valid_size, test_size])
-
-    elif dataset_name=="mnist":
-        # returns train_ds, valid_ds, test_ds from your load_mnist_as_datasets
-        # ignoring train_size, valid_size, test_size for now, unless you want partial
-        train_ds, valid_ds, test_ds=load_mnist_as_datasets(train_valid_split=train_valid_split)
-
-        # if you want partial:
-        # e.g. if train_size < len(train_ds), then random_split further
-        # for now, let's keep it as is:
+    if dataset_name == "line":
+        full_ds = LineDataset(n_samples=total, image_size=image_size)
+        return random_split(full_ds, [train_size, valid_size, test_size])
+    elif dataset_name == "center_surround":
+        full_ds = CenterSurroundDataset(n_samples=total, image_size=image_size)
+        return random_split(full_ds, [train_size, valid_size, test_size])
+    elif dataset_name == "orientation_bars":
+        full_ds = OrientationBarsDataset(n_samples=total, image_size=image_size, n_orient_classes=n_orient_classes)
+        return random_split(full_ds, [train_size, valid_size, test_size])
+    elif dataset_name == "multi_xor":
+        full_ds = MultiXORDataset(n_samples=total, n_bits=n_bits)
+        return random_split(full_ds, [train_size, valid_size, test_size])
+    elif dataset_name == "mnist":
+        train_ds, valid_ds, test_ds = load_mnist_as_datasets(train_valid_split=train_valid_split)
         return train_ds, valid_ds, test_ds
-
-    elif dataset_name=="info_shunting":
-        full_ds=InfoShuntingDataset(n_samples=total,input_dim=10)
-        return random_split(full_ds,[train_size, valid_size, test_size])
-
-    elif dataset_name=="noise_resilience":
-        full_ds=NoisyLineDataset(n_samples=total,
-                                 image_size=image_size,
-                                 noise_level=0.2)
-        return random_split(full_ds,[train_size, valid_size, test_size])
-
-    elif dataset_name=="feature_selectivity":
-        # We threshold MNIST => Sparse
-        base_mnist=MNIST(root='.',train=True,download=True)
-        full_ds=SparseMNISTDataset(base_mnist,threshold=0.3)
-        return random_split(full_ds,[train_size, valid_size, test_size])
-
-    elif dataset_name=="context_gating":
-        base_mnist=MNIST(root='.',train=True,download=True)
-        full_ds=ContextualFigureGroundMNIST(base_mnist,noise_level=0.1)
-        return random_split(full_ds,[train_size, valid_size, test_size])
-
-    elif dataset_name=="learning_dynamics":
-        full_ds=MultiTaskLineDataset(total_size=total,image_size=image_size)
-        return random_split(full_ds,[train_size, valid_size, test_size])
-
-    elif dataset_name=="hierarchical_processing":
-        base_mnist=MNIST(root='.',train=True,download=True)
-        full_ds=CompositionalMNIST(base_mnist,n_samples=total)
-        return random_split(full_ds,[train_size, valid_size, test_size])
-
+    elif dataset_name == "info_shunting":
+        full_ds = InfoShuntingDataset(n_samples=total, input_dim=10)
+        return random_split(full_ds, [train_size, valid_size, test_size])
+    elif dataset_name == "noise_resilience":
+        full_ds = NoisyLineDataset(n_samples=total, image_size=image_size, noise_level=0.2)
+        return random_split(full_ds, [train_size, valid_size, test_size])
+    elif dataset_name == "feature_selectivity":
+        base_mnist = MNIST(root='.', train=True, download=True)
+        full_ds = SparseMNISTDataset(base_mnist, threshold=0.3)
+        return random_split(full_ds, [train_size, valid_size, test_size])
+    elif dataset_name == "context_gating":
+        base_mnist = MNIST(root='.', train=True, download=True)
+        full_ds = ContextualFigureGroundMNIST(base_mnist, noise_level=0.1)
+        return random_split(full_ds, [train_size, valid_size, test_size])
+    elif dataset_name == "learning_dynamics":
+        full_ds = MultiTaskLineDataset(total_size=total, image_size=image_size)
+        return random_split(full_ds, [train_size, valid_size, test_size])
+    elif dataset_name == "hierarchical_processing":
+        base_mnist = MNIST(root='.', train=True, download=True)
+        full_ds = CompositionalMNIST(base_mnist, n_samples=total)
+        return random_split(full_ds, [train_size, valid_size, test_size])
     else:
         raise ValueError(f"Unknown dataset name: {dataset_name}")
