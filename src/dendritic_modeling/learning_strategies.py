@@ -20,16 +20,15 @@ from copy import deepcopy
 import torch
 from torch.utils.data import DataLoader, random_split
 from torch.nn.utils import clip_grad_value_
+import torch.nn.functional as F
 
 from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score
 
 from dendritic_modeling import logger
 from dendritic_modeling.plot_utils import plot_NLL_loss_curves
-import torch.nn.functional as F
 
 
 def compute_metrics_classification(preds, labels):
-    from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score
     preds_np = preds.cpu().numpy()
     labels_np = labels.cpu().numpy()
     return {
