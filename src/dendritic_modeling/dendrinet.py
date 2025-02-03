@@ -393,23 +393,6 @@ class DendriticBranchLayer(nn.Module):
                 else:
                     sum_synapse_conductances = None
                 self.branches_to_output.initialize(sum_synapse_conductances)
-
-    # def set_branches_to_output_grad_scale(self):
-    #     """
-    #     The old conduction-based approach if we want a forward-time 
-    #     measure. This is optional if we're using block_conductance_dynamic in backward.
-    #     """
-    #     with torch.no_grad():
-    #         total_conductance = self.branches_to_output.sum_conductances() + 1
-    #         if self.input_excitatory:
-    #             total_conductance += self.branch_excitation.pruned_weight().sum(dim=1)
-    #         if self.input_inhibitory:
-    #             total_conductance += self.branch_inhibition.pruned_weight().sum(dim=1)
-
-    #         branch_conductance = self.branches_to_output.log_weight.exp()
-    #         grad_scale = (total_conductance[:,None] / branch_conductance).flatten()
-    #         # We store it in the module in case something wants to read it
-    #         self.branches_to_output.grad_scale = grad_scale
     
     def decay_weights(self, weight_decay):
         if self.input_excitatory:

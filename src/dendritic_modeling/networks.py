@@ -25,6 +25,7 @@ from copy import deepcopy
 from torch import nn
 from typing import List
 import torch
+import torch.nn.functional as F
 from dendritic_modeling.dendrinet import DendriNet, DendriNetWithOutputs
 from dendritic_modeling import logger
 
@@ -353,6 +354,5 @@ class MLPBaseline(nn.Module):
         self.fc2 = nn.Linear(hidden_dim, output_dim)
 
     def forward(self, x):
-        import torch.nn.functional as F
         x = F.relu(self.fc1(x))
         return self.fc2(x)  # raw logits

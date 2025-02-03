@@ -1,11 +1,6 @@
-######### config.py #########
-
-from pathlib import Path
-from typing import List, Union
-from dataclasses import dataclass, field, asdict
-
+from dataclasses import dataclass, field
+from typing import List, Dict
 from omegaconf import OmegaConf as om
-
 
 class BaseConfig:
     @classmethod
@@ -19,32 +14,33 @@ class BaseConfig:
     def asdict(self):
         return asdict(self)
 
- 
 @dataclass
 class EINetParameters(BaseConfig):
     input_dim: int = 784
-    excitatory_layer_sizes: list = field(default_factory=lambda: [10])
-    inhibitory_layer_sizes: list = field(default_factory=lambda: [20])
-    excitatory_branch_factors: list = field(default_factory=lambda: [24])
-    inhibitory_branch_factors: list = field(default_factory=list)
-    ee_synapses_per_branch_per_layer: list = field(default_factory=lambda: [24])
-    ei_synapses_per_branch_per_layer: list = field(default_factory=lambda: [100])
-    ie_synapses_per_branch_per_layer: list = field(default_factory=lambda: [1])
-    ii_synapses_per_branch_per_layer: list = field(default_factory=list)
+    excitatory_layer_sizes: List[int] = field(default_factory=lambda: [10])
+    inhibitory_layer_sizes: List[int] = field(default_factory=lambda: [20])
+    excitatory_branch_factors: List[int] = field(default_factory=lambda: [2, 2])
+    inhibitory_branch_factors: List[int] = field(default_factory=lambda: [])
+    ee_synapses_per_branch_per_layer: List[int] = field(default_factory=lambda: [24])
+    ei_synapses_per_branch_per_layer: List[int] = field(default_factory=lambda: [200])
+    ie_synapses_per_branch_per_layer: List[int] = field(default_factory=lambda: [1])
+    ii_synapses_per_branch_per_layer: List[int] = field(default_factory=lambda: [])
     reactivate: bool = True
     somatic_synapses: bool = True
     topk_init_method: str = "xavier_normal"
     use_shunting: bool = True
     init_gain: float = 1.0
-    init_inhib_offset: float = 0.0
-    reactivation_initial_m: float = 1.5
-    reactivation_initial_b: float = 1.0
-    gradient_strategy: str = "none"
-    gradient_scale_factor: float = 1.0
-    weight_decay_rate: float = 0.0
-    local_learning: str = "none"
-    local_loss_weight: float = 0.0
-
+    init_inhib_offset: float = 1.3
+    reactivation_initial_m: float = 2.0
+    reactivation_initial_b: float = 0.5
+    reactivation_type: str = "param_tanh"
+    train_reactivation_b_only: bool = False
+    gradient_strategy: str = "block_conductance_dynamic"
+    gradient_scale_factor: float = 2.0
+    weight_decay_rate: float = 0.1
+    enable_branch_outputs: bool = True
+    output_layer: bool = False
+    output_dim: int = 10
 
 @dataclass
 class FeedForwardParameters(BaseConfig):
@@ -54,122 +50,93 @@ class FeedForwardParameters(BaseConfig):
     dropout: float = 0.2
     output_dim: int = 10
 
-
 @dataclass
-class BaseTaskParameters(BaseConfig):
-    pass
-
-
-@dataclass
-class LineParameters(BaseTaskParameters):
-    train_size: int = 1000
-    valid_size: int = 100
-    test_size: int = 100
-    image_size: int = 10
-    seed: int = 42
-
-
-@dataclass
-class TaskConfig(BaseConfig):
-    dataset: str = "line"
-    parameters: Union[LineParameters] = field(default_factory=LineParameters)
-
-
-@dataclass
-class NetworkConfig(BaseConfig):
+class ModelNetworkConfig(BaseConfig):
     type: str = "EINet"
-    parameters: Union[EINetParameters, FeedForwardParameters] = field(default_factory=EINetParameters)
-
+    parameters: EINetParameters = field(default_factory=EINetParameters)
 
 @dataclass
 class ModelConfig(BaseConfig):
     task: str = "classification"
-    probabilistic: bool = False
-    network: NetworkConfig = field(default_factory=NetworkConfig)
-
+    probabilistic: bool = True
+    network: ModelNetworkConfig = field(default_factory=ModelNetworkConfig)
 
 @dataclass
 class TrainConfig(BaseConfig):
-    run_name: str = "dm_test"
-    seed: int = 42
+    learning_strategy: str = "two_step"
+    run_name: str = "mnist_einet"
+    seed: int = 0
     train_valid_split: float = 0.8
-    lr: float = 1e-3
-    epochs: int = 200
-    batch_size: int = 32
-    grad_clip_value: float = 0.5
+    lr: float = 0.01
+    epochs: int = 50
+    batch_size: int = 128
+    grad_clip_value: float = 5.0
     epochs_per_layer: int = 50
-    two_step_training: bool = False
-    pretrain_epochs: int = 5
-    maintrain_epochs: int = 45
-
+    pretrain_epochs: int = 50
+    maintrain_epochs: int = 50
+    
+@dataclass
+class VisualizationConfig(BaseConfig):
+    enabled: bool = True
+    save_path: str = ""
+    plots: List[str] = field(default_factory=lambda: ["branch_info", "ablation"])
 
 @dataclass
 class WandbConfig(BaseConfig):
-    entity: str = "your_wandb_entity"
-    project: str = "dendritic_modeling_pr"
-    group: str = "debug"
-    tags: list = field(default_factory=list)
+    entity: str = ""
+    project: str = ""
+    group: str = ""
+    tags: List[str] = field(default_factory=list)
+    use_wandb: bool = False
 
-
+# Added TaskConfig to capture the top-level task block.
 @dataclass
-class AnalysisConfig(BaseConfig):
-    enable_ablation: bool = False
-    enable_mutual_info: bool = False
-
-
-@dataclass
-class VisualizationConfig(BaseConfig):
-    """
-    A new dataclass for visualization settings.
-    """
-    enabled: bool = False
-    save_path: str = "results/visuals"
-    plots: List[str] = field(default_factory=list)
-
+class TaskConfig(BaseConfig):
+    dataset: str = "mnist"
+    parameters: Dict = field(default_factory=dict)
 
 @dataclass
 class Config:
-    """
-    Main config. Removed the old SettingsConfig reference. 
-    """
     model: ModelConfig = field(default_factory=ModelConfig)
     train: TrainConfig = field(default_factory=TrainConfig)
     wandb: WandbConfig = field(default_factory=WandbConfig)
-    task: TaskConfig = field(default_factory=TaskConfig)
-    analysis: AnalysisConfig = field(default_factory=AnalysisConfig)
-
     visualization: VisualizationConfig = field(default_factory=VisualizationConfig)
+    task: TaskConfig = field(default_factory=TaskConfig)
 
-    def asdict(self, exclude=None):
-        exclude = exclude or []
-        config_dict = {
-            "model": self.model.asdict() if hasattr(self.model, 'asdict') else self.model,
-            "train": self.train.asdict() if hasattr(self.train, 'asdict') else self.train,
-            "wandb": self.wandb.asdict() if hasattr(self.wandb, 'asdict') else self.wandb,
-            "task": self.task.asdict() if hasattr(self.task, 'asdict') else self.task,
-            "analysis": self.analysis.asdict() if hasattr(self.analysis, 'asdict') else self.analysis,
-            # new addition:
-            "visualization": self.visualization.asdict() if hasattr(self.visualization, 'asdict') else self.visualization,
-        }
-        for key in exclude:
-            config_dict.pop(key, None)
-        return config_dict
-
-
-def load_config(path: str = None) -> Config:
-    """
-    Loads from a YAML path using OmegaConf, constructs and returns a Config object.
-    """
-    if path:
-        raw_conf = om.load(path)
-        return Config(
-            model=ModelConfig(**raw_conf.get("model", {})),
-            train=TrainConfig(**raw_conf.get("train", {})),
-            wandb=WandbConfig(**raw_conf.get("wandb", {})),
-            task=TaskConfig(**raw_conf.get("task", {})),
-            analysis=AnalysisConfig(**raw_conf.get("analysis", {})),
-
-            visualization=VisualizationConfig(**raw_conf.get("visualization", {})),
-        )
-    else:
-        return Config()
+def load_config(path: str):
+    from omegaconf import OmegaConf
+    base = Config()
+    if not path:
+        return base
+    loaded = OmegaConf.load(path)
+    if "model" in loaded:
+        if "task" in loaded["model"]:
+            base.model.task = loaded["model"]["task"]
+        if "probabilistic" in loaded["model"]:
+            base.model.probabilistic = loaded["model"]["probabilistic"]
+        if "network" in loaded["model"]:
+            net_type = loaded["model"]["network"].get("type", "EINet")
+            base.model.network.type = net_type
+            if "parameters" in loaded["model"]["network"]:
+                params = loaded["model"]["network"]["parameters"]
+                for k, v in params.items():
+                    setattr(base.model.network.parameters, k, v)
+    if "train" in loaded:
+        for k, v in loaded["train"].items():
+            if hasattr(base.train, k):
+                setattr(base.train, k, v)
+    if "wandb" in loaded:
+        for k, v in loaded["wandb"].items():
+            if hasattr(base.wandb, k):
+                setattr(base.wandb, k, v)
+    if "visualization" in loaded:
+        for k, v in loaded["visualization"].items():
+            if hasattr(base.visualization, k):
+                setattr(base.visualization, k, v)
+    # Merge the top-level task block.
+    if "task" in loaded:
+        if "dataset" in loaded["task"]:
+            base.task.dataset = loaded["task"]["dataset"]
+        if "parameters" in loaded["task"]:
+            base.task.parameters = loaded["task"]["parameters"]
+    return base
