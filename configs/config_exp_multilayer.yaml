@@ -54,14 +54,14 @@ task:
   parameters: {}
 
 wandb:
-  entity: houman_safaai-harvard-university
-  project: "dendritic_mnist_new_config"
+  entity: 
+  project: "dendritic_mnist_multilayer"
   group: "debug"
   tags: [mnist_1]
 
 visualization:
   enabled: true
-  save_path: /n/holylabs/LABS/kempner_dev/Users/hsafaai/results/dendritic_modeling/results #"/n/netscratch/kempner_dev/hsafaai/results/visuals"
+  save_path: 
   # A list of which plots/analyses to generate:
   plots: 
     #- "weights"      # Plot dendritic or EI-net weights
