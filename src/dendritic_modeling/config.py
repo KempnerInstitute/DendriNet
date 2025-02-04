@@ -29,15 +29,8 @@ class EINetParameters(BaseConfig):
     somatic_synapses: bool = True
     topk_init_method: str = "xavier_normal"
     use_shunting: bool = True
-    init_gain: float = 1.0
-    init_inhib_offset: float = 1.3
-    reactivation_initial_m: float = 2.0
-    reactivation_initial_b: float = 0.5
     reactivation_type: str = "param_tanh"
-    train_reactivation_b_only: bool = False
     gradient_strategy: str = "block_conductance_dynamic"
-    gradient_scale_factor: float = 2.0
-    weight_decay_rate: float = 0.1
     enable_branch_outputs: bool = True
     output_layer: bool = False
     output_dim: int = 10
@@ -63,7 +56,7 @@ class ModelConfig(BaseConfig):
 
 @dataclass
 class TrainConfig(BaseConfig):
-    learning_strategy: str = "two_step"
+    learning_strategy: str = "mle"
     run_name: str = "mnist_einet"
     seed: int = 0
     train_valid_split: float = 0.8
@@ -74,12 +67,12 @@ class TrainConfig(BaseConfig):
     grad_clip_value: float = 5.0
     epochs_per_layer: int = 50
     pretrain_epochs: int = 50
-    maintrain_epochs: int = 50
     
 @dataclass
 class VisualizationConfig(BaseConfig):
     enabled: bool = True
     save_path: str = ""
+    visualize_epochs: List[int] = field(default_factory=lambda: [])
     plots: List[str] = field(default_factory=lambda: ["branch_info", "ablation"])
 
 @dataclass
