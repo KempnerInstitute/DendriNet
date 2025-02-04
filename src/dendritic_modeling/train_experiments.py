@@ -5,6 +5,7 @@ Main script that reads config_exp.yaml, builds the model,
 chooses a training strategy, trains, and evaluates using
 a unified data-loading function from synthetic_datasets.py.
 """
+# python src/dendritic_modeling/train_experiments.py configs/config_exp.yaml
 
 import os
 import json
