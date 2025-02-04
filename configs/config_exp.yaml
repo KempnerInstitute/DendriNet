@@ -39,7 +39,6 @@ train:
 task:
   dataset: "mnist"
   parameters: {}
-  
   # dataset: "orientation_bars"   # or "mnist", "line", "center_surround", etc.
   # parameters:
   #   train_size: 8000
@@ -51,9 +50,9 @@ task:
 wandb:
   entity: 
   project: #"dendritic_mnist_test"
-  group: #"debug"
-  tags: #[mnist_1]
-  use_wandb: false #true
+  group:   #"debug"
+  tags:    #[mnist_1]
+  use_wandb: false 
 
 visualization:
   enabled: true
@@ -65,17 +64,3 @@ visualization:
     #- "gradients"    # Plot synapse or branch gradients
     #- "branch_info"  # mutual information
     #- "ablation"     # ablation
-
-
-# python src/dendritic_modeling/train_experiments.py configs/config_exp.yaml
-
-
-# Explanation of the Methods:
-#  1. Vanilla Backprop -> gradient_strategy: "none"
-#  2. Uniform Gradient Scaling -> "uniform_scale"
-#  3. Distal Upweight -> "distal_upweight" or "distal_upweight_by_idx"
-#  4. Freeze-Layers -> "freeze_layer"
-#  5. (Removed local learning)
-#  6. Initialization Tweaks -> init_gain, init_inhib_offset, etc.
-#  7. Reactivation Scaling -> reactivation_initial_m, reactivation_initial_b, reactivation_type
-#  8. 'visualization' block -> if 'enabled', will produce certain plots
