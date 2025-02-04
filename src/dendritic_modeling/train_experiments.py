@@ -19,13 +19,13 @@ import torch
 import torchinfo
 
 from dendritic_modeling import logger, logger_manager
-from dendritic_modeling.learning_strategies import get_trainer
+from dendritic_modeling.learning_strategies import get_trainer, CustomWeightDecayOptimizer
 from dendritic_modeling.models import (ProbabilisticClassifier, Classifier)
 from dendritic_modeling.networks import (ExcitationInhibitionNetwork, FeedforwardNN)
 from dendritic_modeling.config import load_config
 from dendritic_modeling.visualization_manager import PlotManager
 
-from synthetic_datasets import get_unified_datasets
+from dendritic_modeling.synthetic_datasets import get_unified_datasets
 
 def initialize_model(model_cfg):
     """
@@ -117,6 +117,11 @@ def main(config_path: str, output_dir: str, experiment_name: str):
     learning_strategy = getattr(train_cfg, "learning_strategy", "mle")
     logger.info(f"Using learning strategy: {learning_strategy}")
 
+    # optimizer = CustomWeightDecayOptimizer(
+    #     model = clf, 
+    #     optimizer = torch.optim.Adam(clf.parameters(), lr=train_cfg.lr), 
+    #     weight_decay=train_cfg.weight_decay_rate,
+    # )
     optimizer = torch.optim.Adam(clf.parameters(), lr=train_cfg.lr)
     trainer = get_trainer(learning_strategy, optimizer, suppress_prints=False, print_every=10)
 
