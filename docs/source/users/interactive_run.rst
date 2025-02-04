@@ -106,10 +106,10 @@ Once you have set up your environment and created the configuration file, you ca
 
 .. code-block:: bash
 
-    $ python scripts/train_mnist.py configs/mnist_1.yaml --output_dir output_folder --experiment_name mnist_1
+    $ python src/dendritic_modeling/train_experiments.py configs/config_exp.yaml --output_dir results --experiment_name mnist_einet
 
 
-The `output_dir` and `experiment_name` arguments specify the output directory and the name of the experiment, respectively. The `train_mnist.py` script will load the configuration file `mnist_1.yaml` and start the training process. You can monitor the training progress and visualize the results using the W&B dashboard.
+The `output_dir` and `experiment_name` arguments specify the output directory and the name of the experiment, respectively. The `train_experiments.py` script will load the configuration file `config_exp.yaml` and start the training process. You can monitor the training progress and visualize the results using the W&B dashboard.
 
 
 
