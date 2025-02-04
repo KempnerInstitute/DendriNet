@@ -37,7 +37,7 @@ class PlotManager:
     The main experiment code can call PlotManager.run_plot(plot_name),
     without needing to manually code each function call in train_experiments.py.
     """
-    def __init__(self, model, data, config, device='cpu'):
+    def __init__(self, model, data, config, save_path, device='cpu'):
         """
         model : the trained classifier (with .net for EINet)
         data : dict of 'train', 'valid', 'test' datasets
@@ -50,7 +50,7 @@ class PlotManager:
         self.device = device
 
         vis_cfg = self.config.visualization
-        self.save_path = vis_cfg.save_path
+        self.save_path = save_path 
         os.makedirs(self.save_path, exist_ok=True)
 
         self.plot_methods = {
@@ -97,6 +97,7 @@ class PlotManager:
     def _plot_activations(self):
         if hasattr(self.model, 'net'):
             save_dir = os.path.join(self.save_path, "activation_visuals")
+            print(save_dir)
             os.makedirs(save_dir, exist_ok=True)
             train_input, train_label = self.data['train'][:]
             input_list = split_MNIST_inputs(train_input, train_label)
