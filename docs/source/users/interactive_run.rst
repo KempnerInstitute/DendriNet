@@ -91,11 +91,15 @@ Each compute job requires a configuration file that specifies the network archit
         - "ablation"       
 
 
+The configuration file defines three main sections:
+  - **model**: Specifies the network architecture, including the type of network (e.g., EINet), layer sizes, branch factors, synaptic connections, and reactivation settings. Notice the new options for reactivation (e.g. using either a full parametric tanh or a version with only m trainable via "param_tanh_only_m").
+  - **train**: Defines the training parameters, such as the learning strategy (e.g., "mle", "freeze_layers", "two_step", etc.), total number of epochs, batch size, and an additional list called "visualize_epochs" that determines at which epochs the visualization routines should run.
+  - **wandb**: Contains settings for logging the experiment to Weights & Biases (W&B).
+  - **visualization**: Contains settings for saving the generated plots and the list of plot types.
 
-The configuration (let's say `config_exp.yaml` located in config/) has three major sections: `model`, `train`, and `wandb`. The `model` section specifies the network architecture, including the input dimension, layer sizes, branch factors, and synaptic connections. The `train` section defines the training parameters, such as the learning rate, number of epochs, and batch size. The `wandb` section contains the settings for logging the experiment results to Weights & Biases (W&B). Please refer to the :ref:`concept_overview` for more details on the network architecture.
+Please refer to the :ref:`concept_overview` for more details on the network architecture.
 
-
-Step 2: Run the interactive session
+Step 3: Run the interactive session
 -----------------------------------
 
 Once you have set up your environment and created the configuration file, you can run the interactive session using the following command:
