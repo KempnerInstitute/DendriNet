@@ -1,13 +1,13 @@
 model:
-  task: classification #classification or einet_nll
+  task: classification 
   probabilistic: True
   network:
     type: "EINet"
     parameters:
       input_dim: 784
-      excitatory_layer_sizes: [512]
+      excitatory_layer_sizes: [10] #512
       inhibitory_layer_sizes: [200]
-      excitatory_branch_factors: [64]
+      excitatory_branch_factors: [2,2,2] %64
       inhibitory_branch_factors: []
       reactivate: true
       somatic_synapses: true
@@ -17,27 +17,14 @@ model:
       ii_synapses_per_branch_per_layer: []
       topk_init_method: xavier_normal
       use_shunting: true
-
-      init_gain: 1.0
-      init_inhib_offset: 1.3
-      reactivation_initial_m: 2
-      reactivation_initial_b: 0.5
-
-      reactivation_type: param_tanh_only_m  # "none", "param_tanh", "param_tanh_only_m", "relu", "sigmoid", "tanh"
-      train_reactivation_b_only: false
-
+      reactivation_type: param_tanh # "none", "param_tanh", "param_tanh_only_m", "relu", "sigmoid", "tanh"
       gradient_strategy: block_conductance_dynamic  #"none", "distal_upweight_by_idx", "block_conductance_dynamic"
-      gradient_scale_factor: 2
-
-      weight_decay_rate: 0.1
-
-      enable_branch_outputs: true
-
-      output_layer: bool = true
+      enable_branch_outputs: true   ### alows DendriNetWithOutputs to keep activations etc
+      output_layer: bool = false  ### adding an output classifier layer FC to final dendrinet layer
       output_dim: int = 10
 
 train:
-  learning_strategy: "two_step_kl" #"mle", "freeze_layers", "local_credit_assignment", "two_step", "two_step_kl"
+  learning_strategy: "mle" #"mle", "freeze_layers", "local_credit_assignment", "two_step", "two_step_kl"    --> local learning rules should start with local_...
   run_name: "mnist_einet"
   seed: 0
   train_valid_split: 0.8
@@ -47,8 +34,7 @@ train:
   grad_clip_value: 5
   epochs_per_layer: 50  ## this is only for "freeze_layers" and any other method which has sequential single layer training
   pretrain_epochs: 10   ## for "two_step"
-  maintrain_epochs: 50  ## for "two_step"
-  visualize_epochs: [1, 10, 50]  # list of epochs at which to produce intermediate visualizations
+  weight_decay_rate: 0.1
 
 task:
   dataset: "mnist"
@@ -63,26 +49,25 @@ task:
   #   n_orient_classes: 8
 
 wandb:
-  entity: ## wandb entity
-  project: "dendritic_mnist_test"
-  group: "debug"
-  tags: [mnist_1]
-  use_wandb: true
+  entity: 
+  project: #"dendritic_mnist_test"
+  group: #"debug"
+  tags: #[mnist_1]
+  use_wandb: false #true
 
 visualization:
   enabled: true
-  save_path: # output path for plots
+  save_path: 
+  visualize_epochs: [1, 10, 50]  # list of epochs at which to produce intermediate visualizations
   plots:
     - "weights"      # Plot dendritic or EI-net weights
     - "activations"  # Plot per-digit activation distribution
-    - "gradients"    # Plot synapse or branch gradients
-    - "branch_info"  # mutual information
-    - "ablation"     # ablation
+    #- "gradients"    # Plot synapse or branch gradients
+    #- "branch_info"  # mutual information
+    #- "ablation"     # ablation
 
 
-#    plot_eposhs: [10 200]]
-
-# python scripts/train_experiments.py .vscode/config_exp.yaml
+# python src/dendritic_modeling/train_experiments.py configs/config_exp.yaml
 
 
 # Explanation of the Methods:
