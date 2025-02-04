@@ -37,7 +37,6 @@ def initialize_model(model_cfg):
     probabilistic = model_cfg.probabilistic
     net_type = model_cfg.network.type
     net_params = model_cfg.network.parameters.__dict__
-    print(net_params)
     enable_branch_outputs = net_params.pop('enable_branch_outputs', False)
 
     if task == 'classification':
@@ -136,7 +135,7 @@ def main(config_path: str, output_dir: str, experiment_name: str):
     logger.info(f"Saving results and visualizations to: {run_save_path}")
 
     # If visualize_epochs is provided, train continuously and visualize at specified epochs.
-    if hasattr(train_cfg, "visualize_epochs") and train_cfg.visualize_epochs:
+    if hasattr(visual_cfg, "visualize_epochs") and visual_cfg.visualize_epochs:
         total_epochs = train_cfg.epochs
         visualize_epochs = sorted(visual_cfg.visualize_epochs)
         current_epoch = 0
@@ -157,9 +156,9 @@ def main(config_path: str, output_dir: str, experiment_name: str):
             current_epoch += 1
             logger.info(f"Completed epoch {current_epoch}/{total_epochs}")
             if current_epoch in visualize_epochs:
-                plot_manager = PlotManager(clf, {"train": train_ds, "valid": valid_ds, "test": test_ds}, config, run_save_path, device=device)
+                plot_manager = PlotManager(clf, {"train": train_ds, "valid": valid_ds, "test": test_ds}, config, run_save_path, file_name=f"epoch{current_epoch}", device=device)
                 for plot_name in config.visualization.plots:
-                    plot_manager.run_plot(plot_name, epoch=current_epoch)
+                    plot_manager.run_plot(plot_name)
         # Optionally, load best checkpoint here if desired.
     else:
         if learning_strategy == "freeze_layers":
@@ -233,7 +232,7 @@ def main(config_path: str, output_dir: str, experiment_name: str):
         wandb.finish()
 
     if config.visualization.enabled:
-        plot_manager = PlotManager(clf, {"train": train_ds, "valid": valid_ds, "test": test_ds}, config, run_save_path, device=device)
+        plot_manager = PlotManager(clf, {"train": train_ds, "valid": valid_ds, "test": test_ds}, config, run_save_path, file_name="final", device=device)
         for plot_name in config.visualization.plots:
             plot_manager.run_plot(plot_name)
     logger.info("All done.")
