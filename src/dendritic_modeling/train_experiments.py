@@ -37,6 +37,7 @@ def initialize_model(model_cfg):
     probabilistic = model_cfg.probabilistic
     net_type = model_cfg.network.type
     net_params = model_cfg.network.parameters.__dict__
+    print(net_params)
     enable_branch_outputs = net_params.pop('enable_branch_outputs', False)
 
     if task == 'classification':
@@ -71,6 +72,7 @@ def main(config_path: str, output_dir: str, experiment_name: str):
     config = load_config(config_path)
     model_cfg = config.model
     train_cfg = config.train
+    visual_cfg = config.visualization
     wandb_cfg = config.wandb
 
     if getattr(wandb_cfg, "use_wandb", False):
@@ -128,15 +130,15 @@ def main(config_path: str, output_dir: str, experiment_name: str):
 
     # Create a timestamp-based folder for saving visualizations and results.
     now = datetime.now().strftime('%Y-%m-%d_%H-%M-%S')
-    root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-    run_save_path = os.path.join(root, 'results', f"{experiment_name}_{now}")
+    root = visual_cfg.save_path 
+    run_save_path = os.path.join(root, f"{experiment_name}_{now}")
     os.makedirs(run_save_path, exist_ok=True)
     logger.info(f"Saving results and visualizations to: {run_save_path}")
 
     # If visualize_epochs is provided, train continuously and visualize at specified epochs.
     if hasattr(train_cfg, "visualize_epochs") and train_cfg.visualize_epochs:
         total_epochs = train_cfg.epochs
-        visualize_epochs = sorted(train_cfg.visualize_epochs)
+        visualize_epochs = sorted(visual_cfg.visualize_epochs)
         current_epoch = 0
         device = 'cuda' if torch.cuda.is_available() else 'cpu'
         while current_epoch < total_epochs:
@@ -155,7 +157,7 @@ def main(config_path: str, output_dir: str, experiment_name: str):
             current_epoch += 1
             logger.info(f"Completed epoch {current_epoch}/{total_epochs}")
             if current_epoch in visualize_epochs:
-                plot_manager = PlotManager(clf, {"train": train_ds, "valid": valid_ds, "test": test_ds}, config, device=device)
+                plot_manager = PlotManager(clf, {"train": train_ds, "valid": valid_ds, "test": test_ds}, config, run_save_path, device=device)
                 for plot_name in config.visualization.plots:
                     plot_manager.run_plot(plot_name, epoch=current_epoch)
         # Optionally, load best checkpoint here if desired.
@@ -231,7 +233,7 @@ def main(config_path: str, output_dir: str, experiment_name: str):
         wandb.finish()
 
     if config.visualization.enabled:
-        plot_manager = PlotManager(clf, {"train": train_ds, "valid": valid_ds, "test": test_ds}, config, device=device)
+        plot_manager = PlotManager(clf, {"train": train_ds, "valid": valid_ds, "test": test_ds}, config, run_save_path, device=device)
         for plot_name in config.visualization.plots:
             plot_manager.run_plot(plot_name)
     logger.info("All done.")

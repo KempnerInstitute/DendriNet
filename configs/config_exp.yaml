@@ -6,8 +6,8 @@ model:
     parameters:
       input_dim: 784
       excitatory_layer_sizes: [10] #512
-      inhibitory_layer_sizes: [200]
-      excitatory_branch_factors: [2,2,2] #64
+      inhibitory_layer_sizes: [20]
+      excitatory_branch_factors: [1,1] #64
       inhibitory_branch_factors: []
       reactivate: true
       somatic_synapses: true
@@ -58,7 +58,7 @@ wandb:
 visualization:
   enabled: true
   save_path: 
-  visualize_epochs: [1, 10, 50]  # list of epochs at which to produce intermediate visualizations
+  visualize_epochs: [10, 50]  # list of epochs at which to produce intermediate visualizations
   plots:
     - "weights"      # Plot dendritic or EI-net weights
     - "activations"  # Plot per-digit activation distribution
