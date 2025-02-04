@@ -8,7 +8,7 @@ Step 1: Prepare sweep configuration file
 
 This file contains all necessary information to setup the sweep job. Here is an example of a sweep configuration file:
 
-.. code-block:: yaml
+.. code-block:: yaml (NEED TO BE UPDATED WITH THE NEW CONFIG)
 
   slurm_config:
     output_dir:  # <--- Add your output directory path
