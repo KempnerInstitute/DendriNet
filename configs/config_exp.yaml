@@ -7,7 +7,7 @@ model:
       input_dim: 784
       excitatory_layer_sizes: [10] #512
       inhibitory_layer_sizes: [200]
-      excitatory_branch_factors: [2,2,2] %64
+      excitatory_branch_factors: [2,2,2] #64
       inhibitory_branch_factors: []
       reactivate: true
       somatic_synapses: true
