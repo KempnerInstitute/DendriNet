@@ -68,6 +68,7 @@ class TrainConfig(BaseConfig):
     seed: int = 0
     train_valid_split: float = 0.8
     lr: float = 0.01
+    weight_decay_rate: float = 0.1
     epochs: int = 50
     batch_size: int = 128
     grad_clip_value: float = 5.0

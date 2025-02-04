@@ -39,6 +39,22 @@ def compute_metrics_classification(preds, labels):
     }
 
 
+class CustomWeightDecayOptimizer(object):
+
+    def __init__(self, model, optimizer, weight_decay = 0.1):
+        self.model = model
+        self.optimizer = optimizer
+        self.weight_decay = weight_decay
+    
+    def zero_grad(self):
+        self.optimizer.zero_grad()
+    
+    def step(self):
+        lr = self.optimizer.param_groups[0]['lr']
+        self.model.decay_weights(weight_decay = lr * self.weight_decay)
+        self.optimizer.step()
+
+
 class BaseTrainer:
     def __init__(self, optimizer, suppress_prints=False, print_every=10):
         self.optimizer = optimizer
