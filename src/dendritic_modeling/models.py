@@ -21,6 +21,7 @@ class BaseModel(nn.Module):
     def predict(self, x):
         raise NotImplementedError("Predict method must be implemented in subclass.")
 
+
 class ProbabilisticClassifier(BaseModel):
     """
     A probabilistic classifier that outputs a categorical distribution
@@ -31,15 +32,9 @@ class ProbabilisticClassifier(BaseModel):
         self.output_dim = output_dim
         self.use_output_layer = use_output_layer
 
-        # if user wants a final FC, create it here
+        # if we want a final FC, create it here
         if self.use_output_layer:
             self.final_fc = nn.Linear(net.forward(torch.zeros(1, net.n_branch_layers)).shape[1], self.output_dim)
-            # Actually we typically can't guess in_features that way. 
-            # Alternatively, we can pass net.excitatory_layer_sizes[-1]. 
-            # Or do a dummy forward with correct shape. 
-            # For simplicity, we'll define final_fc after we know net's output shape. 
-            # This is a sketch. 
-            # Let's do a placeholder approach or remove it.
 
         self.final = nn.LogSoftmax(dim = -1)
         self.log_output_scale = nn.Parameter(torch.zeros((self.output_dim,)), 
@@ -81,6 +76,13 @@ class ProbabilisticClassifier(BaseModel):
             net_output = self.final_fc(net_output)
         return net_output, per_layer_acts
 
+    def decay_weights(self, weight_decay):
+        """
+        Forward this call to self.net if it implements decay_weights.
+        """
+        if hasattr(self.net, 'decay_weights'):
+            self.net.decay_weights(weight_decay)
+
 
 class Classifier(BaseModel):
     """
@@ -117,3 +119,10 @@ class Classifier(BaseModel):
         if hasattr(self, 'final_fc'):
             net_output = self.final_fc(net_output)
         return net_output, per_layer_acts
+
+    def decay_weights(self, weight_decay):
+        """
+        Forward this call to self.net if it implements decay_weights.
+        """
+        if hasattr(self.net, 'decay_weights'):
+            self.net.decay_weights(weight_decay)

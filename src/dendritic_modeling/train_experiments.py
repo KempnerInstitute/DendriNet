@@ -13,6 +13,7 @@ import argparse
 from pathlib import Path
 from dataclasses import asdict
 from copy import deepcopy
+from datetime import datetime
 
 import wandb
 import torch
@@ -117,13 +118,20 @@ def main(config_path: str, output_dir: str, experiment_name: str):
     learning_strategy = getattr(train_cfg, "learning_strategy", "mle")
     logger.info(f"Using learning strategy: {learning_strategy}")
 
-    # optimizer = CustomWeightDecayOptimizer(
-    #     model = clf, 
-    #     optimizer = torch.optim.Adam(clf.parameters(), lr=train_cfg.lr), 
-    #     weight_decay=train_cfg.weight_decay_rate,
-    # )
-    optimizer = torch.optim.Adam(clf.parameters(), lr=train_cfg.lr)
+    # Use the custom weight decay optimizer
+    optimizer = CustomWeightDecayOptimizer(
+         model = clf, 
+         optimizer = torch.optim.Adam(clf.parameters(), lr=train_cfg.lr), 
+         weight_decay=train_cfg.weight_decay_rate,
+    )
     trainer = get_trainer(learning_strategy, optimizer, suppress_prints=False, print_every=10)
+
+    # Create a timestamp-based folder for saving visualizations and results.
+    now = datetime.now().strftime('%Y-%m-%d_%H-%M-%S')
+    root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    run_save_path = os.path.join(root, 'results', f"{experiment_name}_{now}")
+    os.makedirs(run_save_path, exist_ok=True)
+    logger.info(f"Saving results and visualizations to: {run_save_path}")
 
     # If visualize_epochs is provided, train continuously and visualize at specified epochs.
     if hasattr(train_cfg, "visualize_epochs") and train_cfg.visualize_epochs:
@@ -142,7 +150,7 @@ def main(config_path: str, output_dir: str, experiment_name: str):
                 shuffle=True,
                 load_best_state_dict=False,
                 plot_losses=False,
-                save_path=output_dir
+                save_path=run_save_path
             )
             current_epoch += 1
             logger.info(f"Completed epoch {current_epoch}/{total_epochs}")
@@ -163,11 +171,11 @@ def main(config_path: str, output_dir: str, experiment_name: str):
                 shuffle=True,
                 grad_clip_value=train_cfg.grad_clip_value,
                 plot_losses=True,
-                save_path=output_dir
+                save_path=run_save_path
             )
         elif learning_strategy == "two_step":
             pretrain_epochs = getattr(train_cfg, "pretrain_epochs", 5)
-            maintrain_epochs = getattr(train_cfg, "maintrain_epochs", 45)
+            maintrain_epochs = getattr(train_cfg, "epochs", 45)
             trainer.train(
                 model=clf,
                 train_data=train_ds,
@@ -179,7 +187,7 @@ def main(config_path: str, output_dir: str, experiment_name: str):
                 shuffle=True,
                 load_best_state_dict=True,
                 plot_losses=True,
-                save_path=output_dir
+                save_path=run_save_path
             )
         else:
             trainer.train(
@@ -192,7 +200,7 @@ def main(config_path: str, output_dir: str, experiment_name: str):
                 shuffle=True,
                 load_best_state_dict=True,
                 plot_losses=True,
-                save_path=output_dir
+                save_path=run_save_path
             )
 
     logger.info("Evaluating performance...")

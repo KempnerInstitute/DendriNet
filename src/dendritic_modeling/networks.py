@@ -13,12 +13,6 @@ BlockLinear in the net using:
     scaler = GradientScaler(strategy='block_conductance_dynamic')
     scaler.register_block_linear_dynamic(...)
 
-Possible gradient strategies in the config:
-    - none
-    - uniform_scale
-    - distal_upweight
-    - distal_upweight_by_idx
-    - block_conductance_dynamic
 """
 
 from copy import deepcopy
@@ -46,21 +40,11 @@ class ExcitationInhibitionLayer(nn.Module):
         somatic_synapses = True,
         topk_init_method = "xavier_normal",
         use_shunting = True,
-        init_gain=1.0,
-        init_inhib_offset=0.0,
         gradient_strategy="none",
-        gradient_scale_factor=1.0,
-        reactivation_initial_m=1.5,
-        reactivation_initial_b=1.0,
         reactivation_type='param_tanh',
-        train_reactivation_b_only=False,
-        enable_branch_outputs=False  # added
+        enable_branch_outputs=False 
     ):
         super(ExcitationInhibitionLayer, self).__init__()
-        self.init_gain = init_gain
-        self.init_inhib_offset = init_inhib_offset
-        self.gradient_strategy = gradient_strategy
-        self.gradient_scale_factor = gradient_scale_factor
 
         if enable_branch_outputs:
             self.inhibitory_cells = DendriNetWithOutputs(
@@ -75,9 +59,6 @@ class ExcitationInhibitionLayer(nn.Module):
                 topk_init_method = topk_init_method,
                 use_shunting=use_shunting,
                 reactivation_type=reactivation_type,
-                reactivation_initial_m=reactivation_initial_m,
-                reactivation_initial_b=reactivation_initial_b,
-                train_reactivation_b_only=train_reactivation_b_only,
             )
             self.excitatory_cells = DendriNetWithOutputs(
                 n_soma = n_excitatory_cells, 
@@ -91,9 +72,6 @@ class ExcitationInhibitionLayer(nn.Module):
                 topk_init_method = topk_init_method,
                 use_shunting=use_shunting,
                 reactivation_type=reactivation_type,
-                reactivation_initial_m=reactivation_initial_m,
-                reactivation_initial_b=reactivation_initial_b,
-                train_reactivation_b_only=train_reactivation_b_only,
             )
         else:
             self.inhibitory_cells = DendriNet(
@@ -108,9 +86,6 @@ class ExcitationInhibitionLayer(nn.Module):
                 topk_init_method = topk_init_method,
                 use_shunting=use_shunting,
                 reactivation_type=reactivation_type,
-                reactivation_initial_m=reactivation_initial_m,
-                reactivation_initial_b=reactivation_initial_b,
-                train_reactivation_b_only=train_reactivation_b_only,
             )
             self.excitatory_cells = DendriNet(
                 n_soma = n_excitatory_cells, 
@@ -124,9 +99,6 @@ class ExcitationInhibitionLayer(nn.Module):
                 topk_init_method = topk_init_method,
                 use_shunting=use_shunting,
                 reactivation_type=reactivation_type,
-                reactivation_initial_m=reactivation_initial_m,
-                reactivation_initial_b=reactivation_initial_b,
-                train_reactivation_b_only=train_reactivation_b_only,
             )
     
     def decay_weights(self, weight_decay):
@@ -165,29 +137,18 @@ class ExcitationInhibitionNetwork(nn.Module):
         somatic_synapses = True,
         topk_init_method = "xavier_normal",
         use_shunting=True,
-        init_gain=1.0,
-        init_inhib_offset=0.0,
         gradient_strategy="none",
-        gradient_scale_factor=1.0,
         weight_decay_rate=0.1,
-        reactivation_initial_m=1.5,
-        reactivation_initial_b=1.0,
         reactivation_type='param_tanh',
-        train_reactivation_b_only=False,
-        local_learning="none",
         local_loss_weight=0.0,
-        enable_branch_outputs=False,  # added
+        enable_branch_outputs=False, 
         output_layer=False,
         output_dim=10
     ):
         super(ExcitationInhibitionNetwork, self).__init__()
         self.weight_decay_rate = weight_decay_rate
         self.n_layers = len(excitatory_layer_sizes)
-        self.init_gain = init_gain
-        self.init_inhib_offset = init_inhib_offset
         self.gradient_strategy = gradient_strategy
-        self.gradient_scale_factor = gradient_scale_factor
-        self.local_learning = local_learning
         self.local_loss_weight = local_loss_weight
         
         logger.debug(f'Building ExcitationInhibitionNetwork with {self.n_layers} layer(s).')
@@ -228,14 +189,8 @@ class ExcitationInhibitionNetwork(nn.Module):
                 somatic_synapses = somatic_synapses,
                 topk_init_method = topk_init_method,
                 use_shunting=use_shunting,
-                init_gain = self.init_gain,
-                init_inhib_offset = self.init_inhib_offset,
                 gradient_strategy = self.gradient_strategy,
-                gradient_scale_factor = self.gradient_scale_factor,
-                reactivation_initial_m = reactivation_initial_m,
-                reactivation_initial_b = reactivation_initial_b,
                 reactivation_type = reactivation_type,
-                train_reactivation_b_only = train_reactivation_b_only,
                 enable_branch_outputs = enable_branch_outputs
             ))
         
@@ -243,15 +198,22 @@ class ExcitationInhibitionNetwork(nn.Module):
 
         self.feedback_mats = nn.ParameterList()
         for i in range(self.n_layers):
-            if self.local_learning != "none":
+            if 1==2: #self.local_learning != "none":      ####### TO DO THIS CURRENTLY IS NOT WORKING BECAUSE local_learning is removed as a config parameter
+            #if self.learning_strategy.lower().startswith("local"):
                 fb = nn.Parameter(torch.randn(excitatory_layer_sizes[i+1], 10)*0.01, requires_grad=False)
                 self.feedback_mats.append(fb)
             else:
                 self.feedback_mats.append(None)
 
-    def decay_weights(self):
+    def decay_weights(self, weight_decay=None):
+        """
+        Called by the optimizer step to apply weight decay to each layer.
+        If weight_decay is not provided, we default to self.weight_decay_rate.
+        """
+        if weight_decay is None:
+            weight_decay = self.weight_decay_rate
         for layer in self.layers:
-            layer.decay_weights(self.weight_decay_rate)
+            layer.decay_weights(weight_decay)
 
     def forward(self, x):
         excitatory = x
