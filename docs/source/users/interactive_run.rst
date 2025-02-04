@@ -51,7 +51,7 @@ Each compute job requires a configuration file that specifies the network archit
         tags: [mnist_1]
 
 
-The configuration (let's say `mnist_1.yaml`) has three major sections: `model`, `train`, and `wandb`. The `model` section specifies the network architecture, including the input dimension, layer sizes, branch factors, and synaptic connections. The `train` section defines the training parameters, such as the learning rate, number of epochs, and batch size. The `wandb` section contains the settings for logging the experiment results to Weights & Biases (W&B). Please refer to the :ref:`concept_overview` for more details on the network architecture.
+The configuration (let's say `config_exp.yaml` located in config/) has three major sections: `model`, `train`, and `wandb`. The `model` section specifies the network architecture, including the input dimension, layer sizes, branch factors, and synaptic connections. The `train` section defines the training parameters, such as the learning rate, number of epochs, and batch size. The `wandb` section contains the settings for logging the experiment results to Weights & Biases (W&B). Please refer to the :ref:`concept_overview` for more details on the network architecture.
 
 
 Step 2: Run the interactive session
