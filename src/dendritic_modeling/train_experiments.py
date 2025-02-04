@@ -25,7 +25,7 @@ from dendritic_modeling.models import (ProbabilisticClassifier, Classifier)
 from dendritic_modeling.networks import (ExcitationInhibitionNetwork, FeedforwardNN)
 from dendritic_modeling.config import load_config
 from dendritic_modeling.visualization_manager import PlotManager
-
+from dendritic_modeling.plot_utils import plot_NLL_loss_curves
 from dendritic_modeling.synthetic_datasets import get_unified_datasets
 
 def initialize_model(model_cfg):
@@ -140,6 +140,12 @@ def main(config_path: str, output_dir: str, experiment_name: str):
         visualize_epochs = sorted(visual_cfg.visualize_epochs)
         current_epoch = 0
         device = 'cuda' if torch.cuda.is_available() else 'cpu'
+        if config.visualization.enabled:
+            plot_manager = PlotManager(clf, {"train": train_ds, "valid": valid_ds, "test": test_ds}, config, run_save_path, file_name="_init", device=device)
+            for plot_name in config.visualization.plots:
+                plot_manager.run_plot(plot_name)
+        valid_losses= []
+        train_losses= []
         while current_epoch < total_epochs:
             results = trainer.train(
                 model=clf,
@@ -153,13 +159,17 @@ def main(config_path: str, output_dir: str, experiment_name: str):
                 plot_losses=False,
                 save_path=run_save_path
             )
+            valid_losses += results["valid losses"]
+            train_losses += results["train losses"]
             current_epoch += 1
             logger.info(f"Completed epoch {current_epoch}/{total_epochs}")
             if current_epoch in visualize_epochs:
                 plot_manager = PlotManager(clf, {"train": train_ds, "valid": valid_ds, "test": test_ds}, config, run_save_path, file_name=f"epoch{current_epoch}", device=device)
                 for plot_name in config.visualization.plots:
                     plot_manager.run_plot(plot_name)
-        # Optionally, load best checkpoint here if desired.
+                    
+        plot_NLL_loss_curves(train_losses, valid_losses, current_epoch, run_save_path)
+
     else:
         if learning_strategy == "freeze_layers":
             epochs_per_layer = getattr(train_cfg, "epochs_per_layer", 5)

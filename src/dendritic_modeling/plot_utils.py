@@ -53,7 +53,7 @@ def plot_NLL_loss_curves(
     plt.plot(range(1,num_epochs+1), Valid_losses, 'b', label = 'validation')
     
     plt.xlabel('Epochs')
-    plt.xticks(range(0,num_epochs+1,int(num_epochs // 2)))
+    plt.xticks(range(0,num_epochs+1,int(num_epochs // 5)))
     plt.ylabel('Negative Log Likelihood')
     plt.title('Loss Curves')
     plt.legend()
