@@ -24,31 +24,72 @@ Each compute job requires a configuration file that specifies the network archit
 .. code-block:: yaml
 
     model:
-        input_dim: 784
-        excitatory_layer_sizes: [10]
-        inhibitory_layer_sizes: [20]
-        excitatory_branch_factors: [24]
-        inhibitory_branch_factors: []
-        reactivate: true
-        somatic_synapses: true
-        ee_synapses_per_branch_per_layer: [24]
-        ei_synapses_per_branch_per_layer: [100]
-        ie_synapses_per_branch_per_layer: [1]
-        ii_synapses_per_branch_per_layer: []
+      task: classification         
+      probabilistic: True
+      network:
+        type: "EINet"
+        parameters:
+          input_dim: 784
+          excitatory_layer_sizes: [512]
+          inhibitory_layer_sizes: [200]
+          excitatory_branch_factors: [64]
+          inhibitory_branch_factors: []
+          reactivate: true
+          somatic_synapses: true
+          ee_synapses_per_branch_per_layer: [24]
+          ei_synapses_per_branch_per_layer: [200]
+          ie_synapses_per_branch_per_layer: [1]
+          ii_synapses_per_branch_per_layer: []
+          topk_init_method: xavier_normal
+          use_shunting: true
+          init_gain: 1.0
+          init_inhib_offset: 1.3
+          reactivation_initial_m: 2
+          reactivation_initial_b: 0.5
+          reactivation_type: param_tanh       
+          train_reactivation_b_only: false
+          gradient_strategy: block_conductance_dynamic  
+          gradient_scale_factor: 2
+          weight_decay_rate: 0.1
+          enable_branch_outputs: true
+          output_layer: bool = true
+          output_dim: int = 10
 
     train:
-        run_name: mnist_1
-        seed: 42
-        train_valid_split: 0.8
-        lr: 0.001
-        epochs: 10
-        batch_size: 32
+      learning_strategy: "mle"           
+      run_name: "mnist_einet"
+      seed: 0
+      train_valid_split: 0.8
+      lr: 0.01
+      epochs: 50
+      batch_size: 128
+      grad_clip_value: 5
+      epochs_per_layer: 50            
+      pretrain_epochs: 10             
+      maintrain_epochs: 50            
+      visualize_epochs: [1, 10, 50]   
+
+    task:
+      dataset: "mnist"
+      parameters: {}
 
     wandb:
-        entity: your_entity  # <---- Add your entity
-        project: dendritic_modeling_pr
-        group: debug
-        tags: [mnist_1]
+      entity: your_wandb_entity
+      project: "dendritic_mnist_test"
+      group: "debug"
+      tags: [mnist_1]
+      use_wandb: true
+
+    visualization:
+      enabled: true
+      save_path: /path/to/results
+      plots:
+        - "weights"        
+        - "activations"    
+        - "gradients"      
+        - "branch_info"    
+        - "ablation"       
+
 
 
 The configuration (let's say `config_exp.yaml` located in config/) has three major sections: `model`, `train`, and `wandb`. The `model` section specifies the network architecture, including the input dimension, layer sizes, branch factors, and synaptic connections. The `train` section defines the training parameters, such as the learning rate, number of epochs, and batch size. The `wandb` section contains the settings for logging the experiment results to Weights & Biases (W&B). Please refer to the :ref:`concept_overview` for more details on the network architecture.
