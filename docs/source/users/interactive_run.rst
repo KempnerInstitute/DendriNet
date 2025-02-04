@@ -112,6 +112,17 @@ Once you have set up your environment and created the configuration file, you ca
 The `output_dir` and `experiment_name` arguments specify the output directory and the name of the experiment, respectively. The `train_experiments.py` script will load the configuration file `config_exp.yaml` and start the training process. You can monitor the training progress and visualize the results using the W&B dashboard.
 
 
+Step 4: Monitor outputs and visualizations
+-------------------------------------------
+
+During training, the log messages will indicate:
+  - The completion of each epoch.
+  - When an intermediate visualization is generated (including the epoch number and the type of plot, such as weights, activations, gradients, branch_info, or ablation).
+  - The final performance metrics (train, validation, and test accuracy) will be logged.
+
+Additionally, if W&B is enabled, you can monitor the training progress and visualizations on the W&B dashboard.
+
+For further analysis, the generated plots (including loss curves, weight maps, activation distributions, gradient maps, branch information, and ablation results) are saved in the directory specified under the visualization section of the config file.
 
 
 
