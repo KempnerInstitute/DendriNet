@@ -39,7 +39,7 @@ def compute_metrics_classification(preds, labels):
     }
 
 
-class CustomWeightDecayOptimizer(object):
+class CustomWeightDecayOptimizer():
 
     def __init__(self, model, optimizer, weight_decay = 0.1):
         self.model = model
