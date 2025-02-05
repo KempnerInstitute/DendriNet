@@ -23,7 +23,7 @@ import torchinfo
 from dendritic_modeling import logger, logger_manager
 from dendritic_modeling.learning_strategies import get_trainer, CustomWeightDecayOptimizer
 from dendritic_modeling.models import (ProbabilisticClassifier, Classifier)
-from dendritic_modeling.networks import (ExcitationInhibitionNetwork, FeedforwardNN)
+from dendritic_modeling.networks import (ExcitationInhibitionNetwork, MLPExcInhNetwork)
 from dendritic_modeling.config import load_config
 from dendritic_modeling.visualization_manager import PlotManager
 from dendritic_modeling.plot_utils import plot_NLL_loss_curves
@@ -42,9 +42,9 @@ def initialize_model(model_cfg):
     learning_strategy = net_params.pop('learning_strategy', 'mle')
 
     if task == 'classification':
-        if net_type == 'feedforward':
+        if net_type == 'MLP':
             logger.info(f"Running feedforward with {'probabilistic' if probabilistic else 'simple'} classifier")
-            net = FeedforwardNN(**net_params)
+            net = MLPExcInhNetwork(**net_params)
             output_dim = net_params.get('output_dim', 10)
             if probabilistic:
                 return ProbabilisticClassifier(net, output_dim)

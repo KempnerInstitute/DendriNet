@@ -250,58 +250,129 @@ class ExcitationInhibitionNetwork(nn.Module):
         """
         return len(self.branch_layers)
 
+############################################################
+# MLPExcInhNetwork
+############################################################
+class MLPExcInhLayer(nn.Module):
+    def __init__(self, in_excit, in_inhib, out_features, activation=None):
+        super(MLPExcInhLayer, self).__init__()
+        self.in_excit = in_excit
+        self.in_inhib = in_inhib
+        self.out_features = out_features
 
-class FeedforwardNN(nn.Module):
-    """
-    A configurable feedforward neural network as a baseline for comparison
-    on the flattened MNIST dataset.
-    """
+        if self.in_excit > 0:
+            self.excit_pre_w = nn.Parameter(torch.zeros(out_features, in_excit))
+            nn.init.xavier_normal_(self.excit_pre_w)
+        else:
+            self.excit_pre_w = None
+
+        if self.in_inhib > 0:
+            self.inhib_pre_w = nn.Parameter(torch.zeros(out_features, in_inhib))
+            nn.init.xavier_normal_(self.inhib_pre_w)
+        else:
+            self.inhib_pre_w = None
+
+        self.bias = nn.Parameter(torch.zeros(out_features))
+        self.activation = activation  
+
+    def decay_weights(self, weight_decay):
+        with torch.no_grad():
+            if self.excit_pre_w is not None:
+                self.excit_pre_w.sub_(weight_decay * self.excit_pre_w)
+            if self.inhib_pre_w is not None:
+                self.inhib_pre_w.sub_(weight_decay * self.inhib_pre_w)
+            self.bias.sub_(weight_decay * self.bias)
+
+    def forward(self, x):
+        # Assume x is of shape [batch, in_excit + in_inhib]
+        batch_size = x.size(0)
+        if self.in_excit > 0 and self.in_inhib > 0:
+            x_excit = x[:, :self.in_excit]
+            x_inhib = x[:, self.in_excit:self.in_excit + self.in_inhib]
+        elif self.in_excit > 0:
+            x_excit = x
+            x_inhib = None
+        else:
+            x_excit = None
+            x_inhib = x
+
+        out = torch.zeros(batch_size, self.out_features, device=x.device, dtype=x.dtype)
+        if self.excit_pre_w is not None and x_excit is not None:
+            w_excit = self.excit_pre_w.exp()
+            out = out + x_excit.matmul(w_excit.t())
+        if self.inhib_pre_w is not None and x_inhib is not None:
+            w_inhib = -self.inhib_pre_w.exp()
+            out = out + x_inhib.matmul(w_inhib.t())
+        out = out + self.bias
+        if self.activation is not None:
+            out = self.activation(out)
+        return out
+
+
+class MLPExcInhNetwork(nn.Module):
     def __init__(
         self,
-        input_dim: int = 784,
-        hidden_layer_sizes: List[int] = [128, 64],
-        activation: str = "relu",
-        dropout: float = 0.2,
-        output_dim: int = 10,
+        input_dim,
+        excitatory_layer_sizes,         
+        inhibitory_layer_sizes,           
+        excitatory_branch_factors,        
+        inhibitory_branch_factors,        
+        ee_synapses_per_branch_per_layer, 
+        ie_synapses_per_branch_per_layer, 
+        output_layer=False,               
+        output_dim=10,
+        activation=nn.ReLU(),             
+        weight_decay_rate=0.1,
+        learning_strategy="mle",
+        **kwargs
     ):
-        super(FeedforwardNN, self).__init__()
+        super(MLPExcInhNetwork, self).__init__()
+        logger.info("Building MLPExcInhNetwork...")
+        self.weight_decay_rate = weight_decay_rate
+        self.learning_strategy = learning_strategy
+        self.output_layer_flag = output_layer
 
-        activation_mapping = {
-            "relu": nn.ReLU,
-            "sigmoid": nn.Sigmoid,
-            "tanh": nn.Tanh,
-            "leaky_relu": nn.LeakyReLU
-        }
+        excit_sizes = deepcopy(excitatory_layer_sizes)
+        excit_sizes.insert(0, input_dim)
+        self.n_layers = len(excit_sizes) - 1  
 
-        if activation not in activation_mapping:
-            raise ValueError(f"Unsupported activation function: {activation}. "
-                             f"Supported: {list(activation_mapping.keys())}")
         layers = []
-        current_dim = input_dim
+        for i in range(1, len(excit_sizes)):
+            excit_count = excit_sizes[i-1] * ee_synapses_per_branch_per_layer[i-1]
+            if inhibitory_layer_sizes:
+                inhib_count = inhibitory_layer_sizes[i-1] * ie_synapses_per_branch_per_layer[i-1]
+            else:
+                inhib_count = 0
+            in_dim = excit_count + inhib_count
+            layer_activation = activation if i < self.n_layers else None  
+            layer_mod = MLPExcInhLayer(in_excit=excit_count, in_inhib=inhib_count, out_features=excit_sizes[i], activation=layer_activation)
+            layers.append(layer_mod)
+        self.layers = nn.ModuleList(layers)
 
-        for layer_size in hidden_layer_sizes:
-            layers.append(nn.Linear(current_dim, layer_size))
-            layers.append(activation_mapping[activation]())
-            if dropout > 0:  
-                layers.append(nn.Dropout(dropout))
-            current_dim = layer_size
+        if self.output_layer_flag:
+            self.classifier = nn.Linear(excit_sizes[-1], output_dim)
+        else:
+            self.classifier = None
 
-        layers.append(nn.Linear(current_dim, output_dim))
-        self.model = nn.Sequential(*layers)
+    def decay_weights(self, weight_decay=None):
+        if weight_decay is None:
+            weight_decay = self.weight_decay_rate
+        for layer in self.layers:
+            layer.decay_weights(weight_decay)
+        if self.classifier is not None:
+            with torch.no_grad():
+                self.classifier.weight.sub_(weight_decay * self.classifier.weight)
+                self.classifier.bias.sub_(weight_decay * self.classifier.bias)
 
     def forward(self, x):
-        return self.model(x)
-    
-    
-class MLPBaseline(nn.Module):
-    """
-    A simple feedforward MLP with one hidden layer, for baseline comparison.
-    """
-    def __init__(self, input_dim, hidden_dim, output_dim):
-        super(MLPBaseline, self).__init__()
-        self.fc1 = nn.Linear(input_dim, hidden_dim)
-        self.fc2 = nn.Linear(hidden_dim, output_dim)
+        for i, layer in enumerate(self.layers):
+            in_excit = layer.in_excit
+            in_inhib = layer.in_inhib
+            if x.size(1) < in_excit + in_inhib:
+                pad_size = (in_excit + in_inhib) - x.size(1)
+                x = torch.cat([x, torch.zeros(x.size(0), pad_size, device=x.device)], dim=1)
+            x = layer(x)
+        if self.classifier is not None:
+            x = self.classifier(x)
+        return x
 
-    def forward(self, x):
-        x = F.relu(self.fc1(x))
-        return self.fc2(x) 
