@@ -83,7 +83,6 @@ class WandbConfig(BaseConfig):
     tags: List[str] = field(default_factory=list)
     use_wandb: bool = False
 
-# Added TaskConfig to capture the top-level task block.
 @dataclass
 class TaskConfig(BaseConfig):
     dataset: str = "mnist"
@@ -127,7 +126,6 @@ def load_config(path: str):
         for k, v in loaded["visualization"].items():
             if hasattr(base.visualization, k):
                 setattr(base.visualization, k, v)
-    # Merge the top-level task block.
     if "task" in loaded:
         if "dataset" in loaded["task"]:
             base.task.dataset = loaded["task"]["dataset"]

@@ -12,8 +12,6 @@ import torch
 import torch.nn as nn
 from torch.nn.init import _no_grad_normal_
 from dendritic_modeling.initialize import compute_expectation_truncated_log_normal
-
-# We import the updated GradientScaler that uses a flatten approach for conduction.
 from dendritic_modeling.gradient_scaling import GradientScaler
 
 TOPK_INIT_METHODS = {
@@ -405,11 +403,6 @@ class DendriticBranchLayer(nn.Module):
             numerator += self.branches_to_output(branch_input)
             denominator += self.branches_to_output.sum_conductances()
 
-            #if self.training:
-                # Optionally set conduction-based scale in forward if you like
-                # if self.gradient_strategy == 'block_conductance_dynamic':
-                #     self.set_branches_to_output_grad_scale()
-
         voltage = numerator / denominator
         return voltage
 
@@ -454,8 +447,6 @@ class DendriNet(nn.Module):
     This network models the complex interactions between excitatory and 
     inhibitory inputs across multiple dendritic branches, simulating dendritic 
     processing in biological neurons.
-
-    ...
     """
     def __init__(
         self, 
@@ -469,10 +460,7 @@ class DendriNet(nn.Module):
         somatic_synapses=True,
         topk_init_method='xavier_normal',
         use_shunting=True,
-        # Activation config:
         reactivation_type='param_tanh',
-
-        # gradient scaling approach:
         gradient_strategy="none",
     ):
         super(DendriNet, self).__init__()

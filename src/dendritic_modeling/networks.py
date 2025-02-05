@@ -6,13 +6,6 @@ ExcitationInhibitionNetwork classes.
 
 The conductance based gradient scaling can be activated by setting
 gradient_strategy: block_conductance_dynamic
-Then, from the code, we can attach a backward hook to each 
-BlockLinear in the net using: 
-
-    from dendritic_modeling.gradient_scaling import GradientScaler
-    scaler = GradientScaler(strategy='block_conductance_dynamic')
-    scaler.register_block_linear_dynamic(...)
-
 """
 
 from copy import deepcopy
@@ -273,7 +266,6 @@ class FeedforwardNN(nn.Module):
     ):
         super(FeedforwardNN, self).__init__()
 
-        # Map string activation to PyTorch activation functions
         activation_mapping = {
             "relu": nn.ReLU,
             "sigmoid": nn.Sigmoid,
@@ -281,26 +273,20 @@ class FeedforwardNN(nn.Module):
             "leaky_relu": nn.LeakyReLU
         }
 
-        # Raise an error if the activation is not supported
         if activation not in activation_mapping:
             raise ValueError(f"Unsupported activation function: {activation}. "
                              f"Supported: {list(activation_mapping.keys())}")
-
-        # Define layers dynamically
         layers = []
         current_dim = input_dim
 
         for layer_size in hidden_layer_sizes:
             layers.append(nn.Linear(current_dim, layer_size))
             layers.append(activation_mapping[activation]())
-            if dropout > 0:  # Apply dropout only if it's greater than 0
+            if dropout > 0:  
                 layers.append(nn.Dropout(dropout))
             current_dim = layer_size
 
-        # Add the output layer
         layers.append(nn.Linear(current_dim, output_dim))
-
-        # Combine layers into a sequential model
         self.model = nn.Sequential(*layers)
 
     def forward(self, x):
@@ -318,4 +304,4 @@ class MLPBaseline(nn.Module):
 
     def forward(self, x):
         x = F.relu(self.fc1(x))
-        return self.fc2(x)  # raw logits
+        return self.fc2(x) 
