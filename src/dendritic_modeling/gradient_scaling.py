@@ -7,6 +7,19 @@ various gradient-scaling strategies for BlockLinear or other modules.
 
 import torch
 
+
+def scale_activation_grad_hook(module, grad_input, grad_output):
+    if grad_input is None:
+        return None
+    new_grads = []
+    for g in grad_input:
+        if g is not None:
+            new_grads.append(g)
+        else:
+            new_grads.append(None)
+    return tuple(new_grads)
+
+
 def scale_layer_gradients_elementwise(module, grad_input, grad_output, scale_vec):
     """
     Multiply 'grad_input[0]' (the parameter gradient) by 'scale_vec' elementwise.
