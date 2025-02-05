@@ -317,8 +317,6 @@ class CompositionalMNIST(Dataset):
         return self.data[idx],self.labels[idx]
 
 
-
-
 def load_MNIST(train_valid_split = 1, cache_dir=None):
     if cache_dir is None:
         root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
