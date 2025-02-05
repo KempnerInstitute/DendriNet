@@ -5,7 +5,6 @@ This module contains utility functions for plotting dendritic model parameters.
 """
 
 import os
-
 import torch
 import numpy as np
 import pandas as pd
@@ -14,8 +13,7 @@ from matplotlib.colors import TwoSlopeNorm
 from matplotlib.gridspec import GridSpec
 from mpl_toolkits.axes_grid1 import make_axes_locatable
 import networkx as nx
-
-from dendritic_modeling.utils import split_MNIST_inputs
+from dendritic_modeling.synthetic_datasets import split_MNIST_inputs
 
 
 #@title Function to plot an image with the scale color bar
