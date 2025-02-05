@@ -2,6 +2,7 @@
 import os
 import numpy as np
 import torch
+from copy import deepcopy
 from torch.utils.data import Dataset, random_split, TensorDataset
 from torchvision.datasets import MNIST
 import torchvision.transforms as T
@@ -317,6 +318,8 @@ class CompositionalMNIST(Dataset):
         return self.data[idx],self.labels[idx]
 
 
+
+
 def load_MNIST(train_valid_split = 1, cache_dir=None):
     if cache_dir is None:
         root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -419,6 +422,12 @@ def load_MNIST_modulo10(shuffle_iterations = 2,
     return data
 
 def load_MNIST_task_switch(train_valid_split = 1, cache_dir = None):
+    """
+    MNIST Switch: 
+    Turns the first two input pixels into 'task bits'. 
+    For one task bit pattern, labels remain normal. 
+    For the other, labels are inverted (digit -> 9 - digit). 
+    """
     data = load_MNIST(train_valid_split, cache_dir)
 
     for key, ds in data.items():
@@ -440,6 +449,12 @@ def load_MNIST_task_switch(train_valid_split = 1, cache_dir = None):
     return data
 
 def load_MNIST_task_switch0(train_valid_split = 1, cache_dir = None):
+    """
+    MNIST Split: 
+    Zeros out the first 10 pixels in the input. Then for each digit i in 0..9, 
+    we set pixel i to 1 and also shift the label by i (mod 10). 
+    This effectively creates 10 'subtasks' inside one dataset.
+    """
     data = load_MNIST(train_valid_split, cache_dir)
 
     for key, ds in data.items():
@@ -472,6 +487,8 @@ def split_MNIST_inputs(inputs, labels):
         ix = torch.where(labels == unique, True, False)
         input_list.append(inputs[ix])
     return input_list
+
+
 
 
 ########################################
@@ -509,6 +526,33 @@ def get_unified_datasets(task_cfg, train_cfg):
     elif dataset_name == "mnist":
         train_ds, valid_ds, test_ds = load_mnist_as_datasets(train_valid_split=train_valid_split)
         return train_ds, valid_ds, test_ds
+    elif dataset_name == "mnist_modulo10":
+        data = load_MNIST_modulo10(train_valid_split=train_valid_split)
+        train_ds = TensorDataset(*data['train'][:])
+        if 'valid' in data:
+            valid_ds = TensorDataset(*data['valid'][:])
+        else:
+            valid_ds = TensorDataset(*data['test'][:])
+        test_ds = TensorDataset(*data['test'][:])
+        return train_ds, valid_ds, test_ds
+    elif dataset_name == "mnist_switch":
+        data = load_MNIST_task_switch(train_valid_split=train_valid_split)
+        train_ds = TensorDataset(*data['train'][:])
+        if 'valid' in data:
+            valid_ds = TensorDataset(*data['valid'][:])
+        else:
+            valid_ds = TensorDataset(*data['test'][:])
+        test_ds = TensorDataset(*data['test'][:])
+        return train_ds, valid_ds, test_ds
+    elif dataset_name == "mnist_split":
+        data = load_MNIST_task_switch0(train_valid_split=train_valid_split)
+        train_ds = TensorDataset(*data['train'][:])
+        if 'valid' in data:
+            valid_ds = TensorDataset(*data['valid'][:])
+        else:
+            valid_ds = TensorDataset(*data['test'][:])
+        test_ds = TensorDataset(*data['test'][:])
+        return train_ds, valid_ds, test_ds
     elif dataset_name == "info_shunting":
         full_ds = InfoShuntingDataset(n_samples=total, input_dim=10)
         return random_split(full_ds, [train_size, valid_size, test_size])
@@ -530,5 +574,9 @@ def get_unified_datasets(task_cfg, train_cfg):
         base_mnist = MNIST(root='.', train=True, download=True)
         full_ds = CompositionalMNIST(base_mnist, n_samples=total)
         return random_split(full_ds, [train_size, valid_size, test_size])
+    elif dataset_name == "cifar10":
+        # Load CIFAR-10 data as a new task
+        # Returns a tuple of (train_ds, valid_ds, test_ds) 
+        return load_cifar10_as_datasets(train_valid_split=train_valid_split)
     else:
         raise ValueError(f"Unknown dataset name: {dataset_name}")
