@@ -266,7 +266,6 @@ def record_branch_activations(model, dataset, batch_size=64, device='cpu'):
     with torch.no_grad():
         for x_batch, y_batch in loader:
             x_batch = x_batch.to(device)
-            # forward
             final_output, per_layer_acts = model.forward_with_branch_outputs(x_batch)
 
             # per_layer_acts is a list, length = n_branch_layers + 1 (soma)
@@ -296,15 +295,13 @@ def compute_MI(activations, labels, n_bins=10):
       - compute I(X;Y) = sum p(x,y) log [ p(x,y)/(p(x)p(y)) ]
 
     If activations has shape [N, out_dim] with out_dim>1, 
-    you might do a dimension reduction or loop over dims. 
+    we might do a dimension reduction or loop over dims. 
     For simplicity, we'll do mean across dim if >1.
     """
     if activations.ndim > 1 and activations.shape[1] > 1:
-        # e.g. reduce dimension
         activations = activations.mean(dim=1)
 
     N = len(activations)
-    # bin the activation
     act_min, act_max = activations.min().item(), activations.max().item()
     if act_min == act_max:
         return 0.0
@@ -368,7 +365,6 @@ def measure_performance(model, dataset, batch_size=64, device='cpu'):
             if hasattr(output, 'logits'):
                 preds = output.logits.argmax(dim=-1)
             else:
-                # assume raw logits
                 preds = output.argmax(dim=-1)
 
             total_correct += (preds == y_batch).sum().item()
@@ -393,14 +389,12 @@ def ablate_branch(model, layer_idx, branch_ids=None, mode='direct'):
     layer = model.branch_layers[layer_idx]
     
     if branch_ids is None:
-        # Zero ALL excitatory + inhibitory inputs
         if layer.input_excitatory:
             layer.branch_excitation.pre_w.data.zero_()
         if layer.input_inhibitory and hasattr(layer, 'branch_inhibition'):
             layer.branch_inhibition.pre_w.data.zero_()
 
     elif mode == 'direct':
-        # Zero only the specified branches, leaving the rest
         if layer.input_excitatory:
             for b_id in branch_ids:
                 layer.branch_excitation.pre_w.data[b_id, :] = 0.
@@ -409,8 +403,6 @@ def ablate_branch(model, layer_idx, branch_ids=None, mode='direct'):
                 layer.branch_inhibition.pre_w.data[b_id, :] = 0.
 
     elif mode == 'full':
-        # same as above plus removing anything else if desired
-        # but we skip messing with branches_to_output so upstream signals pass
         if layer.input_excitatory:
             if branch_ids is None:
                 layer.branch_excitation.pre_w.data.zero_()
@@ -438,7 +430,6 @@ def analyze_branch_ablation(model, dataset, layer_idx, branch_ids,
     """
     baseline_acc = measure_performance(model, dataset, device=device)
     results = {}
-    # store backup
     original = {}
     for n, p in model.named_parameters():
         original[n] = p.detach().clone()
@@ -450,7 +441,7 @@ def analyze_branch_ablation(model, dataset, layer_idx, branch_ids,
         acc_after = measure_performance(model, dataset, device=device)
         delta = baseline_acc - acc_after
         results["all_branches"] = (acc_after, delta)
-        # restore
+
         for n, p in model.named_parameters():
             p.data.copy_(original[n])
     else:
@@ -521,11 +512,11 @@ def estimate_hidden_output_MI(model, data_loader, n_bins=10):
     # for simplicity, let's just do dimension 0:
     h0 = hidden_acts[:, 0]
     min_val, max_val = h0.min(), h0.max()
-    # bin
+
     bin_edges = torch.linspace(min_val, max_val, n_bins+1)
     bin_indices = torch.bucketize(h0, bin_edges) - 1  # in [0, n_bins-1]
     
-    # compute joint distribution p(hidden_bin, label)
+
     n_classes = labels.max().item() + 1
     joint_hist = torch.zeros((n_bins, n_classes), dtype=torch.float)
     for b, c in zip(bin_indices, labels):
@@ -535,6 +526,6 @@ def estimate_hidden_output_MI(model, data_loader, n_bins=10):
     marginal_hidden = joint_prob.sum(dim=1)  # sum across classes
     marginal_label = joint_prob.sum(dim=0)   # sum across bins
 
-    # estimate MI
+
     mi_est = compute_mutual_information(joint_prob, marginal_hidden, marginal_label)
     return mi_est.item()
