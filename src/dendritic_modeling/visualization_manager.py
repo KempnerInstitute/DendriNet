@@ -12,7 +12,7 @@ import logging
 import matplotlib.pyplot as plt
 from torch.utils.data import DataLoader
 
-from dendritic_modeling.utils import split_MNIST_inputs
+from dendritic_modeling.synthetic_datasets import split_MNIST_inputs
 from dendritic_modeling.utils import (
     Shaper,
     analyze_branch_ablation,
