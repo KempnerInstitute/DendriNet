@@ -5,6 +5,7 @@ Main script that reads config_exp.yaml, builds the model,
 chooses a training strategy, trains, and evaluates using
 a unified data-loading function from synthetic_datasets.py.
 """
+# python src/dendritic_modeling/train_experiments.py configs/config_exp.yaml
 
 import os
 import json
@@ -13,19 +14,20 @@ import argparse
 from pathlib import Path
 from dataclasses import asdict
 from copy import deepcopy
+from datetime import datetime
 
 import wandb
 import torch
 import torchinfo
 
 from dendritic_modeling import logger, logger_manager
-from dendritic_modeling.learning_strategies import get_trainer
+from dendritic_modeling.learning_strategies import get_trainer, CustomWeightDecayOptimizer
 from dendritic_modeling.models import (ProbabilisticClassifier, Classifier)
 from dendritic_modeling.networks import (ExcitationInhibitionNetwork, FeedforwardNN)
 from dendritic_modeling.config import load_config
 from dendritic_modeling.visualization_manager import PlotManager
-
-from synthetic_datasets import get_unified_datasets
+from dendritic_modeling.plot_utils import plot_NLL_loss_curves
+from dendritic_modeling.synthetic_datasets import get_unified_datasets
 
 def initialize_model(model_cfg):
     """
@@ -37,6 +39,7 @@ def initialize_model(model_cfg):
     net_type = model_cfg.network.type
     net_params = model_cfg.network.parameters.__dict__
     enable_branch_outputs = net_params.pop('enable_branch_outputs', False)
+    learning_strategy = net_params.pop('learning_strategy', 'mle')
 
     if task == 'classification':
         if net_type == 'feedforward':
@@ -51,7 +54,8 @@ def initialize_model(model_cfg):
             logger.info(f"Running EINet with {'probabilistic' if probabilistic else 'simple'} classifier")
             net = ExcitationInhibitionNetwork(
                 **net_params,
-                enable_branch_outputs=enable_branch_outputs
+                enable_branch_outputs=enable_branch_outputs,
+                learning_strategy=learning_strategy
             )
             output_dim = net_params['excitatory_layer_sizes'][-1]
             if probabilistic:
@@ -70,6 +74,7 @@ def main(config_path: str, output_dir: str, experiment_name: str):
     config = load_config(config_path)
     model_cfg = config.model
     train_cfg = config.train
+    visual_cfg = config.visualization
     wandb_cfg = config.wandb
 
     if getattr(wandb_cfg, "use_wandb", False):
@@ -93,6 +98,8 @@ def main(config_path: str, output_dir: str, experiment_name: str):
 
     logger.info("Loading dataset...")
     train_ds, valid_ds, test_ds = get_unified_datasets(config.task, train_cfg)
+    model_cfg.network.parameters.learning_strategy = getattr(train_cfg, "learning_strategy", "mle")
+
     clf = initialize_model(model_cfg)
     try:
         sample_input, _ = train_ds[0]
@@ -117,15 +124,33 @@ def main(config_path: str, output_dir: str, experiment_name: str):
     learning_strategy = getattr(train_cfg, "learning_strategy", "mle")
     logger.info(f"Using learning strategy: {learning_strategy}")
 
-    optimizer = torch.optim.Adam(clf.parameters(), lr=train_cfg.lr)
+    # Use the custom weight decay optimizer
+    optimizer = CustomWeightDecayOptimizer(
+         model = clf, 
+         optimizer = torch.optim.Adam(clf.parameters(), lr=train_cfg.lr), 
+         weight_decay=train_cfg.weight_decay_rate,
+    )
     trainer = get_trainer(learning_strategy, optimizer, suppress_prints=False, print_every=10)
 
+    # Create a timestamp-based folder for saving visualizations and results.
+    now = datetime.now().strftime('%Y-%m-%d_%H-%M-%S')
+    root = visual_cfg.save_path 
+    run_save_path = os.path.join(root, f"{experiment_name}_{now}")
+    os.makedirs(run_save_path, exist_ok=True)
+    logger.info(f"Saving results and visualizations to: {run_save_path}")
+
     # If visualize_epochs is provided, train continuously and visualize at specified epochs.
-    if hasattr(train_cfg, "visualize_epochs") and train_cfg.visualize_epochs:
+    if hasattr(visual_cfg, "visualize_epochs") and visual_cfg.visualize_epochs:
         total_epochs = train_cfg.epochs
-        visualize_epochs = sorted(train_cfg.visualize_epochs)
+        visualize_epochs = sorted(visual_cfg.visualize_epochs)
         current_epoch = 0
         device = 'cuda' if torch.cuda.is_available() else 'cpu'
+        if config.visualization.enabled:
+            plot_manager = PlotManager(clf, {"train": train_ds, "valid": valid_ds, "test": test_ds}, config, run_save_path, file_name="_init", device=device)
+            for plot_name in config.visualization.plots:
+                plot_manager.run_plot(plot_name)
+        valid_losses= []
+        train_losses= []
         while current_epoch < total_epochs:
             results = trainer.train(
                 model=clf,
@@ -137,15 +162,19 @@ def main(config_path: str, output_dir: str, experiment_name: str):
                 shuffle=True,
                 load_best_state_dict=False,
                 plot_losses=False,
-                save_path=output_dir
+                save_path=run_save_path
             )
+            valid_losses += results["valid losses"]
+            train_losses += results["train losses"]
             current_epoch += 1
             logger.info(f"Completed epoch {current_epoch}/{total_epochs}")
             if current_epoch in visualize_epochs:
-                plot_manager = PlotManager(clf, {"train": train_ds, "valid": valid_ds, "test": test_ds}, config, device=device)
+                plot_manager = PlotManager(clf, {"train": train_ds, "valid": valid_ds, "test": test_ds}, config, run_save_path, file_name=f"epoch{current_epoch}", device=device)
                 for plot_name in config.visualization.plots:
-                    plot_manager.run_plot(plot_name, epoch=current_epoch)
-        # Optionally, load best checkpoint here if desired.
+                    plot_manager.run_plot(plot_name)
+                    
+        plot_NLL_loss_curves(train_losses, valid_losses, current_epoch, run_save_path)
+
     else:
         if learning_strategy == "freeze_layers":
             epochs_per_layer = getattr(train_cfg, "epochs_per_layer", 5)
@@ -158,11 +187,11 @@ def main(config_path: str, output_dir: str, experiment_name: str):
                 shuffle=True,
                 grad_clip_value=train_cfg.grad_clip_value,
                 plot_losses=True,
-                save_path=output_dir
+                save_path=run_save_path
             )
         elif learning_strategy == "two_step":
             pretrain_epochs = getattr(train_cfg, "pretrain_epochs", 5)
-            maintrain_epochs = getattr(train_cfg, "maintrain_epochs", 45)
+            maintrain_epochs = getattr(train_cfg, "epochs", 45)
             trainer.train(
                 model=clf,
                 train_data=train_ds,
@@ -174,7 +203,7 @@ def main(config_path: str, output_dir: str, experiment_name: str):
                 shuffle=True,
                 load_best_state_dict=True,
                 plot_losses=True,
-                save_path=output_dir
+                save_path=run_save_path
             )
         else:
             trainer.train(
@@ -187,7 +216,7 @@ def main(config_path: str, output_dir: str, experiment_name: str):
                 shuffle=True,
                 load_best_state_dict=True,
                 plot_losses=True,
-                save_path=output_dir
+                save_path=run_save_path
             )
 
     logger.info("Evaluating performance...")
@@ -218,7 +247,7 @@ def main(config_path: str, output_dir: str, experiment_name: str):
         wandb.finish()
 
     if config.visualization.enabled:
-        plot_manager = PlotManager(clf, {"train": train_ds, "valid": valid_ds, "test": test_ds}, config, device=device)
+        plot_manager = PlotManager(clf, {"train": train_ds, "valid": valid_ds, "test": test_ds}, config, run_save_path, file_name="final", device=device)
         for plot_name in config.visualization.plots:
             plot_manager.run_plot(plot_name)
     logger.info("All done.")

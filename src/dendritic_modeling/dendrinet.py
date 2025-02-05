@@ -330,18 +330,13 @@ class DendriticBranchLayer(nn.Module):
         input_branch_factor=None, 
         topk_init_method='xavier_normal',
         use_shunting=True,
-        init_gain=1.0,
-        init_inhib_offset=0.0,
         gradient_strategy='none',
-        gradient_scale_factor=1.0,
         layer_idx=0,
     ):
         
         super(DendriticBranchLayer, self).__init__()
         self.layer_idx = layer_idx          
-        self.init_inhib_offset = init_inhib_offset
         self.gradient_strategy = gradient_strategy
-        self.gradient_scale_factor = gradient_scale_factor
         
         self.input_excitatory = excitatory_input_dim is not None
         if self.input_excitatory:
@@ -350,7 +345,6 @@ class DendriticBranchLayer(nn.Module):
                 out_features=output_dim,
                 K=excitatory_synapses_per_branch,
                 init_method=topk_init_method,
-                init_gain=init_gain
             )
             self.excitatory_input_dim = excitatory_input_dim
 
@@ -361,7 +355,6 @@ class DendriticBranchLayer(nn.Module):
                 out_features=output_dim,
                 K=inhibitory_synapses_per_branch,
                 init_method=topk_init_method,
-                init_gain=init_gain
             )
             self.inhibitory_input_dim = inhibitory_input_dim
 
@@ -381,7 +374,6 @@ class DendriticBranchLayer(nn.Module):
             
             if self.input_inhibitory:
                 self.branch_inhibition.initialize()
-                self.branch_inhibition.pre_w.data.add_(self.init_inhib_offset)
 
             if self.input_branches:
                 if self.input_excitatory or self.input_inhibitory:
@@ -479,13 +471,9 @@ class DendriNet(nn.Module):
         use_shunting=True,
         # Activation config:
         reactivation_type='param_tanh',
-        reactivation_initial_m=1.5,
-        reactivation_initial_b=1.0,
-        train_reactivation_b_only=False,
 
         # gradient scaling approach:
         gradient_strategy="none",
-        gradient_scale_factor=1.0,
     ):
         super(DendriNet, self).__init__()
         
@@ -531,9 +519,7 @@ class DendriNet(nn.Module):
                 input_branch_factor=branch_factors[i],
                 topk_init_method=topk_init_method,
                 use_shunting=use_shunting,
-                init_gain=1.0,
                 gradient_strategy=gradient_strategy,
-                gradient_scale_factor=gradient_scale_factor,
                 layer_idx=i
             )
             branch_layers.append(lyr)
@@ -548,9 +534,7 @@ class DendriNet(nn.Module):
                 input_branch_factor=branch_factors[-1],
                 topk_init_method=topk_init_method,
                 use_shunting=use_shunting,
-                init_gain=1.0,
                 gradient_strategy=gradient_strategy,
-                gradient_scale_factor=gradient_scale_factor,
                 layer_idx=self.n_branch_layers
             ))
         else:
@@ -563,9 +547,7 @@ class DendriNet(nn.Module):
                 input_branch_factor=branch_factors[-1],
                 topk_init_method=topk_init_method,
                 use_shunting=use_shunting,
-                init_gain=1.0,
                 gradient_strategy=gradient_strategy,
-                gradient_scale_factor=gradient_scale_factor,
                 layer_idx=self.n_branch_layers
             ))
 
@@ -580,9 +562,8 @@ class DendriNet(nn.Module):
                 act_module = ActivationFactory.create(
                     act_type=reactivation_type,
                     output_dim=size,
-                    init_m=reactivation_initial_m,
-                    init_b=reactivation_initial_b,
-                    train_b_only=train_reactivation_b_only,
+                    init_m=1,
+                    init_b=0.5,
                 )
                 self.activation_layers.append(act_module)
 
