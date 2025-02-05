@@ -124,7 +124,6 @@ def main(config_path: str, output_dir: str, experiment_name: str):
     learning_strategy = getattr(train_cfg, "learning_strategy", "mle")
     logger.info(f"Using learning strategy: {learning_strategy}")
 
-    # Use the custom weight decay optimizer
     optimizer = CustomWeightDecayOptimizer(
          model = clf, 
          optimizer = torch.optim.Adam(clf.parameters(), lr=train_cfg.lr), 
@@ -132,14 +131,12 @@ def main(config_path: str, output_dir: str, experiment_name: str):
     )
     trainer = get_trainer(learning_strategy, optimizer, suppress_prints=False, print_every=10)
 
-    # Create a timestamp-based folder for saving visualizations and results.
     now = datetime.now().strftime('%Y-%m-%d_%H-%M-%S')
     root = visual_cfg.save_path 
     run_save_path = os.path.join(root, f"{experiment_name}_{now}")
     os.makedirs(run_save_path, exist_ok=True)
     logger.info(f"Saving results and visualizations to: {run_save_path}")
 
-    # If visualize_epochs is provided, train continuously and visualize at specified epochs.
     if hasattr(visual_cfg, "visualize_epochs") and visual_cfg.visualize_epochs:
         total_epochs = train_cfg.epochs
         visualize_epochs = sorted(visual_cfg.visualize_epochs)

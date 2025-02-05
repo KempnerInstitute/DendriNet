@@ -3,15 +3,6 @@ activation_functions.py
 =======================
 Provides various activation/ reactivation modules, plus a factory to build
 the desired activation function from config.
-
-Example usage:
-    act_fn = ActivationFactory.create(
-        act_type="param_tanh_only_m",  # or "param_tanh", "relu", "sigmoid", "tanh", "none"
-        output_dim=128,
-        init_m=1.5,
-        init_b=1.0,
-        fixed_b=0.5
-    )
 """
 
 import torch

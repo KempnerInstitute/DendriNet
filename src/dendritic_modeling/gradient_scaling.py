@@ -3,12 +3,6 @@ gradient_scaling.py
 ===================
 Provides a GradientScaler class that registers backward hooks to implement 
 various gradient-scaling strategies for BlockLinear or other modules.
-
-Recognized strategies:
-    - 'none'  : No special scaling
-    - 'distal_upweight_by_idx' : Multiply gradient by (layer_idx+1) * scale_factor
-    - 'block_conductance_dynamic' : Dynamic conduction-based scaling
-      (flatten approach per-parameter)
 """
 
 import torch
@@ -22,13 +16,12 @@ def scale_layer_gradients_elementwise(module, grad_input, grad_output, scale_vec
     if grad_input is None or len(grad_input) < 1 or grad_input[0] is None:
         return grad_input
 
-    g = grad_input[0]  # param gradient
+    g = grad_input[0] 
     shape_g = g.shape
-    gf = g.view(-1)  # shape [N]
+    gf = g.view(-1)  
     if scale_vec.numel() == gf.numel():
         gf_scaled = gf * scale_vec
     else:
-        # fallback: if mismatch, do simple average
         gf_scaled = gf * scale_vec.mean()
 
     new_grad = gf_scaled.view(shape_g)
@@ -78,13 +71,11 @@ class GradientScaler:
 
         def hook_fn(module, grad_input, grad_output):
             if self.strategy == 'block_conductance_dynamic':
-                # compute conduction-based scale as a flattened vector
                 scale_vec = compute_block_linear_grad_scale(
                     block_linear_layer=block_linear_layer,
                     branch_excitation=branch_excitation,
                     branch_inhibition=branch_inhibition
                 )
-                # stash it in module for logging
                 module.last_scale_vec = scale_vec.detach().clone()
 
                 return scale_layer_gradients_elementwise(module, grad_input, grad_output, scale_vec)
@@ -94,7 +85,6 @@ class GradientScaler:
                 return scale_layer_gradients_scalar(module, grad_input, grad_output, scale_val)
 
             else:
-                # 'none' or unrecognized => no special scaling
                 return grad_input
 
         block_linear_layer.register_full_backward_hook(hook_fn)
@@ -113,7 +103,6 @@ def compute_block_linear_grad_scale(block_linear_layer, branch_excitation=None, 
         if branch_inhibition is not None:
             total_conductance += branch_inhibition.pruned_weight().sum(dim=1)
 
-        # block_linear_layer.log_weight is [out_features, block_size]
         block_exp = block_linear_layer.log_weight.exp()
         ratio_2d = total_conductance[:, None] / block_exp  # shape [out_features, block_size]
         ratio_1d = ratio_2d.flatten()                      # shape [out_features * block_size]
