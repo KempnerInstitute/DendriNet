@@ -6,8 +6,7 @@ from copy import deepcopy
 from torch.utils.data import Dataset, random_split, TensorDataset
 from torchvision.datasets import MNIST
 import torchvision.transforms as T
-from dendritic_modeling.utils import load_MNIST
-
+from dendritic_modeling.utils import Data_handler
 ########################################
 # Original tasks: line, center_surround, orientation_bars, multi_xor, plus standard MNIST
 ########################################
@@ -328,13 +327,13 @@ def load_MNIST(train_valid_split = 1, cache_dir=None):
         data_path = os.path.join(cache_dir, 'data', 'mnist')
 
     if os.path.exists(data_path):
-        train_data = Data(
+        train_data = Data_handler(
             torch.load(os.path.join(data_path, 'train_inputs.pt'), 
                        weights_only = True),
             torch.load(os.path.join(data_path, 'train_labels.pt'), 
                        weights_only = True),
         )
-        test_data = Data(
+        test_data = Data_handler(
             torch.load(os.path.join(data_path, 'test_inputs.pt'), 
                        weights_only = True),
             torch.load(os.path.join(data_path, 'test_labels.pt'), 
@@ -375,8 +374,8 @@ def load_MNIST(train_valid_split = 1, cache_dir=None):
         train_mask = torch.zeros((len(train_data),)).bool()
         train_mask[train_ix] = True
 
-        valid_data = Data(*train_data[~train_mask])
-        train_data = Data(*train_data[train_mask])
+        valid_data = Data_handler(*train_data[~train_mask])
+        train_data = Data_handler(*train_data[train_mask])
 
         data['valid'] = valid_data
 
@@ -417,7 +416,7 @@ def load_MNIST_modulo10(shuffle_iterations = 2,
         inputs = torch.cat(inputs, dim = 0)
         labels = torch.cat(labels, dim = 0)
 
-        data[key] = Data(inputs, labels)
+        data[key] = Data_handler(inputs, labels)
 
     return data
 
@@ -444,7 +443,7 @@ def load_MNIST_task_switch(train_valid_split = 1, cache_dir = None):
         inputs = torch.cat([input0, input1], dim = 0)
         labels = torch.cat([label0, label1], dim = 0)
         
-        data[key] = Data(inputs, labels)
+        data[key] = Data_handler(inputs, labels)
     
     return data
 
@@ -476,7 +475,7 @@ def load_MNIST_task_switch0(train_valid_split = 1, cache_dir = None):
         inputs = torch.cat(inputs, dim = 0)
         labels = torch.cat(labels, dim = 0)
 
-        data[key] = Data(inputs, labels)
+        data[key] = Data_handler(inputs, labels)
 
     return data
 

@@ -17,7 +17,7 @@ from torchvision import transforms
 from omegaconf import OmegaConf, DictConfig, ListConfig
 from torch.utils.data import DataLoader
 
-class Data(torch.utils.data.Dataset):
+class Data_handler(torch.utils.data.Dataset):
     """
     A custom PyTorch Dataset for handling input features and labels.
     
