@@ -151,7 +151,8 @@ class ExcitationInhibitionNetwork(nn.Module):
         self.n_layers = len(excitatory_layer_sizes)
         self.gradient_strategy = gradient_strategy
         self.local_loss_weight = local_loss_weight
-        
+        self.learning_strategy = learning_strategy
+
         logger.debug(f'Building ExcitationInhibitionNetwork with {self.n_layers} layer(s).')
 
         excitatory_layer_sizes = deepcopy(excitatory_layer_sizes)
@@ -199,8 +200,7 @@ class ExcitationInhibitionNetwork(nn.Module):
 
         self.feedback_mats = nn.ParameterList()
         for i in range(self.n_layers):
-            if 1==2: #self.local_learning != "none":      ####### TO DO THIS CURRENTLY IS NOT WORKING BECAUSE local_learning is removed as a config parameter
-            #if self.learning_strategy.lower().startswith("local"):
+            if self.learning_strategy == "local_credit_assignment":
                 fb = nn.Parameter(torch.randn(excitatory_layer_sizes[i+1], 10)*0.01, requires_grad=False)
                 self.feedback_mats.append(fb)
             else:
