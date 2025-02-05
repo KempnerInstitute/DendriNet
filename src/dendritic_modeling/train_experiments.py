@@ -39,6 +39,7 @@ def initialize_model(model_cfg):
     net_type = model_cfg.network.type
     net_params = model_cfg.network.parameters.__dict__
     enable_branch_outputs = net_params.pop('enable_branch_outputs', False)
+    learning_strategy = net_params.pop('learning_strategy', 'mle')
 
     if task == 'classification':
         if net_type == 'feedforward':
@@ -53,7 +54,8 @@ def initialize_model(model_cfg):
             logger.info(f"Running EINet with {'probabilistic' if probabilistic else 'simple'} classifier")
             net = ExcitationInhibitionNetwork(
                 **net_params,
-                enable_branch_outputs=enable_branch_outputs
+                enable_branch_outputs=enable_branch_outputs,
+                learning_strategy=learning_strategy
             )
             output_dim = net_params['excitatory_layer_sizes'][-1]
             if probabilistic:
@@ -96,6 +98,8 @@ def main(config_path: str, output_dir: str, experiment_name: str):
 
     logger.info("Loading dataset...")
     train_ds, valid_ds, test_ds = get_unified_datasets(config.task, train_cfg)
+    model_cfg.network.parameters.learning_strategy = getattr(train_cfg, "learning_strategy", "mle")
+
     clf = initialize_model(model_cfg)
     try:
         sample_input, _ = train_ds[0]
