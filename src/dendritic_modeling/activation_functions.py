@@ -9,6 +9,24 @@ import torch
 import torch.nn as nn
 import math
 
+
+########################
+# HELPER FOR GRAD SCALING
+########################
+def scale_activation_grad_hook(module, grad_input, grad_output):
+    """
+    Multiply each grad_input by 'scale_factor'.
+    """
+    if grad_input is None:
+        return None
+    new_grads = []
+    for g in grad_input:
+        if g is not None:
+            new_grads.append(g)
+        else:
+            new_grads.append(None)
+    return tuple(new_grads)
+
 class ParametricTanh(nn.Module):
     """
     A parametric tanh reactivation function with learnable parameters m and b.
@@ -21,6 +39,11 @@ class ParametricTanh(nn.Module):
         with torch.no_grad():
             self.log_m.data.fill_(math.log(init_m))
             self.log_b.data.fill_(math.log(init_b))
+            
+        self.register_full_backward_hook(
+            lambda mod, g_in, g_out: scale_activation_grad_hook(mod, g_in, g_out)
+        )            
+            
     def forward(self, V):
         m = self.log_m.exp()  # slope
         b = self.log_b.exp()  # midpoint
@@ -37,6 +60,11 @@ class ParametricTanhOnlyM(nn.Module):
         self.fixed_b = fixed_b  # fixed midpoint value
         with torch.no_grad():
             self.log_m.data.fill_(math.log(init_m))
+
+        self.register_full_backward_hook(
+            lambda mod, g_in, g_out: scale_activation_grad_hook(mod, g_in, g_out)
+        )
+                    
     def forward(self, V):
         m = self.log_m.exp()  # slope
         b = self.fixed_b       # fixed midpoint
