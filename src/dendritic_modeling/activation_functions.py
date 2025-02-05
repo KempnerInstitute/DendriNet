@@ -8,24 +8,9 @@ the desired activation function from config.
 import torch
 import torch.nn as nn
 import math
+from dendritic_modeling.gradient_scaling import scale_activation_grad_hook
 
 
-########################
-# HELPER FOR GRAD SCALING
-########################
-def scale_activation_grad_hook(module, grad_input, grad_output):
-    """
-    Multiply each grad_input by 'scale_factor'.
-    """
-    if grad_input is None:
-        return None
-    new_grads = []
-    for g in grad_input:
-        if g is not None:
-            new_grads.append(g)
-        else:
-            new_grads.append(None)
-    return tuple(new_grads)
 
 class ParametricTanh(nn.Module):
     """
