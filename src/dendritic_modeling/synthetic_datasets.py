@@ -3,10 +3,8 @@ import os
 import numpy as np
 import torch
 from torch.utils.data import Dataset, random_split, TensorDataset
-
 from torchvision.datasets import MNIST
 import torchvision.transforms as T
-
 from dendritic_modeling.utils import load_MNIST
 
 ########################################
@@ -144,7 +142,7 @@ def load_mnist_as_datasets(train_valid_split=0.8):
     if 'valid' in data:
         valid_ds=TensorDataset(*data['valid'][:])
     else:
-        valid_ds=TensorDataset(*data['test'][:])  # fallback if no separate valid
+        valid_ds=TensorDataset(*data['test'][:])  
     test_ds=TensorDataset(*data['test'][:])
     return train_ds, valid_ds, test_ds
 
