@@ -490,6 +490,56 @@ def split_MNIST_inputs(inputs, labels):
 
 
 
+def load_cifar10_as_datasets(train_valid_split=1.0):
+    """
+    Loads CIFAR-10, converts it to shape [N, 3*32*32], 
+    and optionally splits into train/valid if train_valid_split < 1. 
+    """
+    from torchvision.datasets import CIFAR10
+    transform = T.Compose([
+        T.ToTensor()
+    ])
+    train_set = CIFAR10(root='.', train=True, download=True, transform=transform)
+    test_set = CIFAR10(root='.', train=False, download=True, transform=transform)
+    
+    # Convert each dataset to Tensors: shape [N, 3*32*32]
+    def convert_to_tensor(dataset):
+        X = []
+        Y = []
+        for img, lbl in dataset:
+            # img is shape [3, 32, 32], flatten to 3*32*32
+            X.append(img.view(-1))
+            Y.append(lbl)
+        X = torch.stack(X, dim=0)
+        Y = torch.tensor(Y, dtype=torch.long)
+        return X, Y
+
+    Xtrain, Ytrain = convert_to_tensor(train_set)
+    Xtest, Ytest = convert_to_tensor(test_set)
+
+    data = {}
+    # If we want to do a train/valid split:
+    if train_valid_split < 1.0:
+        n_train = int(len(Ytrain)*train_valid_split)
+        perm = torch.randperm(len(Ytrain))
+        idx_train = perm[:n_train]
+        idx_valid = perm[n_train:]
+        Xtrain_, Ytrain_ = Xtrain[idx_train], Ytrain[idx_train]
+        Xvalid_, Yvalid_ = Xtrain[idx_valid], Ytrain[idx_valid]
+        data['train'] = (Xtrain_, Ytrain_)
+        data['valid'] = (Xvalid_, Yvalid_)
+    else:
+        data['train'] = (Xtrain, Ytrain)
+
+    data['test'] = (Xtest, Ytest)
+
+    train_ds = TensorDataset(*data['train'])
+    if 'valid' in data:
+        valid_ds = TensorDataset(*data['valid'])
+    else:
+        valid_ds = TensorDataset(*data['test'])
+    test_ds = TensorDataset(*data['test'])
+    return train_ds, valid_ds, test_ds
 
 ########################################
 # The single get_unified_datasets(...) function
