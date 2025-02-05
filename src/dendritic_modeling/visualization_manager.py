@@ -2,10 +2,8 @@
 visualization_manager.py
 ========================
 Contains a PlotManager class that holds references to all visualization
-and analysis functions in one place. We expand it to produce actual
-visualizations for "gradients", "branch_info", and "ablation" using
-plot_utils.py functions like plot_einet_gradients, plot_depth_info,
-visualize_dendritic_tree, etc.
+and analysis functions to produce actual visualizations for "gradients", 
+"branch_info", and "ablation" using plot_utils.py functions 
 """
 
 import os
@@ -38,12 +36,7 @@ class PlotManager:
     without needing to manually code each function call in train_experiments.py.
     """
     def __init__(self, model, data, config, save_path, file_name, device='cpu'):
-        """
-        model : the trained classifier (with .net for EINet)
-        data : dict of 'train', 'valid', 'test' datasets
-        config : the loaded config (with .visualization section)
-        device : 'cuda' or 'cpu'
-        """
+
         self.model = model
         self.data = data
         self.config = config
@@ -63,10 +56,7 @@ class PlotManager:
         }
 
     def run_plot(self, plot_name, epoch=None):
-        """
-        Calls the method associated with plot_name if it exists.
-        Logs the current epoch and plot type.
-        """
+
         if epoch is not None:
             logging.info(f"At epoch {epoch}: generating plot '{plot_name}'...")
         else:
