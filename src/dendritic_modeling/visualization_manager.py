@@ -37,7 +37,7 @@ class PlotManager:
     The main experiment code can call PlotManager.run_plot(plot_name),
     without needing to manually code each function call in train_experiments.py.
     """
-    def __init__(self, model, data, config, device='cpu'):
+    def __init__(self, model, data, config, save_path, file_name, device='cpu'):
         """
         model : the trained classifier (with .net for EINet)
         data : dict of 'train', 'valid', 'test' datasets
@@ -50,7 +50,8 @@ class PlotManager:
         self.device = device
 
         vis_cfg = self.config.visualization
-        self.save_path = vis_cfg.save_path
+        self.save_path = save_path
+        self.file_name = file_name
         os.makedirs(self.save_path, exist_ok=True)
 
         self.plot_methods = {
@@ -90,6 +91,8 @@ class PlotManager:
                 save_root=save_dir,
                 reshape_fn=shaper.reshape,
                 reshape_exc_syn=True,
+                save_in_dir=True,
+                filename=self.file_name
             )
         else:
             logging.info("No 'net' attribute found on model. Skipping _plot_weights.")
@@ -103,7 +106,9 @@ class PlotManager:
             plot_einet_activations(
                 einet=self.model.net,
                 input_list=input_list,
-                save_root=save_dir
+                save_root=save_dir,
+                save_in_dir=True,
+                filename=self.file_name                
             )
         else:
             logging.info("No 'net' attribute on model. Skipping _plot_activations.")
@@ -121,7 +126,7 @@ class PlotManager:
                 reshape_fn=None,
                 reshape_exc_syn=True,
                 save_in_dir=True,
-                filename="gradients"
+                filename=self.file_name
             )
             logging.info(f"Saved gradient visualizations in {save_dir}")
         else:
