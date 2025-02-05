@@ -143,7 +143,8 @@ class ExcitationInhibitionNetwork(nn.Module):
         local_loss_weight=0.0,
         enable_branch_outputs=False, 
         output_layer=False,
-        output_dim=10
+        output_dim=10,
+        learning_strategy="mle",
     ):
         super(ExcitationInhibitionNetwork, self).__init__()
         self.weight_decay_rate = weight_decay_rate
