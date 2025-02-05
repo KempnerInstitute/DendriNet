@@ -629,3 +629,26 @@ def get_unified_datasets(task_cfg, train_cfg):
         return load_cifar10_as_datasets(train_valid_split=train_valid_split)
     else:
         raise ValueError(f"Unknown dataset name: {dataset_name}")
+    
+    
+    
+    
+    
+    # 1.	Synthetic
+	# •	"line"
+	# •	"center_surround"
+	# •	"orientation_bars"
+	# •	"multi_xor"
+	# •	"info_shunting"
+	# •	"noise_resilience"
+	# •	"learning_dynamics"
+	# 2.	MNIST-based
+	# •	"mnist"
+	# •	"mnist_modulo10"
+	# •	"mnist_switch"
+	# •	"mnist_split"
+	# •	"feature_selectivity"
+	# •	"context_gating"
+	# •	"hierarchical_processing"
+	# 3.	CIFAR-based
+	# •	"cifar10"
