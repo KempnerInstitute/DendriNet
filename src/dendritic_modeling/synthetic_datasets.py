@@ -1,12 +1,13 @@
 # synthetic_datasets.py
 import os
+import shutil
 import numpy as np
 import torch
 from copy import deepcopy
 from torch.utils.data import Dataset, random_split, TensorDataset
+
 from torchvision.datasets import MNIST
 import torchvision.transforms as T
-from dendritic_modeling.utils import Data_handler
 ########################################
 # Original tasks: line, center_surround, orientation_bars, multi_xor, plus standard MNIST
 ########################################
@@ -138,12 +139,12 @@ class MultiXORDataset(Dataset):
 
 def load_mnist_as_datasets(train_valid_split=0.8):
     data = load_MNIST(train_valid_split=train_valid_split)
-    train_ds=TensorDataset(*data['train'][:])
+    train_ds = data['train']
     if 'valid' in data:
-        valid_ds=TensorDataset(*data['valid'][:])
+        valid_ds = data['valid']
     else:
-        valid_ds=TensorDataset(*data['test'][:])  
-    test_ds=TensorDataset(*data['test'][:])
+        valid_ds = data['test']  
+    test_ds = data['test']
     return train_ds, valid_ds, test_ds
 
 
@@ -327,13 +328,13 @@ def load_MNIST(train_valid_split = 1, cache_dir=None):
         data_path = os.path.join(cache_dir, 'data', 'mnist')
 
     if os.path.exists(data_path):
-        train_data = Data_handler(
+        train_data = TensorDataset(
             torch.load(os.path.join(data_path, 'train_inputs.pt'), 
                        weights_only = True),
             torch.load(os.path.join(data_path, 'train_labels.pt'), 
                        weights_only = True),
         )
-        test_data = Data_handler(
+        test_data = TensorDataset(
             torch.load(os.path.join(data_path, 'test_inputs.pt'), 
                        weights_only = True),
             torch.load(os.path.join(data_path, 'test_labels.pt'), 
@@ -342,12 +343,12 @@ def load_MNIST(train_valid_split = 1, cache_dir=None):
     else:
         os.makedirs(data_path, exist_ok = True)
 
-        transform = transforms.ToTensor()
+        transform = T.ToTensor()
 
         def loader_saver(train = True):
-            dataset = torchvision.datasets.MNIST(root = data_path, 
-                                                 train = train, 
-                                                 download = True)
+            dataset = MNIST(root = data_path, 
+                            train = train, 
+                            download = True)
             imgs, labels = zip(*(dataset[i] for i in range(len(dataset))))
             
             imgs = torch.stack([transform(img).flatten() for img in imgs], 
@@ -358,7 +359,7 @@ def load_MNIST(train_valid_split = 1, cache_dir=None):
             torch.save(imgs, os.path.join(data_path, f'{name}_inputs.pt'))
             torch.save(labels, os.path.join(data_path, f'{name}_labels.pt'))
             
-            return Data(imgs, labels)
+            return TensorDataset(imgs, labels)
 
         train_data = loader_saver(train = True)
         test_data = loader_saver(train = False)
@@ -374,8 +375,8 @@ def load_MNIST(train_valid_split = 1, cache_dir=None):
         train_mask = torch.zeros((len(train_data),)).bool()
         train_mask[train_ix] = True
 
-        valid_data = Data_handler(*train_data[~train_mask])
-        train_data = Data_handler(*train_data[train_mask])
+        valid_data = TensorDataset(*train_data[~train_mask])
+        train_data = TensorDataset(*train_data[train_mask])
 
         data['valid'] = valid_data
 
@@ -416,7 +417,7 @@ def load_MNIST_modulo10(shuffle_iterations = 2,
         inputs = torch.cat(inputs, dim = 0)
         labels = torch.cat(labels, dim = 0)
 
-        data[key] = Data_handler(inputs, labels)
+        data[key] = TensorDataset(inputs, labels)
 
     return data
 
@@ -443,7 +444,7 @@ def load_MNIST_task_switch(train_valid_split = 1, cache_dir = None):
         inputs = torch.cat([input0, input1], dim = 0)
         labels = torch.cat([label0, label1], dim = 0)
         
-        data[key] = Data_handler(inputs, labels)
+        data[key] = TensorDataset(inputs, labels)
     
     return data
 
@@ -475,7 +476,7 @@ def load_MNIST_task_switch0(train_valid_split = 1, cache_dir = None):
         inputs = torch.cat(inputs, dim = 0)
         labels = torch.cat(labels, dim = 0)
 
-        data[key] = Data_handler(inputs, labels)
+        data[key] = TensorDataset(inputs, labels)
 
     return data
 
@@ -577,30 +578,30 @@ def get_unified_datasets(task_cfg, train_cfg):
         return train_ds, valid_ds, test_ds
     elif dataset_name == "mnist_modulo10":
         data = load_MNIST_modulo10(train_valid_split=train_valid_split)
-        train_ds = TensorDataset(*data['train'][:])
+        train_ds = data['train']
         if 'valid' in data:
-            valid_ds = TensorDataset(*data['valid'][:])
+            valid_ds = data['valid']
         else:
-            valid_ds = TensorDataset(*data['test'][:])
-        test_ds = TensorDataset(*data['test'][:])
+            valid_ds = data['test']
+        test_ds = data['test']
         return train_ds, valid_ds, test_ds
     elif dataset_name == "mnist_switch":
         data = load_MNIST_task_switch(train_valid_split=train_valid_split)
-        train_ds = TensorDataset(*data['train'][:])
+        train_ds = data['train']
         if 'valid' in data:
-            valid_ds = TensorDataset(*data['valid'][:])
+            valid_ds = data['valid']
         else:
-            valid_ds = TensorDataset(*data['test'][:])
-        test_ds = TensorDataset(*data['test'][:])
+            valid_ds = data['test']
+        test_ds = data['test']
         return train_ds, valid_ds, test_ds
     elif dataset_name == "mnist_split":
         data = load_MNIST_task_switch0(train_valid_split=train_valid_split)
-        train_ds = TensorDataset(*data['train'][:])
+        train_ds = data['train']
         if 'valid' in data:
-            valid_ds = TensorDataset(*data['valid'][:])
+            valid_ds = data['valid']
         else:
-            valid_ds = TensorDataset(*data['test'][:])
-        test_ds = TensorDataset(*data['test'][:])
+            valid_ds = data['test']
+        test_ds = data['test']
         return train_ds, valid_ds, test_ds
     elif dataset_name == "info_shunting":
         full_ds = InfoShuntingDataset(n_samples=total, input_dim=10)
