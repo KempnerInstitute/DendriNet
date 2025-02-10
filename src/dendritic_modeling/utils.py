@@ -17,26 +17,6 @@ from torchvision import transforms
 from omegaconf import OmegaConf, DictConfig, ListConfig
 from torch.utils.data import DataLoader
 
-class Data_handler(torch.utils.data.Dataset):
-    """
-    A custom PyTorch Dataset for handling input features and labels.
-    
-    Parameters
-    ----------
-    x : Tensor or array-like 
-        Input features.
-    y : Tensor or array-like 
-        Corresponding labels.
-    """
-    def __init__(self, x, y):
-        self.x = x
-        self.y = y
-
-    def __getitem__(self, i):
-        return self.x[i], self.y[i]
-    
-    def __len__(self):
-        return self.y.shape[0]
 
 class Shaper(object):
     """
@@ -194,8 +174,6 @@ def measure_performance(model, dataset, batch_size=64, device='cpu'):
     Evaluate model's classification accuracy (or NLL) on the dataset.
     Modify as needed for your model's output.
     """
-    from torch.utils.data import DataLoader
-
     model.eval().to(device)
     loader = DataLoader(dataset, batch_size=batch_size, shuffle=False)
     total_correct = 0
