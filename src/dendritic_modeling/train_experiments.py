@@ -8,12 +8,9 @@ a unified data-loading function from synthetic_datasets.py.
 # python src/dendritic_modeling/train_experiments.py configs/config_exp.yaml
 
 import os
-import json
-import time
 import argparse
 from pathlib import Path
 from dataclasses import asdict
-from copy import deepcopy
 from datetime import datetime
 
 import wandb
@@ -28,6 +25,19 @@ from dendritic_modeling.config import load_config
 from dendritic_modeling.visualization_manager import PlotManager
 from dendritic_modeling.plot_utils import plot_NLL_loss_curves
 from dendritic_modeling.synthetic_datasets import get_unified_datasets
+from dendritic_modeling.dendrinet import DendriticBranchLayer
+from dendritic_modeling.gradient_scaling import GradientScaler
+
+def add_gradient_scaling(model: torch.nn.Module, gradient_strategy: str):
+    gradient_scaler = GradientScaler(strategy = gradient_strategy)
+    
+    for module in model.modules():
+        if isinstance(module, DendriticBranchLayer):
+            if module.input_branches:
+                block_linear = module.branches_to_output
+                branch_excitation = module.branch_excitation if module.input_excitatory else None
+                branch_inhibition = module.branch_inhibition if module.input_inhibitory else None
+                gradient_scaler.register_block_linear_dynamic(block_linear, branch_excitation, branch_inhibition)
 
 def initialize_model(model_cfg):
     """
@@ -57,6 +67,11 @@ def initialize_model(model_cfg):
                 enable_branch_outputs=enable_branch_outputs,
                 learning_strategy=learning_strategy
             )
+
+            gradient_strategy = model_cfg.network.parameters.gradient_strategy
+            if gradient_strategy != 'none':
+                add_gradient_scaling(net, gradient_strategy)
+
             output_dim = net_params['excitatory_layer_sizes'][-1]
             if probabilistic:
                 return ProbabilisticClassifier(net, output_dim)
