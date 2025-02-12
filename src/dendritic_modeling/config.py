@@ -30,7 +30,8 @@ class EINetParameters(BaseConfig):
     topk_init_method: str = "xavier_normal"
     use_shunting: bool = True
     reactivation_type: str = "param_tanh"
-    gradient_strategy: str = "block_conductance_dynamic"
+    reactivation_strategy: str = "inverse"
+    blocklinear_strategy: str = "block_conductance_dynamic"
     enable_branch_outputs: bool = True
     output_layer: bool = False
     output_dim: int = 10
@@ -97,11 +98,10 @@ class Config:
     task: TaskConfig = field(default_factory=TaskConfig)
 
 def load_config(path: str):
-    from omegaconf import OmegaConf
     base = Config()
     if not path:
         return base
-    loaded = OmegaConf.load(path)
+    loaded = om.load(path)
     if "model" in loaded:
         if "task" in loaded["model"]:
             base.model.task = loaded["model"]["task"]
