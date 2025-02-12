@@ -585,7 +585,7 @@ def get_unified_datasets(task_cfg, train_cfg):
             valid_ds = data['test']
         test_ds = data['test']
         return train_ds, valid_ds, test_ds
-    elif dataset_name == "mnist_switch":
+    elif dataset_name == "mnist_switch2":
         data = load_MNIST_task_switch(train_valid_split=train_valid_split)
         train_ds = data['train']
         if 'valid' in data:
@@ -594,7 +594,7 @@ def get_unified_datasets(task_cfg, train_cfg):
             valid_ds = data['test']
         test_ds = data['test']
         return train_ds, valid_ds, test_ds
-    elif dataset_name == "mnist_split":
+    elif dataset_name == "mnist_switch10":
         data = load_MNIST_task_switch0(train_valid_split=train_valid_split)
         train_ds = data['train']
         if 'valid' in data:
