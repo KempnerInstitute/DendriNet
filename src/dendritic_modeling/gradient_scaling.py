@@ -35,7 +35,7 @@ class GradientScaler:
     user-selected gradient scaling strategies.
     """
 
-    def __init__(self, strategy="none", scale_factor=1.0, layer_idx=0):
+    def __init__(self,reactivation_strategy="none", blocklinear_strategy="none", scale_factor=1.0, layer_idx=0):
         """
         Parameters
         ----------
@@ -46,9 +46,18 @@ class GradientScaler:
         layer_idx : int
             For 'distal_upweight_by_idx' if needed.
         """
-        self.strategy = strategy
+        self.reactivation_strategy = reactivation_strategy
+        self.blocklinear_strategy = blocklinear_strategy
         self.scale_factor = scale_factor
         self.layer_idx = layer_idx
+    
+    def register_reactivation_inverse(self, reactivation_layer):
+        """
+        Register a backward hook to invert the reactivation function gradient.
+        """
+        if self.reactivation_strategy != 'none':
+            reactivation_layer.register_full_backward_hook(scale_activation_grad_hook)
+
 
     def register_block_linear_dynamic(self, block_linear_layer, branch_excitation=None, branch_inhibition=None):
         """
@@ -60,24 +69,23 @@ class GradientScaler:
         """
 
         def hook_fn(module, grad_input, grad_output):
-            if self.strategy == 'block_conductance_dynamic':
+            if self.blocklinear_strategy == 'block_conductance_dynamic':
                 scale_vec = compute_block_linear_grad_scale(
                     block_linear_layer=block_linear_layer,
                     branch_excitation=branch_excitation,
                     branch_inhibition=branch_inhibition
                 )
-                module.last_scale_vec = scale_vec.detach().clone()
-
                 return scale_layer_gradients_elementwise(module, grad_input, grad_output, scale_vec)
 
-            elif self.strategy == 'distal_upweight_by_idx':
+            elif self.blocklinear_strategy == 'distal_upweight_by_idx':
                 scale_val = (self.layer_idx + 1) * self.scale_factor
                 return scale_layer_gradients_scalar(module, grad_input, grad_output, scale_val)
 
             else:
                 return grad_input
 
-        block_linear_layer.register_full_backward_hook(hook_fn)
+        if self.blocklinear_strategy != 'none':
+            block_linear_layer.register_full_backward_hook(hook_fn)
 
 
 def compute_block_linear_grad_scale(block_linear_layer, branch_excitation=None, branch_inhibition=None):
