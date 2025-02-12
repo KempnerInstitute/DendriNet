@@ -51,6 +51,7 @@ class PlotManager:
             "weights": self._plot_weights,
             "activations": self._plot_activations,
             "gradients": self._plot_gradients,
+            "profiles": self._plot_profiles,
             "branch_info": self._branch_info,
             "ablation": self._ablation,
         }
@@ -81,6 +82,7 @@ class PlotManager:
                 save_root=save_dir,
                 reshape_fn=shaper.reshape,
                 reshape_exc_syn=True,
+                logspace=True,
                 save_in_dir=True,
                 filename=self.file_name
             )
@@ -121,6 +123,26 @@ class PlotManager:
             logging.info(f"Saved gradient visualizations in {save_dir}")
         else:
             logging.info("No 'net' attribute found. Skipping gradient plotting.")
+    
+    def _plot_profiles(self):
+        if hasattr(self.model, 'net'):
+            save_dir = os.path.join(self.save_path, "profiles")
+            os.makedirs(save_dir, exist_ok=True)
+            shaper = Shaper(shape=(28, 28))
+            plot_einet_profiles(
+                model=self.model,
+                train_data=self.data['train'],
+                valid_data=self.data['valid'],
+                n_tasks=1,
+                logspace=True,
+                reshape_fn=shaper.reshape,
+                save_root=save_dir,
+                save_in_dir=True,
+                filename=self.file_name,
+            )
+            logging.info(f"Saved profile visualizations in {save_dir}")
+        else:
+            logging.info("No 'net' attribute found. Skipping profile plotting.")
 
     def _branch_info(self):
         if not hasattr(self.model, 'net'):
