@@ -6,7 +6,7 @@ the desired activation function from config.
 """
 
 import torch
-import torch.nn as nn
+from torch import nn
 import math
 from dendritic_modeling.gradient_scaling import scale_activation_grad_hook
 
@@ -21,14 +21,10 @@ class ParametricTanh(nn.Module):
         super(ParametricTanh, self).__init__()
         self.log_m = nn.Parameter(torch.empty((output_dim,)), requires_grad=True)
         self.log_b = nn.Parameter(torch.empty((output_dim,)), requires_grad=True)
-        with torch.no_grad():
-            self.log_m.data.fill_(math.log(init_m))
-            self.log_b.data.fill_(math.log(init_b))
-            
-        self.register_full_backward_hook(
-            lambda mod, g_in, g_out: scale_activation_grad_hook(mod, g_in, g_out)
-        )            
-            
+
+        nn.init.constant_(self.log_m, math.log(init_m))
+        nn.init.constant_(self.log_b, math.log(init_b))
+        
     def forward(self, V):
         m = self.log_m.exp()  # slope
         b = self.log_b.exp()  # midpoint

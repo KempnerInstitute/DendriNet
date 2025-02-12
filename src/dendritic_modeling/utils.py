@@ -7,36 +7,11 @@ and model evaluation.
 
 import os
 import json
-import shutil
-from copy import deepcopy
-
-import numpy as np
+from typing import Optional
 import torch
-import torchvision
-from torchvision import transforms
-from omegaconf import OmegaConf, DictConfig, ListConfig
+from omegaconf import DictConfig, ListConfig
 from torch.utils.data import DataLoader
 
-class Data_handler(torch.utils.data.Dataset):
-    """
-    A custom PyTorch Dataset for handling input features and labels.
-    
-    Parameters
-    ----------
-    x : Tensor or array-like 
-        Input features.
-    y : Tensor or array-like 
-        Corresponding labels.
-    """
-    def __init__(self, x, y):
-        self.x = x
-        self.y = y
-
-    def __getitem__(self, i):
-        return self.x[i], self.y[i]
-    
-    def __len__(self):
-        return self.y.shape[0]
 
 class Shaper(object):
     """
@@ -63,7 +38,7 @@ def convert_to_serializable(obj):
     else:
         return obj
 
-def save_dict(dict_obj, save_path, fname):
+def save_dict(dict_obj: dict, save_path: str, fname: str):
     dict_obj = convert_to_serializable(dict_obj)
     full_path = os.path.join(save_path, fname)
     if not os.path.exists(save_path):
@@ -72,17 +47,40 @@ def save_dict(dict_obj, save_path, fname):
         json.dump(dict_obj, f, indent=4)
 
 
-def accuracy_score(classifier, inputs, labels):
+def accuracy_score(classifier: torch.nn.Module, inputs: torch.Tensor, labels: torch.Tensor):
     device = 'cuda' if torch.cuda.is_available() else 'cpu'
     classifier = classifier.to(device)
     inputs = inputs.to(device)
     labels = labels.to(device)
     yhat = classifier.predict(inputs)
-    accuracy = (yhat == labels).float().mean(dim = -1)
+    accuracy = torch.mean((yhat == labels).float()).item()
     return accuracy
 
 
+def evaluate_accuracy(
+    classifier: torch.nn.Module, 
+    train_ds: Optional[torch.utils.data.Dataset] = None, 
+    valid_ds: Optional[torch.utils.data.Dataset] = None, 
+    test_ds: Optional[torch.utils.data.Dataset] = None,
+    save_path: Optional[str] = None,
+    filename: Optional[str] = 'accuracy',
+):
+    train_acc = accuracy_score(classifier, *train_ds[:]) if train_ds else None
+    valid_acc = accuracy_score(classifier, *valid_ds[:]) if valid_ds else None
+    test_acc  = accuracy_score(classifier, *test_ds[:]) if test_ds else None
 
+    if save_path is not None:
+        save_dict(
+            {
+                'train accuracy': train_acc,
+                'valid accuracy': valid_acc,
+                'test accuracy': test_acc
+            },
+            save_path,
+            filename
+        )
+        
+    return train_acc, valid_acc, test_acc
 
 
 ################################################################################
@@ -194,8 +192,6 @@ def measure_performance(model, dataset, batch_size=64, device='cpu'):
     Evaluate model's classification accuracy (or NLL) on the dataset.
     Modify as needed for your model's output.
     """
-    from torch.utils.data import DataLoader
-
     model.eval().to(device)
     loader = DataLoader(dataset, batch_size=batch_size, shuffle=False)
     total_correct = 0
