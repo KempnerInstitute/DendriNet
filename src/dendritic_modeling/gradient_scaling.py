@@ -9,36 +9,13 @@ import torch
 
 
 def scale_activation_grad_hook(module, grad_input, grad_output):
-    if grad_input is None:
-        return None
-    new_grads = []
-    for g in grad_input:
-        if g is not None:
-            new_grads.append(g)
-        else:
-            new_grads.append(None)
-    return tuple(new_grads)
+    return grad_output
 
 
 def scale_layer_gradients_elementwise(module, grad_input, grad_output, scale_vec):
-    """
-    Multiply 'grad_input[0]' (the parameter gradient) by 'scale_vec' elementwise.
-    We assume grad_input is (grad_w, ...), with grad_w shape [N]. 
-    We'll do a flatten-based approach for safety.
-    """
-    if grad_input is None or len(grad_input) < 1 or grad_input[0] is None:
-        return grad_input
-
-    g = grad_input[0] 
-    shape_g = g.shape
-    gf = g.view(-1)  
-    if scale_vec.numel() == gf.numel():
-        gf_scaled = gf * scale_vec
-    else:
-        gf_scaled = gf * scale_vec.mean()
-
-    new_grad = gf_scaled.view(shape_g)
-    return (new_grad,) + grad_input[1:]
+    return tuple(
+        grad * scale_vec if grad is not None else None for grad in grad_input
+    )
 
 
 def scale_layer_gradients_scalar(module, grad_input, grad_output, scale_factor):
@@ -58,7 +35,7 @@ class GradientScaler:
     user-selected gradient scaling strategies.
     """
 
-    def __init__(self, strategy="none", scale_factor=1.0, layer_idx=0):
+    def __init__(self,reactivation_strategy="none", blocklinear_strategy="none", scale_factor=1.0, layer_idx=0):
         """
         Parameters
         ----------
@@ -69,9 +46,18 @@ class GradientScaler:
         layer_idx : int
             For 'distal_upweight_by_idx' if needed.
         """
-        self.strategy = strategy
+        self.reactivation_strategy = reactivation_strategy
+        self.blocklinear_strategy = blocklinear_strategy
         self.scale_factor = scale_factor
         self.layer_idx = layer_idx
+    
+    def register_reactivation_inverse(self, reactivation_layer):
+        """
+        Register a backward hook to invert the reactivation function gradient.
+        """
+        if self.reactivation_strategy != 'none':
+            reactivation_layer.register_full_backward_hook(scale_activation_grad_hook)
+
 
     def register_block_linear_dynamic(self, block_linear_layer, branch_excitation=None, branch_inhibition=None):
         """
@@ -83,24 +69,23 @@ class GradientScaler:
         """
 
         def hook_fn(module, grad_input, grad_output):
-            if self.strategy == 'block_conductance_dynamic':
+            if self.blocklinear_strategy == 'block_conductance_dynamic':
                 scale_vec = compute_block_linear_grad_scale(
                     block_linear_layer=block_linear_layer,
                     branch_excitation=branch_excitation,
                     branch_inhibition=branch_inhibition
                 )
-                module.last_scale_vec = scale_vec.detach().clone()
-
                 return scale_layer_gradients_elementwise(module, grad_input, grad_output, scale_vec)
 
-            elif self.strategy == 'distal_upweight_by_idx':
+            elif self.blocklinear_strategy == 'distal_upweight_by_idx':
                 scale_val = (self.layer_idx + 1) * self.scale_factor
                 return scale_layer_gradients_scalar(module, grad_input, grad_output, scale_val)
 
             else:
                 return grad_input
 
-        block_linear_layer.register_full_backward_hook(hook_fn)
+        if self.blocklinear_strategy != 'none':
+            block_linear_layer.register_full_backward_hook(hook_fn)
 
 
 def compute_block_linear_grad_scale(block_linear_layer, branch_excitation=None, branch_inhibition=None):
@@ -119,5 +104,4 @@ def compute_block_linear_grad_scale(block_linear_layer, branch_excitation=None, 
         block_exp = block_linear_layer.log_weight.exp()
         ratio_2d = total_conductance[:, None] / block_exp  # shape [out_features, block_size]
         ratio_1d = ratio_2d.flatten()                      # shape [out_features * block_size]
-
     return ratio_1d
