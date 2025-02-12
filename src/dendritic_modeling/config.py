@@ -87,6 +87,7 @@ class WandbConfig(BaseConfig):
 @dataclass
 class TaskConfig(BaseConfig):
     dataset: str = "mnist"
+    data_path: str = ""
     parameters: Dict = field(default_factory=dict)
 
 @dataclass
