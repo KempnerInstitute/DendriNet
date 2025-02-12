@@ -174,10 +174,10 @@ def main(config_path: str, output_dir: str, experiment_name: str):
                     save_path = os.path.join(run_save_path, 'performance'), 
                     filename = f"epoch{current_epoch}",
                 )
-
-                plot_manager = PlotManager(clf, {"train": train_ds, "valid": valid_ds, "test": test_ds}, config, run_save_path, file_name=f"epoch{current_epoch}", device=device)
-                for plot_name in config.visualization.plots:
-                    plot_manager.run_plot(plot_name)
+                if visual_cfg.enabled and visual_cfg.plots :
+                    plot_manager = PlotManager(clf, {"train": train_ds, "valid": valid_ds, "test": test_ds}, config, run_save_path, file_name=f"epoch{current_epoch}", device=device)
+                    for plot_name in config.visualization.plots:
+                        plot_manager.run_plot(plot_name)
                     
         plot_NLL_loss_curves(train_losses, valid_losses, current_epoch, run_save_path)
 
@@ -239,11 +239,14 @@ def main(config_path: str, output_dir: str, experiment_name: str):
     if wandb.run is not None:
         wandb.log({"train_acc": train_acc, "valid_acc": valid_acc, "test_acc": test_acc})
         wandb.finish()
-
-    if config.visualization.enabled:
-        plot_manager = PlotManager(clf, {"train": train_ds, "valid": valid_ds, "test": test_ds}, config, run_save_path, file_name="final", device=device)
+    
+    if getattr(config.visualization, "enabled", True) and config.visualization.plots is not None:
+        plot_manager = PlotManager(clf, {"train": train_ds, "valid": valid_ds, "test": test_ds},
+                                   config, run_save_path, file_name="final", device=device)
         for plot_name in config.visualization.plots:
             plot_manager.run_plot(plot_name)
+    else:
+        logger.info("Visualization disabled; final plotting skipped.")
     logger.info("All done.")
 
 if __name__ == '__main__':
