@@ -25,19 +25,8 @@ from dendritic_modeling.config import load_config
 from dendritic_modeling.visualization_manager import PlotManager
 from dendritic_modeling.plot_utils import plot_NLL_loss_curves
 from dendritic_modeling.synthetic_datasets import get_unified_datasets
-from dendritic_modeling.dendrinet import DendriticBranchLayer
-from dendritic_modeling.gradient_scaling import GradientScaler
+from dendritic_modeling.utils import evaluate_accuracy
 
-def add_gradient_scaling(model: torch.nn.Module, gradient_strategy: str):
-    gradient_scaler = GradientScaler(strategy = gradient_strategy)
-    
-    for module in model.modules():
-        if isinstance(module, DendriticBranchLayer):
-            if module.input_branches:
-                block_linear = module.branches_to_output
-                branch_excitation = module.branch_excitation if module.input_excitatory else None
-                branch_inhibition = module.branch_inhibition if module.input_inhibitory else None
-                gradient_scaler.register_block_linear_dynamic(block_linear, branch_excitation, branch_inhibition)
 
 def initialize_model(model_cfg):
     """
@@ -67,10 +56,6 @@ def initialize_model(model_cfg):
                 enable_branch_outputs=enable_branch_outputs,
                 learning_strategy=learning_strategy
             )
-
-            gradient_strategy = model_cfg.network.parameters.gradient_strategy
-            if gradient_strategy != 'none':
-                add_gradient_scaling(net, gradient_strategy)
 
             output_dim = net_params['excitatory_layer_sizes'][-1]
             if probabilistic:
@@ -113,6 +98,9 @@ def main(config_path: str, output_dir: str, experiment_name: str):
 
     logger.info("Loading dataset...")
     train_ds, valid_ds, test_ds = get_unified_datasets(config.task, train_cfg)
+    
+    model_cfg.network.parameters.input_dim = train_ds[0][0].shape[-1]
+    model_cfg.network.parameters.output_dim = torch.unique(train_ds[:][1]).shape[-1]
     model_cfg.network.parameters.learning_strategy = getattr(train_cfg, "learning_strategy", "mle")
 
     clf = initialize_model(model_cfg)
@@ -181,6 +169,12 @@ def main(config_path: str, output_dir: str, experiment_name: str):
             current_epoch += 1
             logger.info(f"Completed epoch {current_epoch}/{total_epochs}")
             if current_epoch in visualize_epochs:
+                evaluate_accuracy(
+                    clf, train_ds, valid_ds, test_ds, 
+                    save_path = os.path.join(run_save_path, 'performance'), 
+                    filename = f"epoch{current_epoch}",
+                )
+
                 plot_manager = PlotManager(clf, {"train": train_ds, "valid": valid_ds, "test": test_ds}, config, run_save_path, file_name=f"epoch{current_epoch}", device=device)
                 for plot_name in config.visualization.plots:
                     plot_manager.run_plot(plot_name)
@@ -235,23 +229,11 @@ def main(config_path: str, output_dir: str, experiment_name: str):
     device = 'cuda' if torch.cuda.is_available() else 'cpu'
     clf = clf.to(device)
 
-    def evaluate_accuracy(model, dataset):
-        from torch.utils.data import DataLoader
-        loader = DataLoader(dataset, batch_size=train_cfg.batch_size, shuffle=False)
-        all_preds = []
-        all_labels = []
-        with torch.no_grad():
-            for xb, yb in loader:
-                preds = model.predict(xb.to(device))
-                all_preds.append(preds.cpu())
-                all_labels.append(yb)
-        all_preds = torch.cat(all_preds, dim=0)
-        all_labels = torch.cat(all_labels, dim=0)
-        return (all_preds == all_labels).float().mean().item()
-
-    train_acc = evaluate_accuracy(clf, train_ds)
-    valid_acc = evaluate_accuracy(clf, valid_ds) if valid_ds else None
-    test_acc  = evaluate_accuracy(clf, test_ds)
+    train_acc, valid_acc, test_acc = evaluate_accuracy(
+        clf, train_ds, valid_ds, test_ds, 
+        save_path = os.path.join(run_save_path, 'performance'), 
+        filename = "final",
+    )
     logger.info(f"train acc={train_acc:.3f}, valid acc={valid_acc:.3f}, test acc={test_acc:.3f}")
 
     if wandb.run is not None:
