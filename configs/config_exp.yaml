@@ -38,6 +38,7 @@ train:
 
 task:
   dataset: mnist 
+  data_path: 
   parameters: {}
   # dataset: "line", "center_surround", "orientation_bars", "multi_xor", "mnist", "mnist_modulo10", "mnist_switch2",
             #"mnist_switch10", "info_shunting", "noise_resilience", "feature_selectivity", "context_gating",
