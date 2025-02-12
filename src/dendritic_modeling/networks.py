@@ -34,7 +34,8 @@ class ExcitationInhibitionLayer(nn.Module):
         somatic_synapses = True,
         topk_init_method = "xavier_normal",
         use_shunting = True,
-        gradient_strategy="none",
+        reactivation_strategy="none",
+        blocklinear_strategy="none",
         reactivation_type='param_tanh',
         enable_branch_outputs=False 
     ):
@@ -53,6 +54,8 @@ class ExcitationInhibitionLayer(nn.Module):
                 topk_init_method = topk_init_method,
                 use_shunting=use_shunting,
                 reactivation_type=reactivation_type,
+                reactivation_strategy=reactivation_strategy,
+                blocklinear_strategy=blocklinear_strategy,
             )
             self.excitatory_cells = DendriNetWithOutputs(
                 n_soma = n_excitatory_cells, 
@@ -66,6 +69,8 @@ class ExcitationInhibitionLayer(nn.Module):
                 topk_init_method = topk_init_method,
                 use_shunting=use_shunting,
                 reactivation_type=reactivation_type,
+                reactivation_strategy=reactivation_strategy,
+                blocklinear_strategy=blocklinear_strategy,
             )
         else:
             self.inhibitory_cells = DendriNet(
@@ -80,6 +85,8 @@ class ExcitationInhibitionLayer(nn.Module):
                 topk_init_method = topk_init_method,
                 use_shunting=use_shunting,
                 reactivation_type=reactivation_type,
+                reactivation_strategy=reactivation_strategy,
+                blocklinear_strategy=blocklinear_strategy,
             )
             self.excitatory_cells = DendriNet(
                 n_soma = n_excitatory_cells, 
@@ -93,6 +100,8 @@ class ExcitationInhibitionLayer(nn.Module):
                 topk_init_method = topk_init_method,
                 use_shunting=use_shunting,
                 reactivation_type=reactivation_type,
+                reactivation_strategy=reactivation_strategy,
+                blocklinear_strategy=blocklinear_strategy,
             )
     
     def decay_weights(self, weight_decay):
@@ -131,7 +140,8 @@ class ExcitationInhibitionNetwork(nn.Module):
         somatic_synapses = True,
         topk_init_method = "xavier_normal",
         use_shunting=True,
-        gradient_strategy="none",
+        reactivation_strategy="none",
+        blocklinear_strategy="none",
         weight_decay_rate=0.1,
         reactivation_type='param_tanh',
         local_loss_weight=0.0,
@@ -143,7 +153,8 @@ class ExcitationInhibitionNetwork(nn.Module):
         super(ExcitationInhibitionNetwork, self).__init__()
         self.weight_decay_rate = weight_decay_rate
         self.n_layers = len(excitatory_layer_sizes)
-        self.gradient_strategy = gradient_strategy
+        self.reactivation_strategy = reactivation_strategy
+        self.blocklinear_strategy = blocklinear_strategy
         self.local_loss_weight = local_loss_weight
         self.learning_strategy = learning_strategy
 
@@ -185,7 +196,8 @@ class ExcitationInhibitionNetwork(nn.Module):
                 somatic_synapses = somatic_synapses,
                 topk_init_method = topk_init_method,
                 use_shunting=use_shunting,
-                gradient_strategy = self.gradient_strategy,
+                reactivation_strategy = self.reactivation_strategy,
+                blocklinear_strategy = self.blocklinear_strategy,
                 reactivation_type = reactivation_type,
                 enable_branch_outputs = enable_branch_outputs
             ))
