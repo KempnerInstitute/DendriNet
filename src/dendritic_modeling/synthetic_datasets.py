@@ -490,7 +490,7 @@ def split_MNIST_inputs(inputs, labels):
 
 
 
-def load_cifar10_as_datasets(train_valid_split=1.0):
+def load_cifar10_as_datasets(train_valid_split=1.0, data_path=None):
     """
     Loads CIFAR-10, converts it to shape [N, 3*32*32], 
     and optionally splits into train/valid if train_valid_split < 1. 
@@ -499,8 +499,14 @@ def load_cifar10_as_datasets(train_valid_split=1.0):
     transform = T.Compose([
         T.ToTensor()
     ])
-    train_set = CIFAR10(root='.', train=True, download=True, transform=transform)
-    test_set = CIFAR10(root='.', train=False, download=True, transform=transform)
+    
+    if data_path is None:
+        root_dir = "."
+    else:
+        root_dir = os.path.join(data_path, "cifar")
+        
+    train_set = CIFAR10(root=root_dir, train=True, download=True, transform=transform)
+    test_set = CIFAR10(root=root_dir, train=False, download=True, transform=transform)
     
     # Convert each dataset to Tensors: shape [N, 3*32*32]
     def convert_to_tensor(dataset):
@@ -547,9 +553,11 @@ def load_cifar10_as_datasets(train_valid_split=1.0):
 def get_unified_datasets(task_cfg, train_cfg):
     try:
         dataset_name = task_cfg['dataset']
+        data_path   = task_cfg.get("data_path", None)
         p = task_cfg.get('parameters', {})
     except TypeError:
         dataset_name = task_cfg.dataset
+        data_path    = getattr(task_cfg, "data_path", None)
         p = task_cfg.parameters
 
     train_valid_split = getattr(train_cfg, "train_valid_split", 1.0)
@@ -625,9 +633,7 @@ def get_unified_datasets(task_cfg, train_cfg):
         full_ds = CompositionalMNIST(base_mnist, n_samples=total)
         return random_split(full_ds, [train_size, valid_size, test_size])
     elif dataset_name == "cifar10":
-        # Load CIFAR-10 data as a new task
-        # Returns a tuple of (train_ds, valid_ds, test_ds) 
-        return load_cifar10_as_datasets(train_valid_split=train_valid_split)
+        return load_cifar10_as_datasets(train_valid_split=train_valid_split,data_path=data_path)
     else:
         raise ValueError(f"Unknown dataset name: {dataset_name}")
     
