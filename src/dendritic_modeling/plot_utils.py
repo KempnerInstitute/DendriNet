@@ -308,7 +308,6 @@ def plot_dendrinet_params(
     n_soma = dendrinet.n_soma
     input_inh = dendrinet.input_inhibitory
     somatic_synapses = dendrinet.somatic_synapses
-    reactivate = dendrinet.reactivate
 
     linspace = torch.linspace(0,1,50)
 
@@ -320,6 +319,7 @@ def plot_dendrinet_params(
                  else f'branch layer {dendrinet.n_branch_layers - i}')
 
         layer = dendrinet.branch_layers[i]
+        reactivate = layer.reactivate
         branches_per_soma = int(layer_sizes[i] / n_soma)
 
         if layer.input_branches:
@@ -373,8 +373,8 @@ def plot_dendrinet_params(
         excitatory_synapse_pruned = excitatory_synapse_pruned.chunk(n_soma, dim = 0)
 
         if reactivate:
-            activation_layer = dendrinet.activation_layers[i]
-            reactivation_curve = activation_layer(
+            reactivation = layer.reactivation
+            reactivation_curve = reactivation(
                 linspace.expand(layer_sizes[i], -1).t()
             ).t()
             reactivation_curve = reactivation_curve.chunk(n_soma, dim = 0)
@@ -729,7 +729,6 @@ def plot_dendrinet_gradients(
 ):
     layer_sizes = dendrinet.layer_sizes
     n_soma = dendrinet.n_soma
-    reactivate = dendrinet.reactivate
 
     n_layers = dendrinet.n_branch_layers + 1
 
@@ -739,6 +738,7 @@ def plot_dendrinet_gradients(
                  else f'branch layer {dendrinet.n_branch_layers - i}')
 
         layer = dendrinet.branch_layers[i]
+        reactivate = layer.reactivate
         branches_per_soma = int(layer_sizes[i] / n_soma)
 
         if layer.input_branches:
@@ -752,8 +752,8 @@ def plot_dendrinet_gradients(
         inh_grad = layer.input_inhibitory
 
         if reactivate:
-            activation_layer = dendrinet.activation_layers[i]
-            if hasattr(activation_layer, 'log_m') and activation_layer.log_m.requires_grad:
+            reactivation = layer.reactivation
+            if hasattr(reactivation, 'log_m') and reactivation.log_m.requires_grad:
                 reactivate_grad = True
             else:
                 reactivate_grad = False
@@ -780,8 +780,8 @@ def plot_dendrinet_gradients(
         excitatory_synapse_mask = excitatory_synapse_mask.chunk(n_soma, dim = 0)
 
         if reactivate_grad:
-            log_m_grad = dendrinet.activation_layers[i].log_m.grad.chunk(n_soma, dim = 0)
-            log_b_grad = dendrinet.activation_layers[i].log_b.grad.chunk(n_soma, dim = 0)
+            log_m_grad = reactivation.log_m.grad.chunk(n_soma, dim = 0)
+            log_b_grad = reactivation.log_b.grad.chunk(n_soma, dim = 0)
         else:
             log_m_grad = None
             log_b_grad = None
