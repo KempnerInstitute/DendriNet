@@ -73,8 +73,7 @@ class TrainConfig(BaseConfig):
     
 @dataclass
 class VisualizationConfig(BaseConfig):
-    enabled: bool = True
-    save_path: str = ""
+    enabled: bool = False
     visualize_epochs: List[int] = field(default_factory=lambda: [])
     plots: List[str] = field(default_factory=lambda: ["branch_info", "ablation"])
 
