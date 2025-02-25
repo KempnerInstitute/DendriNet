@@ -59,7 +59,6 @@ wandb:
 
 visualization:
   enabled: true
-  save_path:   # specified by user
   visualize_epochs: [10, 30]  # list of epochs at which to produce intermediate visualizations
   plots:
     - weights      # Plot dendritic or EI-net weights
@@ -68,3 +67,6 @@ visualization:
     #- profiles     # Plot dendritic compartment profiles
     #- branch_info  # mutual information
     #- ablation     # ablation
+
+outputs:
+  dir: "outputs"
