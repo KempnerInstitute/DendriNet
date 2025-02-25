@@ -6,7 +6,7 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>dendritic_modeling.models &mdash; dendritic_modeling 0.1.0 documentation</title>
-      <link rel="stylesheet" type="text/css" href="../../_static/pygments.css?v=80d5e7a1" />
+      <link rel="stylesheet" type="text/css" href="../../_static/pygments.css?v=b86133f3" />
       <link rel="stylesheet" type="text/css" href="../../_static/css/theme.css?v=e59714d7" />
       <link rel="stylesheet" type="text/css" href="../../_static/copybutton.css?v=76b2166b" />
 
@@ -104,355 +104,141 @@
 <span class="sd">This module contains the neural network models for the dendritic_modeling.</span>
 <span class="sd">&quot;&quot;&quot;</span>
 
-<span class="kn">import</span> <span class="nn">torch</span>
-<span class="kn">import</span> <span class="nn">torch.nn</span> <span class="k">as</span> <span class="nn">nn</span>
-<span class="kn">from</span> <span class="nn">torch.distributions</span> <span class="kn">import</span> <span class="n">Categorical</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">torch</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">torch.nn</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">nn</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">torch.distributions</span><span class="w"> </span><span class="kn">import</span> <span class="n">Categorical</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">dendritic_modeling.networks</span><span class="w"> </span><span class="kn">import</span> <span class="n">ExcitationInhibitionNetwork</span>
 
-<span class="kn">from</span> <span class="nn">dendritic_modeling.excitation_inhibition</span> <span class="kn">import</span> <span class="n">ExcitationInhibitionNetwork</span>
+<div class="viewcode-block" id="BaseModel">
+<a class="viewcode-back" href="../../source/dendritic_modeling.html#dendritic_modeling.models.BaseModel">[docs]</a>
+<span class="k">class</span><span class="w"> </span><span class="nc">BaseModel</span><span class="p">(</span><span class="n">nn</span><span class="o">.</span><span class="n">Module</span><span class="p">):</span>
+    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">net</span><span class="p">):</span>
+        <span class="nb">super</span><span class="p">(</span><span class="n">BaseModel</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="fm">__init__</span><span class="p">()</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">net</span> <span class="o">=</span> <span class="n">net</span>
 
-<div class="viewcode-block" id="ProbabilisticModel">
-<a class="viewcode-back" href="../../source/dendritic_modeling.html#dendritic_modeling.models.ProbabilisticModel">[docs]</a>
-<span class="k">class</span> <span class="nc">ProbabilisticModel</span><span class="p">(</span><span class="n">nn</span><span class="o">.</span><span class="n">Module</span><span class="p">):</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
-<span class="sd">    This class is designed to represent models that return a conditional </span>
-<span class="sd">    probability distribution of observing labels given their corresponding </span>
-<span class="sd">    inputs.</span>
-<span class="sd">    </span>
-<span class="sd">    Methods</span>
-<span class="sd">    -------</span>
-<span class="sd">    log_prob(x, y)</span>
-<span class="sd">        Computes the log-probability of the data `y` given input `x` by </span>
-<span class="sd">        applying the model&#39;s forward method to `x` to obtain a probability</span>
-<span class="sd">        distribution and then evaluating the log probability of `y`.</span>
-<span class="sd">    &quot;&quot;&quot;</span>
-
-    <span class="k">pass</span>
-
-<div class="viewcode-block" id="ProbabilisticModel.log_prob">
-<a class="viewcode-back" href="../../source/dendritic_modeling.html#dendritic_modeling.models.ProbabilisticModel.log_prob">[docs]</a>
-    <span class="k">def</span> <span class="nf">log_prob</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">x</span><span class="p">,</span> <span class="n">y</span><span class="p">):</span>
-<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
-<span class="sd">        Computes the log-probability of `y` given `x`.</span>
-<span class="sd">        </span>
-<span class="sd">        Parameters</span>
-<span class="sd">        ----------</span>
-<span class="sd">        x : torch.Tensor</span>
-<span class="sd">            The input data which will be passed through the model&#39;s forward </span>
-<span class="sd">            method to generate a probability distribution.</span>
-<span class="sd">        y : torch.Tensor</span>
-<span class="sd">            The observed data for which we want to compute the log-probability.</span>
-<span class="sd">        </span>
-<span class="sd">        Returns</span>
-<span class="sd">        -------</span>
-<span class="sd">        torch.Tensor</span>
-<span class="sd">            The log-probability of `y` given `x` according to the distribution </span>
-<span class="sd">            output by the model&#39;s forward pass.</span>
-<span class="sd">        &quot;&quot;&quot;</span>
-        <span class="n">distribution</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">forward</span><span class="p">(</span><span class="n">x</span><span class="p">)</span>
-        <span class="k">return</span> <span class="n">distribution</span><span class="o">.</span><span class="n">log_prob</span><span class="p">(</span><span class="n">y</span><span class="p">)</span></div>
-</div>
+    <span class="k">def</span><span class="w"> </span><span class="nf">forward</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">x</span><span class="p">):</span>
+        <span class="k">raise</span> <span class="ne">NotImplementedError</span><span class="p">(</span><span class="s2">&quot;Forward method must be implemented in subclass.&quot;</span><span class="p">)</span>
+    
+    <span class="k">def</span><span class="w"> </span><span class="nf">predict</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">x</span><span class="p">):</span>
+        <span class="k">raise</span> <span class="ne">NotImplementedError</span><span class="p">(</span><span class="s2">&quot;Predict method must be implemented in subclass.&quot;</span><span class="p">)</span></div>
 
 
 
 <div class="viewcode-block" id="ProbabilisticClassifier">
 <a class="viewcode-back" href="../../source/dendritic_modeling.html#dendritic_modeling.models.ProbabilisticClassifier">[docs]</a>
-<span class="k">class</span> <span class="nc">ProbabilisticClassifier</span><span class="p">(</span><span class="n">ProbabilisticModel</span><span class="p">):</span>
+<span class="k">class</span><span class="w"> </span><span class="nc">ProbabilisticClassifier</span><span class="p">(</span><span class="n">BaseModel</span><span class="p">):</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
-<span class="sd">    A base class for probabilistic classifiers.</span>
-
-<span class="sd">    This class extends `ProbabilisticModel` and provides a common interface for </span>
-<span class="sd">    classifiers that output probability distributions over classes. It includes </span>
-<span class="sd">    a method for making predictions either deterministically or stochastically </span>
-<span class="sd">    based on the output distribution.</span>
-
-<span class="sd">    Methods</span>
-<span class="sd">    -------</span>
-<span class="sd">    predict(x, stochastic=False)</span>
-<span class="sd">        Predicts class labels for the given input data.</span>
-
-<span class="sd">    See Also</span>
-<span class="sd">    --------</span>
-<span class="sd">    ProbabilisticModel : Base class for probabilistic models.</span>
-
+<span class="sd">    A probabilistic classifier that outputs a categorical distribution</span>
+<span class="sd">    via LogSoftmax. </span>
 <span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">net</span><span class="p">,</span> <span class="n">output_dim</span><span class="o">=</span><span class="mi">10</span><span class="p">,</span> <span class="n">use_output_layer</span><span class="o">=</span><span class="kc">False</span><span class="p">):</span>
+        <span class="nb">super</span><span class="p">(</span><span class="n">ProbabilisticClassifier</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span><span class="n">net</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">output_dim</span> <span class="o">=</span> <span class="n">output_dim</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">use_output_layer</span> <span class="o">=</span> <span class="n">use_output_layer</span>
 
-<div class="viewcode-block" id="ProbabilisticClassifier.predict">
-<a class="viewcode-back" href="../../source/dendritic_modeling.html#dendritic_modeling.models.ProbabilisticClassifier.predict">[docs]</a>
-    <span class="k">def</span> <span class="nf">predict</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">x</span><span class="p">,</span> <span class="n">stochastic</span> <span class="o">=</span> <span class="kc">False</span><span class="p">):</span>
-        <span class="n">distribution</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">forward</span><span class="p">(</span><span class="n">x</span><span class="p">)</span>
+        <span class="c1"># if we want a final FC, create it here</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">use_output_layer</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">final_fc</span> <span class="o">=</span> <span class="n">nn</span><span class="o">.</span><span class="n">Linear</span><span class="p">(</span><span class="n">net</span><span class="o">.</span><span class="n">forward</span><span class="p">(</span><span class="n">torch</span><span class="o">.</span><span class="n">zeros</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="n">net</span><span class="o">.</span><span class="n">n_branch_layers</span><span class="p">))</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">1</span><span class="p">],</span> <span class="bp">self</span><span class="o">.</span><span class="n">output_dim</span><span class="p">)</span>
 
-        <span class="k">if</span> <span class="n">stochastic</span><span class="p">:</span>
-            <span class="k">return</span> <span class="n">distribution</span><span class="o">.</span><span class="n">sample</span><span class="p">()</span>
-        <span class="k">else</span><span class="p">:</span>
-            <span class="k">return</span> <span class="n">distribution</span><span class="o">.</span><span class="n">logits</span><span class="o">.</span><span class="n">argmax</span><span class="p">(</span><span class="n">dim</span> <span class="o">=</span> <span class="o">-</span><span class="mi">1</span><span class="p">)</span></div>
-</div>
-
-
-
-<div class="viewcode-block" id="ProbabilisticRegressor">
-<a class="viewcode-back" href="../../source/dendritic_modeling.html#dendritic_modeling.models.ProbabilisticRegressor">[docs]</a>
-<span class="k">class</span> <span class="nc">ProbabilisticRegressor</span><span class="p">(</span><span class="n">ProbabilisticModel</span><span class="p">):</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
-<span class="sd">    A base class for probabilistic regressors.</span>
-
-<span class="sd">    This class extends `ProbabilisticModel` and provides a common interface for </span>
-<span class="sd">    regressors that output probability distributions over continuous targets. </span>
-<span class="sd">    It includes a method for making predictions either stochastically (by </span>
-<span class="sd">    sampling from the distribution) or deterministically (using the mean of </span>
-<span class="sd">    the distribution).</span>
-
-<span class="sd">    Methods</span>
-<span class="sd">    -------</span>
-<span class="sd">    predict(x, stochastic=True)</span>
-<span class="sd">        Predicts continuous target values for the given input data.</span>
-
-<span class="sd">    See Also</span>
-<span class="sd">    --------</span>
-<span class="sd">    ProbabilisticModel : Base class for probabilistic models.</span>
-<span class="sd">    &quot;&quot;&quot;</span>
-
-<div class="viewcode-block" id="ProbabilisticRegressor.predict">
-<a class="viewcode-back" href="../../source/dendritic_modeling.html#dendritic_modeling.models.ProbabilisticRegressor.predict">[docs]</a>
-    <span class="k">def</span> <span class="nf">predict</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">x</span><span class="p">,</span> <span class="n">stochastic</span> <span class="o">=</span> <span class="kc">True</span><span class="p">):</span>
-        <span class="n">distribution</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">forward</span><span class="p">(</span><span class="n">x</span><span class="p">)</span>
-
-        <span class="k">if</span> <span class="n">stochastic</span><span class="p">:</span>
-            <span class="k">return</span> <span class="n">distribution</span><span class="o">.</span><span class="n">sample</span><span class="p">()</span>
-        <span class="k">else</span><span class="p">:</span>
-            <span class="k">return</span> <span class="n">distribution</span><span class="o">.</span><span class="n">mean</span></div>
-</div>
-
-
-
-<div class="viewcode-block" id="EINetClassifier">
-<a class="viewcode-back" href="../../source/dendritic_modeling.html#dendritic_modeling.models.EINetClassifier">[docs]</a>
-<span class="k">class</span> <span class="nc">EINetClassifier</span><span class="p">(</span><span class="n">ProbabilisticClassifier</span><span class="p">):</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
-<span class="sd">    A probabilistic classifier based on an Excitation-Inhibition Network (EINet) </span>
-<span class="sd">    architecture.</span>
-
-<span class="sd">    This classifier utilizes an underlying `ExcitationInhibitionNetwork` to </span>
-<span class="sd">    model complex interactions between excitatory and inhibitory neurons for </span>
-<span class="sd">    classification tasks.</span>
-
-<span class="sd">    Parameters</span>
-<span class="sd">    ----------</span>
-<span class="sd">    input_dim : int</span>
-<span class="sd">        The dimensionality of the input features.</span>
-
-<span class="sd">    excitatory_layer_sizes : list of int</span>
-<span class="sd">        A list specifying the number of excitatory neurons in each layer.</span>
-
-<span class="sd">    inhibitory_layer_sizes : list of int</span>
-<span class="sd">       A list specifying the number of inhibitory neurons in each layer.</span>
-
-<span class="sd">    excitatory_branch_factors : list of int</span>
-<span class="sd">        Branching factors for excitatory neurons at each layer, determining </span>
-<span class="sd">        how they branch out to the next layer.</span>
-
-<span class="sd">    inhibitory_branch_factors : list of int</span>
-<span class="sd">        Branching factors for inhibitory neurons at each layer, determining</span>
-<span class="sd">        how they branch out to the next layer.</span>
-
-<span class="sd">    ee_synapses_per_branch_per_layer : list of int</span>
-<span class="sd">        Number of excitatory-to-excitatory synapses per branch at each layer.</span>
-
-<span class="sd">    ei_synapses_per_branch_per_layer : list of int</span>
-<span class="sd">        Number of excitatory-to-inhibitory synapses per branch at each layer.</span>
-
-<span class="sd">    ie_synapses_per_branch_per_layer : list of int</span>
-<span class="sd">        Number of inhibitory-to-excitatory synapses per branch at each layer.</span>
-
-<span class="sd">    ii_synapses_per_branch_per_layer : list of int, optional</span>
-<span class="sd">        Number of inhibitory-to-inhibitory synapses per branch at each layer. </span>
-<span class="sd">        Defaults to an empty list `[]`.</span>
-
-<span class="sd">    reactivate : bool, optional</span>
-<span class="sd">        If True, applies a reactivation function simulating dendritic/somatic </span>
-<span class="sd">        spiking behavior. Defaults to `False`.</span>
-
-<span class="sd">    somatic_synapses : bool, optional</span>
-<span class="sd">        If `True`, includes direct synaptic inputs to the soma layer. Defaults </span>
-<span class="sd">        to `True`.</span>
-
-<span class="sd">    Methods</span>
-<span class="sd">    -------</span>
-<span class="sd">    forward(x)</span>
-<span class="sd">        Performs a forward pass through the network and returns a categorical </span>
-<span class="sd">        distribution over the classes.</span>
-
-<span class="sd">    Examples</span>
-<span class="sd">    --------</span>
-<span class="sd">    </span>
-<span class="sd">    &gt;&gt;&gt; import torch</span>
-<span class="sd">    &gt;&gt;&gt; classifier = EINetClassifier(</span>
-<span class="sd">    ...     input_dim=784,</span>
-<span class="sd">    ...     excitatory_layer_sizes=[10,],</span>
-<span class="sd">    ...     inhibitory_layer_sizes=[20,],</span>
-<span class="sd">    ...     excitatory_branch_factors=[24,],</span>
-<span class="sd">    ...     inhibitory_branch_factors=[],</span>
-<span class="sd">    ...     ee_synapses_per_branch_per_layer=[24,],</span>
-<span class="sd">    ...     ei_synapses_per_branch_per_layer=[100,],</span>
-<span class="sd">    ...     ie_synapses_per_branch_per_layer=[1,],</span>
-<span class="sd">    ...     ii_synapses_per_branch_per_layer=[],</span>
-<span class="sd">    ...     reactivate=True,</span>
-<span class="sd">    ...     somatic_synapses=True,</span>
-<span class="sd">    ... )</span>
-<span class="sd">    &gt;&gt;&gt; x = torch.randn(10, 784)  # Batch of 10 samples with 784 features</span>
-<span class="sd">    &gt;&gt;&gt; output = classifier.forward(x)</span>
-<span class="sd">    &gt;&gt;&gt; predicted_classes = output.sample()</span>
-<span class="sd">    &gt;&gt;&gt; print(predicted_classes.shape)</span>
-<span class="sd">    torch.Size([10])</span>
-<span class="sd">    &quot;&quot;&quot;</span>
-
-    <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span>
-        <span class="bp">self</span><span class="p">,</span> 
-        <span class="n">input_dim</span><span class="p">,</span>
-        <span class="n">excitatory_layer_sizes</span><span class="p">,</span>
-        <span class="n">inhibitory_layer_sizes</span><span class="p">,</span>
-        <span class="n">excitatory_branch_factors</span><span class="p">,</span>
-        <span class="n">inhibitory_branch_factors</span><span class="p">,</span> 
-        <span class="n">ee_synapses_per_branch_per_layer</span><span class="p">,</span> 
-        <span class="n">ei_synapses_per_branch_per_layer</span><span class="p">,</span> 
-        <span class="n">ie_synapses_per_branch_per_layer</span><span class="p">,</span>
-        <span class="n">ii_synapses_per_branch_per_layer</span> <span class="o">=</span> <span class="p">[],</span> 
-        <span class="n">reactivate</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span> 
-        <span class="n">somatic_synapses</span> <span class="o">=</span> <span class="kc">True</span><span class="p">,</span>
-        <span class="n">topk_init_method</span> <span class="o">=</span> <span class="s2">&quot;xavier_normal&quot;</span><span class="p">,</span>
-    <span class="p">):</span>
-        <span class="nb">super</span><span class="p">(</span><span class="n">EINetClassifier</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="fm">__init__</span><span class="p">()</span>
-
-        <span class="bp">self</span><span class="o">.</span><span class="n">net</span> <span class="o">=</span> <span class="n">ExcitationInhibitionNetwork</span><span class="p">(</span>
-            <span class="n">input_dim</span> <span class="o">=</span> <span class="n">input_dim</span><span class="p">,</span> 
-            <span class="n">excitatory_layer_sizes</span> <span class="o">=</span> <span class="n">excitatory_layer_sizes</span><span class="p">,</span> 
-            <span class="n">inhibitory_layer_sizes</span> <span class="o">=</span> <span class="n">inhibitory_layer_sizes</span><span class="p">,</span>
-            <span class="n">excitatory_branch_factors</span> <span class="o">=</span> <span class="n">excitatory_branch_factors</span><span class="p">,</span> 
-            <span class="n">inhibitory_branch_factors</span> <span class="o">=</span> <span class="n">inhibitory_branch_factors</span><span class="p">,</span>
-            <span class="n">ee_synapses_per_branch_per_layer</span> <span class="o">=</span> <span class="n">ee_synapses_per_branch_per_layer</span><span class="p">,</span> 
-            <span class="n">ei_synapses_per_branch_per_layer</span> <span class="o">=</span> <span class="n">ei_synapses_per_branch_per_layer</span><span class="p">,</span>
-            <span class="n">ie_synapses_per_branch_per_layer</span> <span class="o">=</span> <span class="n">ie_synapses_per_branch_per_layer</span><span class="p">,</span> 
-            <span class="n">ii_synapses_per_branch_per_layer</span> <span class="o">=</span> <span class="n">ii_synapses_per_branch_per_layer</span><span class="p">,</span>
-            <span class="n">reactivate</span> <span class="o">=</span> <span class="n">reactivate</span><span class="p">,</span> <span class="n">somatic_synapses</span> <span class="o">=</span> <span class="n">somatic_synapses</span><span class="p">,</span>
-            <span class="n">topk_init_method</span> <span class="o">=</span> <span class="n">topk_init_method</span><span class="p">,</span>
-        <span class="p">)</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">log_output_scale</span> <span class="o">=</span> <span class="n">nn</span><span class="o">.</span><span class="n">Parameter</span><span class="p">(</span>
-            <span class="n">torch</span><span class="o">.</span><span class="n">zeros</span><span class="p">((</span><span class="n">excitatory_layer_sizes</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">],)),</span> <span class="n">requires_grad</span> <span class="o">=</span> <span class="kc">True</span><span class="p">)</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">final</span> <span class="o">=</span> <span class="n">nn</span><span class="o">.</span><span class="n">LogSoftmax</span><span class="p">(</span><span class="n">dim</span> <span class="o">=</span> <span class="o">-</span><span class="mi">1</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">log_output_scale</span> <span class="o">=</span> <span class="n">nn</span><span class="o">.</span><span class="n">Parameter</span><span class="p">(</span><span class="n">torch</span><span class="o">.</span><span class="n">zeros</span><span class="p">((</span><span class="bp">self</span><span class="o">.</span><span class="n">output_dim</span><span class="p">,)),</span> 
+                                             <span class="n">requires_grad</span> <span class="o">=</span> <span class="kc">True</span><span class="p">)</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">log_prob</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">x</span><span class="p">,</span> <span class="n">y</span><span class="p">):</span>
+        <span class="n">dist</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">forward</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="n">sampler</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">dist</span><span class="o">.</span><span class="n">log_prob</span><span class="p">(</span><span class="n">y</span><span class="p">)</span>
     
-<div class="viewcode-block" id="EINetClassifier.forward">
-<a class="viewcode-back" href="../../source/dendritic_modeling.html#dendritic_modeling.models.EINetClassifier.forward">[docs]</a>
-    <span class="k">def</span> <span class="nf">forward</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">x</span><span class="p">):</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">forward</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">x</span><span class="p">,</span> <span class="n">y</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">sampler</span><span class="o">=</span><span class="kc">False</span><span class="p">):</span>
+        <span class="c1"># net_output is shape [batch_size, last_excit_size]</span>
         <span class="n">net_output</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">net</span><span class="p">(</span><span class="n">x</span><span class="p">)</span>
+        <span class="k">if</span> <span class="nb">hasattr</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="s1">&#39;final_fc&#39;</span><span class="p">):</span>
+            <span class="n">net_output</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">final_fc</span><span class="p">(</span><span class="n">net_output</span><span class="p">)</span>  <span class="c1"># optional</span>
+
         <span class="n">final_logits</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">final</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">log_output_scale</span><span class="o">.</span><span class="n">exp</span><span class="p">()</span> <span class="o">*</span> <span class="n">net_output</span><span class="p">)</span>
-        <span class="k">return</span> <span class="n">Categorical</span><span class="p">(</span><span class="n">logits</span> <span class="o">=</span><span class="n">final_logits</span><span class="p">)</span></div>
-</div>
-
-    
-
-<div class="viewcode-block" id="EINetClassifierNLL">
-<a class="viewcode-back" href="../../source/dendritic_modeling.html#dendritic_modeling.models.EINetClassifierNLL">[docs]</a>
-<span class="k">class</span> <span class="nc">EINetClassifierNLL</span><span class="p">(</span><span class="n">EINetClassifier</span><span class="p">):</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
-<span class="sd">    A probabilistic classifier based on an Excitation-Inhibition Network (EINet)</span>
-<span class="sd">    architecture that uses the negative log-likelihood loss for training.</span>
-
-<span class="sd">    This classifier extends the `EINetClassifier` class and includes a method</span>
-<span class="sd">    for computing the negative log-likelihood loss for training the model.</span>
-
-<span class="sd">    Parameters</span>
-<span class="sd">    ----------</span>
-<span class="sd">    See `EINetClassifier` for parameter descriptions.</span>
-
-<span class="sd">    Methods</span>
-<span class="sd">    -------</span>
-<span class="sd">    forward(x, y=None)</span>
-<span class="sd">        Computes the negative log-likelihood loss for the given input-output </span>
-<span class="sd">        pair.</span>
-
-<span class="sd">    Notes</span>
-<span class="sd">    -----</span>
-<span class="sd">    `y=None` is provided to allow for the model to be used in `torchinfo.summary`.  </span>
-<span class="sd">    &quot;&quot;&quot;</span>
-      
-<div class="viewcode-block" id="EINetClassifierNLL.forward">
-<a class="viewcode-back" href="../../source/dendritic_modeling.html#dendritic_modeling.models.EINetClassifierNLL.forward">[docs]</a>
-    <span class="k">def</span> <span class="nf">forward</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">x</span><span class="p">,</span> <span class="n">y</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span> <span class="n">sampler</span> <span class="o">=</span> <span class="kc">False</span><span class="p">):</span>
-<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
-<span class="sd">        Forward pass for the classifier. Returns either logits, a categorical</span>
-<span class="sd">        distribution, or the negative log-likelihood loss depending on the</span>
-<span class="sd">        input arguments.</span>
-
-<span class="sd">        Parameters</span>
-<span class="sd">        ----------</span>
-<span class="sd">        x : torch.Tensor</span>
-<span class="sd">            The input data for which to compute the output.</span>
-
-<span class="sd">        y : torch.Tensor, optional</span>
-<span class="sd">            The observed labels for the input data. If provided, the negative</span>
-<span class="sd">            log-likelihood loss is computed. Defaults to `None`.</span>
-
-<span class="sd">        distribution : bool, optional</span>
-<span class="sd">            If `True` and `y=None`, returns the categorical distribution;</span>
-<span class="sd">            otherwise, returns logits. Defaults to `False`.</span>
-
-<span class="sd">        Returns</span>
-<span class="sd">        -------</span>
-<span class="sd">        torch.Tensor or torch.distributions.Categorical</span>
-<span class="sd">            The logits, categorical distribution, or negative log-likelihood </span>
-<span class="sd">            loss depending on the input arguments.</span>
-
-<span class="sd">        Raises</span>
-<span class="sd">        ------</span>
-<span class="sd">        ValueError</span>
-<span class="sd">            If the input-output pair is invalid for the forward method.    </span>
-
-<span class="sd">        &quot;&quot;&quot;</span>
-        <span class="n">net_output</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">net</span><span class="p">(</span><span class="n">x</span><span class="p">)</span>
-        <span class="n">final_logits</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">final</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">log_output_scale</span><span class="o">.</span><span class="n">exp</span><span class="p">()</span> <span class="o">*</span> <span class="n">net_output</span><span class="p">)</span>
-        <span class="n">categorical_dist</span> <span class="o">=</span> <span class="n">Categorical</span><span class="p">(</span><span class="n">logits</span> <span class="o">=</span> <span class="n">final_logits</span><span class="p">)</span>
-
+        <span class="n">categorical_dist</span> <span class="o">=</span> <span class="n">Categorical</span><span class="p">(</span><span class="n">logits</span><span class="o">=</span><span class="n">final_logits</span><span class="p">)</span>
         <span class="k">if</span> <span class="n">y</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
             <span class="k">return</span> <span class="n">categorical_dist</span> <span class="k">if</span> <span class="n">sampler</span> <span class="k">else</span> <span class="n">categorical_dist</span><span class="o">.</span><span class="n">logits</span>
-        <span class="k">elif</span> <span class="n">y</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="k">else</span><span class="p">:</span>
             <span class="n">nll</span> <span class="o">=</span> <span class="o">-</span><span class="n">categorical_dist</span><span class="o">.</span><span class="n">log_prob</span><span class="p">(</span><span class="n">y</span><span class="p">)</span>
             <span class="k">return</span> <span class="n">nll</span>
-        <span class="k">else</span><span class="p">:</span>
-            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;Invalid input-output pair for forward method.&quot;</span><span class="p">)</span></div>
-
         
-    
-<div class="viewcode-block" id="EINetClassifierNLL.predict">
-<a class="viewcode-back" href="../../source/dendritic_modeling.html#dendritic_modeling.models.EINetClassifierNLL.predict">[docs]</a>
-    <span class="k">def</span> <span class="nf">predict</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">x</span><span class="p">,</span> <span class="n">stochastic</span> <span class="o">=</span> <span class="kc">False</span><span class="p">):</span>
-<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
-<span class="sd">        Generates predictions for the given input data from the model.</span>
-
-<span class="sd">        Parameters</span>
-<span class="sd">        ----------</span>
-<span class="sd">        x : torch.Tensor</span>
-<span class="sd">            The input data for which to generate predictions.</span>
-
-<span class="sd">        stochastic : bool, optional</span>
-<span class="sd">            If `True`, samples from the output distribution to make predictions;</span>
-<span class="sd">            otherwise, returns the class with the highest probability. Defaults</span>
-<span class="sd">            to `False`.</span>
-
-<span class="sd">        Returns</span>
-<span class="sd">        -------</span>
-<span class="sd">        torch.Tensor</span>
-<span class="sd">            The predicted class labels for the input data.</span>
-<span class="sd">        &quot;&quot;&quot;</span>
-        
-        <span class="n">distribution</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">forward</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="n">y</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span> <span class="n">sampler</span> <span class="o">=</span> <span class="kc">True</span><span class="p">)</span>
-
+    <span class="k">def</span><span class="w"> </span><span class="nf">predict</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">x</span><span class="p">,</span> <span class="n">stochastic</span><span class="o">=</span><span class="kc">False</span><span class="p">):</span>
+        <span class="n">distribution</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">forward</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="n">y</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">sampler</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
         <span class="k">if</span> <span class="n">stochastic</span><span class="p">:</span>
             <span class="k">return</span> <span class="n">distribution</span><span class="o">.</span><span class="n">sample</span><span class="p">()</span>
         <span class="k">else</span><span class="p">:</span>
-            <span class="k">return</span> <span class="n">distribution</span><span class="o">.</span><span class="n">logits</span><span class="o">.</span><span class="n">argmax</span><span class="p">(</span><span class="n">dim</span> <span class="o">=</span> <span class="o">-</span><span class="mi">1</span><span class="p">)</span></div>
+            <span class="k">return</span> <span class="n">distribution</span><span class="o">.</span><span class="n">logits</span><span class="o">.</span><span class="n">argmax</span><span class="p">(</span><span class="n">dim</span><span class="o">=-</span><span class="mi">1</span><span class="p">)</span>
+        
+    <span class="k">def</span><span class="w"> </span><span class="nf">compute_loss</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">x</span><span class="p">,</span> <span class="n">y</span><span class="p">):</span>
+        <span class="n">nll</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">forward</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="n">y</span><span class="o">=</span><span class="n">y</span><span class="p">)</span>
+        <span class="n">main_loss</span> <span class="o">=</span> <span class="n">nll</span><span class="o">.</span><span class="n">mean</span><span class="p">(</span><span class="n">dim</span><span class="o">=</span><span class="mi">0</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">main_loss</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">forward_with_branch_outputs</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">x</span><span class="p">):</span>
+        <span class="n">net_output</span><span class="p">,</span> <span class="n">per_layer_acts</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">net</span><span class="o">.</span><span class="n">forward_with_branch_outputs</span><span class="p">(</span><span class="n">x</span><span class="p">)</span>
+        <span class="k">if</span> <span class="nb">hasattr</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="s1">&#39;final_fc&#39;</span><span class="p">):</span>
+            <span class="n">net_output</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">final_fc</span><span class="p">(</span><span class="n">net_output</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">net_output</span><span class="p">,</span> <span class="n">per_layer_acts</span>
+
+<div class="viewcode-block" id="ProbabilisticClassifier.decay_weights">
+<a class="viewcode-back" href="../../source/dendritic_modeling.html#dendritic_modeling.models.ProbabilisticClassifier.decay_weights">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">decay_weights</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">weight_decay</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Forward this call to self.net if it implements decay_weights.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="nb">hasattr</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">net</span><span class="p">,</span> <span class="s1">&#39;decay_weights&#39;</span><span class="p">):</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">net</span><span class="o">.</span><span class="n">decay_weights</span><span class="p">(</span><span class="n">weight_decay</span><span class="p">)</span></div>
 </div>
 
 
 
+<div class="viewcode-block" id="Classifier">
+<a class="viewcode-back" href="../../source/dendritic_modeling.html#dendritic_modeling.models.Classifier">[docs]</a>
+<span class="k">class</span><span class="w"> </span><span class="nc">Classifier</span><span class="p">(</span><span class="n">BaseModel</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    A standard classifier that returns raw logits; </span>
+<span class="sd">    cross-entropy is used for compute_loss.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">net</span><span class="p">,</span> <span class="n">output_dim</span><span class="o">=</span><span class="mi">10</span><span class="p">,</span> <span class="n">use_output_layer</span><span class="o">=</span><span class="kc">False</span><span class="p">):</span>
+        <span class="nb">super</span><span class="p">(</span><span class="n">Classifier</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span><span class="n">net</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">output_dim</span> <span class="o">=</span> <span class="n">output_dim</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">use_output_layer</span> <span class="o">=</span> <span class="n">use_output_layer</span>
+
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">use_output_layer</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">final_fc</span> <span class="o">=</span> <span class="n">nn</span><span class="o">.</span><span class="n">Linear</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">output_dim</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">output_dim</span><span class="p">)</span> 
+            
+    <span class="k">def</span><span class="w"> </span><span class="nf">forward</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">x</span><span class="p">,</span> <span class="n">y</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+        <span class="n">logits</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">net</span><span class="p">(</span><span class="n">x</span><span class="p">)</span>
+        <span class="k">if</span> <span class="nb">hasattr</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="s1">&#39;final_fc&#39;</span><span class="p">):</span>
+            <span class="n">logits</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">final_fc</span><span class="p">(</span><span class="n">logits</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">logits</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">predict</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">x</span><span class="p">,</span> <span class="n">stochastic</span><span class="o">=</span><span class="kc">False</span><span class="p">):</span>
+        <span class="k">with</span> <span class="n">torch</span><span class="o">.</span><span class="n">no_grad</span><span class="p">():</span>
+            <span class="n">logits</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">forward</span><span class="p">(</span><span class="n">x</span><span class="p">)</span>
+            <span class="k">return</span> <span class="n">logits</span><span class="o">.</span><span class="n">argmax</span><span class="p">(</span><span class="n">dim</span><span class="o">=-</span><span class="mi">1</span><span class="p">)</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">compute_loss</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">x</span><span class="p">,</span> <span class="n">y</span><span class="p">):</span>
+        <span class="n">logits</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">forward</span><span class="p">(</span><span class="n">x</span><span class="p">)</span>
+        <span class="n">loss_fn</span> <span class="o">=</span> <span class="n">nn</span><span class="o">.</span><span class="n">CrossEntropyLoss</span><span class="p">()</span>
+        <span class="n">main_loss</span> <span class="o">=</span> <span class="n">loss_fn</span><span class="p">(</span><span class="n">logits</span><span class="p">,</span> <span class="n">y</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">main_loss</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">forward_with_branch_outputs</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">x</span><span class="p">):</span>
+        <span class="n">net_output</span><span class="p">,</span> <span class="n">per_layer_acts</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">net</span><span class="o">.</span><span class="n">forward_with_branch_outputs</span><span class="p">(</span><span class="n">x</span><span class="p">)</span>
+        <span class="k">if</span> <span class="nb">hasattr</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="s1">&#39;final_fc&#39;</span><span class="p">):</span>
+            <span class="n">net_output</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">final_fc</span><span class="p">(</span><span class="n">net_output</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">net_output</span><span class="p">,</span> <span class="n">per_layer_acts</span>
+
+<div class="viewcode-block" id="Classifier.decay_weights">
+<a class="viewcode-back" href="../../source/dendritic_modeling.html#dendritic_modeling.models.Classifier.decay_weights">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">decay_weights</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">weight_decay</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Forward this call to self.net if it implements decay_weights.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="nb">hasattr</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">net</span><span class="p">,</span> <span class="s1">&#39;decay_weights&#39;</span><span class="p">):</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">net</span><span class="o">.</span><span class="n">decay_weights</span><span class="p">(</span><span class="n">weight_decay</span><span class="p">)</span></div>
+</div>
 
 </pre></div>
 

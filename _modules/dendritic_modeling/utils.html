@@ -6,7 +6,7 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>dendritic_modeling.utils &mdash; dendritic_modeling 0.1.0 documentation</title>
-      <link rel="stylesheet" type="text/css" href="../../_static/pygments.css?v=80d5e7a1" />
+      <link rel="stylesheet" type="text/css" href="../../_static/pygments.css?v=b86133f3" />
       <link rel="stylesheet" type="text/css" href="../../_static/css/theme.css?v=e59714d7" />
       <link rel="stylesheet" type="text/css" href="../../_static/copybutton.css?v=76b2166b" />
 
@@ -105,108 +105,32 @@
 <span class="sd">and model evaluation.</span>
 <span class="sd">&quot;&quot;&quot;</span>
 
-<span class="kn">import</span> <span class="nn">os</span>
-<span class="kn">import</span> <span class="nn">json</span>
-<span class="kn">import</span> <span class="nn">shutil</span>
-
-<span class="kn">import</span> <span class="nn">torch</span>
-<span class="kn">import</span> <span class="nn">torchvision</span>
-<span class="kn">from</span> <span class="nn">torchvision</span> <span class="kn">import</span> <span class="n">transforms</span>
-<span class="kn">from</span> <span class="nn">omegaconf</span> <span class="kn">import</span> <span class="n">OmegaConf</span><span class="p">,</span> <span class="n">DictConfig</span><span class="p">,</span> <span class="n">ListConfig</span>
-
-
-
-
-<div class="viewcode-block" id="Data">
-<a class="viewcode-back" href="../../source/dendritic_modeling.html#dendritic_modeling.utils.Data">[docs]</a>
-<span class="k">class</span> <span class="nc">Data</span><span class="p">(</span><span class="n">torch</span><span class="o">.</span><span class="n">utils</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">Dataset</span><span class="p">):</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
-<span class="sd">    A custom PyTorch Dataset for handling input features and labels.</span>
-<span class="sd">    </span>
-<span class="sd">    Parameters</span>
-<span class="sd">    ----------</span>
-<span class="sd">    x : Tensor or array-like </span>
-<span class="sd">        Input features.</span>
-<span class="sd">    y : Tensor or array-like </span>
-<span class="sd">        Corresponding labels.</span>
-
-
-<span class="sd">    Examples</span>
-<span class="sd">    --------</span>
-<span class="sd">    &gt;&gt;&gt; dataset = Data(x_data, y_data)</span>
-<span class="sd">    &gt;&gt;&gt; dataloader = DataLoader(dataset, batch_size=32, shuffle=True)</span>
-<span class="sd">    &gt;&gt;&gt; for inputs, labels in dataloader:</span>
-<span class="sd">    ...     # Your training code here</span>
-<span class="sd">    ...     pass</span>
-<span class="sd">    &quot;&quot;&quot;</span>
-
-    <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">x</span><span class="p">,</span> <span class="n">y</span><span class="p">):</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">x</span> <span class="o">=</span> <span class="n">x</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">y</span> <span class="o">=</span> <span class="n">y</span>
-
-    <span class="k">def</span> <span class="fm">__getitem__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">i</span><span class="p">):</span>
-        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">x</span><span class="p">[</span><span class="n">i</span><span class="p">],</span> <span class="bp">self</span><span class="o">.</span><span class="n">y</span><span class="p">[</span><span class="n">i</span><span class="p">]</span>
-    
-    <span class="k">def</span> <span class="fm">__len__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
-        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">y</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span></div>
-
+<span class="kn">import</span><span class="w"> </span><span class="nn">os</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">json</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">typing</span><span class="w"> </span><span class="kn">import</span> <span class="n">Optional</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">torch</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">omegaconf</span><span class="w"> </span><span class="kn">import</span> <span class="n">DictConfig</span><span class="p">,</span> <span class="n">ListConfig</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">torch.utils.data</span><span class="w"> </span><span class="kn">import</span> <span class="n">DataLoader</span>
 
 
 <div class="viewcode-block" id="Shaper">
 <a class="viewcode-back" href="../../source/dendritic_modeling.html#dendritic_modeling.utils.Shaper">[docs]</a>
-<span class="k">class</span> <span class="nc">Shaper</span><span class="p">(</span><span class="nb">object</span><span class="p">):</span>
+<span class="k">class</span><span class="w"> </span><span class="nc">Shaper</span><span class="p">(</span><span class="nb">object</span><span class="p">):</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    A utility class for reshaping input data to a specified shape.</span>
-
-<span class="sd">    The class takes an intended shape upon initialization and proivdes a method</span>
-<span class="sd">    to reshape any given tensor to that shape.</span>
-
-<span class="sd">    Parameters</span>
-<span class="sd">    ----------</span>
-<span class="sd">    shape : tuple of int</span>
-<span class="sd">        The intended shape to which the input tensor should be reshaped.</span>
-
-<span class="sd">    Methods</span>
-<span class="sd">    -------</span>
-<span class="sd">    reshape(x)</span>
-<span class="sd">        Reshapes the input tensor `x` to the specified shape.</span>
-
-<span class="sd">    Examples</span>
-<span class="sd">    --------</span>
-
-<span class="sd">    &gt;&gt;&gt; shaper = Shaper(shape = (32, 1, 28, 28))</span>
-<span class="sd">    &gt;&gt;&gt; x = torch.randn(32, 784)</span>
-<span class="sd">    &gt;&gt;&gt; x_reshaped = shaper.reshape(x)</span>
-<span class="sd">    &gt;&gt;&gt; x_reshaped.shape</span>
-<span class="sd">    torch.Size([32, 1, 28, 28])</span>
 <span class="sd">    &quot;&quot;&quot;</span>
-
-    <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">shape</span><span class="p">):</span>
+    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">shape</span><span class="p">):</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">shape</span> <span class="o">=</span> <span class="n">shape</span>
     
-<div class="viewcode-block" id="Shaper.reshape">
-<a class="viewcode-back" href="../../source/dendritic_modeling.html#dendritic_modeling.utils.Shaper.reshape">[docs]</a>
-    <span class="k">def</span> <span class="nf">reshape</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">x</span><span class="p">):</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">reshape</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">x</span><span class="p">):</span>
         <span class="k">return</span> <span class="n">x</span><span class="o">.</span><span class="n">view</span><span class="p">(</span><span class="o">*</span><span class="bp">self</span><span class="o">.</span><span class="n">shape</span><span class="p">)</span></div>
-</div>
-
 
 
 <div class="viewcode-block" id="convert_to_serializable">
 <a class="viewcode-back" href="../../source/dendritic_modeling.html#dendritic_modeling.utils.convert_to_serializable">[docs]</a>
-<span class="k">def</span> <span class="nf">convert_to_serializable</span><span class="p">(</span><span class="n">obj</span><span class="p">):</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">convert_to_serializable</span><span class="p">(</span><span class="n">obj</span><span class="p">):</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Recursively convert OmegaConf objects to standard Python data types.</span>
-<span class="sd">    </span>
-<span class="sd">    Parameters</span>
-<span class="sd">    ----------</span>
-<span class="sd">    obj : Any</span>
-<span class="sd">        The object to convert. Can be a DictConfig, ListConfig, dict, list, or primitive type.</span>
-<span class="sd">    </span>
-<span class="sd">    Returns</span>
-<span class="sd">    -------</span>
-<span class="sd">    Any</span>
-<span class="sd">        A JSON-serializable version of the object.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
     <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">obj</span><span class="p">,</span> <span class="n">DictConfig</span><span class="p">):</span>
         <span class="k">return</span> <span class="p">{</span><span class="n">k</span><span class="p">:</span> <span class="n">convert_to_serializable</span><span class="p">(</span><span class="n">v</span><span class="p">)</span> <span class="k">for</span> <span class="n">k</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">obj</span><span class="o">.</span><span class="n">items</span><span class="p">()}</span>
@@ -220,231 +144,365 @@
         <span class="k">return</span> <span class="n">obj</span></div>
 
 
-<span class="k">def</span> <span class="nf">save_dict</span><span class="p">(</span><span class="n">dict_obj</span><span class="p">,</span> <span class="n">save_path</span><span class="p">,</span> <span class="n">fname</span><span class="p">):</span>
-    <span class="c1"># Convert OmegaConf configurations to standard dictionary</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">save_dict</span><span class="p">(</span><span class="n">dict_obj</span><span class="p">:</span> <span class="nb">dict</span><span class="p">,</span> <span class="n">save_path</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">fname</span><span class="p">:</span> <span class="nb">str</span><span class="p">):</span>
     <span class="n">dict_obj</span> <span class="o">=</span> <span class="n">convert_to_serializable</span><span class="p">(</span><span class="n">dict_obj</span><span class="p">)</span>
-
-    <span class="c1"># Define the full path for the JSON file</span>
     <span class="n">full_path</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">save_path</span><span class="p">,</span> <span class="n">fname</span><span class="p">)</span>
-
     <span class="k">if</span> <span class="ow">not</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">exists</span><span class="p">(</span><span class="n">save_path</span><span class="p">):</span>
         <span class="n">os</span><span class="o">.</span><span class="n">makedirs</span><span class="p">(</span><span class="n">save_path</span><span class="p">,</span> <span class="n">exist_ok</span> <span class="o">=</span> <span class="kc">True</span><span class="p">)</span>
-    
-    <span class="c1"># Save the converted dictionary as JSON</span>
     <span class="k">with</span> <span class="nb">open</span><span class="p">(</span><span class="n">full_path</span><span class="p">,</span> <span class="s1">&#39;w&#39;</span><span class="p">)</span> <span class="k">as</span> <span class="n">f</span><span class="p">:</span>
         <span class="n">json</span><span class="o">.</span><span class="n">dump</span><span class="p">(</span><span class="n">dict_obj</span><span class="p">,</span> <span class="n">f</span><span class="p">,</span> <span class="n">indent</span><span class="o">=</span><span class="mi">4</span><span class="p">)</span>
 
 
-
-<div class="viewcode-block" id="load_MNIST">
-<a class="viewcode-back" href="../../source/dendritic_modeling.html#dendritic_modeling.utils.load_MNIST">[docs]</a>
-<span class="k">def</span> <span class="nf">load_MNIST</span><span class="p">(</span><span class="n">train_valid_split</span> <span class="o">=</span> <span class="mi">1</span><span class="p">,</span> <span class="n">cache_dir</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
-<span class="sd">    Load the MNIST dataset from torchvision.datasets.MNIST with optional </span>
-<span class="sd">    caching and train-validation split.</span>
-
-<span class="sd">    Parameters</span>
-<span class="sd">    ----------</span>
-<span class="sd">    train_valid_split : float, optional</span>
-<span class="sd">        Fraction of the training data to use for validation. Defaults to 1 </span>
-<span class="sd">        (no validation split).</span>
-
-<span class="sd">    cache_dir : str, optional</span>
-<span class="sd">        Path to the directory where the dataset should be cached. </span>
-
-<span class="sd">    Returns</span>
-<span class="sd">    -------</span>
-
-<span class="sd">    data : dict</span>
-<span class="sd">        A dictionary containing the training, validation, and test datasets.</span>
-
-
-<span class="sd">    Examples</span>
-<span class="sd">    --------</span>
-
-<span class="sd">    &gt;&gt;&gt; data = load_MNIST(train_valid_split = 0.8)</span>
-<span class="sd">    &gt;&gt;&gt; train_data = data[&#39;train&#39;]</span>
-<span class="sd">    &gt;&gt;&gt; valid_data = data[&#39;valid&#39;]</span>
-<span class="sd">    &gt;&gt;&gt; test_data = data[&#39;test&#39;]</span>
-<span class="sd">    &quot;&quot;&quot;</span>
-    
-    
-    <span class="k">if</span> <span class="n">cache_dir</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
-        <span class="n">root</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">dirname</span><span class="p">(</span><span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">dirname</span><span class="p">(</span><span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">abspath</span><span class="p">(</span><span class="vm">__file__</span><span class="p">)))</span>
-        <span class="n">data_path</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">root</span><span class="p">,</span> <span class="s1">&#39;data&#39;</span><span class="p">,</span> <span class="s1">&#39;mnist&#39;</span><span class="p">)</span>
-    <span class="k">else</span><span class="p">:</span>
-        <span class="n">data_path</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">cache_dir</span><span class="p">,</span> <span class="s1">&#39;data&#39;</span><span class="p">,</span> <span class="s1">&#39;mnist&#39;</span><span class="p">)</span>
-
-
-    <span class="k">if</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">exists</span><span class="p">(</span><span class="n">data_path</span><span class="p">):</span>
-        <span class="n">train_data</span> <span class="o">=</span> <span class="n">Data</span><span class="p">(</span>
-            <span class="n">torch</span><span class="o">.</span><span class="n">load</span><span class="p">(</span><span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">data_path</span><span class="p">,</span> <span class="s1">&#39;train_inputs.pt&#39;</span><span class="p">),</span> 
-                       <span class="n">weights_only</span> <span class="o">=</span> <span class="kc">True</span><span class="p">),</span>
-            <span class="n">torch</span><span class="o">.</span><span class="n">load</span><span class="p">(</span><span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">data_path</span><span class="p">,</span> <span class="s1">&#39;train_labels.pt&#39;</span><span class="p">),</span> 
-                       <span class="n">weights_only</span> <span class="o">=</span> <span class="kc">True</span><span class="p">),</span>
-        <span class="p">)</span>
-        <span class="n">test_data</span> <span class="o">=</span> <span class="n">Data</span><span class="p">(</span>
-            <span class="n">torch</span><span class="o">.</span><span class="n">load</span><span class="p">(</span><span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">data_path</span><span class="p">,</span> <span class="s1">&#39;test_inputs.pt&#39;</span><span class="p">),</span> 
-                       <span class="n">weights_only</span> <span class="o">=</span> <span class="kc">True</span><span class="p">),</span>
-            <span class="n">torch</span><span class="o">.</span><span class="n">load</span><span class="p">(</span><span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">data_path</span><span class="p">,</span> <span class="s1">&#39;test_labels.pt&#39;</span><span class="p">),</span> 
-                       <span class="n">weights_only</span> <span class="o">=</span> <span class="kc">True</span><span class="p">),</span>
-        <span class="p">)</span>
-
-    <span class="k">else</span><span class="p">:</span>
-        <span class="n">os</span><span class="o">.</span><span class="n">makedirs</span><span class="p">(</span><span class="n">data_path</span><span class="p">,</span> <span class="n">exist_ok</span> <span class="o">=</span> <span class="kc">True</span><span class="p">)</span>
-
-        <span class="n">transform</span> <span class="o">=</span> <span class="n">transforms</span><span class="o">.</span><span class="n">ToTensor</span><span class="p">()</span>
-
-        <span class="k">def</span> <span class="nf">loader_saver</span><span class="p">(</span><span class="n">train</span> <span class="o">=</span> <span class="kc">True</span><span class="p">):</span>
-            <span class="n">dataset</span> <span class="o">=</span> <span class="n">torchvision</span><span class="o">.</span><span class="n">datasets</span><span class="o">.</span><span class="n">MNIST</span><span class="p">(</span><span class="n">root</span> <span class="o">=</span> <span class="n">data_path</span><span class="p">,</span> 
-                                                 <span class="n">train</span> <span class="o">=</span> <span class="n">train</span><span class="p">,</span> 
-                                                 <span class="n">download</span> <span class="o">=</span> <span class="kc">True</span><span class="p">)</span>
-            <span class="n">imgs</span><span class="p">,</span> <span class="n">labels</span> <span class="o">=</span> <span class="nb">zip</span><span class="p">(</span><span class="o">*</span><span class="p">(</span><span class="n">dataset</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">dataset</span><span class="p">))))</span>
-            
-            <span class="n">imgs</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">stack</span><span class="p">([</span><span class="n">transform</span><span class="p">(</span><span class="n">img</span><span class="p">)</span><span class="o">.</span><span class="n">flatten</span><span class="p">()</span> <span class="k">for</span> <span class="n">img</span> <span class="ow">in</span> <span class="n">imgs</span><span class="p">],</span> 
-                               <span class="n">dim</span> <span class="o">=</span> <span class="mi">0</span><span class="p">)</span>
-            <span class="n">labels</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">tensor</span><span class="p">(</span><span class="n">labels</span><span class="p">)</span>
-                        
-            <span class="n">name</span> <span class="o">=</span> <span class="s1">&#39;train&#39;</span> <span class="k">if</span> <span class="n">train</span> <span class="k">else</span> <span class="s1">&#39;test&#39;</span>
-            <span class="n">torch</span><span class="o">.</span><span class="n">save</span><span class="p">(</span><span class="n">imgs</span><span class="p">,</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">data_path</span><span class="p">,</span> <span class="sa">f</span><span class="s1">&#39;</span><span class="si">{</span><span class="n">name</span><span class="si">}</span><span class="s1">_inputs.pt&#39;</span><span class="p">))</span>
-            <span class="n">torch</span><span class="o">.</span><span class="n">save</span><span class="p">(</span><span class="n">labels</span><span class="p">,</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">data_path</span><span class="p">,</span> <span class="sa">f</span><span class="s1">&#39;</span><span class="si">{</span><span class="n">name</span><span class="si">}</span><span class="s1">_labels.pt&#39;</span><span class="p">))</span>
-            
-            <span class="k">return</span> <span class="n">Data</span><span class="p">(</span><span class="n">imgs</span><span class="p">,</span> <span class="n">labels</span><span class="p">)</span>
-
-        <span class="n">train_data</span> <span class="o">=</span> <span class="n">loader_saver</span><span class="p">(</span><span class="n">train</span> <span class="o">=</span> <span class="kc">True</span><span class="p">)</span>
-        <span class="n">test_data</span> <span class="o">=</span> <span class="n">loader_saver</span><span class="p">(</span><span class="n">train</span> <span class="o">=</span> <span class="kc">False</span><span class="p">)</span>
-
-        <span class="n">shutil</span><span class="o">.</span><span class="n">rmtree</span><span class="p">(</span><span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">data_path</span><span class="p">,</span> <span class="s1">&#39;MNIST&#39;</span><span class="p">))</span>
-
-    <span class="n">data</span> <span class="o">=</span> <span class="p">{}</span>
-
-    <span class="k">if</span> <span class="n">train_valid_split</span> <span class="o">&lt;</span> <span class="mi">1</span><span class="p">:</span>
-        <span class="n">train_ix</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">randperm</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">train_data</span><span class="p">))[</span>
-            <span class="p">:</span><span class="nb">int</span><span class="p">(</span><span class="n">train_valid_split</span><span class="o">*</span><span class="nb">len</span><span class="p">(</span><span class="n">train_data</span><span class="p">))</span>
-        <span class="p">]</span>
-        <span class="n">train_mask</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">zeros</span><span class="p">((</span><span class="nb">len</span><span class="p">(</span><span class="n">train_data</span><span class="p">),))</span><span class="o">.</span><span class="n">bool</span><span class="p">()</span>
-        <span class="n">train_mask</span><span class="p">[</span><span class="n">train_ix</span><span class="p">]</span> <span class="o">=</span> <span class="kc">True</span>
-
-        <span class="n">valid_data</span> <span class="o">=</span> <span class="n">Data</span><span class="p">(</span><span class="o">*</span><span class="n">train_data</span><span class="p">[</span><span class="o">~</span><span class="n">train_mask</span><span class="p">])</span>
-        <span class="n">train_data</span> <span class="o">=</span> <span class="n">Data</span><span class="p">(</span><span class="o">*</span><span class="n">train_data</span><span class="p">[</span><span class="n">train_mask</span><span class="p">])</span>
-
-        <span class="n">data</span><span class="p">[</span><span class="s1">&#39;valid&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">valid_data</span>
-
-    <span class="n">data</span><span class="p">[</span><span class="s1">&#39;train&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">train_data</span>
-    <span class="n">data</span><span class="p">[</span><span class="s1">&#39;test&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">test_data</span>
-
-    <span class="k">return</span> <span class="n">data</span></div>
-
-
-
-<span class="k">def</span> <span class="nf">load_MNIST_modulo10</span><span class="p">(</span><span class="n">shuffle_iterations</span> <span class="o">=</span> <span class="mi">2</span><span class="p">,</span> 
-                        <span class="n">train_valid_split</span> <span class="o">=</span> <span class="mi">1</span><span class="p">,</span>
-                        <span class="n">cache_dir</span> <span class="o">=</span> <span class="kc">None</span><span class="p">):</span>
-    
-    <span class="n">data</span> <span class="o">=</span> <span class="n">load_MNIST</span><span class="p">(</span><span class="n">train_valid_split</span><span class="p">,</span> <span class="n">cache_dir</span><span class="p">)</span>
-
-    <span class="k">for</span> <span class="n">key</span><span class="p">,</span> <span class="n">ds</span> <span class="ow">in</span> <span class="n">data</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
-        <span class="n">ix</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">randperm</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">ds</span><span class="p">))</span>
-        <span class="n">ix0</span> <span class="o">=</span> <span class="n">ix</span><span class="p">[:</span><span class="nb">int</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">ds</span><span class="p">)</span><span class="o">/</span><span class="mi">2</span><span class="p">)]</span>
-        <span class="n">ix1</span> <span class="o">=</span> <span class="n">ix</span><span class="p">[</span><span class="nb">int</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">ds</span><span class="p">)</span><span class="o">/</span><span class="mi">2</span><span class="p">):]</span>
-
-        <span class="n">input0</span><span class="p">,</span> <span class="n">label0</span> <span class="o">=</span> <span class="n">ds</span><span class="p">[</span><span class="n">ix0</span><span class="p">]</span>
-        <span class="n">input1</span><span class="p">,</span> <span class="n">label1</span> <span class="o">=</span> <span class="n">ds</span><span class="p">[</span><span class="n">ix1</span><span class="p">]</span>
-        <span class="k">assert</span><span class="p">(</span><span class="n">label0</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">==</span> <span class="n">label1</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">])</span>
-
-        <span class="n">inputs</span> <span class="o">=</span> <span class="p">[]</span>
-        <span class="n">labels</span> <span class="o">=</span> <span class="p">[]</span>
-        <span class="k">for</span> <span class="n">_</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">shuffle_iterations</span><span class="p">):</span>
-            <span class="n">inputs</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">torch</span><span class="o">.</span><span class="n">cat</span><span class="p">([</span><span class="n">input0</span><span class="p">,</span> <span class="n">input1</span><span class="p">],</span> <span class="n">dim</span> <span class="o">=</span> <span class="o">-</span><span class="mi">1</span><span class="p">))</span>
-            <span class="n">labels</span><span class="o">.</span><span class="n">append</span><span class="p">((</span><span class="n">label0</span> <span class="o">+</span> <span class="n">label1</span><span class="p">)</span> <span class="o">%</span> <span class="mi">10</span><span class="p">)</span>
-
-            <span class="n">ix0</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">randperm</span><span class="p">(</span><span class="n">input0</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">])</span>
-            <span class="n">input0</span> <span class="o">=</span> <span class="n">input0</span><span class="p">[</span><span class="n">ix0</span><span class="p">]</span>
-            <span class="n">label0</span> <span class="o">=</span> <span class="n">label0</span><span class="p">[</span><span class="n">ix0</span><span class="p">]</span>
-
-            <span class="n">ix1</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">randperm</span><span class="p">(</span><span class="n">input1</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">])</span>
-            <span class="n">input1</span> <span class="o">=</span> <span class="n">input1</span><span class="p">[</span><span class="n">ix1</span><span class="p">]</span>
-            <span class="n">label1</span> <span class="o">=</span> <span class="n">label1</span><span class="p">[</span><span class="n">ix1</span><span class="p">]</span>
-        
-        <span class="n">inputs</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">cat</span><span class="p">(</span><span class="n">inputs</span><span class="p">,</span> <span class="n">dim</span> <span class="o">=</span> <span class="mi">0</span><span class="p">)</span>
-        <span class="n">labels</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">cat</span><span class="p">(</span><span class="n">labels</span><span class="p">,</span> <span class="n">dim</span> <span class="o">=</span> <span class="mi">0</span><span class="p">)</span>
-
-        <span class="n">data</span><span class="p">[</span><span class="n">key</span><span class="p">]</span> <span class="o">=</span> <span class="n">Data</span><span class="p">(</span><span class="n">inputs</span><span class="p">,</span> <span class="n">labels</span><span class="p">)</span>
-
-    <span class="k">return</span> <span class="n">data</span>
-
-
-<div class="viewcode-block" id="split_MNIST_inputs">
-<a class="viewcode-back" href="../../source/dendritic_modeling.html#dendritic_modeling.utils.split_MNIST_inputs">[docs]</a>
-<span class="k">def</span> <span class="nf">split_MNIST_inputs</span><span class="p">(</span><span class="n">inputs</span><span class="p">,</span> <span class="n">labels</span><span class="p">):</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
-<span class="sd">    Split the input features and labels into separate lists based on unique</span>
-<span class="sd">    labels.</span>
-
-<span class="sd">    Parameters</span>
-<span class="sd">    ----------</span>
-<span class="sd">    inputs : Tensor</span>
-<span class="sd">        The input data tesnor with shape `(num_samples, ...)`.</span>
-
-<span class="sd">    labels : Tensor</span>
-<span class="sd">        The corresponding labels tensor with shape `(num_samples,)`.</span>
-
-<span class="sd">    Returns</span>
-<span class="sd">    -------</span>
-<span class="sd">    input_list : list of Tensor</span>
-<span class="sd">        A list of tensors where each tensor contains all samples with the same</span>
-<span class="sd">        label.</span>
-
-<span class="sd">    Examples</span>
-<span class="sd">    --------</span>
-<span class="sd">    &gt;&gt;&gt; inputs = torch.randn(1000, 784)</span>
-<span class="sd">    &gt;&gt;&gt; labels = torch.randint(0, 10, (1000,))</span>
-<span class="sd">    &gt;&gt;&gt; input_list = split_MNIST_inputs(inputs, labels)</span>
-<span class="sd">    &gt;&gt;&gt; len(input_list)</span>
-<span class="sd">    10</span>
-<span class="sd">    &quot;&quot;&quot;</span>
-    <span class="n">unique_label</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">unique</span><span class="p">(</span><span class="n">labels</span><span class="p">)</span>
-
-    <span class="n">input_list</span> <span class="o">=</span> <span class="p">[]</span>
-
-    <span class="k">for</span> <span class="n">unique</span> <span class="ow">in</span> <span class="n">unique_label</span><span class="p">:</span>
-        <span class="n">ix</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">where</span><span class="p">(</span><span class="n">labels</span> <span class="o">==</span> <span class="n">unique</span><span class="p">,</span> <span class="kc">True</span><span class="p">,</span> <span class="kc">False</span><span class="p">)</span>
-        <span class="n">input_list</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">inputs</span><span class="p">[</span><span class="n">ix</span><span class="p">])</span>
-
-    <span class="k">return</span> <span class="n">input_list</span></div>
-
-
-
-<div class="viewcode-block" id="accuracy_score">
-<a class="viewcode-back" href="../../source/dendritic_modeling.html#dendritic_modeling.utils.accuracy_score">[docs]</a>
-<span class="k">def</span> <span class="nf">accuracy_score</span><span class="p">(</span><span class="n">classifier</span><span class="p">,</span> <span class="n">inputs</span><span class="p">,</span> <span class="n">labels</span><span class="p">):</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
-<span class="sd">    Computes the accuracy score of a classifier on a given set of inputs and</span>
-<span class="sd">    labels. </span>
-
-<span class="sd">    Parameters</span>
-<span class="sd">    ----------</span>
-<span class="sd">    classifier : nn.Module</span>
-<span class="sd">        The classifier pytorch model with a `predict` method that takes input</span>
-<span class="sd">        data and returns predicted labels.</span>
-
-<span class="sd">    inputs : Tensor</span>
-<span class="sd">        The input data tensor with shape `(num_samples, ...)`.</span>
-
-<span class="sd">    labels : Tensor</span>
-<span class="sd">    &quot;&quot;&quot;</span>
-
-    
+<span class="k">def</span><span class="w"> </span><span class="nf">accuracy_score</span><span class="p">(</span><span class="n">classifier</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">nn</span><span class="o">.</span><span class="n">Module</span><span class="p">,</span> <span class="n">inputs</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span> <span class="n">labels</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">):</span>
     <span class="n">device</span> <span class="o">=</span> <span class="s1">&#39;cuda&#39;</span> <span class="k">if</span> <span class="n">torch</span><span class="o">.</span><span class="n">cuda</span><span class="o">.</span><span class="n">is_available</span><span class="p">()</span> <span class="k">else</span> <span class="s1">&#39;cpu&#39;</span>
-
     <span class="n">classifier</span> <span class="o">=</span> <span class="n">classifier</span><span class="o">.</span><span class="n">to</span><span class="p">(</span><span class="n">device</span><span class="p">)</span>
     <span class="n">inputs</span> <span class="o">=</span> <span class="n">inputs</span><span class="o">.</span><span class="n">to</span><span class="p">(</span><span class="n">device</span><span class="p">)</span>
     <span class="n">labels</span> <span class="o">=</span> <span class="n">labels</span><span class="o">.</span><span class="n">to</span><span class="p">(</span><span class="n">device</span><span class="p">)</span>
-
     <span class="n">yhat</span> <span class="o">=</span> <span class="n">classifier</span><span class="o">.</span><span class="n">predict</span><span class="p">(</span><span class="n">inputs</span><span class="p">)</span>
+    <span class="n">accuracy</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">mean</span><span class="p">((</span><span class="n">yhat</span> <span class="o">==</span> <span class="n">labels</span><span class="p">)</span><span class="o">.</span><span class="n">float</span><span class="p">())</span><span class="o">.</span><span class="n">item</span><span class="p">()</span>
+    <span class="k">return</span> <span class="n">accuracy</span>
 
-    <span class="n">accuracy</span> <span class="o">=</span> <span class="p">(</span><span class="n">yhat</span> <span class="o">==</span> <span class="n">labels</span><span class="p">)</span><span class="o">.</span><span class="n">float</span><span class="p">()</span><span class="o">.</span><span class="n">mean</span><span class="p">(</span><span class="n">dim</span> <span class="o">=</span> <span class="o">-</span><span class="mi">1</span><span class="p">)</span>
-    <span class="k">return</span> <span class="n">accuracy</span></div>
+
+<span class="k">def</span><span class="w"> </span><span class="nf">evaluate_accuracy</span><span class="p">(</span>
+    <span class="n">classifier</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">nn</span><span class="o">.</span><span class="n">Module</span><span class="p">,</span> 
+    <span class="n">train_ds</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n">torch</span><span class="o">.</span><span class="n">utils</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">Dataset</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span> 
+    <span class="n">valid_ds</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n">torch</span><span class="o">.</span><span class="n">utils</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">Dataset</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span> 
+    <span class="n">test_ds</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n">torch</span><span class="o">.</span><span class="n">utils</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">Dataset</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="n">save_path</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="n">filename</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="s1">&#39;accuracy&#39;</span><span class="p">,</span>
+<span class="p">):</span>
+    <span class="n">train_acc</span> <span class="o">=</span> <span class="n">accuracy_score</span><span class="p">(</span><span class="n">classifier</span><span class="p">,</span> <span class="o">*</span><span class="n">train_ds</span><span class="p">[:])</span> <span class="k">if</span> <span class="n">train_ds</span> <span class="k">else</span> <span class="kc">None</span>
+    <span class="n">valid_acc</span> <span class="o">=</span> <span class="n">accuracy_score</span><span class="p">(</span><span class="n">classifier</span><span class="p">,</span> <span class="o">*</span><span class="n">valid_ds</span><span class="p">[:])</span> <span class="k">if</span> <span class="n">valid_ds</span> <span class="k">else</span> <span class="kc">None</span>
+    <span class="n">test_acc</span>  <span class="o">=</span> <span class="n">accuracy_score</span><span class="p">(</span><span class="n">classifier</span><span class="p">,</span> <span class="o">*</span><span class="n">test_ds</span><span class="p">[:])</span> <span class="k">if</span> <span class="n">test_ds</span> <span class="k">else</span> <span class="kc">None</span>
+
+    <span class="k">if</span> <span class="n">save_path</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="n">save_dict</span><span class="p">(</span>
+            <span class="p">{</span>
+                <span class="s1">&#39;train accuracy&#39;</span><span class="p">:</span> <span class="n">train_acc</span><span class="p">,</span>
+                <span class="s1">&#39;valid accuracy&#39;</span><span class="p">:</span> <span class="n">valid_acc</span><span class="p">,</span>
+                <span class="s1">&#39;test accuracy&#39;</span><span class="p">:</span> <span class="n">test_acc</span>
+            <span class="p">},</span>
+            <span class="n">save_path</span><span class="p">,</span>
+            <span class="n">filename</span>
+        <span class="p">)</span>
+        
+    <span class="k">return</span> <span class="n">train_acc</span><span class="p">,</span> <span class="n">valid_acc</span><span class="p">,</span> <span class="n">test_acc</span>
+
+
+<span class="c1">################################################################################</span>
+<span class="c1"># 1) RECORD BRANCH ACTIVATIONS</span>
+<span class="c1">################################################################################</span>
+<div class="viewcode-block" id="record_branch_activations">
+<a class="viewcode-back" href="../../source/dendritic_modeling.html#dendritic_modeling.utils.record_branch_activations">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">record_branch_activations</span><span class="p">(</span><span class="n">model</span><span class="p">,</span> <span class="n">dataset</span><span class="p">,</span> <span class="n">batch_size</span><span class="o">=</span><span class="mi">64</span><span class="p">,</span> <span class="n">device</span><span class="o">=</span><span class="s1">&#39;cpu&#39;</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    For a given DendriNetWithOutputs, forward the entire dataset and record </span>
+<span class="sd">    the dendritic branch activations at each layer.</span>
+
+<span class="sd">    Returns:</span>
+<span class="sd">       branch_activations: dict {layer_idx: tensor of shape [N, output_dim]}</span>
+<span class="sd">       all_labels: tensor of shape [N]</span>
+
+<span class="sd">    Requirements:</span>
+<span class="sd">       model.forward_with_branch_outputs(x) -&gt; (final, [layer1_act, layer2_act, ..., soma_act])</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">model</span><span class="o">.</span><span class="n">eval</span><span class="p">()</span><span class="o">.</span><span class="n">to</span><span class="p">(</span><span class="n">device</span><span class="p">)</span>
+    <span class="n">loader</span> <span class="o">=</span> <span class="n">DataLoader</span><span class="p">(</span><span class="n">dataset</span><span class="p">,</span> <span class="n">batch_size</span><span class="o">=</span><span class="n">batch_size</span><span class="p">,</span> <span class="n">shuffle</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
+
+    <span class="c1"># We&#39;ll store each layer&#39;s activation in a list, then cat them.</span>
+    <span class="c1"># branch_activations[layer_idx] = list of [batch_size, layer_output_dim]</span>
+    <span class="n">branch_activations</span> <span class="o">=</span> <span class="p">{}</span>
+    <span class="n">all_labels</span> <span class="o">=</span> <span class="p">[]</span>
+
+    <span class="k">with</span> <span class="n">torch</span><span class="o">.</span><span class="n">no_grad</span><span class="p">():</span>
+        <span class="k">for</span> <span class="n">x_batch</span><span class="p">,</span> <span class="n">y_batch</span> <span class="ow">in</span> <span class="n">loader</span><span class="p">:</span>
+            <span class="n">x_batch</span> <span class="o">=</span> <span class="n">x_batch</span><span class="o">.</span><span class="n">to</span><span class="p">(</span><span class="n">device</span><span class="p">)</span>
+            <span class="n">final_output</span><span class="p">,</span> <span class="n">per_layer_acts</span> <span class="o">=</span> <span class="n">model</span><span class="o">.</span><span class="n">forward_with_branch_outputs</span><span class="p">(</span><span class="n">x_batch</span><span class="p">)</span>
+
+            <span class="c1"># per_layer_acts is a list, length = n_branch_layers + 1 (soma)</span>
+            <span class="k">for</span> <span class="n">layer_idx</span><span class="p">,</span> <span class="n">layer_act</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">per_layer_acts</span><span class="p">):</span>
+                <span class="k">if</span> <span class="n">layer_idx</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">branch_activations</span><span class="p">:</span>
+                    <span class="n">branch_activations</span><span class="p">[</span><span class="n">layer_idx</span><span class="p">]</span> <span class="o">=</span> <span class="p">[]</span>
+                <span class="n">branch_activations</span><span class="p">[</span><span class="n">layer_idx</span><span class="p">]</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">layer_act</span><span class="o">.</span><span class="n">cpu</span><span class="p">())</span>
+
+            <span class="n">all_labels</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">y_batch</span><span class="o">.</span><span class="n">cpu</span><span class="p">())</span>
+
+    <span class="k">for</span> <span class="n">layer_idx</span> <span class="ow">in</span> <span class="n">branch_activations</span><span class="p">:</span>
+        <span class="n">branch_activations</span><span class="p">[</span><span class="n">layer_idx</span><span class="p">]</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">cat</span><span class="p">(</span><span class="n">branch_activations</span><span class="p">[</span><span class="n">layer_idx</span><span class="p">],</span> <span class="n">dim</span><span class="o">=</span><span class="mi">0</span><span class="p">)</span>
+    <span class="n">all_labels</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">cat</span><span class="p">(</span><span class="n">all_labels</span><span class="p">,</span> <span class="n">dim</span><span class="o">=</span><span class="mi">0</span><span class="p">)</span>
+
+    <span class="k">return</span> <span class="n">branch_activations</span><span class="p">,</span> <span class="n">all_labels</span></div>
+
+
+
+<span class="c1">################################################################################</span>
+<span class="c1"># 2) SIMPLE MUTUAL INFORMATION</span>
+<span class="c1">################################################################################</span>
+<div class="viewcode-block" id="compute_MI">
+<a class="viewcode-back" href="../../source/dendritic_modeling.html#dendritic_modeling.utils.compute_MI">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">compute_MI</span><span class="p">(</span><span class="n">activations</span><span class="p">,</span> <span class="n">labels</span><span class="p">,</span> <span class="n">n_bins</span><span class="o">=</span><span class="mi">10</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Estimate the mutual information I(activations; labels).</span>
+<span class="sd">    Here, we do a 1D approach:</span>
+<span class="sd">    </span>
+<span class="sd">      - if activations is [N], or [N,1], we bin them</span>
+<span class="sd">      - build joint histogram with labels</span>
+<span class="sd">      - compute I(X;Y) = sum p(x,y) log [ p(x,y)/(p(x)p(y)) ]</span>
+
+<span class="sd">    If activations has shape [N, out_dim] with out_dim&gt;1, </span>
+<span class="sd">    we might do a dimension reduction or loop over dims. </span>
+<span class="sd">    For simplicity, we&#39;ll do mean across dim if &gt;1.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">if</span> <span class="n">activations</span><span class="o">.</span><span class="n">ndim</span> <span class="o">&gt;</span> <span class="mi">1</span> <span class="ow">and</span> <span class="n">activations</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span> <span class="o">&gt;</span> <span class="mi">1</span><span class="p">:</span>
+        <span class="n">activations</span> <span class="o">=</span> <span class="n">activations</span><span class="o">.</span><span class="n">mean</span><span class="p">(</span><span class="n">dim</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span>
+
+    <span class="n">N</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">activations</span><span class="p">)</span>
+    <span class="n">act_min</span><span class="p">,</span> <span class="n">act_max</span> <span class="o">=</span> <span class="n">activations</span><span class="o">.</span><span class="n">min</span><span class="p">()</span><span class="o">.</span><span class="n">item</span><span class="p">(),</span> <span class="n">activations</span><span class="o">.</span><span class="n">max</span><span class="p">()</span><span class="o">.</span><span class="n">item</span><span class="p">()</span>
+    <span class="k">if</span> <span class="n">act_min</span> <span class="o">==</span> <span class="n">act_max</span><span class="p">:</span>
+        <span class="k">return</span> <span class="mf">0.0</span>
+
+    <span class="n">edges</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">linspace</span><span class="p">(</span><span class="n">act_min</span><span class="p">,</span> <span class="n">act_max</span><span class="p">,</span> <span class="n">n_bins</span><span class="o">+</span><span class="mi">1</span><span class="p">)</span>
+    <span class="n">bin_indices</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">bucketize</span><span class="p">(</span><span class="n">activations</span><span class="p">,</span> <span class="n">edges</span><span class="p">)</span> <span class="o">-</span> <span class="mi">1</span>  <span class="c1"># [0..n_bins-1]</span>
+
+    <span class="n">num_classes</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">labels</span><span class="o">.</span><span class="n">max</span><span class="p">()</span><span class="o">.</span><span class="n">item</span><span class="p">()</span> <span class="o">+</span> <span class="mi">1</span><span class="p">)</span>
+    <span class="n">joint_hist</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">zeros</span><span class="p">((</span><span class="n">n_bins</span><span class="p">,</span> <span class="n">num_classes</span><span class="p">),</span> <span class="n">dtype</span><span class="o">=</span><span class="n">torch</span><span class="o">.</span><span class="n">float</span><span class="p">)</span>
+    <span class="k">for</span> <span class="n">b</span><span class="p">,</span> <span class="n">c</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span><span class="n">bin_indices</span><span class="p">,</span> <span class="n">labels</span><span class="p">):</span>
+        <span class="n">joint_hist</span><span class="p">[</span><span class="n">b</span><span class="p">,</span> <span class="n">c</span><span class="p">]</span> <span class="o">+=</span> <span class="mi">1</span>
+
+    <span class="n">joint_prob</span> <span class="o">=</span> <span class="n">joint_hist</span> <span class="o">/</span> <span class="n">joint_hist</span><span class="o">.</span><span class="n">sum</span><span class="p">()</span>
+    <span class="n">act_prob</span> <span class="o">=</span> <span class="n">joint_prob</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="n">dim</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span> <span class="n">keepdim</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>   <span class="c1"># shape [n_bins,1]</span>
+    <span class="n">label_prob</span> <span class="o">=</span> <span class="n">joint_prob</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="n">dim</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span> <span class="n">keepdim</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span> <span class="c1"># shape [1,num_classes]</span>
+
+    <span class="n">eps</span> <span class="o">=</span> <span class="mf">1e-12</span>
+    <span class="n">ratio</span> <span class="o">=</span> <span class="p">(</span><span class="n">joint_prob</span><span class="o">+</span><span class="n">eps</span><span class="p">)</span> <span class="o">/</span> <span class="p">((</span><span class="n">act_prob</span><span class="o">+</span><span class="n">eps</span><span class="p">)</span><span class="o">*</span><span class="p">(</span><span class="n">label_prob</span><span class="o">+</span><span class="n">eps</span><span class="p">))</span>
+    <span class="n">mi</span> <span class="o">=</span> <span class="p">(</span><span class="n">joint_prob</span> <span class="o">*</span> <span class="n">ratio</span><span class="o">.</span><span class="n">log2</span><span class="p">())</span><span class="o">.</span><span class="n">sum</span><span class="p">()</span>
+    <span class="k">return</span> <span class="n">mi</span><span class="o">.</span><span class="n">item</span><span class="p">()</span></div>
+
+
+<span class="c1">################################################################################</span>
+<span class="c1"># 3) COMPUTE BRANCH INFO</span>
+<span class="c1">################################################################################</span>
+<div class="viewcode-block" id="analyze_branch_information">
+<a class="viewcode-back" href="../../source/dendritic_modeling.html#dendritic_modeling.utils.analyze_branch_information">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">analyze_branch_information</span><span class="p">(</span><span class="n">model</span><span class="p">,</span> <span class="n">dataset</span><span class="p">,</span> 
+                               <span class="n">batch_size</span><span class="o">=</span><span class="mi">64</span><span class="p">,</span> <span class="n">device</span><span class="o">=</span><span class="s1">&#39;cpu&#39;</span><span class="p">,</span> <span class="n">n_bins</span><span class="o">=</span><span class="mi">10</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    1) Gathers branch activations</span>
+<span class="sd">    2) For each branch (layer_idx), compute MI with the label</span>
+<span class="sd">    3) Return dict {layer_idx: MI_value}</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">branch_acts</span><span class="p">,</span> <span class="n">labels</span> <span class="o">=</span> <span class="n">record_branch_activations</span><span class="p">(</span><span class="n">model</span><span class="p">,</span> <span class="n">dataset</span><span class="p">,</span> <span class="n">batch_size</span><span class="p">,</span> <span class="n">device</span><span class="p">)</span>
+    <span class="n">branch_info</span> <span class="o">=</span> <span class="p">{}</span>
+    <span class="k">for</span> <span class="n">layer_idx</span><span class="p">,</span> <span class="n">act</span> <span class="ow">in</span> <span class="n">branch_acts</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+        <span class="n">mi_val</span> <span class="o">=</span> <span class="n">compute_MI</span><span class="p">(</span><span class="n">act</span><span class="p">,</span> <span class="n">labels</span><span class="p">,</span> <span class="n">n_bins</span><span class="o">=</span><span class="n">n_bins</span><span class="p">)</span>
+        <span class="n">branch_info</span><span class="p">[</span><span class="n">layer_idx</span><span class="p">]</span> <span class="o">=</span> <span class="n">mi_val</span>
+    <span class="k">return</span> <span class="n">branch_info</span></div>
+
+
+
+<span class="c1">################################################################################</span>
+<span class="c1"># 4) ABLATION</span>
+<span class="c1">################################################################################</span>
+<div class="viewcode-block" id="measure_performance">
+<a class="viewcode-back" href="../../source/dendritic_modeling.html#dendritic_modeling.utils.measure_performance">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">measure_performance</span><span class="p">(</span><span class="n">model</span><span class="p">,</span> <span class="n">dataset</span><span class="p">,</span> <span class="n">batch_size</span><span class="o">=</span><span class="mi">64</span><span class="p">,</span> <span class="n">device</span><span class="o">=</span><span class="s1">&#39;cpu&#39;</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Evaluate model&#39;s classification accuracy (or NLL) on the dataset.</span>
+<span class="sd">    Modify as needed for your model&#39;s output.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">model</span><span class="o">.</span><span class="n">eval</span><span class="p">()</span><span class="o">.</span><span class="n">to</span><span class="p">(</span><span class="n">device</span><span class="p">)</span>
+    <span class="n">loader</span> <span class="o">=</span> <span class="n">DataLoader</span><span class="p">(</span><span class="n">dataset</span><span class="p">,</span> <span class="n">batch_size</span><span class="o">=</span><span class="n">batch_size</span><span class="p">,</span> <span class="n">shuffle</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
+    <span class="n">total_correct</span> <span class="o">=</span> <span class="mi">0</span>
+    <span class="n">total</span> <span class="o">=</span> <span class="mi">0</span>
+
+    <span class="k">with</span> <span class="n">torch</span><span class="o">.</span><span class="n">no_grad</span><span class="p">():</span>
+        <span class="k">for</span> <span class="n">x_batch</span><span class="p">,</span> <span class="n">y_batch</span> <span class="ow">in</span> <span class="n">loader</span><span class="p">:</span>
+            <span class="n">x_batch</span> <span class="o">=</span> <span class="n">x_batch</span><span class="o">.</span><span class="n">to</span><span class="p">(</span><span class="n">device</span><span class="p">)</span>
+            <span class="n">y_batch</span> <span class="o">=</span> <span class="n">y_batch</span><span class="o">.</span><span class="n">to</span><span class="p">(</span><span class="n">device</span><span class="p">)</span>
+            <span class="n">output</span> <span class="o">=</span> <span class="n">model</span><span class="p">(</span><span class="n">x_batch</span><span class="p">)</span>  <span class="c1"># if EINet -&gt; could be distribution or logits</span>
+            <span class="c1"># if it&#39;s distribution with .logits</span>
+            <span class="k">if</span> <span class="nb">hasattr</span><span class="p">(</span><span class="n">output</span><span class="p">,</span> <span class="s1">&#39;logits&#39;</span><span class="p">):</span>
+                <span class="n">preds</span> <span class="o">=</span> <span class="n">output</span><span class="o">.</span><span class="n">logits</span><span class="o">.</span><span class="n">argmax</span><span class="p">(</span><span class="n">dim</span><span class="o">=-</span><span class="mi">1</span><span class="p">)</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="n">preds</span> <span class="o">=</span> <span class="n">output</span><span class="o">.</span><span class="n">argmax</span><span class="p">(</span><span class="n">dim</span><span class="o">=-</span><span class="mi">1</span><span class="p">)</span>
+
+            <span class="n">total_correct</span> <span class="o">+=</span> <span class="p">(</span><span class="n">preds</span> <span class="o">==</span> <span class="n">y_batch</span><span class="p">)</span><span class="o">.</span><span class="n">sum</span><span class="p">()</span><span class="o">.</span><span class="n">item</span><span class="p">()</span>
+            <span class="n">total</span> <span class="o">+=</span> <span class="n">y_batch</span><span class="o">.</span><span class="n">size</span><span class="p">(</span><span class="mi">0</span><span class="p">)</span>
+
+    <span class="k">return</span> <span class="n">total_correct</span> <span class="o">/</span> <span class="n">total</span></div>
+
+
+
+<div class="viewcode-block" id="ablate_branch">
+<a class="viewcode-back" href="../../source/dendritic_modeling.html#dendritic_modeling.utils.ablate_branch">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">ablate_branch</span><span class="p">(</span><span class="n">model</span><span class="p">,</span> <span class="n">layer_idx</span><span class="p">,</span> <span class="n">branch_ids</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">mode</span><span class="o">=</span><span class="s1">&#39;direct&#39;</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Zero out excitatory/inhibitory weights for branch(es) at layer_idx.</span>
+<span class="sd">    - If branch_ids is None, ablate ALL dendrites at this layer.</span>
+<span class="sd">    - If branch_ids is a list of indices, ablate only those branches.</span>
+<span class="sd">    - &#39;mode=direct&#39; zeros only excit/inhib pre_w, not blockLinear or upstream.</span>
+
+<span class="sd">    This ensures we don&#39;t remove signals from previous layers, so deeper layers</span>
+<span class="sd">    can still matter after ablating a lower layer.</span>
+
+<span class="sd">    We need to adjust to match DendriticBranchLayer structure. Typically:</span>
+<span class="sd">      model.branch_layers[layer_idx] -&gt; has .branch_excitation and .branch_inhibition</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">layer</span> <span class="o">=</span> <span class="n">model</span><span class="o">.</span><span class="n">branch_layers</span><span class="p">[</span><span class="n">layer_idx</span><span class="p">]</span>
+    
+    <span class="k">if</span> <span class="n">branch_ids</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="k">if</span> <span class="n">layer</span><span class="o">.</span><span class="n">input_excitatory</span><span class="p">:</span>
+            <span class="n">layer</span><span class="o">.</span><span class="n">branch_excitation</span><span class="o">.</span><span class="n">pre_w</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">zero_</span><span class="p">()</span>
+        <span class="k">if</span> <span class="n">layer</span><span class="o">.</span><span class="n">input_inhibitory</span> <span class="ow">and</span> <span class="nb">hasattr</span><span class="p">(</span><span class="n">layer</span><span class="p">,</span> <span class="s1">&#39;branch_inhibition&#39;</span><span class="p">):</span>
+            <span class="n">layer</span><span class="o">.</span><span class="n">branch_inhibition</span><span class="o">.</span><span class="n">pre_w</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">zero_</span><span class="p">()</span>
+
+    <span class="k">elif</span> <span class="n">mode</span> <span class="o">==</span> <span class="s1">&#39;direct&#39;</span><span class="p">:</span>
+        <span class="k">if</span> <span class="n">layer</span><span class="o">.</span><span class="n">input_excitatory</span><span class="p">:</span>
+            <span class="k">for</span> <span class="n">b_id</span> <span class="ow">in</span> <span class="n">branch_ids</span><span class="p">:</span>
+                <span class="n">layer</span><span class="o">.</span><span class="n">branch_excitation</span><span class="o">.</span><span class="n">pre_w</span><span class="o">.</span><span class="n">data</span><span class="p">[</span><span class="n">b_id</span><span class="p">,</span> <span class="p">:]</span> <span class="o">=</span> <span class="mf">0.</span>
+        <span class="k">if</span> <span class="n">layer</span><span class="o">.</span><span class="n">input_inhibitory</span> <span class="ow">and</span> <span class="nb">hasattr</span><span class="p">(</span><span class="n">layer</span><span class="p">,</span> <span class="s1">&#39;branch_inhibition&#39;</span><span class="p">):</span>
+            <span class="k">for</span> <span class="n">b_id</span> <span class="ow">in</span> <span class="n">branch_ids</span><span class="p">:</span>
+                <span class="n">layer</span><span class="o">.</span><span class="n">branch_inhibition</span><span class="o">.</span><span class="n">pre_w</span><span class="o">.</span><span class="n">data</span><span class="p">[</span><span class="n">b_id</span><span class="p">,</span> <span class="p">:]</span> <span class="o">=</span> <span class="mf">0.</span>
+
+    <span class="k">elif</span> <span class="n">mode</span> <span class="o">==</span> <span class="s1">&#39;full&#39;</span><span class="p">:</span>
+        <span class="k">if</span> <span class="n">layer</span><span class="o">.</span><span class="n">input_excitatory</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">branch_ids</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+                <span class="n">layer</span><span class="o">.</span><span class="n">branch_excitation</span><span class="o">.</span><span class="n">pre_w</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">zero_</span><span class="p">()</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="k">for</span> <span class="n">b_id</span> <span class="ow">in</span> <span class="n">branch_ids</span><span class="p">:</span>
+                    <span class="n">layer</span><span class="o">.</span><span class="n">branch_excitation</span><span class="o">.</span><span class="n">pre_w</span><span class="o">.</span><span class="n">data</span><span class="p">[</span><span class="n">b_id</span><span class="p">,</span> <span class="p">:]</span> <span class="o">=</span> <span class="mf">0.</span>
+        <span class="k">if</span> <span class="n">layer</span><span class="o">.</span><span class="n">input_inhibitory</span> <span class="ow">and</span> <span class="nb">hasattr</span><span class="p">(</span><span class="n">layer</span><span class="p">,</span> <span class="s1">&#39;branch_inhibition&#39;</span><span class="p">):</span>
+            <span class="k">if</span> <span class="n">branch_ids</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+                <span class="n">layer</span><span class="o">.</span><span class="n">branch_inhibition</span><span class="o">.</span><span class="n">pre_w</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">zero_</span><span class="p">()</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="k">for</span> <span class="n">b_id</span> <span class="ow">in</span> <span class="n">branch_ids</span><span class="p">:</span>
+                    <span class="n">layer</span><span class="o">.</span><span class="n">branch_inhibition</span><span class="o">.</span><span class="n">pre_w</span><span class="o">.</span><span class="n">data</span><span class="p">[</span><span class="n">b_id</span><span class="p">,</span> <span class="p">:]</span> <span class="o">=</span> <span class="mf">0.</span></div>
+
+        <span class="c1"># We do NOT zero out blockLinear or anything that kills upstream input.</span>
+        <span class="c1"># That way deeper layers still get signals from earlier layers.</span>
+
+
+<div class="viewcode-block" id="analyze_branch_ablation">
+<a class="viewcode-back" href="../../source/dendritic_modeling.html#dendritic_modeling.utils.analyze_branch_ablation">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">analyze_branch_ablation</span><span class="p">(</span><span class="n">model</span><span class="p">,</span> <span class="n">dataset</span><span class="p">,</span> <span class="n">layer_idx</span><span class="p">,</span> <span class="n">branch_ids</span><span class="p">,</span>
+                            <span class="n">mode</span><span class="o">=</span><span class="s1">&#39;direct&#39;</span><span class="p">,</span> <span class="n">device</span><span class="o">=</span><span class="s1">&#39;cpu&#39;</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    1) measure baseline accuracy</span>
+<span class="sd">    2) for each branch_id in branch_ids, ablate, measure accuracy drop</span>
+<span class="sd">    3) restore weights</span>
+
+<span class="sd">    If we pass branch_ids=None, it ablates the entire layer. </span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">baseline_acc</span> <span class="o">=</span> <span class="n">measure_performance</span><span class="p">(</span><span class="n">model</span><span class="p">,</span> <span class="n">dataset</span><span class="p">,</span> <span class="n">device</span><span class="o">=</span><span class="n">device</span><span class="p">)</span>
+    <span class="n">results</span> <span class="o">=</span> <span class="p">{}</span>
+    <span class="n">original</span> <span class="o">=</span> <span class="p">{}</span>
+    <span class="k">for</span> <span class="n">n</span><span class="p">,</span> <span class="n">p</span> <span class="ow">in</span> <span class="n">model</span><span class="o">.</span><span class="n">named_parameters</span><span class="p">():</span>
+        <span class="n">original</span><span class="p">[</span><span class="n">n</span><span class="p">]</span> <span class="o">=</span> <span class="n">p</span><span class="o">.</span><span class="n">detach</span><span class="p">()</span><span class="o">.</span><span class="n">clone</span><span class="p">()</span>
+
+    <span class="c1"># If branch_ids is None, we do a single ablation of the whole layer</span>
+    <span class="c1"># If it&#39;s a list, we do one ablation per branch in that list</span>
+    <span class="k">if</span> <span class="n">branch_ids</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="n">ablate_branch</span><span class="p">(</span><span class="n">model</span><span class="p">,</span> <span class="n">layer_idx</span><span class="p">,</span> <span class="n">branch_ids</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">mode</span><span class="o">=</span><span class="n">mode</span><span class="p">)</span>
+        <span class="n">acc_after</span> <span class="o">=</span> <span class="n">measure_performance</span><span class="p">(</span><span class="n">model</span><span class="p">,</span> <span class="n">dataset</span><span class="p">,</span> <span class="n">device</span><span class="o">=</span><span class="n">device</span><span class="p">)</span>
+        <span class="n">delta</span> <span class="o">=</span> <span class="n">baseline_acc</span> <span class="o">-</span> <span class="n">acc_after</span>
+        <span class="n">results</span><span class="p">[</span><span class="s2">&quot;all_branches&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="p">(</span><span class="n">acc_after</span><span class="p">,</span> <span class="n">delta</span><span class="p">)</span>
+
+        <span class="k">for</span> <span class="n">n</span><span class="p">,</span> <span class="n">p</span> <span class="ow">in</span> <span class="n">model</span><span class="o">.</span><span class="n">named_parameters</span><span class="p">():</span>
+            <span class="n">p</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">copy_</span><span class="p">(</span><span class="n">original</span><span class="p">[</span><span class="n">n</span><span class="p">])</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="c1"># ablate each branch ID separately</span>
+        <span class="k">for</span> <span class="n">b_id</span> <span class="ow">in</span> <span class="n">branch_ids</span><span class="p">:</span>
+            <span class="n">ablate_branch</span><span class="p">(</span><span class="n">model</span><span class="p">,</span> <span class="n">layer_idx</span><span class="p">,</span> <span class="p">[</span><span class="n">b_id</span><span class="p">],</span> <span class="n">mode</span><span class="o">=</span><span class="n">mode</span><span class="p">)</span>
+            <span class="n">acc_after</span> <span class="o">=</span> <span class="n">measure_performance</span><span class="p">(</span><span class="n">model</span><span class="p">,</span> <span class="n">dataset</span><span class="p">,</span> <span class="n">device</span><span class="o">=</span><span class="n">device</span><span class="p">)</span>
+            <span class="n">delta</span> <span class="o">=</span> <span class="n">baseline_acc</span> <span class="o">-</span> <span class="n">acc_after</span>
+            <span class="n">results</span><span class="p">[</span><span class="n">b_id</span><span class="p">]</span> <span class="o">=</span> <span class="p">(</span><span class="n">acc_after</span><span class="p">,</span> <span class="n">delta</span><span class="p">)</span>
+
+            <span class="c1"># restore</span>
+            <span class="k">for</span> <span class="n">n</span><span class="p">,</span> <span class="n">p</span> <span class="ow">in</span> <span class="n">model</span><span class="o">.</span><span class="n">named_parameters</span><span class="p">():</span>
+                <span class="n">p</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">copy_</span><span class="p">(</span><span class="n">original</span><span class="p">[</span><span class="n">n</span><span class="p">])</span>
+    
+    <span class="k">return</span> <span class="n">baseline_acc</span><span class="p">,</span> <span class="n">results</span></div>
+
+
+
+
+
+
+<div class="viewcode-block" id="compute_entropy">
+<a class="viewcode-back" href="../../source/dendritic_modeling.html#dendritic_modeling.utils.compute_entropy">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">compute_entropy</span><span class="p">(</span><span class="n">prob_dist</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Given a discrete probability distribution (torch tensor),</span>
+<span class="sd">    compute the Shannon entropy: H = - sum(p * log2 p).</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">prob_dist</span> <span class="o">=</span> <span class="n">prob_dist</span><span class="o">.</span><span class="n">clamp</span><span class="p">(</span><span class="nb">min</span><span class="o">=</span><span class="mf">1e-12</span><span class="p">)</span>
+    <span class="k">return</span> <span class="o">-</span><span class="p">(</span><span class="n">prob_dist</span> <span class="o">*</span> <span class="n">prob_dist</span><span class="o">.</span><span class="n">log2</span><span class="p">())</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="n">dim</span><span class="o">=-</span><span class="mi">1</span><span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="compute_mutual_information">
+<a class="viewcode-back" href="../../source/dendritic_modeling.html#dendritic_modeling.utils.compute_mutual_information">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">compute_mutual_information</span><span class="p">(</span><span class="n">joint_prob</span><span class="p">,</span> <span class="n">marginal_x</span><span class="p">,</span> <span class="n">marginal_y</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    MI(X,Y) = sum_{x,y} p(x,y) log( p(x,y) / [p(x)p(y)] ).</span>
+<span class="sd">    All inputs are torch tensors of probabilities.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">joint_prob</span> <span class="o">=</span> <span class="n">joint_prob</span><span class="o">.</span><span class="n">clamp</span><span class="p">(</span><span class="nb">min</span><span class="o">=</span><span class="mf">1e-12</span><span class="p">)</span>
+    <span class="n">marginal_x</span> <span class="o">=</span> <span class="n">marginal_x</span><span class="o">.</span><span class="n">clamp</span><span class="p">(</span><span class="nb">min</span><span class="o">=</span><span class="mf">1e-12</span><span class="p">)</span>
+    <span class="n">marginal_y</span> <span class="o">=</span> <span class="n">marginal_y</span><span class="o">.</span><span class="n">clamp</span><span class="p">(</span><span class="nb">min</span><span class="o">=</span><span class="mf">1e-12</span><span class="p">)</span>
+    
+    <span class="n">ratio</span> <span class="o">=</span> <span class="n">joint_prob</span> <span class="o">/</span> <span class="p">(</span><span class="n">marginal_x</span><span class="p">[:,</span><span class="kc">None</span><span class="p">]</span> <span class="o">*</span> <span class="n">marginal_y</span><span class="p">[</span><span class="kc">None</span><span class="p">,:])</span>
+    <span class="k">return</span> <span class="p">(</span><span class="n">joint_prob</span> <span class="o">*</span> <span class="n">ratio</span><span class="o">.</span><span class="n">log2</span><span class="p">())</span><span class="o">.</span><span class="n">sum</span><span class="p">()</span></div>
+
+
+
+
+<div class="viewcode-block" id="estimate_hidden_output_MI">
+<a class="viewcode-back" href="../../source/dendritic_modeling.html#dendritic_modeling.utils.estimate_hidden_output_MI">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">estimate_hidden_output_MI</span><span class="p">(</span><span class="n">model</span><span class="p">,</span> <span class="n">data_loader</span><span class="p">,</span> <span class="n">n_bins</span><span class="o">=</span><span class="mi">10</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Discretize a hidden layer&#39;s activation into n_bins and estimate</span>
+<span class="sd">    mutual information with the class label. This is a rough approximation:</span>
+<span class="sd">    1. Collect hidden activation for each sample &amp; label</span>
+<span class="sd">    2. Bin them to get histogram p(hidden_bin, label)</span>
+<span class="sd">    3. Compare to p(hidden_bin)*p(label)</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">model</span><span class="o">.</span><span class="n">eval</span><span class="p">()</span>
+    <span class="n">hidden_acts</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="n">labels</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="k">with</span> <span class="n">torch</span><span class="o">.</span><span class="n">no_grad</span><span class="p">():</span>
+        <span class="k">for</span> <span class="n">x</span><span class="p">,</span> <span class="n">y</span> <span class="ow">in</span> <span class="n">data_loader</span><span class="p">:</span>
+            <span class="c1"># forward pass</span>
+            <span class="c1"># let&#39;s extract the second-to-last layer&#39;s output or any hidden layer</span>
+            <span class="c1"># For demonstration, assume &quot;model.net.layers[-1].excitatory_cells&quot;</span>
+            <span class="c1"># or we adapt the model forward pass to return hidden acts</span>
+            <span class="n">activations</span> <span class="o">=</span> <span class="n">model</span><span class="o">.</span><span class="n">net</span><span class="o">.</span><span class="n">layers</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span><span class="o">.</span><span class="n">excitatory_cells</span><span class="o">.</span><span class="n">forward</span><span class="p">(</span><span class="n">x</span><span class="p">)</span>
+            <span class="n">hidden_acts</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">activations</span><span class="o">.</span><span class="n">cpu</span><span class="p">())</span>
+            <span class="n">labels</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">y</span><span class="o">.</span><span class="n">cpu</span><span class="p">())</span>
+
+    <span class="n">hidden_acts</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">cat</span><span class="p">(</span><span class="n">hidden_acts</span><span class="p">,</span> <span class="n">dim</span><span class="o">=</span><span class="mi">0</span><span class="p">)</span>  <span class="c1"># shape [N, n_excitatory]</span>
+    <span class="n">labels</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">cat</span><span class="p">(</span><span class="n">labels</span><span class="p">,</span> <span class="n">dim</span><span class="o">=</span><span class="mi">0</span><span class="p">)</span>           <span class="c1"># shape [N]</span>
+
+    <span class="c1"># We do this for a single dimension or average across dimensions</span>
+    <span class="c1"># for simplicity, let&#39;s just do dimension 0:</span>
+    <span class="n">h0</span> <span class="o">=</span> <span class="n">hidden_acts</span><span class="p">[:,</span> <span class="mi">0</span><span class="p">]</span>
+    <span class="n">min_val</span><span class="p">,</span> <span class="n">max_val</span> <span class="o">=</span> <span class="n">h0</span><span class="o">.</span><span class="n">min</span><span class="p">(),</span> <span class="n">h0</span><span class="o">.</span><span class="n">max</span><span class="p">()</span>
+
+    <span class="n">bin_edges</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">linspace</span><span class="p">(</span><span class="n">min_val</span><span class="p">,</span> <span class="n">max_val</span><span class="p">,</span> <span class="n">n_bins</span><span class="o">+</span><span class="mi">1</span><span class="p">)</span>
+    <span class="n">bin_indices</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">bucketize</span><span class="p">(</span><span class="n">h0</span><span class="p">,</span> <span class="n">bin_edges</span><span class="p">)</span> <span class="o">-</span> <span class="mi">1</span>  <span class="c1"># in [0, n_bins-1]</span>
+    
+
+    <span class="n">n_classes</span> <span class="o">=</span> <span class="n">labels</span><span class="o">.</span><span class="n">max</span><span class="p">()</span><span class="o">.</span><span class="n">item</span><span class="p">()</span> <span class="o">+</span> <span class="mi">1</span>
+    <span class="n">joint_hist</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">zeros</span><span class="p">((</span><span class="n">n_bins</span><span class="p">,</span> <span class="n">n_classes</span><span class="p">),</span> <span class="n">dtype</span><span class="o">=</span><span class="n">torch</span><span class="o">.</span><span class="n">float</span><span class="p">)</span>
+    <span class="k">for</span> <span class="n">b</span><span class="p">,</span> <span class="n">c</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span><span class="n">bin_indices</span><span class="p">,</span> <span class="n">labels</span><span class="p">):</span>
+        <span class="n">joint_hist</span><span class="p">[</span><span class="n">b</span><span class="p">,</span> <span class="n">c</span><span class="p">]</span> <span class="o">+=</span> <span class="mi">1</span>
+    <span class="n">joint_prob</span> <span class="o">=</span> <span class="n">joint_hist</span> <span class="o">/</span> <span class="n">joint_hist</span><span class="o">.</span><span class="n">sum</span><span class="p">()</span>
+
+    <span class="n">marginal_hidden</span> <span class="o">=</span> <span class="n">joint_prob</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="n">dim</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span>  <span class="c1"># sum across classes</span>
+    <span class="n">marginal_label</span> <span class="o">=</span> <span class="n">joint_prob</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="n">dim</span><span class="o">=</span><span class="mi">0</span><span class="p">)</span>   <span class="c1"># sum across bins</span>
+
+
+    <span class="n">mi_est</span> <span class="o">=</span> <span class="n">compute_mutual_information</span><span class="p">(</span><span class="n">joint_prob</span><span class="p">,</span> <span class="n">marginal_hidden</span><span class="p">,</span> <span class="n">marginal_label</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">mi_est</span><span class="o">.</span><span class="n">item</span><span class="p">()</span></div>
 
 </pre></div>
 

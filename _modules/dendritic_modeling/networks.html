@@ -1,0 +1,546 @@
+
+
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" data-content_root="../../">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>dendritic_modeling.networks &mdash; dendritic_modeling 0.1.0 documentation</title>
+      <link rel="stylesheet" type="text/css" href="../../_static/pygments.css?v=b86133f3" />
+      <link rel="stylesheet" type="text/css" href="../../_static/css/theme.css?v=e59714d7" />
+      <link rel="stylesheet" type="text/css" href="../../_static/copybutton.css?v=76b2166b" />
+
+  
+      <script src="../../_static/jquery.js?v=5d32c60e"></script>
+      <script src="../../_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
+      <script src="../../_static/documentation_options.js?v=01f34227"></script>
+      <script src="../../_static/doctools.js?v=9bcbadda"></script>
+      <script src="../../_static/sphinx_highlight.js?v=dc90522c"></script>
+      <script src="../../_static/clipboard.min.js?v=a7894cd8"></script>
+      <script src="../../_static/copybutton.js?v=f281be69"></script>
+      <script crossorigin="anonymous" integrity="sha256-Ae2Vz/4ePdIu6ZyI/5ZGsYnb+m0JlOmKPjt6XZ9JJkA=" src="https://cdnjs.cloudflare.com/ajax/libs/require.js/2.3.4/require.min.js"></script>
+    <script src="../../_static/js/theme.js"></script>
+    <link rel="author" title="About these documents" href="../../about.html" />
+    <link rel="index" title="Index" href="../../genindex.html" />
+    <link rel="search" title="Search" href="../../search.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+
+          
+          
+          <a href="../../index.html" class="icon icon-home">
+            dendritic_modeling
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <p class="caption" role="heading"><span class="caption-text">Introduction</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../about.html">About</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Users Guide</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../source/users/users.html">Installation</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../source/users/users.html#build-the-documentation">Build the documentation</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../source/users/interactive_run.html">Running an interactive session</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../source/users/sweep_job_submission.html">Sweep Job Submission</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Dendritic Modeling</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../source/dend_m/concepts_overview.html">Concepts Overview</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">References</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../source/users/references.html">References</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Appendix and Resources</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../source/additional_resources.html">Additional resources</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../source/glossary.html">Glossary</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">API Reference</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../source/dendritic_modeling.html">dendritic_modeling package</a></li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../../index.html">dendritic_modeling</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="../../index.html" class="icon icon-home" aria-label="Home"></a></li>
+          <li class="breadcrumb-item"><a href="../index.html">Module code</a></li>
+      <li class="breadcrumb-item active">dendritic_modeling.networks</li>
+      <li class="wy-breadcrumbs-aside">
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <h1>Source code for dendritic_modeling.networks</h1><div class="highlight"><pre>
+<span></span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">networks.py</span>
+<span class="sd">========================</span>
+<span class="sd">This module contains the ExcitationInhibitionLayer and </span>
+<span class="sd">ExcitationInhibitionNetwork classes.</span>
+
+<span class="sd">The conductance based gradient scaling can be activated by setting</span>
+<span class="sd">gradient_strategy: block_conductance_dynamic</span>
+<span class="sd">&quot;&quot;&quot;</span>
+
+<span class="kn">from</span><span class="w"> </span><span class="nn">copy</span><span class="w"> </span><span class="kn">import</span> <span class="n">deepcopy</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">torch</span><span class="w"> </span><span class="kn">import</span> <span class="n">nn</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">typing</span><span class="w"> </span><span class="kn">import</span> <span class="n">List</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">torch</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">torch.nn.functional</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">F</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">dendritic_modeling.dendrinet</span><span class="w"> </span><span class="kn">import</span> <span class="n">DendriNet</span><span class="p">,</span> <span class="n">DendriNetWithOutputs</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">dendritic_modeling</span><span class="w"> </span><span class="kn">import</span> <span class="n">logger</span>
+
+
+<div class="viewcode-block" id="ExcitationInhibitionLayer">
+<a class="viewcode-back" href="../../source/dendritic_modeling.html#dendritic_modeling.networks.ExcitationInhibitionLayer">[docs]</a>
+<span class="k">class</span><span class="w"> </span><span class="nc">ExcitationInhibitionLayer</span><span class="p">(</span><span class="n">nn</span><span class="o">.</span><span class="n">Module</span><span class="p">):</span>
+    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span> 
+        <span class="n">n_excitatory_cells</span><span class="p">,</span>
+        <span class="n">n_inhibitory_cells</span><span class="p">,</span>
+        <span class="n">excitatory_branch_factors</span><span class="p">,</span> 
+        <span class="n">inhibitory_branch_factors</span><span class="p">,</span>
+        <span class="n">excitatory_input_dim</span><span class="p">,</span> 
+        <span class="n">ee_synapses_per_branch</span><span class="p">,</span> 
+        <span class="n">ei_synapses_per_branch</span><span class="p">,</span> 
+        <span class="n">inhibitory_input_dim</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span> 
+        <span class="n">ie_synapses_per_branch</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span> 
+        <span class="n">ii_synapses_per_branch</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span> 
+        <span class="n">reactivate</span> <span class="o">=</span> <span class="kc">True</span><span class="p">,</span> 
+        <span class="n">somatic_synapses</span> <span class="o">=</span> <span class="kc">True</span><span class="p">,</span>
+        <span class="n">topk_init_method</span> <span class="o">=</span> <span class="s2">&quot;xavier_normal&quot;</span><span class="p">,</span>
+        <span class="n">use_shunting</span> <span class="o">=</span> <span class="kc">True</span><span class="p">,</span>
+        <span class="n">reactivation_strategy</span><span class="o">=</span><span class="s2">&quot;none&quot;</span><span class="p">,</span>
+        <span class="n">blocklinear_strategy</span><span class="o">=</span><span class="s2">&quot;none&quot;</span><span class="p">,</span>
+        <span class="n">reactivation_type</span><span class="o">=</span><span class="s1">&#39;param_tanh&#39;</span><span class="p">,</span>
+        <span class="n">enable_branch_outputs</span><span class="o">=</span><span class="kc">False</span> 
+    <span class="p">):</span>
+        <span class="nb">super</span><span class="p">(</span><span class="n">ExcitationInhibitionLayer</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="fm">__init__</span><span class="p">()</span>
+
+        <span class="k">if</span> <span class="n">enable_branch_outputs</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">inhibitory_cells</span> <span class="o">=</span> <span class="n">DendriNetWithOutputs</span><span class="p">(</span>
+                <span class="n">n_soma</span> <span class="o">=</span> <span class="n">n_inhibitory_cells</span><span class="p">,</span> 
+                <span class="n">branch_factors</span> <span class="o">=</span> <span class="n">inhibitory_branch_factors</span><span class="p">,</span>
+                <span class="n">excitatory_input_dim</span> <span class="o">=</span> <span class="n">excitatory_input_dim</span><span class="p">,</span> 
+                <span class="n">excitatory_synapses_per_branch</span> <span class="o">=</span> <span class="n">ei_synapses_per_branch</span><span class="p">,</span>
+                <span class="n">inhibitory_input_dim</span> <span class="o">=</span> <span class="n">inhibitory_input_dim</span><span class="p">,</span> 
+                <span class="n">inhibitory_synapses_per_branch</span> <span class="o">=</span> <span class="n">ii_synapses_per_branch</span><span class="p">,</span>
+                <span class="n">reactivate</span> <span class="o">=</span> <span class="n">reactivate</span><span class="p">,</span> 
+                <span class="n">somatic_synapses</span> <span class="o">=</span> <span class="n">somatic_synapses</span><span class="p">,</span> 
+                <span class="n">topk_init_method</span> <span class="o">=</span> <span class="n">topk_init_method</span><span class="p">,</span>
+                <span class="n">use_shunting</span><span class="o">=</span><span class="n">use_shunting</span><span class="p">,</span>
+                <span class="n">reactivation_type</span><span class="o">=</span><span class="n">reactivation_type</span><span class="p">,</span>
+                <span class="n">reactivation_strategy</span><span class="o">=</span><span class="n">reactivation_strategy</span><span class="p">,</span>
+                <span class="n">blocklinear_strategy</span><span class="o">=</span><span class="n">blocklinear_strategy</span><span class="p">,</span>
+            <span class="p">)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">excitatory_cells</span> <span class="o">=</span> <span class="n">DendriNetWithOutputs</span><span class="p">(</span>
+                <span class="n">n_soma</span> <span class="o">=</span> <span class="n">n_excitatory_cells</span><span class="p">,</span> 
+                <span class="n">branch_factors</span> <span class="o">=</span> <span class="n">excitatory_branch_factors</span><span class="p">,</span>
+                <span class="n">excitatory_input_dim</span> <span class="o">=</span> <span class="n">excitatory_input_dim</span><span class="p">,</span> 
+                <span class="n">excitatory_synapses_per_branch</span> <span class="o">=</span> <span class="n">ee_synapses_per_branch</span><span class="p">,</span>
+                <span class="n">inhibitory_input_dim</span> <span class="o">=</span> <span class="n">n_inhibitory_cells</span><span class="p">,</span> 
+                <span class="n">inhibitory_synapses_per_branch</span> <span class="o">=</span> <span class="n">ie_synapses_per_branch</span><span class="p">,</span>
+                <span class="n">reactivate</span> <span class="o">=</span> <span class="n">reactivate</span><span class="p">,</span> 
+                <span class="n">somatic_synapses</span> <span class="o">=</span> <span class="n">somatic_synapses</span><span class="p">,</span>
+                <span class="n">topk_init_method</span> <span class="o">=</span> <span class="n">topk_init_method</span><span class="p">,</span>
+                <span class="n">use_shunting</span><span class="o">=</span><span class="n">use_shunting</span><span class="p">,</span>
+                <span class="n">reactivation_type</span><span class="o">=</span><span class="n">reactivation_type</span><span class="p">,</span>
+                <span class="n">reactivation_strategy</span><span class="o">=</span><span class="n">reactivation_strategy</span><span class="p">,</span>
+                <span class="n">blocklinear_strategy</span><span class="o">=</span><span class="n">blocklinear_strategy</span><span class="p">,</span>
+            <span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">inhibitory_cells</span> <span class="o">=</span> <span class="n">DendriNet</span><span class="p">(</span>
+                <span class="n">n_soma</span> <span class="o">=</span> <span class="n">n_inhibitory_cells</span><span class="p">,</span> 
+                <span class="n">branch_factors</span> <span class="o">=</span> <span class="n">inhibitory_branch_factors</span><span class="p">,</span>
+                <span class="n">excitatory_input_dim</span> <span class="o">=</span> <span class="n">excitatory_input_dim</span><span class="p">,</span> 
+                <span class="n">excitatory_synapses_per_branch</span> <span class="o">=</span> <span class="n">ei_synapses_per_branch</span><span class="p">,</span>
+                <span class="n">inhibitory_input_dim</span> <span class="o">=</span> <span class="n">inhibitory_input_dim</span><span class="p">,</span> 
+                <span class="n">inhibitory_synapses_per_branch</span> <span class="o">=</span> <span class="n">ii_synapses_per_branch</span><span class="p">,</span>
+                <span class="n">reactivate</span> <span class="o">=</span> <span class="n">reactivate</span><span class="p">,</span> 
+                <span class="n">somatic_synapses</span> <span class="o">=</span> <span class="n">somatic_synapses</span><span class="p">,</span> 
+                <span class="n">topk_init_method</span> <span class="o">=</span> <span class="n">topk_init_method</span><span class="p">,</span>
+                <span class="n">use_shunting</span><span class="o">=</span><span class="n">use_shunting</span><span class="p">,</span>
+                <span class="n">reactivation_type</span><span class="o">=</span><span class="n">reactivation_type</span><span class="p">,</span>
+                <span class="n">reactivation_strategy</span><span class="o">=</span><span class="n">reactivation_strategy</span><span class="p">,</span>
+                <span class="n">blocklinear_strategy</span><span class="o">=</span><span class="n">blocklinear_strategy</span><span class="p">,</span>
+            <span class="p">)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">excitatory_cells</span> <span class="o">=</span> <span class="n">DendriNet</span><span class="p">(</span>
+                <span class="n">n_soma</span> <span class="o">=</span> <span class="n">n_excitatory_cells</span><span class="p">,</span> 
+                <span class="n">branch_factors</span> <span class="o">=</span> <span class="n">excitatory_branch_factors</span><span class="p">,</span>
+                <span class="n">excitatory_input_dim</span> <span class="o">=</span> <span class="n">excitatory_input_dim</span><span class="p">,</span> 
+                <span class="n">excitatory_synapses_per_branch</span> <span class="o">=</span> <span class="n">ee_synapses_per_branch</span><span class="p">,</span>
+                <span class="n">inhibitory_input_dim</span> <span class="o">=</span> <span class="n">n_inhibitory_cells</span><span class="p">,</span> 
+                <span class="n">inhibitory_synapses_per_branch</span> <span class="o">=</span> <span class="n">ie_synapses_per_branch</span><span class="p">,</span>
+                <span class="n">reactivate</span> <span class="o">=</span> <span class="n">reactivate</span><span class="p">,</span> 
+                <span class="n">somatic_synapses</span> <span class="o">=</span> <span class="n">somatic_synapses</span><span class="p">,</span>
+                <span class="n">topk_init_method</span> <span class="o">=</span> <span class="n">topk_init_method</span><span class="p">,</span>
+                <span class="n">use_shunting</span><span class="o">=</span><span class="n">use_shunting</span><span class="p">,</span>
+                <span class="n">reactivation_type</span><span class="o">=</span><span class="n">reactivation_type</span><span class="p">,</span>
+                <span class="n">reactivation_strategy</span><span class="o">=</span><span class="n">reactivation_strategy</span><span class="p">,</span>
+                <span class="n">blocklinear_strategy</span><span class="o">=</span><span class="n">blocklinear_strategy</span><span class="p">,</span>
+            <span class="p">)</span>
+    
+    <span class="k">def</span><span class="w"> </span><span class="nf">decay_weights</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">weight_decay</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">inhibitory_cells</span><span class="o">.</span><span class="n">decay_weights</span><span class="p">(</span><span class="n">weight_decay</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">excitatory_cells</span><span class="o">.</span><span class="n">decay_weights</span><span class="p">(</span><span class="n">weight_decay</span><span class="p">)</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">forward</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">x</span><span class="p">,</span> <span class="n">inhibitory_input</span> <span class="o">=</span> <span class="kc">None</span><span class="p">):</span>
+        <span class="n">inhibitory_output</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">inhibitory_cells</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="n">inhibitory_input</span><span class="p">)</span>
+        <span class="n">excitatory_output</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">excitatory_cells</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="n">inhibitory_output</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">excitatory_output</span><span class="p">,</span> <span class="n">inhibitory_output</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">forward_with_branch_outputs</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">x</span><span class="p">,</span> <span class="n">inhibitory_input</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="nb">hasattr</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">inhibitory_cells</span><span class="p">,</span> <span class="s1">&#39;forward_with_branch_outputs&#39;</span><span class="p">):</span>
+            <span class="n">inhibitory_output</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">inhibitory_cells</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="n">inhibitory_input</span><span class="p">)</span>
+            <span class="n">excitatory_output</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">excitatory_cells</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="n">inhibitory_output</span><span class="p">)</span>
+            <span class="k">return</span> <span class="n">excitatory_output</span><span class="p">,</span> <span class="n">inhibitory_output</span><span class="p">,</span> <span class="p">[],</span> <span class="p">[]</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">inhibitory_final</span><span class="p">,</span> <span class="n">inh_acts</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">inhibitory_cells</span><span class="o">.</span><span class="n">forward_with_branch_outputs</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="n">inhibitory_input</span><span class="p">)</span>
+            <span class="n">excitatory_final</span><span class="p">,</span> <span class="n">exc_acts</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">excitatory_cells</span><span class="o">.</span><span class="n">forward_with_branch_outputs</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="n">inhibitory_final</span><span class="p">)</span>
+            <span class="k">return</span> <span class="n">excitatory_final</span><span class="p">,</span> <span class="n">inhibitory_final</span><span class="p">,</span> <span class="n">inh_acts</span><span class="p">,</span> <span class="n">exc_acts</span></div>
+
+
+
+<div class="viewcode-block" id="ExcitationInhibitionNetwork">
+<a class="viewcode-back" href="../../source/dendritic_modeling.html#dendritic_modeling.networks.ExcitationInhibitionNetwork">[docs]</a>
+<span class="k">class</span><span class="w"> </span><span class="nc">ExcitationInhibitionNetwork</span><span class="p">(</span><span class="n">nn</span><span class="o">.</span><span class="n">Module</span><span class="p">):</span>
+    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span> 
+        <span class="n">input_dim</span><span class="p">,</span> 
+        <span class="n">excitatory_layer_sizes</span><span class="p">,</span> 
+        <span class="n">inhibitory_layer_sizes</span><span class="p">,</span>
+        <span class="n">excitatory_branch_factors</span><span class="p">,</span> 
+        <span class="n">inhibitory_branch_factors</span><span class="p">,</span> 
+        <span class="n">ee_synapses_per_branch_per_layer</span><span class="p">,</span> 
+        <span class="n">ei_synapses_per_branch_per_layer</span><span class="p">,</span> 
+        <span class="n">ie_synapses_per_branch_per_layer</span><span class="p">,</span> 
+        <span class="n">ii_synapses_per_branch_per_layer</span> <span class="o">=</span> <span class="p">[],</span> 
+        <span class="n">reactivate</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span> 
+        <span class="n">somatic_synapses</span> <span class="o">=</span> <span class="kc">True</span><span class="p">,</span>
+        <span class="n">topk_init_method</span> <span class="o">=</span> <span class="s2">&quot;xavier_normal&quot;</span><span class="p">,</span>
+        <span class="n">use_shunting</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+        <span class="n">reactivation_strategy</span><span class="o">=</span><span class="s2">&quot;none&quot;</span><span class="p">,</span>
+        <span class="n">blocklinear_strategy</span><span class="o">=</span><span class="s2">&quot;none&quot;</span><span class="p">,</span>
+        <span class="n">weight_decay_rate</span><span class="o">=</span><span class="mf">0.1</span><span class="p">,</span>
+        <span class="n">reactivation_type</span><span class="o">=</span><span class="s1">&#39;param_tanh&#39;</span><span class="p">,</span>
+        <span class="n">local_loss_weight</span><span class="o">=</span><span class="mf">0.0</span><span class="p">,</span>
+        <span class="n">enable_branch_outputs</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> 
+        <span class="n">output_layer</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span>
+        <span class="n">output_dim</span><span class="o">=</span><span class="mi">10</span><span class="p">,</span>
+        <span class="n">learning_strategy</span><span class="o">=</span><span class="s2">&quot;mle&quot;</span><span class="p">,</span>
+    <span class="p">):</span>
+        <span class="nb">super</span><span class="p">(</span><span class="n">ExcitationInhibitionNetwork</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="fm">__init__</span><span class="p">()</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">weight_decay_rate</span> <span class="o">=</span> <span class="n">weight_decay_rate</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">n_layers</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">excitatory_layer_sizes</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">reactivation_strategy</span> <span class="o">=</span> <span class="n">reactivation_strategy</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">blocklinear_strategy</span> <span class="o">=</span> <span class="n">blocklinear_strategy</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">local_loss_weight</span> <span class="o">=</span> <span class="n">local_loss_weight</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">learning_strategy</span> <span class="o">=</span> <span class="n">learning_strategy</span>
+
+        <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="sa">f</span><span class="s1">&#39;Building ExcitationInhibitionNetwork with </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">n_layers</span><span class="si">}</span><span class="s1"> layer(s).&#39;</span><span class="p">)</span>
+
+        <span class="n">excitatory_layer_sizes</span> <span class="o">=</span> <span class="n">deepcopy</span><span class="p">(</span><span class="n">excitatory_layer_sizes</span><span class="p">)</span>
+        <span class="n">inhibitory_layer_sizes</span> <span class="o">=</span> <span class="n">deepcopy</span><span class="p">(</span><span class="n">inhibitory_layer_sizes</span><span class="p">)</span>
+
+        <span class="n">excitatory_layer_sizes</span><span class="o">.</span><span class="n">insert</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="n">input_dim</span><span class="p">)</span>
+        <span class="n">inhibitory_layer_sizes</span><span class="o">.</span><span class="n">insert</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span>
+
+        <span class="n">ee_syn</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="n">ee_synapses_per_branch_per_layer</span><span class="p">)</span>
+        <span class="n">ei_syn</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="n">ei_synapses_per_branch_per_layer</span><span class="p">)</span>
+        <span class="n">ie_syn</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="n">ie_synapses_per_branch_per_layer</span><span class="p">)</span>
+        <span class="n">ii_syn</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="n">ii_synapses_per_branch_per_layer</span><span class="p">)</span>
+        <span class="k">while</span> <span class="nb">len</span><span class="p">(</span><span class="n">ee_syn</span><span class="p">)</span> <span class="o">&lt;</span> <span class="bp">self</span><span class="o">.</span><span class="n">n_layers</span><span class="p">:</span>
+            <span class="n">ee_syn</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">ee_syn</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">])</span>
+        <span class="k">while</span> <span class="nb">len</span><span class="p">(</span><span class="n">ei_syn</span><span class="p">)</span> <span class="o">&lt;</span> <span class="bp">self</span><span class="o">.</span><span class="n">n_layers</span><span class="p">:</span>
+            <span class="n">ei_syn</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">ei_syn</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">])</span>
+        <span class="k">while</span> <span class="nb">len</span><span class="p">(</span><span class="n">ie_syn</span><span class="p">)</span> <span class="o">&lt;</span> <span class="bp">self</span><span class="o">.</span><span class="n">n_layers</span><span class="p">:</span>
+            <span class="n">ie_syn</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">ie_syn</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">])</span>
+        <span class="k">while</span> <span class="nb">len</span><span class="p">(</span><span class="n">ii_syn</span><span class="p">)</span> <span class="o">&lt;</span> <span class="bp">self</span><span class="o">.</span><span class="n">n_layers</span><span class="p">:</span>
+            <span class="n">ii_syn</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="kc">None</span><span class="p">)</span>
+
+        <span class="n">layers</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">n_layers</span><span class="p">):</span>
+            <span class="n">layers</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">ExcitationInhibitionLayer</span><span class="p">(</span>
+                <span class="n">n_excitatory_cells</span> <span class="o">=</span> <span class="n">excitatory_layer_sizes</span><span class="p">[</span><span class="n">i</span><span class="o">+</span><span class="mi">1</span><span class="p">],</span> 
+                <span class="n">n_inhibitory_cells</span> <span class="o">=</span> <span class="n">inhibitory_layer_sizes</span><span class="p">[</span><span class="n">i</span><span class="o">+</span><span class="mi">1</span><span class="p">],</span>
+                <span class="n">excitatory_branch_factors</span> <span class="o">=</span> <span class="n">excitatory_branch_factors</span><span class="p">,</span> 
+                <span class="n">inhibitory_branch_factors</span> <span class="o">=</span> <span class="n">inhibitory_branch_factors</span><span class="p">,</span>
+                <span class="n">excitatory_input_dim</span> <span class="o">=</span> <span class="n">excitatory_layer_sizes</span><span class="p">[</span><span class="n">i</span><span class="p">],</span> 
+                <span class="n">ee_synapses_per_branch</span> <span class="o">=</span> <span class="n">ee_syn</span><span class="p">[</span><span class="n">i</span><span class="p">],</span> 
+                <span class="n">ei_synapses_per_branch</span> <span class="o">=</span> <span class="n">ei_syn</span><span class="p">[</span><span class="n">i</span><span class="p">],</span>
+                <span class="n">inhibitory_input_dim</span> <span class="o">=</span> <span class="n">inhibitory_layer_sizes</span><span class="p">[</span><span class="n">i</span><span class="p">],</span>
+                <span class="n">ie_synapses_per_branch</span> <span class="o">=</span> <span class="n">ie_syn</span><span class="p">[</span><span class="n">i</span><span class="p">],</span> 
+                <span class="n">ii_synapses_per_branch</span> <span class="o">=</span> <span class="n">ii_syn</span><span class="p">[</span><span class="n">i</span><span class="p">],</span>
+                <span class="n">reactivate</span> <span class="o">=</span> <span class="n">reactivate</span><span class="p">,</span> 
+                <span class="n">somatic_synapses</span> <span class="o">=</span> <span class="n">somatic_synapses</span><span class="p">,</span>
+                <span class="n">topk_init_method</span> <span class="o">=</span> <span class="n">topk_init_method</span><span class="p">,</span>
+                <span class="n">use_shunting</span><span class="o">=</span><span class="n">use_shunting</span><span class="p">,</span>
+                <span class="n">reactivation_strategy</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">reactivation_strategy</span><span class="p">,</span>
+                <span class="n">blocklinear_strategy</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">blocklinear_strategy</span><span class="p">,</span>
+                <span class="n">reactivation_type</span> <span class="o">=</span> <span class="n">reactivation_type</span><span class="p">,</span>
+                <span class="n">enable_branch_outputs</span> <span class="o">=</span> <span class="n">enable_branch_outputs</span>
+            <span class="p">))</span>
+        
+        <span class="bp">self</span><span class="o">.</span><span class="n">layers</span> <span class="o">=</span> <span class="n">nn</span><span class="o">.</span><span class="n">ModuleList</span><span class="p">(</span><span class="n">layers</span><span class="p">)</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">feedback_mats</span> <span class="o">=</span> <span class="n">nn</span><span class="o">.</span><span class="n">ParameterList</span><span class="p">()</span>
+        <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">n_layers</span><span class="p">):</span>
+            <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">learning_strategy</span> <span class="o">==</span> <span class="s2">&quot;local_credit_assignment&quot;</span><span class="p">:</span>
+                <span class="n">fb</span> <span class="o">=</span> <span class="n">nn</span><span class="o">.</span><span class="n">Parameter</span><span class="p">(</span><span class="n">torch</span><span class="o">.</span><span class="n">randn</span><span class="p">(</span><span class="n">excitatory_layer_sizes</span><span class="p">[</span><span class="n">i</span><span class="o">+</span><span class="mi">1</span><span class="p">],</span> <span class="mi">10</span><span class="p">)</span><span class="o">*</span><span class="mf">0.01</span><span class="p">,</span> <span class="n">requires_grad</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">feedback_mats</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">fb</span><span class="p">)</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">feedback_mats</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="kc">None</span><span class="p">)</span>
+
+<div class="viewcode-block" id="ExcitationInhibitionNetwork.decay_weights">
+<a class="viewcode-back" href="../../source/dendritic_modeling.html#dendritic_modeling.networks.ExcitationInhibitionNetwork.decay_weights">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">decay_weights</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">weight_decay</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Called by the optimizer step to apply weight decay to each layer.</span>
+<span class="sd">        If weight_decay is not provided, we default to self.weight_decay_rate.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="n">weight_decay</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">weight_decay</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">weight_decay_rate</span>
+        <span class="k">for</span> <span class="n">layer</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">layers</span><span class="p">:</span>
+            <span class="n">layer</span><span class="o">.</span><span class="n">decay_weights</span><span class="p">(</span><span class="n">weight_decay</span><span class="p">)</span></div>
+
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">forward</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">x</span><span class="p">):</span>
+        <span class="n">excitatory</span> <span class="o">=</span> <span class="n">x</span>
+        <span class="n">inhibitory</span> <span class="o">=</span> <span class="kc">None</span>
+        <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="n">layer</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">layers</span><span class="p">):</span>
+            <span class="n">excitatory</span><span class="p">,</span> <span class="n">inhibitory</span> <span class="o">=</span> <span class="n">layer</span><span class="p">(</span><span class="n">excitatory</span><span class="p">,</span> <span class="n">inhibitory</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">excitatory</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">forward_with_branch_outputs</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">x</span><span class="p">):</span>
+        <span class="n">excitatory</span> <span class="o">=</span> <span class="n">x</span>
+        <span class="n">inhibitory</span> <span class="o">=</span> <span class="kc">None</span>
+        <span class="n">all_acts</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="n">layer</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">layers</span><span class="p">):</span>
+            <span class="n">excitatory</span><span class="p">,</span> <span class="n">inhibitory</span><span class="p">,</span> <span class="n">inh_acts</span><span class="p">,</span> <span class="n">exc_acts</span> <span class="o">=</span> <span class="n">layer</span><span class="o">.</span><span class="n">forward_with_branch_outputs</span><span class="p">(</span><span class="n">excitatory</span><span class="p">,</span> <span class="n">inhibitory</span><span class="p">)</span>
+            <span class="n">all_acts</span><span class="o">.</span><span class="n">extend</span><span class="p">(</span><span class="n">exc_acts</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">excitatory</span><span class="p">,</span> <span class="n">all_acts</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">compute_local_loss</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">x</span><span class="p">,</span> <span class="n">y</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+        <span class="k">return</span> <span class="mf">0.0</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">branch_layers</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Provide a combined list of DendriticBranchLayer modules from all</span>
+<span class="sd">        excitatory sub-nets so that code expecting `model.branch_layers`</span>
+<span class="sd">        won&#39;t crash. Each item is a DendriticBranchLayer, typically</span>
+<span class="sd">        found in excitatory_cells.branch_layers.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">all_branch_layers</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="k">for</span> <span class="n">ei_layer</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">layers</span><span class="p">:</span>
+            <span class="n">all_branch_layers</span><span class="o">.</span><span class="n">extend</span><span class="p">(</span><span class="n">ei_layer</span><span class="o">.</span><span class="n">excitatory_cells</span><span class="o">.</span><span class="n">branch_layers</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">all_branch_layers</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">n_branch_layers</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Provide the number of branch layers. For code referencing</span>
+<span class="sd">        `model.n_branch_layers`, we match DendriNet&#39;s definition by counting</span>
+<span class="sd">        how many DendriticBranchLayer modules the excitatory sub-nets hold.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">branch_layers</span><span class="p">)</span></div>
+
+
+<span class="c1">############################################################</span>
+<span class="c1"># MLPExcInhNetwork</span>
+<span class="c1">############################################################</span>
+<div class="viewcode-block" id="MLPExcInhLayer">
+<a class="viewcode-back" href="../../source/dendritic_modeling.html#dendritic_modeling.networks.MLPExcInhLayer">[docs]</a>
+<span class="k">class</span><span class="w"> </span><span class="nc">MLPExcInhLayer</span><span class="p">(</span><span class="n">nn</span><span class="o">.</span><span class="n">Module</span><span class="p">):</span>
+    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">in_excit</span><span class="p">,</span> <span class="n">in_inhib</span><span class="p">,</span> <span class="n">out_features</span><span class="p">,</span> <span class="n">activation</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+        <span class="nb">super</span><span class="p">(</span><span class="n">MLPExcInhLayer</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="fm">__init__</span><span class="p">()</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">in_excit</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">in_excit</span><span class="p">)</span>  <span class="c1"># → new: ensure int</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">in_inhib</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">in_inhib</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">out_features</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">out_features</span><span class="p">)</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">in_excit</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">excit_pre_w</span> <span class="o">=</span> <span class="n">nn</span><span class="o">.</span><span class="n">Parameter</span><span class="p">(</span><span class="n">torch</span><span class="o">.</span><span class="n">zeros</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">out_features</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">in_excit</span><span class="p">))</span>
+            <span class="n">nn</span><span class="o">.</span><span class="n">init</span><span class="o">.</span><span class="n">xavier_normal_</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">excit_pre_w</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">excit_pre_w</span> <span class="o">=</span> <span class="kc">None</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">in_inhib</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">inhib_pre_w</span> <span class="o">=</span> <span class="n">nn</span><span class="o">.</span><span class="n">Parameter</span><span class="p">(</span><span class="n">torch</span><span class="o">.</span><span class="n">zeros</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">out_features</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">in_inhib</span><span class="p">))</span>
+            <span class="n">nn</span><span class="o">.</span><span class="n">init</span><span class="o">.</span><span class="n">xavier_normal_</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">inhib_pre_w</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">inhib_pre_w</span> <span class="o">=</span> <span class="kc">None</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">bias</span> <span class="o">=</span> <span class="n">nn</span><span class="o">.</span><span class="n">Parameter</span><span class="p">(</span><span class="n">torch</span><span class="o">.</span><span class="n">zeros</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">out_features</span><span class="p">))</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">activation</span> <span class="o">=</span> <span class="n">activation</span>  <span class="c1"># Optional activation function</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">decay_weights</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">weight_decay</span><span class="p">):</span>
+        <span class="k">with</span> <span class="n">torch</span><span class="o">.</span><span class="n">no_grad</span><span class="p">():</span>
+            <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">excit_pre_w</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">excit_pre_w</span><span class="o">.</span><span class="n">sub_</span><span class="p">(</span><span class="n">weight_decay</span> <span class="o">*</span> <span class="bp">self</span><span class="o">.</span><span class="n">excit_pre_w</span><span class="p">)</span>
+            <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">inhib_pre_w</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">inhib_pre_w</span><span class="o">.</span><span class="n">sub_</span><span class="p">(</span><span class="n">weight_decay</span> <span class="o">*</span> <span class="bp">self</span><span class="o">.</span><span class="n">inhib_pre_w</span><span class="p">)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">bias</span><span class="o">.</span><span class="n">sub_</span><span class="p">(</span><span class="n">weight_decay</span> <span class="o">*</span> <span class="bp">self</span><span class="o">.</span><span class="n">bias</span><span class="p">)</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">forward</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">x</span><span class="p">):</span>
+        <span class="c1"># Assume x is of shape [batch, in_excit + in_inhib]</span>
+        <span class="n">batch_size</span> <span class="o">=</span> <span class="n">x</span><span class="o">.</span><span class="n">size</span><span class="p">(</span><span class="mi">0</span><span class="p">)</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">in_excit</span> <span class="o">&gt;</span> <span class="mi">0</span> <span class="ow">and</span> <span class="bp">self</span><span class="o">.</span><span class="n">in_inhib</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">:</span>
+            <span class="n">x_excit</span> <span class="o">=</span> <span class="n">x</span><span class="p">[:,</span> <span class="p">:</span><span class="bp">self</span><span class="o">.</span><span class="n">in_excit</span><span class="p">]</span>
+            <span class="n">x_inhib</span> <span class="o">=</span> <span class="n">x</span><span class="p">[:,</span> <span class="bp">self</span><span class="o">.</span><span class="n">in_excit</span><span class="p">:</span><span class="bp">self</span><span class="o">.</span><span class="n">in_excit</span> <span class="o">+</span> <span class="bp">self</span><span class="o">.</span><span class="n">in_inhib</span><span class="p">]</span>
+        <span class="k">elif</span> <span class="bp">self</span><span class="o">.</span><span class="n">in_excit</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">:</span>
+            <span class="n">x_excit</span> <span class="o">=</span> <span class="n">x</span>
+            <span class="n">x_inhib</span> <span class="o">=</span> <span class="kc">None</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">x_excit</span> <span class="o">=</span> <span class="kc">None</span>
+            <span class="n">x_inhib</span> <span class="o">=</span> <span class="n">x</span>
+        <span class="n">out</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">zeros</span><span class="p">(</span><span class="n">batch_size</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">out_features</span><span class="p">,</span> <span class="n">device</span><span class="o">=</span><span class="n">x</span><span class="o">.</span><span class="n">device</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">x</span><span class="o">.</span><span class="n">dtype</span><span class="p">)</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">excit_pre_w</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="ow">and</span> <span class="n">x_excit</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="c1"># Force excitatory weights to be positive</span>
+            <span class="n">w_excit</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">excit_pre_w</span><span class="o">.</span><span class="n">exp</span><span class="p">()</span>
+            <span class="n">out</span> <span class="o">=</span> <span class="n">out</span> <span class="o">+</span> <span class="n">x_excit</span><span class="o">.</span><span class="n">matmul</span><span class="p">(</span><span class="n">w_excit</span><span class="o">.</span><span class="n">t</span><span class="p">())</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">inhib_pre_w</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="ow">and</span> <span class="n">x_inhib</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="c1"># Force inhibitory weights to be negative</span>
+            <span class="n">w_inhib</span> <span class="o">=</span> <span class="o">-</span><span class="bp">self</span><span class="o">.</span><span class="n">inhib_pre_w</span><span class="o">.</span><span class="n">exp</span><span class="p">()</span>
+            <span class="n">out</span> <span class="o">=</span> <span class="n">out</span> <span class="o">+</span> <span class="n">x_inhib</span><span class="o">.</span><span class="n">matmul</span><span class="p">(</span><span class="n">w_inhib</span><span class="o">.</span><span class="n">t</span><span class="p">())</span>
+        <span class="n">out</span> <span class="o">=</span> <span class="n">out</span> <span class="o">+</span> <span class="bp">self</span><span class="o">.</span><span class="n">bias</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">activation</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">out</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">activation</span><span class="p">(</span><span class="n">out</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">out</span></div>
+
+
+<span class="c1"># → New: MLPExcInhNetwork: builds an MLP mimicking the excitatory/inhibitory structure.</span>
+<div class="viewcode-block" id="MLPExcInhNetwork">
+<a class="viewcode-back" href="../../source/dendritic_modeling.html#dendritic_modeling.networks.MLPExcInhNetwork">[docs]</a>
+<span class="k">class</span><span class="w"> </span><span class="nc">MLPExcInhNetwork</span><span class="p">(</span><span class="n">nn</span><span class="o">.</span><span class="n">Module</span><span class="p">):</span>
+    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span>
+        <span class="n">input_dim</span><span class="p">,</span>
+        <span class="n">excitatory_layer_sizes</span><span class="p">,</span>         <span class="c1"># list of neuron counts for excitatory network (excluding input_dim)</span>
+        <span class="n">inhibitory_layer_sizes</span><span class="p">,</span>           <span class="c1"># list of inhibitory neuron counts (if any; can be empty)</span>
+        <span class="n">excitatory_branch_factors</span><span class="p">,</span>        <span class="c1"># list of branch factors for excitatory network</span>
+        <span class="n">inhibitory_branch_factors</span><span class="p">,</span>        <span class="c1"># list of branch factors for inhibitory network (can be empty)</span>
+        <span class="n">ee_synapses_per_branch_per_layer</span><span class="p">,</span> <span class="c1"># list of excitatory synapses per branch for each layer</span>
+        <span class="n">ie_synapses_per_branch_per_layer</span><span class="p">,</span> <span class="c1"># list of inhibitory synapses per branch for each layer</span>
+        <span class="n">output_layer</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span>               <span class="c1"># if True, add a final classifier layer</span>
+        <span class="n">output_dim</span><span class="o">=</span><span class="mi">10</span><span class="p">,</span>
+        <span class="n">activation</span><span class="o">=</span><span class="n">nn</span><span class="o">.</span><span class="n">ReLU</span><span class="p">(),</span>             <span class="c1"># default activation for hidden layers</span>
+        <span class="n">weight_decay_rate</span><span class="o">=</span><span class="mf">0.1</span><span class="p">,</span>
+        <span class="n">learning_strategy</span><span class="o">=</span><span class="s2">&quot;mle&quot;</span><span class="p">,</span>
+        <span class="o">**</span><span class="n">kwargs</span>
+    <span class="p">):</span>
+        <span class="nb">super</span><span class="p">(</span><span class="n">MLPExcInhNetwork</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="fm">__init__</span><span class="p">()</span>
+        <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s2">&quot;Building MLPExcInhNetwork...&quot;</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">weight_decay_rate</span> <span class="o">=</span> <span class="n">weight_decay_rate</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">learning_strategy</span> <span class="o">=</span> <span class="n">learning_strategy</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">output_layer_flag</span> <span class="o">=</span> <span class="n">output_layer</span>
+
+        <span class="c1"># → Cast configuration values explicitly to int</span>
+        <span class="n">input_dim</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">input_dim</span><span class="p">)</span>
+        <span class="n">excitatory_layer_sizes</span> <span class="o">=</span> <span class="p">[</span><span class="nb">int</span><span class="p">(</span><span class="n">x</span><span class="p">)</span> <span class="k">for</span> <span class="n">x</span> <span class="ow">in</span> <span class="n">excitatory_layer_sizes</span><span class="p">]</span>
+        <span class="n">inhibitory_layer_sizes</span> <span class="o">=</span> <span class="p">[</span><span class="nb">int</span><span class="p">(</span><span class="n">x</span><span class="p">)</span> <span class="k">for</span> <span class="n">x</span> <span class="ow">in</span> <span class="n">inhibitory_layer_sizes</span><span class="p">]</span> <span class="k">if</span> <span class="n">inhibitory_layer_sizes</span> <span class="k">else</span> <span class="p">[]</span>
+        <span class="n">ee_synapses_per_branch_per_layer</span> <span class="o">=</span> <span class="p">[</span><span class="nb">int</span><span class="p">(</span><span class="n">x</span><span class="p">)</span> <span class="k">for</span> <span class="n">x</span> <span class="ow">in</span> <span class="n">ee_synapses_per_branch_per_layer</span><span class="p">]</span>
+        <span class="n">ie_synapses_per_branch_per_layer</span> <span class="o">=</span> <span class="p">[</span><span class="nb">int</span><span class="p">(</span><span class="n">x</span><span class="p">)</span> <span class="k">for</span> <span class="n">x</span> <span class="ow">in</span> <span class="n">ie_synapses_per_branch_per_layer</span><span class="p">]</span>
+
+        <span class="c1"># → Compute effective excitatory input dimensions per layer.</span>
+        <span class="n">excit_sizes</span> <span class="o">=</span> <span class="n">deepcopy</span><span class="p">(</span><span class="n">excitatory_layer_sizes</span><span class="p">)</span>
+        <span class="n">excit_sizes</span><span class="o">.</span><span class="n">insert</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="n">input_dim</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">n_layers</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">excit_sizes</span><span class="p">)</span> <span class="o">-</span> <span class="mi">1</span>  <span class="c1"># number of MLP layers</span>
+
+        <span class="n">layers</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="nb">len</span><span class="p">(</span><span class="n">excit_sizes</span><span class="p">)):</span>
+            <span class="c1"># Compute excitatory inputs: previous layer neurons * excitatory synapses per branch.</span>
+            <span class="n">excit_count</span> <span class="o">=</span> <span class="n">excit_sizes</span><span class="p">[</span><span class="n">i</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span> <span class="o">*</span> <span class="n">ee_synapses_per_branch_per_layer</span><span class="p">[</span><span class="n">i</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span>
+            <span class="c1"># Compute inhibitory inputs if provided.</span>
+            <span class="k">if</span> <span class="n">inhibitory_layer_sizes</span><span class="p">:</span>
+                <span class="n">inhib_count</span> <span class="o">=</span> <span class="n">inhibitory_layer_sizes</span><span class="p">[</span><span class="n">i</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span> <span class="o">*</span> <span class="n">ie_synapses_per_branch_per_layer</span><span class="p">[</span><span class="n">i</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="n">inhib_count</span> <span class="o">=</span> <span class="mi">0</span>
+            <span class="n">in_dim</span> <span class="o">=</span> <span class="n">excit_count</span> <span class="o">+</span> <span class="n">inhib_count</span>
+            <span class="n">layer_activation</span> <span class="o">=</span> <span class="n">activation</span> <span class="k">if</span> <span class="n">i</span> <span class="o">&lt;</span> <span class="bp">self</span><span class="o">.</span><span class="n">n_layers</span> <span class="k">else</span> <span class="kc">None</span>  <span class="c1"># no activation on final layer</span>
+            <span class="n">layer_mod</span> <span class="o">=</span> <span class="n">MLPExcInhLayer</span><span class="p">(</span><span class="n">in_excit</span><span class="o">=</span><span class="n">excit_count</span><span class="p">,</span> <span class="n">in_inhib</span><span class="o">=</span><span class="n">inhib_count</span><span class="p">,</span> <span class="n">out_features</span><span class="o">=</span><span class="n">excit_sizes</span><span class="p">[</span><span class="n">i</span><span class="p">],</span> <span class="n">activation</span><span class="o">=</span><span class="n">layer_activation</span><span class="p">)</span>
+            <span class="n">layers</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">layer_mod</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">layers</span> <span class="o">=</span> <span class="n">nn</span><span class="o">.</span><span class="n">ModuleList</span><span class="p">(</span><span class="n">layers</span><span class="p">)</span>
+
+        <span class="c1"># → If output_layer is true, add a final classifier layer.</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">output_layer_flag</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">classifier</span> <span class="o">=</span> <span class="n">nn</span><span class="o">.</span><span class="n">Linear</span><span class="p">(</span><span class="nb">int</span><span class="p">(</span><span class="n">excit_sizes</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">]),</span> <span class="nb">int</span><span class="p">(</span><span class="n">output_dim</span><span class="p">))</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">classifier</span> <span class="o">=</span> <span class="kc">None</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">decay_weights</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">weight_decay</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+        <span class="k">if</span> <span class="n">weight_decay</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">weight_decay</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">weight_decay_rate</span>
+        <span class="k">for</span> <span class="n">layer</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">layers</span><span class="p">:</span>
+            <span class="n">layer</span><span class="o">.</span><span class="n">decay_weights</span><span class="p">(</span><span class="n">weight_decay</span><span class="p">)</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">classifier</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="k">with</span> <span class="n">torch</span><span class="o">.</span><span class="n">no_grad</span><span class="p">():</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">classifier</span><span class="o">.</span><span class="n">weight</span><span class="o">.</span><span class="n">sub_</span><span class="p">(</span><span class="n">weight_decay</span> <span class="o">*</span> <span class="bp">self</span><span class="o">.</span><span class="n">classifier</span><span class="o">.</span><span class="n">weight</span><span class="p">)</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">classifier</span><span class="o">.</span><span class="n">bias</span><span class="o">.</span><span class="n">sub_</span><span class="p">(</span><span class="n">weight_decay</span> <span class="o">*</span> <span class="bp">self</span><span class="o">.</span><span class="n">classifier</span><span class="o">.</span><span class="n">bias</span><span class="p">)</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">forward</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">x</span><span class="p">):</span>
+        <span class="c1"># For the first layer, assume x is excitatory only. Pad inhibitory zeros if needed.</span>
+        <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="n">layer</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">layers</span><span class="p">):</span>
+            <span class="n">in_excit</span> <span class="o">=</span> <span class="n">layer</span><span class="o">.</span><span class="n">in_excit</span>
+            <span class="n">in_inhib</span> <span class="o">=</span> <span class="n">layer</span><span class="o">.</span><span class="n">in_inhib</span>
+            <span class="k">if</span> <span class="n">x</span><span class="o">.</span><span class="n">size</span><span class="p">(</span><span class="mi">1</span><span class="p">)</span> <span class="o">&lt;</span> <span class="n">in_excit</span> <span class="o">+</span> <span class="n">in_inhib</span><span class="p">:</span>
+                <span class="n">pad_size</span> <span class="o">=</span> <span class="p">(</span><span class="n">in_excit</span> <span class="o">+</span> <span class="n">in_inhib</span><span class="p">)</span> <span class="o">-</span> <span class="n">x</span><span class="o">.</span><span class="n">size</span><span class="p">(</span><span class="mi">1</span><span class="p">)</span>
+                <span class="n">x</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">cat</span><span class="p">([</span><span class="n">x</span><span class="p">,</span> <span class="n">torch</span><span class="o">.</span><span class="n">zeros</span><span class="p">(</span><span class="n">x</span><span class="o">.</span><span class="n">size</span><span class="p">(</span><span class="mi">0</span><span class="p">),</span> <span class="n">pad_size</span><span class="p">,</span> <span class="n">device</span><span class="o">=</span><span class="n">x</span><span class="o">.</span><span class="n">device</span><span class="p">)],</span> <span class="n">dim</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span>
+            <span class="n">x</span> <span class="o">=</span> <span class="n">layer</span><span class="p">(</span><span class="n">x</span><span class="p">)</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">classifier</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">x</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">classifier</span><span class="p">(</span><span class="n">x</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">x</span></div>
+
+
+</pre></div>
+
+           </div>
+          </div>
+          <footer>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright 2024, Research and Engineering at Kempner.</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>
