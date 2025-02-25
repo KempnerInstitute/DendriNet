@@ -36,7 +36,7 @@ def initialize_model(model_cfg):
     task = model_cfg.task
     probabilistic = model_cfg.probabilistic
     net_type = model_cfg.network.type
-    net_params = model_cfg.network.parameters.__dict__
+    net_params = model_cfg.network.parameters
     enable_branch_outputs = net_params.pop('enable_branch_outputs', False)
     learning_strategy = net_params.pop('learning_strategy', 'mle')
 
@@ -52,9 +52,9 @@ def initialize_model(model_cfg):
         elif net_type == 'EINet':
             logger.info(f"Running EINet with {'probabilistic' if probabilistic else 'simple'} classifier")
             net = ExcitationInhibitionNetwork(
-                **net_params,
                 enable_branch_outputs=enable_branch_outputs,
-                learning_strategy=learning_strategy
+                learning_strategy=learning_strategy,
+                **net_params,
             )
 
             output_dim = net_params['excitatory_layer_sizes'][-1]
@@ -77,12 +77,22 @@ def main(config_path: str):
     outputs_cfg = config.outputs
 
     os.makedirs(outputs_cfg.dir, exist_ok=True)
-    logger_manager.set_log_file(os.path.join(outputs_cfg.dir, 
+
+    
+
+    
+    now = datetime.now().strftime('%Y-%m-%d_%H-%M-%S')
+    now = now.replace("_", "").replace("-", "")
+    run_save_path = os.path.join(outputs_cfg.dir, f"{train_cfg.run_name}_{now}")
+    logger_manager.set_log_file(os.path.join(run_save_path, 
                                              "dendritic_modeling.log"))
+    os.makedirs(run_save_path, exist_ok=True)
+    logger.info(f"Saving results and visualizations to: {run_save_path}")
+
 
     if getattr(wandb_cfg, "use_wandb", False):
         try:
-            wandb_dir = Path(outputs_cfg.dir) / "wandb"
+            wandb_dir = Path(run_save_path) / "wandb"
             wandb_run_name = train_cfg.run_name
             wandb_dir.mkdir(parents=True, exist_ok=True)
             wandb_dict = asdict(config)
@@ -146,11 +156,7 @@ def main(config_path: str):
     )
     trainer = get_trainer(learning_strategy, optimizer, suppress_prints=False, print_every=10)
 
-    now = datetime.now().strftime('%Y-%m-%d_%H-%M-%S')
-    root = visual_cfg.save_path 
-    run_save_path = os.path.join(root, f"{experiment_name}_{now}")
-    os.makedirs(run_save_path, exist_ok=True)
-    logger.info(f"Saving results and visualizations to: {run_save_path}")
+
 
     if hasattr(visual_cfg, "visualize_epochs") and visual_cfg.visualize_epochs:
         total_epochs = train_cfg.epochs
