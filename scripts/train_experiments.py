@@ -67,20 +67,23 @@ def initialize_model(model_cfg):
     else:
         raise ValueError(f"Invalid task: {task}")
 
-def main(config_path: str, output_dir: str, experiment_name: str):
-    os.makedirs(output_dir, exist_ok=True)
-    logger_manager.set_log_file(os.path.join(output_dir, "dendritic_modeling.log"))
+def main(config_path: str):
 
     config = load_config(config_path)
     model_cfg = config.model
     train_cfg = config.train
     visual_cfg = config.visualization
     wandb_cfg = config.wandb
+    outputs_cfg = config.outputs
+
+    os.makedirs(outputs_cfg.dir, exist_ok=True)
+    logger_manager.set_log_file(os.path.join(outputs_cfg.dir, 
+                                             "dendritic_modeling.log"))
 
     if getattr(wandb_cfg, "use_wandb", False):
         try:
-            wandb_dir = Path(output_dir) / "wandb"
-            wandb_run_name = experiment_name
+            wandb_dir = Path(outputs_cfg.dir) / "wandb"
+            wandb_run_name = train_cfg.run_name
             wandb_dir.mkdir(parents=True, exist_ok=True)
             wandb_dict = asdict(config)
             wandb.init(
@@ -302,7 +305,17 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Run dendritic modeling training and evaluation.')
     parser.add_argument("config", help="Path to the configuration YAML file.")
     parser.add_argument("--output_dir", default="results", help="Output directory.")
-    parser.add_argument("--experiment_name", default="example", help="Experiment name (used for W&B run name).")
+    parser.add_argument("--run_name", default="example", help="Run name (used for W&B run name).")
     args = parser.parse_args()
 
-    main(config_path=args.config, output_dir=args.output_dir, experiment_name=args.experiment_name)
+    # load configuration
+    config = load_config(args.config)
+
+    # Override configuration with command line arguments
+    if args.output_dir:
+        config.outputs.dir = args.output_dir
+
+    if args.run_name:
+        config.train.run_name = args.run_name
+
+    main(config_path=args.config)
