@@ -13,6 +13,7 @@ from matplotlib.colors import TwoSlopeNorm
 from matplotlib.gridspec import GridSpec
 from mpl_toolkits.axes_grid1 import make_axes_locatable
 import networkx as nx
+import seaborn as sns
 from dendritic_modeling.synthetic_datasets import split_MNIST_inputs
 
 
@@ -1919,3 +1920,57 @@ def plot_depth_info(branch_info):
     plt.ylabel("Information (MI)")
     plt.title("Branch Info by Depth")
     plt.show()
+
+
+def plot_ei_sweep_results(results_csv_path, metric = 'acc', split = 'test'):
+    df = pd.read_csv(results_csv_path)
+    df['ei_ratio'] = df['exc'] / df['inh']
+
+    fig = plt.figure(figsize=(15, 6))
+    gs = plt.GridSpec(1, 4, figure = fig)
+
+    ax1 = fig.add_subplot(gs[0, 0])
+    pivot_table = df.pivot(index = 'exc', columns = 'inh', values = split)
+    sns.heatmap(pivot_table.iloc[::-1], annot = False, cmap = 'viridis', ax = ax1)
+    ax1.set_title(f'{split} {metric}')
+    ax1.set_xlabel('Inh Synapses')
+    ax1.set_ylabel('Exc Synapses')
+
+    ax2 = fig.add_subplot(gs[0, 1])
+    ax2.scatter(df['ei_ratio'], df[split], color = 'k')
+    ax2.set_xlabel('E/I Ratio')
+    ax2.set_ylabel(f'{split} {metric}')
+
+    ax3 = fig.add_subplot(gs[0, 2])
+    best_exc = df.loc[df[split].idxmax(), 'exc']
+    exc_fixed = df[df['exc'] == best_exc]
+    ax3.plot(exc_fixed['inh'], exc_fixed[split], color = 'k')
+    ax3.set_xlabel('Inh Synapses')
+    ax3.set_title(f'Excitatory Synapses: {best_exc}')
+
+    ax4 = fig.add_subplot(gs[0, 3])
+    best_inh = df.loc[df[split].idxmax(), 'inh']
+    inh_fixed = df[df['inh'] == best_inh]
+    ax4.plot(inh_fixed['exc'], inh_fixed[split], color = 'k')
+    ax4.set_xlabel('Exc Synapses')
+    ax4.set_title(f'Inhibitory Synapses: {best_inh}')
+
+    plt.tight_layout()
+    fig.savefig(os.path.join(os.path.dirname(results_csv_path), f'ei_sweep_results.jpeg'))
+    plt.close(fig)
+    
+
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
