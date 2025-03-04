@@ -55,7 +55,7 @@ wandb:
   project: #"dendritic_mnist_test"
   group:   #"debug"
   tags:    #[mnist_1]
-  use_wandb: false 
+  use_wandb: true 
 
 visualization:
   enabled: true
