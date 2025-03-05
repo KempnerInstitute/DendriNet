@@ -22,8 +22,11 @@ model:
       enable_branch_outputs: false   ### alows DendriNetWithOutputs to keep activations etc
       output_layer: false  ### adding an output classifier layer FC to final dendrinet layer
       output_dim: 10
-      first_layer_input_mode: 0  # Direct feed to both synapse types
-
+      # input mode (0=original, 1=exc=x+inh=x, 2=two-headed MLP)
+      first_layer_input_mode: 0
+      # If we set first_layer_input_mode=2, the following get used for MLP:
+      mlp_hidden_dim: 128
+      mlp_out_dim: 64
 train:
   learning_strategy: mle #"mle", "freeze_layers", "local_credit_assignment", "two_step", "two_step_kl"    --> local learning rules should start with local_...
   run_name: mnist_einet
