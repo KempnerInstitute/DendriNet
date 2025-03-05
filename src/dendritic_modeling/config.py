@@ -3,7 +3,6 @@ from dataclasses import dataclass, field, asdict
 
 from omegaconf import OmegaConf as om
 
-
 class BaseConfig:
     @classmethod
     def load(cls, path: str):
@@ -37,7 +36,13 @@ class EINetParameters(BaseConfig):
     enable_branch_outputs: bool = True
     output_layer: bool = False
     output_dim: int = 10
-    first_layer_input_mode: int = 0  # Add this line: 0=original, 1=direct, 2=through inhibitory
+
+    # NEW: controls how the first layer sees inputs
+    first_layer_input_mode: int = 0  # 0=original, 1=direct, 2=two-headed MLP
+
+    # NEW: MLP parameters for input_mode=2 (if used)
+    mlp_hidden_dim: int = 64
+    mlp_out_dim: int = 64
 
 @dataclass
 class FeedForwardParameters(BaseConfig):
@@ -96,7 +101,6 @@ class TaskConfig(BaseConfig):
 class OutputsConfig(BaseConfig):
     dir: str = "outputs"
 
-
 @dataclass
 class Config:
     model: ModelConfig = field(default_factory=ModelConfig)
@@ -105,8 +109,6 @@ class Config:
     visualization: VisualizationConfig = field(default_factory=VisualizationConfig)
     task: TaskConfig = field(default_factory=TaskConfig)
     outputs: OutputsConfig = field(default_factory=OutputsConfig)
-
-
 
 def load_config(path: str = None) -> Config:
     """Load configuration from a file or use defaults."""
