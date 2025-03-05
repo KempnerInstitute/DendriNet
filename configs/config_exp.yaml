@@ -22,6 +22,7 @@ model:
       enable_branch_outputs: false   ### alows DendriNetWithOutputs to keep activations etc
       output_layer: false  ### adding an output classifier layer FC to final dendrinet layer
       output_dim: 10
+      first_layer_input_mode: 0  # Direct feed to both synapse types
 
 train:
   learning_strategy: mle #"mle", "freeze_layers", "local_credit_assignment", "two_step", "two_step_kl"    --> local learning rules should start with local_...

@@ -37,6 +37,7 @@ class EINetParameters(BaseConfig):
     enable_branch_outputs: bool = True
     output_layer: bool = False
     output_dim: int = 10
+    first_layer_input_mode: int = 0  # Add this line: 0=original, 1=direct, 2=through inhibitory
 
 @dataclass
 class FeedForwardParameters(BaseConfig):
