@@ -1,12 +1,12 @@
 """
 networks.py
 ========================
-Modified to allow different input modes for the *first* layer of the 
+Modified to allow different input modes for the *first* layer of the
 ExcitationInhibitionNetwork.
 
 New config parameter:
 ---------------------
-    input_mode=0, 1, or 2
+    first_layer_input_mode=0, 1, or 2
 
     0) Original (same as old code):
        - excitatory synapses get x (the raw MNIST input or whatever),
@@ -18,7 +18,7 @@ New config parameter:
 
     2) Feed both excitatory and inhibitory synapses from an MLP
        that transforms x into two separate vectors:
-       excitatory_input and inhibitory_input. 
+       excitatory_input and inhibitory_input.
        This MLP is only used for the first layer; subsequent layers remain the same.
 """
 
@@ -36,7 +36,7 @@ from dendritic_modeling import logger
 ###############################################################################
 class MLPInputTransform(nn.Module):
     """
-    A small two-headed MLP that maps the raw input x 
+    A small two-headed MLP that maps the raw input x
     to (excitatory_input, inhibitory_input).
     """
     def __init__(self, input_dim, hidden_dim, output_dim):
@@ -53,59 +53,61 @@ class MLPInputTransform(nn.Module):
         excitatory_input = self.head_exc(x)
         inhibitory_input = self.head_inh(x)
         return excitatory_input, inhibitory_input
+
+
 ###############################################################################
 # ExcitationInhibitionLayer
 ###############################################################################
 class ExcitationInhibitionLayer(nn.Module):
     def __init__(
-        self, 
+        self,
         n_excitatory_cells,
         n_inhibitory_cells,
-        excitatory_branch_factors, 
+        excitatory_branch_factors,
         inhibitory_branch_factors,
-        excitatory_input_dim, 
-        ee_synapses_per_branch, 
-        ei_synapses_per_branch, 
-        inhibitory_input_dim = None, 
-        ie_synapses_per_branch = None, 
-        ii_synapses_per_branch = None, 
-        reactivate = True, 
-        somatic_synapses = True,
-        topk_init_method = "xavier_normal",
-        use_shunting = True,
+        excitatory_input_dim,
+        ee_synapses_per_branch,
+        ei_synapses_per_branch,
+        inhibitory_input_dim=None,
+        ie_synapses_per_branch=None,
+        ii_synapses_per_branch=None,
+        reactivate=True,
+        somatic_synapses=True,
+        topk_init_method="xavier_normal",
+        use_shunting=True,
         reactivation_strategy="none",
         blocklinear_strategy="none",
         reactivation_type='param_tanh',
-        enable_branch_outputs=False 
+        enable_branch_outputs=False
     ):
         super(ExcitationInhibitionLayer, self).__init__()
 
         if enable_branch_outputs:
             self.inhibitory_cells = DendriNetWithOutputs(
-                n_soma = n_inhibitory_cells, 
-                branch_factors = inhibitory_branch_factors,
-                excitatory_input_dim = excitatory_input_dim, 
-                excitatory_synapses_per_branch = ei_synapses_per_branch,
-                inhibitory_input_dim = inhibitory_input_dim, 
-                inhibitory_synapses_per_branch = ii_synapses_per_branch,
-                reactivate = reactivate, 
-                somatic_synapses = somatic_synapses, 
-                topk_init_method = topk_init_method,
+                n_soma=n_inhibitory_cells,
+                branch_factors=inhibitory_branch_factors,
+                excitatory_input_dim=excitatory_input_dim,
+                excitatory_synapses_per_branch=ei_synapses_per_branch,
+                inhibitory_input_dim=inhibitory_input_dim,
+                inhibitory_synapses_per_branch=ii_synapses_per_branch,
+                reactivate=reactivate,
+                somatic_synapses=somatic_synapses,
+                topk_init_method=topk_init_method,
                 use_shunting=use_shunting,
                 reactivation_type=reactivation_type,
                 reactivation_strategy=reactivation_strategy,
                 blocklinear_strategy=blocklinear_strategy,
             )
             self.excitatory_cells = DendriNetWithOutputs(
-                n_soma = n_excitatory_cells, 
-                branch_factors = excitatory_branch_factors,
-                excitatory_input_dim = excitatory_input_dim, 
-                excitatory_synapses_per_branch = ee_synapses_per_branch,
-                inhibitory_input_dim = n_inhibitory_cells, 
-                inhibitory_synapses_per_branch = ie_synapses_per_branch,
-                reactivate = reactivate, 
-                somatic_synapses = somatic_synapses,
-                topk_init_method = topk_init_method,
+                n_soma=n_excitatory_cells,
+                branch_factors=excitatory_branch_factors,
+                excitatory_input_dim=excitatory_input_dim,
+                excitatory_synapses_per_branch=ee_synapses_per_branch,
+                inhibitory_input_dim=n_inhibitory_cells,
+                inhibitory_synapses_per_branch=ie_synapses_per_branch,
+                reactivate=reactivate,
+                somatic_synapses=somatic_synapses,
+                topk_init_method=topk_init_method,
                 use_shunting=use_shunting,
                 reactivation_type=reactivation_type,
                 reactivation_strategy=reactivation_strategy,
@@ -113,41 +115,41 @@ class ExcitationInhibitionLayer(nn.Module):
             )
         else:
             self.inhibitory_cells = DendriNet(
-                n_soma = n_inhibitory_cells, 
-                branch_factors = inhibitory_branch_factors,
-                excitatory_input_dim = excitatory_input_dim, 
-                excitatory_synapses_per_branch = ei_synapses_per_branch,
-                inhibitory_input_dim = inhibitory_input_dim, 
-                inhibitory_synapses_per_branch = ii_synapses_per_branch,
-                reactivate = reactivate, 
-                somatic_synapses = somatic_synapses, 
-                topk_init_method = topk_init_method,
+                n_soma=n_inhibitory_cells,
+                branch_factors=inhibitory_branch_factors,
+                excitatory_input_dim=excitatory_input_dim,
+                excitatory_synapses_per_branch=ei_synapses_per_branch,
+                inhibitory_input_dim=inhibitory_input_dim,
+                inhibitory_synapses_per_branch=ii_synapses_per_branch,
+                reactivate=reactivate,
+                somatic_synapses=somatic_synapses,
+                topk_init_method=topk_init_method,
                 use_shunting=use_shunting,
                 reactivation_type=reactivation_type,
                 reactivation_strategy=reactivation_strategy,
                 blocklinear_strategy=blocklinear_strategy,
             )
             self.excitatory_cells = DendriNet(
-                n_soma = n_excitatory_cells, 
-                branch_factors = excitatory_branch_factors,
-                excitatory_input_dim = excitatory_input_dim, 
-                excitatory_synapses_per_branch = ee_synapses_per_branch,
-                inhibitory_input_dim = n_inhibitory_cells, 
-                inhibitory_synapses_per_branch = ie_synapses_per_branch,
-                reactivate = reactivate, 
-                somatic_synapses = somatic_synapses,
-                topk_init_method = topk_init_method,
+                n_soma=n_excitatory_cells,
+                branch_factors=excitatory_branch_factors,
+                excitatory_input_dim=excitatory_input_dim,
+                excitatory_synapses_per_branch=ee_synapses_per_branch,
+                inhibitory_input_dim=n_inhibitory_cells,
+                inhibitory_synapses_per_branch=ie_synapses_per_branch,
+                reactivate=reactivate,
+                somatic_synapses=somatic_synapses,
+                topk_init_method=topk_init_method,
                 use_shunting=use_shunting,
                 reactivation_type=reactivation_type,
                 reactivation_strategy=reactivation_strategy,
                 blocklinear_strategy=blocklinear_strategy,
             )
-    
+
     def decay_weights(self, weight_decay):
         self.inhibitory_cells.decay_weights(weight_decay)
         self.excitatory_cells.decay_weights(weight_decay)
 
-    def forward(self, x, inhibitory_input = None):
+    def forward(self, x, inhibitory_input=None):
         """
         x: shape [batch, excitatory_input_dim]
         inhibitory_input: shape [batch, inhibitory_input_dim] or None
@@ -174,45 +176,65 @@ class ExcitationInhibitionLayer(nn.Module):
 ###############################################################################
 class ExcitationInhibitionNetwork(nn.Module):
     def __init__(
-        self, 
-        input_dim, 
-        excitatory_layer_sizes, 
+        self,
+        input_dim,
+        excitatory_layer_sizes,
         inhibitory_layer_sizes,
-        excitatory_branch_factors, 
-        inhibitory_branch_factors, 
-        ee_synapses_per_branch_per_layer, 
-        ei_synapses_per_branch_per_layer, 
-        ie_synapses_per_branch_per_layer, 
-        ii_synapses_per_branch_per_layer = [], 
-        reactivate = False, 
-        somatic_synapses = True,
-        topk_init_method = "xavier_normal",
+        excitatory_branch_factors,
+        inhibitory_branch_factors,
+        ee_synapses_per_branch_per_layer,
+        ei_synapses_per_branch_per_layer,
+        ie_synapses_per_branch_per_layer,
+        ii_synapses_per_branch_per_layer=[],
+        reactivate=False,
+        somatic_synapses=True,
+        topk_init_method="xavier_normal",
         use_shunting=True,
         reactivation_strategy="none",
         blocklinear_strategy="none",
         weight_decay_rate=0.1,
         reactivation_type='param_tanh',
         local_loss_weight=0.0,
-        enable_branch_outputs=False, 
+        enable_branch_outputs=False,
         output_layer=False,
         output_dim=10,
         learning_strategy="mle",
-        input_mode=0,       # 0 = original, 1 = direct, 2 = feed by MLP
+        input_mode=0,       # 0=original, 1=direct, 2=two-headed MLP
+        mlp_hidden_dim=None,
+        mlp_out_dim=None,
         mlp_transform=None,
     ):
-        super(ExcitationInhibitionNetwork, self).__init__()
+        """
+        If input_mode=2 and mlp_transform is not provided, we will build
+        an internal MLPInputTransform using mlp_hidden_dim and mlp_out_dim.
+        Otherwise, user can pass their own mlp_transform.
+        """
+        super().__init__()
         self.weight_decay_rate = weight_decay_rate
         self.n_layers = len(excitatory_layer_sizes)
         self.reactivation_strategy = reactivation_strategy
         self.blocklinear_strategy = blocklinear_strategy
         self.local_loss_weight = local_loss_weight
         self.learning_strategy = learning_strategy
-        self.input_mode = input_mode  
-        
-        if self.input_mode == 2 and mlp_transform is None:
-            raise ValueError("You must provide an mlp_transform if input_mode=2.")
-        self.mlp_transform = mlp_transform  # Could be None if not used
-        
+        self.input_mode = input_mode
+
+
+        if self.input_mode == 2:
+            if mlp_transform is None:
+                if (mlp_hidden_dim is None) or (mlp_out_dim is None):
+                    raise ValueError(
+                        "For input_mode=2, either provide `mlp_transform` "
+                        "or set both `mlp_hidden_dim` and `mlp_out_dim`.")
+                self.mlp_transform = MLPInputTransform(
+                    input_dim=input_dim,
+                    hidden_dim=mlp_hidden_dim,
+                    output_dim=mlp_out_dim
+                )
+            else:
+                self.mlp_transform = mlp_transform
+        else:
+            self.mlp_transform = None  # not used for modes 0 or 1
+
         logger.debug(f'Building ExcitationInhibitionNetwork with {self.n_layers} layer(s).')
         logger.debug(f'input_mode={self.input_mode}')
 
@@ -225,7 +247,8 @@ class ExcitationInhibitionNetwork(nn.Module):
         if self.input_mode == 1:
             inhibitory_layer_sizes[0] = input_dim
         elif self.input_mode == 2:
-            mlp_out_dim = self.mlp_transform.head_exc.out_features  
+            if mlp_transform is not None:
+                mlp_out_dim = self.mlp_transform.head_exc.out_features
             excitatory_layer_sizes[0] = mlp_out_dim
             inhibitory_layer_sizes[0] = mlp_out_dim
 
@@ -244,32 +267,36 @@ class ExcitationInhibitionNetwork(nn.Module):
 
         layers = []
         for i in range(self.n_layers):
-            layers.append(ExcitationInhibitionLayer(
-                n_excitatory_cells = excitatory_layer_sizes[i+1], 
-                n_inhibitory_cells = inhibitory_layer_sizes[i+1],
-                excitatory_branch_factors = excitatory_branch_factors, 
-                inhibitory_branch_factors = inhibitory_branch_factors,
-                excitatory_input_dim = excitatory_layer_sizes[i], 
-                ee_synapses_per_branch = ee_syn[i], 
-                ei_synapses_per_branch = ei_syn[i],
-                inhibitory_input_dim = inhibitory_layer_sizes[i],
-                ie_synapses_per_branch = ie_syn[i], 
-                ii_synapses_per_branch = ii_syn[i],
-                reactivate = reactivate, 
-                somatic_synapses = somatic_synapses,
-                topk_init_method = topk_init_method,
+            layer = ExcitationInhibitionLayer(
+                n_excitatory_cells=excitatory_layer_sizes[i+1],
+                n_inhibitory_cells=inhibitory_layer_sizes[i+1],
+                excitatory_branch_factors=excitatory_branch_factors,
+                inhibitory_branch_factors=inhibitory_branch_factors,
+                excitatory_input_dim=excitatory_layer_sizes[i],
+                ee_synapses_per_branch=ee_syn[i],
+                ei_synapses_per_branch=ei_syn[i],
+                inhibitory_input_dim=inhibitory_layer_sizes[i],
+                ie_synapses_per_branch=ie_syn[i],
+                ii_synapses_per_branch=ii_syn[i],
+                reactivate=reactivate,
+                somatic_synapses=somatic_synapses,
+                topk_init_method=topk_init_method,
                 use_shunting=use_shunting,
-                reactivation_strategy = self.reactivation_strategy,
-                blocklinear_strategy = self.blocklinear_strategy,
-                reactivation_type = reactivation_type,
-                enable_branch_outputs = enable_branch_outputs
-            ))
+                reactivation_strategy=self.reactivation_strategy,
+                blocklinear_strategy=self.blocklinear_strategy,
+                reactivation_type=reactivation_type,
+                enable_branch_outputs=enable_branch_outputs
+            )
+            layers.append(layer)
         self.layers = nn.ModuleList(layers)
 
         self.feedback_mats = nn.ParameterList()
         for i in range(self.n_layers):
             if self.learning_strategy == "local_credit_assignment":
-                fb = nn.Parameter(torch.randn(excitatory_layer_sizes[i+1], 10)*0.01, requires_grad=False)
+                fb = nn.Parameter(
+                    torch.randn(excitatory_layer_sizes[i+1], 10)*0.01,
+                    requires_grad=False
+                )
                 self.feedback_mats.append(fb)
             else:
                 self.feedback_mats.append(None)
@@ -288,9 +315,8 @@ class ExcitationInhibitionNetwork(nn.Module):
         """
         x is the raw input (e.g. MNIST flattened).
         We'll produce the correct excitatory_input and inhibitory_input for
-        the *first* layer based on input_mode. Then proceed as usual.
+        the first layer based on input_mode. Then proceed as usual.
         """
-
         if self.input_mode == 0:
             excitatory_input = x
             inhibitory_input = None
@@ -325,11 +351,12 @@ class ExcitationInhibitionNetwork(nn.Module):
         else:
             raise ValueError(f"Unknown input_mode={self.input_mode}")
 
-        excitatory_output, inhibitory_output, inh_acts, exc_acts = self.layers[0].forward_with_branch_outputs(
-            excitatory_input, inhibitory_input
-        )
-        all_acts = exc_acts  # store excitatory branch outputs
+        # First layer
+        excitatory_output, inhibitory_output, _, exc_acts = \
+            self.layers[0].forward_with_branch_outputs(excitatory_input, inhibitory_input)
+        all_acts = exc_acts
 
+        # Next layers
         for i in range(1, self.n_layers):
             excitatory_output, inhibitory_output, inh_acts, exc_acts = \
                 self.layers[i].forward_with_branch_outputs(excitatory_output, inhibitory_output)
