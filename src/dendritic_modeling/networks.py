@@ -37,9 +37,13 @@ class ExcitationInhibitionLayer(nn.Module):
         reactivation_strategy="none",
         blocklinear_strategy="none",
         reactivation_type='param_tanh',
-        enable_branch_outputs=False 
+        enable_branch_outputs=False, 
+        input_mode=0  # New parameter: 0=original, 1=direct, 2=through inhibitory
     ):
         super(ExcitationInhibitionLayer, self).__init__()
+    
+        self.input_mode = input_mode
+        self.excitatory_input_dim = excitatory_input_dim
 
         if enable_branch_outputs:
             self.inhibitory_cells = DendriNetWithOutputs(
@@ -57,6 +61,21 @@ class ExcitationInhibitionLayer(nn.Module):
                 reactivation_strategy=reactivation_strategy,
                 blocklinear_strategy=blocklinear_strategy,
             )
+            
+            # Configure excitatory cells based on input_mode
+            if input_mode == 0:  # Original method
+                excit_input_dim = excitatory_input_dim
+                inhib_input_dim = n_inhibitory_cells
+            elif input_mode == 1:  # Direct feed
+                excit_input_dim = excitatory_input_dim
+                inhib_input_dim = excitatory_input_dim
+            elif input_mode == 2:  # Through inhibitory
+                excit_input_dim = n_inhibitory_cells
+                inhib_input_dim = n_inhibitory_cells
+            else:
+                raise ValueError(f"Invalid input_mode: {input_mode}")
+            
+            
             self.excitatory_cells = DendriNetWithOutputs(
                 n_soma = n_excitatory_cells, 
                 branch_factors = excitatory_branch_factors,
@@ -88,6 +107,22 @@ class ExcitationInhibitionLayer(nn.Module):
                 reactivation_strategy=reactivation_strategy,
                 blocklinear_strategy=blocklinear_strategy,
             )
+            
+        
+            # Configure excitatory cells based on input_mode
+            if input_mode == 0:  # Original method
+                excit_input_dim = excitatory_input_dim
+                inhib_input_dim = n_inhibitory_cells
+            elif input_mode == 1:  # Direct feed
+                excit_input_dim = excitatory_input_dim
+                inhib_input_dim = excitatory_input_dim
+            elif input_mode == 2:  # Through inhibitory
+                excit_input_dim = n_inhibitory_cells
+                inhib_input_dim = n_inhibitory_cells
+            else:
+                raise ValueError(f"Invalid input_mode: {input_mode}")
+                
+                        
             self.excitatory_cells = DendriNet(
                 n_soma = n_excitatory_cells, 
                 branch_factors = excitatory_branch_factors,
@@ -103,24 +138,48 @@ class ExcitationInhibitionLayer(nn.Module):
                 reactivation_strategy=reactivation_strategy,
                 blocklinear_strategy=blocklinear_strategy,
             )
-    
+
+
     def decay_weights(self, weight_decay):
         self.inhibitory_cells.decay_weights(weight_decay)
         self.excitatory_cells.decay_weights(weight_decay)
 
     def forward(self, x, inhibitory_input = None):
         inhibitory_output = self.inhibitory_cells(x, inhibitory_input)
-        excitatory_output = self.excitatory_cells(x, inhibitory_output)
+        if self.input_mode == 0:  # Original method
+            excitatory_output = self.excitatory_cells(x, inhibitory_output)
+        elif self.input_mode == 1:  # Direct feed
+            excitatory_output = self.excitatory_cells(x, x)
+        elif self.input_mode == 2:  # Through inhibitory
+            excitatory_output = self.excitatory_cells(inhibitory_output, inhibitory_output)
+        else:
+            raise ValueError(f"Invalid input_mode: {self.input_mode}")
         return excitatory_output, inhibitory_output
 
     def forward_with_branch_outputs(self, x, inhibitory_input=None):
         if not hasattr(self.inhibitory_cells, 'forward_with_branch_outputs'):
             inhibitory_output = self.inhibitory_cells(x, inhibitory_input)
-            excitatory_output = self.excitatory_cells(x, inhibitory_output)
+            if self.input_mode == 0:  # Original method
+                excitatory_output = self.excitatory_cells(x, inhibitory_output)
+            elif self.input_mode == 1:  # Direct feed
+                excitatory_output = self.excitatory_cells(x, x)
+            elif self.input_mode == 2:  # Through inhibitory
+                excitatory_output = self.excitatory_cells(inhibitory_output, inhibitory_output)
+            else:
+                raise ValueError(f"Invalid input_mode: {self.input_mode}")
             return excitatory_output, inhibitory_output, [], []
         else:
             inhibitory_final, inh_acts = self.inhibitory_cells.forward_with_branch_outputs(x, inhibitory_input)
-            excitatory_final, exc_acts = self.excitatory_cells.forward_with_branch_outputs(x, inhibitory_final)
+            if self.input_mode == 0:  # Original method
+                excitatory_final, exc_acts = self.excitatory_cells.forward_with_branch_outputs(x, inhibitory_final)
+            elif self.input_mode == 1:  # Direct feed
+                excitatory_final, exc_acts = self.excitatory_cells.forward_with_branch_outputs(x, x)
+            elif self.input_mode == 2:  # Through inhibitory
+                excitatory_final, exc_acts = self.excitatory_cells.forward_with_branch_outputs(
+                    inhibitory_final, inhibitory_final)
+            else:
+                raise ValueError(f"Invalid input_mode: {self.input_mode}")
+
             return excitatory_final, inhibitory_final, inh_acts, exc_acts
 
 
@@ -149,6 +208,7 @@ class ExcitationInhibitionNetwork(nn.Module):
         output_layer=False,
         output_dim=10,
         learning_strategy="mle",
+        first_layer_input_mode = 0 
     ):
         super(ExcitationInhibitionNetwork, self).__init__()
         self.weight_decay_rate = weight_decay_rate
@@ -181,6 +241,7 @@ class ExcitationInhibitionNetwork(nn.Module):
 
         layers = []
         for i in range(self.n_layers):
+            current_input_mode = first_layer_input_mode if i == 0 else 0
             layers.append(ExcitationInhibitionLayer(
                 n_excitatory_cells = excitatory_layer_sizes[i+1], 
                 n_inhibitory_cells = inhibitory_layer_sizes[i+1],
@@ -199,7 +260,8 @@ class ExcitationInhibitionNetwork(nn.Module):
                 reactivation_strategy = self.reactivation_strategy,
                 blocklinear_strategy = self.blocklinear_strategy,
                 reactivation_type = reactivation_type,
-                enable_branch_outputs = enable_branch_outputs
+                enable_branch_outputs = enable_branch_outputs,
+                input_mode = current_input_mode
             ))
         
         self.layers = nn.ModuleList(layers)
