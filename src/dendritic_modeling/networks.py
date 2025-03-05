@@ -1,22 +1,61 @@
 """
 networks.py
 ========================
-This module contains the ExcitationInhibitionLayer and 
-ExcitationInhibitionNetwork classes.
+Modified to allow different input modes for the *first* layer of the 
+ExcitationInhibitionNetwork.
 
-The conductance based gradient scaling can be activated by setting
-gradient_strategy: block_conductance_dynamic
+New config parameter:
+---------------------
+    input_mode=0, 1, or 2
+
+    0) Original (same as old code):
+       - excitatory synapses get x (the raw MNIST input or whatever),
+       - inhibitory synapses get None for the first layer.
+
+    1) Direct inhibitory input from the same x:
+       - excitatory synapses get x,
+       - inhibitory synapses also get x (instead of None).
+
+    2) Feed both excitatory and inhibitory synapses from an MLP
+       that transforms x into two separate vectors:
+       excitatory_input and inhibitory_input. 
+       This MLP is only used for the first layer; subsequent layers remain the same.
 """
 
 from copy import deepcopy
 from torch import nn
-from typing import List
 import torch
 import torch.nn.functional as F
+
 from dendritic_modeling.dendrinet import DendriNet, DendriNetWithOutputs
 from dendritic_modeling import logger
 
 
+###############################################################################
+# MLP to be used for input_mode=2
+###############################################################################
+class MLPInputTransform(nn.Module):
+    """
+    A small two-headed MLP that maps the raw input x 
+    to (excitatory_input, inhibitory_input).
+    """
+    def __init__(self, input_dim, hidden_dim, output_dim):
+        super().__init__()
+        self.shared = nn.Sequential(
+            nn.Linear(input_dim, hidden_dim),
+            nn.ReLU(),
+        )
+        self.head_exc = nn.Linear(hidden_dim, output_dim)
+        self.head_inh = nn.Linear(hidden_dim, output_dim)
+
+    def forward(self, x):
+        x = self.shared(x)
+        excitatory_input = self.head_exc(x)
+        inhibitory_input = self.head_inh(x)
+        return excitatory_input, inhibitory_input
+###############################################################################
+# ExcitationInhibitionLayer
+###############################################################################
 class ExcitationInhibitionLayer(nn.Module):
     def __init__(
         self, 
@@ -37,13 +76,9 @@ class ExcitationInhibitionLayer(nn.Module):
         reactivation_strategy="none",
         blocklinear_strategy="none",
         reactivation_type='param_tanh',
-        enable_branch_outputs=False, 
-        input_mode=0  # New parameter: 0=original, 1=direct, 2=through inhibitory
+        enable_branch_outputs=False 
     ):
         super(ExcitationInhibitionLayer, self).__init__()
-    
-        self.input_mode = input_mode
-        self.excitatory_input_dim = excitatory_input_dim
 
         if enable_branch_outputs:
             self.inhibitory_cells = DendriNetWithOutputs(
@@ -61,21 +96,6 @@ class ExcitationInhibitionLayer(nn.Module):
                 reactivation_strategy=reactivation_strategy,
                 blocklinear_strategy=blocklinear_strategy,
             )
-            
-            # Configure excitatory cells based on input_mode
-            if input_mode == 0:  # Original method
-                excit_input_dim = excitatory_input_dim
-                inhib_input_dim = n_inhibitory_cells
-            elif input_mode == 1:  # Direct feed
-                excit_input_dim = excitatory_input_dim
-                inhib_input_dim = excitatory_input_dim
-            elif input_mode == 2:  # Through inhibitory
-                excit_input_dim = n_inhibitory_cells
-                inhib_input_dim = n_inhibitory_cells
-            else:
-                raise ValueError(f"Invalid input_mode: {input_mode}")
-            
-            
             self.excitatory_cells = DendriNetWithOutputs(
                 n_soma = n_excitatory_cells, 
                 branch_factors = excitatory_branch_factors,
@@ -107,22 +127,6 @@ class ExcitationInhibitionLayer(nn.Module):
                 reactivation_strategy=reactivation_strategy,
                 blocklinear_strategy=blocklinear_strategy,
             )
-            
-        
-            # Configure excitatory cells based on input_mode
-            if input_mode == 0:  # Original method
-                excit_input_dim = excitatory_input_dim
-                inhib_input_dim = n_inhibitory_cells
-            elif input_mode == 1:  # Direct feed
-                excit_input_dim = excitatory_input_dim
-                inhib_input_dim = excitatory_input_dim
-            elif input_mode == 2:  # Through inhibitory
-                excit_input_dim = n_inhibitory_cells
-                inhib_input_dim = n_inhibitory_cells
-            else:
-                raise ValueError(f"Invalid input_mode: {input_mode}")
-                
-                        
             self.excitatory_cells = DendriNet(
                 n_soma = n_excitatory_cells, 
                 branch_factors = excitatory_branch_factors,
@@ -138,51 +142,36 @@ class ExcitationInhibitionLayer(nn.Module):
                 reactivation_strategy=reactivation_strategy,
                 blocklinear_strategy=blocklinear_strategy,
             )
-
-
+    
     def decay_weights(self, weight_decay):
         self.inhibitory_cells.decay_weights(weight_decay)
         self.excitatory_cells.decay_weights(weight_decay)
 
     def forward(self, x, inhibitory_input = None):
+        """
+        x: shape [batch, excitatory_input_dim]
+        inhibitory_input: shape [batch, inhibitory_input_dim] or None
+        Returns:
+            excitatory_output, inhibitory_output
+        """
         inhibitory_output = self.inhibitory_cells(x, inhibitory_input)
-        if self.input_mode == 0:  # Original method
-            excitatory_output = self.excitatory_cells(x, inhibitory_output)
-        elif self.input_mode == 1:  # Direct feed
-            excitatory_output = self.excitatory_cells(x, x)
-        elif self.input_mode == 2:  # Through inhibitory
-            excitatory_output = self.excitatory_cells(inhibitory_output, inhibitory_output)
-        else:
-            raise ValueError(f"Invalid input_mode: {self.input_mode}")
+        excitatory_output = self.excitatory_cells(x, inhibitory_output)
         return excitatory_output, inhibitory_output
 
     def forward_with_branch_outputs(self, x, inhibitory_input=None):
         if not hasattr(self.inhibitory_cells, 'forward_with_branch_outputs'):
             inhibitory_output = self.inhibitory_cells(x, inhibitory_input)
-            if self.input_mode == 0:  # Original method
-                excitatory_output = self.excitatory_cells(x, inhibitory_output)
-            elif self.input_mode == 1:  # Direct feed
-                excitatory_output = self.excitatory_cells(x, x)
-            elif self.input_mode == 2:  # Through inhibitory
-                excitatory_output = self.excitatory_cells(inhibitory_output, inhibitory_output)
-            else:
-                raise ValueError(f"Invalid input_mode: {self.input_mode}")
+            excitatory_output = self.excitatory_cells(x, inhibitory_output)
             return excitatory_output, inhibitory_output, [], []
         else:
             inhibitory_final, inh_acts = self.inhibitory_cells.forward_with_branch_outputs(x, inhibitory_input)
-            if self.input_mode == 0:  # Original method
-                excitatory_final, exc_acts = self.excitatory_cells.forward_with_branch_outputs(x, inhibitory_final)
-            elif self.input_mode == 1:  # Direct feed
-                excitatory_final, exc_acts = self.excitatory_cells.forward_with_branch_outputs(x, x)
-            elif self.input_mode == 2:  # Through inhibitory
-                excitatory_final, exc_acts = self.excitatory_cells.forward_with_branch_outputs(
-                    inhibitory_final, inhibitory_final)
-            else:
-                raise ValueError(f"Invalid input_mode: {self.input_mode}")
-
+            excitatory_final, exc_acts = self.excitatory_cells.forward_with_branch_outputs(x, inhibitory_final)
             return excitatory_final, inhibitory_final, inh_acts, exc_acts
 
 
+###############################################################################
+# ExcitationInhibitionNetwork
+###############################################################################
 class ExcitationInhibitionNetwork(nn.Module):
     def __init__(
         self, 
@@ -208,7 +197,8 @@ class ExcitationInhibitionNetwork(nn.Module):
         output_layer=False,
         output_dim=10,
         learning_strategy="mle",
-        first_layer_input_mode = 0 
+        input_mode=0,       # 0 = original, 1 = direct, 2 = feed by MLP
+        mlp_transform=None,
     ):
         super(ExcitationInhibitionNetwork, self).__init__()
         self.weight_decay_rate = weight_decay_rate
@@ -217,14 +207,27 @@ class ExcitationInhibitionNetwork(nn.Module):
         self.blocklinear_strategy = blocklinear_strategy
         self.local_loss_weight = local_loss_weight
         self.learning_strategy = learning_strategy
-
+        self.input_mode = input_mode  
+        
+        if self.input_mode == 2 and mlp_transform is None:
+            raise ValueError("You must provide an mlp_transform if input_mode=2.")
+        self.mlp_transform = mlp_transform  # Could be None if not used
+        
         logger.debug(f'Building ExcitationInhibitionNetwork with {self.n_layers} layer(s).')
+        logger.debug(f'input_mode={self.input_mode}')
 
         excitatory_layer_sizes = deepcopy(excitatory_layer_sizes)
         inhibitory_layer_sizes = deepcopy(inhibitory_layer_sizes)
 
         excitatory_layer_sizes.insert(0, input_dim)
         inhibitory_layer_sizes.insert(0, None)
+
+        if self.input_mode == 1:
+            inhibitory_layer_sizes[0] = input_dim
+        elif self.input_mode == 2:
+            mlp_out_dim = self.mlp_transform.head_exc.out_features  
+            excitatory_layer_sizes[0] = mlp_out_dim
+            inhibitory_layer_sizes[0] = mlp_out_dim
 
         ee_syn = list(ee_synapses_per_branch_per_layer)
         ei_syn = list(ei_synapses_per_branch_per_layer)
@@ -241,7 +244,6 @@ class ExcitationInhibitionNetwork(nn.Module):
 
         layers = []
         for i in range(self.n_layers):
-            current_input_mode = first_layer_input_mode if i == 0 else 0
             layers.append(ExcitationInhibitionLayer(
                 n_excitatory_cells = excitatory_layer_sizes[i+1], 
                 n_inhibitory_cells = inhibitory_layer_sizes[i+1],
@@ -260,10 +262,8 @@ class ExcitationInhibitionNetwork(nn.Module):
                 reactivation_strategy = self.reactivation_strategy,
                 blocklinear_strategy = self.blocklinear_strategy,
                 reactivation_type = reactivation_type,
-                enable_branch_outputs = enable_branch_outputs,
-                input_mode = current_input_mode
+                enable_branch_outputs = enable_branch_outputs
             ))
-        
         self.layers = nn.ModuleList(layers)
 
         self.feedback_mats = nn.ParameterList()
@@ -285,20 +285,57 @@ class ExcitationInhibitionNetwork(nn.Module):
             layer.decay_weights(weight_decay)
 
     def forward(self, x):
-        excitatory = x
-        inhibitory = None
-        for i, layer in enumerate(self.layers):
-            excitatory, inhibitory = layer(excitatory, inhibitory)
-        return excitatory
+        """
+        x is the raw input (e.g. MNIST flattened).
+        We'll produce the correct excitatory_input and inhibitory_input for
+        the *first* layer based on input_mode. Then proceed as usual.
+        """
+
+        if self.input_mode == 0:
+            excitatory_input = x
+            inhibitory_input = None
+        elif self.input_mode == 1:
+            excitatory_input = x
+            inhibitory_input = x
+        elif self.input_mode == 2:
+            excitatory_input, inhibitory_input = self.mlp_transform(x)
+        else:
+            raise ValueError(f"Unknown input_mode={self.input_mode}")
+
+        excitatory_output, inhibitory_output = self.layers[0](excitatory_input, inhibitory_input)
+
+        for i in range(1, self.n_layers):
+            excitatory_output, inhibitory_output = self.layers[i](excitatory_output, inhibitory_output)
+
+        return excitatory_output
 
     def forward_with_branch_outputs(self, x):
-        excitatory = x
-        inhibitory = None
-        all_acts = []
-        for i, layer in enumerate(self.layers):
-            excitatory, inhibitory, inh_acts, exc_acts = layer.forward_with_branch_outputs(excitatory, inhibitory)
+        """
+        A variant that also returns the list of branch outputs from excitatory cells.
+        We'll do the same input_mode-based logic for the first layer.
+        """
+        if self.input_mode == 0:
+            excitatory_input = x
+            inhibitory_input = None
+        elif self.input_mode == 1:
+            excitatory_input = x
+            inhibitory_input = x
+        elif self.input_mode == 2:
+            excitatory_input, inhibitory_input = self.mlp_transform(x)
+        else:
+            raise ValueError(f"Unknown input_mode={self.input_mode}")
+
+        excitatory_output, inhibitory_output, inh_acts, exc_acts = self.layers[0].forward_with_branch_outputs(
+            excitatory_input, inhibitory_input
+        )
+        all_acts = exc_acts  # store excitatory branch outputs
+
+        for i in range(1, self.n_layers):
+            excitatory_output, inhibitory_output, inh_acts, exc_acts = \
+                self.layers[i].forward_with_branch_outputs(excitatory_output, inhibitory_output)
             all_acts.extend(exc_acts)
-        return excitatory, all_acts
+
+        return excitatory_output, all_acts
 
     def compute_local_loss(self, x, y=None):
         return 0.0
@@ -308,8 +345,7 @@ class ExcitationInhibitionNetwork(nn.Module):
         """
         Provide a combined list of DendriticBranchLayer modules from all
         excitatory sub-nets so that code expecting `model.branch_layers`
-        won't crash. Each item is a DendriticBranchLayer, typically
-        found in excitatory_cells.branch_layers.
+        won't crash. Each item is a DendriticBranchLayer.
         """
         all_branch_layers = []
         for ei_layer in self.layers:
@@ -318,146 +354,4 @@ class ExcitationInhibitionNetwork(nn.Module):
 
     @property
     def n_branch_layers(self):
-        """
-        Provide the number of branch layers. For code referencing
-        `model.n_branch_layers`, we match DendriNet's definition by counting
-        how many DendriticBranchLayer modules the excitatory sub-nets hold.
-        """
         return len(self.branch_layers)
-
-############################################################
-# MLPExcInhNetwork
-############################################################
-class MLPExcInhLayer(nn.Module):
-    def __init__(self, in_excit, in_inhib, out_features, activation=None):
-        super(MLPExcInhLayer, self).__init__()
-        self.in_excit = int(in_excit)  # → new: ensure int
-        self.in_inhib = int(in_inhib)
-        self.out_features = int(out_features)
-        if self.in_excit > 0:
-            self.excit_pre_w = nn.Parameter(torch.zeros(self.out_features, self.in_excit))
-            nn.init.xavier_normal_(self.excit_pre_w)
-        else:
-            self.excit_pre_w = None
-        if self.in_inhib > 0:
-            self.inhib_pre_w = nn.Parameter(torch.zeros(self.out_features, self.in_inhib))
-            nn.init.xavier_normal_(self.inhib_pre_w)
-        else:
-            self.inhib_pre_w = None
-        self.bias = nn.Parameter(torch.zeros(self.out_features))
-        self.activation = activation  # Optional activation function
-
-    def decay_weights(self, weight_decay):
-        with torch.no_grad():
-            if self.excit_pre_w is not None:
-                self.excit_pre_w.sub_(weight_decay * self.excit_pre_w)
-            if self.inhib_pre_w is not None:
-                self.inhib_pre_w.sub_(weight_decay * self.inhib_pre_w)
-            self.bias.sub_(weight_decay * self.bias)
-
-    def forward(self, x):
-        # Assume x is of shape [batch, in_excit + in_inhib]
-        batch_size = x.size(0)
-        if self.in_excit > 0 and self.in_inhib > 0:
-            x_excit = x[:, :self.in_excit]
-            x_inhib = x[:, self.in_excit:self.in_excit + self.in_inhib]
-        elif self.in_excit > 0:
-            x_excit = x
-            x_inhib = None
-        else:
-            x_excit = None
-            x_inhib = x
-        out = torch.zeros(batch_size, self.out_features, device=x.device, dtype=x.dtype)
-        if self.excit_pre_w is not None and x_excit is not None:
-            # Force excitatory weights to be positive
-            w_excit = self.excit_pre_w.exp()
-            out = out + x_excit.matmul(w_excit.t())
-        if self.inhib_pre_w is not None and x_inhib is not None:
-            # Force inhibitory weights to be negative
-            w_inhib = -self.inhib_pre_w.exp()
-            out = out + x_inhib.matmul(w_inhib.t())
-        out = out + self.bias
-        if self.activation is not None:
-            out = self.activation(out)
-        return out
-
-# → New: MLPExcInhNetwork: builds an MLP mimicking the excitatory/inhibitory structure.
-class MLPExcInhNetwork(nn.Module):
-    def __init__(
-        self,
-        input_dim,
-        excitatory_layer_sizes,         # list of neuron counts for excitatory network (excluding input_dim)
-        inhibitory_layer_sizes,           # list of inhibitory neuron counts (if any; can be empty)
-        excitatory_branch_factors,        # list of branch factors for excitatory network
-        inhibitory_branch_factors,        # list of branch factors for inhibitory network (can be empty)
-        ee_synapses_per_branch_per_layer, # list of excitatory synapses per branch for each layer
-        ie_synapses_per_branch_per_layer, # list of inhibitory synapses per branch for each layer
-        output_layer=False,               # if True, add a final classifier layer
-        output_dim=10,
-        activation=nn.ReLU(),             # default activation for hidden layers
-        weight_decay_rate=0.1,
-        learning_strategy="mle",
-        **kwargs
-    ):
-        super(MLPExcInhNetwork, self).__init__()
-        logger.info("Building MLPExcInhNetwork...")
-        self.weight_decay_rate = weight_decay_rate
-        self.learning_strategy = learning_strategy
-        self.output_layer_flag = output_layer
-
-        # → Cast configuration values explicitly to int
-        input_dim = int(input_dim)
-        excitatory_layer_sizes = [int(x) for x in excitatory_layer_sizes]
-        inhibitory_layer_sizes = [int(x) for x in inhibitory_layer_sizes] if inhibitory_layer_sizes else []
-        ee_synapses_per_branch_per_layer = [int(x) for x in ee_synapses_per_branch_per_layer]
-        ie_synapses_per_branch_per_layer = [int(x) for x in ie_synapses_per_branch_per_layer]
-
-        # → Compute effective excitatory input dimensions per layer.
-        excit_sizes = deepcopy(excitatory_layer_sizes)
-        excit_sizes.insert(0, input_dim)
-        self.n_layers = len(excit_sizes) - 1  # number of MLP layers
-
-        layers = []
-        for i in range(1, len(excit_sizes)):
-            # Compute excitatory inputs: previous layer neurons * excitatory synapses per branch.
-            excit_count = excit_sizes[i-1] * ee_synapses_per_branch_per_layer[i-1]
-            # Compute inhibitory inputs if provided.
-            if inhibitory_layer_sizes:
-                inhib_count = inhibitory_layer_sizes[i-1] * ie_synapses_per_branch_per_layer[i-1]
-            else:
-                inhib_count = 0
-            in_dim = excit_count + inhib_count
-            layer_activation = activation if i < self.n_layers else None  # no activation on final layer
-            layer_mod = MLPExcInhLayer(in_excit=excit_count, in_inhib=inhib_count, out_features=excit_sizes[i], activation=layer_activation)
-            layers.append(layer_mod)
-        self.layers = nn.ModuleList(layers)
-
-        # → If output_layer is true, add a final classifier layer.
-        if self.output_layer_flag:
-            self.classifier = nn.Linear(int(excit_sizes[-1]), int(output_dim))
-        else:
-            self.classifier = None
-
-    def decay_weights(self, weight_decay=None):
-        if weight_decay is None:
-            weight_decay = self.weight_decay_rate
-        for layer in self.layers:
-            layer.decay_weights(weight_decay)
-        if self.classifier is not None:
-            with torch.no_grad():
-                self.classifier.weight.sub_(weight_decay * self.classifier.weight)
-                self.classifier.bias.sub_(weight_decay * self.classifier.bias)
-
-    def forward(self, x):
-        # For the first layer, assume x is excitatory only. Pad inhibitory zeros if needed.
-        for i, layer in enumerate(self.layers):
-            in_excit = layer.in_excit
-            in_inhib = layer.in_inhib
-            if x.size(1) < in_excit + in_inhib:
-                pad_size = (in_excit + in_inhib) - x.size(1)
-                x = torch.cat([x, torch.zeros(x.size(0), pad_size, device=x.device)], dim=1)
-            x = layer(x)
-        if self.classifier is not None:
-            x = self.classifier(x)
-        return x
-
