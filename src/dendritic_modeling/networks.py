@@ -30,35 +30,7 @@ import torch.nn.functional as F
 
 from dendritic_modeling.dendrinet import DendriNet, DendriNetWithOutputs
 from dendritic_modeling import logger
-
-###############################################################################
-# MLPInputTransform
-###############################################################################
-class MLPInputTransform(nn.Module):
-    """
-    A small MLP that maps the raw input x
-    to (excitatory_input, inhibitory_input).
-    The user can provide hidden_dims, and a final output_dim for both heads.
-    """
-    def __init__(self, input_dim, hidden_dims, output_dim):
-        super().__init__()
-        layers = []
-        in_features = input_dim
-        for hdim in hidden_dims:
-            layers.append(nn.Linear(in_features, hdim))
-            layers.append(nn.ReLU())
-            in_features = hdim
-        self.shared = nn.Sequential(*layers)
-
-        self.head_exc = nn.Linear(in_features, output_dim)
-        self.head_inh = nn.Linear(in_features, output_dim)
-
-    def forward(self, x):
-        x = self.shared(x)
-        excitatory_input = self.head_exc(x)
-        inhibitory_input = self.head_inh(x)
-        return excitatory_input, inhibitory_input
-
+from dendritic_modeling.dendrinet import MLPInputTransform
 
 ###############################################################################
 # ExcitationInhibitionLayer
@@ -250,26 +222,6 @@ class ExcitationInhibitionNetwork(nn.Module):
         self.learning_strategy = learning_strategy
         self.input_mode = input_mode
 
-        # Possibly build an MLP if input_mode=2
-        if self.input_mode == 2:
-            if not mlp_transform_dict:
-                raise ValueError(
-                    "For input_mode=2, must provide mlp_transform_dict with 'type' and relevant dims."
-                )
-            net_type = mlp_transform_dict.get("type", "MLPInputTransform")
-            if net_type == "MLPInputTransform":
-                hidden_dims = mlp_transform_dict.get("hidden_dims", [128,64])
-                mlp_out_dim = mlp_transform_dict.get("output_dim", 64)
-                self.mlp_transform = MLPInputTransform(
-                    input_dim=input_dim,
-                    hidden_dims=hidden_dims,
-                    output_dim=mlp_out_dim
-                )
-            else:
-                raise ValueError(f"Unknown MLP type: {net_type}")
-        else:
-            self.mlp_transform = None
-
         logger.debug(f'Building ExcitationInhibitionNetwork with {self.n_layers} layer(s).')
         logger.debug(f'input_mode={self.input_mode}')
 
@@ -279,16 +231,6 @@ class ExcitationInhibitionNetwork(nn.Module):
         excitatory_layer_sizes.insert(0, input_dim)
         inhibitory_layer_sizes.insert(0, None)
 
-        # 1) If input_mode=1 or 2 => skip building *any* inhibitory sub-net
-        #    => set all layers in inhibitory_layer_sizes to 0
-        if self.input_mode in (1, 2):
-            for i in range(len(inhibitory_layer_sizes)):
-                inhibitory_layer_sizes[i] = 0
-
-        # 2) If input_mode=2 => The first excit layer sees MLP output dimension
-        if self.input_mode == 2:
-            mlp_out_dim = self.mlp_transform.head_exc.out_features
-            excitatory_layer_sizes[0] = mlp_out_dim
 
         ee_syn = list(ee_synapses_per_branch_per_layer)
         ei_syn = list(ei_synapses_per_branch_per_layer)
@@ -303,6 +245,40 @@ class ExcitationInhibitionNetwork(nn.Module):
             ie_syn.append(ie_syn[-1])
         while len(ii_syn) < self.n_layers:
             ii_syn.append(ii_syn[-1])
+
+        # Possibly build an MLP if input_mode=2
+        if self.input_mode == 2:
+            if not mlp_transform_dict:
+                raise ValueError(
+                    "For input_mode=2, must provide mlp_transform_dict with 'type' and relevant dims."
+                )
+            net_type = mlp_transform_dict.get("type", "MLPInputTransform")
+            if net_type == "MLPInputTransform":
+                hidden_dims = mlp_transform_dict.get("hidden_dims", [128,64])
+                mlp_out_dim = mlp_transform_dict.get("output_dim", 64)
+                self.mlp_transform = MLPInputTransform(
+                    input_dim=input_dim,
+                    hidden_dims=hidden_dims,
+                    output_dim=mlp_out_dim,
+                    K_ee=ee_syn[0],
+                    K_ie=ie_syn[0],
+                )
+            else:
+                raise ValueError(f"Unknown MLP type: {net_type}")
+        else:
+            self.mlp_transform = None
+
+        # 1) If input_mode=1 or 2 => skip building *any* inhibitory sub-net
+        #    => set all layers in inhibitory_layer_sizes to 0
+        if self.input_mode in (1, 2):
+            for i in range(len(inhibitory_layer_sizes)):
+                inhibitory_layer_sizes[i] = 0
+
+        # 2) If input_mode=2 => The first excit layer sees MLP output dimension
+        if self.input_mode == 2:
+            mlp_out_dim = self.mlp_transform.head_exc.out_features
+            excitatory_layer_sizes[0] = mlp_out_dim
+
 
         layers = []
         for i in range(self.n_layers):
@@ -358,6 +334,10 @@ class ExcitationInhibitionNetwork(nn.Module):
             inhibitory_input = x
         elif self.input_mode == 2:
             excitatory_input, inhibitory_input = self.mlp_transform(x)
+            # print("shapes: ", excitatory_input.size(), inhibitory_input.size())
+            # print("x: ", x.size())
+            # print("mlp gradient norm: ", self.mlp_transform.shared[0].weight.grad.norm())
+            # print("activations: ", excitatory_input)
         else:
             raise ValueError(f"Unknown input_mode={self.input_mode}")
 
