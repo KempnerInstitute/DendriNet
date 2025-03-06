@@ -1,7 +1,8 @@
-from typing import List, Dict
+from typing import List, Dict, Any
 from dataclasses import dataclass, field, asdict
 
 from omegaconf import OmegaConf as om
+
 
 class BaseConfig:
     @classmethod
@@ -19,13 +20,13 @@ class BaseConfig:
 class EINetParameters(BaseConfig):
     input_dim: int = 784
     excitatory_layer_sizes: List[int] = field(default_factory=lambda: [10])
-    inhibitory_layer_sizes: List[int] = field(default_factory=lambda: [20])
-    excitatory_branch_factors: List[int] = field(default_factory=lambda: [2, 2])
+    inhibitory_layer_sizes: List[int] = field(default_factory=lambda: [10])
+    excitatory_branch_factors: List[int] = field(default_factory=lambda: [2,2])
     inhibitory_branch_factors: List[int] = field(default_factory=lambda: [])
     ee_synapses_per_branch_per_layer: List[int] = field(default_factory=lambda: [24])
-    ei_synapses_per_branch_per_layer: List[int] = field(default_factory=lambda: [200])
+    ei_synapses_per_branch_per_layer: List[int] = field(default_factory=lambda: [1])
     ie_synapses_per_branch_per_layer: List[int] = field(default_factory=lambda: [1])
-    ii_synapses_per_branch_per_layer: List[int] = field(default_factory=lambda: [])
+    ii_synapses_per_branch_per_layer: List[int] = field(default_factory=lambda: [1])
     reactivate: bool = True
     somatic_synapses: bool = True
     topk_init_method: str = "xavier_normal"
@@ -33,16 +34,18 @@ class EINetParameters(BaseConfig):
     reactivation_type: str = "param_tanh"
     reactivation_strategy: str = "inverse"
     blocklinear_strategy: str = "block_conductance_dynamic"
-    enable_branch_outputs: bool = True
+    enable_branch_outputs: bool = False
     output_layer: bool = False
     output_dim: int = 10
+    local_loss_weight: float = 0.0
+    learning_strategy: str = "mle"
 
-    # NEW: controls how the first layer sees inputs
-    first_layer_input_mode: int = 0  # 0=original, 1=direct, 2=two-headed MLP
+    # 0=original, 1=direct (x->exc,x->inh), 2=two-headed MLP
+    input_mode: int = 0
 
-    # NEW: MLP parameters for input_mode=2 (if used)
-    mlp_hidden_dim: int = 64
-    mlp_out_dim: int = 64
+    # NEW: dictionary describing how to build the MLP if input_mode=2
+    mlp_transform_dict: Dict[str, Any] = field(default_factory=dict)
+
 
 @dataclass
 class FeedForwardParameters(BaseConfig):
@@ -76,7 +79,7 @@ class TrainConfig(BaseConfig):
     grad_clip_value: float = 5.0
     epochs_per_layer: int = 50
     pretrain_epochs: int = 50
-    
+
 @dataclass
 class VisualizationConfig(BaseConfig):
     enabled: bool = False
@@ -109,6 +112,7 @@ class Config:
     visualization: VisualizationConfig = field(default_factory=VisualizationConfig)
     task: TaskConfig = field(default_factory=TaskConfig)
     outputs: OutputsConfig = field(default_factory=OutputsConfig)
+
 
 def load_config(path: str = None) -> Config:
     """Load configuration from a file or use defaults."""
