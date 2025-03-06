@@ -667,33 +667,7 @@ class DendriNetWithOutputs(DendriNet):
     
     
     
-    
 
-###############################################################################
-# MLPInputTransform
-###############################################################################
-class MLPInputTransform(nn.Module):
-    """
-    A small MLP that maps the raw input x
-    to (excitatory_input, inhibitory_input).
-    The user can provide hidden_dims, and a final output_dim for both heads.
-    """
-    def __init__(self, input_dim, hidden_dims, output_dim, K_ee, K_ie):
-        super().__init__()
-        layers = []
-        in_features = input_dim
-        for hdim in hidden_dims:
-            layers.append(nn.Linear(in_features, hdim))
-            layers.append(nn.ReLU())
-            in_features = hdim
-        self.shared = nn.Sequential(*layers)
 
-        self.head_exc = TopKLinear(in_features, output_dim, K_ee)
-        self.head_inh = TopKLinear(in_features, output_dim, K_ie)
 
-    def forward(self, x):
-        x = self.shared(x)
-        excitatory_input = self.head_exc(x)
-        inhibitory_input = self.head_inh(x)
-        return excitatory_input, inhibitory_input
 

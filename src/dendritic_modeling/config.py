@@ -16,6 +16,7 @@ class BaseConfig:
     def asdict(self):
         return asdict(self)
 
+
 @dataclass
 class EINetParameters(BaseConfig):
     input_dim: int = 784
@@ -40,7 +41,7 @@ class EINetParameters(BaseConfig):
     local_loss_weight: float = 0.0
     learning_strategy: str = "mle"
 
-    # 0=original, 1=direct (x->exc,x->inh), 2=two-headed MLP
+    # 0=original, 1=direct, 2=two-headed MLP
     input_mode: int = 0
 
     # NEW: dictionary describing how to build the MLP if input_mode=2
