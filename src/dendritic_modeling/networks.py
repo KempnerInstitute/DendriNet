@@ -47,8 +47,15 @@ class MLPInputTransform(nn.Module):
             in_features = hdim
         self.shared = nn.Sequential(*layers)
 
-        self.head_exc = nn.Linear(in_features, output_dim)
-        self.head_inh = nn.Linear(in_features, output_dim)
+        self.head_exc = nn.Sequential(nn.Linear(in_features, output_dim), nn.Sigmoid())
+        self.head_inh = nn.Sequential(nn.Linear(in_features, output_dim), nn.Sigmoid())
+
+        # Initialize weights using Kaiming initialization
+        for m in self.modules():
+            if isinstance(m, nn.Linear):
+                nn.init.kaiming_normal_(m.weight)
+                if m.bias is not None:
+                    nn.init.zeros_(m.bias)
 
     def forward(self, x):
         x = self.shared(x)
@@ -175,7 +182,7 @@ class ExcitationInhibitionLayer(nn.Module):
         if self.inhibitory_cells is not None:
             inhibitory_output = self.inhibitory_cells(x, inhibitory_input)
         else:
-            inhibitory_output = None
+            inhibitory_output = inhibitory_input
 
         excitatory_output = self.excitatory_cells(x, inhibitory_output)
         return excitatory_output, inhibitory_output
@@ -313,6 +320,12 @@ class ExcitationInhibitionNetwork(nn.Module):
             else:
                 # from 2nd layer onward, use the config's inhibitory_layer_sizes
                 n_inh = inhibitory_layer_sizes[i+1]
+
+            inhibitory_input_size = inhibitory_layer_sizes[i]
+            if i == 0 and self.input_mode == 2:
+                # For input_mode=2, use mlp_out_dim as inhibitory_input_dim
+                inhibitory_input_size = mlp_transform_dict.get("output_dim", 64)
+                
 
             layer = ExcitationInhibitionLayer(
                 n_excitatory_cells=n_exc,
