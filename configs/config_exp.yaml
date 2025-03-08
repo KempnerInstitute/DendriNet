@@ -22,16 +22,29 @@ model:
       enable_branch_outputs: false   ### alows DendriNetWithOutputs to keep activations etc
       output_layer: false  ### adding an output classifier layer FC to final dendrinet layer
       output_dim: 10
-      # input mode (0=original, 1=exc=x+inh=x, 2=two-headed MLP)
+      # input mode (0=original, 1=exc=x+inh=x, 2=input_net)
       input_mode: 1
-      # If we set first_layer_input_mode=2, the following get used for MLP:
-      mlp_transform_dict:
-        type: "MLPInputTransform"
-        hidden_dims: [128, 64]
-        output_dim: 64
+      # If we set input_mode=2, the following get used for input network:
+      input_net_dict:
+        type: "MLPInputTransform"  # Type of input network: "MLPInputTransform", "AlexNetTransform", etc.
+        hidden_dims: [128, 64]     # Hidden layer dimensions for MLP
+        output_dim: 64             # Output dimension for both excitatory and inhibitory pathways
+        training_mode: "joint"     # "joint" (train everything together) or "sequential" (train input_net first, then dendrinet)
+        
+        # Options for sequential training mode
+        sequential_options:
+          train_input_net: true    # Whether to train the input network or use pre-trained weights
+          input_net_epochs: 20     # Epochs to train input network if train_input_net is true
+          freeze_input_net: true   # Whether to freeze input network weights during dendrinet training
+          
+        # Options for pre-trained weights (when train_input_net is false)
+        pretrained_options:
+          source: "file"           # "file", "pytorch", "none"
+          weights_path: ""         # Path to weights file if source is "file"
+          pytorch_model: ""        # Name of PyTorch model if source is "pytorch"
 
 train:
-  learning_strategy: mle #"mle", "freeze_layers", "local_credit_assignment", "two_step", "two_step_kl"    --> local learning rules should start with local_...
+  learning_strategy: mle #"mle", "freeze_layers", "local_credit_assignment", "two_step", "two_step_kl"
   run_name: mnist_einet
   seed: 0
   train_valid_split: 0.8
