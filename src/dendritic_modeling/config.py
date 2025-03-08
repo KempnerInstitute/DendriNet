@@ -80,6 +80,14 @@ class TrainConfig(BaseConfig):
     grad_clip_value: float = 5.0
     epochs_per_layer: int = 50
     pretrain_epochs: int = 50
+    
+    # Parameters for mlp_only strategy
+    mlp_epochs: int = 20
+    full_epochs: int = 30
+    
+    # Parameters for dendrinet_from_mlp strategy
+    dendrinet_epochs: int = 30
+    freeze_mlp: bool = False
 
 @dataclass
 class VisualizationConfig(BaseConfig):

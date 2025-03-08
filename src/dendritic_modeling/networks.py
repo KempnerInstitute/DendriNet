@@ -29,39 +29,103 @@ from dendritic_modeling import logger
 
 
 ###############################################################################
-# MLPInputTransform
+# InputNetTransform
 ###############################################################################
-class MLPInputTransform(nn.Module):
+class InputNetTransform(nn.Module):
     """
-    A small MLP that maps the raw input x
-    to (excitatory_input, inhibitory_input).
-    The user can provide hidden_dims, and a final output_dim for both heads.
+    A transform that maps the raw input x to (excitatory_input, inhibitory_input).
+    This is a generalized version that can support different network architectures.
+    By default, it uses an MLP with configurable hidden dimensions.
     """
-    def __init__(self, input_dim, hidden_dims, output_dim):
+    def __init__(self, input_dim, hidden_dims, output_dim, network_type="MLPInputTransform"):
         super().__init__()
-        layers = []
-        in_features = input_dim
-        for hdim in hidden_dims:
-            layers.append(nn.Linear(in_features, hdim))
-            layers.append(nn.ReLU())
-            in_features = hdim
-        self.shared = nn.Sequential(*layers)
-
-        self.head_exc = nn.Sequential(nn.Linear(in_features, output_dim), nn.Sigmoid())
-        self.head_inh = nn.Sequential(nn.Linear(in_features, output_dim), nn.Sigmoid())
-
-        # Initialize weights using Kaiming initialization
-        for m in self.modules():
-            if isinstance(m, nn.Linear):
-                nn.init.kaiming_normal_(m.weight)
-                if m.bias is not None:
-                    nn.init.zeros_(m.bias)
+        self.network_type = network_type
+        
+        if network_type == "MLPInputTransform":
+            # Build MLP backbone
+            layers = []
+            in_features = input_dim
+            for hdim in hidden_dims:
+                layers.append(nn.Linear(in_features, hdim))
+                layers.append(nn.ReLU())
+                in_features = hdim
+            self.shared = nn.Sequential(*layers)
+            
+            # Create excitatory and inhibitory heads
+            self.head_exc = nn.Sequential(nn.Linear(in_features, output_dim), nn.Sigmoid())
+            self.head_inh = nn.Sequential(nn.Linear(in_features, output_dim), nn.Sigmoid())
+            
+            # Initialize weights using Kaiming initialization
+            for m in self.modules():
+                if isinstance(m, nn.Linear):
+                    nn.init.kaiming_normal_(m.weight)
+                    if m.bias is not None:
+                        nn.init.zeros_(m.bias)
+        
+        elif network_type == "AlexNetTransform":
+            # Example of using a pre-trained model like AlexNet
+            import torchvision.models as models
+            
+            # Load AlexNet without classifier
+            alexnet = models.alexnet(pretrained=True)
+            self.shared = nn.Sequential(*list(alexnet.features), 
+                                       nn.AdaptiveAvgPool2d((6, 6)),
+                                       nn.Flatten())
+            
+            # Create new heads for excitatory and inhibitory outputs
+            self.head_exc = nn.Sequential(nn.Linear(9216, output_dim), nn.Sigmoid())
+            self.head_inh = nn.Sequential(nn.Linear(9216, output_dim), nn.Sigmoid())
+            
+        else:
+            raise ValueError(f"Unknown network type: {network_type}")
 
     def forward(self, x):
         x = self.shared(x)
         excitatory_input = self.head_exc(x)
         inhibitory_input = self.head_inh(x)
         return excitatory_input, inhibitory_input
+    
+    def load_pretrained_weights(self, source, weights_path=None, pytorch_model=None):
+        """
+        Load pre-trained weights for the input network.
+        
+        Args:
+            source (str): Source of weights - 'file', 'pytorch', or 'none'
+            weights_path (str, optional): Path to weights file if source is 'file'
+            pytorch_model (str, optional): Name of PyTorch model if source is 'pytorch'
+        """
+        if source == "none":
+            logger.info("No pre-trained weights to load.")
+            return
+            
+        elif source == "file":
+            if not weights_path:
+                raise ValueError("weights_path must be provided when source is 'file'")
+            logger.info(f"Loading weights from file: {weights_path}")
+            state_dict = torch.load(weights_path)
+            self.load_state_dict(state_dict)
+            
+        elif source == "pytorch":
+            if not pytorch_model:
+                raise ValueError("pytorch_model must be provided when source is 'pytorch'")
+            logger.info(f"Loading pre-trained PyTorch model: {pytorch_model}")
+            
+            import torchvision.models as models
+            if pytorch_model == "alexnet":
+                pretrained_model = models.alexnet(pretrained=True)
+                # Copy features to shared backbone
+                if self.network_type == "AlexNetTransform":
+                    # For AlexNet, we can directly copy the features
+                    for i, layer in enumerate(list(pretrained_model.features)):
+                        if i < len(list(self.shared)):
+                            self.shared[i].load_state_dict(layer.state_dict())
+            else:
+                raise ValueError(f"Unsupported PyTorch model: {pytorch_model}")
+        else:
+            raise ValueError(f"Unknown source: {source}")
+
+# For backward compatibility
+MLPInputTransform = InputNetTransform
 
 
 ###############################################################################
@@ -234,8 +298,8 @@ class ExcitationInhibitionNetwork(nn.Module):
         output_layer=False,
         output_dim=10,
         learning_strategy="mle",
-        input_mode=0,                    # 0=original, 1=direct, 2=two-headed MLP
-        mlp_transform_dict=None,
+        input_mode=0,                    # 0=original, 1=direct, 2=input_net
+        input_net_dict=None,             # Renamed from mlp_transform_dict
     ):
         """
         Changes:
@@ -247,7 +311,7 @@ class ExcitationInhibitionNetwork(nn.Module):
         2) If input_mode=1 or 2: skip building inhibitory sub-network ONLY for the FIRST layer,
            but do build it for subsequent layers if inhibitory_layer_sizes[i+1] > 0.
 
-        3) If input_mode=2: also build an MLP from mlp_transform_dict that 
+        3) If input_mode=2: also build an input network from input_net_dict that 
            outputs (excit, inhib). Then feed that into the first layer's excit/inhib inputs.
         """
         super().__init__()
@@ -282,25 +346,39 @@ class ExcitationInhibitionNetwork(nn.Module):
         while len(ii_syn) < self.n_layers:
             ii_syn.append(ii_syn[-1])
 
-        # Possibly build MLP if input_mode=2
-        self.mlp_transform = None
+        # Possibly build input network if input_mode=2
+        self.input_net = None  # Renamed from mlp_transform
         if self.input_mode == 2:
-            if not mlp_transform_dict:
+            if not input_net_dict:
                 raise ValueError(
-                    "For input_mode=2, must provide mlp_transform_dict with 'type', 'hidden_dims', 'output_dim'."
+                    "For input_mode=2, must provide input_net_dict with 'type', 'hidden_dims', 'output_dim'."
                 )
-            net_type = mlp_transform_dict.get("type", "MLPInputTransform")
-            if net_type != "MLPInputTransform":
-                raise ValueError(f"Unknown MLP type: {net_type}")
-            hidden_dims = mlp_transform_dict.get("hidden_dims", [128,64])
-            mlp_out_dim = mlp_transform_dict.get("output_dim", 64)
-            self.mlp_transform = MLPInputTransform(
+            net_type = input_net_dict.get("type", "MLPInputTransform")
+            hidden_dims = input_net_dict.get("hidden_dims", [128,64])
+            net_out_dim = input_net_dict.get("output_dim", 64)
+            
+            self.input_net = InputNetTransform(
                 input_dim=input_dim,
                 hidden_dims=hidden_dims,
-                output_dim=mlp_out_dim
+                output_dim=net_out_dim,
+                network_type=net_type
             )
-            # The excit first layer sees mlp_out_dim
-            excitatory_layer_sizes[0] = mlp_out_dim
+            
+            # Load pre-trained weights if specified
+            if input_net_dict.get("training_mode") == "sequential" and not input_net_dict.get("sequential_options", {}).get("train_input_net", True):
+                pretrained_options = input_net_dict.get("pretrained_options", {})
+                source = pretrained_options.get("source", "none")
+                weights_path = pretrained_options.get("weights_path", "")
+                pytorch_model = pretrained_options.get("pytorch_model", "")
+                
+                self.input_net.load_pretrained_weights(
+                    source=source,
+                    weights_path=weights_path,
+                    pytorch_model=pytorch_model
+                )
+            
+            # The excit first layer sees net_out_dim
+            excitatory_layer_sizes[0] = net_out_dim
 
         # Build each layer
         layers = []
@@ -323,57 +401,55 @@ class ExcitationInhibitionNetwork(nn.Module):
 
             inhibitory_input_size = inhibitory_layer_sizes[i]
             if i == 0 and self.input_mode == 2:
-                # For input_mode=2, use mlp_out_dim as inhibitory_input_dim
-                inhibitory_input_size = mlp_transform_dict.get("output_dim", 64)
-                
+                # For input_mode=2, use net_out_dim as inhibitory_input_dim
+                inhibitory_input_size = input_net_dict.get("output_dim", 64)
 
-            layer = ExcitationInhibitionLayer(
-                n_excitatory_cells=n_exc,
-                n_inhibitory_cells=n_inh,
-                excitatory_branch_factors=excitatory_branch_factors,
-                inhibitory_branch_factors=inhibitory_branch_factors,
-                excitatory_input_dim=excitatory_layer_sizes[i],
-                ee_synapses_per_branch=ee_syn[i],
-                ei_synapses_per_branch=ei_syn[i],
-                inhibitory_input_dim=inhibitory_layer_sizes[i],
-                ie_synapses_per_branch=ie_syn[i],
-                ii_synapses_per_branch=ii_syn[i],
-                reactivate=reactivate,
-                somatic_synapses=somatic_synapses,
-                topk_init_method=topk_init_method,
-                use_shunting=use_shunting,
-                reactivation_strategy=self.reactivation_strategy,
-                blocklinear_strategy=self.blocklinear_strategy,
-                reactivation_type=reactivation_type,
-                enable_branch_outputs=enable_branch_outputs
+            # Create excitatory and inhibitory networks for this layer
+            excitatory_net = DendriNet(
+                n_soma = n_exc,
+                branch_factors = excitatory_branch_factors,
+                excitatory_input_dim = excitatory_layer_sizes[i],
+                excitatory_synapses_per_branch = ee_syn[i],
+                inhibitory_input_dim = inhibitory_input_size,
+                inhibitory_synapses_per_branch = ei_syn[i],
+                reactivate = reactivate,
+                somatic_synapses = somatic_synapses,
+                topk_init_method = topk_init_method,
+                use_shunting = use_shunting,
+                reactivation_type = reactivation_type,
+                reactivation_strategy = reactivation_strategy,
+                blocklinear_strategy = blocklinear_strategy,
             )
-            layers.append(layer)
-        self.layers = nn.ModuleList(layers)
 
-        # Feedback mats for local credit assignment, if used
-        self.feedback_mats = nn.ParameterList()
-        for i in range(self.n_layers):
-            if self.learning_strategy == "local_credit_assignment":
-                fb = nn.Parameter(
-                    torch.randn(excitatory_layer_sizes[i+1], 10)*0.01,
-                    requires_grad=False
+            if n_inh > 0:
+                inhibitory_net = DendriNet(
+                    n_soma = n_inh,
+                    branch_factors = inhibitory_branch_factors,
+                    excitatory_input_dim = excitatory_layer_sizes[i],
+                    excitatory_synapses_per_branch = ie_syn[i],
+                    inhibitory_input_dim = inhibitory_input_size,
+                    inhibitory_synapses_per_branch = ii_syn[i],
+                    reactivate = reactivate,
+                    somatic_synapses = somatic_synapses,
+                    topk_init_method = topk_init_method,
+                    use_shunting = use_shunting,
+                    reactivation_type = reactivation_type,
+                    reactivation_strategy = reactivation_strategy,
+                    blocklinear_strategy = blocklinear_strategy,
                 )
-                self.feedback_mats.append(fb)
             else:
-                self.feedback_mats.append(None)
+                inhibitory_net = None
 
-    def decay_weights(self, weight_decay=None):
-        if weight_decay is None:
-            weight_decay = self.weight_decay_rate
-        for layer in self.layers:
-            layer.decay_weights(weight_decay)
+            layers.append(ExcitationInhibitionLayer(excitatory_net, inhibitory_net))
+
+        self.layers = nn.ModuleList(layers)
 
     def forward(self, x):
         """
         Forward logic depends on input_mode:
         - mode=0 => excit=x, inhibitory=None at the first layer
         - mode=1 => excit=x, inhibitory=x at the first layer, but we skip building that layer's inhib net => no separate output
-        - mode=2 => pass x into self.mlp_transform => produce (excit, inhib)
+        - mode=2 => pass x into self.input_net => produce (excit, inhib)
                     skip that layer's inhib net => no separate output
         Then subsequent layers do normal E–I if their inhib cells exist.
         """
@@ -384,7 +460,7 @@ class ExcitationInhibitionNetwork(nn.Module):
             excitatory_input = x
             inhibitory_input = x
         elif self.input_mode == 2:
-            excitatory_input, inhibitory_input = self.mlp_transform(x)
+            excitatory_input, inhibitory_input = self.input_net(x)
         else:
             raise ValueError(f"Unknown input_mode={self.input_mode}")
 
@@ -403,7 +479,7 @@ class ExcitationInhibitionNetwork(nn.Module):
             excitatory_input = x
             inhibitory_input = x
         elif self.input_mode == 2:
-            excitatory_input, inhibitory_input = self.mlp_transform(x)
+            excitatory_input, inhibitory_input = self.input_net(x)
         else:
             raise ValueError(f"Unknown input_mode={self.input_mode}")
 
@@ -431,6 +507,49 @@ class ExcitationInhibitionNetwork(nn.Module):
     @property
     def n_branch_layers(self):
         return len(self.branch_layers)
+        
+    def load_input_net_weights(self, input_net_weights):
+        """
+        Load weights for the input network component.
+        
+        Args:
+            input_net_weights: State dict or model with state_dict() method
+        """
+        if self.input_mode != 2 or self.input_net is None:
+            logger.warning("Network not configured for input network weight loading (input_mode != 2 or no input_net)")
+            return
+            
+        logger.info("Loading input network weights")
+        if hasattr(input_net_weights, 'state_dict'):
+            state_dict = input_net_weights.state_dict()
+        else:
+            state_dict = input_net_weights
+            
+        self.input_net.load_state_dict(state_dict)
+        
+    def freeze_input_net_weights(self):
+        """
+        Freeze the weights in the input_net component to prevent them from being updated
+        during training. This is useful for transfer learning scenarios.
+        """
+        if self.input_mode == 2 and self.input_net is not None:
+            logger.info("Freezing input network weights")
+            for param in self.input_net.parameters():
+                param.requires_grad = False
+        else:
+            logger.warning("No input network to freeze (input_mode != 2 or no input_net)")
+            
+    def unfreeze_input_net_weights(self):
+        """
+        Unfreeze the weights in the input_net component to allow them to be updated
+        during training.
+        """
+        if self.input_mode == 2 and self.input_net is not None:
+            logger.info("Unfreezing input network weights")
+            for param in self.input_net.parameters():
+                param.requires_grad = True
+        else:
+            logger.warning("No input network to unfreeze (input_mode != 2 or no input_net)")
 
 
 ############################################################
