@@ -364,18 +364,8 @@ class ExcitationInhibitionNetwork(nn.Module):
                 network_type=net_type
             )
             
-            # Load pre-trained weights if specified
-            if input_net_dict.get("training_mode") == "sequential" and not input_net_dict.get("sequential_options", {}).get("train_input_net", True):
-                pretrained_options = input_net_dict.get("pretrained_options", {})
-                source = pretrained_options.get("source", "none")
-                weights_path = pretrained_options.get("weights_path", "")
-                pytorch_model = pretrained_options.get("pytorch_model", "")
-                
-                self.input_net.load_pretrained_weights(
-                    source=source,
-                    weights_path=weights_path,
-                    pytorch_model=pytorch_model
-                )
+            # Note: Pre-trained weights loading is now handled in train_experiments.py
+            # based on the train.input_net_training configuration
             
             # The excit first layer sees net_out_dim
             excitatory_layer_sizes[0] = net_out_dim
@@ -404,43 +394,30 @@ class ExcitationInhibitionNetwork(nn.Module):
                 # For input_mode=2, use net_out_dim as inhibitory_input_dim
                 inhibitory_input_size = input_net_dict.get("output_dim", 64)
 
-            # Create excitatory and inhibitory networks for this layer
-            excitatory_net = DendriNet(
-                n_soma = n_exc,
-                branch_factors = excitatory_branch_factors,
-                excitatory_input_dim = excitatory_layer_sizes[i],
-                excitatory_synapses_per_branch = ee_syn[i],
-                inhibitory_input_dim = inhibitory_input_size,
-                inhibitory_synapses_per_branch = ei_syn[i],
-                reactivate = reactivate,
-                somatic_synapses = somatic_synapses,
-                topk_init_method = topk_init_method,
-                use_shunting = use_shunting,
-                reactivation_type = reactivation_type,
-                reactivation_strategy = reactivation_strategy,
-                blocklinear_strategy = blocklinear_strategy,
-            )
-
-            if n_inh > 0:
-                inhibitory_net = DendriNet(
-                    n_soma = n_inh,
-                    branch_factors = inhibitory_branch_factors,
-                    excitatory_input_dim = excitatory_layer_sizes[i],
-                    excitatory_synapses_per_branch = ie_syn[i],
-                    inhibitory_input_dim = inhibitory_input_size,
-                    inhibitory_synapses_per_branch = ii_syn[i],
-                    reactivate = reactivate,
-                    somatic_synapses = somatic_synapses,
-                    topk_init_method = topk_init_method,
-                    use_shunting = use_shunting,
-                    reactivation_type = reactivation_type,
-                    reactivation_strategy = reactivation_strategy,
-                    blocklinear_strategy = blocklinear_strategy,
+            # Fix for newer version of ExcitationInhibitionLayer
+            # Now passing all required arguments directly to the layer instead of creating DendriNet objects first
+            layers.append(
+                ExcitationInhibitionLayer(
+                    n_excitatory_cells=n_exc,
+                    n_inhibitory_cells=n_inh,
+                    excitatory_branch_factors=excitatory_branch_factors,
+                    inhibitory_branch_factors=inhibitory_branch_factors,
+                    excitatory_input_dim=excitatory_layer_sizes[i],
+                    ee_synapses_per_branch=ee_syn[i],
+                    ei_synapses_per_branch=min(ei_syn[i], inhibitory_input_size) if i == 0 and self.input_mode == 2 else ei_syn[i],
+                    inhibitory_input_dim=inhibitory_input_size,
+                    ie_synapses_per_branch=ie_syn[i],
+                    ii_synapses_per_branch=ii_syn[i],
+                    reactivate=reactivate,
+                    somatic_synapses=somatic_synapses,
+                    topk_init_method=topk_init_method,
+                    use_shunting=use_shunting,
+                    reactivation_strategy=reactivation_strategy,
+                    blocklinear_strategy=blocklinear_strategy,
+                    reactivation_type=reactivation_type,
+                    enable_branch_outputs=enable_branch_outputs
                 )
-            else:
-                inhibitory_net = None
-
-            layers.append(ExcitationInhibitionLayer(excitatory_net, inhibitory_net))
+            )
 
         self.layers = nn.ModuleList(layers)
 

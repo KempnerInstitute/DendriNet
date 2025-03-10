@@ -1,0 +1,64 @@
+{
+  "os": "Linux-4.18.0-513.18.1.el8_9.x86_64-x86_64-with-glibc2.28",
+  "python": "3.12.7",
+  "startedAt": "2025-03-08T08:32:37.954452Z",
+  "args": [
+    ".vscode/config_exp.yaml"
+  ],
+  "program": "/n/holylabs/LABS/kempner_dev/Users/hsafaai/Code/dendritic-modeling/scripts/train_experiments.py",
+  "codePath": "scripts/train_experiments.py",
+  "git": {
+    "remote": "git@github.com:KempnerInstitute/dendritic_modeling.git",
+    "commit": "06c000fed286cfdeff25d79fcc05a448e419d015"
+  },
+  "email": "houman_safaai@harvard.edu",
+  "root": "/n/holylabs/LABS/kempner_dev/Users/hsafaai/Code/dendritic-modeling",
+  "host": "holygpu8a13503.rc.fas.harvard.edu",
+  "username": "hsafaai",
+  "executable": "/n/home13/hsafaai/.conda/envs/dendritic_env/bin/python",
+  "codePathLocal": "scripts/train_experiments.py",
+  "cpu_count": 96,
+  "cpu_count_logical": 96,
+  "gpu": "NVIDIA H100 80GB HBM3",
+  "gpu_count": 4,
+  "disk": {
+    "/": {
+      "total": "53660876800",
+      "used": "18200248320"
+    }
+  },
+  "memory": {
+    "total": "1622562205696"
+  },
+  "cpu": {
+    "count": 96,
+    "countLogical": 96
+  },
+  "gpu_nvidia": [
+    {
+      "name": "NVIDIA H100 80GB HBM3",
+      "memoryTotal": "85520809984",
+      "cudaCores": 16896,
+      "architecture": "Hopper"
+    },
+    {
+      "name": "NVIDIA H100 80GB HBM3",
+      "memoryTotal": "85520809984",
+      "cudaCores": 16896,
+      "architecture": "Hopper"
+    },
+    {
+      "name": "NVIDIA H100 80GB HBM3",
+      "memoryTotal": "85520809984",
+      "cudaCores": 16896,
+      "architecture": "Hopper"
+    },
+    {
+      "name": "NVIDIA H100 80GB HBM3",
+      "memoryTotal": "85520809984",
+      "cudaCores": 16896,
+      "architecture": "Hopper"
+    }
+  ],
+  "cudaVersion": "12.4"
+}

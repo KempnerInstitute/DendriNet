@@ -137,8 +137,8 @@ class MultiXORDataset(Dataset):
     def __getitem__(self, idx):
         return self.data[idx], self.labels[idx]
 
-def load_mnist_as_datasets(train_valid_split=0.8):
-    data = load_MNIST(train_valid_split=train_valid_split)
+def load_mnist_as_datasets(train_valid_split=0.8, data_path=None):
+    data = load_MNIST(train_valid_split=train_valid_split, cache_dir=data_path)
     train_ds = data['train']
     if 'valid' in data:
         valid_ds = data['valid']
@@ -322,7 +322,7 @@ class CompositionalMNIST(Dataset):
 
 def load_MNIST(train_valid_split = 1, cache_dir=None):
     if cache_dir is None:
-        root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
         data_path = os.path.join(root, 'data', 'mnist')
     else:
         data_path = os.path.join(cache_dir, 'data', 'mnist')
@@ -501,7 +501,8 @@ def load_cifar10_as_datasets(train_valid_split=1.0, data_path=None):
     ])
     
     if data_path is None:
-        root_dir = "."
+        root_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+        root_dir = os.path.join(root_dir, 'data', 'cifar')
     else:
         root_dir = os.path.join(data_path, "cifar")
         
@@ -560,6 +561,15 @@ def get_unified_datasets(task_cfg, train_cfg):
         data_path    = getattr(task_cfg, "data_path", None)
         p = task_cfg.parameters
 
+    # If data_path is empty string, set it to None
+    if data_path == "":
+        data_path = None
+    
+    # If data_path is None, use the default data directory in project root
+    if data_path is None:
+        data_path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), 'data')
+        os.makedirs(data_path, exist_ok=True)
+
     train_valid_split = getattr(train_cfg, "train_valid_split", 1.0)
     train_size = p.get('train_size', 8000)
     valid_size = p.get('valid_size', 1000)
@@ -582,10 +592,10 @@ def get_unified_datasets(task_cfg, train_cfg):
         full_ds = MultiXORDataset(n_samples=total, n_bits=n_bits)
         return random_split(full_ds, [train_size, valid_size, test_size])
     elif dataset_name == "mnist":
-        train_ds, valid_ds, test_ds = load_mnist_as_datasets(train_valid_split=train_valid_split)
+        train_ds, valid_ds, test_ds = load_mnist_as_datasets(train_valid_split=train_valid_split, data_path=data_path)
         return train_ds, valid_ds, test_ds
     elif dataset_name == "mnist_modulo10":
-        data = load_MNIST_modulo10(train_valid_split=train_valid_split)
+        data = load_MNIST_modulo10(train_valid_split=train_valid_split, cache_dir=data_path)
         train_ds = data['train']
         if 'valid' in data:
             valid_ds = data['valid']
@@ -594,7 +604,7 @@ def get_unified_datasets(task_cfg, train_cfg):
         test_ds = data['test']
         return train_ds, valid_ds, test_ds
     elif dataset_name == "mnist_switch2":
-        data = load_MNIST_task_switch(train_valid_split=train_valid_split)
+        data = load_MNIST_task_switch(train_valid_split=train_valid_split, cache_dir=data_path)
         train_ds = data['train']
         if 'valid' in data:
             valid_ds = data['valid']
@@ -603,7 +613,7 @@ def get_unified_datasets(task_cfg, train_cfg):
         test_ds = data['test']
         return train_ds, valid_ds, test_ds
     elif dataset_name == "mnist_switch10":
-        data = load_MNIST_task_switch0(train_valid_split=train_valid_split)
+        data = load_MNIST_task_switch0(train_valid_split=train_valid_split, cache_dir=data_path)
         train_ds = data['train']
         if 'valid' in data:
             valid_ds = data['valid']
@@ -618,18 +628,18 @@ def get_unified_datasets(task_cfg, train_cfg):
         full_ds = NoisyLineDataset(n_samples=total, image_size=image_size, noise_level=0.2)
         return random_split(full_ds, [train_size, valid_size, test_size])
     elif dataset_name == "feature_selectivity":
-        base_mnist = MNIST(root='.', train=True, download=True)
+        base_mnist = MNIST(root=data_path, train=True, download=True)
         full_ds = SparseMNISTDataset(base_mnist, threshold=0.3)
         return random_split(full_ds, [train_size, valid_size, test_size])
     elif dataset_name == "context_gating":
-        base_mnist = MNIST(root='.', train=True, download=True)
+        base_mnist = MNIST(root=data_path, train=True, download=True)
         full_ds = ContextualFigureGroundMNIST(base_mnist, noise_level=0.1)
         return random_split(full_ds, [train_size, valid_size, test_size])
     elif dataset_name == "learning_dynamics":
         full_ds = MultiTaskLineDataset(total_size=total, image_size=image_size)
         return random_split(full_ds, [train_size, valid_size, test_size])
     elif dataset_name == "hierarchical_processing":
-        base_mnist = MNIST(root='.', train=True, download=True)
+        base_mnist = MNIST(root=data_path, train=True, download=True)
         full_ds = CompositionalMNIST(base_mnist, n_samples=total)
         return random_split(full_ds, [train_size, valid_size, test_size])
     elif dataset_name == "cifar10":
