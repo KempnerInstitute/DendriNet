@@ -172,14 +172,13 @@ class InhibitoryHeadTrainer:
     Custom trainer for the inhibitory head with different objective functions.
     """
     def __init__(self, model, optimizer, objective="classification", 
-                 excit_head_model=None, alpha=0.5, beta=0.1, 
+                 excit_head_model=None, alpha=0.5,
                  suppress_prints=False, print_every=10):
         self.model = model
         self.optimizer = optimizer
         self.objective = objective
         self.excit_head_model = excit_head_model
         self.alpha = alpha  # Weight for the diversity loss
-        self.beta = beta    # Weight for the reconstruction loss
         self.suppress = suppress_prints
         self.print_every = print_every
         
@@ -221,38 +220,6 @@ class InhibitoryHeadTrainer:
         # Return negative similarity to maximize distance
         return similarity
     
-    def compute_reconstruction_loss(self, x):
-        """
-        Reconstruction loss: encourages inhibitory head to learn a good representation
-        by reconstructing the input.
-        """
-        if hasattr(self.model, 'net'):
-            inhib_repr = self.model.net(x)
-        elif hasattr(self.model, 'network'):
-            inhib_repr = self.model.network(x)
-        else:
-            inhib_repr = self.model(x)
-        
-        # Simple linear reconstruction (could be replaced with a more complex decoder)
-        if not hasattr(self, 'decoder'):
-            self.decoder = torch.nn.Linear(inhib_repr.size(1), x.size(1)).to(x.device)
-            torch.nn.init.xavier_uniform_(self.decoder.weight)
-            torch.nn.init.zeros_(self.decoder.bias)
-            self.decoder_optimizer = torch.optim.Adam(self.decoder.parameters(), lr=0.001)
-        
-        # Reconstruct the input
-        x_recon = self.decoder(inhib_repr)
-        
-        # Compute reconstruction loss
-        recon_loss = F.mse_loss(x_recon, x)
-        
-        # Update decoder
-        self.decoder_optimizer.zero_grad()
-        recon_loss.backward(retain_graph=True)
-        self.decoder_optimizer.step()
-        
-        return recon_loss
-    
     def train(self, model, train_data, valid_data=None, epochs=100, batch_size=256, 
               grad_clip_value=5, shuffle=True, load_best_state_dict=True, 
               plot_losses=False, save_path=None):
@@ -288,15 +255,10 @@ class InhibitoryHeadTrainer:
                     class_loss = self.compute_classification_loss(xb, yb)
                     div_loss = self.compute_diversity_loss(xb)
                     loss = class_loss + self.alpha * div_loss
-                elif self.objective == "reconstruction":
-                    class_loss = self.compute_classification_loss(xb, yb)
-                    recon_loss = self.compute_reconstruction_loss(xb)
-                    loss = class_loss + self.beta * recon_loss
                 elif self.objective == "combined":
                     class_loss = self.compute_classification_loss(xb, yb)
                     div_loss = self.compute_diversity_loss(xb)
-                    recon_loss = self.compute_reconstruction_loss(xb)
-                    loss = class_loss + self.alpha * div_loss + self.beta * recon_loss
+                    loss = class_loss + self.alpha * div_loss
                 else:
                     raise ValueError(f"Unknown objective: {self.objective}")
                 
@@ -459,7 +421,6 @@ def main(config_path: str):
         # Get sequential training parameters from train.input_net_training
         train_input_net = input_net_training.get('train_input_net', True)
         input_net_epochs = input_net_training.get('input_net_epochs', 20)
-        freeze_input_net = input_net_training.get('freeze_input_net', True)
         
         if train_input_net:
             # First, train just the input network
@@ -548,7 +509,6 @@ def main(config_path: str):
                 # Get the inhibitory head training objective
                 inhib_objective = input_net_training.get('inhibitory_head_objective', 'classification')
                 diversity_weight = input_net_training.get('diversity_weight', 0.5)
-                reconstruction_weight = input_net_training.get('reconstruction_weight', 0.1)
                 
                 logger.info(f"Using {inhib_objective} objective for inhibitory head training")
                 
@@ -589,7 +549,6 @@ def main(config_path: str):
                         objective=inhib_objective,
                         excit_head_model=excit_head_clf if inhib_objective in ["diversity", "combined"] else None,
                         alpha=diversity_weight,
-                        beta=reconstruction_weight,
                         suppress_prints=False,
                         print_every=10
                     )
@@ -667,13 +626,6 @@ def main(config_path: str):
                     model.net.input_net = new_input_net
                 elif hasattr(model, 'network'):
                     model.network.input_net = new_input_net
-                
-                # Freeze input network weights
-                if freeze_input_net:
-                    if hasattr(model, 'net'):
-                        model.net.freeze_input_net_weights()
-                    elif hasattr(model, 'network'):
-                        model.network.freeze_input_net_weights()
             
             else:
                 # Original sequential training code (train both heads together)
@@ -780,13 +732,6 @@ def main(config_path: str):
                     model.net.input_net = new_input_net
                 elif hasattr(model, 'network'):
                     model.network.input_net = new_input_net
-                    
-                # Freeze input network weights if specified
-                if freeze_input_net:
-                    if hasattr(model, 'net'):
-                        model.net.freeze_input_net_weights()
-                    elif hasattr(model, 'network'):
-                        model.network.freeze_input_net_weights()
             
             # Create optimizer for full model
             optimizer = CustomWeightDecayOptimizer(
@@ -948,8 +893,6 @@ if __name__ == '__main__':
                        help="Train the input network in sequential mode")
     parser.add_argument("--input_net_epochs", type=int, 
                        help="Number of epochs for input network training")
-    parser.add_argument("--freeze_input_net", action='store_true', 
-                       help="Freeze input network weights during dendrinet training")
     
     # Pre-trained options
     parser.add_argument("--pretrained_source", choices=["file", "pytorch", "none"],
@@ -992,9 +935,6 @@ if __name__ == '__main__':
     
     if args.input_net_epochs:
         config.train.input_net_training['input_net_epochs'] = args.input_net_epochs
-    
-    if args.freeze_input_net:
-        config.train.input_net_training['freeze_input_net'] = True
     
     # Update pretrained options if provided
     if args.pretrained_source:
