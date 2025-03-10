@@ -167,6 +167,242 @@ def transfer_mlp_weights_to_input_net(mlp_net, input_net, head_type="excitatory"
     
     logger.info(f"Weight transfer completed for {head_type} head")
 
+# Add a custom InputNetTransform with sigmoid activation
+class SigmoidInputNetTransform(InputNetTransform):
+    """
+    Extension of InputNetTransform that applies a sigmoid activation to the output,
+    ensuring values are in the range [0, 1] before entering the dendrinet.
+    """
+    def __init__(self, input_dim, hidden_dims, output_dim, network_type="MLPInputTransform"):
+        super().__init__(input_dim, hidden_dims, output_dim, network_type)
+        
+    def forward(self, x):
+        # Call the parent's forward method to get outputs
+        excit_out, inhib_out = InputNetTransform.forward(self, x)
+        
+        # Apply sigmoid activation to ensure outputs are in [0, 1]
+        excit_out = torch.sigmoid(excit_out)
+        inhib_out = torch.sigmoid(inhib_out)
+        
+        return excit_out, inhib_out
+
+# Add a standard PyTorch MLP for better MNIST classification
+class SimpleMLP(torch.nn.Module):
+    """
+    A simple PyTorch MLP that's optimized for MNIST classification.
+    This will be used to demonstrate good performance on MNIST.
+    """
+    def __init__(self, input_dim, hidden_dims, output_dim):
+        super().__init__()
+        
+        layers = []
+        prev_dim = input_dim
+        
+        # Create hidden layers
+        for h_dim in hidden_dims:
+            layers.append(torch.nn.Linear(prev_dim, h_dim))
+            layers.append(torch.nn.ReLU())
+            layers.append(torch.nn.BatchNorm1d(h_dim))
+            prev_dim = h_dim
+        
+        # Create output layer
+        layers.append(torch.nn.Linear(prev_dim, output_dim))
+        
+        self.network = torch.nn.Sequential(*layers)
+    
+    def forward(self, x):
+        # Ensure input is flattened
+        if len(x.shape) > 2:
+            x = x.reshape(x.shape[0], -1)
+        return self.network(x)
+
+# Simple classifier that wraps the simple MLP
+class SimpleClassifier(torch.nn.Module):
+    """
+    A simple classifier that wraps our SimpleMLP for better performance.
+    """
+    def __init__(self, input_dim, hidden_dims, output_dim):
+        super().__init__()
+        self.net = SimpleMLP(input_dim, hidden_dims, output_dim)
+        self.criterion = torch.nn.CrossEntropyLoss()
+    
+    def forward(self, x):
+        return self.net(x)
+    
+    def compute_loss(self, x, y):
+        logits = self.forward(x)
+        return self.criterion(logits, y)
+
+# Add a function to train the simple MLP
+def train_simple_mlp(input_dim, hidden_dims, output_dim, train_ds, valid_ds, test_ds, 
+                     epochs=20, batch_size=128, lr=0.001, run_save_path=None):
+    """
+    Train a simple MLP model on MNIST with better performance.
+    Returns the trained model and its accuracy.
+    """
+    device = 'cuda' if torch.cuda.is_available() else 'cpu'
+    
+    # Create the model
+    model = SimpleClassifier(input_dim, hidden_dims, output_dim)
+    model = model.to(device)
+    
+    # Create optimizer
+    optimizer = torch.optim.Adam(model.parameters(), lr=lr)
+    
+    # Set up dataloaders
+    train_loader = torch.utils.data.DataLoader(train_ds, batch_size=batch_size, shuffle=True)
+    valid_loader = torch.utils.data.DataLoader(valid_ds, batch_size=batch_size)
+    
+    # Training loop
+    best_valid_acc = 0.0
+    best_state = None
+    
+    for epoch in range(1, epochs + 1):
+        # Training phase
+        model.train()
+        train_loss = 0.0
+        train_correct = 0
+        train_total = 0
+        
+        for xb, yb in train_loader:
+            xb = xb.to(device)
+            yb = yb.to(device)
+            
+            optimizer.zero_grad()
+            outputs = model(xb)
+            loss = model.criterion(outputs, yb)
+            loss.backward()
+            optimizer.step()
+            
+            train_loss += loss.item()
+            _, predicted = outputs.max(1)
+            train_total += yb.size(0)
+            train_correct += predicted.eq(yb).sum().item()
+        
+        train_loss /= len(train_loader)
+        train_acc = train_correct / train_total
+        
+        # Validation phase
+        model.eval()
+        valid_loss = 0.0
+        valid_correct = 0
+        valid_total = 0
+        
+        with torch.no_grad():
+            for xb, yb in valid_loader:
+                xb = xb.to(device)
+                yb = yb.to(device)
+                
+                outputs = model(xb)
+                loss = model.criterion(outputs, yb)
+                
+                valid_loss += loss.item()
+                _, predicted = outputs.max(1)
+                valid_total += yb.size(0)
+                valid_correct += predicted.eq(yb).sum().item()
+        
+        valid_loss /= len(valid_loader)
+        valid_acc = valid_correct / valid_total
+        
+        # Save best model
+        if valid_acc > best_valid_acc:
+            best_valid_acc = valid_acc
+            best_state = deepcopy(model.state_dict())
+            
+            if run_save_path:
+                save_path = os.path.join(run_save_path, "best_simple_mlp.pt")
+                torch.save(best_state, save_path)
+        
+        # Log progress
+        logger.info(f"[Epoch {epoch}/{epochs}] train_loss={train_loss:.4f}, train_acc={train_acc:.4f}, "
+                    f"valid_loss={valid_loss:.4f}, valid_acc={valid_acc:.4f}")
+    
+    # Load best model
+    if best_state:
+        model.load_state_dict(best_state)
+    
+    # Evaluate on test set
+    model.eval()
+    test_loader = torch.utils.data.DataLoader(test_ds, batch_size=batch_size)
+    test_correct = 0
+    test_total = 0
+    
+    with torch.no_grad():
+        for xb, yb in test_loader:
+            xb = xb.to(device)
+            yb = yb.to(device)
+            
+            outputs = model(xb)
+            _, predicted = outputs.max(1)
+            test_total += yb.size(0)
+            test_correct += predicted.eq(yb).sum().item()
+    
+    test_acc = test_correct / test_total
+    logger.info(f"Test accuracy: {test_acc:.4f}")
+    
+    # Return the model and its accuracy
+    return model, (train_acc, best_valid_acc, test_acc)
+
+# Add a function to extract weights from the simple MLP for the input network
+def extract_weights_from_simple_mlp(simple_mlp, input_net_transform):
+    """
+    Extract weights from a SimpleMLP model and transfer them to an InputNetTransform.
+    
+    Args:
+        simple_mlp: The trained SimpleMLP model
+        input_net_transform: The InputNetTransform to transfer weights to
+    """
+    logger.info("Transferring weights from SimpleMLP to InputNetTransform")
+    
+    # Get network modules
+    mlp_modules = list(simple_mlp.net.network.children())
+    mlp_linear_modules = [m for m in mlp_modules if isinstance(m, torch.nn.Linear)]
+    
+    # Get shared backbone modules of InputNetTransform
+    shared_modules = []
+    for module in input_net_transform.shared:
+        if isinstance(module, torch.nn.Linear):
+            shared_modules.append(module)
+    
+    # Get head modules
+    exc_head_modules = []
+    for module in input_net_transform.head_exc:
+        if isinstance(module, torch.nn.Linear):
+            exc_head_modules.append(module)
+    
+    inh_head_modules = []
+    for module in input_net_transform.head_inh:
+        if isinstance(module, torch.nn.Linear):
+            inh_head_modules.append(module)
+    
+    # Transfer weights for the shared backbone (from early layers of MLP)
+    for i, shared_module in enumerate(shared_modules):
+        if i < len(mlp_linear_modules) - 1:  # All but the last MLP layer
+            mlp_layer = mlp_linear_modules[i]
+            shared_module.weight.data = mlp_layer.weight.data.clone()
+            shared_module.bias.data = mlp_layer.bias.data.clone()
+            logger.info(f"Transferred weights for shared layer {i}")
+    
+    # Transfer weights for heads (from last layer of MLP)
+    if len(mlp_linear_modules) > 0 and len(exc_head_modules) > 0:
+        # Use the second-to-last layer for the heads (since the last layer is the classifier)
+        if len(mlp_linear_modules) >= 2:
+            source_layer = mlp_linear_modules[-2]
+        else:
+            source_layer = mlp_linear_modules[0]
+        
+        # Transfer to excitatory head
+        exc_head_modules[0].weight.data = source_layer.weight.data[:exc_head_modules[0].weight.shape[0], :].clone()
+        exc_head_modules[0].bias.data = source_layer.bias.data[:exc_head_modules[0].bias.shape[0]].clone()
+        logger.info("Transferred weights to excitatory head")
+        
+        # Transfer to inhibitory head
+        inh_head_modules[0].weight.data = source_layer.weight.data[:inh_head_modules[0].weight.shape[0], :].clone()
+        inh_head_modules[0].bias.data = source_layer.bias.data[:inh_head_modules[0].bias.shape[0]].clone()
+        logger.info("Transferred weights to inhibitory head")
+    
+    logger.info("Weight transfer from SimpleMLP to InputNetTransform completed")
+
 class InhibitoryHeadTrainer:
     """
     Custom trainer for the inhibitory head with different objective functions.
@@ -330,6 +566,170 @@ class InhibitoryHeadTrainer:
         
         return results
 
+class MLPWithClassificationHead(torch.nn.Module):
+    """
+    A wrapper around an MLP that adds a classification head for training,
+    but allows accessing the feature extractor part separately.
+    """
+    def __init__(self, feature_extractor, num_features, num_classes):
+        super().__init__()
+        self.feature_extractor = feature_extractor
+        self.classification_head = torch.nn.Linear(num_features, num_classes)
+        self.criterion = torch.nn.CrossEntropyLoss()
+    
+    def forward(self, x):
+        features = self.feature_extractor(x)
+        return self.classification_head(features)
+    
+    def extract_features(self, x):
+        return self.feature_extractor(x)
+    
+    def compute_loss(self, x, y):
+        logits = self.forward(x)
+        return self.criterion(logits, y)
+
+# Train an MLP with a classification head for feature learning
+def train_mlp_with_classification_head(feature_extractor, num_features, num_classes, 
+                                     train_ds, valid_ds, test_ds, 
+                                     epochs=20, batch_size=128, lr=0.001, run_save_path=None):
+    """
+    Train an MLP with a classification head, then return the trained feature extractor part.
+    
+    Args:
+        feature_extractor: The feature extraction part of the MLP
+        num_features: The output dimension of the feature extractor
+        num_classes: The number of classes for classification
+        train_ds, valid_ds, test_ds: The datasets
+        epochs, batch_size, lr: Training parameters
+        run_save_path: Where to save the model and logs
+        
+    Returns:
+        The trained feature extractor
+    """
+    device = 'cuda' if torch.cuda.is_available() else 'cpu'
+    
+    # Create the model with classification head
+    model = MLPWithClassificationHead(feature_extractor, num_features, num_classes)
+    model = model.to(device)
+    
+    # Create optimizer
+    optimizer = torch.optim.Adam(model.parameters(), lr=lr)
+    
+    # Set up dataloaders
+    train_loader = torch.utils.data.DataLoader(train_ds, batch_size=batch_size, shuffle=True)
+    valid_loader = torch.utils.data.DataLoader(valid_ds, batch_size=batch_size)
+    
+    # Training loop
+    best_valid_acc = 0.0
+    best_state = None
+    best_epoch = 0
+    
+    # Create the save directory if it doesn't exist
+    if run_save_path:
+        # Ensure the main directory exists
+        os.makedirs(run_save_path, exist_ok=True)
+        logger.info(f"Will save best model to {run_save_path} at the end of training")
+    
+    for epoch in range(1, epochs + 1):
+        # Training phase
+        model.train()
+        train_loss = 0.0
+        train_correct = 0
+        train_total = 0
+        
+        for xb, yb in train_loader:
+            xb = xb.to(device)
+            yb = yb.to(device)
+            
+            optimizer.zero_grad()
+            outputs = model(xb)
+            loss = model.criterion(outputs, yb)
+            loss.backward()
+            optimizer.step()
+            
+            train_loss += loss.item()
+            _, predicted = outputs.max(1)
+            train_total += yb.size(0)
+            train_correct += predicted.eq(yb).sum().item()
+        
+        train_loss /= len(train_loader)
+        train_acc = train_correct / train_total
+        
+        # Validation phase
+        model.eval()
+        valid_loss = 0.0
+        valid_correct = 0
+        valid_total = 0
+        
+        with torch.no_grad():
+            for xb, yb in valid_loader:
+                xb = xb.to(device)
+                yb = yb.to(device)
+                
+                outputs = model(xb)
+                loss = model.criterion(outputs, yb)
+                
+                valid_loss += loss.item()
+                _, predicted = outputs.max(1)
+                valid_total += yb.size(0)
+                valid_correct += predicted.eq(yb).sum().item()
+        
+        valid_loss /= len(valid_loader)
+        valid_acc = valid_correct / valid_total
+        
+        # Track best model but don't save yet
+        if valid_acc > best_valid_acc:
+            best_valid_acc = valid_acc
+            best_state = deepcopy(model.state_dict())
+            best_epoch = epoch
+            logger.info(f"New best model found at epoch {epoch} with validation accuracy: {valid_acc:.4f}")
+        
+        # Log progress
+        logger.info(f"[Epoch {epoch}/{epochs}] train_loss={train_loss:.4f}, train_acc={train_acc:.4f}, "
+                    f"valid_loss={valid_loss:.4f}, valid_acc={valid_acc:.4f}")
+        
+        # Log to wandb if available
+        if wandb.run is not None:
+            wandb.log({
+                "mlp_train_loss": train_loss,
+                "mlp_train_acc": train_acc,
+                "mlp_valid_loss": valid_loss,
+                "mlp_valid_acc": valid_acc,
+            })
+    
+    # Save only the best model at the end of training
+    if best_state and run_save_path:
+        save_path = os.path.join(run_save_path, "best_mlp_with_classification.pt")
+        torch.save(best_state, save_path)
+        logger.info(f"Saved best model (from epoch {best_epoch}) to {save_path}")
+    
+    # Load best model
+    if best_state:
+        model.load_state_dict(best_state)
+        logger.info(f"Loaded best model from epoch {best_epoch} with validation accuracy: {best_valid_acc:.4f}")
+    
+    # Evaluate on test set
+    model.eval()
+    test_loader = torch.utils.data.DataLoader(test_ds, batch_size=batch_size)
+    test_correct = 0
+    test_total = 0
+    
+    with torch.no_grad():
+        for xb, yb in test_loader:
+            xb = xb.to(device)
+            yb = yb.to(device)
+            
+            outputs = model(xb)
+            _, predicted = outputs.max(1)
+            test_total += yb.size(0)
+            test_correct += predicted.eq(yb).sum().item()
+    
+    test_acc = test_correct / test_total
+    logger.info(f"Test accuracy with classification head: {test_acc:.4f}")
+    
+    # Return the feature extractor part (without the classification head)
+    return model.feature_extractor, (train_acc, best_valid_acc, test_acc)
+
 def main(config_path: str):
     # Load configuration
     config = load_config(config_path)
@@ -428,72 +828,46 @@ def main(config_path: str):
             
             # Get training options for the heads
             train_heads_independently = input_net_training.get('train_heads_independently', False)
-            excitatory_head_epochs = input_net_training.get('excitatory_head_epochs', input_net_epochs)
-            inhibitory_head_epochs = input_net_training.get('inhibitory_head_epochs', input_net_epochs)
             
             if train_heads_independently:
                 logger.info("Training excitatory and inhibitory heads independently")
                 
+                # Create directories for model saving
+                excit_head_dir = os.path.join(run_save_path, "excit_head_model")
+                os.makedirs(excit_head_dir, exist_ok=True)
+                
                 # PHASE 1: Train the excitatory head for classification
                 logger.info("Phase 1: Training excitatory head for classification...")
-                
-                # Create a standalone input network model for classification (excitatory head)
-                excit_model_cfg = deepcopy(model_cfg)
-                excit_model_cfg.network.type = "MLP"
                 
                 # Get input network parameters from the configuration
                 input_net_dict = model_cfg.network.parameters.get('input_net_dict', {})
                 hidden_dims = input_net_dict.get('hidden_dims', [128, 64])
-                net_output_dim = input_net_dict.get('output_dim', 64)
+                net_output_dim = input_net_dict.get('output_dim', 64)  # Feature dimension
                 
                 # For classification, the final output dimension must be the number of classes
                 final_output_dim = 10  # For MNIST
                 
-                # Set up MLP parameters for excitatory head
-                excit_model_cfg.network.parameters = {
-                    'input_dim': input_dim,
-                    'excitatory_layer_sizes': hidden_dims + [final_output_dim],  # Hidden layers + output layer (10 classes)
-                    'inhibitory_layer_sizes': [],  # No inhibitory layers for MLP
-                    'excitatory_branch_factors': [1] * (len(hidden_dims) + 1),  # No branching
-                    'inhibitory_branch_factors': [],
-                    'ee_synapses_per_branch_per_layer': [1] * (len(hidden_dims) + 1),
-                    'ie_synapses_per_branch_per_layer': [0] * (len(hidden_dims) + 1),
-                    'output_dim': final_output_dim  # Number of classes
-                }
+                # Create the feature extractor part of the MLP (without classification head)
+                excit_feature_extractor = SimpleMLP(input_dim, hidden_dims, net_output_dim)
                 
-                excit_head_clf = initialize_model(excit_model_cfg)
-                
-                # Create optimizer and trainer for excitatory head
-                excit_optimizer = CustomWeightDecayOptimizer(
-                    model=excit_head_clf, 
-                    optimizer=torch.optim.Adam(excit_head_clf.parameters(), lr=train_cfg.lr), 
-                    weight_decay=train_cfg.weight_decay_rate,
-                )
-                excit_trainer = get_trainer("mle", excit_optimizer, suppress_prints=False, print_every=10)
-                
-                # Train the excitatory head
-                excit_results = excit_trainer.train(
-                    model=excit_head_clf,
-                    train_data=train_ds,
-                    valid_data=valid_ds,
-                    epochs=excitatory_head_epochs,
+                # Train the MLP with a classification head
+                logger.info(f"Training excitatory MLP with classification head using hidden dims: {hidden_dims}")
+                excit_feature_extractor, (excit_train_acc, excit_valid_acc, excit_test_acc) = train_mlp_with_classification_head(
+                    excit_feature_extractor,
+                    num_features=net_output_dim,
+                    num_classes=final_output_dim,
+                    train_ds=train_ds,
+                    valid_ds=valid_ds,
+                    test_ds=test_ds,
+                    epochs=input_net_epochs,
                     batch_size=train_cfg.batch_size,
-                    grad_clip_value=train_cfg.grad_clip_value,
-                    shuffle=True,
-                    load_best_state_dict=True,
-                    plot_losses=True,
-                    save_path=os.path.join(run_save_path, "excit_head_model")
+                    lr=train_cfg.lr,
+                    run_save_path=excit_head_dir
                 )
                 
-                # Save the trained excitatory head model
-                excit_save_path = save_model(excit_head_clf, run_save_path, "excit_head_model.pt")
+                # Save the trained feature extractor
+                excit_save_path = save_model(excit_feature_extractor, run_save_path, "excit_feature_extractor.pt")
                 
-                # Evaluate excitatory head performance
-                excit_train_acc, excit_valid_acc, excit_test_acc = evaluate_accuracy(
-                    excit_head_clf, train_ds, valid_ds, test_ds, 
-                    save_path=os.path.join(run_save_path, 'performance'), 
-                    filename="excit_head_final",
-                )
                 logger.info(f"Excitatory head train acc={excit_train_acc:.3f}, valid acc={excit_valid_acc:.3f}, test acc={excit_test_acc:.3f}")
                 
                 if wandb_cfg.use_wandb:
@@ -503,79 +877,34 @@ def main(config_path: str):
                         "excit_head_test_acc": excit_test_acc
                     })
                 
-                # PHASE 2: Train the inhibitory head (with different objective if needed)
-                logger.info("Phase 2: Training inhibitory head...")
+                # Create directory for inhibitory head
+                inhib_head_dir = os.path.join(run_save_path, "inhib_head_model")
+                os.makedirs(inhib_head_dir, exist_ok=True)
                 
-                # Get the inhibitory head training objective
-                inhib_objective = input_net_training.get('inhibitory_head_objective', 'classification')
-                diversity_weight = input_net_training.get('diversity_weight', 0.5)
+                # PHASE 2: Train the inhibitory head with classification head
+                logger.info("Phase 2: Training inhibitory head with classification head...")
                 
-                logger.info(f"Using {inhib_objective} objective for inhibitory head training")
+                # Create the feature extractor part of the MLP (without classification head)
+                inhib_feature_extractor = SimpleMLP(input_dim, hidden_dims, net_output_dim)
                 
-                # Create inhibitory head model
-                inhib_model_cfg = deepcopy(model_cfg)
-                inhib_model_cfg.network.type = "MLP"
-                
-                # Set up MLP parameters for inhibitory head
-                inhib_model_cfg.network.parameters = {
-                    'input_dim': input_dim,
-                    'excitatory_layer_sizes': hidden_dims + [net_output_dim],  # Use original output_dim
-                    'inhibitory_layer_sizes': [],  # No inhibitory layers for MLP
-                    'excitatory_branch_factors': [1] * (len(hidden_dims) + 1),  # No branching
-                    'inhibitory_branch_factors': [],
-                    'ee_synapses_per_branch_per_layer': [1] * (len(hidden_dims) + 1),
-                    'ie_synapses_per_branch_per_layer': [0] * (len(hidden_dims) + 1),
-                    'output_dim': final_output_dim  # Number of classes for training
-                }
-                
-                inhib_head_clf = initialize_model(inhib_model_cfg)
-                
-                # Create optimizer for inhibitory head
-                inhib_optimizer = CustomWeightDecayOptimizer(
-                    model=inhib_head_clf, 
-                    optimizer=torch.optim.Adam(inhib_head_clf.parameters(), lr=train_cfg.lr), 
-                    weight_decay=train_cfg.weight_decay_rate,
-                )
-                
-                # Create appropriate trainer based on the objective
-                if inhib_objective == "classification":
-                    # Use standard trainer for classification
-                    inhib_trainer = get_trainer("mle", inhib_optimizer, suppress_prints=False, print_every=10)
-                else:
-                    # Use custom trainer for other objectives
-                    inhib_trainer = InhibitoryHeadTrainer(
-                        model=inhib_head_clf,
-                        optimizer=inhib_optimizer,
-                        objective=inhib_objective,
-                        excit_head_model=excit_head_clf if inhib_objective in ["diversity", "combined"] else None,
-                        alpha=diversity_weight,
-                        suppress_prints=False,
-                        print_every=10
-                    )
-                
-                # Train the inhibitory head
-                inhib_results = inhib_trainer.train(
-                    model=inhib_head_clf,
-                    train_data=train_ds,
-                    valid_data=valid_ds,
-                    epochs=inhibitory_head_epochs,
+                # Train the MLP with a classification head
+                logger.info(f"Training inhibitory MLP with classification head using hidden dims: {hidden_dims}")
+                inhib_feature_extractor, (inhib_train_acc, inhib_valid_acc, inhib_test_acc) = train_mlp_with_classification_head(
+                    inhib_feature_extractor,
+                    num_features=net_output_dim,
+                    num_classes=final_output_dim,
+                    train_ds=train_ds,
+                    valid_ds=valid_ds,
+                    test_ds=test_ds,
+                    epochs=input_net_epochs,
                     batch_size=train_cfg.batch_size,
-                    grad_clip_value=train_cfg.grad_clip_value,
-                    shuffle=True,
-                    load_best_state_dict=True,
-                    plot_losses=True,
-                    save_path=os.path.join(run_save_path, "inhib_head_model")
+                    lr=train_cfg.lr,
+                    run_save_path=inhib_head_dir
                 )
                 
-                # Save the trained inhibitory head model
-                inhib_save_path = save_model(inhib_head_clf, run_save_path, "inhib_head_model.pt")
+                # Save the trained feature extractor
+                inhib_save_path = save_model(inhib_feature_extractor, run_save_path, "inhib_feature_extractor.pt")
                 
-                # Evaluate inhibitory head performance
-                inhib_train_acc, inhib_valid_acc, inhib_test_acc = evaluate_accuracy(
-                    inhib_head_clf, train_ds, valid_ds, test_ds, 
-                    save_path=os.path.join(run_save_path, 'performance'), 
-                    filename="inhib_head_final",
-                )
                 logger.info(f"Inhibitory head train acc={inhib_train_acc:.3f}, valid acc={inhib_valid_acc:.3f}, test acc={inhib_test_acc:.3f}")
                 
                 if wandb_cfg.use_wandb:
@@ -585,57 +914,136 @@ def main(config_path: str):
                         "inhib_head_test_acc": inhib_test_acc
                     })
                 
-                # PHASE 3: Create the full model with both trained heads
-                logger.info("Phase 3: Creating full model with both trained heads...")
+                # PHASE 3: Create the full model with both trained feature extractors
+                logger.info("Phase 3: Creating full model with both trained feature extractors...")
                 
                 # Initialize the full model
                 model = initialize_model(model_cfg)
                 
-                # Create a new InputNetTransform with the same architecture
-                input_net_type = input_net_dict.get("type", "MLPInputTransform")
-                
-                # Create a new input network with the same architecture
-                new_input_net = InputNetTransform(
+                # Create a new input network with sigmoid activation
+                logger.info("Creating input network with sigmoid activation for dendrinet input")
+                new_input_net = SigmoidInputNetTransform(
                     input_dim=input_dim,
                     hidden_dims=hidden_dims,
                     output_dim=net_output_dim,
-                    network_type=input_net_type
+                    network_type=input_net_dict.get("type", "MLPInputTransform")
                 )
                 
-                # Extract networks from the trained models
-                if hasattr(excit_head_clf, 'net'):
-                    excit_net = excit_head_clf.net
-                elif hasattr(excit_head_clf, 'network'):
-                    excit_net = excit_head_clf.network
-                else:
-                    excit_net = excit_head_clf
+                # Transfer weights from trained feature extractors to the new input network
+                # This requires a custom function to map the weights from SimpleMLP to InputNetTransform
+                logger.info("Transferring weights from trained feature extractors to input network...")
                 
-                if hasattr(inhib_head_clf, 'net'):
-                    inhib_net = inhib_head_clf.net
-                elif hasattr(inhib_head_clf, 'network'):
-                    inhib_net = inhib_head_clf.network
-                else:
-                    inhib_net = inhib_head_clf
+                # Custom function to transfer weights from SimpleMLP to InputNetTransform
+                def transfer_simple_mlp_to_input_net(simple_mlp, input_net, head_type):
+                    """Transfer weights from SimpleMLP to specific head of InputNetTransform"""
+                    logger.info(f"Transferring weights to {head_type} head")
+                    
+                    # Get linear layers from SimpleMLP
+                    mlp_layers = []
+                    for module in simple_mlp.network:
+                        if isinstance(module, torch.nn.Linear):
+                            mlp_layers.append(module)
+                    
+                    # Get shared layers from InputNetTransform
+                    shared_layers = []
+                    for module in input_net.shared:
+                        if isinstance(module, torch.nn.Linear):
+                            shared_layers.append(module)
+                    
+                    # Get head layers
+                    target_head = input_net.head_exc if head_type == "excitatory" else input_net.head_inh
+                    head_layers = []
+                    for module in target_head:
+                        if isinstance(module, torch.nn.Linear):
+                            head_layers.append(module)
+                    
+                    # Transfer weights for shared layers (only once, typically from excitatory head)
+                    if head_type == "excitatory":
+                        for i, shared_layer in enumerate(shared_layers):
+                            if i < len(mlp_layers) - 1:  # All but the last MLP layer
+                                mlp_layer = mlp_layers[i]
+                                shared_layer.weight.data = mlp_layer.weight.data.clone()
+                                shared_layer.bias.data = mlp_layer.bias.data.clone()
+                                logger.info(f"Transferred weights for shared layer {i}")
+                    
+                    # Transfer weights for the head
+                    if len(head_layers) > 0 and len(mlp_layers) > 0:
+                        # Last MLP layer goes to the head
+                        last_mlp_layer = mlp_layers[-1]
+                        head_layers[0].weight.data = last_mlp_layer.weight.data.clone()
+                        head_layers[0].bias.data = last_mlp_layer.bias.data.clone()
+                        logger.info(f"Transferred weights to {head_type} head")
                 
-                # Transfer weights from trained models to the new input network
-                transfer_mlp_weights_to_input_net(excit_net, new_input_net, head_type="excitatory")
-                transfer_mlp_weights_to_input_net(inhib_net, new_input_net, head_type="inhibitory")
+                # Transfer weights from both trained feature extractors
+                transfer_simple_mlp_to_input_net(excit_feature_extractor, new_input_net, "excitatory")
+                transfer_simple_mlp_to_input_net(inhib_feature_extractor, new_input_net, "inhibitory")
                 
                 # Set the input network in the full model
                 if hasattr(model, 'net'):
                     model.net.input_net = new_input_net
                 elif hasattr(model, 'network'):
                     model.network.input_net = new_input_net
+                
+                # Save the feature extractor and input network state before training dendrinet
+                feature_extractor_path = save_model(excit_feature_extractor, run_save_path, "feature_extractor_final.pt")
+                input_net_path = save_model(new_input_net, run_save_path, "input_net_with_sigmoid.pt")
+                
+                # Now train the dendrinet with the transferred weights
+                logger.info("Training dendrinet with the transferred feature extractor weights...")
+                
+                # Create optimizer for full model
+                optimizer = CustomWeightDecayOptimizer(
+                    model=model, 
+                    optimizer=torch.optim.Adam(model.parameters(), lr=train_cfg.lr), 
+                    weight_decay=train_cfg.weight_decay_rate,
+                )
+                
+                # Create trainer for full model
+                trainer = get_trainer(learning_strategy, optimizer, suppress_prints=False, print_every=10)
+                
+                # Train the full model
+                logger.info("Training dendritic network...")
+                results = trainer.train(
+                    model=model,
+                    train_data=train_ds,
+                    valid_data=valid_ds,
+                    epochs=train_cfg.epochs,
+                    batch_size=train_cfg.batch_size,
+                    grad_clip_value=train_cfg.grad_clip_value,
+                    shuffle=True,
+                    load_best_state_dict=True,
+                    plot_losses=True,
+                    save_path=run_save_path
+                )
+                
+                # Save the trained full model
+                save_model(model, run_save_path, "full_model.pt")
+                
+                # Evaluate full model performance
+                train_acc, valid_acc, test_acc = evaluate_accuracy(
+                    model, train_ds, valid_ds, test_ds, 
+                    save_path=os.path.join(run_save_path, 'performance'), 
+                    filename="full_model_final",
+                )
+                logger.info(f"Full model train acc={train_acc:.3f}, valid acc={valid_acc:.3f}, test acc={test_acc:.3f}")
+                
+                if wandb_cfg.use_wandb:
+                    wandb.log({
+                        "full_model_train_acc": train_acc,
+                        "full_model_valid_acc": valid_acc,
+                        "full_model_test_acc": test_acc
+                    })
             
             else:
-                # Original sequential training code (train both heads together)
-                # Create a standalone input network model for classification
-                input_net_model_cfg = deepcopy(model_cfg)
+                # Case where we train both heads together with a single classification head
+                logger.info("Training a single MLP with classification head for both excitatory and inhibitory heads")
                 
-                # Configure the input network as an MLP
-                input_net_model_cfg.network.type = "MLP"
+                # Create directory for MLP model
+                mlp_model_dir = os.path.join(run_save_path, "mlp_model")
+                os.makedirs(mlp_model_dir, exist_ok=True)
+                logger.info(f"Created directory for MLP model: {mlp_model_dir}")
                 
-                # Get input network parameters from the configuration
+                # Get input network parameters
                 input_net_dict = model_cfg.network.parameters.get('input_net_dict', {})
                 hidden_dims = input_net_dict.get('hidden_dims', [128, 64])
                 net_output_dim = input_net_dict.get('output_dim', 64)
@@ -643,138 +1051,147 @@ def main(config_path: str):
                 # For classification, the final output dimension must be the number of classes
                 final_output_dim = 10  # For MNIST
                 
-                # Set up MLP parameters
-                input_net_model_cfg.network.parameters = {
-                    'input_dim': input_dim,
-                    'excitatory_layer_sizes': hidden_dims + [final_output_dim],  # Hidden layers + output layer (10 classes)
-                    'inhibitory_layer_sizes': [],  # No inhibitory layers for MLP
-                    'excitatory_branch_factors': [1] * (len(hidden_dims) + 1),  # No branching
-                    'inhibitory_branch_factors': [],
-                    'ee_synapses_per_branch_per_layer': [1] * (len(hidden_dims) + 1),
-                    'ie_synapses_per_branch_per_layer': [0] * (len(hidden_dims) + 1),
-                    'output_dim': final_output_dim  # Number of classes
-                }
+                # Create the feature extractor part of the MLP (without classification head)
+                feature_extractor = SimpleMLP(input_dim, hidden_dims, net_output_dim)
                 
-                input_net_clf = initialize_model(input_net_model_cfg)
-                
-                # Create optimizer and trainer for input network
-                input_net_optimizer = CustomWeightDecayOptimizer(
-                    model=input_net_clf, 
-                    optimizer=torch.optim.Adam(input_net_clf.parameters(), lr=train_cfg.lr), 
-                    weight_decay=train_cfg.weight_decay_rate,
-                )
-                input_net_trainer = get_trainer("mle", input_net_optimizer, suppress_prints=False, print_every=10)
-                
-                # Train the input network model
-                input_net_results = input_net_trainer.train(
-                    model=input_net_clf,
-                    train_data=train_ds,
-                    valid_data=valid_ds,
+                # Train the MLP with a classification head
+                logger.info(f"Training MLP with classification head using hidden dims: {hidden_dims}")
+                feature_extractor, (train_acc, valid_acc, test_acc) = train_mlp_with_classification_head(
+                    feature_extractor,
+                    num_features=net_output_dim,
+                    num_classes=final_output_dim,
+                    train_ds=train_ds,
+                    valid_ds=valid_ds,
+                    test_ds=test_ds,
                     epochs=input_net_epochs,
                     batch_size=train_cfg.batch_size,
-                    grad_clip_value=train_cfg.grad_clip_value,
-                    shuffle=True,
-                    load_best_state_dict=True,
-                    plot_losses=True,
-                    save_path=os.path.join(run_save_path, "input_net_model")
+                    lr=train_cfg.lr,
+                    run_save_path=mlp_model_dir
                 )
-                
-                # Save the trained input network model
-                input_net_save_path = save_model(input_net_clf, run_save_path, "input_net_model.pt")
-                
-                # Evaluate input network performance
-                input_net_train_acc, input_net_valid_acc, input_net_test_acc = evaluate_accuracy(
-                    input_net_clf, train_ds, valid_ds, test_ds, 
-                    save_path=os.path.join(run_save_path, 'performance'), 
-                    filename="input_net_final",
-                )
-                logger.info(f"Input network train acc={input_net_train_acc:.3f}, valid acc={input_net_valid_acc:.3f}, test acc={input_net_test_acc:.3f}")
-                
-                if wandb_cfg.use_wandb:
-                    wandb.log({
-                        "input_net_train_acc": input_net_train_acc,
-                        "input_net_valid_acc": input_net_valid_acc,
-                        "input_net_test_acc": input_net_test_acc
-                    })
                 
                 # Now initialize the full model
-                logger.info("Initializing full model with trained input network...")
+                logger.info("Initializing full model with trained feature extractor...")
                 model = initialize_model(model_cfg)
                 
-                # Extract the input network weights from the trained MLP model
-                logger.info("Extracting weights from trained MLP model...")
-                
-                # Create a new InputNetTransform with the same architecture as specified in input_net_dict
-                input_net_type = input_net_dict.get("type", "MLPInputTransform")
-                hidden_dims = input_net_dict.get("hidden_dims", [128, 64])
-                net_output_dim = input_net_dict.get("output_dim", 64)
-                
-                # Create a new input network with the same architecture
-                # Note: For the dendritic network, we use the original output_dim from input_net_dict
-                # This is different from the MLP classifier which needed to output 10 classes
-                new_input_net = InputNetTransform(
+                # Create a new input network with sigmoid activation
+                logger.info("Creating input network with sigmoid activation for dendrinet input")
+                new_input_net = SigmoidInputNetTransform(
                     input_dim=input_dim,
                     hidden_dims=hidden_dims,
-                    output_dim=net_output_dim,  # Use the original output_dim for the input network
-                    network_type=input_net_type
+                    output_dim=net_output_dim,
+                    network_type=input_net_dict.get("type", "MLPInputTransform")
                 )
                 
-                # Extract weights from the trained MLP model
-                # This is a simplified approach - in practice, you'd need to map the weights correctly
-                # based on the specific architectures of both models
-                logger.info("Note: This is a simplified weight transfer that may not be optimal.")
+                # Custom function to transfer weights from SimpleMLP to InputNetTransform
+                def transfer_simple_mlp_to_input_net(simple_mlp, input_net):
+                    """Transfer weights from SimpleMLP to both heads of InputNetTransform"""
+                    logger.info("Transferring weights to both heads")
+                    
+                    # Get linear layers from SimpleMLP
+                    mlp_layers = []
+                    for module in simple_mlp.network:
+                        if isinstance(module, torch.nn.Linear):
+                            mlp_layers.append(module)
+                    
+                    # Get shared layers from InputNetTransform
+                    shared_layers = []
+                    for module in input_net.shared:
+                        if isinstance(module, torch.nn.Linear):
+                            shared_layers.append(module)
+                    
+                    # Get head layers
+                    exc_layers = []
+                    for module in input_net.head_exc:
+                        if isinstance(module, torch.nn.Linear):
+                            exc_layers.append(module)
+                    
+                    inh_layers = []
+                    for module in input_net.head_inh:
+                        if isinstance(module, torch.nn.Linear):
+                            inh_layers.append(module)
+                    
+                    # Transfer weights for shared layers
+                    for i, shared_layer in enumerate(shared_layers):
+                        if i < len(mlp_layers) - 1:  # All but the last MLP layer
+                            mlp_layer = mlp_layers[i]
+                            shared_layer.weight.data = mlp_layer.weight.data.clone()
+                            shared_layer.bias.data = mlp_layer.bias.data.clone()
+                            logger.info(f"Transferred weights for shared layer {i}")
+                    
+                    # Transfer weights for both heads from the last MLP layer
+                    if len(mlp_layers) > 0:
+                        last_mlp_layer = mlp_layers[-1]
+                        
+                        # Transfer to excitatory head
+                        if len(exc_layers) > 0:
+                            exc_layers[0].weight.data = last_mlp_layer.weight.data.clone()
+                            exc_layers[0].bias.data = last_mlp_layer.bias.data.clone()
+                            logger.info("Transferred weights to excitatory head")
+                        
+                        # Transfer to inhibitory head
+                        if len(inh_layers) > 0:
+                            inh_layers[0].weight.data = last_mlp_layer.weight.data.clone()
+                            inh_layers[0].bias.data = last_mlp_layer.bias.data.clone()
+                            logger.info("Transferred weights to inhibitory head")
                 
-                # For now, we'll just initialize the input network with random weights
-                # In a real implementation, you'd map the weights from the MLP to the input network
+                # Transfer weights from the trained feature extractor to both heads
+                transfer_simple_mlp_to_input_net(feature_extractor, new_input_net)
                 
                 # Set the input network in the full model
                 if hasattr(model, 'net'):
                     model.net.input_net = new_input_net
                 elif hasattr(model, 'network'):
                     model.network.input_net = new_input_net
-            
-            # Create optimizer for full model
-            optimizer = CustomWeightDecayOptimizer(
-                model=model, 
-                optimizer=torch.optim.Adam(model.parameters(), lr=train_cfg.lr), 
-                weight_decay=train_cfg.weight_decay_rate,
-            )
-            
-            # Create trainer for full model
-            trainer = get_trainer(learning_strategy, optimizer, suppress_prints=False, print_every=10)
-            
-            # Train the full model
-            logger.info("Training dendritic network with fixed input network...")
-            results = trainer.train(
-                model=model,
-                train_data=train_ds,
-                valid_data=valid_ds,
-                epochs=train_cfg.epochs,
-                batch_size=train_cfg.batch_size,
-                grad_clip_value=train_cfg.grad_clip_value,
-                shuffle=True,
-                load_best_state_dict=True,
-                plot_losses=True,
-                save_path=run_save_path
-            )
-            
-            # Save the trained full model
-            save_model(model, run_save_path, "full_model.pt")
-            
-            # Evaluate full model performance
-            train_acc, valid_acc, test_acc = evaluate_accuracy(
-                model, train_ds, valid_ds, test_ds, 
-                save_path=os.path.join(run_save_path, 'performance'), 
-                filename="full_model_final",
-            )
-            logger.info(f"Full model train acc={train_acc:.3f}, valid acc={valid_acc:.3f}, test acc={test_acc:.3f}")
-            
-            if wandb_cfg.use_wandb:
-                wandb.log({
-                    "full_model_train_acc": train_acc,
-                    "full_model_valid_acc": valid_acc,
-                    "full_model_test_acc": test_acc
-                })
+                
+                # Save the feature extractor and input network state before training dendrinet
+                feature_extractor_path = save_model(feature_extractor, run_save_path, "feature_extractor_final.pt")
+                input_net_path = save_model(new_input_net, run_save_path, "input_net_with_sigmoid.pt")
+                
+                # Now train the dendrinet with the transferred weights
+                logger.info("Training dendrinet with the transferred feature extractor weights...")
+                
+                # Create optimizer for full model
+                optimizer = CustomWeightDecayOptimizer(
+                    model=model, 
+                    optimizer=torch.optim.Adam(model.parameters(), lr=train_cfg.lr), 
+                    weight_decay=train_cfg.weight_decay_rate,
+                )
+                
+                # Create trainer for full model
+                trainer = get_trainer(learning_strategy, optimizer, suppress_prints=False, print_every=10)
+                
+                # Train the full model
+                logger.info("Training dendritic network...")
+                results = trainer.train(
+                    model=model,
+                    train_data=train_ds,
+                    valid_data=valid_ds,
+                    epochs=train_cfg.epochs,
+                    batch_size=train_cfg.batch_size,
+                    grad_clip_value=train_cfg.grad_clip_value,
+                    shuffle=True,
+                    load_best_state_dict=True,
+                    plot_losses=True,
+                    save_path=run_save_path
+                )
+                
+                # Save the trained full model
+                save_model(model, run_save_path, "full_model.pt")
+                
+                # Evaluate full model performance
+                train_acc, valid_acc, test_acc = evaluate_accuracy(
+                    model, train_ds, valid_ds, test_ds, 
+                    save_path=os.path.join(run_save_path, 'performance'), 
+                    filename="full_model_final",
+                )
+                logger.info(f"Full model train acc={train_acc:.3f}, valid acc={valid_acc:.3f}, test acc={test_acc:.3f}")
+                
+                if wandb_cfg.use_wandb:
+                    wandb.log({
+                        "full_model_train_acc": train_acc,
+                        "full_model_valid_acc": valid_acc,
+                        "full_model_test_acc": test_acc
+                    })
     
     else:
         # Standard training (joint or other learning strategies)
