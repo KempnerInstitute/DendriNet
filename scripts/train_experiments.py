@@ -19,9 +19,11 @@ python src/dendritic_modeling/train_experiments.py configs/config_exp.yaml --lea
 
 import os
 import argparse
+import logging
 from pathlib import Path
 from dataclasses import asdict
 from datetime import datetime
+import inspect
 
 import wandb
 import torch
@@ -29,7 +31,7 @@ import torchinfo
 import numpy as np
 import random
 
-from dendritic_modeling import logger, logger_manager
+from dendritic_modeling import logger
 from dendritic_modeling.learning_strategies import get_trainer, CustomWeightDecayOptimizer
 from dendritic_modeling.models import (ProbabilisticClassifier, Classifier)
 from dendritic_modeling.networks import (ExcitationInhibitionNetwork, MLPExcInhNetwork)
@@ -127,8 +129,12 @@ def main(config_path: str):
     run_save_path = os.path.join(outputs_cfg.dir, run_id)
     os.makedirs(run_save_path, exist_ok=True)
     
-    # Set up logger
-    logger_manager.setup_file_logging(os.path.join(run_save_path, "train.log"))
+    # Set up file logging - Fix for AttributeError
+    log_file = os.path.join(run_save_path, "train.log")
+    file_handler = logging.FileHandler(log_file)
+    file_handler.setFormatter(logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s'))
+    logger.addHandler(file_handler)
+    logger.info(f"Logging to {log_file}")
     
     # Set random seed
     torch.manual_seed(train_cfg.seed)
@@ -152,11 +158,13 @@ def main(config_path: str):
         )
     
     # Load dataset
+    # The function signature shows it expects task_cfg and train_cfg objects
+    logger.info(f"get_unified_datasets signature: {inspect.signature(get_unified_datasets)}")
+    
+    # Pass the entire configuration objects
     train_ds, valid_ds, test_ds = get_unified_datasets(
-        dataset_name=task_cfg.dataset,
-        data_path=task_cfg.data_path,
-        train_valid_split=train_cfg.train_valid_split,
-        **task_cfg.parameters
+        task_cfg,
+        train_cfg
     )
     
     # Get input dimension from dataset
@@ -172,11 +180,14 @@ def main(config_path: str):
     # Get learning strategy
     learning_strategy = train_cfg.learning_strategy.lower()
     
-    # Check for sequential training mode in input_net_dict
+    # Get input network configuration and training parameters
     input_net_dict = model_cfg.network.parameters.get('input_net_dict', {})
     input_mode = model_cfg.network.parameters.get('input_mode', 0)
-    sequential_training = (input_mode == 2 and 
-                          input_net_dict.get('training_mode', 'joint') == 'sequential')
+    
+    # Get input network training parameters from train config
+    input_net_training = getattr(train_cfg, 'input_net_training', {})
+    training_mode = input_net_training.get('training_mode', 'joint')
+    sequential_training = (input_mode == 2 and training_mode == 'sequential')
     
     # Add network methods
     add_network_methods()
@@ -185,10 +196,10 @@ def main(config_path: str):
     if sequential_training:
         logger.info("Using sequential training mode for input network and dendrinet")
         
-        sequential_options = input_net_dict.get('sequential_options', {})
-        train_input_net = sequential_options.get('train_input_net', True)
-        input_net_epochs = sequential_options.get('input_net_epochs', 20)
-        freeze_input_net = sequential_options.get('freeze_input_net', True)
+        # Get sequential training parameters from train.input_net_training
+        train_input_net = input_net_training.get('train_input_net', True)
+        input_net_epochs = input_net_training.get('input_net_epochs', 20)
+        freeze_input_net = input_net_training.get('freeze_input_net', True)
         
         if train_input_net:
             # First, train just the input network
@@ -311,7 +322,25 @@ def main(config_path: str):
             # Initialize the full model
             model = initialize_model(model_cfg)
             
-            # The weights will be loaded during model initialization based on pretrained_options
+            # Load pretrained weights if specified
+            pretrained_options = input_net_training.get('pretrained_options', {})
+            source = pretrained_options.get('source', 'none')
+            weights_path = pretrained_options.get('weights_path', '')
+            pytorch_model = pretrained_options.get('pytorch_model', '')
+            
+            # Apply pretrained weights to the input network
+            if hasattr(model, 'net') and hasattr(model.net, 'input_net'):
+                model.net.input_net.load_pretrained_weights(
+                    source=source,
+                    weights_path=weights_path,
+                    pytorch_model=pytorch_model
+                )
+            elif hasattr(model, 'network') and hasattr(model.network, 'input_net'):
+                model.network.input_net.load_pretrained_weights(
+                    source=source,
+                    weights_path=weights_path,
+                    pytorch_model=pytorch_model
+                )
             
             # Freeze input network weights if specified
             if freeze_input_net:
