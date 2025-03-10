@@ -16,8 +16,9 @@ data/*
 configs/*.txt
 src/data/*
 cifar-10-*
+wandb/*
 
-# Byte-compiled / optimized / DLL files
+#ndb/ Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
 *$py.class
