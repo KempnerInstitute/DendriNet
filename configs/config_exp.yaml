@@ -1,12 +1,12 @@
 model:
   task: classification
-  probabilistic: true
+  probabilistic: false
   network:
     type: EINet #"EINet", "MLP"
     parameters:
       excitatory_layer_sizes: [10] 
       inhibitory_layer_sizes: [20]
-      excitatory_branch_factors: [2,2] 
+      excitatory_branch_factors: [1] 
       inhibitory_branch_factors: []
       reactivate: true
       somatic_synapses: true
@@ -23,25 +23,12 @@ model:
       output_layer: false  ### adding an output classifier layer FC to final dendrinet layer
       output_dim: 10
       # input mode (0=original, 1=exc=x+inh=x, 2=input_net)
-      input_mode: 1
+      input_mode: 2
       # If we set input_mode=2, the following get used for input network:
       input_net_dict:
         type: "MLPInputTransform"  # Type of input network: "MLPInputTransform", "AlexNetTransform", etc.
-        hidden_dims: [128, 64]     # Hidden layer dimensions for MLP
-        output_dim: 64             # Output dimension for both excitatory and inhibitory pathways
-        training_mode: "joint"     # "joint" (train everything together) or "sequential" (train input_net first, then dendrinet)
-        
-        # Options for sequential training mode
-        sequential_options:
-          train_input_net: true    # Whether to train the input network or use pre-trained weights
-          input_net_epochs: 20     # Epochs to train input network if train_input_net is true
-          freeze_input_net: true   # Whether to freeze input network weights during dendrinet training
-          
-        # Options for pre-trained weights (when train_input_net is false)
-        pretrained_options:
-          source: "file"           # "file", "pytorch", "none"
-          weights_path: ""         # Path to weights file if source is "file"
-          pytorch_model: ""        # Name of PyTorch model if source is "pytorch"
+        hidden_dims: [128, 128]     # Hidden layer dimensions for MLP
+        output_dim: 128             # Output dimension for both excitatory and inhibitory pathways
 
 train:
   learning_strategy: mle #"mle", "freeze_layers", "local_credit_assignment", "two_step", "two_step_kl"
@@ -55,10 +42,22 @@ train:
   epochs_per_layer: 50  ## this is only for "freeze_layers" and any other method which has sequential single layer training
   pretrain_epochs: 10   ## for "two_step"
   weight_decay_rate: 0.1
+  # Input network training configuration
+  input_net_training:
+    training_mode: "joint"     # "joint" (train everything together) or "sequential" (train input_net first, then dendrinet)
+    # Options for sequential training mode
+    train_input_net: true    # Whether to train the input network or use pre-trained weights
+    input_net_epochs: 20     # Epochs to train input network if train_input_net is true
+    freeze_input_net: true   # Whether to freeze input network weights during dendrinet training
+    # Options for pre-trained weights (when train_input_net is false)
+    pretrained_options:
+      source: "file"           # "file", "pytorch", "none"
+      weights_path: ""         # Path to weights file if source is "file"
+      pytorch_model: ""        # Name of PyTorch model if source is "pytorch"
 
 task:
-  dataset: mnist 
-  data_path: 
+  dataset: mnist #mnist
+  data_path: /n/holylabs/LABS/kempner_dev/Users/hsafaai/datasets/datasets
   parameters: {}
   # dataset: "line", "center_surround", "orientation_bars", "multi_xor", "mnist", "mnist_modulo10", "mnist_switch2",
             #"mnist_switch10", "info_shunting", "noise_resilience", "feature_selectivity", "context_gating",
@@ -71,14 +70,14 @@ task:
   #   n_orient_classes: 8
 
 wandb:
-  entity: 
-  project: #"dendritic_mnist_test"
-  group:   #"debug"
-  tags:    #[mnist_1]
-  use_wandb: true 
+  entity: houman_safaai-harvard-university
+  project: "dendritic_cifar10"
+  group: "debug"
+  tags: [cifar10]
+  use_wandb: true
 
 visualization:
-  enabled: true
+  enabled: false
   visualize_epochs: [10, 30]  # list of epochs at which to produce intermediate visualizations
   plots:
     - weights      # Plot dendritic or EI-net weights
@@ -89,4 +88,4 @@ visualization:
     #- ablation     # ablation
 
 outputs:
-  dir: "outputs"
+  dir: /n/holylabs/LABS/kempner_dev/Users/hsafaai/results/dendritic_modeling/results
