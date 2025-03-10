@@ -44,11 +44,22 @@ train:
   weight_decay_rate: 0.1
   # Input network training configuration
   input_net_training:
-    training_mode: "joint"     # "joint" (train everything together) or "sequential" (train input_net first, then dendrinet)
+    training_mode: "sequential"     # "joint" (train everything together) or "sequential" (train input_net first, then dendrinet)
     # Options for sequential training mode
     train_input_net: true    # Whether to train the input network or use pre-trained weights
-    input_net_epochs: 20     # Epochs to train input network if train_input_net is true
+    input_net_epochs: 50     # Epochs to train input network if train_input_net is true
     freeze_input_net: true   # Whether to freeze input network weights during dendrinet training
+    
+    # Independent head training options
+    train_heads_independently: false  # Whether to train excitatory and inhibitory heads independently
+    excitatory_head_epochs: 50        # Epochs to train excitatory head
+    inhibitory_head_epochs: 50        # Epochs to train inhibitory head
+    
+    # Inhibitory head training objective
+    inhibitory_head_objective: "classification"  # Options: "classification", "diversity", "reconstruction", "combined"
+    diversity_weight: 0.5              # Weight for diversity loss (alpha)
+    reconstruction_weight: 0.1         # Weight for reconstruction loss (beta)
+    
     # Options for pre-trained weights (when train_input_net is false)
     pretrained_options:
       source: "file"           # "file", "pytorch", "none"
@@ -57,7 +68,7 @@ train:
 
 task:
   dataset: mnist #mnist
-  data_path: /n/holylabs/LABS/kempner_dev/Users/hsafaai/datasets/datasets
+  data_path: 
   parameters: {}
   # dataset: "line", "center_surround", "orientation_bars", "multi_xor", "mnist", "mnist_modulo10", "mnist_switch2",
             #"mnist_switch10", "info_shunting", "noise_resilience", "feature_selectivity", "context_gating",
@@ -70,11 +81,11 @@ task:
   #   n_orient_classes: 8
 
 wandb:
-  entity: houman_safaai-harvard-university
-  project: "dendritic_cifar10"
-  group: "debug"
-  tags: [cifar10]
-  use_wandb: true
+  entity: 
+  project: 
+  group: 
+  tags: 
+  use_wandb: false
 
 visualization:
   enabled: false
@@ -88,4 +99,4 @@ visualization:
     #- ablation     # ablation
 
 outputs:
-  dir: /n/holylabs/LABS/kempner_dev/Users/hsafaai/results/dendritic_modeling/results
+  dir: ./results
