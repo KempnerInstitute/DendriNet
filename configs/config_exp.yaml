@@ -1,12 +1,12 @@
 model:
   task: classification
-  probabilistic: false
+  probabilistic: true
   network:
     type: EINet #"EINet", "MLP"
     parameters:
       excitatory_layer_sizes: [10] 
       inhibitory_layer_sizes: [20]
-      excitatory_branch_factors: [1] 
+      excitatory_branch_factors: [1,2] 
       inhibitory_branch_factors: []
       reactivate: true
       somatic_synapses: true
@@ -15,7 +15,7 @@ model:
       ie_synapses_per_branch_per_layer: [2]
       ii_synapses_per_branch_per_layer: [0]
       topk_init_method: xavier_normal
-      use_shunting: false
+      use_shunting: true
       reactivation_type: param_tanh # "none", "param_tanh", "param_tanh_only_m", "relu", "sigmoid", "tanh"
       reactivation_strategy: inverse # "none", "inverse"
       blocklinear_strategy: block_conductance_dynamic # "none", "distal_upweight_by_idx", "block_conductance_dynamic"
@@ -27,7 +27,7 @@ model:
       # If we set input_mode=2, the following get used for input network:
       input_net_dict:
         type: "MLPInputTransform"  # Type of input network: "MLPInputTransform", "AlexNetTransform", etc.
-        hidden_dims: [128, 128]     # Hidden layer dimensions for MLP
+        hidden_dims: [128, 128, 128]     # Hidden layer dimensions for MLP
         output_dim: 128             # Output dimension for both excitatory and inhibitory pathways
 
 train:
@@ -48,7 +48,6 @@ train:
     # Options for sequential training mode
     train_input_net: true    # Whether to train the input network or use pre-trained weights
     input_net_epochs: 50     # Epochs to train input network if train_input_net is true
-    freeze_input_net: true   # Whether to freeze input network weights during dendrinet training
     
     # Independent head training options
     train_heads_independently: false  # Whether to train excitatory and inhibitory heads independently
@@ -56,18 +55,17 @@ train:
     inhibitory_head_epochs: 50        # Epochs to train inhibitory head
     
     # Inhibitory head training objective
-    inhibitory_head_objective: "classification"  # Options: "classification", "diversity", "reconstruction", "combined"
+    inhibitory_head_objective: "classification"  # Options: "classification", "diversity", "combined"
     diversity_weight: 0.5              # Weight for diversity loss (alpha)
-    reconstruction_weight: 0.1         # Weight for reconstruction loss (beta)
-    
+
     # Options for pre-trained weights (when train_input_net is false)
     pretrained_options:
       source: "file"           # "file", "pytorch", "none"
       weights_path: ""         # Path to weights file if source is "file"
       pytorch_model: ""        # Name of PyTorch model if source is "pytorch"
-
+      
 task:
-  dataset: mnist #mnist
+  dataset: mnist #mnist, cifar10
   data_path: 
   parameters: {}
   # dataset: "line", "center_surround", "orientation_bars", "multi_xor", "mnist", "mnist_modulo10", "mnist_switch2",
@@ -81,7 +79,7 @@ task:
   #   n_orient_classes: 8
 
 wandb:
-  entity: 
+  entity:
   project: 
   group: 
   tags: 
@@ -99,4 +97,4 @@ visualization:
     #- ablation     # ablation
 
 outputs:
-  dir: ./results
+  dir: 
