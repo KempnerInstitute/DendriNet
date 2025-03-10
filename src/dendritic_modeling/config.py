@@ -44,8 +44,8 @@ class EINetParameters(BaseConfig):
     # 0=original, 1=direct, 2=two-headed MLP
     input_mode: int = 0
 
-    # NEW: dictionary describing how to build the MLP if input_mode=2
-    mlp_transform_dict: Dict[str, Any] = field(default_factory=dict)
+    # Dictionary describing how to build the input network if input_mode=2
+    input_net_dict: Dict[str, Any] = field(default_factory=dict)
 
 
 @dataclass
@@ -88,6 +88,9 @@ class TrainConfig(BaseConfig):
     # Parameters for dendrinet_from_mlp strategy
     dendrinet_epochs: int = 30
     freeze_mlp: bool = False
+    
+    # Input network training configuration
+    input_net_training: Dict[str, Any] = field(default_factory=dict)
 
 @dataclass
 class VisualizationConfig(BaseConfig):

@@ -93,13 +93,27 @@ class Classifier(BaseModel):
         self.output_dim = output_dim
         self.use_output_layer = use_output_layer
 
+        # Fix: Use the same approach as ProbabilisticClassifier for final_fc
         if self.use_output_layer:
-            self.final_fc = nn.Linear(self.output_dim, self.output_dim) 
+            # Get the output dimension from the network
+            with torch.no_grad():
+                if hasattr(net, 'n_branch_layers'):
+                    test_input = torch.zeros(1, net.n_branch_layers)
+                else:
+                    test_input = torch.zeros(1, net.input_dim if hasattr(net, 'input_dim') else 784)
+                net_out_dim = net.forward(test_input).shape[1]
+                self.final_fc = nn.Linear(net_out_dim, self.output_dim)
+        
+        # Add output scaling similar to ProbabilisticClassifier
+        self.output_scale = nn.Parameter(torch.ones((self.output_dim,)), requires_grad=True)
        
     def forward(self, x, y=None):
         logits = self.net(x)
         if hasattr(self, 'final_fc'):
             logits = self.final_fc(logits)
+        
+        # Apply output scaling
+        logits = logits * self.output_scale
         return logits
 
     def predict(self, x, stochastic=False):
