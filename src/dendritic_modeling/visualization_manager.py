@@ -234,6 +234,10 @@ class PlotManager:
             
             # Loop over data to collect branch inputs
             net.eval()
+            
+            # Ensure model is on the correct device
+            net = net.to(self.device)
+            
             with torch.no_grad():
                 for batch_start in range(0, len(train_inputs), batch_size):
                     batch_end = min(batch_start + batch_size, len(train_inputs))
@@ -245,11 +249,18 @@ class PlotManager:
                     # Extract branch inputs
                     if hasattr(layer, 'branch_excitation'):
                         exc_inputs = layer.excitatory_input  # [batch, exc_input_dim]
+                        # Make sure to move to CPU before storing
                         exc_branch_inputs_all.append(exc_inputs.cpu())
                     
                     if hasattr(layer, 'branch_inhibition'):
                         inh_inputs = layer.inhibitory_input  # [batch, inh_input_dim]
+                        # Make sure to move to CPU before storing
                         inh_branch_inputs_all.append(inh_inputs.cpu())
+            
+            # After processing, move the network back to its original device if needed
+            # This ensures the model is ready for training
+            if torch.cuda.is_available():
+                net = net.cuda()
             
             # Concatenate batches
             if exc_branch_inputs_all:
