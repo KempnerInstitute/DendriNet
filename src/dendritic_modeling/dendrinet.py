@@ -144,6 +144,19 @@ class TopKLinear(nn.Module):
         
     def forward(self, x):
         pruned_weight = self.pruned_weight()
+        
+        # Ensure x is a 2D tensor for matrix multiplication
+        if not isinstance(x, torch.Tensor):
+            raise TypeError(f"Expected input to be a tensor, got {type(x)}")
+            
+        # If x is a 1D tensor, unsqueeze to make it 2D [1, features]
+        if x.dim() == 1:
+            x = x.unsqueeze(0)
+            
+        # If x is not 2D at this point, we can't do matrix multiplication
+        if x.dim() != 2:
+            raise ValueError(f"Expected input to be a 2D tensor, got shape {x.shape} with {x.dim()} dimensions")
+            
         return torch.mm(x, pruned_weight.t())
     
     def weight(self):
@@ -285,6 +298,18 @@ class BlockLinear(nn.Module):
             self.log_weight.data -= weight_decay
 
     def forward(self, x):
+        # Ensure x is a 2D tensor for matrix multiplication
+        if not isinstance(x, torch.Tensor):
+            raise TypeError(f"Expected input to be a tensor, got {type(x)}")
+            
+        # If x is a 1D tensor, unsqueeze to make it 2D [1, features]
+        if x.dim() == 1:
+            x = x.unsqueeze(0)
+            
+        # If x is not 2D at this point, we can't do matrix multiplication
+        if x.dim() != 2:
+            raise ValueError(f"Expected input to be a 2D tensor, got shape {x.shape} with {x.dim()} dimensions")
+            
         return torch.mm(x, self.block().t())
     
     def sum_conductances(self):
