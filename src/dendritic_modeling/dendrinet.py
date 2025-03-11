@@ -427,7 +427,7 @@ class DendriticBranchLayer(nn.Module):
                 excitation = self.branch_excitation(x)
                 numerator += excitation
                 denominator += excitation
-            if self.input_inhibitory:
+            if self.input_inhibitory and inhibitory_input is not None:
                 denominator += self.branch_inhibition(inhibitory_input)
             if self.input_branches:
                 numerator += self.branches_to_output(branch_input)
@@ -439,7 +439,7 @@ class DendriticBranchLayer(nn.Module):
             voltage = 0
             if self.input_excitatory:
                 voltage += self.branch_excitation(x)
-            if self.input_inhibitory:
+            if self.input_inhibitory and inhibitory_input is not None:
                 voltage -= self.branch_inhibition(inhibitory_input)
             if self.input_branches:
                 voltage += self.branches_to_output(branch_input)
@@ -605,6 +605,15 @@ class DendriNet(nn.Module):
     def forward(self, x, inhibitory_input=None):
         output = None
         for i in range(self.n_branch_layers + 1):
+            # Store excitatory and inhibitory inputs for visualization if needed
+            # The excitatory input for the current layer is always x
+            if hasattr(self.branch_layers[i], 'excitatory_input'):
+                self.branch_layers[i].excitatory_input = x
+            
+            # The inhibitory input is whatever was passed in or None
+            if hasattr(self.branch_layers[i], 'inhibitory_input'):
+                self.branch_layers[i].inhibitory_input = inhibitory_input
+                
             output = self.branch_layers[i](x, inhibitory_input, output)
         return output
     
@@ -652,8 +661,23 @@ class DendriNetWithOutputs(DendriNet):
         per_layer_acts = []
         output = None
         for i in range(self.n_branch_layers):
+            # Store excitatory and inhibitory inputs for visualization if needed
+            if hasattr(self.branch_layers[i], 'excitatory_input'):
+                self.branch_layers[i].excitatory_input = x
+            
+            if hasattr(self.branch_layers[i], 'inhibitory_input'):
+                self.branch_layers[i].inhibitory_input = inhibitory_input
+                
             output = self.branch_layers[i](x, inhibitory_input, output)
             per_layer_acts.append(output)
+            
+        # Store inputs for the final layer
+        if hasattr(self.branch_layers[-1], 'excitatory_input'):
+            self.branch_layers[-1].excitatory_input = x
+        
+        if hasattr(self.branch_layers[-1], 'inhibitory_input'):
+            self.branch_layers[-1].inhibitory_input = inhibitory_input
+            
         final_soma = self.branch_layers[-1](x, inhibitory_input, output)
         per_layer_acts.append(final_soma)
         return final_soma, per_layer_acts
@@ -661,7 +685,22 @@ class DendriNetWithOutputs(DendriNet):
     def forward(self, x, inhibitory_input=None):
         output = None
         for i in range(self.n_branch_layers):
+            # Store excitatory and inhibitory inputs for visualization if needed
+            if hasattr(self.branch_layers[i], 'excitatory_input'):
+                self.branch_layers[i].excitatory_input = x
+            
+            if hasattr(self.branch_layers[i], 'inhibitory_input'):
+                self.branch_layers[i].inhibitory_input = inhibitory_input
+                
             output = self.branch_layers[i](x, inhibitory_input, output)
+            
+        # Store inputs for the final layer
+        if hasattr(self.branch_layers[-1], 'excitatory_input'):
+            self.branch_layers[-1].excitatory_input = x
+        
+        if hasattr(self.branch_layers[-1], 'inhibitory_input'):
+            self.branch_layers[-1].inhibitory_input = inhibitory_input
+            
         final_soma = self.branch_layers[-1](x, inhibitory_input, output)
         return final_soma
     
