@@ -363,7 +363,7 @@ def extract_weights_from_simple_mlp(simple_mlp, input_net_transform):
     logger.info("Transferring weights from SimpleMLP to InputNetTransform")
     
     # Get network modules
-    mlp_modules = list(simple_mlp.net.network.children())
+    mlp_modules = list(simple_mlp.network.children())
     mlp_linear_modules = [m for m in mlp_modules if isinstance(m, torch.nn.Linear)]
     
     # Get shared backbone modules of InputNetTransform
@@ -1420,10 +1420,12 @@ def main(config_path: str):
                             f"epoch_{current_epoch}_test_acc": test_acc
                         })
                     
-                    # Create visualizations at this epoch
+                    # Create visualizations if enabled
                     if visualization_cfg.enabled:
-                        logger.info(f"Creating visualizations for epoch {current_epoch}...")
+                        # Check if input_mode is 0 before attempting visualizations that might cause errors
+                        input_mode = model_cfg.network.parameters.get('input_mode', 0)
                         
+                        logger.info(f"Creating visualizations after training...")
                         # Create data dictionary for plot manager
                         data_dict = {"train": train_ds, "valid": valid_ds, "test": test_ds}
                         
@@ -1434,14 +1436,24 @@ def main(config_path: str):
                             shape=shape,
                             config=config,
                             save_path=os.path.join(run_save_path, 'visualizations'),
-                            file_name=f"epoch{current_epoch}",
+                            file_name=f"final",
                             device=device
                         )
                         
-                        # Run all requested plots
-                        for plot_name in visualization_cfg.plots:
-                            logger.info(f"  Generating {plot_name} plot...")
-                            plot_manager.run_plot(plot_name)
+                        if input_mode == 0:
+                            # Run all plots except branch_info for input_mode=0
+                            safe_plots = [p for p in visualization_cfg.plots if p != 'branch_info']
+                            for plot_name in safe_plots:
+                                logger.info(f"  Generating {plot_name} plot...")
+                                plot_manager.run_plot(plot_name)
+                            
+                            if 'branch_info' in visualization_cfg.plots:
+                                logger.info(f"  Skipping branch_info plot for input_mode=0 to avoid errors")
+                        else:
+                            # For other input modes, run all visualizations as normal
+                            for plot_name in visualization_cfg.plots:
+                                logger.info(f"  Generating {plot_name} plot...")
+                                plot_manager.run_plot(plot_name)
             
             # Load best model at the end of training
             model.load_state_dict(best_state_dict)

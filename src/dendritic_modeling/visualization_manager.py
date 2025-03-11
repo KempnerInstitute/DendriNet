@@ -246,16 +246,26 @@ class PlotManager:
                     # Forward pass
                     _ = net(batch)
                     
-                    # Extract branch inputs
+                    # Extract branch inputs - safely check for attributes
                     if hasattr(layer, 'branch_excitation'):
-                        exc_inputs = layer.excitatory_input  # [batch, exc_input_dim]
-                        # Make sure to move to CPU before storing
-                        exc_branch_inputs_all.append(exc_inputs.cpu())
+                        # Check if excitatory_input exists, otherwise skip
+                        if hasattr(layer, 'excitatory_input'):
+                            exc_inputs = layer.excitatory_input  # [batch, exc_input_dim]
+                            # Make sure to move to CPU before storing
+                            exc_branch_inputs_all.append(exc_inputs.cpu())
+                        else:
+                            # Skip this batch if excitatory_input isn't available
+                            print("    Warning: layer has branch_excitation but no excitatory_input attribute")
                     
                     if hasattr(layer, 'branch_inhibition'):
-                        inh_inputs = layer.inhibitory_input  # [batch, inh_input_dim]
-                        # Make sure to move to CPU before storing
-                        inh_branch_inputs_all.append(inh_inputs.cpu())
+                        # Check if inhibitory_input exists, otherwise skip
+                        if hasattr(layer, 'inhibitory_input'):
+                            inh_inputs = layer.inhibitory_input  # [batch, inh_input_dim]
+                            # Make sure to move to CPU before storing
+                            inh_branch_inputs_all.append(inh_inputs.cpu())
+                        else:
+                            # Skip this batch if inhibitory_input isn't available
+                            print("    Warning: layer has branch_inhibition but no inhibitory_input attribute")
             
             # After processing, move the network back to its original device if needed
             # This ensures the model is ready for training
@@ -267,8 +277,9 @@ class PlotManager:
                 exc_inputs = torch.cat(exc_branch_inputs_all, dim=0)  # [n_samples, exc_input_dim]
                 print(f"  Collected excitatory inputs: {exc_inputs.shape}")
             else:
-                exc_inputs = torch.zeros((len(train_inputs), 0))
-                print("  No excitatory inputs collected")
+                print("  No excitatory inputs collected - this is expected with input_mode=0")
+                print("  Skipping branch information analysis for this layer")
+                continue  # Skip to the next layer
                 
             if inh_branch_inputs_all:
                 inh_inputs = torch.cat(inh_branch_inputs_all, dim=0)  # [n_samples, inh_input_dim]
