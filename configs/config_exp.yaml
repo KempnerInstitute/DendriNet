@@ -1,6 +1,6 @@
 model:
   task: classification
-  probabilistic: true  # This is only for the final EINet model
+  probabilistic: false  # This is only for the final EINet model
   network:
     type: EINet #"EINet", "MLP"
     parameters:
@@ -15,21 +15,25 @@ model:
       ie_synapses_per_branch_per_layer: [2]
       ii_synapses_per_branch_per_layer: [0]
       topk_init_method: xavier_normal
+
       use_shunting: true
+      
       reactivation_type: param_tanh # "none", "param_tanh", "param_tanh_only_m", "relu", "sigmoid", "tanh"
       reactivation_strategy: inverse # "none", "inverse"
       blocklinear_strategy: block_conductance_dynamic # "none", "distal_upweight_by_idx", "block_conductance_dynamic"
+      
       enable_branch_outputs: false   ### alows DendriNetWithOutputs to keep activations etc
       output_layer: false  ### adding an output classifier layer FC to final dendrinet layer
       output_dim: 10
+      
       # input mode (0=original, 1=exc=x+inh=x, 2=input_net)
       input_mode: 2
       # If we set input_mode=2, the following get used for input network:
       input_net_dict:
         type: "MLPInputTransform"  # Type of input network: "MLPInputTransform", "AlexNetTransform", etc.
-        hidden_dims: [512, 256, 128]     # Hidden layer dimensions for better capacity
+        hidden_dims: [] #[512, 256, 128]     # Hidden layer dimensions for better capacity
         output_dim: 128             # Output dimension for both excitatory and inhibitory pathways
-
+        
 train:
   learning_strategy: mle #"mle", "freeze_layers", "local_credit_assignment", "two_step", "two_step_kl"
   run_name: mnist_einet
@@ -41,7 +45,7 @@ train:
   grad_clip_value: 1.0  # Reasonable gradient clipping
   epochs_per_layer: 50  ## this is only for "freeze_layers" and any other method which has sequential single layer training
   pretrain_epochs: 10   ## for "two_step"
-  weight_decay_rate: 0.0001  # Standard weight decay
+  weight_decay_rate: 0.01  # Standard weight decay
   # Input network training configuration
   input_net_training:
     training_mode: "sequential"     # "joint" (train everything together) or "sequential" (train input_net first, then dendrinet)
@@ -63,7 +67,7 @@ train:
       pytorch_model: ""        # Name of PyTorch model if source is "pytorch"
       
 task:
-  dataset: mnist #mnist, cifar10
+  dataset: mnist #mnist, CIFAR10
   data_path: 
   parameters: {}
   # dataset: "line", "center_surround", "orientation_bars", "multi_xor", "mnist", "mnist_modulo10", "mnist_switch2",
@@ -77,7 +81,7 @@ task:
   #   n_orient_classes: 8
 
 wandb:
-  entity:
+  entity: 
   project: 
   group: 
   tags: 
@@ -95,4 +99,4 @@ visualization:
     #- ablation     # ablation
 
 outputs:
-  dir: 
+  dir:  
