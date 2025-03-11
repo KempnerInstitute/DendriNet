@@ -12,9 +12,11 @@ from copy import deepcopy
 from torch import nn
 from typing import List
 import torch
+import torchinfo
 import torch.nn.functional as F
 from dendritic_modeling.dendrinet import DendriNet, DendriNetWithOutputs
 from dendritic_modeling import logger
+import numpy as np
 
 
 class ExcitationInhibitionLayer(nn.Module):
@@ -252,6 +254,7 @@ class ExcitationInhibitionNetwork(nn.Module):
         all_branch_layers = []
         for ei_layer in self.layers:
             all_branch_layers.extend(ei_layer.excitatory_cells.branch_layers)
+            all_branch_layers.extend(ei_layer.inhibitory_cells.branch_layers)
         return all_branch_layers
 
     @property
@@ -338,7 +341,6 @@ class MLPExcInhNetwork(nn.Module):
         **kwargs
     ):
         super(MLPExcInhNetwork, self).__init__()
-        logger.info("Building MLPExcInhNetwork...")
         self.weight_decay_rate = weight_decay_rate
         self.learning_strategy = learning_strategy
         self.output_layer_flag = output_layer
@@ -398,4 +400,111 @@ class MLPExcInhNetwork(nn.Module):
         if self.classifier is not None:
             x = self.classifier(x)
         return x
+
+class MatchedParamMLP(nn.Module):
+    """
+    Creates an MLP with at least as many parameters as an equivalent EINet configuration.
+    Matches the number of layers to DendriticBranchLayers and minimizes parameters while
+    exceeding EINet parameter count.
+    """
+    def __init__(
+        self,
+        input_dim,
+        excitatory_layer_sizes,
+        inhibitory_layer_sizes,
+        excitatory_branch_factors,
+        inhibitory_branch_factors,
+        ee_synapses_per_branch_per_layer,
+        ei_synapses_per_branch_per_layer,
+        ie_synapses_per_branch_per_layer,
+        ii_synapses_per_branch_per_layer=[],
+        reactivate=False,
+        somatic_synapses=True,
+        output_layer=False,
+        output_dim=10,
+        **kwargs  # Accept but ignore other EINet parameters
+    ):
+        super(MatchedParamMLP, self).__init__()
+        
+        # Create EINet to get parameter count and number of layers
+        einet = ExcitationInhibitionNetwork(
+            input_dim=input_dim,
+            excitatory_layer_sizes=excitatory_layer_sizes,
+            inhibitory_layer_sizes=inhibitory_layer_sizes,
+            excitatory_branch_factors=excitatory_branch_factors,
+            inhibitory_branch_factors=inhibitory_branch_factors,
+            ee_synapses_per_branch_per_layer=ee_synapses_per_branch_per_layer,
+            ei_synapses_per_branch_per_layer=ei_synapses_per_branch_per_layer,
+            ie_synapses_per_branch_per_layer=ie_synapses_per_branch_per_layer,
+            ii_synapses_per_branch_per_layer=ii_synapses_per_branch_per_layer,
+            reactivate=reactivate,
+            somatic_synapses=somatic_synapses,
+            output_layer=output_layer,
+            output_dim=output_dim,
+        )
+
+        summary = torchinfo.summary(einet, verbose=0)
+        target_params = summary.trainable_params
+        
+        # Get number of branch layers
+        n_branch_layers = einet.n_branch_layers
+        if not somatic_synapses:
+            n_branch_layers -= 2 * len(einet.layers)  # Account for somatic layer
+                
+        # Calculate required hidden layer widths
+        # For n hidden layers (n+1 total layers), we need:
+        # input_dim * h1 + h1 * h2 + h2 * h3 + ... + hn * output_dim ≥ target_params
+        # Minimize total parameters while satisfying this constraint
+        # We'll use equal width hidden layers for simplicity
+        # Then: input_dim * h + h * h * (n-1) + h * output_dim ≥ target_params
+        # where n is number of hidden layers
+        
+        def get_param_count(hidden_width):
+            """Calculate total parameters for given hidden width"""
+            params = input_dim * hidden_width  # First layer
+            params += hidden_width * hidden_width * (n_branch_layers - 1)  # Hidden layers
+            params += hidden_width * output_dim  # Output layer
+            return params
+        
+        # Binary search for minimum hidden width that exceeds target params
+        left, right = 1, 10000
+        min_width = right
+        
+        while left <= right:
+            mid = (left + right) // 2
+            params = get_param_count(mid)
+            
+            if params >= target_params:
+                min_width = mid
+                right = mid - 1
+            else:
+                left = mid + 1
+        
+        hidden_width = min_width
+        
+        # Build MLP layers
+        layers = []
+        
+        # Input layer
+        layers.extend([
+            nn.Linear(input_dim, hidden_width),
+            nn.ReLU()
+        ])
+        
+        # Hidden layers
+        for _ in range(n_branch_layers - 1):
+            layers.extend([
+                nn.Linear(hidden_width, hidden_width),
+                nn.ReLU()
+            ])
+        
+        # Output layer
+        layers.append(nn.Linear(hidden_width, output_dim))
+        
+        self.network = nn.Sequential(*layers)
+        
+    def forward(self, x):
+        return self.network(x)
+
+
 
