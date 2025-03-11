@@ -19,6 +19,7 @@ from torch.optim import Adam
 from omegaconf import DictConfig, ListConfig
 from sklearn.metrics import accuracy_score
 import logging
+import functools
 
 
 class Shaper(object):
@@ -799,3 +800,96 @@ def analyze_layerwise_ablation(model, train_data, valid_data, test_data, save_pa
     logging.info(f"Ablation analysis results saved to {save_dir}")
     
     return results
+
+def safe_backward_hook(hook_fn):
+    """
+    Decorator for backward hooks to ensure they return None when no inputs require gradients.
+    This prevents the "Backward hook for Modules where no input requires gradient" error.
+    
+    Args:
+        hook_fn: The original hook function to decorate
+        
+    Returns:
+        A decorated hook function that properly handles the case when no inputs require gradients
+    """
+    @functools.wraps(hook_fn)
+    def safe_hook_fn(module, grad_input, grad_output):
+        # Check if any grad_input requires gradient
+        requires_grad = False
+        if grad_input is not None:
+            for g in grad_input:
+                if g is not None:
+                    requires_grad = True
+                    break
+                    
+        # Check parameters too (some hooks need this)
+        if not requires_grad:
+            for p in module.parameters(recurse=True):
+                if p.requires_grad:
+                    requires_grad = True
+                    break
+        
+        # If nothing requires gradients, return None
+        if not requires_grad:
+            return None
+            
+        # Otherwise, call the original hook function
+        try:
+            result = hook_fn(module, grad_input, grad_output)
+            return result
+        except Exception as e:
+            # If anything goes wrong, return the original grad_input as a fallback
+            print(f"Warning: Hook error: {e}")
+            return grad_input
+            
+    return safe_hook_fn
+
+def safe_register_hooks(module):
+    """
+    Recursively replace all backward hooks in a module with safe versions.
+    
+    Args:
+        module: The module whose hooks should be made safe
+    """
+    # Get all current hooks
+    hooks = []
+    if hasattr(module, '_backward_hooks'):
+        hooks.extend(list(module._backward_hooks.items()))
+    
+    # Remove all hooks
+    if hooks:
+        module._backward_hooks.clear()
+    
+    # Re-register all hooks with safe versions
+    for k, hook in hooks:
+        safe_hook = safe_backward_hook(hook)
+        module.register_backward_hook(safe_hook)
+    
+    # Recursively apply to all submodules
+    for child in module.children():
+        safe_register_hooks(child)
+        
+def register_safe_hook(module, hook_fn):
+    """
+    Register a hook on a module, ensuring it's wrapped in a safe_hook.
+    
+    Args:
+        module: The module to register the hook on
+        hook_fn: The hook function to register
+    """
+    safe_hook = safe_backward_hook(hook_fn)
+    module.register_full_backward_hook(safe_hook)
+    
+class SafeHookModule(nn.Module):
+    """
+    A wrapper class that ensures all backward hooks are safely registered.
+    """
+    def __init__(self, module):
+        super().__init__()
+        self.module = module
+        
+        # Replace all hooks with safe versions
+        safe_register_hooks(module)
+        
+    def forward(self, *args, **kwargs):
+        return self.module(*args, **kwargs)
