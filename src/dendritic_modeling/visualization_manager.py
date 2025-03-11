@@ -157,23 +157,37 @@ class PlotManager:
             logging.info("No 'net' attribute found. Skipping profile plotting.")
 
     def _branch_info(self):
+        print("\n" + "="*80)
+        print("STARTING BRANCH INFORMATION ANALYSIS")
+        print("="*80)
+        
         if not hasattr(self.model, 'net'):
-            logging.info("No 'net' attribute found. Skipping branch_info.")
+            print("ERROR: No 'net' attribute found on model. Skipping branch_info analysis.")
+            logging.error("No 'net' attribute found on model. Skipping branch_info analysis.")
             return
         net = self.model.net
         if not hasattr(net, 'forward_with_branch_outputs'):
-            logging.info("No forward_with_branch_outputs found. Skipping branch_info analysis.")
+            print("ERROR: No forward_with_branch_outputs method found on net. Skipping branch_info analysis.")
+            logging.error("No forward_with_branch_outputs method found on net. Skipping branch_info analysis.")
             return
         
+        print(f"Model has {len(net.branch_layers)} branch layers")
+        logging.info(f"Model has {len(net.branch_layers)} branch layers")
+        
+        print("Computing branch info using MLP decoding...")
         logging.info("Computing branch info using MLP decoding...")
+        
         batch_size = getattr(self.config.train, 'batch_size', 64)
         save_dir = os.path.join(self.save_path, "branch_info_plots")
         os.makedirs(save_dir, exist_ok=True)
+        print(f"Results will be saved to: {save_dir}")
         
         # Get data
+        print("Loading datasets...")
         train_inputs, train_labels = self.data['train'][:]
         valid_inputs, valid_labels = self.data['valid'][:]
         test_inputs, test_labels = self.data['test'][:]
+        print(f"Loaded datasets: train={len(train_inputs)}, valid={len(valid_inputs)}, test={len(test_inputs)} samples")
         
         # For storing results
         layer_indices = []
@@ -183,13 +197,16 @@ class PlotManager:
         layer_combined_accuracies = []
         
         use_shunting = getattr(self.model.net, 'use_shunting', True)
+        print(f"Using {'shunting' if use_shunting else 'subtraction'} for combining excitatory and inhibitory inputs")
         
         # Iterate through each layer
         for layer_idx, layer in enumerate(net.branch_layers):
+            print(f"\nProcessing layer {layer_idx} for branch_info...")
             logging.info(f"Processing layer {layer_idx} for branch_info...")
             
             # Skip if no branch excitation or inhibition
             if not hasattr(layer, 'branch_excitation') and not hasattr(layer, 'branch_inhibition'):
+                print(f"  Layer {layer_idx} has no branch excitation or inhibition. Skipping.")
                 logging.info(f"Layer {layer_idx} has no branch excitation or inhibition. Skipping.")
                 continue
             
@@ -197,16 +214,21 @@ class PlotManager:
             n_branches = 0
             if hasattr(layer, 'branch_excitation'):
                 n_branches = layer.branch_excitation.pre_w.shape[0]
+                print(f"  Layer {layer_idx} has branch_excitation with {n_branches} branches")
             elif hasattr(layer, 'branch_inhibition'):
                 n_branches = layer.branch_inhibition.pre_w.shape[0]
+                print(f"  Layer {layer_idx} has branch_inhibition with {n_branches} branches")
             
             if n_branches == 0:
+                print(f"  Layer {layer_idx} has no branches. Skipping.")
                 logging.info(f"Layer {layer_idx} has no branches. Skipping.")
                 continue
                 
+            print(f"  Layer {layer_idx} has {n_branches} branches")
             logging.info(f"Layer {layer_idx} has {n_branches} branches")
             
             # Collect inputs to each branch
+            print("  Collecting branch inputs from dataset...")
             exc_branch_inputs_all = []
             inh_branch_inputs_all = []
             
@@ -232,13 +254,17 @@ class PlotManager:
             # Concatenate batches
             if exc_branch_inputs_all:
                 exc_inputs = torch.cat(exc_branch_inputs_all, dim=0)  # [n_samples, exc_input_dim]
+                print(f"  Collected excitatory inputs: {exc_inputs.shape}")
             else:
                 exc_inputs = torch.zeros((len(train_inputs), 0))
+                print("  No excitatory inputs collected")
                 
             if inh_branch_inputs_all:
                 inh_inputs = torch.cat(inh_branch_inputs_all, dim=0)  # [n_samples, inh_input_dim]
+                print(f"  Collected inhibitory inputs: {inh_inputs.shape}")
             else:
                 inh_inputs = torch.zeros((len(train_inputs), 0))
+                print("  No inhibitory inputs collected")
             
             # For layer-level accuracy measurement
             layer_exc_acc = 0.0
@@ -247,27 +273,33 @@ class PlotManager:
             
             # Process each branch
             for branch_idx in range(n_branches):
+                print(f"  Processing branch {branch_idx} in layer {layer_idx}...")
                 logging.info(f"  Processing branch {branch_idx} in layer {layer_idx}")
                 
                 # 1. Excitatory inputs to this branch
                 if hasattr(layer, 'branch_excitation') and exc_inputs.shape[1] > 0:
                     # Get weights for this branch [exc_input_dim]
                     branch_exc_weights = layer.branch_excitation.pre_w[branch_idx].cpu()
+                    print(f"    Excitatory weights shape: {branch_exc_weights.shape}")
                     
                     # Compute weighted input for each sample [n_samples]
                     branch_exc_activations = exc_inputs @ branch_exc_weights
+                    print(f"    Excitatory activations shape: {branch_exc_activations.shape}")
                     
                     # Create dataset
                     train_exc_dataset = TensorDataset(branch_exc_activations.unsqueeze(1), train_labels)
                     valid_exc_dataset = TensorDataset(branch_exc_activations[:len(valid_inputs)].unsqueeze(1), valid_labels)
                     
                     # Train classifier
+                    print(f"    Training excitatory classifier...")
                     exc_acc = self._train_mlp_classifier(train_exc_dataset, valid_exc_dataset)
+                    print(f"    Branch {branch_idx} excitatory accuracy: {exc_acc:.4f}")
                     logging.info(f"    Branch {branch_idx} excitatory accuracy: {exc_acc:.4f}")
                     
                     # Update layer accuracy (maximum across branches)
                     layer_exc_acc = max(layer_exc_acc, exc_acc)
                 else:
+                    print(f"    No excitatory inputs for branch {branch_idx}")
                     branch_exc_activations = None
                     exc_acc = 0.0
                 
@@ -275,21 +307,26 @@ class PlotManager:
                 if hasattr(layer, 'branch_inhibition') and inh_inputs.shape[1] > 0:
                     # Get weights for this branch [inh_input_dim]
                     branch_inh_weights = layer.branch_inhibition.pre_w[branch_idx].cpu()
+                    print(f"    Inhibitory weights shape: {branch_inh_weights.shape}")
                     
                     # Compute weighted input for each sample [n_samples]
                     branch_inh_activations = inh_inputs @ branch_inh_weights
+                    print(f"    Inhibitory activations shape: {branch_inh_activations.shape}")
                     
                     # Create dataset
                     train_inh_dataset = TensorDataset(branch_inh_activations.unsqueeze(1), train_labels)
                     valid_inh_dataset = TensorDataset(branch_inh_activations[:len(valid_inputs)].unsqueeze(1), valid_labels)
                     
                     # Train classifier
+                    print(f"    Training inhibitory classifier...")
                     inh_acc = self._train_mlp_classifier(train_inh_dataset, valid_inh_dataset)
+                    print(f"    Branch {branch_idx} inhibitory accuracy: {inh_acc:.4f}")
                     logging.info(f"    Branch {branch_idx} inhibitory accuracy: {inh_acc:.4f}")
                     
                     # Update layer accuracy (maximum across branches)
                     layer_inh_acc = max(layer_inh_acc, inh_acc)
                 else:
+                    print(f"    No inhibitory inputs for branch {branch_idx}")
                     branch_inh_activations = None
                     inh_acc = 0.0
                 
@@ -299,21 +336,26 @@ class PlotManager:
                     if use_shunting:
                         # Shunting: E_ex/(E_ex+E_in+1)
                         branch_combined = branch_exc_activations / (branch_exc_activations + branch_inh_activations + 1.0)
+                        print(f"    Using shunting combination")
                     else:
                         # Subtraction: E_ex - E_in
                         branch_combined = branch_exc_activations - branch_inh_activations
+                        print(f"    Using subtraction combination")
                     
                     # Create dataset
                     train_combined_dataset = TensorDataset(branch_combined.unsqueeze(1), train_labels)
                     valid_combined_dataset = TensorDataset(branch_combined[:len(valid_inputs)].unsqueeze(1), valid_labels)
                     
                     # Train classifier
+                    print(f"    Training combined classifier...")
                     combined_acc = self._train_mlp_classifier(train_combined_dataset, valid_combined_dataset)
+                    print(f"    Branch {branch_idx} combined accuracy: {combined_acc:.4f}")
                     logging.info(f"    Branch {branch_idx} combined accuracy: {combined_acc:.4f}")
                     
                     # Update layer accuracy (maximum across branches)
                     layer_combined_acc = max(layer_combined_acc, combined_acc)
                 else:
+                    print(f"    Could not compute combined inputs (missing excitatory or inhibitory)")
                     combined_acc = max(exc_acc, inh_acc)
                 
                 # Store branch results
@@ -324,9 +366,12 @@ class PlotManager:
             layer_exc_accuracies.append(layer_exc_acc)
             layer_inh_accuracies.append(layer_inh_acc)
             layer_combined_accuracies.append(layer_combined_acc)
+            
+            print(f"  Layer {layer_idx} best accuracies: exc={layer_exc_acc:.4f}, inh={layer_inh_acc:.4f}, combined={layer_combined_acc:.4f}")
         
         # Plot layer-level results
         if layer_indices:
+            print("\nGenerating branch information plots...")
             plt.figure(figsize=(10, 6))
             plt.plot(layer_indices, layer_exc_accuracies, 'o-', label='Excitatory')
             plt.plot(layer_indices, layer_inh_accuracies, 's-', label='Inhibitory')
@@ -341,6 +386,7 @@ class PlotManager:
             plt.tight_layout()
             plt.savefig(os.path.join(save_dir, 'branch_info_mlp_decoding.png'), dpi=300)
             plt.close()
+            print(f"Saved plot to {os.path.join(save_dir, 'branch_info_mlp_decoding.png')}")
             
             # Save as CSV
             import pandas as pd
@@ -350,9 +396,24 @@ class PlotManager:
                 'inhibitory_acc': layer_inh_accuracies,
                 'combined_acc': layer_combined_accuracies
             })
-            df.to_csv(os.path.join(save_dir, 'branch_info_results.csv'), index=False)
+            csv_path = os.path.join(save_dir, 'branch_info_results.csv') 
+            df.to_csv(csv_path, index=False)
+            print(f"Saved results to {csv_path}")
             
+            # Print summary table
+            print("\nBranch Information Analysis Summary:")
+            print("-" * 60)
+            print(f"{'Layer':<8} {'Excitatory':<12} {'Inhibitory':<12} {'Combined':<12}")
+            print("-" * 60)
+            for i, layer_idx in enumerate(layer_indices):
+                print(f"{layer_idx:<8} {layer_exc_accuracies[i]:<12.4f} {layer_inh_accuracies[i]:<12.4f} {layer_combined_accuracies[i]:<12.4f}")
+            print("-" * 60)
+        else:
+            print("No valid layers processed. No plots generated.")
+            
+        print(f"Branch information analysis completed. Results saved to {save_dir}")
         logging.info(f"Saved branch info plots in {save_dir}")
+        print("="*80 + "\n")
     
     def _train_mlp_classifier(self, train_dataset, valid_dataset, hidden_dim=100, lr=0.001, epochs=20):
         """Helper method to train MLP classifier for branch_info analysis"""
@@ -409,19 +470,31 @@ class PlotManager:
         2. Zero out only excitatory inputs and measure accuracy drop  
         3. Zero out only inhibitory inputs and measure accuracy drop
         """
+        print("\n" + "="*80)
+        print("STARTING BRANCH ABLATION ANALYSIS")
+        print("="*80)
+        
         if not hasattr(self.model, 'net'):
-            logging.info("No 'net' attribute found. Skipping branch_ablation.")
+            print("ERROR: No 'net' attribute found on model. Skipping branch_ablation analysis.")
+            logging.error("No 'net' attribute found on model. Skipping branch_ablation analysis.")
             return
         net = self.model.net
         
+        print(f"Model has {len(net.branch_layers)} branch layers")
+        logging.info(f"Model has {len(net.branch_layers)} branch layers")
+        
+        print("Performing branch ablation analysis...")
         logging.info("Performing branch ablation analysis...")
         
         # Get baseline performance
         from dendritic_modeling.utils import measure_performance
+        print("Measuring baseline performance...")
         baseline_acc = measure_performance(net, self.data['test'], device=self.device)
+        print(f"Baseline accuracy on test set: {baseline_acc:.4f}")
         logging.info(f"Branch ablation baseline acc on test = {baseline_acc:.4f}")
         
         # Store original parameters for restoration
+        print("Storing original model parameters...")
         original = {}
         for n, p in net.named_parameters():
             original[n] = p.detach().clone()
@@ -440,64 +513,90 @@ class PlotManager:
         # For each layer
         for layer_idx in range(len(net.branch_layers)):
             layer = net.branch_layers[layer_idx]
+            print(f"\nAblating layer {layer_idx}...")
             logging.info(f"Ablating layer {layer_idx}...")
             
             # Get number of branches
             n_branches = 0
             if hasattr(layer, 'branch_excitation'):
                 n_branches = layer.branch_excitation.pre_w.shape[0]
+                print(f"  Layer {layer_idx} has branch_excitation with {n_branches} branches")
             elif hasattr(layer, 'branch_inhibition'):
                 n_branches = layer.branch_inhibition.pre_w.shape[0]
+                print(f"  Layer {layer_idx} has branch_inhibition with {n_branches} branches")
             
             if n_branches == 0:
+                print(f"  Layer {layer_idx} has no branches. Skipping.")
                 logging.info(f"Layer {layer_idx} has no branches. Skipping.")
                 continue
                 
+            print(f"  Layer {layer_idx} has {n_branches} branches")
             logging.info(f"Layer {layer_idx} has {n_branches} branches")
             
             # 1. Layer-level ablation: ablate all branches in this layer
+            print("  Performing layer-level ablation...")
             
             # 1.1 Ablate both excitatory and inhibitory inputs
             if hasattr(layer, 'branch_excitation'):
                 layer.branch_excitation.pre_w.data.zero_()
+                print("    Zeroed excitatory weights")
             if hasattr(layer, 'branch_inhibition'):
                 layer.branch_inhibition.pre_w.data.zero_()
+                print("    Zeroed inhibitory weights")
             
             # Measure accuracy
+            print("    Measuring accuracy with both exc+inh ablated...")
             both_acc = measure_performance(net, self.data['test'], device=self.device)
-            logging.info(f"Layer {layer_idx} with both exc+inh ablated: acc={both_acc:.4f}, drop={baseline_acc-both_acc:.4f}")
+            both_drop = baseline_acc - both_acc
+            print(f"    Layer {layer_idx} with both exc+inh ablated: acc={both_acc:.4f}, drop={both_drop:.4f}")
+            logging.info(f"Layer {layer_idx} with both exc+inh ablated: acc={both_acc:.4f}, drop={both_drop:.4f}")
             
             # Restore parameters
             for n, p in net.named_parameters():
                 p.data.copy_(original[n])
+            print("    Restored original parameters")
             
             # 1.2 Ablate only excitatory inputs
             if hasattr(layer, 'branch_excitation'):
                 layer.branch_excitation.pre_w.data.zero_()
+                print("    Zeroed excitatory weights only")
                 
                 # Measure accuracy
+                print("    Measuring accuracy with excitatory ablated...")
                 exc_acc = measure_performance(net, self.data['test'], device=self.device)
-                logging.info(f"Layer {layer_idx} with exc ablated: acc={exc_acc:.4f}, drop={baseline_acc-exc_acc:.4f}")
+                exc_drop = baseline_acc - exc_acc
+                print(f"    Layer {layer_idx} with exc ablated: acc={exc_acc:.4f}, drop={exc_drop:.4f}")
+                logging.info(f"Layer {layer_idx} with exc ablated: acc={exc_acc:.4f}, drop={exc_drop:.4f}")
             else:
+                print("    No excitatory weights to ablate")
                 exc_acc = baseline_acc  # No excitatory to ablate
+                exc_drop = 0.0
             
             # Restore parameters
             for n, p in net.named_parameters():
                 p.data.copy_(original[n])
+            print("    Restored original parameters")
             
             # 1.3 Ablate only inhibitory inputs
             if hasattr(layer, 'branch_inhibition'):
                 layer.branch_inhibition.pre_w.data.zero_()
+                print("    Zeroed inhibitory weights only")
                 
                 # Measure accuracy
+                print("    Measuring accuracy with inhibitory ablated...")
                 inh_acc = measure_performance(net, self.data['test'], device=self.device)
-                logging.info(f"Layer {layer_idx} with inh ablated: acc={inh_acc:.4f}, drop={baseline_acc-inh_acc:.4f}")
+                inh_drop = baseline_acc - inh_acc
+                print(f"    Layer {layer_idx} with inh ablated: acc={inh_acc:.4f}, drop={inh_drop:.4f}")
+                logging.info(f"Layer {layer_idx} with inh ablated: acc={inh_acc:.4f}, drop={inh_drop:.4f}")
             else:
+                print("    No inhibitory weights to ablate")
                 inh_acc = baseline_acc  # No inhibitory to ablate
+                inh_drop = 0.0
             
             # Restore parameters
             for n, p in net.named_parameters():
                 p.data.copy_(original[n])
+            print("    Restored original parameters")
             
             # Store layer-level results
             layer_indices.append(layer_idx)
@@ -506,51 +605,73 @@ class PlotManager:
             layer_inh_ablated_acc.append(inh_acc)
             
             # 2. Branch-level ablation: ablate each branch individually
+            print(f"  Performing branch-level ablation for {n_branches} branches...")
             
             for branch_idx in range(n_branches):
+                print(f"    Ablating branch {branch_idx} in layer {layer_idx}...")
                 logging.info(f"  Ablating branch {branch_idx} in layer {layer_idx}...")
                 
                 # 2.1 Ablate both excitatory and inhibitory inputs for this branch
                 if hasattr(layer, 'branch_excitation'):
                     layer.branch_excitation.pre_w.data[branch_idx].zero_()
+                    print(f"      Zeroed excitatory weights for branch {branch_idx}")
                 if hasattr(layer, 'branch_inhibition'):
                     layer.branch_inhibition.pre_w.data[branch_idx].zero_()
+                    print(f"      Zeroed inhibitory weights for branch {branch_idx}")
                 
                 # Measure accuracy
+                print(f"      Measuring accuracy with both ablated...")
                 branch_both_acc = measure_performance(net, self.data['test'], device=self.device)
-                logging.info(f"    Branch {branch_idx} with both ablated: acc={branch_both_acc:.4f}, drop={baseline_acc-branch_both_acc:.4f}")
+                branch_both_drop = baseline_acc - branch_both_acc
+                print(f"      Branch {branch_idx} with both ablated: acc={branch_both_acc:.4f}, drop={branch_both_drop:.4f}")
+                logging.info(f"    Branch {branch_idx} with both ablated: acc={branch_both_acc:.4f}, drop={branch_both_drop:.4f}")
                 
                 # Restore parameters
                 for n, p in net.named_parameters():
                     p.data.copy_(original[n])
+                print(f"      Restored original parameters")
                 
                 # 2.2 Ablate only excitatory inputs for this branch
                 if hasattr(layer, 'branch_excitation'):
                     layer.branch_excitation.pre_w.data[branch_idx].zero_()
+                    print(f"      Zeroed excitatory weights only for branch {branch_idx}")
                     
                     # Measure accuracy
+                    print(f"      Measuring accuracy with excitatory ablated...")
                     branch_exc_acc = measure_performance(net, self.data['test'], device=self.device)
-                    logging.info(f"    Branch {branch_idx} with exc ablated: acc={branch_exc_acc:.4f}, drop={baseline_acc-branch_exc_acc:.4f}")
+                    branch_exc_drop = baseline_acc - branch_exc_acc
+                    print(f"      Branch {branch_idx} with exc ablated: acc={branch_exc_acc:.4f}, drop={branch_exc_drop:.4f}")
+                    logging.info(f"    Branch {branch_idx} with exc ablated: acc={branch_exc_acc:.4f}, drop={branch_exc_drop:.4f}")
                 else:
+                    print(f"      No excitatory weights to ablate for branch {branch_idx}")
                     branch_exc_acc = baseline_acc
+                    branch_exc_drop = 0.0
                 
                 # Restore parameters
                 for n, p in net.named_parameters():
                     p.data.copy_(original[n])
+                print(f"      Restored original parameters")
                 
                 # 2.3 Ablate only inhibitory inputs for this branch
                 if hasattr(layer, 'branch_inhibition'):
                     layer.branch_inhibition.pre_w.data[branch_idx].zero_()
+                    print(f"      Zeroed inhibitory weights only for branch {branch_idx}")
                     
                     # Measure accuracy
+                    print(f"      Measuring accuracy with inhibitory ablated...")
                     branch_inh_acc = measure_performance(net, self.data['test'], device=self.device)
-                    logging.info(f"    Branch {branch_idx} with inh ablated: acc={branch_inh_acc:.4f}, drop={baseline_acc-branch_inh_acc:.4f}")
+                    branch_inh_drop = baseline_acc - branch_inh_acc
+                    print(f"      Branch {branch_idx} with inh ablated: acc={branch_inh_acc:.4f}, drop={branch_inh_drop:.4f}")
+                    logging.info(f"    Branch {branch_idx} with inh ablated: acc={branch_inh_acc:.4f}, drop={branch_inh_drop:.4f}")
                 else:
+                    print(f"      No inhibitory weights to ablate for branch {branch_idx}")
                     branch_inh_acc = baseline_acc
+                    branch_inh_drop = 0.0
                 
                 # Restore parameters
                 for n, p in net.named_parameters():
                     p.data.copy_(original[n])
+                print(f"      Restored original parameters")
                 
                 # Store branch-level results
                 branch_indices.append(f"{layer_idx}-{branch_idx}")
@@ -561,6 +682,13 @@ class PlotManager:
         # Create plots
         save_dir = os.path.join(self.save_path, "branch_ablation_plots")
         os.makedirs(save_dir, exist_ok=True)
+        print(f"\nResults will be saved to: {save_dir}")
+        
+        if not layer_indices:
+            print("No valid layers processed. No plots generated.")
+            return
+            
+        print("Generating ablation plots...")
         
         # 1. Layer-level accuracy plot
         plt.figure(figsize=(10, 6))
@@ -576,8 +704,10 @@ class PlotManager:
         plt.grid(True, alpha=0.3)
         
         plt.tight_layout()
-        plt.savefig(os.path.join(save_dir, 'layer_ablation_accuracy.png'), dpi=300)
+        layer_acc_plot = os.path.join(save_dir, 'layer_ablation_accuracy.png')
+        plt.savefig(layer_acc_plot, dpi=300)
         plt.close()
+        print(f"Saved layer accuracy plot to {layer_acc_plot}")
         
         # 2. Layer-level accuracy drop plot
         plt.figure(figsize=(10, 6))
@@ -592,11 +722,14 @@ class PlotManager:
         plt.grid(True, axis='y', alpha=0.3)
         
         plt.tight_layout()
-        plt.savefig(os.path.join(save_dir, 'layer_ablation_drop.png'), dpi=300)
+        layer_drop_plot = os.path.join(save_dir, 'layer_ablation_drop.png')
+        plt.savefig(layer_drop_plot, dpi=300)
         plt.close()
+        print(f"Saved layer drop plot to {layer_drop_plot}")
         
         # 3. Branch-level accuracy drop heatmap (if we have branch data)
         if branch_indices:
+            print("Generating branch-level heatmaps...")
             # Parse branch indices to get layer and branch numbers
             layers = []
             branches = []
@@ -669,8 +802,10 @@ class PlotManager:
             plt.colorbar(im2, ax=axes[2])
             
             plt.tight_layout()
-            plt.savefig(os.path.join(save_dir, 'branch_ablation_heatmap.png'), dpi=300)
+            heatmap_plot = os.path.join(save_dir, 'branch_ablation_heatmap.png')
+            plt.savefig(heatmap_plot, dpi=300)
             plt.close()
+            print(f"Saved branch heatmap plot to {heatmap_plot}")
         
         # Save all results as CSV
         import pandas as pd
@@ -686,7 +821,9 @@ class PlotManager:
             'exc_drop': [baseline_acc - acc for acc in layer_exc_ablated_acc],
             'inh_drop': [baseline_acc - acc for acc in layer_inh_ablated_acc]
         })
-        df_layer.to_csv(os.path.join(save_dir, 'layer_ablation_results.csv'), index=False)
+        layer_csv = os.path.join(save_dir, 'layer_ablation_results.csv')
+        df_layer.to_csv(layer_csv, index=False)
+        print(f"Saved layer results to {layer_csv}")
         
         # Branch-level results
         if branch_indices:
@@ -700,6 +837,22 @@ class PlotManager:
                 'exc_drop': [baseline_acc - acc for acc in branch_exc_ablated_acc],
                 'inh_drop': [baseline_acc - acc for acc in branch_inh_ablated_acc]
             })
-            df_branch.to_csv(os.path.join(save_dir, 'branch_ablation_results.csv'), index=False)
+            branch_csv = os.path.join(save_dir, 'branch_ablation_results.csv')
+            df_branch.to_csv(branch_csv, index=False)
+            print(f"Saved branch results to {branch_csv}")
         
+        # Print summary table
+        print("\nLayer-wise Ablation Analysis Summary:")
+        print("-" * 80)
+        print(f"{'Layer':<8} {'Baseline':<10} {'Both Acc':<10} {'Both Drop':<10} {'Exc Acc':<10} {'Exc Drop':<10} {'Inh Acc':<10} {'Inh Drop':<10}")
+        print("-" * 80)
+        for i, layer_idx in enumerate(layer_indices):
+            both_drop = baseline_acc - layer_both_ablated_acc[i]
+            exc_drop = baseline_acc - layer_exc_ablated_acc[i]
+            inh_drop = baseline_acc - layer_inh_ablated_acc[i]
+            print(f"{layer_idx:<8} {baseline_acc:<10.4f} {layer_both_ablated_acc[i]:<10.4f} {both_drop:<10.4f} {layer_exc_ablated_acc[i]:<10.4f} {exc_drop:<10.4f} {layer_inh_ablated_acc[i]:<10.4f} {inh_drop:<10.4f}")
+        print("-" * 80)
+        
+        print(f"Branch ablation analysis completed. Results saved to {save_dir}")
         logging.info(f"Saved branch ablation plots in {save_dir}")
+        print("="*80 + "\n")
