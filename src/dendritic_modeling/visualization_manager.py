@@ -17,6 +17,7 @@ from dendritic_modeling.utils import (
     Shaper,
     analyze_branch_ablation,
     analyze_branch_information,
+    analyze_layerwise_ablation,
     measure_performance
 )
 from dendritic_modeling.plot_utils import (
@@ -55,6 +56,7 @@ class PlotManager:
             "profiles": self._plot_profiles,
             "branch_info": self._branch_info,
             "ablation": self._ablation,
+            "layerwise_ablation": self._layerwise_ablation,
         }
 
     def run_plot(self, plot_name, epoch=None):
@@ -214,3 +216,28 @@ class PlotManager:
         fig.savefig(os.path.join(save_dir, "ablation_vs_layer_index.png"))
         plt.close(fig)
         logging.info(f"Saved ablation_vs_layer_index.png in {save_dir}")
+        
+    def _layerwise_ablation(self):
+        """
+        Run a comprehensive layerwise ablation analysis that:
+        1. Analyzes each layer's information content via classifier probing
+        2. Compares baseline, inhibitory-ablated, and excitatory-ablated conditions
+        """
+        if not hasattr(self.model, 'net'):
+            logging.info("No 'net' attribute found. Skipping layerwise ablation.")
+            return
+            
+        net = self.model.net
+        if not hasattr(net, 'forward_with_branch_outputs'):
+            logging.info("No forward_with_branch_outputs found. Skipping layerwise ablation.")
+            return
+            
+        logging.info("Running layerwise ablation analysis...")
+        analyze_layerwise_ablation(
+            net, 
+            self.data['train'], 
+            self.data['valid'], 
+            self.data['test'], 
+            self.save_path, 
+            device=self.device
+        )
