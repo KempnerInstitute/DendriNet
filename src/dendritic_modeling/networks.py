@@ -246,7 +246,16 @@ class ExcitationInhibitionLayer(nn.Module):
         if self.inhibitory_cells is not None:
             inhibitory_output = self.inhibitory_cells(x, inhibitory_input)
         else:
+            # When inhibitory_cells is None but we still need to pass something
+            # to the excitatory cells, we pass the original inhibitory_input.
+            # This ensures compatibility with somatic_synapses=False
             inhibitory_output = inhibitory_input
+
+        # Additional safety check: If the inhibitory_output is a scalar or None, 
+        # don't pass it to the excitatory cells which expect a tensor
+        if not isinstance(inhibitory_output, torch.Tensor) or inhibitory_output.dim() == 0:
+            # Set to None so it gets properly handled in excitatory_cells
+            inhibitory_output = None
 
         excitatory_output = self.excitatory_cells(x, inhibitory_output)
         return excitatory_output, inhibitory_output
@@ -258,15 +267,17 @@ class ExcitationInhibitionLayer(nn.Module):
             inhibitory_final = self.inhibitory_cells(x, inhibitory_input)
             inh_acts = []
         else:
-            inhibitory_final = None
+            # When there are no inhibitory cells, pass the original inhibitory_input
+            inhibitory_final = inhibitory_input
             inh_acts = []
+            
+        # Additional safety check: If the inhibitory_final is a scalar or None,
+        # don't pass it to the excitatory cells which expect a tensor
+        if not isinstance(inhibitory_final, torch.Tensor) or inhibitory_final.dim() == 0:
+            # Set to None so it gets properly handled in excitatory_cells
+            inhibitory_final = None
 
-        if hasattr(self.excitatory_cells, 'forward_with_branch_outputs'):
-            excitatory_final, exc_acts = self.excitatory_cells.forward_with_branch_outputs(x, inhibitory_final)
-        else:
-            excitatory_final = self.excitatory_cells(x, inhibitory_final)
-            exc_acts = []
-
+        excitatory_final, exc_acts = self.excitatory_cells.forward_with_branch_outputs(x, inhibitory_final)
         return excitatory_final, inhibitory_final, inh_acts, exc_acts
 
 
