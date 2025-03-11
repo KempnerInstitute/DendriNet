@@ -17,6 +17,19 @@ def scale_layer_gradients_elementwise(module, grad_input, grad_output, scale_vec
         grad * scale_vec if grad is not None else None for grad in grad_input
     )
 
+# def scale_activation_grad_hook(module, grad_input, grad_output):
+#     return grad_output
+
+
+# def scale_layer_gradients_elementwise(module, grad_input, grad_output, scale_vec):
+#     print('\nbackward hook call', flush=True)
+#     print(f'grad_input:\n{grad_input[0].mean(dim = 0)}\n{grad_input[0].std(dim = 0)}')
+#     print(f'grad_output:\n{grad_output[0].mean(dim = 0)}\n{grad_output[0].std(dim = 0)}')
+#     print(f'scale_vec: {scale_vec.shape}\n{scale_vec}')
+#     return tuple(
+#         grad * scale_vec if grad is not None else None for grad in grad_input
+#     )
+
 
 def scale_layer_gradients_scalar(module, grad_input, grad_output, scale_factor):
     """
@@ -59,7 +72,7 @@ class GradientScaler:
             reactivation_layer.register_full_backward_hook(scale_activation_grad_hook)
 
 
-    def register_block_linear_dynamic(self, block_linear_layer, branch_excitation=None, branch_inhibition=None):
+    def register_block_linear_dynamic(self, block_linear_layer, use_shunting, branch_excitation=None, branch_inhibition=None):
         """
         If strategy='block_conductance_dynamic', attach a backward hook that 
         computes conduction-based scaling from the current block plus excit/inhib.
@@ -72,6 +85,7 @@ class GradientScaler:
             if self.blocklinear_strategy == 'block_conductance_dynamic':
                 scale_vec = compute_block_linear_grad_scale(
                     block_linear_layer=block_linear_layer,
+                    use_shunting=use_shunting,
                     branch_excitation=branch_excitation,
                     branch_inhibition=branch_inhibition
                 )
@@ -88,20 +102,24 @@ class GradientScaler:
             block_linear_layer.register_full_backward_hook(hook_fn)
 
 
-def compute_block_linear_grad_scale(block_linear_layer, branch_excitation=None, branch_inhibition=None):
+def compute_block_linear_grad_scale(block_linear_layer, use_shunting, branch_excitation=None, branch_inhibition=None):
     """
     A conduction-based dynamic scale, returning a flattened vector so each weight 
     can get a distinct multiplier. shape [out_features * block_size].
     """
     with torch.no_grad():
-        total_conductance = block_linear_layer.sum_conductances() + 1.0
+        if use_shunting:
+            total_conductance = block_linear_layer.sum_conductances() + 1.0
 
-        if branch_excitation is not None:
-            total_conductance += branch_excitation.pruned_weight().sum(dim=1)
-        if branch_inhibition is not None:
-            total_conductance += branch_inhibition.pruned_weight().sum(dim=1)
+            if branch_excitation is not None:
+                total_conductance += branch_excitation.pruned_weight().sum(dim=1)
+            if branch_inhibition is not None:
+                total_conductance += branch_inhibition.pruned_weight().sum(dim=1)
 
-        block_exp = block_linear_layer.log_weight.exp()
-        ratio_2d = total_conductance[:, None] / block_exp  # shape [out_features, block_size]
-        ratio_1d = ratio_2d.flatten()                      # shape [out_features * block_size]
-    return ratio_1d
+            block_exp = block_linear_layer.log_weight.exp()
+            ratio_2d = total_conductance[:, None] / block_exp  # shape [out_features, block_size]
+            scale_vec = ratio_2d.flatten()                      # shape [out_features * block_size]
+        else:
+            scale_vec = 1 / block_linear_layer.log_weight.exp().flatten()
+
+    return scale_vec
