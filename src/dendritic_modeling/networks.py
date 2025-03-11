@@ -26,6 +26,7 @@ import torch.nn.functional as F
 
 from dendritic_modeling.dendrinet import DendriNet, DendriNetWithOutputs
 from dendritic_modeling import logger
+from dendritic_modeling.utils import SafeHookModule, safe_register_hooks
 
 
 ###############################################################################
