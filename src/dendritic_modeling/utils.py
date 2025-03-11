@@ -18,6 +18,7 @@ from torch.utils.data import DataLoader, TensorDataset
 from torch.optim import Adam
 from omegaconf import DictConfig, ListConfig
 from sklearn.metrics import accuracy_score
+import logging
 
 
 class Shaper(object):
@@ -658,40 +659,33 @@ def analyze_layerwise_ablation(model, train_data, valid_data, test_data, save_pa
     dict
         Dictionary with ablation results
     """
+    logging.info("Starting layer-wise ablation analysis...")
+    
+    # Check for required model attributes
     if not hasattr(model, 'forward_with_branch_outputs'):
-        print("Error: Model does not have forward_with_branch_outputs method")
+        logging.info("Model does not have forward_with_branch_outputs method. Skipping analysis.")
         return {}
     
-    print("Starting layer-wise ablation analysis...")
-    
-    # Create dataloaders
-    train_loader = DataLoader(train_data, batch_size=64, shuffle=True)
-    valid_loader = DataLoader(valid_data, batch_size=64, shuffle=False)
-    test_loader = DataLoader(test_data, batch_size=64, shuffle=False)
+    # Create dataloaders with smaller batch size to avoid memory issues
+    batch_size = 32
+    device = torch.device(device if torch.cuda.is_available() else 'cpu')
+    train_loader = DataLoader(train_data, batch_size=batch_size, shuffle=False)
+    valid_loader = DataLoader(valid_data, batch_size=batch_size, shuffle=False)
+    test_loader = DataLoader(test_data, batch_size=batch_size, shuffle=False)
     
     # Get baseline model performance
     baseline_acc = measure_performance(model, test_data, device=device)
-    print(f"Baseline accuracy on test set: {baseline_acc:.4f}")
+    logging.info(f"Baseline accuracy on test set: {baseline_acc:.4f}")
     
-    # 1. Get activations for all layers
-    print("Getting baseline activations for all layers...")
-    layer_activations = get_layer_activations(model, train_loader, device)
-    valid_activations = get_layer_activations(model, valid_loader, device)
-    test_activations = get_layer_activations(model, test_loader, device)
+    # Save directory for results
+    save_dir = os.path.join(save_path, "layerwise_ablation")
+    os.makedirs(save_dir, exist_ok=True)
     
-    # 2. Get ablated activations
-    print("Getting activations with inhibitory inputs ablated...")
-    inhibitory_ablated = get_ablated_activations(model, train_loader, 'inhibitory', device)
-    inhibitory_valid = get_ablated_activations(model, valid_loader, 'inhibitory', device)
-    inhibitory_test = get_ablated_activations(model, test_loader, 'inhibitory', device)
+    # Get number of layers in the model
+    num_layers = len(model.branch_layers)
+    logging.info(f"Model has {num_layers} branch layers")
     
-    print("Getting activations with excitatory inputs ablated...")
-    excitatory_ablated = get_ablated_activations(model, train_loader, 'excitatory', device)
-    excitatory_valid = get_ablated_activations(model, valid_loader, 'excitatory', device)
-    excitatory_test = get_ablated_activations(model, test_loader, 'excitatory', device)
-    
-    # 3. Train classifiers on each layer's activations
-    num_layers = len(layer_activations)
+    # Initialize results dictionary
     results = {
         'layer_idx': [],
         'baseline_acc': [],
@@ -699,79 +693,56 @@ def analyze_layerwise_ablation(model, train_data, valid_data, test_data, save_pa
         'exc_ablated_acc': []
     }
     
+    # Store original parameters for restoration
+    original_params = {}
+    for n, p in model.named_parameters():
+        original_params[n] = p.detach().clone()
+    
     # Process from top layers (higher indices) to bottom layers (lower indices)
     for layer_idx in reversed(range(num_layers)):
-        print(f"Training classifiers for layer {layer_idx}...")
+        logging.info(f"Analyzing layer {layer_idx}...")
         
-        # Baseline classifier
-        train_acts, train_labels = layer_activations[layer_idx]
-        valid_acts, valid_labels = valid_activations[layer_idx]
-        test_acts, test_labels = test_activations[layer_idx]
+        # 1. Measure baseline accuracy for this layer by ablating all other direct inputs
+        for i in range(num_layers):
+            if i != layer_idx:
+                # Temporarily ablate other layers
+                if hasattr(model.branch_layers[i], 'branch_excitation'):
+                    model.branch_layers[i].branch_excitation.pre_w.data.fill_(-1000.0)  # Very negative value to ensure zero after exp()
+                if hasattr(model.branch_layers[i], 'branch_inhibition'):
+                    model.branch_layers[i].branch_inhibition.pre_w.data.fill_(-1000.0)
         
-        input_dim = train_acts.shape[1]
-        hidden_dims = [256, 128]  # Adjust as needed
-        output_dim = len(torch.unique(train_labels))
+        # Measure accuracy with only this layer active
+        baseline_layer_acc = measure_performance(model, test_data, device=device)
         
-        # Train baseline classifier
-        classifier = MLPClassifier(input_dim, hidden_dims, output_dim)
+        # 2. Now ablate inhibitory inputs for this layer
+        if hasattr(model.branch_layers[layer_idx], 'branch_inhibition'):
+            model.branch_layers[layer_idx].branch_inhibition.pre_w.data.fill_(-1000.0)
+            inh_ablated_acc = measure_performance(model, test_data, device=device)
+        else:
+            inh_ablated_acc = baseline_layer_acc  # No inhibitory inputs to ablate
         
-        train_dataset = TensorDataset(train_acts, train_labels)
-        valid_dataset = TensorDataset(valid_acts, valid_labels)
-        test_dataset = TensorDataset(test_acts, test_labels)
+        # Restore inhibitory inputs
+        for n, p in model.named_parameters():
+            p.data.copy_(original_params[n])
+            
+        # Re-ablate other layers
+        for i in range(num_layers):
+            if i != layer_idx:
+                if hasattr(model.branch_layers[i], 'branch_excitation'):
+                    model.branch_layers[i].branch_excitation.pre_w.data.fill_(-1000.0)
+                if hasattr(model.branch_layers[i], 'branch_inhibition'):
+                    model.branch_layers[i].branch_inhibition.pre_w.data.fill_(-1000.0)
         
-        train_loader = DataLoader(train_dataset, batch_size=64, shuffle=True)
-        valid_loader = DataLoader(valid_dataset, batch_size=64, shuffle=False)
-        test_loader = DataLoader(test_dataset, batch_size=64, shuffle=False)
+        # 3. Ablate excitatory inputs for this layer
+        if hasattr(model.branch_layers[layer_idx], 'branch_excitation'):
+            model.branch_layers[layer_idx].branch_excitation.pre_w.data.fill_(-1000.0)
+            exc_ablated_acc = measure_performance(model, test_data, device=device)
+        else:
+            exc_ablated_acc = baseline_layer_acc  # No excitatory inputs to ablate
         
-        # Train and evaluate baseline
-        train_classifier(classifier, train_loader, valid_loader, epochs=30, device=device)
-        baseline_layer_acc = evaluate_classifier(classifier, test_loader, device)
-        
-        # Train with inhibitory inputs ablated
-        inh_train_acts = inhibitory_ablated[layer_idx][layer_idx][0]
-        inh_train_labels = inhibitory_ablated[layer_idx][layer_idx][1]
-        
-        inh_valid_acts = inhibitory_valid[layer_idx][layer_idx][0]
-        inh_valid_labels = inhibitory_valid[layer_idx][layer_idx][1]
-        
-        inh_test_acts = inhibitory_test[layer_idx][layer_idx][0]
-        inh_test_labels = inhibitory_test[layer_idx][layer_idx][1]
-        
-        inh_classifier = MLPClassifier(input_dim, hidden_dims, output_dim)
-        
-        inh_train_dataset = TensorDataset(inh_train_acts, inh_train_labels)
-        inh_valid_dataset = TensorDataset(inh_valid_acts, inh_valid_labels)
-        inh_test_dataset = TensorDataset(inh_test_acts, inh_test_labels)
-        
-        inh_train_loader = DataLoader(inh_train_dataset, batch_size=64, shuffle=True)
-        inh_valid_loader = DataLoader(inh_valid_dataset, batch_size=64, shuffle=False)
-        inh_test_loader = DataLoader(inh_test_dataset, batch_size=64, shuffle=False)
-        
-        train_classifier(inh_classifier, inh_train_loader, inh_valid_loader, epochs=30, device=device)
-        inh_ablated_acc = evaluate_classifier(inh_classifier, inh_test_loader, device)
-        
-        # Train with excitatory inputs ablated
-        exc_train_acts = excitatory_ablated[layer_idx][layer_idx][0]
-        exc_train_labels = excitatory_ablated[layer_idx][layer_idx][1]
-        
-        exc_valid_acts = excitatory_valid[layer_idx][layer_idx][0]
-        exc_valid_labels = excitatory_valid[layer_idx][layer_idx][1]
-        
-        exc_test_acts = excitatory_test[layer_idx][layer_idx][0]
-        exc_test_labels = excitatory_test[layer_idx][layer_idx][1]
-        
-        exc_classifier = MLPClassifier(input_dim, hidden_dims, output_dim)
-        
-        exc_train_dataset = TensorDataset(exc_train_acts, exc_train_labels)
-        exc_valid_dataset = TensorDataset(exc_valid_acts, exc_valid_labels)
-        exc_test_dataset = TensorDataset(exc_test_acts, exc_test_labels)
-        
-        exc_train_loader = DataLoader(exc_train_dataset, batch_size=64, shuffle=True)
-        exc_valid_loader = DataLoader(exc_valid_dataset, batch_size=64, shuffle=False)
-        exc_test_loader = DataLoader(exc_test_dataset, batch_size=64, shuffle=False)
-        
-        train_classifier(exc_classifier, exc_train_loader, exc_valid_loader, epochs=30, device=device)
-        exc_ablated_acc = evaluate_classifier(exc_classifier, exc_test_loader, device)
+        # Restore all parameters
+        for n, p in model.named_parameters():
+            p.data.copy_(original_params[n])
         
         # Store results
         results['layer_idx'].append(layer_idx)
@@ -779,60 +750,52 @@ def analyze_layerwise_ablation(model, train_data, valid_data, test_data, save_pa
         results['inh_ablated_acc'].append(inh_ablated_acc)
         results['exc_ablated_acc'].append(exc_ablated_acc)
         
-        print(f"Layer {layer_idx}: baseline={baseline_layer_acc:.4f}, "
-              f"inh_ablated={inh_ablated_acc:.4f}, exc_ablated={exc_ablated_acc:.4f}")
-    
-    # Save results as a plot
-    save_dir = os.path.join(save_path, "layerwise_ablation")
-    os.makedirs(save_dir, exist_ok=True)
+        logging.info(f"Layer {layer_idx}: baseline={baseline_layer_acc:.4f}, "
+                    f"inh_ablated={inh_ablated_acc:.4f}, exc_ablated={exc_ablated_acc:.4f}")
     
     # Plot the results
-    plt.figure(figsize=(10, 6))
-    plt.plot(results['layer_idx'], results['baseline_acc'], 'o-', label='Baseline')
-    plt.plot(results['layer_idx'], results['inh_ablated_acc'], 's-', label='Inhibitory Ablated')
-    plt.plot(results['layer_idx'], results['exc_ablated_acc'], '^-', label='Excitatory Ablated')
+    try:
+        plt.figure(figsize=(10, 6))
+        plt.plot(results['layer_idx'], results['baseline_acc'], 'o-', label='Baseline')
+        plt.plot(results['layer_idx'], results['inh_ablated_acc'], 's-', label='Inhibitory Ablated')
+        plt.plot(results['layer_idx'], results['exc_ablated_acc'], '^-', label='Excitatory Ablated')
+        
+        plt.xlabel('Layer Index (higher = closer to input)')
+        plt.ylabel('Classification Accuracy')
+        plt.title('Layer-wise Ablation Analysis')
+        plt.legend()
+        plt.grid(True, alpha=0.3)
+        
+        plt.tight_layout()
+        plt.savefig(os.path.join(save_dir, 'layerwise_ablation.png'), dpi=300)
+        plt.close()
+        
+        # Save detailed plot showing accuracy differences
+        plt.figure(figsize=(10, 6))
+        
+        # Calculate differences
+        inh_diff = [b - i for b, i in zip(results['baseline_acc'], results['inh_ablated_acc'])]
+        exc_diff = [b - e for b, e in zip(results['baseline_acc'], results['exc_ablated_acc'])]
+        
+        plt.bar(np.array(results['layer_idx']) - 0.2, inh_diff, width=0.4, label='Inhibitory Contribution', color='orange')
+        plt.bar(np.array(results['layer_idx']) + 0.2, exc_diff, width=0.4, label='Excitatory Contribution', color='blue')
+        
+        plt.xlabel('Layer Index (higher = closer to input)')
+        plt.ylabel('Accuracy Drop when Ablated')
+        plt.title('Contribution of Inhibitory and Excitatory Inputs per Layer')
+        plt.legend()
+        plt.grid(True, axis='y', alpha=0.3)
+        
+        plt.tight_layout()
+        plt.savefig(os.path.join(save_dir, 'layerwise_contributions.png'), dpi=300)
+        plt.close()
+        
+        # Save as CSV
+        df = pd.DataFrame(results)
+        df.to_csv(os.path.join(save_dir, 'layerwise_results.csv'), index=False)
+    except Exception as e:
+        logging.error(f"Error creating plots: {e}")
     
-    plt.xlabel('Layer Index (higher = closer to input)')
-    plt.ylabel('Classification Accuracy')
-    plt.title('Layer-wise Ablation Analysis')
-    plt.legend()
-    plt.grid(True, alpha=0.3)
-    
-    # Add y-axis on the right side showing distance from soma
-    ax1 = plt.gca()
-    ax2 = ax1.twinx()
-    ax2.set_ylabel('Distance from Soma')
-    ax2.set_yticks(range(len(results['layer_idx'])))
-    ax2.set_yticklabels([f'L{i}' for i in reversed(results['layer_idx'])])
-    
-    plt.tight_layout()
-    plt.savefig(os.path.join(save_dir, 'layerwise_ablation.png'), dpi=300)
-    plt.close()
-    
-    # Save detailed plot showing accuracy differences
-    plt.figure(figsize=(10, 6))
-    
-    # Calculate differences
-    inh_diff = [b - i for b, i in zip(results['baseline_acc'], results['inh_ablated_acc'])]
-    exc_diff = [b - e for b, e in zip(results['baseline_acc'], results['exc_ablated_acc'])]
-    
-    plt.bar(np.array(results['layer_idx']) - 0.2, inh_diff, width=0.4, label='Inhibitory Contribution', color='orange')
-    plt.bar(np.array(results['layer_idx']) + 0.2, exc_diff, width=0.4, label='Excitatory Contribution', color='blue')
-    
-    plt.xlabel('Layer Index (higher = closer to input)')
-    plt.ylabel('Accuracy Drop when Ablated')
-    plt.title('Contribution of Inhibitory and Excitatory Inputs per Layer')
-    plt.legend()
-    plt.grid(True, axis='y', alpha=0.3)
-    
-    plt.tight_layout()
-    plt.savefig(os.path.join(save_dir, 'layerwise_contributions.png'), dpi=300)
-    plt.close()
-    
-    # Save as CSV
-    df = pd.DataFrame(results)
-    df.to_csv(os.path.join(save_dir, 'layerwise_results.csv'), index=False)
-    
-    print(f"Ablation analysis results saved to {save_dir}")
+    logging.info(f"Ablation analysis results saved to {save_dir}")
     
     return results
