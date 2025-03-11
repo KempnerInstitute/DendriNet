@@ -302,7 +302,6 @@ class ExcitationInhibitionNetwork(nn.Module):
         input_net_dict=None,             # Renamed from mlp_transform_dict
     ):
         """
-        Changes:
         --------
         1) If input_mode=0: The first-layer inhibitory net sees input=x (the raw input),
            just as in the "original" approach. 
