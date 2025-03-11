@@ -49,7 +49,9 @@ from dendritic_modeling.utils import (
     save_dict, 
     evaluate_accuracy, 
     record_branch_activations,
-    compute_MI
+    compute_MI,
+    SafeHookModule,
+    safe_register_hooks
 )
 
 
@@ -71,9 +73,14 @@ def initialize_model(model_cfg):
             net = MLPExcInhNetwork(**net_params)
             output_dim = net_params.get('output_dim', 10)
             if probabilistic:
-                return ProbabilisticClassifier(net, output_dim)
+                model = ProbabilisticClassifier(net, output_dim)
             else:
-                return Classifier(net)
+                model = Classifier(net)
+                
+            # Apply safe hooks
+            safe_register_hooks(model)
+            return model
+                
         elif net_type == 'EINet':
             logger.info(f"Running EINet with {'probabilistic' if probabilistic else 'simple'} classifier")
             net = ExcitationInhibitionNetwork(
@@ -81,12 +88,19 @@ def initialize_model(model_cfg):
                 learning_strategy=learning_strategy,
                 **net_params,
             )
+            
+            # Apply safe hooks to the network
+            safe_register_hooks(net)
 
             output_dim = net_params.get('output_dim', 10)  # Use output_dim directly instead of excitatory_layer_sizes[-1]
             if probabilistic:
-                return ProbabilisticClassifier(net, output_dim)
+                model = ProbabilisticClassifier(net, output_dim)
             else:
-                return Classifier(net)
+                model = Classifier(net)
+                
+            # Apply safe hooks to the full model
+            safe_register_hooks(model)
+            return model
         else:
             raise ValueError(f"Invalid network type: {net_type}")
     else:
