@@ -428,7 +428,10 @@ class DendriticBranchLayer(nn.Module):
                 numerator += excitation
                 denominator += excitation
             if self.input_inhibitory and inhibitory_input is not None:
-                denominator += self.branch_inhibition(inhibitory_input)
+                if isinstance(inhibitory_input, torch.Tensor) and inhibitory_input.dim() > 0:
+                    denominator += self.branch_inhibition(inhibitory_input)
+                else:
+                    pass
             if self.input_branches:
                 numerator += self.branches_to_output(branch_input)
                 denominator += self.branches_to_output.sum_conductances()
@@ -440,7 +443,10 @@ class DendriticBranchLayer(nn.Module):
             if self.input_excitatory:
                 voltage += self.branch_excitation(x)
             if self.input_inhibitory and inhibitory_input is not None:
-                voltage -= self.branch_inhibition(inhibitory_input)
+                if isinstance(inhibitory_input, torch.Tensor) and inhibitory_input.dim() > 0:
+                    voltage -= self.branch_inhibition(inhibitory_input)
+                else:
+                    pass
             if self.input_branches:
                 voltage += self.branches_to_output(branch_input)
 
