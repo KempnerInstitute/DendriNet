@@ -61,6 +61,7 @@ class PlotManager:
             "branch_info": self._branch_info,
             "ablation": self._branch_ablation,
             "layerwise_ablation": self._branch_ablation,
+            "branch_ablation": self._branch_ablation,
         }
 
     def run_plot(self, plot_name, epoch=None):
