@@ -39,10 +39,18 @@ from dendritic_modeling.learning_strategies import get_trainer, CustomWeightDeca
 from dendritic_modeling.models import (ProbabilisticClassifier, Classifier)
 from dendritic_modeling.networks import (ExcitationInhibitionNetwork, MLPExcInhNetwork, InputNetTransform)
 from dendritic_modeling.config import load_config
-from dendritic_modeling.visualization_manager import PlotManager
+from dendritic_modeling.visualization_manager import PlotManager as CorePlotManager
 from dendritic_modeling.plot_utils import plot_NLL_loss_curves
 from dendritic_modeling.synthetic_datasets import get_unified_datasets
-from dendritic_modeling.utils import evaluate_accuracy, save_dict
+from dendritic_modeling.utils import (
+    Shaper, 
+    analyze_branch_ablation,
+    analyze_layerwise_ablation,
+    save_dict, 
+    evaluate_accuracy, 
+    record_branch_activations,
+    compute_MI
+)
 
 
 def initialize_model(model_cfg):
@@ -729,6 +737,48 @@ def train_mlp_with_classification_head(feature_extractor, num_features, num_clas
     
     # Return the feature extractor part (without the classification head)
     return model.feature_extractor, (train_acc, best_valid_acc, test_acc)
+
+# New wrapper class to adapt our PlotManager to the expected interface
+class PlotManager:
+    """
+    A wrapper around the core PlotManager class that adapts to the interface
+    expected by train_experiments.py
+    """
+    def __init__(self, model, train_data, valid_data, test_data, save_path, plots):
+        self.model = model
+        # Create data dictionary as expected by CorePlotManager
+        self.data = {
+            'train': train_data,
+            'valid': valid_data,
+            'test': test_data
+        }
+        self.save_path = save_path
+        self.plots = plots
+        
+        # Create the core PlotManager
+        self.core_manager = CorePlotManager(
+            model=model,
+            data=self.data,
+            shape=None,  # We'll determine shape from data if needed
+            config=self._create_config_obj(),
+            save_path=save_path,
+            file_name="analysis",
+            device='cuda' if torch.cuda.is_available() else 'cpu'
+        )
+    
+    def _create_config_obj(self):
+        """Create a config object with the visualization section"""
+        from omegaconf import OmegaConf
+        cfg = OmegaConf.create()
+        cfg.visualization = OmegaConf.create()
+        cfg.visualization.enabled = True
+        cfg.visualization.plots = self.plots
+        return cfg
+    
+    def create_visualizations(self):
+        """Run all the requested plots"""
+        for plot_name in self.plots:
+            self.core_manager.run_plot(plot_name)
 
 def main(config_path: str):
     # Load configuration
