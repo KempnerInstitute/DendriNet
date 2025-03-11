@@ -251,11 +251,20 @@ class ExcitationInhibitionLayer(nn.Module):
             # This ensures compatibility with somatic_synapses=False
             inhibitory_output = inhibitory_input
 
-        # Additional safety check: If the inhibitory_output is a scalar or None, 
-        # don't pass it to the excitatory cells which expect a tensor
-        if not isinstance(inhibitory_output, torch.Tensor) or inhibitory_output.dim() == 0:
+        # Additional safety checks for inhibitory_output
+        if not isinstance(inhibitory_output, torch.Tensor):
             # Set to None so it gets properly handled in excitatory_cells
             inhibitory_output = None
+        elif inhibitory_output.dim() == 0:
+            # If it's a scalar tensor, set to None
+            inhibitory_output = None
+        elif inhibitory_output.dim() == 1:
+            # If it's a 1D tensor, make it 2D [1, features]
+            inhibitory_output = inhibitory_output.unsqueeze(0)
+            
+        # Ensure x is a properly formed 2D tensor
+        if x.dim() == 1:
+            x = x.unsqueeze(0)
 
         excitatory_output = self.excitatory_cells(x, inhibitory_output)
         return excitatory_output, inhibitory_output
@@ -270,12 +279,21 @@ class ExcitationInhibitionLayer(nn.Module):
             # When there are no inhibitory cells, pass the original inhibitory_input
             inhibitory_final = inhibitory_input
             inh_acts = []
-            
-        # Additional safety check: If the inhibitory_final is a scalar or None,
-        # don't pass it to the excitatory cells which expect a tensor
-        if not isinstance(inhibitory_final, torch.Tensor) or inhibitory_final.dim() == 0:
+        
+        # Additional safety checks for inhibitory_final
+        if not isinstance(inhibitory_final, torch.Tensor):
             # Set to None so it gets properly handled in excitatory_cells
             inhibitory_final = None
+        elif inhibitory_final.dim() == 0:
+            # If it's a scalar tensor, set to None
+            inhibitory_final = None
+        elif inhibitory_final.dim() == 1:
+            # If it's a 1D tensor, make it 2D [1, features]
+            inhibitory_final = inhibitory_final.unsqueeze(0)
+            
+        # Ensure x is a properly formed 2D tensor
+        if x.dim() == 1:
+            x = x.unsqueeze(0)
 
         excitatory_final, exc_acts = self.excitatory_cells.forward_with_branch_outputs(x, inhibitory_final)
         return excitatory_final, inhibitory_final, inh_acts, exc_acts
