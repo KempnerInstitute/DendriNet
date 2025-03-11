@@ -1260,81 +1260,281 @@ def main(config_path: str):
         # Create trainer
         trainer = get_trainer(learning_strategy, optimizer, suppress_prints=False, print_every=10)
         
-        # Train model
-        if learning_strategy in ["two_step", "two_step_kl"]:
-            results = trainer.train(
-                model=model,
-                train_data=train_ds,
-                valid_data=valid_ds,
-                pretrain_epochs=train_cfg.pretrain_epochs,
-                maintrain_epochs=train_cfg.epochs - train_cfg.pretrain_epochs,
-                batch_size=train_cfg.batch_size,
-                grad_clip_value=train_cfg.grad_clip_value,
-                shuffle=True,
-                load_best_state_dict=True,
-                plot_losses=True,
-                save_path=run_save_path
+        # Determine visualization epochs
+        has_visualize_epochs = hasattr(visualization_cfg, 'visualize_epochs') and visualization_cfg.visualize_epochs
+        visualize_at_specific_epochs = has_visualize_epochs and len(visualization_cfg.visualize_epochs) > 0
+        
+        # Get device for training
+        device = 'cuda' if torch.cuda.is_available() else 'cpu'
+        
+        # Define shape for visualization if needed
+        shape = None
+        if task_cfg.dataset in ["mnist", "mnist_switch2", "mnist_switch10"]:
+            shape = (28, 28)
+        elif task_cfg.dataset == "cifar10":
+            shape = (32, 32, 3)
+        elif task_cfg.dataset == "mnist_modulo10":
+            shape = (28, 28, 2)
+        
+        # Multi-epoch training with visualizations at specific epochs
+        if visualize_at_specific_epochs:
+            total_epochs = train_cfg.epochs
+            visualize_epochs = sorted(visualization_cfg.visualize_epochs)
+            current_epoch = 0
+            
+            # Initial visualization before training starts
+            if visualization_cfg.enabled:
+                logger.info(f"Creating initial visualizations before training...")
+                
+                # Create data dictionary for plot manager
+                data_dict = {"train": train_ds, "valid": valid_ds, "test": test_ds}
+                
+                # Initialize core plot manager
+                plot_manager = CorePlotManager(
+                    model=model,
+                    data=data_dict,
+                    shape=shape,
+                    config=config,
+                    save_path=os.path.join(run_save_path, 'visualizations'),
+                    file_name="epoch0_init",
+                    device=device
+                )
+                
+                # Run all requested plots
+                for plot_name in visualization_cfg.plots:
+                    logger.info(f"  Generating {plot_name} plot...")
+                    plot_manager.run_plot(plot_name)
+            
+            # Initialize training tracking variables
+            valid_losses = []
+            train_losses = []
+            best_loss = float('inf')
+            best_state_dict = deepcopy(model.state_dict())
+            
+            # Train model one epoch at a time
+            while current_epoch < total_epochs:
+                # Train for one epoch
+                if learning_strategy in ["two_step", "two_step_kl"]:
+                    if current_epoch < train_cfg.pretrain_epochs:
+                        logger.info(f"Pretrain epoch {current_epoch+1}/{train_cfg.pretrain_epochs}")
+                    else:
+                        logger.info(f"Main train epoch {current_epoch+1-train_cfg.pretrain_epochs}/{total_epochs-train_cfg.pretrain_epochs}")
+                    
+                    results = trainer.train(
+                        model=model,
+                        train_data=train_ds,
+                        valid_data=valid_ds,
+                        pretrain_epochs=1 if current_epoch < train_cfg.pretrain_epochs else 0,
+                        maintrain_epochs=0 if current_epoch < train_cfg.pretrain_epochs else 1,
+                        batch_size=train_cfg.batch_size,
+                        grad_clip_value=train_cfg.grad_clip_value,
+                        shuffle=True,
+                        load_best_state_dict=False,
+                        plot_losses=False,
+                        save_path=run_save_path
+                    )
+                elif learning_strategy == "freeze_layers":
+                    # For freeze_layers, we'll use a slightly different approach
+                    # This is a simplified version, assuming one epoch per layer at a time
+                    layer_idx = current_epoch % model.net.num_layers if hasattr(model.net, 'num_layers') else 0
+                    logger.info(f"Training layer {layer_idx} for epoch {current_epoch+1}/{total_epochs}")
+                    
+                    # Freeze all layers except the current one
+                    if hasattr(model.net, 'freeze_all_layers_except'):
+                        model.net.freeze_all_layers_except(layer_idx)
+                    
+                    results = trainer.train(
+                        model=model,
+                        train_data=train_ds,
+                        valid_data=valid_ds,
+                        epochs=1,
+                        batch_size=train_cfg.batch_size,
+                        grad_clip_value=train_cfg.grad_clip_value,
+                        shuffle=True,
+                        load_best_state_dict=False,
+                        plot_losses=False,
+                        save_path=run_save_path
+                    )
+                    
+                    # Unfreeze all layers after training
+                    if hasattr(model.net, 'unfreeze_all_layers'):
+                        model.net.unfreeze_all_layers()
+                else:
+                    results = trainer.train(
+                        model=model,
+                        train_data=train_ds,
+                        valid_data=valid_ds,
+                        epochs=1,
+                        batch_size=train_cfg.batch_size,
+                        grad_clip_value=train_cfg.grad_clip_value,
+                        shuffle=True,
+                        load_best_state_dict=False,
+                        plot_losses=False,
+                        save_path=run_save_path
+                    )
+                
+                # Track losses and best model
+                if "train_losses" in results:
+                    train_losses.extend(results["train_losses"])
+                elif "train losses" in results:
+                    train_losses.extend(results["train losses"])
+                    
+                if "valid_losses" in results:
+                    valid_losses.extend(results["valid_losses"])
+                elif "valid losses" in results:
+                    valid_losses.extend(results["valid losses"])
+                    
+                current_loss = valid_losses[-1] if valid_losses else float('inf')
+                
+                if "best_loss" in results and results["best_loss"] < best_loss:
+                    best_loss = results["best_loss"]
+                    if "best_state_dict" in results:
+                        best_state_dict = results["best_state_dict"]
+                    elif "best state dict" in results:
+                        best_state_dict = results["best state dict"]
+                
+                # Update epoch counter
+                current_epoch += 1
+                
+                # Check if this epoch is in the visualization list
+                if current_epoch in visualize_epochs:
+                    logger.info(f"Epoch {current_epoch}/{total_epochs} complete: train_loss={train_losses[-1]:.4f}, valid_loss={valid_losses[-1]:.4f}")
+                    
+                    # Evaluate model accuracy at this epoch
+                    train_acc, valid_acc, test_acc = evaluate_accuracy(
+                        model, train_ds, valid_ds, test_ds, 
+                        save_path=os.path.join(run_save_path, 'performance'), 
+                        filename=f"epoch{current_epoch}",
+                    )
+                    logger.info(f"  Accuracy: train={train_acc:.4f}, valid={valid_acc:.4f}, test={test_acc:.4f}")
+                    
+                    if wandb.run is not None:
+                        wandb.log({
+                            f"epoch_{current_epoch}_train_acc": train_acc,
+                            f"epoch_{current_epoch}_valid_acc": valid_acc,
+                            f"epoch_{current_epoch}_test_acc": test_acc
+                        })
+                    
+                    # Create visualizations at this epoch
+                    if visualization_cfg.enabled:
+                        logger.info(f"Creating visualizations for epoch {current_epoch}...")
+                        
+                        # Create data dictionary for plot manager
+                        data_dict = {"train": train_ds, "valid": valid_ds, "test": test_ds}
+                        
+                        # Initialize core plot manager
+                        plot_manager = CorePlotManager(
+                            model=model,
+                            data=data_dict,
+                            shape=shape,
+                            config=config,
+                            save_path=os.path.join(run_save_path, 'visualizations'),
+                            file_name=f"epoch{current_epoch}",
+                            device=device
+                        )
+                        
+                        # Run all requested plots
+                        for plot_name in visualization_cfg.plots:
+                            logger.info(f"  Generating {plot_name} plot...")
+                            plot_manager.run_plot(plot_name)
+            
+            # Load best model at the end of training
+            model.load_state_dict(best_state_dict)
+            
+            # Plot the final loss curves
+            plot_NLL_loss_curves(train_losses, valid_losses, total_epochs, run_save_path)
+            
+            # Final evaluation
+            logger.info("Evaluating final model performance...")
+            train_acc, valid_acc, test_acc = evaluate_accuracy(
+                model, train_ds, valid_ds, test_ds, 
+                save_path=os.path.join(run_save_path, 'performance'), 
+                filename="final",
             )
-        elif learning_strategy == "freeze_layers":
-            results = trainer.train(
-                model=model,
-                train_data=train_ds,
-                valid_data=valid_ds,
-                epochs=train_cfg.epochs_per_layer,
-                batch_size=train_cfg.batch_size,
-                grad_clip_value=train_cfg.grad_clip_value,
-                shuffle=True,
-                load_best_state_dict=True,
-                plot_losses=True,
-                save_path=run_save_path
-            )
+            logger.info(f"Final accuracy: train={train_acc:.4f}, valid={valid_acc:.4f}, test={test_acc:.4f}")
+            
+            if wandb.run is not None:
+                wandb.log({
+                    "final_train_acc": train_acc,
+                    "final_valid_acc": valid_acc,
+                    "final_test_acc": test_acc
+                })
         else:
-            results = trainer.train(
-                model=model,
-                train_data=train_ds,
-                valid_data=valid_ds,
-                epochs=train_cfg.epochs,
-                batch_size=train_cfg.batch_size,
-                grad_clip_value=train_cfg.grad_clip_value,
-                shuffle=True,
-                load_best_state_dict=True,
-                plot_losses=True,
-                save_path=run_save_path
+            # Use the original training approach
+            if learning_strategy in ["two_step", "two_step_kl"]:
+                results = trainer.train(
+                    model=model,
+                    train_data=train_ds,
+                    valid_data=valid_ds,
+                    pretrain_epochs=train_cfg.pretrain_epochs,
+                    maintrain_epochs=train_cfg.epochs - train_cfg.pretrain_epochs,
+                    batch_size=train_cfg.batch_size,
+                    grad_clip_value=train_cfg.grad_clip_value,
+                    shuffle=True,
+                    load_best_state_dict=True,
+                    plot_losses=True,
+                    save_path=run_save_path
+                )
+            elif learning_strategy == "freeze_layers":
+                results = trainer.train(
+                    model=model,
+                    train_data=train_ds,
+                    valid_data=valid_ds,
+                    epochs=train_cfg.epochs_per_layer,
+                    batch_size=train_cfg.batch_size,
+                    grad_clip_value=train_cfg.grad_clip_value,
+                    shuffle=True,
+                    load_best_state_dict=True,
+                    plot_losses=True,
+                    save_path=run_save_path
+                )
+            else:
+                results = trainer.train(
+                    model=model,
+                    train_data=train_ds,
+                    valid_data=valid_ds,
+                    epochs=train_cfg.epochs,
+                    batch_size=train_cfg.batch_size,
+                    grad_clip_value=train_cfg.grad_clip_value,
+                    shuffle=True,
+                    load_best_state_dict=True,
+                    plot_losses=True,
+                    save_path=run_save_path
+                )
+
+            # Save model
+            save_model(model, run_save_path, "model.pt")
+            
+            # Evaluate model
+            train_acc, valid_acc, test_acc = evaluate_accuracy(
+                model, train_ds, valid_ds, test_ds, 
+                save_path=os.path.join(run_save_path, 'performance'), 
+                filename="final",
             )
-        
-        # Save model
-        save_model(model, run_save_path, "model.pt")
-        
-        # Evaluate model
-        train_acc, valid_acc, test_acc = evaluate_accuracy(
-            model, train_ds, valid_ds, test_ds, 
-            save_path=os.path.join(run_save_path, 'performance'), 
-            filename="final",
-        )
-        logger.info(f"Model train acc={train_acc:.3f}, valid acc={valid_acc:.3f}, test acc={test_acc:.3f}")
-        
-        if wandb_cfg.use_wandb:
-            wandb.log({
-                "train_acc": train_acc,
-                "valid_acc": valid_acc,
-                "test_acc": test_acc
-            })
+            logger.info(f"Model train acc={train_acc:.3f}, valid acc={valid_acc:.3f}, test acc={test_acc:.3f}")
+            
+            if wandb_cfg.use_wandb:
+                wandb.log({
+                    "train_acc": train_acc,
+                    "valid_acc": valid_acc,
+                    "test_acc": test_acc
+                })
+            
+            # Visualize final model
+            if visualization_cfg.enabled:
+                logger.info("Creating visualizations...")
+                plot_manager = PlotManager(
+                    model=model,
+                    train_data=train_ds,
+                    valid_data=valid_ds,
+                    test_data=test_ds,
+                    save_path=os.path.join(run_save_path, 'visualizations'),
+                    plots=visualization_cfg.plots
+                )
+                plot_manager.create_visualizations()
     
     # Save configuration
     save_dict(asdict(config), run_save_path, "config.json")
-    
-    # Visualize model if enabled
-    if visualization_cfg.enabled:
-        logger.info("Creating visualizations...")
-        plot_manager = PlotManager(
-            model=model,
-            train_data=train_ds,
-            valid_data=valid_ds,
-            test_data=test_ds,
-            save_path=os.path.join(run_save_path, 'visualizations'),
-            plots=visualization_cfg.plots
-        )
-        plot_manager.create_visualizations()
     
     # Close W&B
     if wandb_cfg.use_wandb:
