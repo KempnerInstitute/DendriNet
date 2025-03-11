@@ -1284,26 +1284,31 @@ def main(config_path: str):
             
             # Initial visualization before training starts
             if visualization_cfg.enabled:
-                logger.info(f"Creating initial visualizations before training...")
-                
-                # Create data dictionary for plot manager
-                data_dict = {"train": train_ds, "valid": valid_ds, "test": test_ds}
-                
-                # Initialize core plot manager
-                plot_manager = CorePlotManager(
-                    model=model,
-                    data=data_dict,
-                    shape=shape,
-                    config=config,
-                    save_path=os.path.join(run_save_path, 'visualizations'),
-                    file_name="epoch0_init",
-                    device=device
-                )
-                
-                # Run all requested plots
-                for plot_name in visualization_cfg.plots:
-                    logger.info(f"  Generating {plot_name} plot...")
-                    plot_manager.run_plot(plot_name)
+                # Check if input_mode is 0 and skip visualizations before training if so
+                input_mode = model_cfg.network.parameters.get('input_mode', 0)
+                if input_mode == 0:
+                    logger.info(f"Skipping initial visualizations for input_mode=0 to avoid device mismatch errors")
+                else:
+                    logger.info(f"Creating initial visualizations before training...")
+                    
+                    # Create data dictionary for plot manager
+                    data_dict = {"train": train_ds, "valid": valid_ds, "test": test_ds}
+                    
+                    # Initialize core plot manager
+                    plot_manager = CorePlotManager(
+                        model=model,
+                        data=data_dict,
+                        shape=shape,
+                        config=config,
+                        save_path=os.path.join(run_save_path, 'visualizations'),
+                        file_name="epoch0_init",
+                        device=device
+                    )
+                    
+                    # Run all requested plots
+                    for plot_name in visualization_cfg.plots:
+                        logger.info(f"  Generating {plot_name} plot...")
+                        plot_manager.run_plot(plot_name)
             
             # Initialize training tracking variables
             valid_losses = []
