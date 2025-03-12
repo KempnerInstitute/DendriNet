@@ -40,7 +40,6 @@ class LineDataset(Dataset):
     def __getitem__(self, idx):
         return self.data[idx], self.labels[idx]
 
-
 class CenterSurroundDataset(Dataset):
     def __init__(self, n_samples=10000, image_size=15):
         super().__init__()
@@ -322,8 +321,9 @@ class CompositionalMNIST(Dataset):
 
 def load_MNIST(train_valid_split = 1, cache_dir=None):
     if cache_dir is None:
-        root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-        data_path = os.path.join(root, 'data', 'mnist')
+        # Use the current working directory instead of navigating up from __file__
+        data_path = os.path.join(os.getcwd(), 'data')
+        os.makedirs(data_path, exist_ok=True)
     else:
         data_path = os.path.join(cache_dir, 'data', 'mnist')
 
@@ -565,9 +565,9 @@ def get_unified_datasets(task_cfg, train_cfg):
     if data_path == "":
         data_path = None
     
-    # If data_path is None, use the default data directory in project root
+    # If data_path is None, use the current working directory instead of navigating up from __file__
     if data_path is None:
-        data_path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), 'data')
+        data_path = os.path.join(os.getcwd(), 'data')
         os.makedirs(data_path, exist_ok=True)
 
     train_valid_split = getattr(train_cfg, "train_valid_split", 1.0)
