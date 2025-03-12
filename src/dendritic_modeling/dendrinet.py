@@ -664,10 +664,3 @@ class DendriNetWithOutputs(DendriNet):
             output = self.branch_layers[i](x, inhibitory_input, output)
         final_soma = self.branch_layers[-1](x, inhibitory_input, output)
         return final_soma
-    
-    
-    
-
-
-
-
