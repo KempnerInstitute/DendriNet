@@ -97,6 +97,8 @@ class VisualizationConfig(BaseConfig):
     enabled: bool = False
     visualize_epochs: List[int] = field(default_factory=lambda: [])
     plots: List[str] = field(default_factory=lambda: ["branch_info", "ablation"])
+    branch_ablation: bool = True
+    layer_ablation: bool = True
 
 @dataclass
 class WandbConfig(BaseConfig):
