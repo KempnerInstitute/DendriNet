@@ -113,8 +113,8 @@ class Classifier(BaseModel):
             logits = self.final_fc(logits)
         
         # Apply output scaling
-        logits = logits * self.output_scale
-        return logits
+        scaled_logits = logits * self.output_scale
+        return scaled_logits
 
     def predict(self, x, stochastic=False):
         with torch.no_grad():
