@@ -19,14 +19,6 @@ cifar-10-*
 wandb/*
 
 notebooks/*
-# notebooks/InfoMax_LearningRule.ipynb
-# notebooks/information_experiment.ipynb
-# notebooks/information_simulation.ipynb
-# notebooks/redundancy_learning.ipynb
-# notebooks/scaling_experiment.ipynb
-# notebooks/scaling_older.ipynb
-# notebooks/synthetic_exp.ipynb
-
 
 #ndb/ Byte-compiled / optimized / DLL files
 __pycache__/
