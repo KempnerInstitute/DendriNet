@@ -19,6 +19,7 @@ cifar-10-*
 wandb/*
 
 notebooks/*
+src/dendritic_modeling_v2
 
 #ndb/ Byte-compiled / optimized / DLL files
 __pycache__/
