@@ -125,8 +125,16 @@ class GradientScaler:
         Register a backward hook to invert the reactivation function gradient.
         """
         if self.reactivation_strategy != 'none':
-            # We now use the decorator-wrapped version of the hook
-            reactivation_layer.register_full_backward_hook(scale_activation_grad_hook)
+            # First remove any existing hooks to prevent conflicts
+            if hasattr(reactivation_layer, '_backward_hooks'):
+                reactivation_layer._backward_hooks.clear()
+            if hasattr(reactivation_layer, '_backward_pre_hooks'):
+                reactivation_layer._backward_pre_hooks.clear()
+                
+            # Register with full backward hook consistently
+            reactivation_layer.register_full_backward_hook(
+                safe_hook(scale_activation_grad_hook)
+            )
 
 
     def register_block_linear_dynamic(self, block_linear_layer, branch_excitation=None, branch_inhibition=None):
@@ -167,6 +175,13 @@ class GradientScaler:
         safe_hook_fn = safe_hook(hook_fn)
 
         if self.blocklinear_strategy != 'none':
+            # First remove any existing hooks to prevent conflicts
+            if hasattr(block_linear_layer, '_backward_hooks'):
+                block_linear_layer._backward_hooks.clear()
+            if hasattr(block_linear_layer, '_backward_pre_hooks'):
+                block_linear_layer._backward_pre_hooks.clear()
+                
+            # Register consistently with full backward hook
             block_linear_layer.register_full_backward_hook(safe_hook_fn)
 
 

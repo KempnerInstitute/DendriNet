@@ -90,6 +90,8 @@ wandb:
 visualization:
   enabled: false
   visualize_epochs: [10, 30]  # list of epochs at which to produce intermediate visualizations
+  branch_ablation: true  # Enable/disable branch-level ablation analysis
+  layer_ablation: true   # Enable/disable layer-level ablation analysis
   plots:
     - weights      # Plot dendritic or EI-net weights
     - activations  # Plot per-digit activation distribution

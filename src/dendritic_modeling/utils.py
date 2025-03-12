@@ -846,50 +846,69 @@ def safe_backward_hook(hook_fn):
 
 def safe_register_hooks(module):
     """
-    Recursively replace all backward hooks in a module with safe versions.
+    Recursively register safe hooks on a module and all its submodules.
+    This safely handles the replacement of existing hooks to ensure PyTorch
+    doesn't try to use both regular and full backward hooks on the same module.
     
     Args:
-        module: The module whose hooks should be made safe
+        module: The module to register safe hooks on
     """
-    # Get all current hooks
-    hooks = []
-    if hasattr(module, '_backward_hooks'):
-        hooks.extend(list(module._backward_hooks.items()))
+    # First, check if module already has backward hooks
+    has_backward_hooks = bool(module._backward_hooks)
+    has_full_backward_hooks = bool(module._backward_pre_hooks)
     
-    # Remove all hooks
-    if hooks:
+    # Remove all existing hooks to prevent conflicts
+    if has_backward_hooks:
         module._backward_hooks.clear()
+    if has_full_backward_hooks:
+        module._backward_pre_hooks.clear()
     
-    # Re-register all hooks with safe versions
-    for k, hook in hooks:
-        safe_hook = safe_backward_hook(hook)
-        module.register_backward_hook(safe_hook)
+    # Register a new safe full backward hook (preferred)
+    module.register_full_backward_hook(safe_hook_fn)
     
-    # Recursively apply to all submodules
+    # Process child modules
     for child in module.children():
         safe_register_hooks(child)
-        
+
 def register_safe_hook(module, hook_fn):
     """
-    Register a hook on a module, ensuring it's wrapped in a safe_hook.
+    Register a safe hook on a module
     
     Args:
         module: The module to register the hook on
         hook_fn: The hook function to register
     """
+    # First, check if module already has hooks
+    has_backward_hooks = bool(module._backward_hooks)
+    has_full_backward_hooks = bool(module._backward_pre_hooks)
+    
+    # Remove all existing hooks to prevent conflicts
+    if has_backward_hooks:
+        module._backward_hooks.clear()
+    if has_full_backward_hooks:
+        module._backward_pre_hooks.clear()
+        
+    # Register the new safe hook
     safe_hook = safe_backward_hook(hook_fn)
     module.register_full_backward_hook(safe_hook)
-    
+
+# Simple helper function to use for safe hooks
+def safe_hook_fn(module, grad_input, grad_output):
+    """Simple safe hook function that just returns grad_input unchanged"""
+    return grad_input
+
 class SafeHookModule(nn.Module):
     """
-    A wrapper class that ensures all backward hooks are safely registered.
+    A wrapper module that ensures all backward hooks are safely registered
+    
+    Args:
+        module: The module to wrap
     """
     def __init__(self, module):
         super().__init__()
         self.module = module
-        
-        # Replace all hooks with safe versions
+        # Apply safe hooks to the wrapped module
         safe_register_hooks(module)
-        
+    
     def forward(self, *args, **kwargs):
         return self.module(*args, **kwargs)
