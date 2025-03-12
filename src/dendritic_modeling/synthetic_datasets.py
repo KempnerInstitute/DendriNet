@@ -567,7 +567,7 @@ def get_unified_datasets(task_cfg, train_cfg):
     
     # If data_path is None, use the default data directory in project root
     if data_path is None:
-        data_path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), 'data')
+        data_path = os.path.join(os.getcwd(), 'data')
         os.makedirs(data_path, exist_ok=True)
 
     train_valid_split = getattr(train_cfg, "train_valid_split", 1.0)
