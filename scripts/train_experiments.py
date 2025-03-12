@@ -31,8 +31,12 @@ import wandb
 import torch
 import torchinfo
 import numpy as np
+import pandas as pd
 import random
 import torch.nn.functional as F
+import matplotlib.pyplot as plt
+from tqdm import tqdm
+import torch.nn as nn
 
 from dendritic_modeling import logger
 from dendritic_modeling.learning_strategies import get_trainer, CustomWeightDecayOptimizer
@@ -752,15 +756,15 @@ def train_mlp_with_classification_head(feature_extractor, num_features, num_clas
     # Return the feature extractor part (without the classification head)
     return model.feature_extractor, (train_acc, best_valid_acc, test_acc)
 
-# New wrapper class to adapt our PlotManager to the expected interface
+# Update the wrapper class to work correctly
 class PlotManager:
     """
     A wrapper around the core PlotManager class that adapts to the interface
-    expected by train_experiments.py. This version works around incompatibilities
-    by skipping actual visualization.
+    expected by train_experiments.py.
     """
     def __init__(self, model, train_data, valid_data, test_data, save_path, plots):
         self.model = model
+        # Create data dictionary as expected by CorePlotManager
         self.data = {
             'train': train_data,
             'valid': valid_data,
@@ -769,40 +773,677 @@ class PlotManager:
         self.save_path = save_path
         self.plots = plots
         
-        # Skip the actual CorePlotManager initialization to avoid parameter incompatibilities
-        logger.info("Skipping initialization of CorePlotManager due to interface changes")
-        self.core_manager = None
-    
-    def _create_config_obj(self):
-        """Create a config object with the visualization section"""
-        from omegaconf import OmegaConf
-        cfg = OmegaConf.create()
-        cfg.visualization = OmegaConf.create()
-        cfg.visualization.enabled = True
-        cfg.visualization.plots = self.plots
-        return cfg
-    
-    def create_visualizations(self):
-        """
-        Placeholder for visualization - logs what would be visualized but skips actual execution
-        to avoid parameter incompatibilities.
-        """
-        logger.info(f"Skipping visualizations due to CorePlotManager interface changes")
-        logger.info(f"Would have created the following plots: {', '.join(self.plots)}")
+        # Create a simple args object that mimics the expected structure
+        class PlotManagerArgs:
+            def __init__(self, save_path, file_name, plots):
+                self.save_path = save_path
+                self.file_name = "analysis"
+                self.visualization = type('obj', (object,), {
+                    'enabled': True,
+                    'plots': plots
+                })
+        
+        # Create args for CorePlotManager
+        plot_args = PlotManagerArgs(
+            save_path=os.path.join(save_path, 'visualizations'),
+            file_name="analysis",
+            plots=plots
+        )
+        
+        # Create the core PlotManager with the correct parameters
+        self.core_manager = CorePlotManager(
+            model=model,
+            data=self.data,
+            args=plot_args,
+            device='cuda' if torch.cuda.is_available() else 'cpu'
+        )
 
-# Define a placeholder function to replace CorePlotManager calls
-def placeholder_plot_manager(*args, **kwargs):
+# Add an option to skip ablation analysis
+def run_ablation_analysis(model, train_ds, valid_ds, test_ds, save_path, device='cuda', enable_ablation=True, batch_size=64):
     """
-    A placeholder function that simply logs visualization requests without performing them.
-    This avoids errors due to parameter incompatibilities with CorePlotManager.
+    Run branch and layerwise ablation analysis explicitly, without relying on the visualization system.
+    
+    Args:
+        model: The model to analyze
+        train_ds, valid_ds, test_ds: Datasets for evaluation
+        save_path: Directory where to save results
+        device: Device to run analysis on
+        enable_ablation: Set to False to skip ablation analysis
+        batch_size: Batch size for evaluation
     """
-    logger.info("Skipping CorePlotManager initialization due to interface changes")
-    return type('PlaceholderPlotManager', (), {
-        'run_plot': lambda name: logger.info(f"Would have created plot: {name}")
-    })
+    if not enable_ablation:
+        print("\n" + "="*80)
+        print("ABLATION ANALYSIS SKIPPED (disabled in config)")
+        print("="*80 + "\n")
+        logger.info("Ablation analysis skipped (disabled in config)")
+        return None
+        
+    print("\n" + "="*80)
+    print("STARTING ABLATION ANALYSIS")
+    print("="*80)
+    logger.info("Running explicit ablation analysis...")
+    
+    # Create ablation results directory
+    ablation_dir = os.path.join(save_path, 'ablation_results')
+    os.makedirs(ablation_dir, exist_ok=True)
+    print(f"Results will be saved to: {ablation_dir}")
+    
+    # Use smaller batch size for ablation to reduce memory usage
+    print(f"Preparing dataloaders with batch size {batch_size}...")
+    train_loader = torch.utils.data.DataLoader(train_ds, batch_size=batch_size, shuffle=False)
+    valid_loader = torch.utils.data.DataLoader(valid_ds, batch_size=batch_size, shuffle=False)
+    test_loader = torch.utils.data.DataLoader(test_ds, batch_size=batch_size, shuffle=False)
+    print(f"Dataset sizes - Train: {len(train_ds)}, Valid: {len(valid_ds)}, Test: {len(test_ds)}")
+    
+    # Ensure model is on the correct device
+    print(f"Moving model to {device}...")
+    model = model.to(device)
+    
+    # Run branch ablation analysis
+    try:
+        print("\n" + "-"*60)
+        print("RUNNING BRANCH ABLATION ANALYSIS")
+        print("-"*60)
+        logger.info("Running branch ablation analysis...")
+        
+        print("This may take a few minutes as it tests ablating different branches...")
+        start_time = time.time()
+        branch_ablation_results = analyze_branch_ablation(
+            model=model, 
+            train_loader=train_loader,
+            valid_loader=valid_loader,
+            test_loader=test_loader,
+            device=device
+        )
+        end_time = time.time()
+        print(f"Branch ablation took {end_time - start_time:.2f} seconds")
+        
+        # Save branch ablation results
+        branch_save_path = os.path.join(ablation_dir, 'branch_ablation_results.json')
+        save_dict(branch_ablation_results, os.path.dirname(branch_save_path), os.path.basename(branch_save_path))
+        print(f"✓ Branch ablation completed successfully")
+        print(f"✓ Saved branch ablation results to {branch_save_path}")
+        logger.info(f"Saved branch ablation results to {branch_save_path}")
+    except Exception as e:
+        print(f"✗ Error in branch ablation analysis: {str(e)}")
+        logger.error(f"Error in branch ablation analysis: {str(e)}")
+    
+    # Run layerwise ablation analysis
+    try:
+        print("\n" + "-"*60)
+        print("RUNNING LAYERWISE ABLATION ANALYSIS")
+        print("-"*60)
+        logger.info("Running layerwise ablation analysis...")
+        
+        print("Testing performance impact of ablating entire layers...")
+        start_time = time.time()
+        layerwise_ablation_results = analyze_layerwise_ablation(
+            model=model,
+            train_loader=train_loader,
+            valid_loader=valid_loader,
+            test_loader=test_loader,
+            device=device
+        )
+        end_time = time.time()
+        print(f"Layerwise ablation took {end_time - start_time:.2f} seconds")
+        
+        # Save layerwise ablation results
+        layer_save_path = os.path.join(ablation_dir, 'layerwise_ablation_results.json')
+        save_dict(layerwise_ablation_results, os.path.dirname(layer_save_path), os.path.basename(layer_save_path))
+        print(f"✓ Layerwise ablation completed successfully")
+        print(f"✓ Saved layerwise ablation results to {layer_save_path}")
+        logger.info(f"Saved layerwise ablation results to {layer_save_path}")
+    except Exception as e:
+        print(f"✗ Error in layerwise ablation analysis: {str(e)}")
+        logger.error(f"Error in layerwise ablation analysis: {str(e)}")
+    
+    # Record branch activations
+    try:
+        print("\n" + "-"*60)
+        print("RECORDING BRANCH ACTIVATIONS")
+        print("-"*60)
+        logger.info("Recording branch activations...")
+        
+        print("Measuring activations across different branches...")
+        start_time = time.time()
+        activation_results = record_branch_activations(
+            model=model,
+            data_loader=valid_loader,
+            num_samples=100,  # Limit to 100 samples for speed
+            device=device
+        )
+        end_time = time.time()
+        print(f"Recording branch activations took {end_time - start_time:.2f} seconds")
+        
+        # Save activation results
+        activation_save_path = os.path.join(ablation_dir, 'branch_activations.json')
+        save_dict(activation_results, os.path.dirname(activation_save_path), os.path.basename(activation_save_path))
+        print(f"✓ Branch activation recording completed successfully")
+        print(f"✓ Saved branch activation results to {activation_save_path}")
+        logger.info(f"Saved branch activation results to {activation_save_path}")
+    except Exception as e:
+        print(f"✗ Error in recording branch activations: {str(e)}")
+        logger.error(f"Error in recording branch activations: {str(e)}")
+    
+    # Compute mutual information if possible
+    try:
+        print("\n" + "-"*60)
+        print("COMPUTING MUTUAL INFORMATION")
+        print("-"*60)
+        logger.info("Computing mutual information...")
+        
+        print("Calculating mutual information between branches and output...")
+        start_time = time.time()
+        mi_results = compute_MI(
+            model=model,
+            data_loader=valid_loader,
+            device=device
+        )
+        end_time = time.time()
+        print(f"Computing mutual information took {end_time - start_time:.2f} seconds")
+        
+        # Save MI results
+        mi_save_path = os.path.join(ablation_dir, 'mutual_information.json')
+        save_dict(mi_results, os.path.dirname(mi_save_path), os.path.basename(mi_save_path))
+        print(f"✓ Mutual information calculation completed successfully")
+        print(f"✓ Saved mutual information results to {mi_save_path}")
+        logger.info(f"Saved mutual information results to {mi_save_path}")
+    except Exception as e:
+        print(f"✗ Error in computing mutual information: {str(e)}")
+        logger.error(f"Error in computing mutual information: {str(e)}")
+    
+    print("\n" + "="*60)
+    print("ABLATION ANALYSIS COMPLETED")
+    print("="*60 + "\n")
+    
+    return {
+        'branch_ablation': branch_ablation_results if 'branch_ablation_results' in locals() else None,
+        'layerwise_ablation': layerwise_ablation_results if 'layerwise_ablation_results' in locals() else None,
+        'branch_activations': activation_results if 'activation_results' in locals() else None,
+        'mutual_information': mi_results if 'mi_results' in locals() else None
+    }
 
-# Replace CorePlotManager with our placeholder for direct calls
-CorePlotManager = placeholder_plot_manager
+# Add a function for information estimation using MLP decoders
+def run_information_estimation(model, train_ds, valid_ds, test_ds, save_path, device='cuda', batch_size=64, epochs=20):
+    """
+    Run information estimation analysis by training MLP decoders on branch activations.
+    This measures how much task-relevant information is contained in each branch/layer.
+    
+    Args:
+        model: The model to analyze
+        train_ds, valid_ds, test_ds: Datasets for evaluation
+        save_path: Directory where to save results
+        device: Device to run analysis on
+        batch_size: Batch size for evaluation
+        epochs: Number of epochs to train MLP classifiers
+    """
+    print("\n" + "="*80)
+    print("STARTING INFORMATION ESTIMATION ANALYSIS")
+    print("="*80)
+    logger.info("Running information estimation analysis...")
+    
+    # Create results directory
+    info_dir = os.path.join(save_path, 'information_analysis')
+    os.makedirs(info_dir, exist_ok=True)
+    print(f"Results will be saved to: {info_dir}")
+    print(f"Will train MLP classifiers for {epochs} epochs")
+    
+    # Prepare dataloaders
+    print(f"Preparing dataloaders with batch size {batch_size}...")
+    train_loader = torch.utils.data.DataLoader(train_ds, batch_size=batch_size, shuffle=False)
+    valid_loader = torch.utils.data.DataLoader(valid_ds, batch_size=batch_size, shuffle=False)
+    test_loader = torch.utils.data.DataLoader(test_ds, batch_size=batch_size, shuffle=False)
+    print(f"Dataset sizes - Train: {len(train_ds)}, Valid: {len(valid_ds)}, Test: {len(test_ds)}")
+    
+    # Ensure model is on the correct device
+    print(f"Moving model to {device}...")
+    model = model.to(device)
+    model.eval()
+    
+    # Helper function to train MLP classifier
+    def train_mlp_classifier(train_features, train_labels, valid_features, valid_labels, hidden_dim=100, lr=0.001, epochs=epochs):
+        """
+        Train MLP classifier for estimating information content.
+        
+        Args:
+            train_features: Training set features [n_samples, n_features]
+            train_labels: Training set labels [n_samples]
+            valid_features: Validation set features [n_samples, n_features]
+            valid_labels: Validation set labels [n_samples]
+            hidden_dim: Hidden dimension size
+            lr: Learning rate
+            epochs: Number of training epochs
+            
+        Returns:
+            Accuracy of the trained model on validation set
+        """
+        input_dim = train_features.shape[1]
+        num_classes = len(torch.unique(train_labels))
+        
+        # Create simple MLP classifier
+        class SimpleMLP(nn.Module):
+            def __init__(self, input_dim, hidden_dim, output_dim):
+                super().__init__()
+                self.fc1 = nn.Linear(input_dim, hidden_dim)
+                self.fc2 = nn.Linear(hidden_dim, output_dim)
+                
+            def forward(self, x):
+                x = F.relu(self.fc1(x))
+                x = self.fc2(x)
+                return x
+        
+        # Create model, optimizer, loss
+        model = SimpleMLP(input_dim, hidden_dim, num_classes).to(device)
+        optimizer = torch.optim.Adam(model.parameters(), lr=lr)
+        criterion = nn.CrossEntropyLoss()
+        
+        # Create datasets and dataloaders
+        train_dataset = torch.utils.data.TensorDataset(train_features, train_labels)
+        valid_dataset = torch.utils.data.TensorDataset(valid_features, valid_labels)
+        
+        train_loader = torch.utils.data.DataLoader(train_dataset, batch_size=64, shuffle=True)
+        valid_loader = torch.utils.data.DataLoader(valid_dataset, batch_size=64)
+        
+        # Train
+        best_valid_acc = 0.0
+        best_state = None
+        
+        for epoch in range(epochs):
+            model.train()
+            for inputs, labels in train_loader:
+                inputs, labels = inputs.to(device), labels.to(device)
+                optimizer.zero_grad()
+                outputs = model(inputs)
+                loss = criterion(outputs, labels)
+                loss.backward()
+                optimizer.step()
+            
+            # Evaluate
+            model.eval()
+            correct = 0
+            total = 0
+            with torch.no_grad():
+                for inputs, labels in valid_loader:
+                    inputs, labels = inputs.to(device), labels.to(device)
+                    outputs = model(inputs)
+                    _, predicted = torch.max(outputs, 1)
+                    total += labels.size(0)
+                    correct += (predicted == labels).sum().item()
+            
+            valid_acc = correct / total if total > 0 else 0.0
+            
+            # Save best model
+            if valid_acc > best_valid_acc:
+                best_valid_acc = valid_acc
+                best_state = deepcopy(model.state_dict())
+        
+        # Load best model
+        if best_state:
+            model.load_state_dict(best_state)
+        
+        # Final evaluation
+        model.eval()
+        correct = 0
+        total = 0
+        with torch.no_grad():
+            for inputs, labels in valid_loader:
+                inputs, labels = inputs.to(device), labels.to(device)
+                outputs = model(inputs)
+                _, predicted = torch.max(outputs, 1)
+                total += labels.size(0)
+                correct += (predicted == labels).sum().item()
+        
+        return correct / total if total > 0 else 0.0
+    
+    # Check if the model has branch layers
+    if not hasattr(model, 'net') or not hasattr(model.net, 'branch_layers'):
+        print("Model does not have branch layers. Skipping information estimation.")
+        return None
+    
+    net = model.net
+    
+    # Results dictionaries
+    layerwise_results = {
+        'layer_indices': [],
+        'excitatory_accuracy': [],
+        'inhibitory_accuracy': [],
+        'combined_accuracy': []
+    }
+    
+    branchwise_results = {
+        'branch_indices': [],
+        'layer_indices': [],
+        'excitatory_accuracy': [],
+        'inhibitory_accuracy': [],
+        'combined_accuracy': []
+    }
+    
+    print("\n" + "-"*60)
+    print("COLLECTING BRANCH ACTIVATIONS")
+    print("-"*60)
+    
+    # Collect all inputs and branch activations
+    train_inputs_list = []
+    train_labels_list = []
+    
+    valid_inputs_list = []
+    valid_labels_list = []
+    
+    # Hook to store branch inputs
+    branch_inputs = {}
+    
+    def hook_fn(layer_idx, input, output):
+        if layer_idx not in branch_inputs:
+            branch_inputs[layer_idx] = {
+                'excitatory_inputs': [],
+                'inhibitory_inputs': []
+            }
+        
+        # Store excitatory input if it exists
+        if hasattr(net.branch_layers[layer_idx], 'excitatory_input'):
+            branch_inputs[layer_idx]['excitatory_inputs'].append(
+                net.branch_layers[layer_idx].excitatory_input.detach().cpu()
+            )
+        
+        # Store inhibitory input if it exists
+        if hasattr(net.branch_layers[layer_idx], 'inhibitory_input'):
+            branch_inputs[layer_idx]['inhibitory_inputs'].append(
+                net.branch_layers[layer_idx].inhibitory_input.detach().cpu()
+            )
+        
+        return output
+    
+    # Register hooks for each branch layer
+    hooks = []
+    for layer_idx, layer in enumerate(net.branch_layers):
+        hook = layer.register_forward_hook(lambda m, i, o, idx=layer_idx: hook_fn(idx, i, o))
+        hooks.append(hook)
+    
+    # Collect data from training set
+    print("Collecting activations from training set...")
+    for inputs, labels in tqdm(train_loader):
+        inputs, labels = inputs.to(device), labels.to(device)
+        train_inputs_list.append(inputs.detach().cpu())
+        train_labels_list.append(labels.detach().cpu())
+        # Forward pass to trigger hooks
+        with torch.no_grad():
+            _ = model(inputs)
+    
+    # Collect data from validation set
+    print("Collecting activations from validation set...")
+    for inputs, labels in tqdm(valid_loader):
+        inputs, labels = inputs.to(device), labels.to(device)
+        valid_inputs_list.append(inputs.detach().cpu())
+        valid_labels_list.append(labels.detach().cpu())
+        # Forward pass to trigger hooks
+        with torch.no_grad():
+            _ = model(inputs)
+    
+    # Remove hooks
+    for hook in hooks:
+        hook.remove()
+    
+    # Concatenate collected data
+    train_inputs = torch.cat(train_inputs_list, dim=0)
+    train_labels = torch.cat(train_labels_list, dim=0)
+    
+    valid_inputs = torch.cat(valid_inputs_list, dim=0)
+    valid_labels = torch.cat(valid_labels_list, dim=0)
+    
+    # Process each layer
+    for layer_idx in sorted(branch_inputs.keys()):
+        print(f"\n" + "-"*60)
+        print(f"ANALYZING LAYER {layer_idx}")
+        print("-"*60)
+        
+        layer = net.branch_layers[layer_idx]
+        layer_info = branch_inputs[layer_idx]
+        
+        # Concatenate collected activations
+        if layer_info['excitatory_inputs']:
+            exc_inputs_train = torch.cat(layer_info['excitatory_inputs'][:len(train_loader)], dim=0)
+            exc_inputs_valid = torch.cat(layer_info['excitatory_inputs'][len(train_loader):], dim=0)
+        else:
+            print(f"  No excitatory inputs for layer {layer_idx}")
+            exc_inputs_train = None
+            exc_inputs_valid = None
+        
+        if layer_info['inhibitory_inputs']:
+            inh_inputs_train = torch.cat(layer_info['inhibitory_inputs'][:len(train_loader)], dim=0)
+            inh_inputs_valid = torch.cat(layer_info['inhibitory_inputs'][len(train_loader):], dim=0)
+        else:
+            print(f"  No inhibitory inputs for layer {layer_idx}")
+            inh_inputs_train = None
+            inh_inputs_valid = None
+        
+        # If no inputs, skip this layer
+        if exc_inputs_train is None and inh_inputs_train is None:
+            print(f"  Layer {layer_idx} has no inputs. Skipping.")
+            continue
+        
+        print(f"Layer {layer_idx} - Processing...")
+        
+        # Determine number of branches in this layer
+        n_branches = 0
+        if hasattr(layer, 'branch_excitation'):
+            n_branches = layer.branch_excitation.pre_w.shape[0] if hasattr(layer.branch_excitation, 'pre_w') else 0
+        elif hasattr(layer, 'branch_inhibition'):
+            n_branches = layer.branch_inhibition.pre_w.shape[0] if hasattr(layer.branch_inhibition, 'pre_w') else 0
+        
+        print(f"  Layer {layer_idx} has {n_branches} branches")
+        
+        # 1. LAYERWISE ANALYSIS
+        # ------------------------------
+        print(f"  Performing layerwise analysis...")
+        
+        # Extract weighted inputs for each branch
+        exc_branch_features_train = []
+        exc_branch_features_valid = []
+        inh_branch_features_train = []
+        inh_branch_features_valid = []
+        combined_branch_features_train = []
+        combined_branch_features_valid = []
+        
+        for branch_idx in range(n_branches):
+            # Get branch weights
+            if hasattr(layer, 'branch_excitation') and exc_inputs_train is not None:
+                exc_w = layer.branch_excitation.pre_w[branch_idx].cpu()
+                exc_weighted_train = (exc_inputs_train @ exc_w).unsqueeze(1)  # [n_samples, 1]
+                exc_weighted_valid = (exc_inputs_valid @ exc_w).unsqueeze(1)  # [n_samples, 1]
+                
+                exc_branch_features_train.append(exc_weighted_train)
+                exc_branch_features_valid.append(exc_weighted_valid)
+            else:
+                exc_weighted_train = None
+                exc_weighted_valid = None
+            
+            if hasattr(layer, 'branch_inhibition') and inh_inputs_train is not None:
+                inh_w = layer.branch_inhibition.pre_w[branch_idx].cpu()
+                inh_weighted_train = (inh_inputs_train @ inh_w).unsqueeze(1)  # [n_samples, 1]
+                inh_weighted_valid = (inh_inputs_valid @ inh_w).unsqueeze(1)  # [n_samples, 1]
+                
+                inh_branch_features_train.append(inh_weighted_train)
+                inh_branch_features_valid.append(inh_weighted_valid)
+            else:
+                inh_weighted_train = None
+                inh_weighted_valid = None
+            
+            # Compute combined features (shunting formula)
+            if exc_weighted_train is not None and inh_weighted_train is not None:
+                # w_i * x_i / (w_i * x_i + inh_j * x_j + 1)
+                combined_train = exc_weighted_train / (exc_weighted_train + inh_weighted_train + 1.0)
+                combined_valid = exc_weighted_valid / (exc_weighted_valid + inh_weighted_valid + 1.0)
+                
+                combined_branch_features_train.append(combined_train)
+                combined_branch_features_valid.append(combined_valid)
+            
+            # BRANCHWISE ANALYSIS
+            # ------------------------------
+            print(f"  Branch {branch_idx}: Performing branchwise analysis...")
+            
+            # For branch-wise analysis, we use the actual input features
+            exc_acc = 0.0
+            inh_acc = 0.0
+            combined_acc = 0.0
+            
+            if exc_inputs_train is not None:
+                print(f"    Training excitatory branch classifier...")
+                exc_acc = train_mlp_classifier(
+                    exc_inputs_train, train_labels,
+                    exc_inputs_valid, valid_labels
+                )
+                print(f"    Excitatory branch accuracy: {exc_acc:.4f}")
+            
+            if inh_inputs_train is not None:
+                print(f"    Training inhibitory branch classifier...")
+                inh_acc = train_mlp_classifier(
+                    inh_inputs_train, train_labels,
+                    inh_inputs_valid, valid_labels
+                )
+                print(f"    Inhibitory branch accuracy: {inh_acc:.4f}")
+            
+            if exc_inputs_train is not None and inh_inputs_train is not None:
+                # Concatenate excitatory and inhibitory inputs
+                combined_inputs_train = torch.cat([exc_inputs_train, inh_inputs_train], dim=1)
+                combined_inputs_valid = torch.cat([exc_inputs_valid, inh_inputs_valid], dim=1)
+                
+                print(f"    Training combined branch classifier...")
+                combined_acc = train_mlp_classifier(
+                    combined_inputs_train, train_labels,
+                    combined_inputs_valid, valid_labels
+                )
+                print(f"    Combined branch accuracy: {combined_acc:.4f}")
+            
+            # Store branchwise results
+            branchwise_results['branch_indices'].append(f"{layer_idx}-{branch_idx}")
+            branchwise_results['layer_indices'].append(layer_idx)
+            branchwise_results['excitatory_accuracy'].append(exc_acc)
+            branchwise_results['inhibitory_accuracy'].append(inh_acc)
+            branchwise_results['combined_accuracy'].append(combined_acc)
+        
+        # Continue with layerwise analysis
+        if exc_branch_features_train:
+            exc_features_train = torch.cat(exc_branch_features_train, dim=1)  # [n_samples, n_branches]
+            exc_features_valid = torch.cat(exc_branch_features_valid, dim=1)
+            
+            print(f"  Training excitatory layer classifier...")
+            exc_layer_acc = train_mlp_classifier(
+                exc_features_train, train_labels, 
+                exc_features_valid, valid_labels
+            )
+            print(f"  Excitatory layer accuracy: {exc_layer_acc:.4f}")
+        else:
+            exc_layer_acc = 0.0
+        
+        if inh_branch_features_train:
+            inh_features_train = torch.cat(inh_branch_features_train, dim=1)  # [n_samples, n_branches]
+            inh_features_valid = torch.cat(inh_branch_features_valid, dim=1)
+            
+            print(f"  Training inhibitory layer classifier...")
+            inh_layer_acc = train_mlp_classifier(
+                inh_features_train, train_labels,
+                inh_features_valid, valid_labels
+            )
+            print(f"  Inhibitory layer accuracy: {inh_layer_acc:.4f}")
+        else:
+            inh_layer_acc = 0.0
+        
+        if combined_branch_features_train:
+            combined_features_train = torch.cat(combined_branch_features_train, dim=1)  # [n_samples, n_branches]
+            combined_features_valid = torch.cat(combined_branch_features_valid, dim=1)
+            
+            print(f"  Training combined layer classifier...")
+            combined_layer_acc = train_mlp_classifier(
+                combined_features_train, train_labels,
+                combined_features_valid, valid_labels
+            )
+            print(f"  Combined layer accuracy: {combined_layer_acc:.4f}")
+        else:
+            combined_layer_acc = 0.0
+        
+        # Store layerwise results
+        layerwise_results['layer_indices'].append(layer_idx)
+        layerwise_results['excitatory_accuracy'].append(exc_layer_acc)
+        layerwise_results['inhibitory_accuracy'].append(inh_layer_acc)
+        layerwise_results['combined_accuracy'].append(combined_layer_acc)
+    
+    # Save results
+    print("\nSaving information estimation results...")
+    layerwise_path = os.path.join(info_dir, 'layerwise_information.json')
+    save_dict(layerwise_results, os.path.dirname(layerwise_path), os.path.basename(layerwise_path))
+    print(f"✓ Saved layerwise information results to {layerwise_path}")
+    
+    branchwise_path = os.path.join(info_dir, 'branchwise_information.json')
+    save_dict(branchwise_results, os.path.dirname(branchwise_path), os.path.basename(branchwise_path))
+    print(f"✓ Saved branchwise information results to {branchwise_path}")
+    
+    # Create layerwise plot
+    print("Generating layerwise information plots...")
+    plt.figure(figsize=(10, 6))
+    x = np.arange(len(layerwise_results['layer_indices']))
+    width = 0.25
+    
+    plt.bar(x - width, layerwise_results['excitatory_accuracy'], width, label='Excitatory')
+    plt.bar(x, layerwise_results['inhibitory_accuracy'], width, label='Inhibitory')
+    plt.bar(x + width, layerwise_results['combined_accuracy'], width, label='Combined')
+    
+    plt.xlabel('Layer Index')
+    plt.ylabel('Information Content (Classifier Accuracy)')
+    plt.title('Layer-wise Information Content')
+    plt.xticks(x, layerwise_results['layer_indices'])
+    plt.legend()
+    plt.grid(True, alpha=0.3)
+    
+    plt.tight_layout()
+    plt.savefig(os.path.join(info_dir, 'layerwise_information_plot.png'), dpi=300)
+    plt.close()
+    
+    # Create branchwise plot, grouped by layer
+    if branchwise_results['branch_indices']:
+        print("Generating branchwise information plots...")
+        
+        # Group branches by layer
+        unique_layers = sorted(set(branchwise_results['layer_indices']))
+        
+        for layer_idx in unique_layers:
+            # Filter branches for this layer
+            layer_mask = [i for i, idx in enumerate(branchwise_results['layer_indices']) if idx == layer_idx]
+            if not layer_mask:
+                continue
+            
+            # Get branch indices, accuracies for this layer
+            branches = [branchwise_results['branch_indices'][i].split('-')[1] for i in layer_mask]
+            exc_accs = [branchwise_results['excitatory_accuracy'][i] for i in layer_mask]
+            inh_accs = [branchwise_results['inhibitory_accuracy'][i] for i in layer_mask]
+            combined_accs = [branchwise_results['combined_accuracy'][i] for i in layer_mask]
+            
+            plt.figure(figsize=(10, 6))
+            x = np.arange(len(branches))
+            width = 0.25
+            
+            plt.bar(x - width, exc_accs, width, label='Excitatory')
+            plt.bar(x, inh_accs, width, label='Inhibitory')
+            plt.bar(x + width, combined_accs, width, label='Combined')
+            
+            plt.xlabel('Branch Index')
+            plt.ylabel('Information Content (Classifier Accuracy)')
+            plt.title(f'Branch-wise Information Content - Layer {layer_idx}')
+            plt.xticks(x, branches)
+            plt.legend()
+            plt.grid(True, alpha=0.3)
+            
+            plt.tight_layout()
+            plt.savefig(os.path.join(info_dir, f'branchwise_information_layer{layer_idx}_plot.png'), dpi=300)
+            plt.close()
+    
+    print("\n" + "="*60)
+    print("INFORMATION ESTIMATION ANALYSIS COMPLETED")
+    print("="*60 + "\n")
+    
+    return {
+        'layerwise_information': layerwise_results,
+        'branchwise_information': branchwise_results
+    }
 
 def main(config_path: str):
     # Load configuration
@@ -815,6 +1456,19 @@ def main(config_path: str):
     wandb_cfg = config.wandb
     outputs_cfg = config.outputs
     visualization_cfg = config.visualization
+    
+    # Set default values for new parameters if not present
+    if not hasattr(outputs_cfg, 'enable_ablation'):
+        outputs_cfg.enable_ablation = True
+    
+    if not hasattr(outputs_cfg, 'ablation_batch_size'):
+        outputs_cfg.ablation_batch_size = 64
+        
+    if not hasattr(outputs_cfg, 'enable_info_estimation'):
+        outputs_cfg.enable_info_estimation = True
+        
+    if not hasattr(outputs_cfg, 'info_estimation_epochs'):
+        outputs_cfg.info_estimation_epochs = 20
     
     # Set up logging
     run_name = train_cfg.run_name
@@ -1031,7 +1685,7 @@ def main(config_path: str):
                         if isinstance(module, torch.nn.Linear):
                             head_layers.append(module)
                     
-                    # Transfer weights for shared layers (only once, typically from excitatory head)
+                    # Transfer weights for the shared backbone (only once, typically from excitatory head)
                     if head_type == "excitatory":
                         for i, shared_layer in enumerate(shared_layers):
                             if i < len(mlp_layers) - 1:  # All but the last MLP layer
@@ -1101,7 +1755,7 @@ def main(config_path: str):
                 )
                 logger.info(f"Full model train acc={train_acc:.3f}, valid acc={valid_acc:.3f}, test acc={test_acc:.3f}")
                 
-                if wandb_cfg.use_wandb:
+                if wandb.run is not None:
                     wandb.log({
                         "full_model_train_acc": train_acc,
                         "full_model_valid_acc": valid_acc,
@@ -1260,7 +1914,7 @@ def main(config_path: str):
                 )
                 logger.info(f"Full model train acc={train_acc:.3f}, valid acc={valid_acc:.3f}, test acc={test_acc:.3f}")
                 
-                if wandb_cfg.use_wandb:
+                if wandb.run is not None:
                     wandb.log({
                         "full_model_train_acc": train_acc,
                         "full_model_valid_acc": valid_acc,
@@ -1269,12 +1923,17 @@ def main(config_path: str):
     
     else:
         # Standard training (joint or other learning strategies)
+        print("\n" + "="*80)
+        print(f"STANDARD TRAINING: {learning_strategy}")
+        print("="*80)
         logger.info(f"Using standard training with learning strategy: {learning_strategy}")
         
         # Initialize model
+        print("Initializing model...")
         model = initialize_model(model_cfg)
         
         # Create optimizer
+        print("Creating optimizer...")
         optimizer = CustomWeightDecayOptimizer(
             model=model, 
             optimizer=torch.optim.Adam(model.parameters(), lr=train_cfg.lr), 
@@ -1282,6 +1941,7 @@ def main(config_path: str):
         )
         
         # Create trainer
+        print("Creating trainer...")
         trainer = get_trainer(learning_strategy, optimizer, suppress_prints=False, print_every=10)
         
         # Determine visualization epochs
@@ -1290,6 +1950,7 @@ def main(config_path: str):
         
         # Get device for training
         device = 'cuda' if torch.cuda.is_available() else 'cpu'
+        print(f"Using device: {device}")
         
         # Define shape for visualization if needed
         shape = None
@@ -1299,187 +1960,176 @@ def main(config_path: str):
             shape = (32, 32, 3)
         elif task_cfg.dataset == "mnist_modulo10":
             shape = (28, 28, 2)
-        
-        # Multi-epoch training with visualizations at specific epochs
-        if visualize_at_specific_epochs:
-            total_epochs = train_cfg.epochs
-            visualize_epochs = sorted(visualization_cfg.visualize_epochs)
-            current_epoch = 0
             
-            # Initial visualization before training starts
-            if visualization_cfg.enabled:
-                # Check if input_mode is 0 and skip visualizations before training if so
-                input_mode = model_cfg.network.parameters.get('input_mode', 0)
-                if input_mode == 0:
-                    logger.info(f"Skipping initial visualizations for input_mode=0 to avoid device mismatch errors")
+        print("\nStarting training...")
+        print(f"Training parameters: epochs={train_cfg.epochs}, batch_size={train_cfg.batch_size}, learning_rate={train_cfg.lr}")
+        print(f"Dataset: {task_cfg.dataset}, Train size: {len(train_ds)}, Valid size: {len(valid_ds)}, Test size: {len(test_ds)}")
+        print("-"*80)
+        
+        # Initialize training tracking variables
+        valid_losses = []
+        train_losses = []
+        best_loss = float('inf')
+        best_state_dict = deepcopy(model.state_dict())
+        
+        # Train model one epoch at a time
+        for epoch in range(1, train_cfg.epochs + 1):
+            # Train for one epoch
+            if learning_strategy in ["two_step", "two_step_kl"]:
+                if epoch < train_cfg.pretrain_epochs:
+                    logger.info(f"Pretrain epoch {epoch}/{train_cfg.pretrain_epochs}")
                 else:
-                    logger.info(f"Creating initial visualizations before training...")
+                    logger.info(f"Main train epoch {epoch-train_cfg.pretrain_epochs}/{train_cfg.epochs-train_cfg.pretrain_epochs}")
+                
+                results = trainer.train(
+                    model=model,
+                    train_data=train_ds,
+                    valid_data=valid_ds,
+                    pretrain_epochs=1 if epoch < train_cfg.pretrain_epochs else 0,
+                    maintrain_epochs=0 if epoch < train_cfg.pretrain_epochs else 1,
+                    batch_size=train_cfg.batch_size,
+                    grad_clip_value=train_cfg.grad_clip_value,
+                    shuffle=True,
+                    load_best_state_dict=False,
+                    plot_losses=False,
+                    save_path=run_save_path
+                )
+            elif learning_strategy == "freeze_layers":
+                # For freeze_layers, we'll use a slightly different approach
+                # This is a simplified version, assuming one epoch per layer at a time
+                layer_idx = epoch % model.net.num_layers if hasattr(model.net, 'num_layers') else 0
+                logger.info(f"Training layer {layer_idx} for epoch {epoch}/{train_cfg.epochs}")
+                
+                # Freeze all layers except the current one
+                if hasattr(model.net, 'freeze_all_layers_except'):
+                    model.net.freeze_all_layers_except(layer_idx)
+                
+                results = trainer.train(
+                    model=model,
+                    train_data=train_ds,
+                    valid_data=valid_ds,
+                    epochs=1,
+                    batch_size=train_cfg.batch_size,
+                    grad_clip_value=train_cfg.grad_clip_value,
+                    shuffle=True,
+                    load_best_state_dict=False,
+                    plot_losses=False,
+                    save_path=run_save_path
+                )
+                
+                # Unfreeze all layers after training
+                if hasattr(model.net, 'unfreeze_all_layers'):
+                    model.net.unfreeze_all_layers()
+            else:
+                results = trainer.train(
+                    model=model,
+                    train_data=train_ds,
+                    valid_data=valid_ds,
+                    epochs=1,
+                    batch_size=train_cfg.batch_size,
+                    grad_clip_value=train_cfg.grad_clip_value,
+                    shuffle=True,
+                    load_best_state_dict=False,
+                    plot_losses=False,
+                    save_path=run_save_path
+                )
+            
+            # Track losses and best model
+            if "train_losses" in results:
+                train_losses.extend(results["train_losses"])
+            elif "train losses" in results:
+                train_losses.extend(results["train losses"])
+                
+            if "valid_losses" in results:
+                valid_losses.extend(results["valid_losses"])
+            elif "valid losses" in results:
+                valid_losses.extend(results["valid losses"])
+                
+            current_loss = valid_losses[-1] if valid_losses else float('inf')
+            
+            if "best_loss" in results and results["best_loss"] < best_loss:
+                best_loss = results["best_loss"]
+                if "best_state_dict" in results:
+                    best_state_dict = results["best_state_dict"]
+                elif "best state dict" in results:
+                    best_state_dict = results["best state dict"]
+            
+            # Check if this epoch is in the visualization list
+            if epoch in visualization_cfg.visualize_epochs:
+                logger.info(f"Epoch {epoch}/{train_cfg.epochs} complete: train_loss={train_losses[-1]:.4f}, valid_loss={valid_losses[-1]:.4f}")
+                
+                # Evaluate model accuracy at this epoch
+                train_acc, valid_acc, test_acc = evaluate_accuracy(
+                    model, train_ds, valid_ds, test_ds, 
+                    save_path=os.path.join(run_save_path, 'performance'), 
+                    filename=f"epoch{epoch}",
+                )
+                logger.info(f"  Accuracy: train={train_acc:.4f}, valid={valid_acc:.4f}, test={test_acc:.4f}")
+                
+                if wandb.run is not None:
+                    wandb.log({
+                        f"epoch_{epoch}_train_acc": train_acc,
+                        f"epoch_{epoch}_valid_acc": valid_acc,
+                        f"epoch_{epoch}_test_acc": test_acc
+                    })
+                
+                # Create visualizations if enabled
+                if visualization_cfg.enabled:
+                    # Check if input_mode is 0 before attempting visualizations that might cause errors
+                    input_mode = model_cfg.network.parameters.get('input_mode', 0)
                     
+                    logger.info(f"Creating visualizations after training...")
                     # Create data dictionary for plot manager
                     data_dict = {"train": train_ds, "valid": valid_ds, "test": test_ds}
                     
-                    # Initialize core plot manager
+                    # Initialize core plot manager with correct parameters
+                    # The original PlotManager requires (model, data, args, device)
+                    class PlotManagerArgs:
+                        def __init__(self, save_path, file_name, visualization_cfg=None):
+                            self.save_path = save_path
+                            self.file_name = file_name
+                            self.visualization = visualization_cfg
+                            
+                    # Create args object for PlotManager
+                    plot_args = PlotManagerArgs(
+                        save_path=os.path.join(run_save_path, 'visualizations'),
+                        file_name=f"final",
+                        visualization_cfg=visualization_cfg
+                    )
+                    
                     plot_manager = CorePlotManager(
                         model=model,
                         data=data_dict,
-                        save_path=os.path.join(run_save_path, 'visualizations'),
-                        file_name="epoch0_init",
+                        args=plot_args,
                         device=device
                     )
                     
-                    # Run all requested plots
-                    for plot_name in visualization_cfg.plots:
-                        logger.info(f"  Generating {plot_name} plot...")
-                        plot_manager.run_plot(plot_name)
-            
-            # Initialize training tracking variables
-            valid_losses = []
-            train_losses = []
-            best_loss = float('inf')
-            best_state_dict = deepcopy(model.state_dict())
-            
-            # Train model one epoch at a time
-            while current_epoch < total_epochs:
-                # Train for one epoch
-                if learning_strategy in ["two_step", "two_step_kl"]:
-                    if current_epoch < train_cfg.pretrain_epochs:
-                        logger.info(f"Pretrain epoch {current_epoch+1}/{train_cfg.pretrain_epochs}")
+                    if input_mode == 0:
+                        # Run all plots except branch_info for input_mode=0
+                        safe_plots = [p for p in visualization_cfg.plots if p != 'branch_info']
+                        for plot_name in safe_plots:
+                            logger.info(f"  Generating {plot_name} plot...")
+                            try:
+                                plot_manager.run_plot(plot_name)
+                            except Exception as e:
+                                logger.error(f"Error generating {plot_name} plot: {str(e)}")
+                        
+                        if 'branch_info' in visualization_cfg.plots:
+                            logger.info(f"  Skipping branch_info plot for input_mode=0 to avoid errors")
                     else:
-                        logger.info(f"Main train epoch {current_epoch+1-train_cfg.pretrain_epochs}/{total_epochs-train_cfg.pretrain_epochs}")
-                    
-                    results = trainer.train(
-                        model=model,
-                        train_data=train_ds,
-                        valid_data=valid_ds,
-                        pretrain_epochs=1 if current_epoch < train_cfg.pretrain_epochs else 0,
-                        maintrain_epochs=0 if current_epoch < train_cfg.pretrain_epochs else 1,
-                        batch_size=train_cfg.batch_size,
-                        grad_clip_value=train_cfg.grad_clip_value,
-                        shuffle=True,
-                        load_best_state_dict=False,
-                        plot_losses=False,
-                        save_path=run_save_path
-                    )
-                elif learning_strategy == "freeze_layers":
-                    # For freeze_layers, we'll use a slightly different approach
-                    # This is a simplified version, assuming one epoch per layer at a time
-                    layer_idx = current_epoch % model.net.num_layers if hasattr(model.net, 'num_layers') else 0
-                    logger.info(f"Training layer {layer_idx} for epoch {current_epoch+1}/{total_epochs}")
-                    
-                    # Freeze all layers except the current one
-                    if hasattr(model.net, 'freeze_all_layers_except'):
-                        model.net.freeze_all_layers_except(layer_idx)
-                    
-                    results = trainer.train(
-                        model=model,
-                        train_data=train_ds,
-                        valid_data=valid_ds,
-                        epochs=1,
-                        batch_size=train_cfg.batch_size,
-                        grad_clip_value=train_cfg.grad_clip_value,
-                        shuffle=True,
-                        load_best_state_dict=False,
-                        plot_losses=False,
-                        save_path=run_save_path
-                    )
-                    
-                    # Unfreeze all layers after training
-                    if hasattr(model.net, 'unfreeze_all_layers'):
-                        model.net.unfreeze_all_layers()
-                else:
-                    results = trainer.train(
-                        model=model,
-                        train_data=train_ds,
-                        valid_data=valid_ds,
-                        epochs=1,
-                        batch_size=train_cfg.batch_size,
-                        grad_clip_value=train_cfg.grad_clip_value,
-                        shuffle=True,
-                        load_best_state_dict=False,
-                        plot_losses=False,
-                        save_path=run_save_path
-                    )
-                
-                # Track losses and best model
-                if "train_losses" in results:
-                    train_losses.extend(results["train_losses"])
-                elif "train losses" in results:
-                    train_losses.extend(results["train losses"])
-                    
-                if "valid_losses" in results:
-                    valid_losses.extend(results["valid_losses"])
-                elif "valid losses" in results:
-                    valid_losses.extend(results["valid losses"])
-                    
-                current_loss = valid_losses[-1] if valid_losses else float('inf')
-                
-                if "best_loss" in results and results["best_loss"] < best_loss:
-                    best_loss = results["best_loss"]
-                    if "best_state_dict" in results:
-                        best_state_dict = results["best_state_dict"]
-                    elif "best state dict" in results:
-                        best_state_dict = results["best state dict"]
-                
-                # Update epoch counter
-                current_epoch += 1
-                
-                # Check if this epoch is in the visualization list
-                if current_epoch in visualize_epochs:
-                    logger.info(f"Epoch {current_epoch}/{total_epochs} complete: train_loss={train_losses[-1]:.4f}, valid_loss={valid_losses[-1]:.4f}")
-                    
-                    # Evaluate model accuracy at this epoch
-                    train_acc, valid_acc, test_acc = evaluate_accuracy(
-                        model, train_ds, valid_ds, test_ds, 
-                        save_path=os.path.join(run_save_path, 'performance'), 
-                        filename=f"epoch{current_epoch}",
-                    )
-                    logger.info(f"  Accuracy: train={train_acc:.4f}, valid={valid_acc:.4f}, test={test_acc:.4f}")
-                    
-                    if wandb.run is not None:
-                        wandb.log({
-                            f"epoch_{current_epoch}_train_acc": train_acc,
-                            f"epoch_{current_epoch}_valid_acc": valid_acc,
-                            f"epoch_{current_epoch}_test_acc": test_acc
-                        })
-                    
-                    # Create visualizations if enabled
-                    if visualization_cfg.enabled:
-                        # Check if input_mode is 0 before attempting visualizations that might cause errors
-                        input_mode = model_cfg.network.parameters.get('input_mode', 0)
-                        
-                        logger.info(f"Creating visualizations after training...")
-                        # Create data dictionary for plot manager
-                        data_dict = {"train": train_ds, "valid": valid_ds, "test": test_ds}
-                        
-                        # Initialize core plot manager
-                        plot_manager = CorePlotManager(
-                            model=model,
-                            data=data_dict,
-                            save_path=os.path.join(run_save_path, 'visualizations'),
-                            file_name=f"final",
-                            device=device
-                        )
-                        
-                        if input_mode == 0:
-                            # Run all plots except branch_info for input_mode=0
-                            safe_plots = [p for p in visualization_cfg.plots if p != 'branch_info']
-                            for plot_name in safe_plots:
-                                logger.info(f"  Generating {plot_name} plot...")
+                        # For other input modes, run all visualizations as normal
+                        for plot_name in visualization_cfg.plots:
+                            logger.info(f"  Generating {plot_name} plot...")
+                            try:
                                 plot_manager.run_plot(plot_name)
-                            
-                            if 'branch_info' in visualization_cfg.plots:
-                                logger.info(f"  Skipping branch_info plot for input_mode=0 to avoid errors")
-                        else:
-                            # For other input modes, run all visualizations as normal
-                            for plot_name in visualization_cfg.plots:
-                                logger.info(f"  Generating {plot_name} plot...")
-                                plot_manager.run_plot(plot_name)
+                            except Exception as e:
+                                logger.error(f"Error generating {plot_name} plot: {str(e)}")
             
             # Load best model at the end of training
             model.load_state_dict(best_state_dict)
             
             # Plot the final loss curves
-            plot_NLL_loss_curves(train_losses, valid_losses, total_epochs, run_save_path)
+            plot_NLL_loss_curves(train_losses, valid_losses, train_cfg.epochs, run_save_path)
             
             # Final evaluation
             logger.info("Evaluating final model performance...")
@@ -1496,79 +2146,6 @@ def main(config_path: str):
                     "final_valid_acc": valid_acc,
                     "final_test_acc": test_acc
                 })
-        else:
-            # Use the original training approach
-            if learning_strategy in ["two_step", "two_step_kl"]:
-                results = trainer.train(
-                    model=model,
-                    train_data=train_ds,
-                    valid_data=valid_ds,
-                    pretrain_epochs=train_cfg.pretrain_epochs,
-                    maintrain_epochs=train_cfg.epochs - train_cfg.pretrain_epochs,
-                    batch_size=train_cfg.batch_size,
-                    grad_clip_value=train_cfg.grad_clip_value,
-                    shuffle=True,
-                    load_best_state_dict=True,
-                    plot_losses=True,
-                    save_path=run_save_path
-                )
-            elif learning_strategy == "freeze_layers":
-                results = trainer.train(
-                    model=model,
-                    train_data=train_ds,
-                    valid_data=valid_ds,
-                    epochs=train_cfg.epochs_per_layer,
-                    batch_size=train_cfg.batch_size,
-                    grad_clip_value=train_cfg.grad_clip_value,
-                    shuffle=True,
-                    load_best_state_dict=True,
-                    plot_losses=True,
-                    save_path=run_save_path
-                )
-            else:
-                results = trainer.train(
-                    model=model,
-                    train_data=train_ds,
-                    valid_data=valid_ds,
-                    epochs=train_cfg.epochs,
-                    batch_size=train_cfg.batch_size,
-                    grad_clip_value=train_cfg.grad_clip_value,
-                    shuffle=True,
-                    load_best_state_dict=True,
-                    plot_losses=True,
-                    save_path=run_save_path
-                )
-
-            # Save model
-            save_model(model, run_save_path, "model.pt")
-            
-            # Evaluate model
-            train_acc, valid_acc, test_acc = evaluate_accuracy(
-                model, train_ds, valid_ds, test_ds, 
-                save_path=os.path.join(run_save_path, 'performance'), 
-                filename="final",
-            )
-            logger.info(f"Model train acc={train_acc:.3f}, valid acc={valid_acc:.3f}, test acc={test_acc:.3f}")
-            
-            if wandb.run is not None:
-                wandb.log({
-                    "train_acc": train_acc,
-                    "valid_acc": valid_acc,
-                    "test_acc": test_acc
-                })
-            
-            # Visualize final model
-            if visualization_cfg.enabled:
-                logger.info("Creating visualizations...")
-                plot_manager = PlotManager(
-                    model=model,
-                    train_data=train_ds,
-                    valid_data=valid_ds,
-                    test_data=test_ds,
-                    save_path=os.path.join(run_save_path, 'visualizations'),
-                    plots=visualization_cfg.plots
-                )
-                plot_manager.create_visualizations()
     
     # Save configuration
     save_dict(asdict(config), run_save_path, "config.json")
@@ -1576,6 +2153,24 @@ def main(config_path: str):
     # Close W&B
     if wandb_cfg.use_wandb:
         wandb.finish()
+    
+    # Run information estimation analysis if enabled
+    if getattr(outputs_cfg, 'enable_info_estimation', True):
+        info_results = run_information_estimation(
+            model=model,
+            train_ds=train_ds,
+            valid_ds=valid_ds,
+            test_ds=test_ds,
+            save_path=run_save_path,
+            device=device,
+            batch_size=getattr(outputs_cfg, 'ablation_batch_size', 64),
+            epochs=getattr(outputs_cfg, 'info_estimation_epochs', 20)
+        )
+    else:
+        print("\n" + "="*80)
+        print("INFORMATION ESTIMATION ANALYSIS SKIPPED (disabled in config)")
+        print("="*80 + "\n")
+        logger.info("Information estimation analysis skipped (disabled in config)")
     
     return model, results
 
@@ -1605,6 +2200,16 @@ if __name__ == '__main__':
                        help="Path to weights file if pretrained_source is 'file'")
     parser.add_argument("--pytorch_model", 
                        help="Name of PyTorch model if pretrained_source is 'pytorch'")
+    
+    # Information estimation and ablation options
+    parser.add_argument("--enable_ablation", type=lambda x: (str(x).lower() == 'true'), 
+                       help="Enable or disable ablation analysis")
+    parser.add_argument("--enable_info_estimation", type=lambda x: (str(x).lower() == 'true'), 
+                       help="Enable or disable information estimation")
+    parser.add_argument("--info_estimation_epochs", type=int, 
+                       help="Number of epochs for information estimation MLP training")
+    parser.add_argument("--ablation_batch_size", type=int, 
+                       help="Batch size for ablation and information estimation")
     
     args = parser.parse_args()
 
@@ -1652,5 +2257,26 @@ if __name__ == '__main__':
         
         if args.pytorch_model:
             config.train.input_net_training['pretrained_options']['pytorch_model'] = args.pytorch_model
+    
+    # Update ablation and information estimation options
+    if args.enable_ablation is not None:
+        if not hasattr(config, 'outputs'):
+            config.outputs = type('obj', (object,), {})
+        config.outputs.enable_ablation = args.enable_ablation
+        
+    if args.enable_info_estimation is not None:
+        if not hasattr(config, 'outputs'):
+            config.outputs = type('obj', (object,), {})
+        config.outputs.enable_info_estimation = args.enable_info_estimation
+        
+    if args.info_estimation_epochs is not None:
+        if not hasattr(config, 'outputs'):
+            config.outputs = type('obj', (object,), {})
+        config.outputs.info_estimation_epochs = args.info_estimation_epochs
+        
+    if args.ablation_batch_size is not None:
+        if not hasattr(config, 'outputs'):
+            config.outputs = type('obj', (object,), {})
+        config.outputs.ablation_batch_size = args.ablation_batch_size
 
     main(config_path=args.config)
