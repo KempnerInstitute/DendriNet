@@ -117,6 +117,7 @@
  | <a href="#R"><strong>R</strong></a>
  | <a href="#S"><strong>S</strong></a>
  | <a href="#T"><strong>T</strong></a>
+ | <a href="#U"><strong>U</strong></a>
  | <a href="#V"><strong>V</strong></a>
  | <a href="#W"><strong>W</strong></a>
  | <a href="#Y"><strong>Y</strong></a>
@@ -126,7 +127,11 @@
 <table style="width: 100%" class="indextable genindextable"><tr>
   <td style="width: 33%; vertical-align: top;"><ul>
       <li><a href="source/dendritic_modeling.html#dendritic_modeling.gradient_scaling.GradientScaler.__init__">__init__() (dendritic_modeling.gradient_scaling.GradientScaler method)</a>
+
+      <ul>
+        <li><a href="source/dendritic_modeling.html#dendritic_modeling.networks.ExcitationInhibitionNetwork.__init__">(dendritic_modeling.networks.ExcitationInhibitionNetwork method)</a>
 </li>
+      </ul></li>
   </ul></td>
 </tr></table>
 
@@ -159,11 +164,9 @@
   <td style="width: 33%; vertical-align: top;"><ul>
       <li><a href="source/dendritic_modeling.html#dendritic_modeling.models.BaseModel">BaseModel (class in dendritic_modeling.models)</a>
 </li>
-      <li><a href="source/dendritic_modeling.html#dendritic_modeling.dendrinet.BlockLinear">BlockLinear (class in dendritic_modeling.dendrinet)</a>
-</li>
   </ul></td>
   <td style="width: 33%; vertical-align: top;"><ul>
-      <li><a href="source/dendritic_modeling.html#dendritic_modeling.networks.ExcitationInhibitionNetwork.branch_layers">branch_layers (dendritic_modeling.networks.ExcitationInhibitionNetwork property)</a>
+      <li><a href="source/dendritic_modeling.html#dendritic_modeling.dendrinet.BlockLinear">BlockLinear (class in dendritic_modeling.dendrinet)</a>
 </li>
       <li><a href="source/dendritic_modeling.html#dendritic_modeling.plot_utils.build_dendritic_tree_graph">build_dendritic_tree_graph() (in module dendritic_modeling.plot_utils)</a>
 </li>
@@ -207,8 +210,6 @@
 
       <ul>
         <li><a href="source/dendritic_modeling.html#dendritic_modeling.models.ProbabilisticClassifier.decay_weights">(dendritic_modeling.models.ProbabilisticClassifier method)</a>
-</li>
-        <li><a href="source/dendritic_modeling.html#dendritic_modeling.networks.ExcitationInhibitionNetwork.decay_weights">(dendritic_modeling.networks.ExcitationInhibitionNetwork method)</a>
 </li>
       </ul></li>
       <li><a href="source/dendritic_modeling.html#dendritic_modeling.dendrinet.DendriNet">DendriNet (class in dendritic_modeling.dendrinet)</a>
@@ -350,14 +351,16 @@
   <td style="width: 33%; vertical-align: top;"><ul>
       <li><a href="source/dendritic_modeling.html#dendritic_modeling.config.FeedForwardParameters">FeedForwardParameters (class in dendritic_modeling.config)</a>
 </li>
-  </ul></td>
-  <td style="width: 33%; vertical-align: top;"><ul>
       <li><a href="source/dendritic_modeling.html#dendritic_modeling.dendrinet.BlockLinear.forward">forward() (dendritic_modeling.dendrinet.BlockLinear method)</a>
 
       <ul>
         <li><a href="source/dendritic_modeling.html#dendritic_modeling.dendrinet.TopKLinear.forward">(dendritic_modeling.dendrinet.TopKLinear method)</a>
 </li>
       </ul></li>
+  </ul></td>
+  <td style="width: 33%; vertical-align: top;"><ul>
+      <li><a href="source/dendritic_modeling.html#dendritic_modeling.networks.ExcitationInhibitionNetwork.freeze_input_net_weights">freeze_input_net_weights() (dendritic_modeling.networks.ExcitationInhibitionNetwork method)</a>
+</li>
   </ul></td>
 </tr></table>
 
@@ -381,6 +384,10 @@
       <li><a href="source/dendritic_modeling.html#dendritic_modeling.synthetic_datasets.InfoShuntingDataset">InfoShuntingDataset (class in dendritic_modeling.synthetic_datasets)</a>
 </li>
   </ul></td>
+  <td style="width: 33%; vertical-align: top;"><ul>
+      <li><a href="source/dendritic_modeling.html#dendritic_modeling.networks.InputNetTransform">InputNetTransform (class in dendritic_modeling.networks)</a>
+</li>
+  </ul></td>
 </tr></table>
 
 <h2 id="L">L</h2>
@@ -391,6 +398,8 @@
       <li><a href="source/dendritic_modeling.html#dendritic_modeling.synthetic_datasets.load_cifar10_as_datasets">load_cifar10_as_datasets() (in module dendritic_modeling.synthetic_datasets)</a>
 </li>
       <li><a href="source/dendritic_modeling.html#dendritic_modeling.config.load_config">load_config() (in module dendritic_modeling.config)</a>
+</li>
+      <li><a href="source/dendritic_modeling.html#dendritic_modeling.networks.ExcitationInhibitionNetwork.load_input_net_weights">load_input_net_weights() (dendritic_modeling.networks.ExcitationInhibitionNetwork method)</a>
 </li>
       <li><a href="source/dendritic_modeling.html#dendritic_modeling.synthetic_datasets.load_MNIST">load_MNIST() (in module dendritic_modeling.synthetic_datasets)</a>
 </li>
@@ -403,6 +412,8 @@
       <li><a href="source/dendritic_modeling.html#dendritic_modeling.synthetic_datasets.load_MNIST_task_switch">load_MNIST_task_switch() (in module dendritic_modeling.synthetic_datasets)</a>
 </li>
       <li><a href="source/dendritic_modeling.html#dendritic_modeling.synthetic_datasets.load_MNIST_task_switch0">load_MNIST_task_switch0() (in module dendritic_modeling.synthetic_datasets)</a>
+</li>
+      <li><a href="source/dendritic_modeling.html#dendritic_modeling.networks.InputNetTransform.load_pretrained_weights">load_pretrained_weights() (dendritic_modeling.networks.InputNetTransform method)</a>
 </li>
       <li><a href="source/dendritic_modeling.html#dendritic_modeling.logging_config.LoggerManager">LoggerManager (class in dendritic_modeling.logging_config)</a>
 </li>
@@ -417,6 +428,8 @@
       <li><a href="source/dendritic_modeling.html#dendritic_modeling.networks.MLPExcInhLayer">MLPExcInhLayer (class in dendritic_modeling.networks)</a>
 </li>
       <li><a href="source/dendritic_modeling.html#dendritic_modeling.networks.MLPExcInhNetwork">MLPExcInhNetwork (class in dendritic_modeling.networks)</a>
+</li>
+      <li><a href="source/dendritic_modeling.html#dendritic_modeling.networks.MLPInputTransform">MLPInputTransform (in module dendritic_modeling.networks)</a>
 </li>
       <li><a href="source/dendritic_modeling.html#dendritic_modeling.config.ModelConfig">ModelConfig (class in dendritic_modeling.config)</a>
 </li>
@@ -464,10 +477,6 @@
 
 <h2 id="N">N</h2>
 <table style="width: 100%" class="indextable genindextable"><tr>
-  <td style="width: 33%; vertical-align: top;"><ul>
-      <li><a href="source/dendritic_modeling.html#dendritic_modeling.networks.ExcitationInhibitionNetwork.n_branch_layers">n_branch_layers (dendritic_modeling.networks.ExcitationInhibitionNetwork property)</a>
-</li>
-  </ul></td>
   <td style="width: 33%; vertical-align: top;"><ul>
       <li><a href="source/dendritic_modeling.html#dendritic_modeling.synthetic_datasets.NoisyLineDataset">NoisyLineDataset (class in dendritic_modeling.synthetic_datasets)</a>
 </li>
@@ -594,6 +603,14 @@
       <li><a href="source/dendritic_modeling.html#dendritic_modeling.dendrinet.TopKLinear">TopKLinear (class in dendritic_modeling.dendrinet)</a>
 </li>
       <li><a href="source/dendritic_modeling.html#dendritic_modeling.config.TrainConfig">TrainConfig (class in dendritic_modeling.config)</a>
+</li>
+  </ul></td>
+</tr></table>
+
+<h2 id="U">U</h2>
+<table style="width: 100%" class="indextable genindextable"><tr>
+  <td style="width: 33%; vertical-align: top;"><ul>
+      <li><a href="source/dendritic_modeling.html#dendritic_modeling.networks.ExcitationInhibitionNetwork.unfreeze_input_net_weights">unfreeze_input_net_weights() (dendritic_modeling.networks.ExcitationInhibitionNetwork method)</a>
 </li>
   </ul></td>
 </tr></table>
