@@ -9,6 +9,8 @@ import os
 import json
 from typing import Optional
 import torch
+import numpy as np
+import random
 from omegaconf import DictConfig, ListConfig
 from torch.utils.data import DataLoader
 
@@ -37,6 +39,20 @@ def convert_to_serializable(obj):
         return [convert_to_serializable(item) for item in obj]
     else:
         return obj
+
+
+def set_seed(seed: int):
+    """
+    Set the seed for the random number generator.
+    """
+    torch.manual_seed(seed)
+    torch.cuda.manual_seed(seed)
+    torch.cuda.manual_seed_all(seed)
+    np.random.seed(seed)
+    random.seed(seed)
+    torch.backends.cudnn.deterministic = True
+    torch.backends.cudnn.benchmark = False
+
 
 def save_dict(dict_obj: dict, save_path: str, fname: str):
     dict_obj = convert_to_serializable(dict_obj)
