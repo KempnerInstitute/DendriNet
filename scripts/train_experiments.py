@@ -20,7 +20,7 @@ import torchinfo
 from dendritic_modeling import logger, logger_manager
 from dendritic_modeling.learning_strategies import get_trainer, CustomWeightDecayOptimizer
 from dendritic_modeling.models import (ProbabilisticClassifier, Classifier)
-from dendritic_modeling.networks import (ExcitationInhibitionNetwork, MLPExcInhNetwork)
+from dendritic_modeling.networks import (ExcitationInhibitionNetwork, MatchedParamMLP)
 from dendritic_modeling.config import load_config
 from dendritic_modeling.visualization_manager import PlotManager
 from dendritic_modeling.plot_utils import plot_NLL_loss_curves
@@ -43,7 +43,7 @@ def initialize_model(model_cfg):
     if task == 'classification':
         if net_type == 'MLP':
             logger.info(f"Running feedforward with {'probabilistic' if probabilistic else 'simple'} classifier")
-            net = MLPExcInhNetwork(**net_params)
+            net = MatchedParamMLP(**net_params)
             output_dim = net_params.get('output_dim', 10)
             if probabilistic:
                 return ProbabilisticClassifier(net, output_dim)
@@ -77,9 +77,6 @@ def main(config_path: str):
     outputs_cfg = config.outputs
 
     os.makedirs(outputs_cfg.dir, exist_ok=True)
-
-    
-
     
     now = datetime.now().strftime('%Y-%m-%d_%H-%M-%S')
     now = now.replace("_", "").replace("-", "")
