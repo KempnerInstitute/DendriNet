@@ -105,12 +105,40 @@
 <span class="kn">import</span><span class="w"> </span><span class="nn">torch</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">copy</span><span class="w"> </span><span class="kn">import</span> <span class="n">deepcopy</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">torch.utils.data</span><span class="w"> </span><span class="kn">import</span> <span class="n">Dataset</span><span class="p">,</span> <span class="n">random_split</span><span class="p">,</span> <span class="n">TensorDataset</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">torchvision</span><span class="w"> </span><span class="kn">import</span> <span class="n">datasets</span><span class="p">,</span> <span class="n">transforms</span>
 
 <span class="kn">from</span><span class="w"> </span><span class="nn">torchvision.datasets</span><span class="w"> </span><span class="kn">import</span> <span class="n">MNIST</span>
 <span class="kn">import</span><span class="w"> </span><span class="nn">torchvision.transforms</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">T</span>
 <span class="c1">########################################</span>
 <span class="c1"># Original tasks: line, center_surround, orientation_bars, multi_xor, plus standard MNIST</span>
 <span class="c1">########################################</span>
+
+<span class="c1"># Create a centralized function to get or create the data directory</span>
+<div class="viewcode-block" id="get_data_directory">
+<a class="viewcode-back" href="../../source/dendritic_modeling.html#dendritic_modeling.synthetic_datasets.get_data_directory">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">get_data_directory</span><span class="p">(</span><span class="n">data_type</span><span class="p">,</span> <span class="n">custom_path</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Get or create a data directory for the specified data type.</span>
+<span class="sd">    </span>
+<span class="sd">    Args:</span>
+<span class="sd">        data_type (str): Type of data (e.g., &#39;mnist&#39;, &#39;cifar&#39;)</span>
+<span class="sd">        custom_path (str, optional): Custom path provided by the user</span>
+<span class="sd">        </span>
+<span class="sd">    Returns:</span>
+<span class="sd">        str: Path to the data directory</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">if</span> <span class="n">custom_path</span><span class="p">:</span>
+        <span class="c1"># Use the custom path if provided</span>
+        <span class="n">data_path</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">custom_path</span><span class="p">,</span> <span class="n">data_type</span><span class="p">)</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="c1"># Use &#39;data&#39; directory in the current working directory</span>
+        <span class="n">data_path</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="s1">&#39;data&#39;</span><span class="p">,</span> <span class="n">data_type</span><span class="p">)</span>
+    
+    <span class="c1"># Ensure the directory exists</span>
+    <span class="n">os</span><span class="o">.</span><span class="n">makedirs</span><span class="p">(</span><span class="n">data_path</span><span class="p">,</span> <span class="n">exist_ok</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+    
+    <span class="k">return</span> <span class="n">data_path</span></div>
+
 
 <div class="viewcode-block" id="LineDataset">
 <a class="viewcode-back" href="../../source/dendritic_modeling.html#dendritic_modeling.synthetic_datasets.LineDataset">[docs]</a>
@@ -157,6 +185,7 @@
         <span class="n">radius</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">image_size</span> <span class="o">//</span> <span class="mi">4</span>
         <span class="n">cx</span> <span class="o">=</span> <span class="n">cy</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">image_size</span> <span class="o">//</span> <span class="mi">2</span>
         <span class="k">for</span> <span class="n">_</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">n_samples</span><span class="p">):</span>
+            <span class="n">X</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">zeros</span><span class="p">((</span><span class="bp">self</span><span class="o">.</span><span class="n">image_size</span><span class="p">,</span><span class="bp">self</span><span class="o">.</span><span class="n">image_size</span><span class="p">),</span> <span class="n">dtype</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">float32</span><span class="p">)</span><span class="o">.</span><span class="n">flatten</span><span class="p">())</span>
             <span class="n">label</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">random</span><span class="o">.</span><span class="n">choice</span><span class="p">([</span><span class="mi">0</span><span class="p">,</span><span class="mi">1</span><span class="p">,</span><span class="mi">2</span><span class="p">])</span>
             <span class="n">img</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">zeros</span><span class="p">((</span><span class="bp">self</span><span class="o">.</span><span class="n">image_size</span><span class="p">,</span><span class="bp">self</span><span class="o">.</span><span class="n">image_size</span><span class="p">),</span> <span class="n">dtype</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">float32</span><span class="p">)</span>
             <span class="k">if</span> <span class="n">label</span><span class="o">==</span><span class="mi">0</span><span class="p">:</span>
@@ -178,7 +207,7 @@
                             <span class="n">img</span><span class="p">[</span><span class="n">i</span><span class="p">,</span><span class="n">j</span><span class="p">]</span><span class="o">=</span><span class="mf">0.0</span>
                         <span class="k">else</span><span class="p">:</span>
                             <span class="n">img</span><span class="p">[</span><span class="n">i</span><span class="p">,</span><span class="n">j</span><span class="p">]</span><span class="o">=</span><span class="mf">1.0</span>
-            <span class="n">X</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">img</span><span class="o">.</span><span class="n">flatten</span><span class="p">())</span>
+            <span class="n">X</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span> <span class="o">=</span> <span class="n">img</span><span class="o">.</span><span class="n">flatten</span><span class="p">()</span>
             <span class="n">Y</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">label</span><span class="p">)</span>
         <span class="k">return</span> <span class="n">torch</span><span class="o">.</span><span class="n">tensor</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">stack</span><span class="p">(</span><span class="n">X</span><span class="p">)),</span> <span class="n">torch</span><span class="o">.</span><span class="n">tensor</span><span class="p">(</span><span class="n">Y</span><span class="p">,</span><span class="n">dtype</span><span class="o">=</span><span class="n">torch</span><span class="o">.</span><span class="n">long</span><span class="p">)</span>
 
@@ -187,7 +216,6 @@
 
     <span class="k">def</span><span class="w"> </span><span class="fm">__getitem__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">idx</span><span class="p">):</span>
         <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">data</span><span class="p">[</span><span class="n">idx</span><span class="p">],</span> <span class="bp">self</span><span class="o">.</span><span class="n">labels</span><span class="p">[</span><span class="n">idx</span><span class="p">]</span></div>
-
 
 
 <div class="viewcode-block" id="OrientationBarsDataset">
@@ -222,7 +250,6 @@
         <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">data</span><span class="p">[</span><span class="n">idx</span><span class="p">],</span><span class="bp">self</span><span class="o">.</span><span class="n">labels</span><span class="p">[</span><span class="n">idx</span><span class="p">]</span></div>
 
 
-
 <div class="viewcode-block" id="MultiXORDataset">
 <a class="viewcode-back" href="../../source/dendritic_modeling.html#dendritic_modeling.synthetic_datasets.MultiXORDataset">[docs]</a>
 <span class="k">class</span><span class="w"> </span><span class="nc">MultiXORDataset</span><span class="p">(</span><span class="n">Dataset</span><span class="p">):</span>
@@ -251,15 +278,64 @@
 <div class="viewcode-block" id="load_mnist_as_datasets">
 <a class="viewcode-back" href="../../source/dendritic_modeling.html#dendritic_modeling.synthetic_datasets.load_mnist_as_datasets">[docs]</a>
 <span class="k">def</span><span class="w"> </span><span class="nf">load_mnist_as_datasets</span><span class="p">(</span><span class="n">train_valid_split</span><span class="o">=</span><span class="mf">0.8</span><span class="p">,</span> <span class="n">data_path</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
-    <span class="n">data</span> <span class="o">=</span> <span class="n">load_MNIST</span><span class="p">(</span><span class="n">train_valid_split</span><span class="o">=</span><span class="n">train_valid_split</span><span class="p">,</span> <span class="n">cache_dir</span><span class="o">=</span><span class="n">data_path</span><span class="p">)</span>
-    <span class="n">train_ds</span> <span class="o">=</span> <span class="n">data</span><span class="p">[</span><span class="s1">&#39;train&#39;</span><span class="p">]</span>
-    <span class="k">if</span> <span class="s1">&#39;valid&#39;</span> <span class="ow">in</span> <span class="n">data</span><span class="p">:</span>
-        <span class="n">valid_ds</span> <span class="o">=</span> <span class="n">data</span><span class="p">[</span><span class="s1">&#39;valid&#39;</span><span class="p">]</span>
-    <span class="k">else</span><span class="p">:</span>
-        <span class="n">valid_ds</span> <span class="o">=</span> <span class="n">data</span><span class="p">[</span><span class="s1">&#39;test&#39;</span><span class="p">]</span>  
-    <span class="n">test_ds</span> <span class="o">=</span> <span class="n">data</span><span class="p">[</span><span class="s1">&#39;test&#39;</span><span class="p">]</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Load the MNIST dataset and split into train, validation, and test sets.</span>
+<span class="sd">    </span>
+<span class="sd">    Args:</span>
+<span class="sd">        train_valid_split (float): Proportion of training data to use for training (vs validation)</span>
+<span class="sd">        data_path (str, optional): Path to the data directory</span>
+<span class="sd">        </span>
+<span class="sd">    Returns:</span>
+<span class="sd">        tuple: (train_dataset, valid_dataset, test_dataset)</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="c1"># Get the MNIST data directory</span>
+    <span class="n">mnist_dir</span> <span class="o">=</span> <span class="n">get_data_directory</span><span class="p">(</span><span class="s1">&#39;mnist&#39;</span><span class="p">,</span> <span class="n">data_path</span><span class="p">)</span>
+    
+    <span class="c1"># Load training data</span>
+    <span class="n">train_dataset</span> <span class="o">=</span> <span class="n">datasets</span><span class="o">.</span><span class="n">MNIST</span><span class="p">(</span>
+        <span class="n">root</span><span class="o">=</span><span class="n">mnist_dir</span><span class="p">,</span>
+        <span class="n">train</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+        <span class="n">download</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+        <span class="n">transform</span><span class="o">=</span><span class="n">transforms</span><span class="o">.</span><span class="n">ToTensor</span><span class="p">()</span>
+    <span class="p">)</span>
+    
+    <span class="c1"># Load test data</span>
+    <span class="n">test_dataset</span> <span class="o">=</span> <span class="n">datasets</span><span class="o">.</span><span class="n">MNIST</span><span class="p">(</span>
+        <span class="n">root</span><span class="o">=</span><span class="n">mnist_dir</span><span class="p">,</span>
+        <span class="n">train</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span>
+        <span class="n">download</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+        <span class="n">transform</span><span class="o">=</span><span class="n">transforms</span><span class="o">.</span><span class="n">ToTensor</span><span class="p">()</span>
+    <span class="p">)</span>
+    
+    <span class="c1"># Split training data into train and validation</span>
+    <span class="n">train_size</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">train_dataset</span><span class="p">)</span> <span class="o">*</span> <span class="n">train_valid_split</span><span class="p">)</span>
+    <span class="n">valid_size</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">train_dataset</span><span class="p">)</span> <span class="o">-</span> <span class="n">train_size</span>
+    
+    <span class="n">train_dataset</span><span class="p">,</span> <span class="n">valid_dataset</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">utils</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">random_split</span><span class="p">(</span>
+        <span class="n">train_dataset</span><span class="p">,</span> <span class="p">[</span><span class="n">train_size</span><span class="p">,</span> <span class="n">valid_size</span><span class="p">]</span>
+    <span class="p">)</span>
+    
+    <span class="c1"># Format datasets as tuples of tensors (inputs, labels)</span>
+    <span class="n">x_train</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">stack</span><span class="p">([</span><span class="n">img</span> <span class="k">for</span> <span class="n">img</span><span class="p">,</span> <span class="n">_</span> <span class="ow">in</span> <span class="n">train_dataset</span><span class="p">])</span>
+    <span class="n">y_train</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">tensor</span><span class="p">([</span><span class="n">label</span> <span class="k">for</span> <span class="n">_</span><span class="p">,</span> <span class="n">label</span> <span class="ow">in</span> <span class="n">train_dataset</span><span class="p">])</span>
+    
+    <span class="n">x_valid</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">stack</span><span class="p">([</span><span class="n">img</span> <span class="k">for</span> <span class="n">img</span><span class="p">,</span> <span class="n">_</span> <span class="ow">in</span> <span class="n">valid_dataset</span><span class="p">])</span>
+    <span class="n">y_valid</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">tensor</span><span class="p">([</span><span class="n">label</span> <span class="k">for</span> <span class="n">_</span><span class="p">,</span> <span class="n">label</span> <span class="ow">in</span> <span class="n">valid_dataset</span><span class="p">])</span>
+    
+    <span class="n">x_test</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">stack</span><span class="p">([</span><span class="n">img</span> <span class="k">for</span> <span class="n">img</span><span class="p">,</span> <span class="n">_</span> <span class="ow">in</span> <span class="n">test_dataset</span><span class="p">])</span>
+    <span class="n">y_test</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">tensor</span><span class="p">([</span><span class="n">label</span> <span class="k">for</span> <span class="n">_</span><span class="p">,</span> <span class="n">label</span> <span class="ow">in</span> <span class="n">test_dataset</span><span class="p">])</span>
+    
+    <span class="c1"># Flatten images</span>
+    <span class="n">x_train</span> <span class="o">=</span> <span class="n">x_train</span><span class="o">.</span><span class="n">view</span><span class="p">(</span><span class="n">x_train</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="o">-</span><span class="mi">1</span><span class="p">)</span>
+    <span class="n">x_valid</span> <span class="o">=</span> <span class="n">x_valid</span><span class="o">.</span><span class="n">view</span><span class="p">(</span><span class="n">x_valid</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="o">-</span><span class="mi">1</span><span class="p">)</span>
+    <span class="n">x_test</span> <span class="o">=</span> <span class="n">x_test</span><span class="o">.</span><span class="n">view</span><span class="p">(</span><span class="n">x_test</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="o">-</span><span class="mi">1</span><span class="p">)</span>
+    
+    <span class="c1"># Create and return tensor datasets</span>
+    <span class="n">train_ds</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">utils</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">TensorDataset</span><span class="p">(</span><span class="n">x_train</span><span class="p">,</span> <span class="n">y_train</span><span class="p">)</span>
+    <span class="n">valid_ds</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">utils</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">TensorDataset</span><span class="p">(</span><span class="n">x_valid</span><span class="p">,</span> <span class="n">y_valid</span><span class="p">)</span>
+    <span class="n">test_ds</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">utils</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">TensorDataset</span><span class="p">(</span><span class="n">x_test</span><span class="p">,</span> <span class="n">y_test</span><span class="p">)</span>
+    
     <span class="k">return</span> <span class="n">train_ds</span><span class="p">,</span> <span class="n">valid_ds</span><span class="p">,</span> <span class="n">test_ds</span></div>
-
 
 
 <div class="viewcode-block" id="InfoShuntingDataset">
@@ -289,7 +365,6 @@
         <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">n_samples</span>
     <span class="k">def</span><span class="w"> </span><span class="fm">__getitem__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">idx</span><span class="p">):</span>
         <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">data</span><span class="p">[</span><span class="n">idx</span><span class="p">],</span> <span class="bp">self</span><span class="o">.</span><span class="n">labels</span><span class="p">[</span><span class="n">idx</span><span class="p">]</span></div>
-
 
 
 <div class="viewcode-block" id="NoisyLineDataset">
@@ -325,7 +400,6 @@
         <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">data</span><span class="p">[</span><span class="n">idx</span><span class="p">],</span> <span class="bp">self</span><span class="o">.</span><span class="n">labels</span><span class="p">[</span><span class="n">idx</span><span class="p">]</span></div>
 
 
-
 <div class="viewcode-block" id="SparseMNISTDataset">
 <a class="viewcode-back" href="../../source/dendritic_modeling.html#dendritic_modeling.synthetic_datasets.SparseMNISTDataset">[docs]</a>
 <span class="k">class</span><span class="w"> </span><span class="nc">SparseMNISTDataset</span><span class="p">(</span><span class="n">Dataset</span><span class="p">):</span>
@@ -343,7 +417,6 @@
         <span class="n">arr</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="n">img</span><span class="p">,</span><span class="n">dtype</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">float32</span><span class="p">)</span><span class="o">/</span><span class="mf">255.0</span>
         <span class="n">bin_arr</span><span class="o">=</span><span class="p">(</span><span class="n">arr</span><span class="o">&gt;</span><span class="bp">self</span><span class="o">.</span><span class="n">threshold</span><span class="p">)</span><span class="o">.</span><span class="n">astype</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">float32</span><span class="p">)</span>
         <span class="k">return</span> <span class="n">torch</span><span class="o">.</span><span class="n">tensor</span><span class="p">(</span><span class="n">bin_arr</span><span class="o">.</span><span class="n">flatten</span><span class="p">(),</span><span class="n">dtype</span><span class="o">=</span><span class="n">torch</span><span class="o">.</span><span class="n">float32</span><span class="p">),</span> <span class="n">label</span></div>
-
 
 
 <div class="viewcode-block" id="ContextualFigureGroundMNIST">
@@ -366,7 +439,6 @@
         <span class="n">boundary</span><span class="o">=</span><span class="n">w</span><span class="o">//</span><span class="mi">2</span>
         <span class="n">new_img</span><span class="p">[:,</span><span class="n">boundary</span><span class="p">:]</span><span class="o">=</span><span class="n">img_arr</span><span class="p">[:,</span><span class="n">boundary</span><span class="p">:]</span>
         <span class="k">return</span> <span class="n">torch</span><span class="o">.</span><span class="n">tensor</span><span class="p">(</span><span class="n">new_img</span><span class="o">.</span><span class="n">flatten</span><span class="p">(),</span><span class="n">dtype</span><span class="o">=</span><span class="n">torch</span><span class="o">.</span><span class="n">float32</span><span class="p">),</span> <span class="n">label</span></div>
-
 
 
 <div class="viewcode-block" id="MultiTaskLineDataset">
@@ -415,7 +487,6 @@
         <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">data</span><span class="p">[</span><span class="n">idx</span><span class="p">],</span> <span class="bp">self</span><span class="o">.</span><span class="n">labels</span><span class="p">[</span><span class="n">idx</span><span class="p">]</span></div>
 
 
-
 <div class="viewcode-block" id="CompositionalMNIST">
 <a class="viewcode-back" href="../../source/dendritic_modeling.html#dendritic_modeling.synthetic_datasets.CompositionalMNIST">[docs]</a>
 <span class="k">class</span><span class="w"> </span><span class="nc">CompositionalMNIST</span><span class="p">(</span><span class="n">Dataset</span><span class="p">):</span>
@@ -449,253 +520,90 @@
         <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">data</span><span class="p">[</span><span class="n">idx</span><span class="p">],</span><span class="bp">self</span><span class="o">.</span><span class="n">labels</span><span class="p">[</span><span class="n">idx</span><span class="p">]</span></div>
 
 
-
-
-
-<div class="viewcode-block" id="load_MNIST">
-<a class="viewcode-back" href="../../source/dendritic_modeling.html#dendritic_modeling.synthetic_datasets.load_MNIST">[docs]</a>
-<span class="k">def</span><span class="w"> </span><span class="nf">load_MNIST</span><span class="p">(</span><span class="n">train_valid_split</span> <span class="o">=</span> <span class="mi">1</span><span class="p">,</span> <span class="n">cache_dir</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
-    <span class="k">if</span> <span class="n">cache_dir</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
-        <span class="c1"># Use the current working directory instead of navigating up from __file__</span>
-        <span class="n">data_path</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">os</span><span class="o">.</span><span class="n">getcwd</span><span class="p">(),</span> <span class="s1">&#39;data&#39;</span><span class="p">)</span>
-        <span class="n">os</span><span class="o">.</span><span class="n">makedirs</span><span class="p">(</span><span class="n">data_path</span><span class="p">,</span> <span class="n">exist_ok</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
-    <span class="k">else</span><span class="p">:</span>
-        <span class="n">data_path</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">cache_dir</span><span class="p">,</span> <span class="s1">&#39;data&#39;</span><span class="p">,</span> <span class="s1">&#39;mnist&#39;</span><span class="p">)</span>
-
-    <span class="k">if</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">exists</span><span class="p">(</span><span class="n">data_path</span><span class="p">):</span>
-        <span class="n">train_data</span> <span class="o">=</span> <span class="n">TensorDataset</span><span class="p">(</span>
-            <span class="n">torch</span><span class="o">.</span><span class="n">load</span><span class="p">(</span><span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">data_path</span><span class="p">,</span> <span class="s1">&#39;train_inputs.pt&#39;</span><span class="p">),</span> 
-                       <span class="n">weights_only</span> <span class="o">=</span> <span class="kc">True</span><span class="p">),</span>
-            <span class="n">torch</span><span class="o">.</span><span class="n">load</span><span class="p">(</span><span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">data_path</span><span class="p">,</span> <span class="s1">&#39;train_labels.pt&#39;</span><span class="p">),</span> 
-                       <span class="n">weights_only</span> <span class="o">=</span> <span class="kc">True</span><span class="p">),</span>
-        <span class="p">)</span>
-        <span class="n">test_data</span> <span class="o">=</span> <span class="n">TensorDataset</span><span class="p">(</span>
-            <span class="n">torch</span><span class="o">.</span><span class="n">load</span><span class="p">(</span><span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">data_path</span><span class="p">,</span> <span class="s1">&#39;test_inputs.pt&#39;</span><span class="p">),</span> 
-                       <span class="n">weights_only</span> <span class="o">=</span> <span class="kc">True</span><span class="p">),</span>
-            <span class="n">torch</span><span class="o">.</span><span class="n">load</span><span class="p">(</span><span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">data_path</span><span class="p">,</span> <span class="s1">&#39;test_labels.pt&#39;</span><span class="p">),</span> 
-                       <span class="n">weights_only</span> <span class="o">=</span> <span class="kc">True</span><span class="p">),</span>
-        <span class="p">)</span>
-    <span class="k">else</span><span class="p">:</span>
-        <span class="n">os</span><span class="o">.</span><span class="n">makedirs</span><span class="p">(</span><span class="n">data_path</span><span class="p">,</span> <span class="n">exist_ok</span> <span class="o">=</span> <span class="kc">True</span><span class="p">)</span>
-
-        <span class="n">transform</span> <span class="o">=</span> <span class="n">T</span><span class="o">.</span><span class="n">ToTensor</span><span class="p">()</span>
-
-        <span class="k">def</span><span class="w"> </span><span class="nf">loader_saver</span><span class="p">(</span><span class="n">train</span> <span class="o">=</span> <span class="kc">True</span><span class="p">):</span>
-            <span class="n">dataset</span> <span class="o">=</span> <span class="n">MNIST</span><span class="p">(</span><span class="n">root</span> <span class="o">=</span> <span class="n">data_path</span><span class="p">,</span> 
-                            <span class="n">train</span> <span class="o">=</span> <span class="n">train</span><span class="p">,</span> 
-                            <span class="n">download</span> <span class="o">=</span> <span class="kc">True</span><span class="p">)</span>
-            <span class="n">imgs</span><span class="p">,</span> <span class="n">labels</span> <span class="o">=</span> <span class="nb">zip</span><span class="p">(</span><span class="o">*</span><span class="p">(</span><span class="n">dataset</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">dataset</span><span class="p">))))</span>
-            
-            <span class="n">imgs</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">stack</span><span class="p">([</span><span class="n">transform</span><span class="p">(</span><span class="n">img</span><span class="p">)</span><span class="o">.</span><span class="n">flatten</span><span class="p">()</span> <span class="k">for</span> <span class="n">img</span> <span class="ow">in</span> <span class="n">imgs</span><span class="p">],</span> 
-                               <span class="n">dim</span> <span class="o">=</span> <span class="mi">0</span><span class="p">)</span>
-            <span class="n">labels</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">tensor</span><span class="p">(</span><span class="n">labels</span><span class="p">)</span>
-                        
-            <span class="n">name</span> <span class="o">=</span> <span class="s1">&#39;train&#39;</span> <span class="k">if</span> <span class="n">train</span> <span class="k">else</span> <span class="s1">&#39;test&#39;</span>
-            <span class="n">torch</span><span class="o">.</span><span class="n">save</span><span class="p">(</span><span class="n">imgs</span><span class="p">,</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">data_path</span><span class="p">,</span> <span class="sa">f</span><span class="s1">&#39;</span><span class="si">{</span><span class="n">name</span><span class="si">}</span><span class="s1">_inputs.pt&#39;</span><span class="p">))</span>
-            <span class="n">torch</span><span class="o">.</span><span class="n">save</span><span class="p">(</span><span class="n">labels</span><span class="p">,</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">data_path</span><span class="p">,</span> <span class="sa">f</span><span class="s1">&#39;</span><span class="si">{</span><span class="n">name</span><span class="si">}</span><span class="s1">_labels.pt&#39;</span><span class="p">))</span>
-            
-            <span class="k">return</span> <span class="n">TensorDataset</span><span class="p">(</span><span class="n">imgs</span><span class="p">,</span> <span class="n">labels</span><span class="p">)</span>
-
-        <span class="n">train_data</span> <span class="o">=</span> <span class="n">loader_saver</span><span class="p">(</span><span class="n">train</span> <span class="o">=</span> <span class="kc">True</span><span class="p">)</span>
-        <span class="n">test_data</span> <span class="o">=</span> <span class="n">loader_saver</span><span class="p">(</span><span class="n">train</span> <span class="o">=</span> <span class="kc">False</span><span class="p">)</span>
-
-        <span class="n">shutil</span><span class="o">.</span><span class="n">rmtree</span><span class="p">(</span><span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">data_path</span><span class="p">,</span> <span class="s1">&#39;MNIST&#39;</span><span class="p">))</span>
-
-    <span class="n">data</span> <span class="o">=</span> <span class="p">{}</span>
-
-    <span class="k">if</span> <span class="n">train_valid_split</span> <span class="o">&lt;</span> <span class="mi">1</span><span class="p">:</span>
-        <span class="n">train_ix</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">randperm</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">train_data</span><span class="p">))[</span>
-            <span class="p">:</span><span class="nb">int</span><span class="p">(</span><span class="n">train_valid_split</span><span class="o">*</span><span class="nb">len</span><span class="p">(</span><span class="n">train_data</span><span class="p">))</span>
-        <span class="p">]</span>
-        <span class="n">train_mask</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">zeros</span><span class="p">((</span><span class="nb">len</span><span class="p">(</span><span class="n">train_data</span><span class="p">),))</span><span class="o">.</span><span class="n">bool</span><span class="p">()</span>
-        <span class="n">train_mask</span><span class="p">[</span><span class="n">train_ix</span><span class="p">]</span> <span class="o">=</span> <span class="kc">True</span>
-
-        <span class="n">valid_data</span> <span class="o">=</span> <span class="n">TensorDataset</span><span class="p">(</span><span class="o">*</span><span class="n">train_data</span><span class="p">[</span><span class="o">~</span><span class="n">train_mask</span><span class="p">])</span>
-        <span class="n">train_data</span> <span class="o">=</span> <span class="n">TensorDataset</span><span class="p">(</span><span class="o">*</span><span class="n">train_data</span><span class="p">[</span><span class="n">train_mask</span><span class="p">])</span>
-
-        <span class="n">data</span><span class="p">[</span><span class="s1">&#39;valid&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">valid_data</span>
-
-    <span class="n">data</span><span class="p">[</span><span class="s1">&#39;train&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">train_data</span>
-    <span class="n">data</span><span class="p">[</span><span class="s1">&#39;test&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">test_data</span>
-
-    <span class="k">return</span> <span class="n">data</span></div>
-
-
-<div class="viewcode-block" id="load_MNIST_modulo10">
-<a class="viewcode-back" href="../../source/dendritic_modeling.html#dendritic_modeling.synthetic_datasets.load_MNIST_modulo10">[docs]</a>
-<span class="k">def</span><span class="w"> </span><span class="nf">load_MNIST_modulo10</span><span class="p">(</span><span class="n">shuffle_iterations</span> <span class="o">=</span> <span class="mi">2</span><span class="p">,</span> 
-                        <span class="n">train_valid_split</span> <span class="o">=</span> <span class="mi">1</span><span class="p">,</span>
-                        <span class="n">cache_dir</span> <span class="o">=</span> <span class="kc">None</span><span class="p">):</span>
-    
-    <span class="n">data</span> <span class="o">=</span> <span class="n">load_MNIST</span><span class="p">(</span><span class="n">train_valid_split</span><span class="p">,</span> <span class="n">cache_dir</span><span class="p">)</span>
-
-    <span class="k">for</span> <span class="n">key</span><span class="p">,</span> <span class="n">ds</span> <span class="ow">in</span> <span class="n">data</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
-        <span class="n">ix</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">randperm</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">ds</span><span class="p">))</span>
-        <span class="n">ix0</span> <span class="o">=</span> <span class="n">ix</span><span class="p">[:</span><span class="nb">int</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">ds</span><span class="p">)</span><span class="o">/</span><span class="mi">2</span><span class="p">)]</span>
-        <span class="n">ix1</span> <span class="o">=</span> <span class="n">ix</span><span class="p">[</span><span class="nb">int</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">ds</span><span class="p">)</span><span class="o">/</span><span class="mi">2</span><span class="p">):]</span>
-
-        <span class="n">input0</span><span class="p">,</span> <span class="n">label0</span> <span class="o">=</span> <span class="n">ds</span><span class="p">[</span><span class="n">ix0</span><span class="p">]</span>
-        <span class="n">input1</span><span class="p">,</span> <span class="n">label1</span> <span class="o">=</span> <span class="n">ds</span><span class="p">[</span><span class="n">ix1</span><span class="p">]</span>
-        <span class="k">assert</span><span class="p">(</span><span class="n">label0</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">==</span> <span class="n">label1</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">])</span>
-
-        <span class="n">inputs</span> <span class="o">=</span> <span class="p">[]</span>
-        <span class="n">labels</span> <span class="o">=</span> <span class="p">[]</span>
-        <span class="k">for</span> <span class="n">_</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">shuffle_iterations</span><span class="p">):</span>
-            <span class="n">inputs</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">torch</span><span class="o">.</span><span class="n">cat</span><span class="p">([</span><span class="n">input0</span><span class="p">,</span> <span class="n">input1</span><span class="p">],</span> <span class="n">dim</span> <span class="o">=</span> <span class="o">-</span><span class="mi">1</span><span class="p">))</span>
-            <span class="n">labels</span><span class="o">.</span><span class="n">append</span><span class="p">((</span><span class="n">label0</span> <span class="o">+</span> <span class="n">label1</span><span class="p">)</span> <span class="o">%</span> <span class="mi">10</span><span class="p">)</span>
-
-            <span class="n">ix0</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">randperm</span><span class="p">(</span><span class="n">input0</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">])</span>
-            <span class="n">input0</span> <span class="o">=</span> <span class="n">input0</span><span class="p">[</span><span class="n">ix0</span><span class="p">]</span>
-            <span class="n">label0</span> <span class="o">=</span> <span class="n">label0</span><span class="p">[</span><span class="n">ix0</span><span class="p">]</span>
-
-            <span class="n">ix1</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">randperm</span><span class="p">(</span><span class="n">input1</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">])</span>
-            <span class="n">input1</span> <span class="o">=</span> <span class="n">input1</span><span class="p">[</span><span class="n">ix1</span><span class="p">]</span>
-            <span class="n">label1</span> <span class="o">=</span> <span class="n">label1</span><span class="p">[</span><span class="n">ix1</span><span class="p">]</span>
-        
-        <span class="n">inputs</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">cat</span><span class="p">(</span><span class="n">inputs</span><span class="p">,</span> <span class="n">dim</span> <span class="o">=</span> <span class="mi">0</span><span class="p">)</span>
-        <span class="n">labels</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">cat</span><span class="p">(</span><span class="n">labels</span><span class="p">,</span> <span class="n">dim</span> <span class="o">=</span> <span class="mi">0</span><span class="p">)</span>
-
-        <span class="n">data</span><span class="p">[</span><span class="n">key</span><span class="p">]</span> <span class="o">=</span> <span class="n">TensorDataset</span><span class="p">(</span><span class="n">inputs</span><span class="p">,</span> <span class="n">labels</span><span class="p">)</span>
-
-    <span class="k">return</span> <span class="n">data</span></div>
-
-
-<div class="viewcode-block" id="load_MNIST_task_switch">
-<a class="viewcode-back" href="../../source/dendritic_modeling.html#dendritic_modeling.synthetic_datasets.load_MNIST_task_switch">[docs]</a>
-<span class="k">def</span><span class="w"> </span><span class="nf">load_MNIST_task_switch</span><span class="p">(</span><span class="n">train_valid_split</span> <span class="o">=</span> <span class="mi">1</span><span class="p">,</span> <span class="n">cache_dir</span> <span class="o">=</span> <span class="kc">None</span><span class="p">):</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
-<span class="sd">    MNIST Switch: </span>
-<span class="sd">    Turns the first two input pixels into &#39;task bits&#39;. </span>
-<span class="sd">    For one task bit pattern, labels remain normal. </span>
-<span class="sd">    For the other, labels are inverted (digit -&gt; 9 - digit). </span>
-<span class="sd">    &quot;&quot;&quot;</span>
-    <span class="n">data</span> <span class="o">=</span> <span class="n">load_MNIST</span><span class="p">(</span><span class="n">train_valid_split</span><span class="p">,</span> <span class="n">cache_dir</span><span class="p">)</span>
-
-    <span class="k">for</span> <span class="n">key</span><span class="p">,</span> <span class="n">ds</span> <span class="ow">in</span> <span class="n">data</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
-        <span class="n">input0</span><span class="p">,</span> <span class="n">label0</span> <span class="o">=</span> <span class="n">ds</span><span class="p">[:]</span>
-        <span class="n">input1</span> <span class="o">=</span> <span class="n">deepcopy</span><span class="p">(</span><span class="n">input0</span><span class="p">)</span>
-
-        <span class="n">input0</span><span class="p">[:,</span><span class="mi">0</span><span class="p">]</span> <span class="o">=</span> <span class="mi">1</span>
-        <span class="n">input0</span><span class="p">[:,</span><span class="mi">1</span><span class="p">]</span> <span class="o">=</span> <span class="mi">0</span>
-
-        <span class="n">input1</span><span class="p">[:,</span><span class="mi">0</span><span class="p">]</span> <span class="o">=</span> <span class="mi">0</span>
-        <span class="n">input1</span><span class="p">[:,</span><span class="mi">1</span><span class="p">]</span> <span class="o">=</span> <span class="mi">1</span>
-        <span class="n">label1</span> <span class="o">=</span> <span class="mi">9</span> <span class="o">-</span> <span class="n">label0</span>
-
-        <span class="n">inputs</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">cat</span><span class="p">([</span><span class="n">input0</span><span class="p">,</span> <span class="n">input1</span><span class="p">],</span> <span class="n">dim</span> <span class="o">=</span> <span class="mi">0</span><span class="p">)</span>
-        <span class="n">labels</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">cat</span><span class="p">([</span><span class="n">label0</span><span class="p">,</span> <span class="n">label1</span><span class="p">],</span> <span class="n">dim</span> <span class="o">=</span> <span class="mi">0</span><span class="p">)</span>
-        
-        <span class="n">data</span><span class="p">[</span><span class="n">key</span><span class="p">]</span> <span class="o">=</span> <span class="n">TensorDataset</span><span class="p">(</span><span class="n">inputs</span><span class="p">,</span> <span class="n">labels</span><span class="p">)</span>
-    
-    <span class="k">return</span> <span class="n">data</span></div>
-
-
-<div class="viewcode-block" id="load_MNIST_task_switch0">
-<a class="viewcode-back" href="../../source/dendritic_modeling.html#dendritic_modeling.synthetic_datasets.load_MNIST_task_switch0">[docs]</a>
-<span class="k">def</span><span class="w"> </span><span class="nf">load_MNIST_task_switch0</span><span class="p">(</span><span class="n">train_valid_split</span> <span class="o">=</span> <span class="mi">1</span><span class="p">,</span> <span class="n">cache_dir</span> <span class="o">=</span> <span class="kc">None</span><span class="p">):</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
-<span class="sd">    MNIST Split: </span>
-<span class="sd">    Zeros out the first 10 pixels in the input. Then for each digit i in 0..9, </span>
-<span class="sd">    we set pixel i to 1 and also shift the label by i (mod 10). </span>
-<span class="sd">    This effectively creates 10 &#39;subtasks&#39; inside one dataset.</span>
-<span class="sd">    &quot;&quot;&quot;</span>
-    <span class="n">data</span> <span class="o">=</span> <span class="n">load_MNIST</span><span class="p">(</span><span class="n">train_valid_split</span><span class="p">,</span> <span class="n">cache_dir</span><span class="p">)</span>
-
-    <span class="k">for</span> <span class="n">key</span><span class="p">,</span> <span class="n">ds</span> <span class="ow">in</span> <span class="n">data</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
-        <span class="n">raw_input</span><span class="p">,</span> <span class="n">raw_label</span> <span class="o">=</span> <span class="n">ds</span><span class="p">[:]</span>
-        <span class="n">raw_input</span><span class="p">[:,:</span><span class="mi">10</span><span class="p">]</span> <span class="o">=</span> <span class="mi">0</span>
-
-        <span class="n">inputs</span> <span class="o">=</span> <span class="p">[]</span>
-        <span class="n">labels</span> <span class="o">=</span> <span class="p">[]</span>
-
-        <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">10</span><span class="p">):</span>
-            <span class="n">task_input</span> <span class="o">=</span> <span class="n">deepcopy</span><span class="p">(</span><span class="n">raw_input</span><span class="p">)</span>
-            <span class="n">task_input</span><span class="p">[:,</span><span class="n">i</span><span class="p">]</span> <span class="o">=</span> <span class="mi">1</span>
-
-            <span class="n">task_label</span> <span class="o">=</span> <span class="p">(</span><span class="n">raw_label</span> <span class="o">+</span> <span class="n">i</span><span class="p">)</span> <span class="o">%</span> <span class="mi">10</span>
-
-            <span class="n">inputs</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">task_input</span><span class="p">)</span>
-            <span class="n">labels</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">task_label</span><span class="p">)</span>
-        
-        <span class="n">inputs</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">cat</span><span class="p">(</span><span class="n">inputs</span><span class="p">,</span> <span class="n">dim</span> <span class="o">=</span> <span class="mi">0</span><span class="p">)</span>
-        <span class="n">labels</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">cat</span><span class="p">(</span><span class="n">labels</span><span class="p">,</span> <span class="n">dim</span> <span class="o">=</span> <span class="mi">0</span><span class="p">)</span>
-
-        <span class="n">data</span><span class="p">[</span><span class="n">key</span><span class="p">]</span> <span class="o">=</span> <span class="n">TensorDataset</span><span class="p">(</span><span class="n">inputs</span><span class="p">,</span> <span class="n">labels</span><span class="p">)</span>
-
-    <span class="k">return</span> <span class="n">data</span></div>
-
-
-<div class="viewcode-block" id="split_MNIST_inputs">
-<a class="viewcode-back" href="../../source/dendritic_modeling.html#dendritic_modeling.synthetic_datasets.split_MNIST_inputs">[docs]</a>
-<span class="k">def</span><span class="w"> </span><span class="nf">split_MNIST_inputs</span><span class="p">(</span><span class="n">inputs</span><span class="p">,</span> <span class="n">labels</span><span class="p">):</span>
-    <span class="n">unique_label</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">unique</span><span class="p">(</span><span class="n">labels</span><span class="p">)</span>
-    <span class="n">input_list</span> <span class="o">=</span> <span class="p">[]</span>
-    <span class="k">for</span> <span class="n">unique</span> <span class="ow">in</span> <span class="n">unique_label</span><span class="p">:</span>
-        <span class="n">ix</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">where</span><span class="p">(</span><span class="n">labels</span> <span class="o">==</span> <span class="n">unique</span><span class="p">,</span> <span class="kc">True</span><span class="p">,</span> <span class="kc">False</span><span class="p">)</span>
-        <span class="n">input_list</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">inputs</span><span class="p">[</span><span class="n">ix</span><span class="p">])</span>
-    <span class="k">return</span> <span class="n">input_list</span></div>
-
-
-
-
 <div class="viewcode-block" id="load_cifar10_as_datasets">
 <a class="viewcode-back" href="../../source/dendritic_modeling.html#dendritic_modeling.synthetic_datasets.load_cifar10_as_datasets">[docs]</a>
 <span class="k">def</span><span class="w"> </span><span class="nf">load_cifar10_as_datasets</span><span class="p">(</span><span class="n">train_valid_split</span><span class="o">=</span><span class="mf">1.0</span><span class="p">,</span> <span class="n">data_path</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
-<span class="sd">    Loads CIFAR-10, converts it to shape [N, 3*32*32], </span>
-<span class="sd">    and optionally splits into train/valid if train_valid_split &lt; 1. </span>
+<span class="sd">    Load the CIFAR-10 dataset and split into train, validation, and test sets.</span>
+<span class="sd">    </span>
+<span class="sd">    Args:</span>
+<span class="sd">        train_valid_split (float): Proportion of training data to use for training (vs validation)</span>
+<span class="sd">        data_path (str, optional): Path to the data directory</span>
+<span class="sd">        </span>
+<span class="sd">    Returns:</span>
+<span class="sd">        tuple: (train_dataset, valid_dataset, test_dataset)</span>
 <span class="sd">    &quot;&quot;&quot;</span>
-    <span class="kn">from</span><span class="w"> </span><span class="nn">torchvision.datasets</span><span class="w"> </span><span class="kn">import</span> <span class="n">CIFAR10</span>
-    <span class="n">transform</span> <span class="o">=</span> <span class="n">T</span><span class="o">.</span><span class="n">Compose</span><span class="p">([</span>
-        <span class="n">T</span><span class="o">.</span><span class="n">ToTensor</span><span class="p">()</span>
+    <span class="c1"># Define transforms</span>
+    <span class="n">transform</span> <span class="o">=</span> <span class="n">transforms</span><span class="o">.</span><span class="n">Compose</span><span class="p">([</span>
+        <span class="n">transforms</span><span class="o">.</span><span class="n">ToTensor</span><span class="p">(),</span>
+        <span class="n">transforms</span><span class="o">.</span><span class="n">Normalize</span><span class="p">((</span><span class="mf">0.5</span><span class="p">,</span> <span class="mf">0.5</span><span class="p">,</span> <span class="mf">0.5</span><span class="p">),</span> <span class="p">(</span><span class="mf">0.5</span><span class="p">,</span> <span class="mf">0.5</span><span class="p">,</span> <span class="mf">0.5</span><span class="p">))</span>
     <span class="p">])</span>
     
-    <span class="k">if</span> <span class="n">data_path</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
-        <span class="n">root_dir</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">dirname</span><span class="p">(</span><span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">dirname</span><span class="p">(</span><span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">dirname</span><span class="p">(</span><span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">abspath</span><span class="p">(</span><span class="vm">__file__</span><span class="p">))))</span>
-        <span class="n">root_dir</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">root_dir</span><span class="p">,</span> <span class="s1">&#39;data&#39;</span><span class="p">,</span> <span class="s1">&#39;cifar&#39;</span><span class="p">)</span>
-    <span class="k">else</span><span class="p">:</span>
-        <span class="n">root_dir</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">data_path</span><span class="p">,</span> <span class="s2">&quot;cifar&quot;</span><span class="p">)</span>
-        
-    <span class="n">train_set</span> <span class="o">=</span> <span class="n">CIFAR10</span><span class="p">(</span><span class="n">root</span><span class="o">=</span><span class="n">root_dir</span><span class="p">,</span> <span class="n">train</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">download</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">transform</span><span class="o">=</span><span class="n">transform</span><span class="p">)</span>
-    <span class="n">test_set</span> <span class="o">=</span> <span class="n">CIFAR10</span><span class="p">(</span><span class="n">root</span><span class="o">=</span><span class="n">root_dir</span><span class="p">,</span> <span class="n">train</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">download</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">transform</span><span class="o">=</span><span class="n">transform</span><span class="p">)</span>
+    <span class="c1"># Get the CIFAR data directory</span>
+    <span class="n">cifar_dir</span> <span class="o">=</span> <span class="n">get_data_directory</span><span class="p">(</span><span class="s1">&#39;cifar&#39;</span><span class="p">,</span> <span class="n">data_path</span><span class="p">)</span>
     
-    <span class="c1"># Convert each dataset to Tensors: shape [N, 3*32*32]</span>
+    <span class="c1"># Load training data</span>
+    <span class="n">train_dataset</span> <span class="o">=</span> <span class="n">datasets</span><span class="o">.</span><span class="n">CIFAR10</span><span class="p">(</span>
+        <span class="n">root</span><span class="o">=</span><span class="n">cifar_dir</span><span class="p">,</span>
+        <span class="n">train</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+        <span class="n">download</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+        <span class="n">transform</span><span class="o">=</span><span class="n">transform</span>
+    <span class="p">)</span>
+    
+    <span class="c1"># Load test data</span>
+    <span class="n">test_dataset</span> <span class="o">=</span> <span class="n">datasets</span><span class="o">.</span><span class="n">CIFAR10</span><span class="p">(</span>
+        <span class="n">root</span><span class="o">=</span><span class="n">cifar_dir</span><span class="p">,</span>
+        <span class="n">train</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span>
+        <span class="n">download</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+        <span class="n">transform</span><span class="o">=</span><span class="n">transform</span>
+    <span class="p">)</span>
+    
+    <span class="c1"># Helper function to convert datasets to tensor format</span>
     <span class="k">def</span><span class="w"> </span><span class="nf">convert_to_tensor</span><span class="p">(</span><span class="n">dataset</span><span class="p">):</span>
-        <span class="n">X</span> <span class="o">=</span> <span class="p">[]</span>
-        <span class="n">Y</span> <span class="o">=</span> <span class="p">[]</span>
-        <span class="k">for</span> <span class="n">img</span><span class="p">,</span> <span class="n">lbl</span> <span class="ow">in</span> <span class="n">dataset</span><span class="p">:</span>
-            <span class="c1"># img is shape [3, 32, 32], flatten to 3*32*32</span>
-            <span class="n">X</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">img</span><span class="o">.</span><span class="n">view</span><span class="p">(</span><span class="o">-</span><span class="mi">1</span><span class="p">))</span>
-            <span class="n">Y</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">lbl</span><span class="p">)</span>
-        <span class="n">X</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">stack</span><span class="p">(</span><span class="n">X</span><span class="p">,</span> <span class="n">dim</span><span class="o">=</span><span class="mi">0</span><span class="p">)</span>
-        <span class="n">Y</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">tensor</span><span class="p">(</span><span class="n">Y</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">torch</span><span class="o">.</span><span class="n">long</span><span class="p">)</span>
-        <span class="k">return</span> <span class="n">X</span><span class="p">,</span> <span class="n">Y</span>
+        <span class="c1"># Extract data and labels</span>
+        <span class="n">data</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="n">labels</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="k">for</span> <span class="n">img</span><span class="p">,</span> <span class="n">label</span> <span class="ow">in</span> <span class="n">dataset</span><span class="p">:</span>
+            <span class="n">data</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">img</span><span class="p">)</span>
+            <span class="n">labels</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">label</span><span class="p">)</span>
+        
+        <span class="c1"># Stack into tensors</span>
+        <span class="n">data_tensor</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">stack</span><span class="p">(</span><span class="n">data</span><span class="p">)</span>
+        <span class="n">label_tensor</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">tensor</span><span class="p">(</span><span class="n">labels</span><span class="p">)</span>
+        
+        <span class="c1"># Flatten images</span>
+        <span class="n">data_tensor</span> <span class="o">=</span> <span class="n">data_tensor</span><span class="o">.</span><span class="n">view</span><span class="p">(</span><span class="n">data_tensor</span><span class="o">.</span><span class="n">size</span><span class="p">(</span><span class="mi">0</span><span class="p">),</span> <span class="o">-</span><span class="mi">1</span><span class="p">)</span>
+        
+        <span class="k">return</span> <span class="n">data_tensor</span><span class="p">,</span> <span class="n">label_tensor</span>
 
-    <span class="n">Xtrain</span><span class="p">,</span> <span class="n">Ytrain</span> <span class="o">=</span> <span class="n">convert_to_tensor</span><span class="p">(</span><span class="n">train_set</span><span class="p">)</span>
-    <span class="n">Xtest</span><span class="p">,</span> <span class="n">Ytest</span> <span class="o">=</span> <span class="n">convert_to_tensor</span><span class="p">(</span><span class="n">test_set</span><span class="p">)</span>
-
-    <span class="n">data</span> <span class="o">=</span> <span class="p">{}</span>
-    <span class="c1"># If we want to do a train/valid split:</span>
+    <span class="c1"># Split training data into train and validation if needed</span>
     <span class="k">if</span> <span class="n">train_valid_split</span> <span class="o">&lt;</span> <span class="mf">1.0</span><span class="p">:</span>
-        <span class="n">n_train</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">Ytrain</span><span class="p">)</span><span class="o">*</span><span class="n">train_valid_split</span><span class="p">)</span>
-        <span class="n">perm</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">randperm</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">Ytrain</span><span class="p">))</span>
-        <span class="n">idx_train</span> <span class="o">=</span> <span class="n">perm</span><span class="p">[:</span><span class="n">n_train</span><span class="p">]</span>
-        <span class="n">idx_valid</span> <span class="o">=</span> <span class="n">perm</span><span class="p">[</span><span class="n">n_train</span><span class="p">:]</span>
-        <span class="n">Xtrain_</span><span class="p">,</span> <span class="n">Ytrain_</span> <span class="o">=</span> <span class="n">Xtrain</span><span class="p">[</span><span class="n">idx_train</span><span class="p">],</span> <span class="n">Ytrain</span><span class="p">[</span><span class="n">idx_train</span><span class="p">]</span>
-        <span class="n">Xvalid_</span><span class="p">,</span> <span class="n">Yvalid_</span> <span class="o">=</span> <span class="n">Xtrain</span><span class="p">[</span><span class="n">idx_valid</span><span class="p">],</span> <span class="n">Ytrain</span><span class="p">[</span><span class="n">idx_valid</span><span class="p">]</span>
-        <span class="n">data</span><span class="p">[</span><span class="s1">&#39;train&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="p">(</span><span class="n">Xtrain_</span><span class="p">,</span> <span class="n">Ytrain_</span><span class="p">)</span>
-        <span class="n">data</span><span class="p">[</span><span class="s1">&#39;valid&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="p">(</span><span class="n">Xvalid_</span><span class="p">,</span> <span class="n">Yvalid_</span><span class="p">)</span>
+        <span class="n">train_size</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">train_dataset</span><span class="p">)</span> <span class="o">*</span> <span class="n">train_valid_split</span><span class="p">)</span>
+        <span class="n">valid_size</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">train_dataset</span><span class="p">)</span> <span class="o">-</span> <span class="n">train_size</span>
+        
+        <span class="n">train_dataset</span><span class="p">,</span> <span class="n">valid_dataset</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">utils</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">random_split</span><span class="p">(</span>
+            <span class="n">train_dataset</span><span class="p">,</span> <span class="p">[</span><span class="n">train_size</span><span class="p">,</span> <span class="n">valid_size</span><span class="p">]</span>
+        <span class="p">)</span>
+        
+        <span class="c1"># Convert to tensors</span>
+        <span class="n">x_train</span><span class="p">,</span> <span class="n">y_train</span> <span class="o">=</span> <span class="n">convert_to_tensor</span><span class="p">(</span><span class="n">train_dataset</span><span class="p">)</span>
+        <span class="n">x_valid</span><span class="p">,</span> <span class="n">y_valid</span> <span class="o">=</span> <span class="n">convert_to_tensor</span><span class="p">(</span><span class="n">valid_dataset</span><span class="p">)</span>
+        <span class="n">x_test</span><span class="p">,</span> <span class="n">y_test</span> <span class="o">=</span> <span class="n">convert_to_tensor</span><span class="p">(</span><span class="n">test_dataset</span><span class="p">)</span>
+        
+        <span class="c1"># Create tensor datasets</span>
+        <span class="n">train_ds</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">utils</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">TensorDataset</span><span class="p">(</span><span class="n">x_train</span><span class="p">,</span> <span class="n">y_train</span><span class="p">)</span>
+        <span class="n">valid_ds</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">utils</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">TensorDataset</span><span class="p">(</span><span class="n">x_valid</span><span class="p">,</span> <span class="n">y_valid</span><span class="p">)</span>
+        <span class="n">test_ds</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">utils</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">TensorDataset</span><span class="p">(</span><span class="n">x_test</span><span class="p">,</span> <span class="n">y_test</span><span class="p">)</span>
     <span class="k">else</span><span class="p">:</span>
-        <span class="n">data</span><span class="p">[</span><span class="s1">&#39;train&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="p">(</span><span class="n">Xtrain</span><span class="p">,</span> <span class="n">Ytrain</span><span class="p">)</span>
-
-    <span class="n">data</span><span class="p">[</span><span class="s1">&#39;test&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="p">(</span><span class="n">Xtest</span><span class="p">,</span> <span class="n">Ytest</span><span class="p">)</span>
-
-    <span class="n">train_ds</span> <span class="o">=</span> <span class="n">TensorDataset</span><span class="p">(</span><span class="o">*</span><span class="n">data</span><span class="p">[</span><span class="s1">&#39;train&#39;</span><span class="p">])</span>
-    <span class="k">if</span> <span class="s1">&#39;valid&#39;</span> <span class="ow">in</span> <span class="n">data</span><span class="p">:</span>
-        <span class="n">valid_ds</span> <span class="o">=</span> <span class="n">TensorDataset</span><span class="p">(</span><span class="o">*</span><span class="n">data</span><span class="p">[</span><span class="s1">&#39;valid&#39;</span><span class="p">])</span>
-    <span class="k">else</span><span class="p">:</span>
-        <span class="n">valid_ds</span> <span class="o">=</span> <span class="n">TensorDataset</span><span class="p">(</span><span class="o">*</span><span class="n">data</span><span class="p">[</span><span class="s1">&#39;test&#39;</span><span class="p">])</span>
-    <span class="n">test_ds</span> <span class="o">=</span> <span class="n">TensorDataset</span><span class="p">(</span><span class="o">*</span><span class="n">data</span><span class="p">[</span><span class="s1">&#39;test&#39;</span><span class="p">])</span>
+        <span class="c1"># No validation split needed</span>
+        <span class="n">x_train</span><span class="p">,</span> <span class="n">y_train</span> <span class="o">=</span> <span class="n">convert_to_tensor</span><span class="p">(</span><span class="n">train_dataset</span><span class="p">)</span>
+        <span class="n">x_test</span><span class="p">,</span> <span class="n">y_test</span> <span class="o">=</span> <span class="n">convert_to_tensor</span><span class="p">(</span><span class="n">test_dataset</span><span class="p">)</span>
+        
+        <span class="c1"># Create tensor datasets</span>
+        <span class="n">train_ds</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">utils</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">TensorDataset</span><span class="p">(</span><span class="n">x_train</span><span class="p">,</span> <span class="n">y_train</span><span class="p">)</span>
+        <span class="n">valid_ds</span> <span class="o">=</span> <span class="n">train_ds</span>  <span class="c1"># Use training data for validation</span>
+        <span class="n">test_ds</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">utils</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">TensorDataset</span><span class="p">(</span><span class="n">x_test</span><span class="p">,</span> <span class="n">y_test</span><span class="p">)</span>
+    
     <span class="k">return</span> <span class="n">train_ds</span><span class="p">,</span> <span class="n">valid_ds</span><span class="p">,</span> <span class="n">test_ds</span></div>
 
 
@@ -705,6 +613,16 @@
 <div class="viewcode-block" id="get_unified_datasets">
 <a class="viewcode-back" href="../../source/dendritic_modeling.html#dendritic_modeling.synthetic_datasets.get_unified_datasets">[docs]</a>
 <span class="k">def</span><span class="w"> </span><span class="nf">get_unified_datasets</span><span class="p">(</span><span class="n">task_cfg</span><span class="p">,</span> <span class="n">train_cfg</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Get datasets based on configuration.</span>
+<span class="sd">    </span>
+<span class="sd">    Args:</span>
+<span class="sd">        task_cfg: Task configuration</span>
+<span class="sd">        train_cfg: Training configuration</span>
+<span class="sd">        </span>
+<span class="sd">    Returns:</span>
+<span class="sd">        dict: Dictionary with &#39;train&#39;, &#39;valid&#39;, and &#39;test&#39; datasets</span>
+<span class="sd">    &quot;&quot;&quot;</span>
     <span class="k">try</span><span class="p">:</span>
         <span class="n">dataset_name</span> <span class="o">=</span> <span class="n">task_cfg</span><span class="p">[</span><span class="s1">&#39;dataset&#39;</span><span class="p">]</span>
         <span class="n">data_path</span>   <span class="o">=</span> <span class="n">task_cfg</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;data_path&quot;</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span>
@@ -718,9 +636,10 @@
     <span class="k">if</span> <span class="n">data_path</span> <span class="o">==</span> <span class="s2">&quot;&quot;</span><span class="p">:</span>
         <span class="n">data_path</span> <span class="o">=</span> <span class="kc">None</span>
     
-    <span class="c1"># If data_path is None, use the current working directory instead of navigating up from __file__</span>
+    <span class="c1"># If data_path is None, use the outputs directory in project root instead of current working directory</span>
     <span class="k">if</span> <span class="n">data_path</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
-        <span class="n">data_path</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">os</span><span class="o">.</span><span class="n">getcwd</span><span class="p">(),</span> <span class="s1">&#39;data&#39;</span><span class="p">)</span>
+        <span class="n">project_root</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">dirname</span><span class="p">(</span><span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">dirname</span><span class="p">(</span><span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">dirname</span><span class="p">(</span><span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">abspath</span><span class="p">(</span><span class="vm">__file__</span><span class="p">))))</span>
+        <span class="n">data_path</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">project_root</span><span class="p">,</span> <span class="s1">&#39;outputs&#39;</span><span class="p">,</span> <span class="s1">&#39;data&#39;</span><span class="p">)</span>
         <span class="n">os</span><span class="o">.</span><span class="n">makedirs</span><span class="p">(</span><span class="n">data_path</span><span class="p">,</span> <span class="n">exist_ok</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
 
     <span class="n">train_valid_split</span> <span class="o">=</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">train_cfg</span><span class="p">,</span> <span class="s2">&quot;train_valid_split&quot;</span><span class="p">,</span> <span class="mf">1.0</span><span class="p">)</span>
@@ -800,29 +719,18 @@
     <span class="k">else</span><span class="p">:</span>
         <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Unknown dataset name: </span><span class="si">{</span><span class="n">dataset_name</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span></div>
 
-    
-    
-    
-    
-    
-    <span class="c1"># 1.	Synthetic</span>
-	<span class="c1"># •	&quot;line&quot;</span>
-	<span class="c1"># •	&quot;center_surround&quot;</span>
-	<span class="c1"># •	&quot;orientation_bars&quot;</span>
-	<span class="c1"># •	&quot;multi_xor&quot;</span>
-	<span class="c1"># •	&quot;info_shunting&quot;</span>
-	<span class="c1"># •	&quot;noise_resilience&quot;</span>
-	<span class="c1"># •	&quot;learning_dynamics&quot;</span>
-	<span class="c1"># 2.	MNIST-based</span>
-	<span class="c1"># •	&quot;mnist&quot;</span>
-	<span class="c1"># •	&quot;mnist_modulo10&quot;</span>
-	<span class="c1"># •	&quot;mnist_switch&quot;</span>
-	<span class="c1"># •	&quot;mnist_split&quot;</span>
-	<span class="c1"># •	&quot;feature_selectivity&quot;</span>
-	<span class="c1"># •	&quot;context_gating&quot;</span>
-	<span class="c1"># •	&quot;hierarchical_processing&quot;</span>
-	<span class="c1"># 3.	CIFAR-based</span>
-	<span class="c1"># •	&quot;cifar10&quot;</span>
+
+<span class="c1"># Added function from the older codebase for splitting MNIST inputs.</span>
+<div class="viewcode-block" id="split_MNIST_inputs">
+<a class="viewcode-back" href="../../source/dendritic_modeling.html#dendritic_modeling.synthetic_datasets.split_MNIST_inputs">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">split_MNIST_inputs</span><span class="p">(</span><span class="n">inputs</span><span class="p">,</span> <span class="n">labels</span><span class="p">):</span>
+    <span class="n">unique_label</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">unique</span><span class="p">(</span><span class="n">labels</span><span class="p">)</span>
+    <span class="n">input_list</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="k">for</span> <span class="n">unique</span> <span class="ow">in</span> <span class="n">unique_label</span><span class="p">:</span>
+        <span class="n">ix</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">where</span><span class="p">(</span><span class="n">labels</span> <span class="o">==</span> <span class="n">unique</span><span class="p">,</span> <span class="kc">True</span><span class="p">,</span> <span class="kc">False</span><span class="p">)</span>
+        <span class="n">input_list</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">inputs</span><span class="p">[</span><span class="n">ix</span><span class="p">])</span>
+    <span class="k">return</span> <span class="n">input_list</span></div>
+
 </pre></div>
 
            </div>
