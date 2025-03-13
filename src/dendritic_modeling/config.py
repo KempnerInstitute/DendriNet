@@ -128,7 +128,7 @@ class OutputsConfig(BaseConfig):
 class Config:
     model: ModelConfig = field(default_factory=ModelConfig)
     train: TrainConfig = field(default_factory=TrainConfig)
-    wandb: Optional[WandbConfig] = None
+    wandb: WandbConfig = field(default_factory=WandbConfig) 
     visualization: VisualizationConfig = field(default_factory=VisualizationConfig)
     task: TaskConfig = field(default_factory=TaskConfig)
     outputs: OutputsConfig = field(default_factory=OutputsConfig)
