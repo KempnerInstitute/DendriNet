@@ -503,8 +503,9 @@ def load_cifar10_as_datasets(train_valid_split=1.0, data_path=None):
     ])
     
     if data_path is None:
-        root_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-        root_dir = os.path.join(root_dir, 'data', 'cifar')
+        project_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+        root_dir = os.path.join(project_root, 'outputs', 'data', 'cifar')
+        os.makedirs(root_dir, exist_ok=True)
     else:
         root_dir = os.path.join(data_path, "cifar")
         
@@ -567,9 +568,10 @@ def get_unified_datasets(task_cfg, train_cfg):
     if data_path == "":
         data_path = None
     
-    # If data_path is None, use the current working directory instead of navigating up from __file__
+    # If data_path is None, use the outputs directory in project root instead of current working directory
     if data_path is None:
-        data_path = os.path.join(os.getcwd(), 'data')
+        project_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+        data_path = os.path.join(project_root, 'outputs', 'data')
         os.makedirs(data_path, exist_ok=True)
 
     train_valid_split = getattr(train_cfg, "train_valid_split", 1.0)
