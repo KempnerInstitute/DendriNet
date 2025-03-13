@@ -14,7 +14,7 @@ from matplotlib.gridspec import GridSpec
 from mpl_toolkits.axes_grid1 import make_axes_locatable
 import networkx as nx
 import seaborn as sns
-from dendritic_modeling.synthetic_datasets2 import split_MNIST_inputs
+from dendritic_modeling.synthetic_datasets import split_MNIST_inputs
 
 
 #@title Function to plot an image with the scale color bar
