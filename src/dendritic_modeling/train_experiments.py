@@ -49,7 +49,7 @@ from dendritic_modeling.networks import (
     ExcitationInhibitionNetwork, MLPExcInhNetwork, 
     InputNetTransform, SigmoidInputNetTransform
 )
-from dendritic_modeling.config import load_config
+from dendritic_modeling.config import load_config, EINetParameters
 from dendritic_modeling.visualization_manager import PlotManager
 from dendritic_modeling.plot_utils import plot_NLL_loss_curves
 from dendritic_modeling.synthetic_datasets import get_unified_datasets
@@ -69,23 +69,34 @@ def initialize_model(model_cfg, visualization_enabled=False):
     task = model_cfg.task
     probabilistic = model_cfg.probabilistic
     net_type = model_cfg.network.type
-    net_params = model_cfg.network.parameters.copy() if hasattr(model_cfg.network.parameters, 'copy') else deepcopy(model_cfg.network.parameters)
+    
+    # Get network parameters
+    net_params = model_cfg.network.parameters
     
     # Only enable branch outputs if visualization is enabled or it's explicitly set to True in config
     config_branch_outputs = getattr(net_params, 'enable_branch_outputs', False)
-    enable_branch_outputs = config_branch_outputs and visualization_enabled
+    enable_branch_outputs = config_branch_outputs or visualization_enabled
     
     # Log the branch outputs setting
-    if config_branch_outputs and not visualization_enabled:
-        logger.info("Branch outputs disabled despite config setting because visualization is disabled")
+    logger.info(f"EINet branch outputs enabled: {enable_branch_outputs}")
     
     learning_strategy = getattr(net_params, 'learning_strategy', 'mle')
 
     if task == 'classification':
         if net_type == 'MLP':
             logger.info(f"Running feedforward with {'probabilistic' if probabilistic else 'simple'} classifier")
-            net = MLPExcInhNetwork(**asdict(net_params))
+            
+            # Create a dictionary from the parameters
+            try:
+                net_params_dict = {k: getattr(net_params, k) for k in net_params.__dict__.keys() 
+                                 if not k.startswith('_')}
+            except AttributeError:
+                # Fallback if __dict__ doesn't work
+                net_params_dict = net_params.__dict__.copy()
+            
+            net = MLPExcInhNetwork(**net_params_dict)
             output_dim = getattr(net_params, 'output_dim', 10)
+            
             if probabilistic:
                 model = ProbabilisticClassifier(net, output_dim)
             else:
@@ -97,10 +108,16 @@ def initialize_model(model_cfg, visualization_enabled=False):
                 
         elif net_type == 'EINet':
             logger.info(f"Running EINet with {'probabilistic' if probabilistic else 'simple'} classifier")
-            logger.info(f"EINet branch outputs enabled: {enable_branch_outputs}")
             
-            # Convert dataclass to dictionary and set enable_branch_outputs
-            net_params_dict = asdict(net_params)
+            # Create a dictionary from the parameters
+            try:
+                net_params_dict = {k: getattr(net_params, k) for k in net_params.__dict__.keys() 
+                                 if not k.startswith('_')}
+            except AttributeError:
+                # Fallback if __dict__ doesn't work
+                net_params_dict = net_params.__dict__.copy()
+            
+            # Set enable_branch_outputs directly in the dict
             net_params_dict['enable_branch_outputs'] = enable_branch_outputs
             net_params_dict['learning_strategy'] = learning_strategy
             
