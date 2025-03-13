@@ -230,11 +230,24 @@ def setup_training_environment(config, args=None):
         logger.error(f"Error loading datasets: {e}")
         raise
     
-    # Determine input dimension from dataset
-    if hasattr(train_ds, 'data'):
+    # Determine input dimension based on dataset
+    if hasattr(train_ds, 'data') and len(train_ds.data) > 0:
+        # For datasets with a data attribute
         input_dim = np.prod(train_ds.data[0].shape)
+    elif hasattr(train_ds, 'tensors') and len(train_ds.tensors) > 0:
+        # For TensorDataset
+        input_dim = train_ds.tensors[0].shape[1]
+    elif hasattr(train_ds, '__getitem__'):
+        # For general Datasets
+        x, _ = train_ds[0]
+        if isinstance(x, torch.Tensor):
+            input_dim = x.numel()
+        else:
+            input_dim = np.prod(x.shape)
     else:
-        input_dim = 784  # Default to MNIST dimensions
+        # Fallback - rarely should reach here
+        logger.warning("Could not automatically determine input dimension. Using default 784.")
+        input_dim = 784
     
     # Update input dimension in model config
     model_cfg.network.parameters.input_dim = input_dim
@@ -788,7 +801,7 @@ def main(config_path, args=None):
     # Set up training environment
     run_save_path, model, train_ds, valid_ds, test_ds, optimizer, trainer = setup_training_environment(config, args)
     
-    # Generate and display model architecture summary BEFORE training
+    # Generate and display model architecture summary
     logger.info("Network architecture summary before training:")
     try:
         sample_input, _ = train_ds[0]
@@ -801,8 +814,10 @@ def main(config_path, args=None):
             row_settings=["depth"],
             depth=7
         )
-        # Print summary at INFO level for visibility
-        logger.info("\n" + str(summary))
+        # The torchinfo summary is already being printed to console by default
+        # No need to log it again, which causes duplication
+        # Instead, just log a reference to it for the file logger
+        logger.info("Model summary generated (see console output)")
         if wandb.run:
             wandb.log({
                 "total_params": summary.total_params,
