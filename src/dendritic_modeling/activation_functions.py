@@ -32,6 +32,11 @@ class ParametricTanh(nn.Module):
         b = self.log_b.exp()  # midpoint
         return (torch.tanh(m * (V - b)) + 1) / 2
 
+    def initialize(self, slope_val, log_mid):
+        self.log_m.data.fill_(math.log(slope_val))
+        self.log_b.data.fill_(log_mid)
+
+
 class ParametricTanhOnlyM(nn.Module):
     """
     A parametric tanh activation function where b is fixed and only m is 

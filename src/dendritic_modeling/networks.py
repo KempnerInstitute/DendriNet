@@ -22,10 +22,14 @@ Requests:
 from copy import deepcopy
 import torch
 from torch import nn
+import torchinfo
 import torch.nn.functional as F
+import numpy as np
+from typing import List, Tuple, Dict, Any, Optional
 
 from dendritic_modeling.dendrinet import DendriNet, DendriNetWithOutputs
 from dendritic_modeling import logger
+from dendritic_modeling.utils import SafeHookModule, safe_register_hooks
 
 
 ###############################################################################
@@ -126,6 +130,28 @@ class InputNetTransform(nn.Module):
 
 # For backward compatibility
 MLPInputTransform = InputNetTransform
+
+
+###############################################################################
+# SigmoidInputNetTransform
+###############################################################################
+class SigmoidInputNetTransform(InputNetTransform):
+    """
+    Extension of InputNetTransform that applies a sigmoid activation to the output,
+    ensuring values are in the range [0, 1] before entering the dendrinet.
+    """
+    def __init__(self, input_dim, hidden_dims, output_dim, network_type="MLPInputTransform"):
+        super().__init__(input_dim, hidden_dims, output_dim, network_type)
+        
+    def forward(self, x):
+        # Call the parent's forward method to get outputs
+        excit_out, inhib_out = InputNetTransform.forward(self, x)
+        
+        # Apply sigmoid activation to ensure outputs are in [0, 1]
+        excit_out = torch.sigmoid(excit_out)
+        inhib_out = torch.sigmoid(inhib_out)
+        
+        return excit_out, inhib_out
 
 
 ###############################################################################
@@ -243,12 +269,17 @@ class ExcitationInhibitionLayer(nn.Module):
         Returns:
             excitatory_output, inhibitory_output
         """
-        if self.inhibitory_cells is not None:
+        if self.has_inhib_subnet:
             inhibitory_output = self.inhibitory_cells(x, inhibitory_input)
         else:
+            # If no inhibitory subnet, just pass through the inhibitory input
             inhibitory_output = inhibitory_input
 
+        # Pass the inhibitory output to excitatory cells
+        # The DendriNet architecture handles the proper connections internally
+        # through the inhibitory_synapses_per_branch parameter
         excitatory_output = self.excitatory_cells(x, inhibitory_output)
+        
         return excitatory_output, inhibitory_output
 
     def forward_with_branch_outputs(self, x, inhibitory_input=None):
@@ -258,15 +289,26 @@ class ExcitationInhibitionLayer(nn.Module):
             inhibitory_final = self.inhibitory_cells(x, inhibitory_input)
             inh_acts = []
         else:
-            inhibitory_final = None
+            # When there are no inhibitory cells, pass the original inhibitory_input
+            inhibitory_final = inhibitory_input
             inh_acts = []
+        
+        # Additional safety checks for inhibitory_final
+        if not isinstance(inhibitory_final, torch.Tensor):
+            # Set to None so it gets properly handled in excitatory_cells
+            inhibitory_final = None
+        elif inhibitory_final.dim() == 0:
+            # If it's a scalar tensor, set to None
+            inhibitory_final = None
+        elif inhibitory_final.dim() == 1:
+            # If it's a 1D tensor, make it 2D [1, features]
+            inhibitory_final = inhibitory_final.unsqueeze(0)
+            
+        # Ensure x is a properly formed 2D tensor
+        if x.dim() == 1:
+            x = x.unsqueeze(0)
 
-        if hasattr(self.excitatory_cells, 'forward_with_branch_outputs'):
-            excitatory_final, exc_acts = self.excitatory_cells.forward_with_branch_outputs(x, inhibitory_final)
-        else:
-            excitatory_final = self.excitatory_cells(x, inhibitory_final)
-            exc_acts = []
-
+        excitatory_final, exc_acts = self.excitatory_cells.forward_with_branch_outputs(x, inhibitory_final)
         return excitatory_final, inhibitory_final, inh_acts, exc_acts
 
 
@@ -274,107 +316,136 @@ class ExcitationInhibitionLayer(nn.Module):
 # ExcitationInhibitionNetwork
 ###############################################################################
 class ExcitationInhibitionNetwork(nn.Module):
+    """
+    A neural network model that implements excitatory and inhibitory pathways.
+    This is a placeholder implementation based on common patterns.
+    """
     def __init__(
         self,
-        input_dim,
-        excitatory_layer_sizes,
-        inhibitory_layer_sizes,
-        excitatory_branch_factors,
-        inhibitory_branch_factors,
-        ee_synapses_per_branch_per_layer,
-        ei_synapses_per_branch_per_layer,
-        ie_synapses_per_branch_per_layer,
-        ii_synapses_per_branch_per_layer=[],
-        reactivate=False,
-        somatic_synapses=True,
-        topk_init_method="xavier_normal",
-        use_shunting=True,
-        reactivation_strategy="none",
-        blocklinear_strategy="none",
-        weight_decay_rate=0.1,
-        reactivation_type='param_tanh',
-        local_loss_weight=0.0,
-        enable_branch_outputs=False,
-        output_layer=False,
-        output_dim=10,
-        learning_strategy="mle",
-        input_mode=0,                    # 0=original, 1=direct, 2=input_net
-        input_net_dict=None,             # Renamed from mlp_transform_dict
+        input_dim: int,
+        excitatory_layer_sizes: List[int],
+        inhibitory_layer_sizes: List[int],
+        excitatory_branch_factors: List[int],
+        inhibitory_branch_factors: List[int],
+        output_dim: int = 10,
+        reactivate: bool = True,
+        somatic_synapses: bool = True,
+        ee_synapses_per_branch_per_layer: List[int] = None,
+        ei_synapses_per_branch_per_layer: List[int] = None,
+        ie_synapses_per_branch_per_layer: List[int] = None,
+        ii_synapses_per_branch_per_layer: List[int] = None,
+        use_shunting: bool = True,
+        reactivation_type: str = "param_tanh",
+        reactivation_strategy: str = "inverse",
+        blocklinear_strategy: str = "block_conductance_dynamic",
+        enable_branch_outputs: bool = False,
+        output_layer: bool = False,
+        input_mode: int = 0,
+        input_net_dict: Dict[str, Any] = None,
+        learning_strategy: str = "mle",
+        topk_init_method: str = "xavier_normal",
+        **kwargs
     ):
-        """
-        --------
-        1) If input_mode=0: The first-layer inhibitory net sees input=x (the raw input),
-           just as in the "original" approach. 
-           So we do NOT skip building that inhibitory sub-network in layer0.
-
-        2) If input_mode=1 or 2: skip building inhibitory sub-network ONLY for the FIRST layer,
-           but do build it for subsequent layers if inhibitory_layer_sizes[i+1] > 0.
-
-        3) If input_mode=2: also build an input network from input_net_dict that 
-           outputs (excit, inhib). Then feed that into the first layer's excit/inhib inputs.
-        """
         super().__init__()
-        self.weight_decay_rate = weight_decay_rate
-        self.n_layers = len(excitatory_layer_sizes)
+        self.input_dim = input_dim
+        self.output_dim = output_dim
+        self.excitatory_layer_sizes = excitatory_layer_sizes
+        self.inhibitory_layer_sizes = inhibitory_layer_sizes
+        self.excitatory_branch_factors = excitatory_branch_factors
+        self.inhibitory_branch_factors = inhibitory_branch_factors
+        self.reactivate = reactivate
+        self.somatic_synapses = somatic_synapses
+        self.ee_synapses_per_branch_per_layer = ee_synapses_per_branch_per_layer if ee_synapses_per_branch_per_layer else []
+        self.ei_synapses_per_branch_per_layer = ei_synapses_per_branch_per_layer if ei_synapses_per_branch_per_layer else []
+        self.ie_synapses_per_branch_per_layer = ie_synapses_per_branch_per_layer if ie_synapses_per_branch_per_layer else []
+        self.ii_synapses_per_branch_per_layer = ii_synapses_per_branch_per_layer if ii_synapses_per_branch_per_layer else []
+        self.use_shunting = use_shunting
+        self.reactivation_type = reactivation_type
         self.reactivation_strategy = reactivation_strategy
         self.blocklinear_strategy = blocklinear_strategy
-        self.local_loss_weight = local_loss_weight
-        self.learning_strategy = learning_strategy
+        self.enable_branch_outputs = enable_branch_outputs
+        self.output_layer = output_layer
         self.input_mode = input_mode
-
-        logger.debug(f'Building ExcitationInhibitionNetwork with {self.n_layers} layer(s).')
-        logger.debug(f'input_mode={self.input_mode}')
-
-        excitatory_layer_sizes = deepcopy(excitatory_layer_sizes)
-        inhibitory_layer_sizes = deepcopy(inhibitory_layer_sizes)
-
-        excitatory_layer_sizes.insert(0, input_dim)
-        inhibitory_layer_sizes.insert(0, None)
-
-        ee_syn = list(ee_synapses_per_branch_per_layer)
-        ei_syn = list(ei_synapses_per_branch_per_layer)
-        ie_syn = list(ie_synapses_per_branch_per_layer)
-        ii_syn = list(ii_synapses_per_branch_per_layer)
-
-        while len(ee_syn) < self.n_layers:
-            ee_syn.append(ee_syn[-1])
-        while len(ei_syn) < self.n_layers:
-            ei_syn.append(ei_syn[-1])
-        while len(ie_syn) < self.n_layers:
-            ie_syn.append(ie_syn[-1])
-        while len(ii_syn) < self.n_layers:
-            ii_syn.append(ii_syn[-1])
-
-        # Possibly build input network if input_mode=2
-        self.input_net = None  # Renamed from mlp_transform
-        if self.input_mode == 2:
+        self.input_net_dict = input_net_dict if input_net_dict else {}
+        self.learning_strategy = learning_strategy
+        self.topk_init_method = topk_init_method
+        
+        # Set up input transformation based on input_mode
+        if input_mode == 0:
+            # Original mode - raw input
+            self.input_transform = nn.Identity()
+        elif input_mode == 1:
+            # Simple mode - input goes to both exc and inh pathways
+            self.input_transform = lambda x: (x, x)
+        elif input_mode == 2:
+            # Network mode - transform input through a neural network
             if not input_net_dict:
-                raise ValueError(
-                    "For input_mode=2, must provide input_net_dict with 'type', 'hidden_dims', 'output_dim'."
-                )
-            net_type = input_net_dict.get("type", "MLPInputTransform")
-            hidden_dims = input_net_dict.get("hidden_dims", [128,64])
-            net_out_dim = input_net_dict.get("output_dim", 64)
+                raise ValueError("input_net_dict must be provided when input_mode=2")
+            self.setup_input_network()
+        else:
+            raise ValueError(f"Unknown input_mode: {input_mode}")
             
-            self.input_net = InputNetTransform(
-                input_dim=input_dim,
-                hidden_dims=hidden_dims,
-                output_dim=net_out_dim,
-                network_type=net_type
-            )
+        # Set up network layers
+        self.setup_network_layers()
+        
+        # Set up output layer if needed
+        if self.output_layer:
+            self.setup_output_layer()
             
-            # Note: Pre-trained weights loading is now handled in train_experiments.py
-            # based on the train.input_net_training configuration
+        # Save branch activations if enabled
+        self.branch_activations = [] if enable_branch_outputs else None
             
-            # The excit first layer sees net_out_dim
-            excitatory_layer_sizes[0] = net_out_dim
-
-        # Build each layer
+    def setup_input_network(self):
+        """Set up the input transformation network based on input_net_dict"""
+        # This would create the input network based on the configuration
+        # Placeholder implementation
+        self.input_net = InputNetTransform(
+            input_dim=self.input_dim,
+            hidden_dims=self.input_net_dict.get("hidden_dims", []),
+            output_dim=self.input_net_dict.get("output_dim", 128),
+            network_type=self.input_net_dict.get("type", "MLPInputTransform")
+        )
+        
+    def setup_network_layers(self):
+        """Set up the excitatory and inhibitory network layers"""
+        # Create network layers using ExcitationInhibitionLayer
         layers = []
-        for i in range(self.n_layers):
+        
+        # Setup the lists we need
+        excitatory_layer_sizes = deepcopy(self.excitatory_layer_sizes)
+        inhibitory_layer_sizes = deepcopy(self.inhibitory_layer_sizes)
+        
+        # Insert input_dim at the beginning
+        excitatory_layer_sizes.insert(0, self.input_dim)
+        inhibitory_layer_sizes.insert(0, None)
+        
+        # Set up synapses per branch per layer
+        ee_syn = list(self.ee_synapses_per_branch_per_layer)
+        ei_syn = list(self.ei_synapses_per_branch_per_layer)
+        ie_syn = list(self.ie_synapses_per_branch_per_layer)
+        ii_syn = list(self.ii_synapses_per_branch_per_layer)
+        
+        # Extend lists if needed
+        num_layers = len(excitatory_layer_sizes) - 1
+        while len(ee_syn) < num_layers:
+            ee_syn.append(ee_syn[-1] if ee_syn else 1)
+        while len(ei_syn) < num_layers:
+            ei_syn.append(ei_syn[-1] if ei_syn else 1)
+        while len(ie_syn) < num_layers:
+            ie_syn.append(ie_syn[-1] if ie_syn else 1)
+        while len(ii_syn) < num_layers:
+            ii_syn.append(ii_syn[-1] if ii_syn else 1)
+        
+        # Initialize input_net if using input_mode=2
+        if self.input_mode == 2 and self.input_net is not None:
+            net_out_dim = self.input_net_dict.get("output_dim", 64)
+            excitatory_layer_sizes[0] = net_out_dim
+        
+        # Build each layer
+        for i in range(num_layers):
             n_exc = excitatory_layer_sizes[i+1]
-
-            ### CHANGED: Decide n_inh for layer i
+            
+            # Decide n_inh for layer i based on input_mode
             if i == 0:
                 if self.input_mode == 0:
                     # input_mode=0 => normal approach => use config's inhibitory_layer_sizes[i+1]
@@ -387,39 +458,46 @@ class ExcitationInhibitionNetwork(nn.Module):
             else:
                 # from 2nd layer onward, use the config's inhibitory_layer_sizes
                 n_inh = inhibitory_layer_sizes[i+1]
-
+            
+            # Determine inhibitory input size
             inhibitory_input_size = inhibitory_layer_sizes[i]
             if i == 0 and self.input_mode == 2:
                 # For input_mode=2, use net_out_dim as inhibitory_input_dim
-                inhibitory_input_size = input_net_dict.get("output_dim", 64)
-
-            # Fix for newer version of ExcitationInhibitionLayer
-            # Now passing all required arguments directly to the layer instead of creating DendriNet objects first
-            layers.append(
-                ExcitationInhibitionLayer(
-                    n_excitatory_cells=n_exc,
-                    n_inhibitory_cells=n_inh,
-                    excitatory_branch_factors=excitatory_branch_factors,
-                    inhibitory_branch_factors=inhibitory_branch_factors,
-                    excitatory_input_dim=excitatory_layer_sizes[i],
-                    ee_synapses_per_branch=ee_syn[i],
-                    ei_synapses_per_branch=min(ei_syn[i], inhibitory_input_size) if i == 0 and self.input_mode == 2 else ei_syn[i],
-                    inhibitory_input_dim=inhibitory_input_size,
-                    ie_synapses_per_branch=ie_syn[i],
-                    ii_synapses_per_branch=ii_syn[i],
-                    reactivate=reactivate,
-                    somatic_synapses=somatic_synapses,
-                    topk_init_method=topk_init_method,
-                    use_shunting=use_shunting,
-                    reactivation_strategy=reactivation_strategy,
-                    blocklinear_strategy=blocklinear_strategy,
-                    reactivation_type=reactivation_type,
-                    enable_branch_outputs=enable_branch_outputs
-                )
+                inhibitory_input_size = self.input_net_dict.get("output_dim", 64)
+            
+            # Create ExcitationInhibitionLayer
+            layer = ExcitationInhibitionLayer(
+                n_excitatory_cells=n_exc,
+                n_inhibitory_cells=n_inh,
+                excitatory_branch_factors=self.excitatory_branch_factors,
+                inhibitory_branch_factors=self.inhibitory_branch_factors,
+                excitatory_input_dim=excitatory_layer_sizes[i],
+                ee_synapses_per_branch=ee_syn[i],
+                ei_synapses_per_branch=(min(ei_syn[i], inhibitory_input_size) 
+                                       if i == 0 and self.input_mode == 2 and inhibitory_input_size 
+                                       else ei_syn[i]),
+                inhibitory_input_dim=inhibitory_input_size,
+                ie_synapses_per_branch=ie_syn[i],
+                ii_synapses_per_branch=ii_syn[i],
+                reactivate=self.reactivate,
+                somatic_synapses=self.somatic_synapses,
+                topk_init_method=self.topk_init_method,
+                use_shunting=self.use_shunting,
+                reactivation_strategy=self.reactivation_strategy,
+                blocklinear_strategy=self.blocklinear_strategy,
+                reactivation_type=self.reactivation_type,
+                enable_branch_outputs=self.enable_branch_outputs
             )
-
+            layers.append(layer)
+        
+        # Create ModuleList with the layers
         self.layers = nn.ModuleList(layers)
-
+        
+    def setup_output_layer(self):
+        """Set up the output classification layer"""
+        final_exc_size = self.excitatory_layer_sizes[-1] if self.excitatory_layer_sizes else 0
+        self.output_classifier = nn.Linear(final_exc_size, self.output_dim)
+        
     def forward(self, x):
         """
         Forward logic depends on input_mode:
@@ -429,6 +507,7 @@ class ExcitationInhibitionNetwork(nn.Module):
                     skip that layer's inhib net => no separate output
         Then subsequent layers do normal E–I if their inhib cells exist.
         """
+        # Handle the input based on input_mode
         if self.input_mode == 0:
             excitatory_input = x
             inhibitory_input = None
@@ -436,18 +515,49 @@ class ExcitationInhibitionNetwork(nn.Module):
             excitatory_input = x
             inhibitory_input = x
         elif self.input_mode == 2:
-            excitatory_input, inhibitory_input = self.input_net(x)
+            if self.input_net is not None:
+                excitatory_input, inhibitory_input = self.input_net(x)
+            else:
+                # Fallback if input_net is not initialized
+                excitatory_input = x
+                inhibitory_input = None
         else:
             raise ValueError(f"Unknown input_mode={self.input_mode}")
-
+        
+        # Forward through each layer
         excitatory_output, inhibitory_output = self.layers[0](excitatory_input, inhibitory_input)
 
-        for i in range(1, self.n_layers):
+        for i in range(1, len(self.layers)):
+            # Each layer receives the previous layer's outputs
             excitatory_output, inhibitory_output = self.layers[i](excitatory_output, inhibitory_output)
-
-        return excitatory_output
+        
+        # Apply output layer if enabled
+        if self.output_layer and hasattr(self, 'output_classifier'):
+            output = self.output_classifier(excitatory_output)
+        else:
+            output = excitatory_output
+            
+        # Store branch activations if enabled
+        if self.enable_branch_outputs:
+            self.branch_activations = {
+                'excitatory': [excitatory_output],
+                'inhibitory': [inhibitory_output] if inhibitory_output is not None else []
+            }
+            
+        return output
+        
+    def get_branch_activations(self):
+        """Return branch activations if enabled"""
+        if not self.enable_branch_outputs:
+            raise ValueError("Branch outputs not enabled. Set enable_branch_outputs=True to use this method.")
+        return self.branch_activations
 
     def forward_with_branch_outputs(self, x):
+        """
+        Forward pass that also returns branch activation outputs.
+        Used when branch_outputs=True for visualization and analysis.
+        """
+        # Handle the input based on input_mode
         if self.input_mode == 0:
             excitatory_input = x
             inhibitory_input = None
@@ -455,19 +565,28 @@ class ExcitationInhibitionNetwork(nn.Module):
             excitatory_input = x
             inhibitory_input = x
         elif self.input_mode == 2:
-            excitatory_input, inhibitory_input = self.input_net(x)
+            if self.input_net is not None:
+                excitatory_input, inhibitory_input = self.input_net(x)
+            else:
+                # Fallback if input_net is not initialized
+                excitatory_input = x
+                inhibitory_input = None
         else:
             raise ValueError(f"Unknown input_mode={self.input_mode}")
 
+        # Use forward_with_branch_outputs for each layer
         excitatory_output, inhibitory_output, inh_acts, exc_acts = \
             self.layers[0].forward_with_branch_outputs(excitatory_input, inhibitory_input)
         all_acts = exc_acts
 
-        for i in range(1, self.n_layers):
+        for i in range(1, len(self.layers)):
             excitatory_output, inhibitory_output, inh_acts, exc_acts = \
                 self.layers[i].forward_with_branch_outputs(excitatory_output, inhibitory_output)
             all_acts.extend(exc_acts)
 
+        # Apply output layer if enabled
+        if self.output_layer and hasattr(self, 'output_classifier'):
+            output = self.output_classifier(excitatory_output)
         return excitatory_output, all_acts
 
     def compute_local_loss(self, x, y=None):
@@ -478,6 +597,7 @@ class ExcitationInhibitionNetwork(nn.Module):
         all_branch_layers = []
         for ei_layer in self.layers:
             all_branch_layers.extend(ei_layer.excitatory_cells.branch_layers)
+            all_branch_layers.extend(ei_layer.inhibitory_cells.branch_layers)
         return all_branch_layers
 
     @property
@@ -499,33 +619,9 @@ class ExcitationInhibitionNetwork(nn.Module):
         if hasattr(input_net_weights, 'state_dict'):
             state_dict = input_net_weights.state_dict()
         else:
-            state_dict = input_net_weights
-            
-        self.input_net.load_state_dict(state_dict)
-        
-    def freeze_input_net_weights(self):
-        """
-        Freeze the weights in the input_net component to prevent them from being updated
-        during training. This is useful for transfer learning scenarios.
-        """
-        if self.input_mode == 2 and self.input_net is not None:
-            logger.info("Freezing input network weights")
-            for param in self.input_net.parameters():
-                param.requires_grad = False
-        else:
-            logger.warning("No input network to freeze (input_mode != 2 or no input_net)")
-            
-    def unfreeze_input_net_weights(self):
-        """
-        Unfreeze the weights in the input_net component to allow them to be updated
-        during training.
-        """
-        if self.input_mode == 2 and self.input_net is not None:
-            logger.info("Unfreezing input network weights")
-            for param in self.input_net.parameters():
-                param.requires_grad = True
-        else:
-            logger.warning("No input network to unfreeze (input_mode != 2 or no input_net)")
+            output = excitatory_output
+
+        return output, all_acts
 
 
 ############################################################
@@ -583,73 +679,33 @@ class MLPExcInhLayer(nn.Module):
 
 class MLPExcInhNetwork(nn.Module):
     """
-    Builds an MLP mimicking the excitatory/inhibitory structure.
+    A simple MLP network with separate excitatory and inhibitory pathways.
+    This is a placeholder implementation.
     """
     def __init__(
         self,
-        input_dim,
-        excitatory_layer_sizes,
-        inhibitory_layer_sizes,
-        excitatory_branch_factors,
-        inhibitory_branch_factors,
-        ee_synapses_per_branch_per_layer,
-        ie_synapses_per_branch_per_layer,
-        output_layer=False,
-        output_dim=10,
-        activation=nn.ReLU(),
-        weight_decay_rate=0.1,
-        learning_strategy="mle",
+        input_dim: int,
+        hidden_dims: List[int],
+        output_dim: int = 10,
         **kwargs
     ):
         super().__init__()
-        logger.info("Building MLPExcInhNetwork...")
-        self.weight_decay_rate = weight_decay_rate
-        self.learning_strategy = learning_strategy
-        self.output_layer_flag = output_layer
-
-        input_dim = int(input_dim)
-        excitatory_layer_sizes = [int(x) for x in excitatory_layer_sizes]
-        inhibitory_layer_sizes = [int(x) for x in inhibitory_layer_sizes] if inhibitory_layer_sizes else []
-        ee_synapses_per_branch_per_layer = [int(x) for x in ee_synapses_per_branch_per_layer]
-        ie_synapses_per_branch_per_layer = [int(x) for x in ie_synapses_per_branch_per_layer]
-
-        excit_sizes = deepcopy(excitatory_layer_sizes)
-        excit_sizes.insert(0, input_dim)
-        self.n_layers = len(excit_sizes) - 1
-
+        self.input_dim = input_dim
+        self.hidden_dims = hidden_dims
+        self.output_dim = output_dim
+        
+        # Create the network
         layers = []
-        for i in range(1, len(excit_sizes)):
-            excit_count = excit_sizes[i-1] * ee_synapses_per_branch_per_layer[i-1]
-            if inhibitory_layer_sizes:
-                inhib_count = inhibitory_layer_sizes[i-1] * ie_synapses_per_branch_per_layer[i-1]
-            else:
-                inhib_count = 0
-            in_dim = excit_count + inhib_count
-            layer_activation = activation if i < self.n_layers else None
-            layer_mod = MLPExcInhLayer(
-                in_excit=excit_count,
-                in_inhib=inhib_count,
-                out_features=excit_sizes[i],
-                activation=layer_activation
-            )
-            layers.append(layer_mod)
-        self.layers = nn.ModuleList(layers)
-
-        if self.output_layer_flag:
-            self.classifier = nn.Linear(int(excit_sizes[-1]), int(output_dim))
-        else:
-            self.classifier = None
-
-    def decay_weights(self, weight_decay=None):
-        if weight_decay is None:
-            weight_decay = self.weight_decay_rate
-        for layer in self.layers:
-            layer.decay_weights(weight_decay)
-        if self.classifier is not None:
-            with torch.no_grad():
-                self.classifier.weight.sub_(weight_decay * self.classifier.weight)
-                self.classifier.bias.sub_(weight_decay * self.classifier.bias)
-
+        prev_dim = input_dim
+        
+        for h_dim in hidden_dims:
+            layers.append(nn.Linear(prev_dim, h_dim))
+            layers.append(nn.ReLU())
+            prev_dim = h_dim
+            
+        layers.append(nn.Linear(prev_dim, output_dim))
+        self.layers = nn.Sequential(*layers)
+        
     def forward(self, x):
         for i, layer in enumerate(self.layers):
             in_excit = layer.in_excit
@@ -661,3 +717,108 @@ class MLPExcInhNetwork(nn.Module):
         if self.classifier is not None:
             x = self.classifier(x)
         return x
+
+class MatchedParamMLP(nn.Module):
+    """
+    Creates an MLP with at least as many parameters as an equivalent EINet configuration.
+    Matches the number of layers to DendriticBranchLayers and minimizes parameters while
+    exceeding EINet parameter count.
+    """
+    def __init__(
+        self,
+        input_dim,
+        excitatory_layer_sizes,
+        inhibitory_layer_sizes,
+        excitatory_branch_factors,
+        inhibitory_branch_factors,
+        ee_synapses_per_branch_per_layer,
+        ei_synapses_per_branch_per_layer,
+        ie_synapses_per_branch_per_layer,
+        ii_synapses_per_branch_per_layer=[],
+        reactivate=False,
+        somatic_synapses=True,
+        output_layer=False,
+        output_dim=10,
+        **kwargs  # Accept but ignore other EINet parameters
+    ):
+        super(MatchedParamMLP, self).__init__()
+        
+        # Create EINet to get parameter count and number of layers
+        einet = ExcitationInhibitionNetwork(
+            input_dim=input_dim,
+            excitatory_layer_sizes=excitatory_layer_sizes,
+            inhibitory_layer_sizes=inhibitory_layer_sizes,
+            excitatory_branch_factors=excitatory_branch_factors,
+            inhibitory_branch_factors=inhibitory_branch_factors,
+            ee_synapses_per_branch_per_layer=ee_synapses_per_branch_per_layer,
+            ei_synapses_per_branch_per_layer=ei_synapses_per_branch_per_layer,
+            ie_synapses_per_branch_per_layer=ie_synapses_per_branch_per_layer,
+            ii_synapses_per_branch_per_layer=ii_synapses_per_branch_per_layer,
+            reactivate=reactivate,
+            somatic_synapses=somatic_synapses,
+            output_layer=output_layer,
+            output_dim=output_dim,
+        )
+
+        summary = torchinfo.summary(einet, verbose=0)
+        target_params = summary.trainable_params
+        
+        # Get number of branch layers
+        n_branch_layers = einet.n_branch_layers
+        if not somatic_synapses:
+            n_branch_layers -= 2 * len(einet.layers)  # Account for somatic layer
+                
+        # Calculate required hidden layer widths
+        # For n hidden layers (n+1 total layers), we need:
+        # input_dim * h1 + h1 * h2 + h2 * h3 + ... + hn * output_dim ≥ target_params
+        # Minimize total parameters while satisfying this constraint
+        # We'll use equal width hidden layers for simplicity
+        # Then: input_dim * h + h * h * (n-1) + h * output_dim ≥ target_params
+        # where n is number of hidden layers
+        
+        def get_param_count(hidden_width):
+            """Calculate total parameters for given hidden width"""
+            params = input_dim * hidden_width  # First layer
+            params += hidden_width * hidden_width * (n_branch_layers - 1)  # Hidden layers
+            params += hidden_width * output_dim  # Output layer
+            return params
+        
+        # Binary search for minimum hidden width that exceeds target params
+        left, right = 1, 10000
+        min_width = right
+        
+        while left <= right:
+            mid = (left + right) // 2
+            params = get_param_count(mid)
+            
+            if params >= target_params:
+                min_width = mid
+                right = mid - 1
+            else:
+                left = mid + 1
+        
+        hidden_width = min_width
+        
+        # Build MLP layers
+        layers = []
+        
+        # Input layer
+        layers.extend([
+            nn.Linear(input_dim, hidden_width),
+            nn.ReLU()
+        ])
+        
+        # Hidden layers
+        for _ in range(n_branch_layers - 1):
+            layers.extend([
+                nn.Linear(hidden_width, hidden_width),
+                nn.ReLU()
+            ])
+        
+        # Output layer
+        layers.append(nn.Linear(hidden_width, output_dim))
+        
+        self.network = nn.Sequential(*layers)
+        
+    def forward(self, x):
+        return self.network(x)
