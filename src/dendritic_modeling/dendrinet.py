@@ -259,7 +259,8 @@ class BlockLinear(nn.Module):
         if sum_synapse_conductances is None:
             nn.init.constant_(self.log_weight, 0)
         else:
-            self.log_weight.data = (sum_synapse_conductances).log()[:,None].expand(
+            # Ensure sum_synapse_conductances is a 1D tensor
+            self.log_weight.data = sum_synapse_conductances.log()[:,None].expand(
                 self.out_features, self.block_size).clone()
     
     def block(self):
