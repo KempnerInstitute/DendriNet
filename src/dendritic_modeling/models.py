@@ -172,7 +172,7 @@ class SimpleMLP(torch.nn.Module):
         return self.network(x)
 
 
-class SimpleClassifier(torch.nn.Module):
+class SimpleClassifier(nn.Module):
     """
     A simple classifier that wraps our SimpleMLP for better performance.
     """
