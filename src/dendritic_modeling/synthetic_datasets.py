@@ -168,6 +168,67 @@ def get_data_dir(data_path=None, dataset_type=None):
     
     return data_dir
 
+def get_inputs_labels_from_dataset(dataset):
+    """
+    Extract input tensors and labels from a PyTorch dataset.
+    
+    Args:
+        dataset: A PyTorch Dataset object
+        
+    Returns:
+        Tuple of (inputs, labels) tensors
+    """
+    # For datasets that return pre-made tensors
+    if isinstance(dataset, TensorDataset):
+        return dataset.tensors
+    
+    # For torchvision datasets like MNIST and CIFAR10
+    if hasattr(dataset, 'data') and hasattr(dataset, 'targets'):
+        # Convert data to tensor if it's not already
+        if not isinstance(dataset.data, torch.Tensor):
+            inputs = torch.tensor(dataset.data, dtype=torch.float32)
+        else:
+            inputs = dataset.data.float()
+        
+        # Flatten images if they're not already flat
+        if inputs.dim() > 2:
+            inputs = inputs.view(inputs.size(0), -1)
+            
+        # Normalize to [0, 1] if data is in uint8 format
+        if inputs.dtype == torch.uint8:
+            inputs = inputs / 255.0
+            
+        # Convert targets to tensor if needed
+        if not isinstance(dataset.targets, torch.Tensor):
+            labels = torch.tensor(dataset.targets, dtype=torch.long)
+        else:
+            labels = dataset.targets
+            
+        return inputs, labels
+    
+    # For Subset datasets from random_split
+    if hasattr(dataset, 'dataset') and hasattr(dataset, 'indices'):
+        parent_inputs, parent_labels = get_inputs_labels_from_dataset(dataset.dataset)
+        indices = dataset.indices
+        return parent_inputs[indices], parent_labels[indices]
+    
+    # For general case, collect all data
+    inputs = []
+    labels = []
+    for i in range(len(dataset)):
+        x, y = dataset[i]
+        # Handle case where x is an image
+        if isinstance(x, torch.Tensor) and x.dim() > 1:
+            x = x.view(-1)  # Flatten
+        inputs.append(x)
+        labels.append(y)
+    
+    # Stack inputs and convert labels
+    inputs = torch.stack(inputs)
+    labels = torch.tensor(labels, dtype=torch.long)
+    
+    return inputs, labels
+
 def load_mnist_as_datasets(train_valid_split=0.8, data_path=None):
     """
     Load the MNIST dataset and return train, validation, and test datasets.
@@ -233,25 +294,25 @@ def load_cifar10_as_datasets(train_valid_split=1.0, data_path=None):
         Tuple of (train_dataset, valid_dataset, test_dataset)
     """
     # Get the appropriate data directory
-    data_dir = get_data_dir(data_path, 'cifar')
+    data_dir = get_data_dir(data_path, 'cifar10')
     
     # Download and load the dataset
-    transform = T.Compose([
-        T.ToTensor(),
-    ])
-    
     train_dataset = CIFAR10(
         root=data_dir,
         train=True,
         download=True,
-        transform=transform
+        transform=T.Compose([
+            T.ToTensor(),
+        ])
     )
     
     test_dataset = CIFAR10(
         root=data_dir,
         train=False,
         download=True,
-        transform=transform
+        transform=T.Compose([
+            T.ToTensor(),
+        ])
     )
     
     # Split training data into train and validation
@@ -264,9 +325,9 @@ def load_cifar10_as_datasets(train_valid_split=1.0, data_path=None):
         valid_dataset = test_dataset
     
     # Convert to tensor datasets for consistent interface
-    train_inputs, train_labels = convert_to_tensor(train_dataset)
-    valid_inputs, valid_labels = convert_to_tensor(valid_dataset)
-    test_inputs, test_labels = convert_to_tensor(test_dataset)
+    train_inputs, train_labels = get_inputs_labels_from_dataset(train_dataset)
+    valid_inputs, valid_labels = get_inputs_labels_from_dataset(valid_dataset)
+    test_inputs, test_labels = get_inputs_labels_from_dataset(test_dataset)
     
     train_dataset = TensorDataset(train_inputs, train_labels)
     valid_dataset = TensorDataset(valid_inputs, valid_labels)
