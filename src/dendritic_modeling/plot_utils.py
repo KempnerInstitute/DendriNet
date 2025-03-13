@@ -1078,8 +1078,7 @@ def plot_einet_activations(
 
         exc_temp = []
         for j in range(len(input_list)):
-            exc_temp.append(exc_dendrinet(exc_input_list[j], 
-                                          inh_input_list[j]))
+            exc_temp.append(exc_dendrinet(exc_input_list[j], inh_input_list[j]))
         exc_input_list = exc_temp
 
 
@@ -1272,8 +1271,7 @@ def einet_activations_todict(einet, input_list):
 
         exc_temp = []
         for j in range(len(input_list)):
-            exc_temp.append(exc_dendrinet(exc_input_list[j], 
-                                          inh_input_list[j]))
+            exc_temp.append(exc_dendrinet(exc_input_list[j], inh_input_list[j]))
         exc_input_list = exc_temp
     
     return plot_dict
@@ -1743,8 +1741,7 @@ def einet_activations_to_csv(einet, input_list, save_root, filename = 'activatio
 
         exc_temp = []
         for j in range(len(input_list)):
-            exc_temp.append(exc_dendrinet(exc_input_list[j], 
-                                          inh_input_list[j]))
+            exc_temp.append(exc_dendrinet(exc_input_list[j], inh_input_list[j]))
         exc_input_list = exc_temp
 
 
@@ -2158,16 +2155,3 @@ def plot_branch_sweep_results(results_csv_path, metric='acc', split='test'):
     plt.tight_layout()
     fig.savefig(os.path.join(os.path.dirname(results_csv_path), 'branch_sweep_results.jpeg'))
     plt.close(fig)
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
