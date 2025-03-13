@@ -79,6 +79,30 @@ The simplified source code is not in a package format, so you need to install al
         $ pip install -e .
 
 
+Tutorials
+=========
+
+These tutorials will help you get started with the dendritic modeling framework:
+
+.. toctree::
+   :maxdepth: 1
+
+   interactive_run
+   sweep_job_submission
+   cifar10_tutorial
+
+
+API Reference
+============
+
+For detailed documentation of the key classes and methods:
+
+.. toctree::
+   :maxdepth: 1
+
+   ../dend_m/api_reference
+
+
 Build the documentation 
 ======================= 
 
