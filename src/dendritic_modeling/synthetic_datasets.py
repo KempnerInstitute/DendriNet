@@ -322,12 +322,8 @@ class CompositionalMNIST(Dataset):
 def load_MNIST(train_valid_split = 1, cache_dir=None):
     if cache_dir is None:
         # Use the current working directory instead of navigating up from __file__
-<<<<<<< HEAD
-        data_path = os.path.join(os.getcwd(), 'data', 'mnist')
-=======
         data_path = os.path.join(os.getcwd(), 'data')
         os.makedirs(data_path, exist_ok=True)
->>>>>>> iss157_sweep_ei_MR_hs
     else:
         data_path = os.path.join(cache_dir, 'data', 'mnist')
 

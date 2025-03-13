@@ -21,6 +21,7 @@ Requests:
 
 from copy import deepcopy
 import torch
+from torch import nn
 import torchinfo
 import torch.nn.functional as F
 import numpy as np
@@ -29,7 +30,6 @@ from typing import List, Tuple, Dict, Any, Optional
 from dendritic_modeling.dendrinet import DendriNet, DendriNetWithOutputs
 from dendritic_modeling import logger
 from dendritic_modeling.utils import SafeHookModule, safe_register_hooks
-import numpy as np
 
 
 ###############################################################################
@@ -822,6 +822,3 @@ class MatchedParamMLP(nn.Module):
         
     def forward(self, x):
         return self.network(x)
-
-
-
