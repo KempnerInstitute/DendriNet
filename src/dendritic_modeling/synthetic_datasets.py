@@ -742,6 +742,101 @@ def load_cifar10_as_datasets(train_valid_split=1.0, data_path=None):
 ########################################
 # The single get_unified_datasets(...) function
 ########################################
+def get_line_datasets(params):
+    """
+    Create line detection datasets based on parameters
+    """
+    train_size = params.get('train_size', 8000)
+    valid_size = params.get('valid_size', 1000)
+    test_size = params.get('test_size', 1000)
+    image_size = params.get('image_size', 10)
+    
+    train_ds = LineDataset(n_samples=train_size, image_size=image_size)
+    valid_ds = LineDataset(n_samples=valid_size, image_size=image_size)
+    test_ds = LineDataset(n_samples=test_size, image_size=image_size)
+    
+    return train_ds, valid_ds, test_ds
+
+def get_center_surround_datasets(params):
+    """
+    Create center-surround detection datasets based on parameters
+    """
+    train_size = params.get('train_size', 8000)
+    valid_size = params.get('valid_size', 1000)
+    test_size = params.get('test_size', 1000)
+    image_size = params.get('image_size', 15)
+    
+    train_ds = CenterSurroundDataset(n_samples=train_size, image_size=image_size)
+    valid_ds = CenterSurroundDataset(n_samples=valid_size, image_size=image_size)
+    test_ds = CenterSurroundDataset(n_samples=test_size, image_size=image_size)
+    
+    return train_ds, valid_ds, test_ds
+
+def get_orientation_bars_datasets(params):
+    """
+    Create orientation bars datasets based on parameters
+    """
+    train_size = params.get('train_size', 8000)
+    valid_size = params.get('valid_size', 1000)
+    test_size = params.get('test_size', 1000)
+    image_size = params.get('image_size', 16)
+    n_orient_classes = params.get('n_orient_classes', 8)
+    
+    train_ds = OrientationBarsDataset(n_samples=train_size, image_size=image_size, 
+                                      n_orient_classes=n_orient_classes)
+    valid_ds = OrientationBarsDataset(n_samples=valid_size, image_size=image_size, 
+                                      n_orient_classes=n_orient_classes)
+    test_ds = OrientationBarsDataset(n_samples=test_size, image_size=image_size, 
+                                      n_orient_classes=n_orient_classes)
+    
+    return train_ds, valid_ds, test_ds
+
+def get_multi_xor_datasets(params):
+    """
+    Create multi-XOR datasets based on parameters
+    """
+    train_size = params.get('train_size', 8000)
+    valid_size = params.get('valid_size', 1000)
+    test_size = params.get('test_size', 1000)
+    n_bits = params.get('n_bits', 8)
+    
+    train_ds = MultiXORDataset(n_samples=train_size, n_bits=n_bits)
+    valid_ds = MultiXORDataset(n_samples=valid_size, n_bits=n_bits)
+    test_ds = MultiXORDataset(n_samples=test_size, n_bits=n_bits)
+    
+    return train_ds, valid_ds, test_ds
+
+def get_info_shunting_datasets(params):
+    """
+    Create information shunting datasets based on parameters
+    """
+    train_size = params.get('train_size', 8000)
+    valid_size = params.get('valid_size', 1000)
+    test_size = params.get('test_size', 1000)
+    input_dim = params.get('input_dim', 10)
+    
+    train_ds = InfoShuntingDataset(n_samples=train_size, input_dim=input_dim)
+    valid_ds = InfoShuntingDataset(n_samples=valid_size, input_dim=input_dim)
+    test_ds = InfoShuntingDataset(n_samples=test_size, input_dim=input_dim)
+    
+    return train_ds, valid_ds, test_ds
+
+def get_noisy_line_datasets(params):
+    """
+    Create noisy line datasets based on parameters
+    """
+    train_size = params.get('train_size', 8000)
+    valid_size = params.get('valid_size', 1000)
+    test_size = params.get('test_size', 1000)
+    image_size = params.get('image_size', 10)
+    noise_level = params.get('noise_level', 0.2)
+    
+    train_ds = NoisyLineDataset(n_samples=train_size, image_size=image_size, noise_level=noise_level)
+    valid_ds = NoisyLineDataset(n_samples=valid_size, image_size=image_size, noise_level=noise_level)
+    test_ds = NoisyLineDataset(n_samples=test_size, image_size=image_size, noise_level=noise_level)
+    
+    return train_ds, valid_ds, test_ds
+
 def get_unified_datasets(task_cfg, train_cfg):
     """
     Get datasets based on configuration, handling both standard and synthetic datasets.
@@ -751,7 +846,7 @@ def get_unified_datasets(task_cfg, train_cfg):
         train_cfg: Training configuration with split info
         
     Returns:
-        Dictionary of datasets (train, valid, test)
+        Tuple of (train_dataset, valid_dataset, test_dataset) - all TensorDatasets
     """
     # Extract necessary parameters
     dataset_name = task_cfg.dataset
@@ -781,48 +876,30 @@ def get_unified_datasets(task_cfg, train_cfg):
         train_ds, valid_ds, test_ds = get_orientation_bars_datasets(task_cfg.parameters)
     elif dataset_name == "multi_xor":
         train_ds, valid_ds, test_ds = get_multi_xor_datasets(task_cfg.parameters)
-    elif dataset_name == "mnist_modulo10":
-        train_ds, valid_ds, test_ds = load_MNIST_modulo10(
-            train_valid_split=train_cfg.train_valid_split,
-            cache_dir=data_dir
-        )
-    elif dataset_name == "mnist_switch2":
-        train_ds, valid_ds, test_ds = load_MNIST_task_switch(
-            train_valid_split=train_cfg.train_valid_split,
-            cache_dir=data_dir
-        )
     elif dataset_name == "info_shunting":
         train_ds, valid_ds, test_ds = get_info_shunting_datasets(task_cfg.parameters)
     elif dataset_name == "noise_resilience":
         train_ds, valid_ds, test_ds = get_noisy_line_datasets(task_cfg.parameters)
+    elif dataset_name == "mnist_modulo10":
+        # Special handling for MNIST variants to ensure we return TensorDatasets
+        data = load_MNIST_modulo10(
+            train_valid_split=train_cfg.train_valid_split,
+            cache_dir=data_dir
+        )
+        # Extract datasets from the dictionary
+        train_ds, valid_ds, test_ds = data['train'], data.get('valid', data['test']), data['test']
+    elif dataset_name == "mnist_switch2":
+        # Special handling for MNIST variants to ensure we return TensorDatasets
+        data = load_MNIST_task_switch(
+            train_valid_split=train_cfg.train_valid_split,
+            cache_dir=data_dir
+        )
+        # Extract datasets from the dictionary
+        train_ds, valid_ds, test_ds = data['train'], data.get('valid', data['test']), data['test']
     else:
         raise ValueError(f"Unknown dataset: {dataset_name}")
     
-    return {
-        "train": train_ds,
-        "valid": valid_ds,
-        "test": test_ds
-    }
-    
-    
-    
-    
-    
-    # 1.	Synthetic
-	# •	"line"
-	# •	"center_surround"
-	# •	"orientation_bars"
-	# •	"multi_xor"
-	# •	"info_shunting"
-	# •	"noise_resilience"
-	# •	"learning_dynamics"
-	# 2.	MNIST-based
-	# •	"mnist"
-	# •	"mnist_modulo10"
-	# •	"mnist_switch"
-	# •	"mnist_split"
-	# •	"feature_selectivity"
-	# •	"context_gating"
-	# •	"hierarchical_processing"
-	# 3.	CIFAR-based
-	# •	"cifar10"
+    # Return train, valid, test as a tuple (not a dictionary)
+    return train_ds, valid_ds, test_ds
+
+# ... rest of the existing code ...

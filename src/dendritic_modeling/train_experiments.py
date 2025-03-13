@@ -13,7 +13,7 @@ Learning Strategies:
 - dendrinet_from_mlp: Train MLP first, then use it to initialize and train the dendrinet
 
 Example usage:
-python scripts/train_experiments.py .vscode/config_exp.yaml --learning_strategy dendrinet_from_mlp
+python scripts/train_experiments.py .vscode/config_exp.yaml
 """
 
 import os
@@ -52,7 +52,7 @@ from dendritic_modeling.networks import (
 from dendritic_modeling.config import load_config
 from dendritic_modeling.visualization_manager import PlotManager
 from dendritic_modeling.plot_utils import plot_NLL_loss_curves
-from dendritic_modeling.synthetic_datasets import get_unified_datasets
+from dendritic_modeling.synthetic_datasets2 import get_unified_datasets
 from dendritic_modeling.utils import (
     evaluate_accuracy, save_dict, 
     analyze_branch_ablation, analyze_layerwise_ablation,
