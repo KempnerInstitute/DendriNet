@@ -402,6 +402,7 @@ class DendriticBranchLayer(nn.Module):
             )
             gradient_scaler.register_block_linear_dynamic(
                 self.branches_to_output,
+                self.use_shunting,
                 self.branch_excitation if self.input_excitatory else None,
                 self.branch_inhibition if self.input_inhibitory else None,
             )
@@ -428,7 +429,7 @@ class DendriticBranchLayer(nn.Module):
                 self.branch_inhibition.initialize()
 
             if self.input_branches:
-                if self.input_excitatory or self.input_inhibitory:
+                if (self.input_excitatory or self.input_inhibitory) and self.use_shunting:
                     sum_synapse_conductances = 0
                     if self.input_excitatory:
                         sum_synapse_conductances += self.branch_excitation.weight().sum(dim=1)
