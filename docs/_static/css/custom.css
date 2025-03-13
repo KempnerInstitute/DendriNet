@@ -1,0 +1,22 @@
+
+/* Custom styles for dendritic-modeling docs */
+.wy-nav-content {
+    max-width: 1200px;
+}
+
+/* Improve code block styling */
+.highlight {
+    background: #f8f8f8;
+}
+
+/* Improve table styling */
+table.docutils {
+    width: 100%;
+    margin-bottom: 1em;
+}
+
+/* Better spacing for parameters */
+.field-list dt {
+    padding-top: 8px;
+}
+        
