@@ -33,6 +33,7 @@ import numpy as np
 import random
 import matplotlib.pyplot as plt
 from tqdm import tqdm
+import torchinfo
 
 from dendritic_modeling import logger
 from dendritic_modeling.learning_strategies import (
@@ -786,6 +787,29 @@ def main(config_path, args=None):
     
     # Set up training environment
     run_save_path, model, train_ds, valid_ds, test_ds, optimizer, trainer = setup_training_environment(config, args)
+    
+    # Generate and display model architecture summary BEFORE training
+    logger.info("Network architecture summary before training:")
+    try:
+        sample_input, _ = train_ds[0]
+        sample_input_dim = sample_input.numel()
+        summary = torchinfo.summary(
+            model,
+            input_size=(train_cfg.batch_size, sample_input_dim),
+            col_names=["input_size", "output_size", "num_params"],
+            col_width=25,
+            row_settings=["depth"],
+            depth=7
+        )
+        # Print summary at INFO level for visibility
+        logger.info("\n" + str(summary))
+        if wandb.run:
+            wandb.log({
+                "total_params": summary.total_params,
+                "trainable_params": summary.trainable_params
+            })
+    except Exception as e:
+        logger.error(f"Failed to generate model summary before training: {e}")
     
     # Save configuration
     save_dict(asdict(config), run_save_path, "config.json")
