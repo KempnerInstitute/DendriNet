@@ -144,6 +144,19 @@ class TopKLinear(nn.Module):
         
     def forward(self, x):
         pruned_weight = self.pruned_weight()
+        
+        # Ensure x is a 2D tensor for matrix multiplication
+        if not isinstance(x, torch.Tensor):
+            raise TypeError(f"Expected input to be a tensor, got {type(x)}")
+            
+        # If x is a 1D tensor, unsqueeze to make it 2D [1, features]
+        if x.dim() == 1:
+            x = x.unsqueeze(0)
+            
+        # If x is not 2D at this point, we can't do matrix multiplication
+        if x.dim() != 2:
+            raise ValueError(f"Expected input to be a 2D tensor, got shape {x.shape} with {x.dim()} dimensions")
+            
         return torch.mm(x, pruned_weight.t())
     
     def weight(self):
@@ -246,7 +259,8 @@ class BlockLinear(nn.Module):
         if sum_synapse_conductances is None:
             nn.init.constant_(self.log_weight, 0)
         else:
-            self.log_weight.data = (sum_synapse_conductances).log()[:,None].expand(
+            # Ensure sum_synapse_conductances is a 1D tensor
+            self.log_weight.data = sum_synapse_conductances.log()[:,None].expand(
                 self.out_features, self.block_size).clone()
     
     def block(self):
@@ -285,6 +299,18 @@ class BlockLinear(nn.Module):
             self.log_weight.data -= weight_decay
 
     def forward(self, x):
+        # Ensure x is a 2D tensor for matrix multiplication
+        if not isinstance(x, torch.Tensor):
+            raise TypeError(f"Expected input to be a tensor, got {type(x)}")
+            
+        # If x is a 1D tensor, unsqueeze to make it 2D [1, features]
+        if x.dim() == 1:
+            x = x.unsqueeze(0)
+            
+        # If x is not 2D at this point, we can't do matrix multiplication
+        if x.dim() != 2:
+            raise ValueError(f"Expected input to be a 2D tensor, got shape {x.shape} with {x.dim()} dimensions")
+            
         return torch.mm(x, self.block().t())
     
     def sum_conductances(self):
@@ -377,6 +403,7 @@ class DendriticBranchLayer(nn.Module):
             )
             gradient_scaler.register_block_linear_dynamic(
                 self.branches_to_output,
+                self.use_shunting,
                 self.branch_excitation if self.input_excitatory else None,
                 self.branch_inhibition if self.input_inhibitory else None,
             )
@@ -403,7 +430,7 @@ class DendriticBranchLayer(nn.Module):
                 self.branch_inhibition.initialize()
 
             if self.input_branches:
-                if self.input_excitatory or self.input_inhibitory:
+                if (self.input_excitatory or self.input_inhibitory) and self.use_shunting:
                     sum_synapse_conductances = 0
                     if self.input_excitatory:
                         sum_synapse_conductances += self.branch_excitation.weight().sum(dim=1)
@@ -419,31 +446,26 @@ class DendriticBranchLayer(nn.Module):
         if self.input_inhibitory:
             self.branch_inhibition.decay_weights(weight_decay)
 
-    def forward(self, x, inhibitory_input=None, branch_input=None):
-        if self.use_shunting:
-            numerator = 0
-            denominator = 1
-            if self.input_excitatory:
-                excitation = self.branch_excitation(x)
-                numerator += excitation
-                denominator += excitation
-            if self.input_inhibitory:
-                denominator += self.branch_inhibition(inhibitory_input)
-            if self.input_branches:
-                numerator += self.branches_to_output(branch_input)
-                denominator += self.branches_to_output.sum_conductances()
-
-            voltage = numerator / denominator
-
-        else:
-            voltage = 0
-            if self.input_excitatory:
-                voltage += self.branch_excitation(x)
-            if self.input_inhibitory:
-                voltage -= self.branch_inhibition(inhibitory_input)
-            if self.input_branches:
-                voltage += self.branches_to_output(branch_input)
-
+    def forward(self, x, inhibitory_input = None, branch_input = None):
+        # compute excitation along each branch in layer
+        excitation = self.branch_excitation(x)
+        # initialize numerator and denominator variables
+        numerator = excitation
+        denominator = excitation + 1
+        # if receiving inputs from upstream branches
+        if self.input_branches:
+            # compute current contribution from upstream branches and add to numerator
+            current = self.branches_to_output(branch_input)
+            numerator = numerator + current
+            # compute total conductance of upstream branches and add to denominator
+            conductance = self.branches_to_output.sum_conductances()
+            denominator = denominator + conductance
+        # if receiving inhibitory inputs
+        if self.input_inhibitory and inhibitory_input is not None:
+            if isinstance(inhibitory_input, torch.Tensor) and inhibitory_input.dim() > 0:
+                denominator = denominator + self.branch_inhibition(inhibitory_input)
+        # current divided by conductance is voltage
+        voltage = numerator / denominator
         return self.reactivation(voltage) if self.reactivate else voltage
 
     def get_weights(self):
@@ -605,6 +627,15 @@ class DendriNet(nn.Module):
     def forward(self, x, inhibitory_input=None):
         output = None
         for i in range(self.n_branch_layers + 1):
+            # Store excitatory and inhibitory inputs for visualization if needed
+            # The excitatory input for the current layer is always x
+            if hasattr(self.branch_layers[i], 'excitatory_input'):
+                self.branch_layers[i].excitatory_input = x
+            
+            # The inhibitory input is whatever was passed in or None
+            if hasattr(self.branch_layers[i], 'inhibitory_input'):
+                self.branch_layers[i].inhibitory_input = inhibitory_input
+                
             output = self.branch_layers[i](x, inhibitory_input, output)
         return output
     
@@ -652,8 +683,23 @@ class DendriNetWithOutputs(DendriNet):
         per_layer_acts = []
         output = None
         for i in range(self.n_branch_layers):
+            # Store excitatory and inhibitory inputs for visualization if needed
+            if hasattr(self.branch_layers[i], 'excitatory_input'):
+                self.branch_layers[i].excitatory_input = x
+            
+            if hasattr(self.branch_layers[i], 'inhibitory_input'):
+                self.branch_layers[i].inhibitory_input = inhibitory_input
+                
             output = self.branch_layers[i](x, inhibitory_input, output)
             per_layer_acts.append(output)
+            
+        # Store inputs for the final layer
+        if hasattr(self.branch_layers[-1], 'excitatory_input'):
+            self.branch_layers[-1].excitatory_input = x
+        
+        if hasattr(self.branch_layers[-1], 'inhibitory_input'):
+            self.branch_layers[-1].inhibitory_input = inhibitory_input
+            
         final_soma = self.branch_layers[-1](x, inhibitory_input, output)
         per_layer_acts.append(final_soma)
         return final_soma, per_layer_acts
@@ -661,6 +707,21 @@ class DendriNetWithOutputs(DendriNet):
     def forward(self, x, inhibitory_input=None):
         output = None
         for i in range(self.n_branch_layers):
+            # Store excitatory and inhibitory inputs for visualization if needed
+            if hasattr(self.branch_layers[i], 'excitatory_input'):
+                self.branch_layers[i].excitatory_input = x
+            
+            if hasattr(self.branch_layers[i], 'inhibitory_input'):
+                self.branch_layers[i].inhibitory_input = inhibitory_input
+                
             output = self.branch_layers[i](x, inhibitory_input, output)
+            
+        # Store inputs for the final layer
+        if hasattr(self.branch_layers[-1], 'excitatory_input'):
+            self.branch_layers[-1].excitatory_input = x
+        
+        if hasattr(self.branch_layers[-1], 'inhibitory_input'):
+            self.branch_layers[-1].inhibitory_input = inhibitory_input
+            
         final_soma = self.branch_layers[-1](x, inhibitory_input, output)
         return final_soma

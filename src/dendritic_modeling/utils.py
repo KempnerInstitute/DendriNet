@@ -8,9 +8,20 @@ and model evaluation.
 import os
 import json
 from typing import Optional
+import numpy as np
+import pandas as pd
+import matplotlib.pyplot as plt
 import torch
+import torch.nn as nn
+from torch.nn import functional as F
+from torch.utils.data import DataLoader, TensorDataset
+from torch.optim import Adam
+import numpy as np
+import random
 from omegaconf import DictConfig, ListConfig
-from torch.utils.data import DataLoader
+from sklearn.metrics import accuracy_score
+import logging
+import functools
 
 
 class Shaper(object):
@@ -37,6 +48,20 @@ def convert_to_serializable(obj):
         return [convert_to_serializable(item) for item in obj]
     else:
         return obj
+
+
+def set_seed(seed: int):
+    """
+    Set the seed for the random number generator.
+    """
+    torch.manual_seed(seed)
+    torch.cuda.manual_seed(seed)
+    torch.cuda.manual_seed_all(seed)
+    np.random.seed(seed)
+    random.seed(seed)
+    torch.backends.cudnn.deterministic = True
+    torch.backends.cudnn.benchmark = False
+
 
 def save_dict(dict_obj: dict, save_path: str, fname: str):
     dict_obj = convert_to_serializable(dict_obj)
@@ -371,3 +396,535 @@ def estimate_hidden_output_MI(model, data_loader, n_bins=10):
 
     mi_est = compute_mutual_information(joint_prob, marginal_hidden, marginal_label)
     return mi_est.item()
+
+class MLPClassifier(nn.Module):
+    """
+    A simple MLP classifier for decoding layer activations.
+    """
+    def __init__(self, input_dim, hidden_dims, output_dim):
+        super().__init__()
+        
+        layers = []
+        prev_dim = input_dim
+        
+        for hdim in hidden_dims:
+            layers.append(nn.Linear(prev_dim, hdim))
+            layers.append(nn.ReLU())
+            prev_dim = hdim
+            
+        layers.append(nn.Linear(prev_dim, output_dim))
+        
+        self.model = nn.Sequential(*layers)
+        
+    def forward(self, x):
+        return self.model(x)
+
+
+def train_classifier(model, train_loader, valid_loader=None, epochs=50, lr=0.001, device='cuda'):
+    """
+    Train an MLP classifier on activation data.
+    
+    Parameters
+    ----------
+    model : nn.Module
+        The classifier model to train
+    train_loader : DataLoader
+        DataLoader with training data
+    valid_loader : DataLoader, optional
+        DataLoader with validation data
+    epochs : int
+        Number of training epochs
+    lr : float
+        Learning rate
+    device : str
+        Device to use for training
+        
+    Returns
+    -------
+    float
+        Final validation accuracy
+    """
+    model = model.to(device)
+    criterion = nn.CrossEntropyLoss()
+    optimizer = Adam(model.parameters(), lr=lr)
+    
+    best_valid_acc = 0.0
+    best_model_state = None
+    
+    for epoch in range(epochs):
+        # Training
+        model.train()
+        for inputs, targets in train_loader:
+            inputs, targets = inputs.to(device), targets.to(device)
+            
+            optimizer.zero_grad()
+            outputs = model(inputs)
+            loss = criterion(outputs, targets)
+            loss.backward()
+            optimizer.step()
+        
+        # Validation
+        if valid_loader is not None:
+            model.eval()
+            all_preds = []
+            all_targets = []
+            
+            with torch.no_grad():
+                for inputs, targets in valid_loader:
+                    inputs, targets = inputs.to(device), targets.to(device)
+                    outputs = model(inputs)
+                    _, preds = torch.max(outputs, 1)
+                    
+                    all_preds.extend(preds.cpu().numpy())
+                    all_targets.extend(targets.cpu().numpy())
+            
+            valid_acc = accuracy_score(all_targets, all_preds)
+            
+            if valid_acc > best_valid_acc:
+                best_valid_acc = valid_acc
+                best_model_state = model.state_dict().copy()
+    
+    # Load best model
+    if best_model_state is not None:
+        model.load_state_dict(best_model_state)
+    
+    return evaluate_classifier(model, valid_loader, device)
+
+
+def evaluate_classifier(model, data_loader, device='cuda'):
+    """
+    Evaluate a classifier on the given data.
+    
+    Parameters
+    ----------
+    model : nn.Module
+        The classifier model to evaluate
+    data_loader : DataLoader
+        DataLoader with evaluation data
+    device : str
+        Device to use for evaluation
+        
+    Returns
+    -------
+    float
+        Classification accuracy
+    """
+    model.eval()
+    all_preds = []
+    all_targets = []
+    
+    with torch.no_grad():
+        for inputs, targets in data_loader:
+            inputs, targets = inputs.to(device), targets.to(device)
+            outputs = model(inputs)
+            _, preds = torch.max(outputs, 1)
+            
+            all_preds.extend(preds.cpu().numpy())
+            all_targets.extend(targets.cpu().numpy())
+    
+    return accuracy_score(all_targets, all_preds)
+
+
+def get_layer_activations(model, data_loader, device='cuda'):
+    """
+    Get activations for each layer in the model.
+    
+    Parameters
+    ----------
+    model : DendriNetWithOutputs
+        The dendritic network model
+    data_loader : DataLoader
+        DataLoader with input data
+    device : str
+        Device to use
+        
+    Returns
+    -------
+    dict
+        Dictionary mapping layer indices to (activations, labels) tuples
+    """
+    activations_per_layer = {}
+    all_labels = []
+    first_batch = True
+    
+    model.eval()
+    with torch.no_grad():
+        for inputs, labels in data_loader:
+            inputs = inputs.to(device)
+            
+            # Get activations from all layers
+            _, layer_activations = model.forward_with_branch_outputs(inputs)
+            
+            # Store activations and labels
+            for i, act in enumerate(layer_activations):
+                act_flat = act.view(act.size(0), -1).cpu()
+                
+                if first_batch:
+                    activations_per_layer[i] = act_flat
+                else:
+                    activations_per_layer[i] = torch.cat([activations_per_layer[i], act_flat], dim=0)
+            
+            if first_batch:
+                all_labels = labels
+            else:
+                all_labels = torch.cat([all_labels, labels], dim=0)
+                
+            first_batch = False
+    
+    # Create tuples of (activations, labels) for each layer
+    return {layer_idx: (acts, all_labels) for layer_idx, acts in activations_per_layer.items()}
+
+
+def get_ablated_activations(model, data_loader, ablation_type, device='cuda'):
+    """
+    Get activations with specific inputs ablated.
+    
+    Parameters
+    ----------
+    model : DendriNetWithOutputs
+        The dendritic network model
+    data_loader : DataLoader
+        DataLoader with input data
+    ablation_type : str
+        Type of ablation: 'inhibitory' or 'excitatory'
+    device : str
+        Device to use
+        
+    Returns
+    -------
+    dict
+        Dictionary mapping layer indices to list of ablated activations
+    """
+    all_activations = {}
+    all_labels = []
+    first_batch = True
+    
+    model.eval()
+    with torch.no_grad():
+        for inputs, labels in data_loader:
+            inputs = inputs.to(device)
+            
+            # Save original parameters
+            original_params = {}
+            for layer_idx, layer in enumerate(model.branch_layers):
+                if ablation_type == 'inhibitory' and hasattr(layer, 'branch_inhibition'):
+                    original_params[layer_idx] = layer.branch_inhibition.pre_w.data.clone()
+                elif ablation_type == 'excitatory' and hasattr(layer, 'branch_excitation'):
+                    original_params[layer_idx] = layer.branch_excitation.pre_w.data.clone()
+            
+            # For each layer, ablate that layer and get activations
+            for layer_idx in range(len(model.branch_layers)):
+                # Ablate the specified input type for this layer
+                if ablation_type == 'inhibitory' and hasattr(model.branch_layers[layer_idx], 'branch_inhibition'):
+                    model.branch_layers[layer_idx].branch_inhibition.pre_w.data.fill_(float('-inf'))
+                elif ablation_type == 'excitatory' and hasattr(model.branch_layers[layer_idx], 'branch_excitation'):
+                    model.branch_layers[layer_idx].branch_excitation.pre_w.data.fill_(float('-inf'))
+                
+                # Get activations with this layer's inputs ablated
+                _, layer_activations = model.forward_with_branch_outputs(inputs)
+                
+                # Restore the original parameters
+                if ablation_type == 'inhibitory' and hasattr(model.branch_layers[layer_idx], 'branch_inhibition'):
+                    model.branch_layers[layer_idx].branch_inhibition.pre_w.data.copy_(original_params[layer_idx])
+                elif ablation_type == 'excitatory' and hasattr(model.branch_layers[layer_idx], 'branch_excitation'):
+                    model.branch_layers[layer_idx].branch_excitation.pre_w.data.copy_(original_params[layer_idx])
+                
+                # Store activations for this layer
+                for i, act in enumerate(layer_activations):
+                    act_flat = act.view(act.size(0), -1).cpu()
+                    
+                    if first_batch:
+                        if i not in all_activations:
+                            all_activations[i] = {}
+                        all_activations[i][layer_idx] = act_flat
+                    else:
+                        all_activations[i][layer_idx] = torch.cat([all_activations[i][layer_idx], act_flat], dim=0)
+            
+            if first_batch:
+                all_labels = labels
+            else:
+                all_labels = torch.cat([all_labels, labels], dim=0)
+                
+            first_batch = False
+    
+    # Create tuples of (activations, labels) for each layer
+    return {layer_idx: {ablated_idx: (acts, all_labels) for ablated_idx, acts in layer_dict.items()} 
+            for layer_idx, layer_dict in all_activations.items()}
+
+
+def analyze_layerwise_ablation(model, train_data, valid_data, test_data, save_path, device='cuda'):
+    """
+    Run comprehensive ablation analysis on the dendritic network.
+    
+    Parameters
+    ----------
+    model : DendriNetWithOutputs
+        The dendritic network model
+    train_data : Dataset
+        Training dataset
+    valid_data : Dataset
+        Validation dataset
+    test_data : Dataset
+        Test dataset
+    save_path : str
+        Path to save results
+    device : str
+        Device to use
+        
+    Returns
+    -------
+    dict
+        Dictionary with ablation results
+    """
+    logging.info("Starting layer-wise ablation analysis...")
+    
+    # Check for required model attributes
+    if not hasattr(model, 'forward_with_branch_outputs'):
+        logging.info("Model does not have forward_with_branch_outputs method. Skipping analysis.")
+        return {}
+    
+    # Create dataloaders with smaller batch size to avoid memory issues
+    batch_size = 32
+    device = torch.device(device if torch.cuda.is_available() else 'cpu')
+    train_loader = DataLoader(train_data, batch_size=batch_size, shuffle=False)
+    valid_loader = DataLoader(valid_data, batch_size=batch_size, shuffle=False)
+    test_loader = DataLoader(test_data, batch_size=batch_size, shuffle=False)
+    
+    # Get baseline model performance
+    baseline_acc = measure_performance(model, test_data, device=device)
+    logging.info(f"Baseline accuracy on test set: {baseline_acc:.4f}")
+    
+    # Save directory for results
+    save_dir = os.path.join(save_path, "layerwise_ablation")
+    os.makedirs(save_dir, exist_ok=True)
+    
+    # Get number of layers in the model
+    num_layers = len(model.branch_layers)
+    logging.info(f"Model has {num_layers} branch layers")
+    
+    # Initialize results dictionary
+    results = {
+        'layer_idx': [],
+        'baseline_acc': [],
+        'inh_ablated_acc': [],
+        'exc_ablated_acc': []
+    }
+    
+    # Store original parameters for restoration
+    original_params = {}
+    for n, p in model.named_parameters():
+        original_params[n] = p.detach().clone()
+    
+    # Process from top layers (higher indices) to bottom layers (lower indices)
+    for layer_idx in reversed(range(num_layers)):
+        logging.info(f"Analyzing layer {layer_idx}...")
+        
+        # 1. Measure baseline accuracy for this layer by ablating all other direct inputs
+        for i in range(num_layers):
+            if i != layer_idx:
+                # Temporarily ablate other layers
+                if hasattr(model.branch_layers[i], 'branch_excitation'):
+                    model.branch_layers[i].branch_excitation.pre_w.data.fill_(-1000.0)  # Very negative value to ensure zero after exp()
+                if hasattr(model.branch_layers[i], 'branch_inhibition'):
+                    model.branch_layers[i].branch_inhibition.pre_w.data.fill_(-1000.0)
+        
+        # Measure accuracy with only this layer active
+        baseline_layer_acc = measure_performance(model, test_data, device=device)
+        
+        # 2. Now ablate inhibitory inputs for this layer
+        if hasattr(model.branch_layers[layer_idx], 'branch_inhibition'):
+            model.branch_layers[layer_idx].branch_inhibition.pre_w.data.fill_(-1000.0)
+            inh_ablated_acc = measure_performance(model, test_data, device=device)
+        else:
+            inh_ablated_acc = baseline_layer_acc  # No inhibitory inputs to ablate
+        
+        # Restore inhibitory inputs
+        for n, p in model.named_parameters():
+            p.data.copy_(original_params[n])
+            
+        # Re-ablate other layers
+        for i in range(num_layers):
+            if i != layer_idx:
+                if hasattr(model.branch_layers[i], 'branch_excitation'):
+                    model.branch_layers[i].branch_excitation.pre_w.data.fill_(-1000.0)
+                if hasattr(model.branch_layers[i], 'branch_inhibition'):
+                    model.branch_layers[i].branch_inhibition.pre_w.data.fill_(-1000.0)
+        
+        # 3. Ablate excitatory inputs for this layer
+        if hasattr(model.branch_layers[layer_idx], 'branch_excitation'):
+            model.branch_layers[layer_idx].branch_excitation.pre_w.data.fill_(-1000.0)
+            exc_ablated_acc = measure_performance(model, test_data, device=device)
+        else:
+            exc_ablated_acc = baseline_layer_acc  # No excitatory inputs to ablate
+        
+        # Restore all parameters
+        for n, p in model.named_parameters():
+            p.data.copy_(original_params[n])
+        
+        # Store results
+        results['layer_idx'].append(layer_idx)
+        results['baseline_acc'].append(baseline_layer_acc)
+        results['inh_ablated_acc'].append(inh_ablated_acc)
+        results['exc_ablated_acc'].append(exc_ablated_acc)
+        
+        logging.info(f"Layer {layer_idx}: baseline={baseline_layer_acc:.4f}, "
+                    f"inh_ablated={inh_ablated_acc:.4f}, exc_ablated={exc_ablated_acc:.4f}")
+    
+    # Plot the results
+    try:
+        plt.figure(figsize=(10, 6))
+        plt.plot(results['layer_idx'], results['baseline_acc'], 'o-', label='Baseline')
+        plt.plot(results['layer_idx'], results['inh_ablated_acc'], 's-', label='Inhibitory Ablated')
+        plt.plot(results['layer_idx'], results['exc_ablated_acc'], '^-', label='Excitatory Ablated')
+        
+        plt.xlabel('Layer Index (higher = closer to input)')
+        plt.ylabel('Classification Accuracy')
+        plt.title('Layer-wise Ablation Analysis')
+        plt.legend()
+        plt.grid(True, alpha=0.3)
+        
+        plt.tight_layout()
+        plt.savefig(os.path.join(save_dir, 'layerwise_ablation.png'), dpi=300)
+        plt.close()
+        
+        # Save detailed plot showing accuracy differences
+        plt.figure(figsize=(10, 6))
+        
+        # Calculate differences
+        inh_diff = [b - i for b, i in zip(results['baseline_acc'], results['inh_ablated_acc'])]
+        exc_diff = [b - e for b, e in zip(results['baseline_acc'], results['exc_ablated_acc'])]
+        
+        plt.bar(np.array(results['layer_idx']) - 0.2, inh_diff, width=0.4, label='Inhibitory Contribution', color='orange')
+        plt.bar(np.array(results['layer_idx']) + 0.2, exc_diff, width=0.4, label='Excitatory Contribution', color='blue')
+        
+        plt.xlabel('Layer Index (higher = closer to input)')
+        plt.ylabel('Accuracy Drop when Ablated')
+        plt.title('Contribution of Inhibitory and Excitatory Inputs per Layer')
+        plt.legend()
+        plt.grid(True, axis='y', alpha=0.3)
+        
+        plt.tight_layout()
+        plt.savefig(os.path.join(save_dir, 'layerwise_contributions.png'), dpi=300)
+        plt.close()
+        
+        # Save as CSV
+        df = pd.DataFrame(results)
+        df.to_csv(os.path.join(save_dir, 'layerwise_results.csv'), index=False)
+    except Exception as e:
+        logging.error(f"Error creating plots: {e}")
+    
+    logging.info(f"Ablation analysis results saved to {save_dir}")
+    
+    return results
+
+def safe_backward_hook(hook_fn):
+    """
+    Decorator for backward hooks to ensure they return None when no inputs require gradients.
+    This prevents the "Backward hook for Modules where no input requires gradient" error.
+    
+    Args:
+        hook_fn: The original hook function to decorate
+        
+    Returns:
+        A decorated hook function that properly handles the case when no inputs require gradients
+    """
+    @functools.wraps(hook_fn)
+    def safe_hook_fn(module, grad_input, grad_output):
+        # Check if any grad_input requires gradient
+        requires_grad = False
+        if grad_input is not None:
+            for g in grad_input:
+                if g is not None:
+                    requires_grad = True
+                    break
+                    
+        # Check parameters too (some hooks need this)
+        if not requires_grad:
+            for p in module.parameters(recurse=True):
+                if p.requires_grad:
+                    requires_grad = True
+                    break
+        
+        # If nothing requires gradients, return None
+        if not requires_grad:
+            return None
+            
+        # Otherwise, call the original hook function
+        try:
+            result = hook_fn(module, grad_input, grad_output)
+            return result
+        except Exception as e:
+            # If anything goes wrong, return the original grad_input as a fallback
+            print(f"Warning: Hook error: {e}")
+            return grad_input
+            
+    return safe_hook_fn
+
+def safe_register_hooks(module):
+    """
+    Recursively register safe hooks on a module and all its submodules.
+    This safely handles the replacement of existing hooks to ensure PyTorch
+    doesn't try to use both regular and full backward hooks on the same module.
+    
+    Args:
+        module: The module to register safe hooks on
+    """
+    # First, check if module already has backward hooks
+    has_backward_hooks = bool(module._backward_hooks)
+    has_full_backward_hooks = bool(module._backward_pre_hooks)
+    
+    # Remove all existing hooks to prevent conflicts
+    if has_backward_hooks:
+        module._backward_hooks.clear()
+    if has_full_backward_hooks:
+        module._backward_pre_hooks.clear()
+    
+    # Register a new safe full backward hook (preferred)
+    module.register_full_backward_hook(safe_hook_fn)
+    
+    # Process child modules
+    for child in module.children():
+        safe_register_hooks(child)
+
+def register_safe_hook(module, hook_fn):
+    """
+    Register a safe hook on a module
+    
+    Args:
+        module: The module to register the hook on
+        hook_fn: The hook function to register
+    """
+    # First, check if module already has hooks
+    has_backward_hooks = bool(module._backward_hooks)
+    has_full_backward_hooks = bool(module._backward_pre_hooks)
+    
+    # Remove all existing hooks to prevent conflicts
+    if has_backward_hooks:
+        module._backward_hooks.clear()
+    if has_full_backward_hooks:
+        module._backward_pre_hooks.clear()
+        
+    # Register the new safe hook
+    safe_hook = safe_backward_hook(hook_fn)
+    module.register_full_backward_hook(safe_hook)
+
+# Simple helper function to use for safe hooks
+def safe_hook_fn(module, grad_input, grad_output):
+    """Simple safe hook function that just returns grad_input unchanged"""
+    return grad_input
+
+class SafeHookModule(nn.Module):
+    """
+    A wrapper module that ensures all backward hooks are safely registered
+    
+    Args:
+        module: The module to wrap
+    """
+    def __init__(self, module):
+        super().__init__()
+        self.module = module
+        # Apply safe hooks to the wrapped module
+        safe_register_hooks(module)
+    
+    def forward(self, *args, **kwargs):
+        return self.module(*args, **kwargs)

@@ -13,6 +13,7 @@ from matplotlib.colors import TwoSlopeNorm
 from matplotlib.gridspec import GridSpec
 from mpl_toolkits.axes_grid1 import make_axes_locatable
 import networkx as nx
+import seaborn as sns
 from dendritic_modeling.synthetic_datasets import split_MNIST_inputs
 
 
@@ -33,36 +34,58 @@ def plotWithColor(data, title=''):
             plt.show()
 
 
-def plot_NLL_loss_curves(
-    train_losses, 
-    valid_losses, 
-    num_epochs,
-    save_path = None,
-):
-    Train_losses = np.array(train_losses)
-    Train_losses[np.where(Train_losses > 5)] = 5
+def plot_NLL_loss_curves(Train_losses, Valid_losses, num_epochs, save_dir):
+    """
+    Plot the negative log-likelihood loss curves for training and validation.
     
-    Valid_losses = np.array(valid_losses)
-    Valid_losses[np.where(Valid_losses > 5)] = 5
+    Args:
+        Train_losses: List of training losses
+        Valid_losses: List of validation losses
+        num_epochs: Number of epochs
+        save_dir: Directory to save the plot
+    """
+    # Convert to list if numpy array
+    Train_losses = list(Train_losses)
+    Valid_losses = list(Valid_losses)
     
-    fig = plt.figure()
-    
-    plt.plot(range(1,num_epochs+1), Train_losses, '0.4', label = 'training')
-    plt.plot(range(1,num_epochs+1), Valid_losses, 'b', label = 'validation')
-    
-    plt.xlabel('Epochs')
-    plt.xticks(range(0,num_epochs+1,int(num_epochs // 5)))
-    plt.ylabel('Negative Log Likelihood')
-    plt.title('Loss Curves')
-    plt.legend()
-
-    if save_path is not None:
-        if not os.path.exists(save_path):
-            os.makedirs(save_path, exist_ok = True)
-        fig.savefig(os.path.join(save_path, 'nll_loss_curves.jpeg'))
-        plt.close(fig)
+    # Create the x-axis values (epochs)
+    # Make sure length matches the loss arrays
+    actual_epochs = len(Train_losses)
+    if actual_epochs != num_epochs:
+        print(f"Warning: Actual epochs ({actual_epochs}) != expected epochs ({num_epochs})")
+        # Use actual number of epochs for x-axis
+        epochs = list(range(1, actual_epochs + 1))
     else:
-        return fig
+        epochs = list(range(1, num_epochs + 1))
+    
+    plt.figure(figsize=(10, 8))
+    plt.plot(epochs, Train_losses, '0.4', label='training')
+    
+    if Valid_losses:
+        # Make sure valid losses have same length as train losses
+        if len(Valid_losses) != len(Train_losses):
+            print(f"Warning: Valid losses length ({len(Valid_losses)}) != Train losses length ({len(Train_losses)})")
+            # Use the shorter length
+            min_len = min(len(Valid_losses), len(Train_losses))
+            Valid_losses = Valid_losses[:min_len]
+            epochs_valid = epochs[:min_len]
+        else:
+            epochs_valid = epochs
+        
+        plt.plot(epochs_valid, Valid_losses, 'r', label='validation')
+    
+    plt.grid()
+    plt.title('Loss')
+    plt.xlabel('Epoch')
+    plt.ylabel('Loss')
+    plt.legend()
+    
+    # Save the plot
+    if save_dir:
+        os.makedirs(save_dir, exist_ok=True)
+        plt.savefig(os.path.join(save_dir, 'loss_curves.png'))
+    
+    plt.close()
 
 
 def add_colorbars(
@@ -1055,8 +1078,6 @@ def plot_einet_activations(
 
         exc_temp = []
         for j in range(len(input_list)):
-            # Removed "exc_dendrendet ="
-            # appended result directly
             exc_temp.append(exc_dendrinet(exc_input_list[j], inh_input_list[j]))
         exc_input_list = exc_temp
 
@@ -1195,7 +1216,6 @@ def dendrinet_activations_todict(
         for j in range(len(exc_input_list)):
             output_list[j] = dendrinet.branch_layers[i](
                 exc_input_list[j], inh_input_list[j], output_list[j])
-            # list, tuples, tensors -> numbers, somas, branches 
             chunk_list.append(output_list[j].chunk(n_soma, dim = -1))
 
         level = ('soma layer' 
@@ -1251,8 +1271,7 @@ def einet_activations_todict(einet, input_list):
 
         exc_temp = []
         for j in range(len(input_list)):
-            exc_temp.append(exc_dendrinet(exc_input_list[j], 
-                                          inh_input_list[j]))
+            exc_temp.append(exc_dendrinet(exc_input_list[j], inh_input_list[j]))
         exc_input_list = exc_temp
     
     return plot_dict
@@ -1722,7 +1741,7 @@ def einet_activations_to_csv(einet, input_list, save_root, filename = 'activatio
 
         exc_temp = []
         for j in range(len(input_list)):
-            exc_temp.append(exc_dendrendet = exc_dendrinet(exc_input_list[j], inh_input_list[j]))
+            exc_temp.append(exc_dendrinet(exc_input_list[j], inh_input_list[j]))
         exc_input_list = exc_temp
 
 
@@ -1763,7 +1782,7 @@ def plot_activation_tuning(einet, input_list, save_root):
 
             exc_activations = []
             for digit_idx, inputs in enumerate(exc_input_list):
-                activations = exc_dendrendet = exc_dendrinet(inputs, inh_input_list[digit_idx])
+                activations = exc_dendrinet(inputs, inh_input_list[digit_idx])
                 exc_activations.append(activations.cpu().numpy())
             activation_data[f"layer{layer_idx+1}_exc"] = np.stack(exc_activations)
 
@@ -1919,3 +1938,220 @@ def plot_depth_info(branch_info):
     plt.ylabel("Information (MI)")
     plt.title("Branch Info by Depth")
     plt.show()
+
+
+def plot_ei_sweep_results(results_csv_path, ei_ratio_range, metric='acc', split='test'):
+    """
+    Plot detailed analysis of EI sweep results comparing shunting vs non-shunting.
+    
+    Args:
+        results_csv_path (str): Path to CSV with results
+        ei_ratio_range (tuple): (min, max) range for zoomed E/I ratio plot
+        metric (str): Metric to plot (default: 'acc')
+        split (str): Data split to analyze (default: 'test')
+    """
+    # Read and separate data
+    df = pd.read_csv(results_csv_path)
+    
+    # Split by model type
+    mlp_df = df[df['model'] == 'MLP']
+    einet_df = df[df['model'] == 'EINet']
+    
+    # Split EINet by shunting
+    shunt_true_df = einet_df[einet_df['shunting'] == True].copy()
+    shunt_false_df = einet_df[einet_df['shunting'] == False].copy()
+    
+    # Calculate mean performance across seeds
+    shunt_true_mean = shunt_true_df.groupby(['exc', 'inh'])[split].mean().reset_index()
+    shunt_false_mean = shunt_false_df.groupby(['exc', 'inh'])[split].mean().reset_index()
+    
+    # Create figure
+    fig = plt.figure(figsize=(20, 8))
+    gs = plt.GridSpec(2, 3, figure=fig)
+    
+    # 1. Heatmap for shunting True
+    ax1 = fig.add_subplot(gs[0, 0])
+    pivot_true = shunt_true_mean.pivot(index='exc', columns='inh', values=split)
+    sns.heatmap(pivot_true.iloc[::-1], cmap='viridis', ax=ax1)
+    ax1.set_title('EINet with Shunting')
+    ax1.set_xlabel('Inh Synapses')
+    ax1.set_ylabel('Exc Synapses')
+    
+    # 2. Heatmap for shunting False
+    ax2 = fig.add_subplot(gs[1, 0])
+    pivot_false = shunt_false_mean.pivot(index='exc', columns='inh', values=split)
+    sns.heatmap(pivot_false.iloc[::-1], cmap='viridis', ax=ax2)
+    ax2.set_title('EINet without Shunting')
+    ax2.set_xlabel('Inh Synapses')
+    ax2.set_ylabel('Exc Synapses')
+    
+    # 3. Full range E/I ratio scatter plot
+    ax3 = fig.add_subplot(gs[0, 1])
+    
+    # 4. Zoomed E/I ratio scatter plot 
+    ax6 = fig.add_subplot(gs[1, 1])
+    
+    # Calculate E/I ratio and means/stds
+    for df, label, color in [(shunt_true_df, 'Shunting', 'blue'), 
+                            (shunt_false_df, 'No Shunting', 'red')]:
+        df['ei_ratio'] = df['exc'] / df['inh']
+        mean_by_ratio = df.groupby('ei_ratio')[split].mean()
+        std_by_ratio = df.groupby('ei_ratio')[split].std()
+        
+        # Plot full range
+        ax3.errorbar(mean_by_ratio.index, mean_by_ratio.values, 
+                    yerr=std_by_ratio.values, fmt='o', label=label, 
+                    color=color, capsize=5, alpha=0.5,
+                    ecolor=(*plt.matplotlib.colors.to_rgb(color), 0.3))
+        
+        # Plot zoomed range
+        mask = (mean_by_ratio.index >= ei_ratio_range[0]) & (mean_by_ratio.index <= ei_ratio_range[1])
+        filtered_mean = mean_by_ratio[mask]
+        filtered_std = std_by_ratio[mask]
+        
+        ax6.errorbar(filtered_mean.index, filtered_mean.values,
+                    yerr=filtered_std.values, fmt='o', label=label,
+                    color=color, capsize=5, alpha=0.5,
+                    ecolor=(*plt.matplotlib.colors.to_rgb(color), 0.3))
+    
+    ax3.set_xlabel('E/I Ratio')
+    ax3.set_title('Performance vs E/I Ratio (Full Range)')
+    
+    ax6.set_xlabel('E/I Ratio')
+    ax6.set_title(f'Performance vs E/I Ratio (Range {ei_ratio_range[0]}-{ei_ratio_range[1]})')
+    ax6.set_xlim(ei_ratio_range)
+    
+    # 5. Fixed optimal excitation, varying inhibition
+    ax4 = fig.add_subplot(gs[0, 2])
+    
+    for df, label, color in [(shunt_true_df, 'Shunting', 'blue'), 
+                            (shunt_false_df, 'No Shunting', 'red')]:
+        best_exc = df.groupby(['exc', 'inh'])[split].mean().idxmax()[0]
+        exc_fixed = df[df['exc'] == best_exc]
+        
+        mean_by_inh = exc_fixed.groupby('inh')[split].mean()
+        std_by_inh = exc_fixed.groupby('inh')[split].std()
+        
+        ax4.fill_between(mean_by_inh.index, 
+                        mean_by_inh.values - std_by_inh.values,
+                        mean_by_inh.values + std_by_inh.values,
+                        alpha=0.2, color=color)
+        ax4.plot(mean_by_inh.index, mean_by_inh.values, 
+                '-', label=label, color=color)
+    
+    ax4.set_xlabel('Inh Synapses')
+    ax4.set_title('Fixed Optimal Excitation')
+    
+    # 6. Fixed optimal inhibition, varying excitation
+    ax5 = fig.add_subplot(gs[1, 2])
+    
+    for df, label, color in [(shunt_true_df, 'Shunting', 'blue'), 
+                            (shunt_false_df, 'No Shunting', 'red')]:
+        best_inh = df.groupby(['exc', 'inh'])[split].mean().idxmax()[1]
+        inh_fixed = df[df['inh'] == best_inh]
+        
+        mean_by_exc = inh_fixed.groupby('exc')[split].mean()
+        std_by_exc = inh_fixed.groupby('exc')[split].std()
+        
+        ax5.fill_between(mean_by_exc.index, 
+                        mean_by_exc.values - std_by_exc.values,
+                        mean_by_exc.values + std_by_exc.values,
+                        alpha=0.2, color=color)
+        ax5.plot(mean_by_exc.index, mean_by_exc.values, 
+                '-', label=label, color=color)
+    
+    ax5.set_xlabel('Exc Synapses')
+    ax5.set_title('Fixed Optimal Inhibition')
+    
+    # Add MLP baseline
+    mlp_mean = mlp_df[split].mean()
+    mlp_std = mlp_df[split].std()
+    for ax in [ax3, ax4, ax5, ax6]:
+        ax.axhline(y=mlp_mean, color='k', linestyle='--', 
+                  label=f'MLP ({mlp_mean:.3f}±{mlp_std:.3f})')
+        ax.fill_between(ax.get_xlim(), 
+                       [mlp_mean - mlp_std] * 2,
+                       [mlp_mean + mlp_std] * 2,
+                       color='0.4', alpha=0.1)
+    
+    plt.tight_layout()
+    fig.savefig(os.path.join(os.path.dirname(results_csv_path), 'ei_sweep_results.jpeg'))
+    plt.close(fig)
+    
+
+def plot_branch_sweep_results(results_csv_path, metric='acc', split='test'):
+    """
+    Plot analysis of branch sweep results comparing MLP vs EINet with/without shunting.
+    
+    Args:
+        results_csv_path (str): Path to CSV with results
+        metric (str): Metric to plot (default: 'acc')
+        split (str): Data split to analyze (default: 'test')
+    """
+    # Read and separate data
+    df = pd.read_csv(results_csv_path)
+    
+    # Split by model type
+    mlp_df = df[df['model'] == 'MLP']
+    einet_df = df[df['model'] == 'EINet']
+    
+    # Split EINet by shunting
+    shunt_true_df = einet_df[einet_df['shunting'] == True].copy()
+    shunt_false_df = einet_df[einet_df['shunting'] == False].copy()
+    
+    # Create figure
+    fig = plt.figure(figsize=(12, 8))
+    
+    # Plot MLP results
+    mlp_means = mlp_df.groupby('nparams')[split].agg(['mean', 'std']).reset_index()
+    plt.plot(mlp_means['nparams'], mlp_means['mean'], 'k--', label='MLP', zorder=3)
+    plt.plot(mlp_means['nparams'], mlp_means['mean'], 'ko', zorder=4)  # Add dots
+    plt.fill_between(mlp_means['nparams'], 
+                    mlp_means['mean'] - mlp_means['std'],
+                    mlp_means['mean'] + mlp_means['std'],
+                    color='gray', alpha=0.2, zorder=1)
+    
+    # Plot EINet with shunting results
+    shunt_true_means = shunt_true_df.groupby('nparams')[split].agg(['mean', 'std']).reset_index()
+    plt.plot(shunt_true_means['nparams'], shunt_true_means['mean'], 'b-', label='EINet (Shunting)', zorder=3)
+    plt.plot(shunt_true_means['nparams'], shunt_true_means['mean'], 'bo', zorder=4)  # Add dots
+    plt.fill_between(shunt_true_means['nparams'], 
+                    shunt_true_means['mean'] - shunt_true_means['std'],
+                    shunt_true_means['mean'] + shunt_true_means['std'],
+                    color='blue', alpha=0.2, zorder=1)
+    
+    # Add branch factor labels for shunting=True
+    for _, row in shunt_true_df.groupby(['branch_factors', 'nparams'])[split].mean().reset_index().iterrows():
+        plt.annotate(f'[{row["branch_factors"]}]', 
+                    xy=(row['nparams'], row[split]),
+                    xytext=(10, 10), textcoords='offset points',
+                    color='blue', fontsize=10)
+    
+    # Plot EINet without shunting results
+    shunt_false_means = shunt_false_df.groupby('nparams')[split].agg(['mean', 'std']).reset_index()
+    plt.plot(shunt_false_means['nparams'], shunt_false_means['mean'], 'r-', label='EINet (No Shunting)', zorder=3)
+    plt.plot(shunt_false_means['nparams'], shunt_false_means['mean'], 'ro', zorder=4)  # Add dots
+    plt.fill_between(shunt_false_means['nparams'], 
+                    shunt_false_means['mean'] - shunt_false_means['std'],
+                    shunt_false_means['mean'] + shunt_false_means['std'],
+                    color='red', alpha=0.2, zorder=1)
+    
+    # Add branch factor labels for shunting=False
+    for _, row in shunt_false_df.groupby(['branch_factors', 'nparams'])[split].mean().reset_index().iterrows():
+        plt.annotate(f'[{row["branch_factors"]}]', 
+                    xy=(row['nparams'], row[split]),
+                    xytext=(10, -10), textcoords='offset points',
+                    color='red', fontsize=10)
+    
+    # Customize plot
+    plt.xscale('log')
+    plt.xlabel('Number of Parameters')
+    plt.ylabel(f'{split.capitalize()} Accuracy')
+    plt.title('Model Performance vs Number of Parameters')
+    plt.grid(True, alpha=0.3)
+    plt.legend()
+    
+    # Save plot
+    plt.tight_layout()
+    fig.savefig(os.path.join(os.path.dirname(results_csv_path), 'branch_sweep_results.jpeg'))
+    plt.close(fig)

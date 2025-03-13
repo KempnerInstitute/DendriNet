@@ -5,12 +5,37 @@ import numpy as np
 import torch
 from copy import deepcopy
 from torch.utils.data import Dataset, random_split, TensorDataset
+from torchvision import datasets, transforms
 
 from torchvision.datasets import MNIST
 import torchvision.transforms as T
 ########################################
 # Original tasks: line, center_surround, orientation_bars, multi_xor, plus standard MNIST
 ########################################
+
+# Create a centralized function to get or create the data directory
+def get_data_directory(data_type, custom_path=None):
+    """
+    Get or create a data directory for the specified data type.
+    
+    Args:
+        data_type (str): Type of data (e.g., 'mnist', 'cifar')
+        custom_path (str, optional): Custom path provided by the user
+        
+    Returns:
+        str: Path to the data directory
+    """
+    if custom_path:
+        # Use the custom path if provided
+        data_path = os.path.join(custom_path, data_type)
+    else:
+        # Use 'data' directory in the current working directory
+        data_path = os.path.join('data', data_type)
+    
+    # Ensure the directory exists
+    os.makedirs(data_path, exist_ok=True)
+    
+    return data_path
 
 class LineDataset(Dataset):
     def __init__(self, n_samples=10000, image_size=10):
@@ -52,6 +77,7 @@ class CenterSurroundDataset(Dataset):
         radius = self.image_size // 4
         cx = cy = self.image_size // 2
         for _ in range(self.n_samples):
+            X.append(np.zeros((self.image_size,self.image_size), dtype=np.float32).flatten())
             label = np.random.choice([0,1,2])
             img = np.zeros((self.image_size,self.image_size), dtype=np.float32)
             if label==0:
@@ -73,7 +99,7 @@ class CenterSurroundDataset(Dataset):
                             img[i,j]=0.0
                         else:
                             img[i,j]=1.0
-            X.append(img.flatten())
+            X[-1] = img.flatten()
             Y.append(label)
         return torch.tensor(np.stack(X)), torch.tensor(Y,dtype=torch.long)
 
@@ -82,7 +108,6 @@ class CenterSurroundDataset(Dataset):
 
     def __getitem__(self, idx):
         return self.data[idx], self.labels[idx]
-
 
 class OrientationBarsDataset(Dataset):
     def __init__(self, n_samples=10000, image_size=16, n_orient_classes=8):
@@ -113,7 +138,6 @@ class OrientationBarsDataset(Dataset):
     def __getitem__(self, idx):
         return self.data[idx],self.labels[idx]
 
-
 class MultiXORDataset(Dataset):
     def __init__(self,n_samples=10000,n_bits=8):
         super().__init__()
@@ -137,15 +161,64 @@ class MultiXORDataset(Dataset):
         return self.data[idx], self.labels[idx]
 
 def load_mnist_as_datasets(train_valid_split=0.8, data_path=None):
-    data = load_MNIST(train_valid_split=train_valid_split, cache_dir=data_path)
-    train_ds = data['train']
-    if 'valid' in data:
-        valid_ds = data['valid']
-    else:
-        valid_ds = data['test']  
-    test_ds = data['test']
+    """
+    Load the MNIST dataset and split into train, validation, and test sets.
+    
+    Args:
+        train_valid_split (float): Proportion of training data to use for training (vs validation)
+        data_path (str, optional): Path to the data directory
+        
+    Returns:
+        tuple: (train_dataset, valid_dataset, test_dataset)
+    """
+    # Get the MNIST data directory
+    mnist_dir = get_data_directory('mnist', data_path)
+    
+    # Load training data
+    train_dataset = datasets.MNIST(
+        root=mnist_dir,
+        train=True,
+        download=True,
+        transform=transforms.ToTensor()
+    )
+    
+    # Load test data
+    test_dataset = datasets.MNIST(
+        root=mnist_dir,
+        train=False,
+        download=True,
+        transform=transforms.ToTensor()
+    )
+    
+    # Split training data into train and validation
+    train_size = int(len(train_dataset) * train_valid_split)
+    valid_size = len(train_dataset) - train_size
+    
+    train_dataset, valid_dataset = torch.utils.data.random_split(
+        train_dataset, [train_size, valid_size]
+    )
+    
+    # Format datasets as tuples of tensors (inputs, labels)
+    x_train = torch.stack([img for img, _ in train_dataset])
+    y_train = torch.tensor([label for _, label in train_dataset])
+    
+    x_valid = torch.stack([img for img, _ in valid_dataset])
+    y_valid = torch.tensor([label for _, label in valid_dataset])
+    
+    x_test = torch.stack([img for img, _ in test_dataset])
+    y_test = torch.tensor([label for _, label in test_dataset])
+    
+    # Flatten images
+    x_train = x_train.view(x_train.shape[0], -1)
+    x_valid = x_valid.view(x_valid.shape[0], -1)
+    x_test = x_test.view(x_test.shape[0], -1)
+    
+    # Create and return tensor datasets
+    train_ds = torch.utils.data.TensorDataset(x_train, y_train)
+    valid_ds = torch.utils.data.TensorDataset(x_valid, y_valid)
+    test_ds = torch.utils.data.TensorDataset(x_test, y_test)
+    
     return train_ds, valid_ds, test_ds
-
 
 class InfoShuntingDataset(Dataset):
     """
@@ -172,7 +245,6 @@ class InfoShuntingDataset(Dataset):
         return self.n_samples
     def __getitem__(self, idx):
         return self.data[idx], self.labels[idx]
-
 
 class NoisyLineDataset(Dataset):
     """
@@ -204,7 +276,6 @@ class NoisyLineDataset(Dataset):
     def __getitem__(self,idx):
         return self.data[idx], self.labels[idx]
 
-
 class SparseMNISTDataset(Dataset):
     """
     binarize MNIST
@@ -220,7 +291,6 @@ class SparseMNISTDataset(Dataset):
         arr=np.array(img,dtype=np.float32)/255.0
         bin_arr=(arr>self.threshold).astype(np.float32)
         return torch.tensor(bin_arr.flatten(),dtype=torch.float32), label
-
 
 class ContextualFigureGroundMNIST(Dataset):
     """
@@ -240,7 +310,6 @@ class ContextualFigureGroundMNIST(Dataset):
         boundary=w//2
         new_img[:,boundary:]=img_arr[:,boundary:]
         return torch.tensor(new_img.flatten(),dtype=torch.float32), label
-
 
 class MultiTaskLineDataset(Dataset):
     """
@@ -285,7 +354,6 @@ class MultiTaskLineDataset(Dataset):
     def __getitem__(self,idx):
         return self.data[idx], self.labels[idx]
 
-
 class CompositionalMNIST(Dataset):
     """
     merges two MNIST digits horizontally => label = digit1*10+digit2
@@ -316,242 +384,104 @@ class CompositionalMNIST(Dataset):
     def __getitem__(self,idx):
         return self.data[idx],self.labels[idx]
 
-
-
-
-def load_MNIST(train_valid_split = 1, cache_dir=None):
-    if cache_dir is None:
-        # Use the current working directory instead of navigating up from __file__
-        data_path = os.path.join(os.getcwd(), 'data')
-        os.makedirs(data_path, exist_ok=True)
-    else:
-        data_path = os.path.join(cache_dir, 'data', 'mnist')
-
-    if os.path.exists(data_path):
-        train_data = TensorDataset(
-            torch.load(os.path.join(data_path, 'train_inputs.pt'), 
-                       weights_only = True),
-            torch.load(os.path.join(data_path, 'train_labels.pt'), 
-                       weights_only = True),
-        )
-        test_data = TensorDataset(
-            torch.load(os.path.join(data_path, 'test_inputs.pt'), 
-                       weights_only = True),
-            torch.load(os.path.join(data_path, 'test_labels.pt'), 
-                       weights_only = True),
-        )
-    else:
-        os.makedirs(data_path, exist_ok = True)
-
-        transform = T.ToTensor()
-
-        def loader_saver(train = True):
-            dataset = MNIST(root = data_path, 
-                            train = train, 
-                            download = True)
-            imgs, labels = zip(*(dataset[i] for i in range(len(dataset))))
-            
-            imgs = torch.stack([transform(img).flatten() for img in imgs], 
-                               dim = 0)
-            labels = torch.tensor(labels)
-                        
-            name = 'train' if train else 'test'
-            torch.save(imgs, os.path.join(data_path, f'{name}_inputs.pt'))
-            torch.save(labels, os.path.join(data_path, f'{name}_labels.pt'))
-            
-            return TensorDataset(imgs, labels)
-
-        train_data = loader_saver(train = True)
-        test_data = loader_saver(train = False)
-
-        shutil.rmtree(os.path.join(data_path, 'MNIST'))
-
-    data = {}
-
-    if train_valid_split < 1:
-        train_ix = torch.randperm(len(train_data))[
-            :int(train_valid_split*len(train_data))
-        ]
-        train_mask = torch.zeros((len(train_data),)).bool()
-        train_mask[train_ix] = True
-
-        valid_data = TensorDataset(*train_data[~train_mask])
-        train_data = TensorDataset(*train_data[train_mask])
-
-        data['valid'] = valid_data
-
-    data['train'] = train_data
-    data['test'] = test_data
-
-    return data
-
-def load_MNIST_modulo10(shuffle_iterations = 2, 
-                        train_valid_split = 1,
-                        cache_dir = None):
-    
-    data = load_MNIST(train_valid_split, cache_dir)
-
-    for key, ds in data.items():
-        ix = torch.randperm(len(ds))
-        ix0 = ix[:int(len(ds)/2)]
-        ix1 = ix[int(len(ds)/2):]
-
-        input0, label0 = ds[ix0]
-        input1, label1 = ds[ix1]
-        assert(label0.shape[0] == label1.shape[0])
-
-        inputs = []
-        labels = []
-        for _ in range(shuffle_iterations):
-            inputs.append(torch.cat([input0, input1], dim = -1))
-            labels.append((label0 + label1) % 10)
-
-            ix0 = torch.randperm(input0.shape[0])
-            input0 = input0[ix0]
-            label0 = label0[ix0]
-
-            ix1 = torch.randperm(input1.shape[0])
-            input1 = input1[ix1]
-            label1 = label1[ix1]
-        
-        inputs = torch.cat(inputs, dim = 0)
-        labels = torch.cat(labels, dim = 0)
-
-        data[key] = TensorDataset(inputs, labels)
-
-    return data
-
-def load_MNIST_task_switch(train_valid_split = 1, cache_dir = None):
-    """
-    MNIST Switch: 
-    Turns the first two input pixels into 'task bits'. 
-    For one task bit pattern, labels remain normal. 
-    For the other, labels are inverted (digit -> 9 - digit). 
-    """
-    data = load_MNIST(train_valid_split, cache_dir)
-
-    for key, ds in data.items():
-        input0, label0 = ds[:]
-        input1 = deepcopy(input0)
-
-        input0[:,0] = 1
-        input0[:,1] = 0
-
-        input1[:,0] = 0
-        input1[:,1] = 1
-        label1 = 9 - label0
-
-        inputs = torch.cat([input0, input1], dim = 0)
-        labels = torch.cat([label0, label1], dim = 0)
-        
-        data[key] = TensorDataset(inputs, labels)
-    
-    return data
-
-def load_MNIST_task_switch0(train_valid_split = 1, cache_dir = None):
-    """
-    MNIST Split: 
-    Zeros out the first 10 pixels in the input. Then for each digit i in 0..9, 
-    we set pixel i to 1 and also shift the label by i (mod 10). 
-    This effectively creates 10 'subtasks' inside one dataset.
-    """
-    data = load_MNIST(train_valid_split, cache_dir)
-
-    for key, ds in data.items():
-        raw_input, raw_label = ds[:]
-        raw_input[:,:10] = 0
-
-        inputs = []
-        labels = []
-
-        for i in range(10):
-            task_input = deepcopy(raw_input)
-            task_input[:,i] = 1
-
-            task_label = (raw_label + i) % 10
-
-            inputs.append(task_input)
-            labels.append(task_label)
-        
-        inputs = torch.cat(inputs, dim = 0)
-        labels = torch.cat(labels, dim = 0)
-
-        data[key] = TensorDataset(inputs, labels)
-
-    return data
-
-def split_MNIST_inputs(inputs, labels):
-    unique_label = torch.unique(labels)
-    input_list = []
-    for unique in unique_label:
-        ix = torch.where(labels == unique, True, False)
-        input_list.append(inputs[ix])
-    return input_list
-
-
-
 def load_cifar10_as_datasets(train_valid_split=1.0, data_path=None):
     """
-    Loads CIFAR-10, converts it to shape [N, 3*32*32], 
-    and optionally splits into train/valid if train_valid_split < 1. 
+    Load the CIFAR-10 dataset and split into train, validation, and test sets.
+    
+    Args:
+        train_valid_split (float): Proportion of training data to use for training (vs validation)
+        data_path (str, optional): Path to the data directory
+        
+    Returns:
+        tuple: (train_dataset, valid_dataset, test_dataset)
     """
-    from torchvision.datasets import CIFAR10
-    transform = T.Compose([
-        T.ToTensor()
+    # Define transforms
+    transform = transforms.Compose([
+        transforms.ToTensor(),
+        transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))
     ])
     
-    if data_path is None:
-        root_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-        root_dir = os.path.join(root_dir, 'data', 'cifar')
-    else:
-        root_dir = os.path.join(data_path, "cifar")
-        
-    train_set = CIFAR10(root=root_dir, train=True, download=True, transform=transform)
-    test_set = CIFAR10(root=root_dir, train=False, download=True, transform=transform)
+    # Get the CIFAR data directory
+    cifar_dir = get_data_directory('cifar', data_path)
     
-    # Convert each dataset to Tensors: shape [N, 3*32*32]
+    # Load training data
+    train_dataset = datasets.CIFAR10(
+        root=cifar_dir,
+        train=True,
+        download=True,
+        transform=transform
+    )
+    
+    # Load test data
+    test_dataset = datasets.CIFAR10(
+        root=cifar_dir,
+        train=False,
+        download=True,
+        transform=transform
+    )
+    
+    # Helper function to convert datasets to tensor format
     def convert_to_tensor(dataset):
-        X = []
-        Y = []
-        for img, lbl in dataset:
-            # img is shape [3, 32, 32], flatten to 3*32*32
-            X.append(img.view(-1))
-            Y.append(lbl)
-        X = torch.stack(X, dim=0)
-        Y = torch.tensor(Y, dtype=torch.long)
-        return X, Y
+        # Extract data and labels
+        data = []
+        labels = []
+        for img, label in dataset:
+            data.append(img)
+            labels.append(label)
+        
+        # Stack into tensors
+        data_tensor = torch.stack(data)
+        label_tensor = torch.tensor(labels)
+        
+        # Flatten images
+        data_tensor = data_tensor.view(data_tensor.size(0), -1)
+        
+        return data_tensor, label_tensor
 
-    Xtrain, Ytrain = convert_to_tensor(train_set)
-    Xtest, Ytest = convert_to_tensor(test_set)
-
-    data = {}
-    # If we want to do a train/valid split:
+    # Split training data into train and validation if needed
     if train_valid_split < 1.0:
-        n_train = int(len(Ytrain)*train_valid_split)
-        perm = torch.randperm(len(Ytrain))
-        idx_train = perm[:n_train]
-        idx_valid = perm[n_train:]
-        Xtrain_, Ytrain_ = Xtrain[idx_train], Ytrain[idx_train]
-        Xvalid_, Yvalid_ = Xtrain[idx_valid], Ytrain[idx_valid]
-        data['train'] = (Xtrain_, Ytrain_)
-        data['valid'] = (Xvalid_, Yvalid_)
+        train_size = int(len(train_dataset) * train_valid_split)
+        valid_size = len(train_dataset) - train_size
+        
+        train_dataset, valid_dataset = torch.utils.data.random_split(
+            train_dataset, [train_size, valid_size]
+        )
+        
+        # Convert to tensors
+        x_train, y_train = convert_to_tensor(train_dataset)
+        x_valid, y_valid = convert_to_tensor(valid_dataset)
+        x_test, y_test = convert_to_tensor(test_dataset)
+        
+        # Create tensor datasets
+        train_ds = torch.utils.data.TensorDataset(x_train, y_train)
+        valid_ds = torch.utils.data.TensorDataset(x_valid, y_valid)
+        test_ds = torch.utils.data.TensorDataset(x_test, y_test)
     else:
-        data['train'] = (Xtrain, Ytrain)
-
-    data['test'] = (Xtest, Ytest)
-
-    train_ds = TensorDataset(*data['train'])
-    if 'valid' in data:
-        valid_ds = TensorDataset(*data['valid'])
-    else:
-        valid_ds = TensorDataset(*data['test'])
-    test_ds = TensorDataset(*data['test'])
+        # No validation split needed
+        x_train, y_train = convert_to_tensor(train_dataset)
+        x_test, y_test = convert_to_tensor(test_dataset)
+        
+        # Create tensor datasets
+        train_ds = torch.utils.data.TensorDataset(x_train, y_train)
+        valid_ds = train_ds  # Use training data for validation
+        test_ds = torch.utils.data.TensorDataset(x_test, y_test)
+    
     return train_ds, valid_ds, test_ds
 
 ########################################
 # The single get_unified_datasets(...) function
 ########################################
 def get_unified_datasets(task_cfg, train_cfg):
+    """
+    Get datasets based on configuration.
+    
+    Args:
+        task_cfg: Task configuration
+        train_cfg: Training configuration
+        
+    Returns:
+        dict: Dictionary with 'train', 'valid', and 'test' datasets
+    """
     try:
         dataset_name = task_cfg['dataset']
         data_path   = task_cfg.get("data_path", None)
@@ -565,9 +495,10 @@ def get_unified_datasets(task_cfg, train_cfg):
     if data_path == "":
         data_path = None
     
-    # If data_path is None, use the current working directory instead of navigating up from __file__
+    # If data_path is None, use the outputs directory in project root instead of current working directory
     if data_path is None:
-        data_path = os.path.join(os.getcwd(), 'data')
+        project_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+        data_path = os.path.join(project_root, 'outputs', 'data')
         os.makedirs(data_path, exist_ok=True)
 
     train_valid_split = getattr(train_cfg, "train_valid_split", 1.0)
@@ -646,26 +577,12 @@ def get_unified_datasets(task_cfg, train_cfg):
         return load_cifar10_as_datasets(train_valid_split=train_valid_split,data_path=data_path)
     else:
         raise ValueError(f"Unknown dataset name: {dataset_name}")
-    
-    
-    
-    
-    
-    # 1.	Synthetic
-	# •	"line"
-	# •	"center_surround"
-	# •	"orientation_bars"
-	# •	"multi_xor"
-	# •	"info_shunting"
-	# •	"noise_resilience"
-	# •	"learning_dynamics"
-	# 2.	MNIST-based
-	# •	"mnist"
-	# •	"mnist_modulo10"
-	# •	"mnist_switch"
-	# •	"mnist_split"
-	# •	"feature_selectivity"
-	# •	"context_gating"
-	# •	"hierarchical_processing"
-	# 3.	CIFAR-based
-	# •	"cifar10"
+
+# Added function from the older codebase for splitting MNIST inputs.
+def split_MNIST_inputs(inputs, labels):
+    unique_label = torch.unique(labels)
+    input_list = []
+    for unique in unique_label:
+        ix = torch.where(labels == unique, True, False)
+        input_list.append(inputs[ix])
+    return input_list
