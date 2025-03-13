@@ -321,8 +321,10 @@ class CompositionalMNIST(Dataset):
 
 def load_MNIST(train_valid_split = 1, cache_dir=None):
     if cache_dir is None:
-        # Use the current working directory instead of navigating up from __file__
-        data_path = os.path.join(os.getcwd(), 'data')
+        # Navigate up from the current file to the project root, then use outputs/data
+        # instead of using the current working directory which creates src/data
+        project_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+        data_path = os.path.join(project_root, 'outputs', 'data', 'mnist')
         os.makedirs(data_path, exist_ok=True)
     else:
         data_path = os.path.join(cache_dir, 'data', 'mnist')
