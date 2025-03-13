@@ -18,7 +18,7 @@ from dendritic_modeling import logger, logger_manager
 from dendritic_modeling.config import load_config
 from dendritic_modeling.models import ProbabilisticClassifier, Classifier
 from dendritic_modeling.networks import ExcitationInhibitionNetwork, MatchedParamMLP
-from dendritic_modeling.synthetic_datasets import get_unified_datasets
+from dendritic_modeling.synthetic_datasets2 import get_unified_datasets
 from dendritic_modeling.learning_strategies import get_trainer, CustomWeightDecayOptimizer
 from dendritic_modeling.utils import evaluate_accuracy, save_dict, set_seed
 from dendritic_modeling.plot_utils import plot_branch_sweep_results
