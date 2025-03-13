@@ -1,5 +1,7 @@
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Optional
 from dataclasses import dataclass, field, asdict
+import os
+import yaml
 
 from omegaconf import OmegaConf as om
 
@@ -117,27 +119,116 @@ class TaskConfig(BaseConfig):
 @dataclass
 class OutputsConfig(BaseConfig):
     dir: str = "outputs"
+    enable_ablation: bool = True
+    ablation_batch_size: int = 64
+    enable_info_estimation: bool = True
+    info_estimation_epochs: int = 20
 
 @dataclass
 class Config:
     model: ModelConfig = field(default_factory=ModelConfig)
     train: TrainConfig = field(default_factory=TrainConfig)
-    wandb: WandbConfig = field(default_factory=WandbConfig)
+    wandb: Optional[WandbConfig] = None
     visualization: VisualizationConfig = field(default_factory=VisualizationConfig)
     task: TaskConfig = field(default_factory=TaskConfig)
     outputs: OutputsConfig = field(default_factory=OutputsConfig)
 
 
-def load_config(path: str = None) -> Config:
-    """Load configuration from a file or use defaults."""
-    if path:
-        raw_conf = om.load(path)
-        return Config(
-            model=ModelConfig(**raw_conf.get("model", {})),
-            train=TrainConfig(**raw_conf.get("train", {})),
-            wandb=WandbConfig(**raw_conf.get("wandb", {})),
-            visualization=VisualizationConfig(**raw_conf.get("visualization", {})),
-            task=TaskConfig(**raw_conf.get("task", {})),
-            outputs=OutputsConfig(**raw_conf.get("outputs", {})),
+def load_config(config_path: str) -> Config:
+    """
+    Load configuration from a YAML file.
+    
+    Args:
+        config_path: Path to the configuration YAML file
+        
+    Returns:
+        Config object with all configuration parameters
+    """
+    with open(config_path, 'r') as f:
+        config_dict = yaml.safe_load(f)
+    
+    # Create model config
+    network_params = ModelNetworkConfig(
+        type=config_dict['model']['network']['type'],
+        parameters=EINetParameters(**config_dict['model']['network']['parameters'])
+    )
+    
+    model_config = ModelConfig(
+        task=config_dict['model']['task'],
+        probabilistic=config_dict['model']['probabilistic'],
+        network=network_params
+    )
+    
+    # Create train config
+    train_config = TrainConfig(
+        learning_strategy=config_dict['train']['learning_strategy'],
+        run_name=config_dict['train']['run_name'],
+        seed=config_dict['train']['seed'],
+        train_valid_split=config_dict['train']['train_valid_split'],
+        lr=config_dict['train']['lr'],
+        epochs=config_dict['train']['epochs'],
+        batch_size=config_dict['train']['batch_size'],
+        grad_clip_value=config_dict['train']['grad_clip_value'],
+        epochs_per_layer=config_dict['train'].get('epochs_per_layer', 50),
+        pretrain_epochs=config_dict['train'].get('pretrain_epochs', 50),
+        weight_decay_rate=config_dict['train'].get('weight_decay_rate', 0.1)
+    )
+    
+    # Add input_net_training if present
+    if 'input_net_training' in config_dict['train']:
+        train_config.input_net_training = config_dict['train']['input_net_training']
+    
+    # Create task config
+    task_config = TaskConfig(
+        dataset=config_dict['task']['dataset'],
+        data_path=config_dict['task']['data_path'],
+        parameters=config_dict['task'].get('parameters', {})
+    )
+    
+    # Create outputs config
+    outputs_config = OutputsConfig(
+        dir=config_dict['outputs']['dir']
+    )
+    
+    # Add optional output parameters if present
+    if 'enable_ablation' in config_dict['outputs']:
+        outputs_config.enable_ablation = config_dict['outputs']['enable_ablation']
+    
+    if 'ablation_batch_size' in config_dict['outputs']:
+        outputs_config.ablation_batch_size = config_dict['outputs']['ablation_batch_size']
+        
+    if 'enable_info_estimation' in config_dict['outputs']:
+        outputs_config.enable_info_estimation = config_dict['outputs']['enable_info_estimation']
+        
+    if 'info_estimation_epochs' in config_dict['outputs']:
+        outputs_config.info_estimation_epochs = config_dict['outputs']['info_estimation_epochs']
+    
+    # Create visualization config
+    vis_config = VisualizationConfig(
+        enabled=config_dict['visualization']['enabled'],
+        visualize_epochs=config_dict['visualization'].get('visualize_epochs', []),
+        plots=config_dict['visualization'].get('plots', [])
+    )
+    
+    # Create wandb config if present
+    wandb_config = None
+    if 'wandb' in config_dict:
+        wandb_config = WandbConfig(
+            entity=config_dict['wandb']['entity'],
+            project=config_dict['wandb']['project'],
+            group=config_dict['wandb']['group'],
+            tags=config_dict['wandb'].get('tags', []),
+            use_wandb=config_dict['wandb'].get('use_wandb', False)
         )
-    return Config()
+    
+    # Create main config
+    config = Config(
+        model=model_config,
+        train=train_config,
+        wandb=wandb_config,
+        visualization=vis_config,
+        task=task_config,
+        outputs=outputs_config
+    )
+    
+    return config

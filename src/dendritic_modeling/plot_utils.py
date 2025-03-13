@@ -33,36 +33,58 @@ def plotWithColor(data, title=''):
             plt.show()
 
 
-def plot_NLL_loss_curves(
-    train_losses, 
-    valid_losses, 
-    num_epochs,
-    save_path = None,
-):
-    Train_losses = np.array(train_losses)
-    Train_losses[np.where(Train_losses > 5)] = 5
+def plot_NLL_loss_curves(Train_losses, Valid_losses, num_epochs, save_dir):
+    """
+    Plot the negative log-likelihood loss curves for training and validation.
     
-    Valid_losses = np.array(valid_losses)
-    Valid_losses[np.where(Valid_losses > 5)] = 5
+    Args:
+        Train_losses: List of training losses
+        Valid_losses: List of validation losses
+        num_epochs: Number of epochs
+        save_dir: Directory to save the plot
+    """
+    # Convert to list if numpy array
+    Train_losses = list(Train_losses)
+    Valid_losses = list(Valid_losses)
     
-    fig = plt.figure()
-    
-    plt.plot(range(1,num_epochs+1), Train_losses, '0.4', label = 'training')
-    plt.plot(range(1,num_epochs+1), Valid_losses, 'b', label = 'validation')
-    
-    plt.xlabel('Epochs')
-    plt.xticks(range(0,num_epochs+1,int(num_epochs // 5)))
-    plt.ylabel('Negative Log Likelihood')
-    plt.title('Loss Curves')
-    plt.legend()
-
-    if save_path is not None:
-        if not os.path.exists(save_path):
-            os.makedirs(save_path, exist_ok = True)
-        fig.savefig(os.path.join(save_path, 'nll_loss_curves.jpeg'))
-        plt.close(fig)
+    # Create the x-axis values (epochs)
+    # Make sure length matches the loss arrays
+    actual_epochs = len(Train_losses)
+    if actual_epochs != num_epochs:
+        print(f"Warning: Actual epochs ({actual_epochs}) != expected epochs ({num_epochs})")
+        # Use actual number of epochs for x-axis
+        epochs = list(range(1, actual_epochs + 1))
     else:
-        return fig
+        epochs = list(range(1, num_epochs + 1))
+    
+    plt.figure(figsize=(10, 8))
+    plt.plot(epochs, Train_losses, '0.4', label='training')
+    
+    if Valid_losses:
+        # Make sure valid losses have same length as train losses
+        if len(Valid_losses) != len(Train_losses):
+            print(f"Warning: Valid losses length ({len(Valid_losses)}) != Train losses length ({len(Train_losses)})")
+            # Use the shorter length
+            min_len = min(len(Valid_losses), len(Train_losses))
+            Valid_losses = Valid_losses[:min_len]
+            epochs_valid = epochs[:min_len]
+        else:
+            epochs_valid = epochs
+        
+        plt.plot(epochs_valid, Valid_losses, 'r', label='validation')
+    
+    plt.grid()
+    plt.title('Loss')
+    plt.xlabel('Epoch')
+    plt.ylabel('Loss')
+    plt.legend()
+    
+    # Save the plot
+    if save_dir:
+        os.makedirs(save_dir, exist_ok=True)
+        plt.savefig(os.path.join(save_dir, 'loss_curves.png'))
+    
+    plt.close()
 
 
 def add_colorbars(
@@ -1055,9 +1077,8 @@ def plot_einet_activations(
 
         exc_temp = []
         for j in range(len(input_list)):
-            # Removed "exc_dendrendet ="
-            # appended result directly
-            exc_temp.append(exc_dendrinet(exc_input_list[j], inh_input_list[j]))
+            exc_temp.append(exc_dendrinet(exc_input_list[j], 
+                                          inh_input_list[j]))
         exc_input_list = exc_temp
 
 
@@ -1195,7 +1216,6 @@ def dendrinet_activations_todict(
         for j in range(len(exc_input_list)):
             output_list[j] = dendrinet.branch_layers[i](
                 exc_input_list[j], inh_input_list[j], output_list[j])
-            # list, tuples, tensors -> numbers, somas, branches 
             chunk_list.append(output_list[j].chunk(n_soma, dim = -1))
 
         level = ('soma layer' 
@@ -1722,7 +1742,8 @@ def einet_activations_to_csv(einet, input_list, save_root, filename = 'activatio
 
         exc_temp = []
         for j in range(len(input_list)):
-            exc_temp.append(exc_dendrendet = exc_dendrinet(exc_input_list[j], inh_input_list[j]))
+            exc_temp.append(exc_dendrinet(exc_input_list[j], 
+                                          inh_input_list[j]))
         exc_input_list = exc_temp
 
 
@@ -1763,7 +1784,7 @@ def plot_activation_tuning(einet, input_list, save_root):
 
             exc_activations = []
             for digit_idx, inputs in enumerate(exc_input_list):
-                activations = exc_dendrendet = exc_dendrinet(inputs, inh_input_list[digit_idx])
+                activations = exc_dendrinet(inputs, inh_input_list[digit_idx])
                 exc_activations.append(activations.cpu().numpy())
             activation_data[f"layer{layer_idx+1}_exc"] = np.stack(exc_activations)
 
