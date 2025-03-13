@@ -20,7 +20,10 @@ wandb/*
 
 notebooks/*
 
+<<<<<<< HEAD
 #ndb/ Byte-compiled / optimized / DLL files
+=======
+>>>>>>> iss157_sweep_ei_MR_hs
 __pycache__/
 *.py[cod]
 *$py.class
