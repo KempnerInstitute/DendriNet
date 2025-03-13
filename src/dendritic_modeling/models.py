@@ -142,7 +142,7 @@ class Classifier(BaseModel):
             self.net.decay_weights(weight_decay)
 
 
-class SimpleMLP(torch.nn.Module):
+class SimpleMLP(nn.Module):
     """
     A simple PyTorch MLP that's optimized for MNIST classification.
     This will be used to demonstrate good performance on MNIST.
