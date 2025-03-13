@@ -8,6 +8,10 @@ from torch.utils.data import Dataset, random_split, TensorDataset
 
 from torchvision.datasets import MNIST
 import torchvision.transforms as T
+import logging
+
+logger = logging.getLogger(__name__)
+
 ########################################
 # Original tasks: line, center_surround, orientation_bars, multi_xor, plus standard MNIST
 ########################################
@@ -136,16 +140,139 @@ class MultiXORDataset(Dataset):
     def __getitem__(self, idx):
         return self.data[idx], self.labels[idx]
 
-def load_mnist_as_datasets(train_valid_split=0.8, data_path=None):
-    data = load_MNIST(train_valid_split=train_valid_split, cache_dir=data_path)
-    train_ds = data['train']
-    if 'valid' in data:
-        valid_ds = data['valid']
+def get_data_dir(data_path=None, dataset_type=None):
+    """
+    Centralized function to get or create a data directory.
+    
+    Args:
+        data_path: Optional path override for data storage
+        dataset_type: Subdirectory for specific dataset (e.g., 'mnist', 'cifar')
+        
+    Returns:
+        Path to the data directory
+    """
+    if data_path is None:
+        # Use a 'data' directory in the current working directory
+        data_dir = os.path.join(os.getcwd(), 'data')
     else:
-        valid_ds = data['test']  
-    test_ds = data['test']
-    return train_ds, valid_ds, test_ds
+        data_dir = data_path
+        
+    # Create the base data directory if it doesn't exist
+    os.makedirs(data_dir, exist_ok=True)
+    
+    # If a dataset type is specified, create and return that subdirectory
+    if dataset_type:
+        dataset_dir = os.path.join(data_dir, dataset_type)
+        os.makedirs(dataset_dir, exist_ok=True)
+        return dataset_dir
+    
+    return data_dir
 
+def load_mnist_as_datasets(train_valid_split=0.8, data_path=None):
+    """
+    Load the MNIST dataset and return train, validation, and test datasets.
+    
+    Args:
+        train_valid_split: Ratio of training data to use for training (vs. validation)
+        data_path: Optional override for where to store/find the data
+        
+    Returns:
+        Tuple of (train_dataset, valid_dataset, test_dataset)
+    """
+    # Get the appropriate data directory
+    data_dir = get_data_dir(data_path, 'mnist')
+    
+    # Download and load the dataset
+    train_dataset = MNIST(
+        root=data_dir,
+        train=True,
+        download=True,
+        transform=T.Compose([
+            T.ToTensor(),
+        ])
+    )
+    
+    test_dataset = MNIST(
+        root=data_dir,
+        train=False,
+        download=True,
+        transform=T.Compose([
+            T.ToTensor(),
+        ])
+    )
+    
+    # Split training data into train and validation
+    if train_valid_split < 1.0:
+        train_size = int(len(train_dataset) * train_valid_split)
+        valid_size = len(train_dataset) - train_size
+        train_dataset, valid_dataset = torch.utils.data.random_split(
+            train_dataset, [train_size, valid_size])
+    else:
+        valid_dataset = test_dataset
+    
+    # Convert to tensor datasets for consistent interface
+    train_inputs, train_labels = get_inputs_labels_from_dataset(train_dataset)
+    valid_inputs, valid_labels = get_inputs_labels_from_dataset(valid_dataset)
+    test_inputs, test_labels = get_inputs_labels_from_dataset(test_dataset)
+    
+    train_dataset = TensorDataset(train_inputs, train_labels)
+    valid_dataset = TensorDataset(valid_inputs, valid_labels)
+    test_dataset = TensorDataset(test_inputs, test_labels)
+    
+    return train_dataset, valid_dataset, test_dataset
+
+def load_cifar10_as_datasets(train_valid_split=1.0, data_path=None):
+    """
+    Load the CIFAR10 dataset and return train, validation, and test datasets.
+    
+    Args:
+        train_valid_split: Ratio of training data to use for training (vs. validation)
+        data_path: Optional override for where to store/find the data
+        
+    Returns:
+        Tuple of (train_dataset, valid_dataset, test_dataset)
+    """
+    # Get the appropriate data directory
+    data_dir = get_data_dir(data_path, 'cifar')
+    
+    # Download and load the dataset
+    transform = T.Compose([
+        T.ToTensor(),
+    ])
+    
+    train_dataset = CIFAR10(
+        root=data_dir,
+        train=True,
+        download=True,
+        transform=transform
+    )
+    
+    test_dataset = CIFAR10(
+        root=data_dir,
+        train=False,
+        download=True,
+        transform=transform
+    )
+    
+    # Split training data into train and validation
+    if train_valid_split < 1.0:
+        train_size = int(len(train_dataset) * train_valid_split)
+        valid_size = len(train_dataset) - train_size
+        train_dataset, valid_dataset = torch.utils.data.random_split(
+            train_dataset, [train_size, valid_size])
+    else:
+        valid_dataset = test_dataset
+    
+    # Convert to tensor datasets for consistent interface
+    train_inputs, train_labels = convert_to_tensor(train_dataset)
+    valid_inputs, valid_labels = convert_to_tensor(valid_dataset)
+    test_inputs, test_labels = convert_to_tensor(test_dataset)
+    
+    train_dataset = TensorDataset(train_inputs, train_labels)
+    valid_dataset = TensorDataset(valid_inputs, valid_labels)
+    test_dataset = TensorDataset(test_inputs, test_labels)
+    
+    return train_dataset, valid_dataset, test_dataset
 
 class InfoShuntingDataset(Dataset):
     """
@@ -555,101 +682,66 @@ def load_cifar10_as_datasets(train_valid_split=1.0, data_path=None):
 # The single get_unified_datasets(...) function
 ########################################
 def get_unified_datasets(task_cfg, train_cfg):
-    try:
-        dataset_name = task_cfg['dataset']
-        data_path   = task_cfg.get("data_path", None)
-        p = task_cfg.get('parameters', {})
-    except TypeError:
-        dataset_name = task_cfg.dataset
-        data_path    = getattr(task_cfg, "data_path", None)
-        p = task_cfg.parameters
-
-    # If data_path is empty string, set it to None
-    if data_path == "":
-        data_path = None
+    """
+    Get datasets based on configuration, handling both standard and synthetic datasets.
     
-    # If data_path is None, use the outputs directory in project root instead of current working directory
-    if data_path is None:
-        project_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-        data_path = os.path.join(project_root, 'outputs', 'data')
-        os.makedirs(data_path, exist_ok=True)
-
-    train_valid_split = getattr(train_cfg, "train_valid_split", 1.0)
-    train_size = p.get('train_size', 8000)
-    valid_size = p.get('valid_size', 1000)
-    test_size  = p.get('test_size', 1000)
-    image_size = p.get('image_size', 784)
-    n_orient_classes = p.get('n_orient_classes', 8)
-    n_bits = p.get('n_bits', 8)
-    total = train_size + valid_size + test_size
-
-    if dataset_name == "line":
-        full_ds = LineDataset(n_samples=total, image_size=image_size)
-        return random_split(full_ds, [train_size, valid_size, test_size])
-    elif dataset_name == "center_surround":
-        full_ds = CenterSurroundDataset(n_samples=total, image_size=image_size)
-        return random_split(full_ds, [train_size, valid_size, test_size])
-    elif dataset_name == "orientation_bars":
-        full_ds = OrientationBarsDataset(n_samples=total, image_size=image_size, n_orient_classes=n_orient_classes)
-        return random_split(full_ds, [train_size, valid_size, test_size])
-    elif dataset_name == "multi_xor":
-        full_ds = MultiXORDataset(n_samples=total, n_bits=n_bits)
-        return random_split(full_ds, [train_size, valid_size, test_size])
-    elif dataset_name == "mnist":
-        train_ds, valid_ds, test_ds = load_mnist_as_datasets(train_valid_split=train_valid_split, data_path=data_path)
-        return train_ds, valid_ds, test_ds
-    elif dataset_name == "mnist_modulo10":
-        data = load_MNIST_modulo10(train_valid_split=train_valid_split, cache_dir=data_path)
-        train_ds = data['train']
-        if 'valid' in data:
-            valid_ds = data['valid']
-        else:
-            valid_ds = data['test']
-        test_ds = data['test']
-        return train_ds, valid_ds, test_ds
-    elif dataset_name == "mnist_switch2":
-        data = load_MNIST_task_switch(train_valid_split=train_valid_split, cache_dir=data_path)
-        train_ds = data['train']
-        if 'valid' in data:
-            valid_ds = data['valid']
-        else:
-            valid_ds = data['test']
-        test_ds = data['test']
-        return train_ds, valid_ds, test_ds
-    elif dataset_name == "mnist_switch10":
-        data = load_MNIST_task_switch0(train_valid_split=train_valid_split, cache_dir=data_path)
-        train_ds = data['train']
-        if 'valid' in data:
-            valid_ds = data['valid']
-        else:
-            valid_ds = data['test']
-        test_ds = data['test']
-        return train_ds, valid_ds, test_ds
-    elif dataset_name == "info_shunting":
-        full_ds = InfoShuntingDataset(n_samples=total, input_dim=10)
-        return random_split(full_ds, [train_size, valid_size, test_size])
-    elif dataset_name == "noise_resilience":
-        full_ds = NoisyLineDataset(n_samples=total, image_size=image_size, noise_level=0.2)
-        return random_split(full_ds, [train_size, valid_size, test_size])
-    elif dataset_name == "feature_selectivity":
-        base_mnist = MNIST(root=data_path, train=True, download=True)
-        full_ds = SparseMNISTDataset(base_mnist, threshold=0.3)
-        return random_split(full_ds, [train_size, valid_size, test_size])
-    elif dataset_name == "context_gating":
-        base_mnist = MNIST(root=data_path, train=True, download=True)
-        full_ds = ContextualFigureGroundMNIST(base_mnist, noise_level=0.1)
-        return random_split(full_ds, [train_size, valid_size, test_size])
-    elif dataset_name == "learning_dynamics":
-        full_ds = MultiTaskLineDataset(total_size=total, image_size=image_size)
-        return random_split(full_ds, [train_size, valid_size, test_size])
-    elif dataset_name == "hierarchical_processing":
-        base_mnist = MNIST(root=data_path, train=True, download=True)
-        full_ds = CompositionalMNIST(base_mnist, n_samples=total)
-        return random_split(full_ds, [train_size, valid_size, test_size])
+    Args:
+        task_cfg: Task configuration with dataset info
+        train_cfg: Training configuration with split info
+        
+    Returns:
+        Dictionary of datasets (train, valid, test)
+    """
+    # Extract necessary parameters
+    dataset_name = task_cfg.dataset
+    data_path = task_cfg.data_path if task_cfg.data_path else None
+    
+    # Use the central data path management
+    data_dir = get_data_dir(data_path)
+    logger.info(f"Using data directory: {data_dir}")
+    
+    # Load the appropriate dataset
+    if dataset_name == "mnist":
+        train_ds, valid_ds, test_ds = load_mnist_as_datasets(
+            train_valid_split=train_cfg.train_valid_split, 
+            data_path=data_dir
+        )
     elif dataset_name == "cifar10":
-        return load_cifar10_as_datasets(train_valid_split=train_valid_split,data_path=data_path)
+        train_ds, valid_ds, test_ds = load_cifar10_as_datasets(
+            train_valid_split=train_cfg.train_valid_split, 
+            data_path=data_dir
+        )
+    # Synthetic datasets don't need the data path, they're generated on-the-fly
+    elif dataset_name == "line":
+        train_ds, valid_ds, test_ds = get_line_datasets(task_cfg.parameters)
+    elif dataset_name == "center_surround":
+        train_ds, valid_ds, test_ds = get_center_surround_datasets(task_cfg.parameters)
+    elif dataset_name == "orientation_bars":
+        train_ds, valid_ds, test_ds = get_orientation_bars_datasets(task_cfg.parameters)
+    elif dataset_name == "multi_xor":
+        train_ds, valid_ds, test_ds = get_multi_xor_datasets(task_cfg.parameters)
+    elif dataset_name == "mnist_modulo10":
+        train_ds, valid_ds, test_ds = load_MNIST_modulo10(
+            train_valid_split=train_cfg.train_valid_split,
+            cache_dir=data_dir
+        )
+    elif dataset_name == "mnist_switch2":
+        train_ds, valid_ds, test_ds = load_MNIST_task_switch(
+            train_valid_split=train_cfg.train_valid_split,
+            cache_dir=data_dir
+        )
+    elif dataset_name == "info_shunting":
+        train_ds, valid_ds, test_ds = get_info_shunting_datasets(task_cfg.parameters)
+    elif dataset_name == "noise_resilience":
+        train_ds, valid_ds, test_ds = get_noisy_line_datasets(task_cfg.parameters)
     else:
-        raise ValueError(f"Unknown dataset name: {dataset_name}")
+        raise ValueError(f"Unknown dataset: {dataset_name}")
+    
+    return {
+        "train": train_ds,
+        "valid": valid_ds,
+        "test": test_ds
+    }
     
     
     
