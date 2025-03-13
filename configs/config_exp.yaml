@@ -1,12 +1,12 @@
 model:
   task: classification
-  probabilistic: false  # This is only for the final EINet model
+  probabilistic: true  # This is only for the final EINet model
   network:
     type: EINet #"EINet", "MLP"
     parameters:
       excitatory_layer_sizes: [10] 
       inhibitory_layer_sizes: [20]
-      excitatory_branch_factors: [1,2] 
+      excitatory_branch_factors: [2,2] 
       inhibitory_branch_factors: []
       reactivate: true
       somatic_synapses: true
@@ -27,7 +27,7 @@ model:
       output_dim: 10
       
       # input mode (0=original, 1=exc=x+inh=x, 2=input_net)
-      input_mode: 2
+      input_mode: 0
       # If we set input_mode=2, the following get used for input network:
       input_net_dict:
         type: "MLPInputTransform"  # Type of input network: "MLPInputTransform", "AlexNetTransform", etc.
@@ -37,15 +37,15 @@ model:
 train:
   learning_strategy: mle #"mle", "freeze_layers", "local_credit_assignment", "two_step", "two_step_kl"
   run_name: mnist_einet
-  seed: 42
+  seed: 0 
   train_valid_split: 0.8
-  lr: 0.001  # Standard learning rate for Adam
+  lr: 0.01  # Standard learning rate for Adam
   epochs: 50
-  batch_size: 64  # Smaller batch size for better generalization
-  grad_clip_value: 1.0  # Reasonable gradient clipping
+  batch_size: 1024  # Smaller batch size for better generalization
+  grad_clip_value: 5  # Reasonable gradient clipping
   epochs_per_layer: 50  ## this is only for "freeze_layers" and any other method which has sequential single layer training
   pretrain_epochs: 10   ## for "two_step"
-  weight_decay_rate: 0.01  # Standard weight decay
+  weight_decay_rate: 0.1  # Standard weight decay
   # Input network training configuration
   input_net_training:
     training_mode: "sequential"     # "joint" (train everything together) or "sequential" (train input_net first, then dendrinet)
@@ -67,7 +67,7 @@ train:
       pytorch_model: ""        # Name of PyTorch model if source is "pytorch"
       
 task:
-  dataset: mnist #mnist, CIFAR10
+  dataset: mnist #mnist, cifar10
   data_path: 
   parameters: {}
   # dataset: "line", "center_surround", "orientation_bars", "multi_xor", "mnist", "mnist_modulo10", "mnist_switch2",
@@ -86,19 +86,18 @@ wandb:
   group: 
   tags: 
   use_wandb: false
-
+  
 visualization:
   enabled: false
   visualize_epochs: [10, 30]  # list of epochs at which to produce intermediate visualizations
-  branch_ablation: true  # Enable/disable branch-level ablation analysis
-  layer_ablation: true   # Enable/disable layer-level ablation analysis
   plots:
     - weights      # Plot dendritic or EI-net weights
     - activations  # Plot per-digit activation distribution
     - gradients    # Plot synapse or branch gradients
+    - branch_ablation  # Enable branch-level ablation analysis 
+    - layer_ablation   # Enable layer-level ablation analysis
     #- profiles     # Plot dendritic compartment profiles
     #- branch_info  # mutual information
-    #- ablation     # ablation
-
+    
 outputs:
-  dir:  
+  dir: 
