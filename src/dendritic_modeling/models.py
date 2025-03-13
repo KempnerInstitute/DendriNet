@@ -189,7 +189,7 @@ class SimpleClassifier(nn.Module):
         return self.criterion(logits, y)
 
 
-class MLPWithClassificationHead(torch.nn.Module):
+class MLPWithClassificationHead(nn.Module):
     """
     A wrapper around an MLP that adds a classification head for training,
     but allows accessing the feature extractor part separately.
