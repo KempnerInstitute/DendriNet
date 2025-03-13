@@ -446,37 +446,26 @@ class DendriticBranchLayer(nn.Module):
         if self.input_inhibitory:
             self.branch_inhibition.decay_weights(weight_decay)
 
-    def forward(self, x, inhibitory_input=None, branch_input=None):
-        if self.use_shunting:
-            numerator = 0
-            denominator = 1
-            if self.input_excitatory:
-                excitation = self.branch_excitation(x)
-                numerator += excitation
-                denominator += excitation
-            if self.input_inhibitory and inhibitory_input is not None:
-                if isinstance(inhibitory_input, torch.Tensor) and inhibitory_input.dim() > 0:
-                    denominator += self.branch_inhibition(inhibitory_input)
-                else:
-                    pass
-            if self.input_branches:
-                numerator += self.branches_to_output(branch_input)
-                denominator += self.branches_to_output.sum_conductances()
-
-            voltage = numerator / denominator
-
-        else:
-            voltage = 0
-            if self.input_excitatory:
-                voltage += self.branch_excitation(x)
-            if self.input_inhibitory and inhibitory_input is not None:
-                if isinstance(inhibitory_input, torch.Tensor) and inhibitory_input.dim() > 0:
-                    voltage -= self.branch_inhibition(inhibitory_input)
-                else:
-                    pass
-            if self.input_branches:
-                voltage += self.branches_to_output(branch_input)
-
+    def forward(self, x, inhibitory_input = None, branch_input = None):
+        # compute excitation along each branch in layer
+        excitation = self.branch_excitation(x)
+        # initialize numerator and denominator variables
+        numerator = excitation
+        denominator = excitation + 1
+        # if receiving inputs from upstream branches
+        if self.input_branches:
+            # compute current contribution from upstream branches and add to numerator
+            current = self.branches_to_output(branch_input)
+            numerator = numerator + current
+            # compute total conductance of upstream branches and add to denominator
+            conductance = self.branches_to_output.sum_conductances()
+            denominator = denominator + conductance
+        # if receiving inhibitory inputs
+        if self.input_inhibitory and inhibitory_input is not None:
+            if isinstance(inhibitory_input, torch.Tensor) and inhibitory_input.dim() > 0:
+                denominator = denominator + self.branch_inhibition(inhibitory_input)
+        # current divided by conductance is voltage
+        voltage = numerator / denominator
         return self.reactivation(voltage) if self.reactivate else voltage
 
     def get_weights(self):
