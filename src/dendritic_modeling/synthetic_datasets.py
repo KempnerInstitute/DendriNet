@@ -77,6 +77,7 @@ class CenterSurroundDataset(Dataset):
         radius = self.image_size // 4
         cx = cy = self.image_size // 2
         for _ in range(self.n_samples):
+            X.append(np.zeros((self.image_size,self.image_size), dtype=np.float32).flatten())
             label = np.random.choice([0,1,2])
             img = np.zeros((self.image_size,self.image_size), dtype=np.float32)
             if label==0:
@@ -98,7 +99,7 @@ class CenterSurroundDataset(Dataset):
                             img[i,j]=0.0
                         else:
                             img[i,j]=1.0
-            X.append(img.flatten())
+            X[-1] = img.flatten()
             Y.append(label)
         return torch.tensor(np.stack(X)), torch.tensor(Y,dtype=torch.long)
 
@@ -107,7 +108,6 @@ class CenterSurroundDataset(Dataset):
 
     def __getitem__(self, idx):
         return self.data[idx], self.labels[idx]
-
 
 class OrientationBarsDataset(Dataset):
     def __init__(self, n_samples=10000, image_size=16, n_orient_classes=8):
@@ -137,7 +137,6 @@ class OrientationBarsDataset(Dataset):
         return self.n_samples
     def __getitem__(self, idx):
         return self.data[idx],self.labels[idx]
-
 
 class MultiXORDataset(Dataset):
     def __init__(self,n_samples=10000,n_bits=8):
@@ -221,7 +220,6 @@ def load_mnist_as_datasets(train_valid_split=0.8, data_path=None):
     
     return train_ds, valid_ds, test_ds
 
-
 class InfoShuntingDataset(Dataset):
     """
     half = Gaussian, half = Uniform; label=0 or 1
@@ -247,7 +245,6 @@ class InfoShuntingDataset(Dataset):
         return self.n_samples
     def __getitem__(self, idx):
         return self.data[idx], self.labels[idx]
-
 
 class NoisyLineDataset(Dataset):
     """
@@ -279,7 +276,6 @@ class NoisyLineDataset(Dataset):
     def __getitem__(self,idx):
         return self.data[idx], self.labels[idx]
 
-
 class SparseMNISTDataset(Dataset):
     """
     binarize MNIST
@@ -295,7 +291,6 @@ class SparseMNISTDataset(Dataset):
         arr=np.array(img,dtype=np.float32)/255.0
         bin_arr=(arr>self.threshold).astype(np.float32)
         return torch.tensor(bin_arr.flatten(),dtype=torch.float32), label
-
 
 class ContextualFigureGroundMNIST(Dataset):
     """
@@ -315,7 +310,6 @@ class ContextualFigureGroundMNIST(Dataset):
         boundary=w//2
         new_img[:,boundary:]=img_arr[:,boundary:]
         return torch.tensor(new_img.flatten(),dtype=torch.float32), label
-
 
 class MultiTaskLineDataset(Dataset):
     """
@@ -360,7 +354,6 @@ class MultiTaskLineDataset(Dataset):
     def __getitem__(self,idx):
         return self.data[idx], self.labels[idx]
 
-
 class CompositionalMNIST(Dataset):
     """
     merges two MNIST digits horizontally => label = digit1*10+digit2
@@ -390,9 +383,6 @@ class CompositionalMNIST(Dataset):
     def __len__(self):return self.n_samples
     def __getitem__(self,idx):
         return self.data[idx],self.labels[idx]
-
-
-
 
 def load_cifar10_as_datasets(train_valid_split=1.0, data_path=None):
     """
@@ -447,7 +437,7 @@ def load_cifar10_as_datasets(train_valid_split=1.0, data_path=None):
         data_tensor = data_tensor.view(data_tensor.size(0), -1)
         
         return data_tensor, label_tensor
-    
+
     # Split training data into train and validation if needed
     if train_valid_split < 1.0:
         train_size = int(len(train_dataset) * train_valid_split)
@@ -587,26 +577,12 @@ def get_unified_datasets(task_cfg, train_cfg):
         return load_cifar10_as_datasets(train_valid_split=train_valid_split,data_path=data_path)
     else:
         raise ValueError(f"Unknown dataset name: {dataset_name}")
-    
-    
-    
-    
-    
-    # 1.	Synthetic
-	# •	"line"
-	# •	"center_surround"
-	# •	"orientation_bars"
-	# •	"multi_xor"
-	# •	"info_shunting"
-	# •	"noise_resilience"
-	# •	"learning_dynamics"
-	# 2.	MNIST-based
-	# •	"mnist"
-	# •	"mnist_modulo10"
-	# •	"mnist_switch"
-	# •	"mnist_split"
-	# •	"feature_selectivity"
-	# •	"context_gating"
-	# •	"hierarchical_processing"
-	# 3.	CIFAR-based
-	# •	"cifar10"
+
+# Added function from the older codebase for splitting MNIST inputs.
+def split_MNIST_inputs(inputs, labels):
+    unique_label = torch.unique(labels)
+    input_list = []
+    for unique in unique_label:
+        ix = torch.where(labels == unique, True, False)
+        input_list.append(inputs[ix])
+    return input_list

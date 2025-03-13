@@ -16,7 +16,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 import numpy as np
 
-from dendritic_modeling.synthetic_datasets2 import split_MNIST_inputs
+from dendritic_modeling.synthetic_datasets import split_MNIST_inputs
 from dendritic_modeling.utils import (
     Shaper,
     analyze_branch_ablation,

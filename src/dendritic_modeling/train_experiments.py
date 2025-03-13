@@ -1,3 +1,4 @@
+#!/usr/bin/env python
 """
 train_experiments.py
 --------------------
@@ -13,7 +14,7 @@ Learning Strategies:
 - dendrinet_from_mlp: Train MLP first, then use it to initialize and train the dendrinet
 
 Example usage:
-python scripts/train_experiments.py .vscode/config_exp.yaml --learning_strategy dendrinet_from_mlp
+python src/dendritic_modeling/train_experiments.py .vscode/config_exp.yaml --learning_strategy dendrinet_from_mlp
 """
 
 import os
@@ -58,6 +59,7 @@ from dendritic_modeling.utils import (
     analyze_branch_ablation, analyze_layerwise_ablation,
     safe_register_hooks
 )
+from omegaconf import OmegaConf
 
 
 def initialize_model(model_cfg, visualization_enabled=False):
@@ -86,16 +88,10 @@ def initialize_model(model_cfg, visualization_enabled=False):
         if net_type == 'MLP':
             logger.info(f"Running feedforward with {'probabilistic' if probabilistic else 'simple'} classifier")
             
-            # Create a dictionary from the parameters
-            try:
-                net_params_dict = {k: getattr(net_params, k) for k in net_params.__dict__.keys() 
-                                 if not k.startswith('_')}
-            except AttributeError:
-                # Fallback if __dict__ doesn't work
-                net_params_dict = net_params.__dict__.copy()
-            
+            # Create a dictionary from the parameters using OmegaConf to ensure input_dim is included
+            net_params_dict = OmegaConf.to_container(net_params, resolve=True)
             net = MLPExcInhNetwork(**net_params_dict)
-            output_dim = getattr(net_params, 'output_dim', 10)
+            output_dim = net_params_dict.get('output_dim', 10)
             
             if probabilistic:
                 model = ProbabilisticClassifier(net, output_dim)
@@ -109,14 +105,8 @@ def initialize_model(model_cfg, visualization_enabled=False):
         elif net_type == 'EINet':
             logger.info(f"Running EINet with {'probabilistic' if probabilistic else 'simple'} classifier")
             
-            # Create a dictionary from the parameters
-            try:
-                net_params_dict = {k: getattr(net_params, k) for k in net_params.__dict__.keys() 
-                                 if not k.startswith('_')}
-            except AttributeError:
-                # Fallback if __dict__ doesn't work
-                net_params_dict = net_params.__dict__.copy()
-            
+            # Create a dictionary from the parameters using OmegaConf to ensure input_dim is included
+            net_params_dict = OmegaConf.to_container(net_params, resolve=True)
             # Set enable_branch_outputs directly in the dict
             net_params_dict['enable_branch_outputs'] = enable_branch_outputs
             net_params_dict['learning_strategy'] = learning_strategy
@@ -126,7 +116,7 @@ def initialize_model(model_cfg, visualization_enabled=False):
             # Apply safe hooks to the network
             safe_register_hooks(net)
 
-            output_dim = getattr(net_params, 'output_dim', 10)
+            output_dim = net_params_dict.get('output_dim', 10)
             
             if probabilistic:
                 model = ProbabilisticClassifier(net, output_dim)
@@ -266,8 +256,14 @@ def setup_training_environment(config, args=None):
         logger.warning("Could not automatically determine input dimension. Using default 784.")
         input_dim = 784
     
-    # Update input dimension in model config
-    model_cfg.network.parameters.input_dim = input_dim
+    # Update input dimension in model config (we assume the YAML does not provide input_dim)
+    # This follows older codebase logic: extracting input_dim from the data.
+    # We update the network parameters accordingly.
+    try:
+        model_cfg.network.parameters.input_dim = input_dim
+    except Exception:
+        # If not a dataclass, then update as a dict
+        model_cfg.network.parameters["input_dim"] = input_dim
     logger.info(f"Set input dimension to {input_dim}")
     
     # Get visualization setting
@@ -778,7 +774,7 @@ def run_analysis(model, train_ds, valid_ds, test_ds, outputs_cfg, visualization_
                     logger.error(f"Error in layer ablation analysis: {e}")
 
 
-def main(config_path, args=None):
+def train_and_evaluate_main(config_path, args=None):
     """
     Main function that runs the training experiment.
     
@@ -831,9 +827,6 @@ def main(config_path, args=None):
             row_settings=["depth"],
             depth=7
         )
-        # The torchinfo summary is already being printed to console by default
-        # No need to log it again, which causes duplication
-        # Instead, just log a reference to it for the file logger
         logger.info("Model summary generated (see console output)")
         if wandb.run:
             wandb.log({
@@ -883,6 +876,20 @@ def main(config_path, args=None):
     logger.info("Training experiment completed successfully")
     
     return model, results
+
+
+def main(config_path, args=None):
+    """
+    Main function that runs the training experiment.
+    
+    Args:
+        config_path: Path to the configuration YAML file
+        args: Optional command-line arguments that can override config
+        
+    Returns:
+        The trained model and results
+    """
+    train_and_evaluate_main(config_path, args=args)
 
 
 if __name__ == '__main__':
