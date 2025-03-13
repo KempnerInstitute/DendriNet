@@ -17,6 +17,7 @@ configs/*.txt
 src/data/*
 cifar-10-*
 wandb/*
+
 notebooks/*
 
 # Byte-compiled / optimized / DLL files
