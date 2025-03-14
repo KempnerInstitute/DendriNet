@@ -1,7 +1,7 @@
 .. _gradient_scaling:
 
 Gradient Scaling Techniques
-==========================
+===========================
 
 Dendritic networks employ specialized gradient scaling techniques to address unique training challenges. This document explains these techniques in detail.
 
@@ -18,7 +18,7 @@ Effective training of dendritic networks requires careful management of gradient
 The framework implements several gradient scaling strategies to address these challenges, which can be selected using the ``gradient_strategy`` parameter in your model configuration.
 
 Available Gradient Strategies
----------------------------
+-----------------------------
 
 .. code-block:: yaml
 
@@ -36,7 +36,7 @@ The available strategies include:
 4. **conductance**: Scale gradients based on overall network conductance
 
 Block Conductance Strategy
-------------------------
+--------------------------
 
 The block conductance strategy scales gradients based on the "conductance" of each dendritic branch. Conductance here refers to how strongly a branch responds to its inputs.
 
@@ -76,7 +76,7 @@ Implementation details:
         return scaled_grads
 
 Dynamic Block Conductance Strategy
---------------------------------
+----------------------------------
 
 The dynamic block conductance strategy extends the basic approach by adaptively adjusting the scaling based on network activity during training.
 
@@ -125,7 +125,7 @@ Implementation details:
         return scaled_grads
 
 Gradient Scale Factor
--------------------
+---------------------
 
 The ``gradient_scale_factor`` parameter controls the strength of gradient scaling. Higher values result in more aggressive scaling, which can help with very deep networks but might slow down learning. Lower values apply more subtle scaling.
 
@@ -135,7 +135,7 @@ Guidelines for setting this parameter:
 - Decrease if learning seems too slow
 
 Custom Gradient Scaling
----------------------
+-----------------------
 
 You can implement custom gradient scaling by creating a custom ``torch.autograd.Function`` that applies your scaling logic during the backward pass:
 
@@ -159,7 +159,7 @@ You can implement custom gradient scaling by creating a custom ``torch.autograd.
             return scaled_grad, None
 
 Interaction with Activation Functions
------------------------------------
+-------------------------------------
 
 Gradient scaling interacts with activation functions, particularly the ``ParametricTanh`` used in dendritic branches:
 
@@ -168,7 +168,7 @@ Gradient scaling interacts with activation functions, particularly the ``Paramet
 3. The gradient scaling strategies help counteract these effects
 
 Best Practices
-------------
+--------------
 
 When using gradient scaling:
 
@@ -178,7 +178,7 @@ When using gradient scaling:
 4. **Experiment with different strategies**: The optimal strategy may depend on your specific architecture
 
 Integration with Optimizers
--------------------------
+---------------------------
 
 Gradient scaling happens before the optimization step. The framework integrates with various optimizers:
 

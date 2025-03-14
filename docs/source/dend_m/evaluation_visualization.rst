@@ -1,7 +1,7 @@
 .. _evaluation_visualization:
 
 Evaluation and Visualization
-=======================
+============================
 
 This document explains the evaluation metrics and visualization tools available in the dendritic modeling framework for analyzing dendritic network behavior.
 
@@ -11,7 +11,7 @@ Overview
 The dendritic modeling framework includes specialized tools for evaluating model performance and visualizing the unique computational properties of dendritic networks. These tools help researchers understand how information flows through dendritic branches and how the network processes information.
 
 Configuration
------------
+-------------
 
 Visualization settings are configured in the ``visualization`` section of the configuration file:
 
@@ -29,12 +29,12 @@ Visualization settings are configured in the ``visualization`` section of the co
         - ablation                       # Plot ablation results
 
 Performance Evaluation
--------------------
+----------------------
 
 The framework provides standard evaluation metrics for classification and regression tasks.
 
 Basic Evaluation Functions
-^^^^^^^^^^^^^^^^^^^^^^
+^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 The ``utils.py`` module includes functions for evaluating model performance:
 
@@ -86,12 +86,12 @@ A more comprehensive evaluation function is also available:
         """
 
 Weight Visualization
------------------
+--------------------
 
 The framework provides tools for visualizing the weights of dendritic networks.
 
 EINet Parameter Visualization
-^^^^^^^^^^^^^^^^^^^^^^^^^^
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 The ``plot_einet_params`` function visualizes the weights of ExcitationInhibitionNetwork models:
 
@@ -123,7 +123,7 @@ The ``plot_einet_params`` function visualizes the weights of ExcitationInhibitio
 This function creates visualizations of the network's weight matrices, which is especially useful for understanding what patterns the dendritic branches have learned to recognize.
 
 Excitation-Inhibition Weight Visualization
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 For more detailed visualization of excitatory and inhibitory weights:
 
@@ -145,12 +145,12 @@ For more detailed visualization of excitatory and inhibitory weights:
         """
 
 Activation Visualization
---------------------
+------------------------
 
 The framework provides tools for visualizing activations of dendritic branches.
 
 EINet Activation Visualization
-^^^^^^^^^^^^^^^^^^^^^^^^^^
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 The ``plot_einet_activations`` function visualizes activations in the network:
 
@@ -177,7 +177,7 @@ The ``plot_einet_activations`` function visualizes activations in the network:
 This function helps understand how the network processes different inputs, showing which branches activate for each class.
 
 Activation Component Visualization
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 For more detailed analysis of activation components:
 
@@ -194,12 +194,12 @@ Additional activation visualization functions include:
 - ``plot_voltage_before_activation``: Visualize membrane potentials before activation
 
 Gradient Visualization
--------------------
+----------------------
 
 The framework provides tools for visualizing gradients in the network.
 
 EINet Gradient Visualization
-^^^^^^^^^^^^^^^^^^^^^^^^
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 The ``plot_einet_gradients`` function visualizes gradients:
 
@@ -233,12 +233,12 @@ The ``plot_einet_gradients`` function visualizes gradients:
 This function helps understand how the network learns by visualizing the flow of gradients through the dendritic branches.
 
 Branch Information Analysis
------------------------
+---------------------------
 
 The framework includes tools for information-theoretic analysis of branch behavior.
 
 Branch Mutual Information
-^^^^^^^^^^^^^^^^^^^^^^
+^^^^^^^^^^^^^^^^^^^^^^^^^
 
 The ``compute_MI`` function calculates mutual information between branch activations and labels:
 
@@ -295,12 +295,12 @@ A comprehensive branch information analysis function is also available:
 This function helps understand how information flows through the layers of the dendritic network.
 
 Ablation Studies
--------------
+----------------
 
 The framework provides tools for ablation studies to understand the contribution of different branches.
 
 Branch Ablation
-^^^^^^^^^^^^
+^^^^^^^^^^^^^^^
 
 The ``ablate_branch`` function allows ablating specific branches:
 
@@ -357,12 +357,12 @@ A comprehensive ablation analysis function is also available:
 This function helps quantify the importance of each branch for the network's performance.
 
 Dendritic Tree Visualization
--------------------------
+----------------------------
 
 The framework includes tools for visualizing the structure of dendritic trees.
 
 Tree Graph Visualization
-^^^^^^^^^^^^^^^^^^^^
+^^^^^^^^^^^^^^^^^^^^^^^^
 
 The ``build_dendritic_tree_graph`` and ``visualize_dendritic_tree`` functions create visualizations of the dendritic tree structure:
 
@@ -390,7 +390,7 @@ The ``build_dendritic_tree_graph`` and ``visualize_dendritic_tree`` functions cr
 These visualizations help understand the hierarchical structure of the dendritic network and the information flow through it.
 
 Comprehensive Visualization Script
-------------------------------
+----------------------------------
 
 The ``visualize.py`` script provides a comprehensive visualization pipeline:
 
@@ -427,7 +427,7 @@ The ``visualize.py`` script provides a comprehensive visualization pipeline:
 This function generates a complete set of visualizations for a trained model, including performance metrics, parameter visualizations, gradient visualizations, and activation visualizations.
 
 Best Practices for Evaluation and Visualization
--------------------------------------------
+-----------------------------------------------
 
 1. **Compare with baselines**: Always compare dendritic networks with standard neural networks
 2. **Analyze branch specialization**: Use branch information analysis to understand specialization

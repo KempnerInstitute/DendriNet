@@ -1,7 +1,7 @@
 .. _network_structures:
 
 Network Structures
-=================
+==================
 
 Overview
 --------
@@ -10,7 +10,7 @@ This document describes the neural network architectures available in the dendri
 their configurations, and how to customize them for specific tasks.
 
 Available Network Types
-----------------------
+-----------------------
 
 The framework provides several network types with different architectures:
 
@@ -32,7 +32,7 @@ with dendritic branches, excitatory-inhibitory balance, and sparse connectivity.
    excitatory and inhibitory inputs are processed differently and integrated in dendritic branches.
 
 Implementation
-~~~~~~~~~~~~
+~~~~~~~~~~~~~~
 
 The EINet is implemented through several core classes:
 
@@ -42,7 +42,7 @@ The EINet is implemented through several core classes:
 - `BlockLinear`: Layer for integrating branch outputs
 
 Excitation-Inhibition Layer
-~~~~~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 Each layer in an EINet contains both excitatory and inhibitory cells. The excitatory cells
 receive inputs and produce outputs that propagate to the next layer, while inhibitory cells
@@ -66,7 +66,7 @@ modulate the activity of excitatory cells through inhibitory connections.
     )
 
 Dendritic Branch Processing
-~~~~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 Dendritic branches implement a form of nonlinear integration of inputs, inspired by the
 computation performed in biological dendrites.
@@ -88,7 +88,7 @@ computation performed in biological dendrites.
         return output
 
 Branch Parameters
-~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~
 
 The EINet architecture is highly configurable through various parameters:
 
@@ -103,7 +103,7 @@ The EINet architecture is highly configurable through various parameters:
 - **Somatic synapses**: Whether to include direct synapses to the soma
 
 Standard MLP
------------
+------------
 
 For baseline comparisons, the framework includes a standard multilayer perceptron implementation.
 
@@ -121,7 +121,7 @@ For baseline comparisons, the framework includes a standard multilayer perceptro
     model = SimpleMLP(**mlp_params)
 
 Sparse MLP
----------
+----------
 
 The Sparse MLP implements a traditional MLP architecture but with sparse connectivity
 patterns similar to those in the EINet.
@@ -139,10 +139,10 @@ patterns similar to those in the EINet.
     model = SparseMLP(**sparse_mlp_params)
 
 Input Transformation Networks
-----------------------------
+-----------------------------
 
 Basic Configuration
-~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~
 
 Input transformation networks preprocess inputs before they reach the dendritic network.
 This can help in separating information into excitatory and inhibitory pathways.
@@ -157,7 +157,7 @@ This can help in separating information into excitatory and inhibitory pathways.
     }
 
 Input Network Types
-~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~
 
 The framework supports several types of input transformation networks:
 
@@ -167,7 +167,7 @@ The framework supports several types of input transformation networks:
 4. **ResNetTransform**: Based on ResNet architecture (for complex feature extraction)
 
 Input Network Architecture
-~~~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 A typical input network architecture includes:
 
@@ -176,12 +176,12 @@ A typical input network architecture includes:
 3. Separate heads for excitatory and inhibitory pathways
 
 Training Strategies
-~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~
 
 Several strategies are available for training input transformation networks:
 
 Sequential vs. Joint Training
-^^^^^^^^^^^^^^^^^^^^^^^^^^
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 Input networks can be trained either sequentially (before the dendritic network)
 or jointly (simultaneously with the dendritic network).
@@ -201,7 +201,7 @@ or jointly (simultaneously with the dendritic network).
     }
 
 Independent Head Training
-^^^^^^^^^^^^^^^^^^^^^
+^^^^^^^^^^^^^^^^^^^^^^^^^
 
 The excitatory and inhibitory heads can be trained independently with different objectives.
 
@@ -215,7 +215,7 @@ The excitatory and inhibitory heads can be trained independently with different 
     }
 
 Pre-trained Input Networks
-~~~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 For complex tasks, pre-trained networks can be used to extract features.
 
@@ -231,7 +231,7 @@ For complex tasks, pre-trained networks can be used to extract features.
     }
 
 Transfer Learning Options
-~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~~~~~
 
 When using pre-trained networks, several transfer learning approaches are available:
 
@@ -240,7 +240,7 @@ When using pre-trained networks, several transfer learning approaches are availa
 3. **Progressive unfreezing**: Gradually unfreeze deeper layers during training
 
 Example Configurations
-~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~~
 
 Here are some example configurations for different network types:
 
@@ -275,8 +275,8 @@ Here are some example configurations for different network types:
             hidden_dims: [256, 128]
             output_dim: 64
 
-Implementation Details
-~~~~~~~~~~~~~~~~~
+Implementation Details (Overview)
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 The implementation of network structures is modular and follows object-oriented principles:
 
@@ -285,7 +285,7 @@ The implementation of network structures is modular and follows object-oriented 
 3. Factory functions create appropriate networks based on configuration
 
 Network Output Types
-------------------
+--------------------
 
 The framework supports different output types depending on the task:
 
@@ -307,7 +307,7 @@ The framework supports different output types depending on the task:
             return self.network(x)
 
 Creating Custom Networks
------------------------
+------------------------
 
 The framework is designed to be extensible, allowing users to create custom network architectures.
 
@@ -326,7 +326,7 @@ The framework is designed to be extensible, allowing users to create custom netw
             return self.attention_layer(features)
 
 Computational Properties
------------------------
+------------------------
 
 Dendritic networks have unique computational properties compared to traditional ANNs:
 
@@ -336,7 +336,7 @@ Dendritic networks have unique computational properties compared to traditional 
 4. **Hierarchical processing**: Information is processed at multiple levels (branch, cell, layer)
 
 Choosing the Right Architecture
------------------------------
+-------------------------------
 
 Guidelines for selecting the appropriate network architecture:
 
@@ -346,7 +346,7 @@ Guidelines for selecting the appropriate network architecture:
 4. For tasks requiring hierarchical processing, leverage deep EINets with multiple layers
 
 Implementation Details
---------------------
+----------------------
 
 Under the hood, the network structures are implemented using PyTorch modules and custom layers.
 The implementation is designed to be efficient, leveraging techniques like sparse operations

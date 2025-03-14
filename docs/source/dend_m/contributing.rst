@@ -1,10 +1,10 @@
 Contributing to Dendritic Modeling
-================================
+==================================
 
 This guide explains how to contribute to the dendritic modeling codebase, whether you're reporting bugs, suggesting improvements, or submitting code contributions.
 
 Opening Issues
--------------
+--------------
 
 Issues are a great way to report bugs, request features, or ask questions about the codebase.
 
@@ -45,7 +45,7 @@ Example template for bug reports:
     - Dependencies: [Any relevant package versions]
 
 Submitting Pull Requests
------------------------
+------------------------
 
 Pull requests (PRs) allow you to contribute code changes to the project.
 
@@ -99,7 +99,7 @@ Example PR template:
     - [ ] New and existing tests pass with my changes
 
 Following Kempner Computing Handbook Guidelines
-----------------------------------------------
+-----------------------------------------------
 
 The Kempner Computing Handbook provides important guidelines that should be followed when contributing to this project:
 
@@ -135,7 +135,7 @@ The Kempner Computing Handbook provides important guidelines that should be foll
    - Be constructive and respectful in code reviews
 
 Development Setup
-----------------
+-----------------
 
 To set up your development environment:
 
@@ -172,7 +172,7 @@ To set up your development environment:
       pytest
 
 Getting Help
------------
+------------
 
 If you're unsure about anything related to contributing:
 

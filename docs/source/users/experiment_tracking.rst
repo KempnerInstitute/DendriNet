@@ -1,5 +1,5 @@
 Experiment Tracking
-==================
+===================
 
 The Dendritic Modeling framework provides comprehensive tools for tracking experiments, logging results, and visualizing outcomes. This guide explains how to use these features effectively.
 

@@ -1,12 +1,12 @@
 .. _cifar10_tutorial:
 
 CIFAR10 Tutorial
-===============
+================
 
 This tutorial demonstrates how to train a dendritic network on the CIFAR10 dataset using the dendritic modeling framework.
 
 Prerequisites
-------------
+-------------
 
 Before starting this tutorial, make sure you have:
 - Installed the dendritic modeling package and its dependencies

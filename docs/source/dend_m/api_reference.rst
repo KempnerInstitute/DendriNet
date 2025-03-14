@@ -1,12 +1,12 @@
 .. _api_reference:
 
 API Reference
-============
+=============
 
 This section provides detailed documentation of the key classes and methods in the dendritic modeling framework.
 
 ExcitationInhibitionNetwork
---------------------------
+---------------------------
 
 The ``ExcitationInhibitionNetwork`` is the core network class that implements the excitatory-inhibitory architecture.
 
@@ -74,7 +74,7 @@ The ``ExcitationInhibitionNetwork`` is the core network class that implements th
             # Implementation details...
 
 ExcitationInhibitionLayer
-------------------------
+-------------------------
 
 The ``ExcitationInhibitionLayer`` implements a single layer of excitatory and inhibitory processing.
 
@@ -132,7 +132,7 @@ The ``ExcitationInhibitionLayer`` implements a single layer of excitatory and in
             # Implementation details...
 
 DendriNet
---------
+---------
 
 The ``DendriNet`` class implements a dendritic network that processes inputs through a series of branch layers.
 
@@ -181,7 +181,7 @@ The ``DendriNet`` class implements a dendritic network that processes inputs thr
             # Implementation details...
 
 DendriticBranchLayer
-------------------
+--------------------
 
 The ``DendriticBranchLayer`` implements a single layer of dendritic branches.
 
@@ -232,7 +232,7 @@ The ``DendriticBranchLayer`` implements a single layer of dendritic branches.
             # Implementation details...
 
 TopKLinear
----------
+----------
 
 The ``TopKLinear`` class implements a linear transformation with top-k selection of weights.
 
@@ -301,7 +301,7 @@ The ``TopKLinear`` class implements a linear transformation with top-k selection
             return output
 
 BlockLinear
-----------
+-----------
 
 The ``BlockLinear`` class implements a masked linear transformation that models branching in dendrites.
 
@@ -342,7 +342,7 @@ The ``BlockLinear`` class implements a masked linear transformation that models 
             # Implementation details...
 
 ParametricTanh
--------------
+--------------
 
 The ``ParametricTanh`` class implements a trainable activation function that models nonlinear responses in dendrites.
 
@@ -382,7 +382,7 @@ The ``ParametricTanh`` class implements a trainable activation function that mod
             # Implementation details...
 
 Learning Strategies
------------------
+-------------------
 
 The framework supports several learning strategies specifically designed for dendritic networks:
 

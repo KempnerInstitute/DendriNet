@@ -1,7 +1,7 @@
 .. _activation_functions:
 
 Activation Functions
-==================
+====================
 
 This document explains the specialized activation functions available in the dendritic modeling framework for modeling nonlinear response properties of biological dendrites.
 
@@ -11,7 +11,7 @@ Overview
 Biological dendrites exhibit complex nonlinear response properties that are crucial for their computational capabilities. The dendritic modeling framework provides several activation functions to model these properties, with a particular focus on parametric activations that can learn the specific nonlinearities for each dendritic branch.
 
 Available Activation Functions
----------------------------
+------------------------------
 
 The framework implements several activation functions in ``activation_functions.py``:
 
@@ -27,7 +27,7 @@ The framework implements several activation functions in ``activation_functions.
 These activation functions are created using the ``ActivationFactory`` class, which provides a unified interface for creating different activation types.
 
 ParametricTanh
------------
+--------------
 
 The ``ParametricTanh`` is a specialized activation function with learnable parameters ``m`` (slope) and ``b`` (offset):
 
@@ -54,7 +54,7 @@ This activation computes a normalized sigmoid-like response from the membrane po
 The parameters are stored in log space to ensure positivity and for more stable gradient-based optimization. The ``init_m`` and ``init_b`` parameters allow control over the initial parameter values.
 
 ParametricTanhOnlyM
-----------------
+-------------------
 
 The ``ParametricTanhOnlyM`` is a variant where only the slope parameter ``m`` is learnable, while the offset ``b`` is fixed:
 
@@ -80,7 +80,7 @@ The ``ParametricTanhOnlyM`` is a variant where only the slope parameter ``m`` is
 This implementation also registers a gradient scaling hook to help with training stability. The hook is defined in ``gradient_scaling.py`` and helps ensure appropriate gradient flow through the activation function.
 
 Standard Activation Functions
---------------------------
+-----------------------------
 
 The framework also provides standard activation functions with consistent interfaces:
 
@@ -115,7 +115,7 @@ The framework also provides standard activation functions with consistent interf
                return torch.tanh(x)
 
 ActivationFactory
---------------
+-----------------
 
 To simplify creating the right activation function, the framework provides an ``ActivationFactory`` class:
 
@@ -170,7 +170,7 @@ To simplify creating the right activation function, the framework provides an ``
 This factory pattern makes it easy to create the appropriate activation function based on the configuration.
 
 Configuration
------------
+-------------
 
 The activation functions are configured in the model section of the configuration:
 
@@ -187,12 +187,12 @@ The activation functions are configured in the model section of the configuratio
 The ``reactivation_strategy`` parameter affects how gradients flow through the activation, with the "inverse" strategy implemented in the gradient scaling module.
 
 Usage in the Network
------------------
+--------------------
 
 The activation functions are primarily used in dendritic branch layers, where they model the response of dendritic branches to incoming signals. The ``ExcitationInhibitionLayer`` in ``networks.py`` uses these activations to process dendritic inputs.
 
 Biological Intuition
-------------------
+--------------------
 
 The parametric activation functions are motivated by biological observations:
 
@@ -203,7 +203,7 @@ The parametric activation functions are motivated by biological observations:
 The ``ParametricTanh`` activation captures these properties by allowing each branch to learn its own response curve through the ``m`` and ``b`` parameters.
 
 Best Practices
------------
+--------------
 
 When working with dendritic activations:
 

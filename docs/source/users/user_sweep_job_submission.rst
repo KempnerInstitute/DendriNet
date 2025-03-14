@@ -1,5 +1,5 @@
-Sweep Job Submission
-====================
+Sweep Job Submission (User)
+===========================
 
 Sumbitting a sweep job is as easy of submitting a single job. All you need to do is to create a sweep configuration file and run `scripts/generate_sweep_configs.py` script, to setup the sweep job. In the following sections, we will walk you through the process of setting up a sweep job. 
 
@@ -8,7 +8,7 @@ Step 1: Prepare sweep configuration file
 
 This file contains all necessary information to setup the sweep job. Here is an example of a sweep configuration file:
 
-.. code-block:: yaml (NEED TO BE UPDATED WITH THE NEW CONFIG)
+.. code-block:: yaml
 
   slurm_config:
     output_dir:  # <--- Add your output directory path

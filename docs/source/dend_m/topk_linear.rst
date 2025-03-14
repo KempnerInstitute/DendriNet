@@ -1,7 +1,7 @@
 .. _topk_linear:
 
 TopKLinear Layers and Dendritic Processing
-======================================
+==========================================
 
 The TopKLinear layer is the core building block of dendritic computation in the framework. This document explains how TopKLinear layers model biological dendritic computation and how they can be configured.
 
@@ -17,7 +17,7 @@ Biological dendrites perform selective integration of inputs by activating only 
 This selective integration is a fundamental departure from standard neural network layers and allows dendritic networks to implement powerful computational properties like context-dependent processing and feature binding.
 
 TopKLinear Architecture
---------------------
+-----------------------
 
 The ``TopKLinear`` layer extends the standard linear layer with a top-k selection mechanism:
 
@@ -86,7 +86,7 @@ The key components of the TopKLinear layer are:
 4. **Masked summation**: Sums only the selected inputs
 
 Configuration
------------
+-------------
 
 The TopKLinear layer is configured through several parameters:
 
@@ -104,7 +104,7 @@ The TopKLinear layer is configured through several parameters:
 The ``branch_factors`` parameters define the k value for each layer, which determines how many inputs are selected by each dendritic branch.
 
 Branch Factor Selection
---------------------
+-----------------------
 
 The branch factor (k) is a critical parameter that affects the computational properties of the dendritic network:
 
@@ -149,7 +149,7 @@ Branch factor calculation:
         return k
 
 Biological Intuition
-------------------
+--------------------
 
 The TopKLinear layer is inspired by several properties of biological dendrites:
 
@@ -161,7 +161,7 @@ The TopKLinear layer is inspired by several properties of biological dendrites:
 The top-k selection mechanism is a simplified model of these biological properties, capturing the essential computational feature of selective integration.
 
 Forward Pass Implementation
-------------------------
+---------------------------
 
 The forward pass in TopKLinear involves several key steps:
 
@@ -200,7 +200,7 @@ Implementation details:
             return selected.sum(dim=1)
 
 Variations of TopKLinear
----------------------
+------------------------
 
 The framework includes several variations of the TopKLinear layer:
 
@@ -217,7 +217,7 @@ The framework includes several variations of the TopKLinear layer:
    - Helps stabilize training, especially in deeper networks
 
 Probabilistic Activation
----------------------
+------------------------
 
 When ``branch_probabilistic`` is set to ``true``, the network uses probabilistic branch activation:
 
@@ -266,7 +266,7 @@ Probabilistic activation has several advantages:
 4. Often leads to better generalization
 
 Gradient Flow in TopKLinear
-------------------------
+---------------------------
 
 The top-k selection creates a sparse computational graph that affects gradient flow:
 
@@ -281,7 +281,7 @@ To address this, the framework provides several mechanisms:
 3. **Probabilistic activation**: Replace hard selection with soft probabilistic selection
 
 Block-Structured TopKLinear
-------------------------
+---------------------------
 
 For hierarchical processing, the framework provides block-structured TopKLinear layers:
 
@@ -358,7 +358,7 @@ Block-structured TopKLinear is beneficial when:
 3. You're modeling specific dendritic branch structures
 
 Comparison with Standard Linear Layers
------------------------------------
+--------------------------------------
 
 Compared to standard linear layers, TopKLinear has several key differences:
 
@@ -379,7 +379,7 @@ Compared to standard linear layers, TopKLinear has several key differences:
    - Sparse gradient flow during training
 
 Best Practices
------------
+--------------
 
 For optimal performance with TopKLinear layers:
 
@@ -404,7 +404,7 @@ For optimal performance with TopKLinear layers:
    - Higher branch factors may require less aggressive scaling
 
 Example Configuration
-------------------
+---------------------
 
 Here's a complete configuration example for a network using TopKLinear layers:
 

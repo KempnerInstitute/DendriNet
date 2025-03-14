@@ -1,7 +1,7 @@
 .. _synthetic_datasets:
 
 Datasets and Data Utilities
-=======================
+===========================
 
 This document explains the datasets available in the dendritic modeling framework, including both standard datasets and specialized synthetic datasets designed to test specific computational properties of dendritic networks.
 
@@ -11,7 +11,7 @@ Overview
 The dendritic modeling framework supports various datasets for training and evaluating neural networks. These include standard benchmark datasets like MNIST and CIFAR-10, as well as a suite of synthetic datasets designed to test specific computational properties that are theoretically associated with dendritic processing.
 
 Dataset Configuration
-------------------
+---------------------
 
 Datasets are configured in the ``task`` section of the configuration file:
 
@@ -28,12 +28,12 @@ Datasets are configured in the ``task`` section of the configuration file:
         n_orient_classes: 8             # For orientation_bars dataset
 
 Standard Datasets
---------------
+-----------------
 
 The framework provides easy access to standard benchmark datasets:
 
 MNIST Dataset
-^^^^^^^^^^^
+^^^^^^^^^^^^^
 
 The MNIST dataset consists of 28×28 grayscale images of handwritten digits (0-9):
 
@@ -65,7 +65,7 @@ The dataset is loaded using the ``load_mnist_as_datasets`` function, which retur
         """
 
 CIFAR-10 Dataset
-^^^^^^^^^^^^^
+^^^^^^^^^^^^^^^^
 
 The CIFAR-10 dataset consists of 32×32 RGB images from 10 classes:
 
@@ -78,12 +78,12 @@ The CIFAR-10 dataset consists of 32×32 RGB images from 10 classes:
 The dataset is loaded using the ``load_cifar10_as_datasets`` function.
 
 Modified MNIST Variants
---------------------
+-----------------------
 
 The framework also provides several modified versions of MNIST for testing specific properties:
 
 MNIST Modulo-10
-^^^^^^^^^^^^^
+^^^^^^^^^^^^^^^
 
 This dataset reorganizes MNIST into modular arithmetic classes:
 
@@ -97,7 +97,7 @@ This dataset reorganizes MNIST into modular arithmetic classes:
 The dataset is loaded using the ``load_MNIST_modulo10`` function.
 
 MNIST Task Switch
-^^^^^^^^^^^^^^
+^^^^^^^^^^^^^^^^^
 
 This dataset reorganizes MNIST for task switching experiments:
 
@@ -111,12 +111,12 @@ This dataset reorganizes MNIST for task switching experiments:
 The ``load_MNIST_task_switch`` function loads this dataset.
 
 Synthetic Datasets
----------------
+------------------
 
 The framework includes several synthetic datasets specifically designed to test dendritic computations:
 
 Line Detection Dataset
-^^^^^^^^^^^^^^^^^^
+^^^^^^^^^^^^^^^^^^^^^^
 
 A simple line detection task:
 
@@ -145,7 +145,7 @@ The ``LineDataset`` class implements this dataset:
             self._generate_data()
 
 Center-Surround Detection
-^^^^^^^^^^^^^^^^^^^^^^
+^^^^^^^^^^^^^^^^^^^^^^^^^
 
 A center-surround pattern detection task:
 
@@ -174,7 +174,7 @@ The ``CenterSurroundDataset`` class implements this dataset:
             self._generate_data()
 
 Orientation Bars Dataset
-^^^^^^^^^^^^^^^^^^^^
+^^^^^^^^^^^^^^^^^^^^^^^^
 
 A dataset with oriented bars at different angles:
 
@@ -205,7 +205,7 @@ The ``OrientationBarsDataset`` class implements this dataset:
             self._generate_data()
 
 Multi-XOR Dataset
-^^^^^^^^^^^^^
+^^^^^^^^^^^^^^^^^
 
 A dataset for testing XOR-like logical operations:
 
@@ -234,7 +234,7 @@ The ``MultiXORDataset`` class implements this dataset:
             self._generate_data()
 
 Information Shunting Dataset
-^^^^^^^^^^^^^^^^^^^^^^^^^
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 A dataset for testing shunting inhibition:
 
@@ -263,7 +263,7 @@ The ``InfoShuntingDataset`` class implements this dataset:
             self._generate_data()
 
 Noise Resilience Testing
-^^^^^^^^^^^^^^^^^^^^
+^^^^^^^^^^^^^^^^^^^^^^^^
 
 A dataset for testing resilience to noise:
 
@@ -281,7 +281,7 @@ A dataset for testing resilience to noise:
 The ``NoisyLineDataset`` class implements this dataset.
 
 Feature Selectivity Testing
-^^^^^^^^^^^^^^^^^^^^^^
+^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 Datasets for testing feature selectivity:
 
@@ -311,7 +311,7 @@ Datasets for testing feature selectivity:
                self.noise_level = noise_level
 
 Hierarchical Processing Testing
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 Datasets for testing hierarchical processing:
 
@@ -342,12 +342,12 @@ Datasets for testing hierarchical processing:
                self._generate_data()
 
 Data Utilities
------------
+--------------
 
 The framework provides several utility functions for data handling:
 
 Split MNIST Inputs
-^^^^^^^^^^^^^^
+^^^^^^^^^^^^^^^^^^
 
 The ``split_MNIST_inputs`` function splits MNIST inputs by digit:
 
@@ -371,7 +371,7 @@ The ``split_MNIST_inputs`` function splits MNIST inputs by digit:
         """
 
 Unified Dataset Loading
-^^^^^^^^^^^^^^^^^^^
+^^^^^^^^^^^^^^^^^^^^^^^
 
 The ``get_unified_datasets`` function provides a unified interface for loading datasets:
 
@@ -397,7 +397,7 @@ The ``get_unified_datasets`` function provides a unified interface for loading d
 This function examines the dataset name in `task_cfg` and calls the appropriate loading function.
 
 Best Practices
------------
+--------------
 
 When working with datasets:
 
