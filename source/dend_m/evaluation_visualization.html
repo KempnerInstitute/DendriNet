@@ -1,0 +1,585 @@
+
+
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" data-content_root="../../">
+<head>
+  <meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Evaluation and Visualization &mdash; dendritic_modeling 0.1.0 documentation</title>
+      <link rel="stylesheet" type="text/css" href="../../_static/pygments.css?v=b86133f3" />
+      <link rel="stylesheet" type="text/css" href="../../_static/css/theme.css?v=e59714d7" />
+      <link rel="stylesheet" type="text/css" href="../../_static/copybutton.css?v=76b2166b" />
+
+  
+      <script src="../../_static/jquery.js?v=5d32c60e"></script>
+      <script src="../../_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
+      <script src="../../_static/documentation_options.js?v=01f34227"></script>
+      <script src="../../_static/doctools.js?v=9bcbadda"></script>
+      <script src="../../_static/sphinx_highlight.js?v=dc90522c"></script>
+      <script src="../../_static/clipboard.min.js?v=a7894cd8"></script>
+      <script src="../../_static/copybutton.js?v=f281be69"></script>
+      <script crossorigin="anonymous" integrity="sha256-Ae2Vz/4ePdIu6ZyI/5ZGsYnb+m0JlOmKPjt6XZ9JJkA=" src="https://cdnjs.cloudflare.com/ajax/libs/require.js/2.3.4/require.min.js"></script>
+    <script src="../../_static/js/theme.js"></script>
+    <link rel="author" title="About these documents" href="../../about.html" />
+    <link rel="index" title="Index" href="../../genindex.html" />
+    <link rel="search" title="Search" href="../../search.html" />
+    <link rel="next" title="Contributing to Dendritic Modeling" href="contributing.html" />
+    <link rel="prev" title="Experiment Tracking and Logging" href="experiment_tracking.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+
+          
+          
+          <a href="../../index.html" class="icon icon-home">
+            dendritic_modeling
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <p class="caption" role="heading"><span class="caption-text">Introduction</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../about.html">About</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">User Guide</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../users/installation.html">Installation</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../users/quickstart.html">Quickstart</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../users/examples.html">Examples</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../users/concepts.html">Key Concepts</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../users/configuration.html">Configuration System</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../users/experiment_tracking.html">Experiment Tracking</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../users/interactive_run.html">Running an interactive session</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../users/user_sweep_job_submission.html">Sweep Job Submission (User)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../users/cifar10_tutorial.html">CIFAR10 Tutorial</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Concepts and API</span></p>
+<ul class="current">
+<li class="toctree-l1"><a class="reference internal" href="concepts_overview.html">Concepts Overview</a></li>
+<li class="toctree-l1"><a class="reference internal" href="installation_setup.html">Installation and Setup</a></li>
+<li class="toctree-l1"><a class="reference internal" href="learning_strategies.html">Learning Strategies</a></li>
+<li class="toctree-l1"><a class="reference internal" href="api_reference.html">API Reference</a></li>
+<li class="toctree-l1"><a class="reference internal" href="weight_initialization.html">Weight Initialization Methods</a></li>
+<li class="toctree-l1"><a class="reference internal" href="visualization_guide.html">Network Visualization Guide</a></li>
+<li class="toctree-l1"><a class="reference internal" href="topk_linear.html">TopKLinear Layers and Dendritic Processing</a></li>
+<li class="toctree-l1"><a class="reference internal" href="synthetic_datasets.html">Datasets and Data Utilities</a></li>
+<li class="toctree-l1"><a class="reference internal" href="output_handling.html">Output Handling and Loss Functions</a></li>
+<li class="toctree-l1"><a class="reference internal" href="sweep_job_submission.html">Sweep Job Submission</a></li>
+<li class="toctree-l1"><a class="reference internal" href="network_structure.html">Network Structure and Input Modes</a></li>
+<li class="toctree-l1"><a class="reference internal" href="network_structures.html">Network Structures</a></li>
+<li class="toctree-l1"><a class="reference internal" href="gradient_scaling.html">Gradient Scaling Techniques</a></li>
+<li class="toctree-l1"><a class="reference internal" href="experiment_tracking.html">Experiment Tracking and Logging</a></li>
+<li class="toctree-l1 current"><a class="current reference internal" href="#">Evaluation and Visualization</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="#overview">Overview</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#configuration">Configuration</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#performance-evaluation">Performance Evaluation</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#basic-evaluation-functions">Basic Evaluation Functions</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="#weight-visualization">Weight Visualization</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#einet-parameter-visualization">EINet Parameter Visualization</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#excitation-inhibition-weight-visualization">Excitation-Inhibition Weight Visualization</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="#activation-visualization">Activation Visualization</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#einet-activation-visualization">EINet Activation Visualization</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#activation-component-visualization">Activation Component Visualization</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="#gradient-visualization">Gradient Visualization</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#einet-gradient-visualization">EINet Gradient Visualization</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="#branch-information-analysis">Branch Information Analysis</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#branch-mutual-information">Branch Mutual Information</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="#ablation-studies">Ablation Studies</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#branch-ablation">Branch Ablation</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="#dendritic-tree-visualization">Dendritic Tree Visualization</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#tree-graph-visualization">Tree Graph Visualization</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="#comprehensive-visualization-script">Comprehensive Visualization Script</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#best-practices-for-evaluation-and-visualization">Best Practices for Evaluation and Visualization</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="contributing.html">Contributing to Dendritic Modeling</a></li>
+<li class="toctree-l1"><a class="reference internal" href="configuration_system.html">Configuration System</a></li>
+<li class="toctree-l1"><a class="reference internal" href="activation_functions.html">Activation Functions</a></li>
+<li class="toctree-l1"><a class="reference internal" href="ablation_studies.html">Ablation Studies</a></li>
+<li class="toctree-l1"><a class="reference internal" href="ablation_information_analysis.html">Ablation Studies and Information Analysis</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../dendritic_modeling.html">dendritic_modeling package</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Developer Guide</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../contributing.html">Contributing</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Additional Resources</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../additional_resources.html">Additional Resources</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../glossary.html">Glossary</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../references.html">References</a></li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../../index.html">dendritic_modeling</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="../../index.html" class="icon icon-home" aria-label="Home"></a></li>
+      <li class="breadcrumb-item active">Evaluation and Visualization</li>
+      <li class="wy-breadcrumbs-aside">
+            <a href="../../_sources/source/dend_m/evaluation_visualization.rst.txt" rel="nofollow"> View page source</a>
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <section id="evaluation-and-visualization">
+<span id="evaluation-visualization"></span><h1>Evaluation and Visualization<a class="headerlink" href="#evaluation-and-visualization" title="Link to this heading"></a></h1>
+<p>This document explains the evaluation metrics and visualization tools available in the dendritic modeling framework for analyzing dendritic network behavior.</p>
+<section id="overview">
+<h2>Overview<a class="headerlink" href="#overview" title="Link to this heading"></a></h2>
+<p>The dendritic modeling framework includes specialized tools for evaluating model performance and visualizing the unique computational properties of dendritic networks. These tools help researchers understand how information flows through dendritic branches and how the network processes information.</p>
+</section>
+<section id="configuration">
+<h2>Configuration<a class="headerlink" href="#configuration" title="Link to this heading"></a></h2>
+<p>Visualization settings are configured in the <code class="docutils literal notranslate"><span class="pre">visualization</span></code> section of the configuration file:</p>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">visualization</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">enabled</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">false</span><span class="w">                      </span><span class="c1"># Whether to generate visualizations</span>
+<span class="w">  </span><span class="nt">visualize_epochs</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">10</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">30</span><span class="p p-Indicator">]</span><span class="w">          </span><span class="c1"># Epochs at which to produce visualizations</span>
+<span class="w">  </span><span class="nt">plots</span><span class="p">:</span>
+<span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">weights</span><span class="w">                         </span><span class="c1"># Plot dendritic or EI-net weights</span>
+<span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">activations</span><span class="w">                     </span><span class="c1"># Plot per-digit activation distribution</span>
+<span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">gradients</span><span class="w">                       </span><span class="c1"># Plot synapse or branch gradients</span>
+<span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">profiles</span><span class="w">                       </span><span class="c1"># Plot dendritic compartment profiles</span>
+<span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">branch_info</span><span class="w">                    </span><span class="c1"># Plot mutual information</span>
+<span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">ablation</span><span class="w">                       </span><span class="c1"># Plot ablation results</span>
+</pre></div>
+</div>
+</section>
+<section id="performance-evaluation">
+<h2>Performance Evaluation<a class="headerlink" href="#performance-evaluation" title="Link to this heading"></a></h2>
+<p>The framework provides standard evaluation metrics for classification and regression tasks.</p>
+<section id="basic-evaluation-functions">
+<h3>Basic Evaluation Functions<a class="headerlink" href="#basic-evaluation-functions" title="Link to this heading"></a></h3>
+<p>The <code class="docutils literal notranslate"><span class="pre">utils.py</span></code> module includes functions for evaluating model performance:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="k">def</span><span class="w"> </span><span class="nf">accuracy_score</span><span class="p">(</span><span class="n">classifier</span><span class="p">,</span> <span class="n">inputs</span><span class="p">,</span> <span class="n">labels</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Compute classification accuracy.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    classifier : torch.nn.Module</span>
+<span class="sd">        The classifier model</span>
+<span class="sd">    inputs : torch.Tensor</span>
+<span class="sd">        Input tensor</span>
+<span class="sd">    labels : torch.Tensor</span>
+<span class="sd">        Label tensor</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    float</span>
+<span class="sd">        Classification accuracy</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+</pre></div>
+</div>
+<p>A more comprehensive evaluation function is also available:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="k">def</span><span class="w"> </span><span class="nf">evaluate_accuracy</span><span class="p">(</span><span class="n">classifier</span><span class="p">,</span> <span class="n">train_ds</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">valid_ds</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">test_ds</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+                      <span class="n">save_path</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">filename</span><span class="o">=</span><span class="s1">&#39;accuracy&#39;</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Evaluate accuracy on train, validation, and test datasets.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    classifier : torch.nn.Module</span>
+<span class="sd">        The classifier model</span>
+<span class="sd">    train_ds, valid_ds, test_ds : torch.utils.data.Dataset or None</span>
+<span class="sd">        The datasets to evaluate on</span>
+<span class="sd">    save_path : str or None</span>
+<span class="sd">        Path to save results</span>
+<span class="sd">    filename : str</span>
+<span class="sd">        Filename for saving results</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    tuple</span>
+<span class="sd">        (train_accuracy, valid_accuracy, test_accuracy)</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+</pre></div>
+</div>
+</section>
+</section>
+<section id="weight-visualization">
+<h2>Weight Visualization<a class="headerlink" href="#weight-visualization" title="Link to this heading"></a></h2>
+<p>The framework provides tools for visualizing the weights of dendritic networks.</p>
+<section id="einet-parameter-visualization">
+<h3>EINet Parameter Visualization<a class="headerlink" href="#einet-parameter-visualization" title="Link to this heading"></a></h3>
+<p>The <code class="docutils literal notranslate"><span class="pre">plot_einet_params</span></code> function visualizes the weights of ExcitationInhibitionNetwork models:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="k">def</span><span class="w"> </span><span class="nf">plot_einet_params</span><span class="p">(</span><span class="n">einet</span><span class="p">,</span> <span class="n">save_root</span><span class="p">,</span> <span class="n">reshape_fn</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">reshape_exc_syn</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span>
+                       <span class="n">logspace</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">save_in_dir</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">filename</span><span class="o">=</span><span class="s1">&#39;image&#39;</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Plot EINet parameters including weights, branch connections, etc.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    einet : ExcitationInhibitionNetwork</span>
+<span class="sd">        The network to visualize</span>
+<span class="sd">    save_root : str</span>
+<span class="sd">        Directory to save visualizations</span>
+<span class="sd">    reshape_fn : callable or None</span>
+<span class="sd">        Function to reshape weights for visualization (e.g., to 2D images)</span>
+<span class="sd">    reshape_exc_syn : bool</span>
+<span class="sd">        Whether to reshape excitatory synaptic weights</span>
+<span class="sd">    logspace : bool</span>
+<span class="sd">        Whether weights are in log space</span>
+<span class="sd">    save_in_dir : bool</span>
+<span class="sd">        Whether to save in a subdirectory</span>
+<span class="sd">    filename : str</span>
+<span class="sd">        Base filename for saving</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+</pre></div>
+</div>
+<p>This function creates visualizations of the network’s weight matrices, which is especially useful for understanding what patterns the dendritic branches have learned to recognize.</p>
+</section>
+<section id="excitation-inhibition-weight-visualization">
+<h3>Excitation-Inhibition Weight Visualization<a class="headerlink" href="#excitation-inhibition-weight-visualization" title="Link to this heading"></a></h3>
+<p>For more detailed visualization of excitatory and inhibitory weights:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="k">def</span><span class="w"> </span><span class="nf">plot_excitation_inhibition_weights</span><span class="p">(</span><span class="n">soma_branch</span><span class="p">,</span> <span class="n">save_path</span><span class="p">,</span>
+                                    <span class="n">excitatory_synapse_weight</span><span class="p">,</span>
+                                    <span class="n">excitatory_synapse_pruned</span><span class="p">,</span>
+                                    <span class="n">excitatory_synapse_mask</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+                                    <span class="n">inhibitory_synapse_weight</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+                                    <span class="n">inhibitory_synapse_pruned</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+                                    <span class="n">inhibitory_synapse_mask</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+                                    <span class="n">reshape_fn</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">reshape_exc_syn</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span>
+                                    <span class="n">reshape_inh_syn</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">logspace</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span>
+                                    <span class="n">reactivation_curve</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">linspace</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+                                    <span class="n">save_in_dir</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">filename</span><span class="o">=</span><span class="s1">&#39;image&#39;</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Detailed visualization of excitatory and inhibitory weights.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+</pre></div>
+</div>
+</section>
+</section>
+<section id="activation-visualization">
+<h2>Activation Visualization<a class="headerlink" href="#activation-visualization" title="Link to this heading"></a></h2>
+<p>The framework provides tools for visualizing activations of dendritic branches.</p>
+<section id="einet-activation-visualization">
+<h3>EINet Activation Visualization<a class="headerlink" href="#einet-activation-visualization" title="Link to this heading"></a></h3>
+<p>The <code class="docutils literal notranslate"><span class="pre">plot_einet_activations</span></code> function visualizes activations in the network:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="k">def</span><span class="w"> </span><span class="nf">plot_einet_activations</span><span class="p">(</span><span class="n">einet</span><span class="p">,</span> <span class="n">input_list</span><span class="p">,</span> <span class="n">save_root</span><span class="p">,</span> <span class="n">save_in_dir</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">filename</span><span class="o">=</span><span class="s1">&#39;image&#39;</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Plot EINet activations for different inputs.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    einet : ExcitationInhibitionNetwork</span>
+<span class="sd">        The network to analyze</span>
+<span class="sd">    input_list : list</span>
+<span class="sd">        List of input tensors (typically one per class)</span>
+<span class="sd">    save_root : str</span>
+<span class="sd">        Directory to save visualizations</span>
+<span class="sd">    save_in_dir : bool</span>
+<span class="sd">        Whether to save in a subdirectory</span>
+<span class="sd">    filename : str</span>
+<span class="sd">        Base filename for saving</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+</pre></div>
+</div>
+<p>This function helps understand how the network processes different inputs, showing which branches activate for each class.</p>
+</section>
+<section id="activation-component-visualization">
+<h3>Activation Component Visualization<a class="headerlink" href="#activation-component-visualization" title="Link to this heading"></a></h3>
+<p>For more detailed analysis of activation components:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="k">def</span><span class="w"> </span><span class="nf">einet_activations_to_csv</span><span class="p">(</span><span class="n">einet</span><span class="p">,</span> <span class="n">input_list</span><span class="p">,</span> <span class="n">save_root</span><span class="p">,</span> <span class="n">filename</span><span class="o">=</span><span class="s1">&#39;activation_components&#39;</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Save activation components to CSV for detailed analysis.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+</pre></div>
+</div>
+<p>Additional activation visualization functions include:</p>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">plot_activation_tuning</span></code>: Visualize the tuning of branches to different inputs</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">plot_voltage_before_activation</span></code>: Visualize membrane potentials before activation</p></li>
+</ul>
+</section>
+</section>
+<section id="gradient-visualization">
+<h2>Gradient Visualization<a class="headerlink" href="#gradient-visualization" title="Link to this heading"></a></h2>
+<p>The framework provides tools for visualizing gradients in the network.</p>
+<section id="einet-gradient-visualization">
+<h3>EINet Gradient Visualization<a class="headerlink" href="#einet-gradient-visualization" title="Link to this heading"></a></h3>
+<p>The <code class="docutils literal notranslate"><span class="pre">plot_einet_gradients</span></code> function visualizes gradients:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="k">def</span><span class="w"> </span><span class="nf">plot_einet_gradients</span><span class="p">(</span><span class="n">model</span><span class="p">,</span> <span class="n">inputs</span><span class="p">,</span> <span class="n">labels</span><span class="p">,</span> <span class="n">save_root</span><span class="p">,</span> <span class="n">reshape_fn</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+                       <span class="n">reshape_exc_syn</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">save_in_dir</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">filename</span><span class="o">=</span><span class="s1">&#39;image&#39;</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Plot gradients in the EINet.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    model : torch.nn.Module</span>
+<span class="sd">        The model to analyze</span>
+<span class="sd">    inputs : torch.Tensor</span>
+<span class="sd">        Input tensor to compute gradients</span>
+<span class="sd">    labels : torch.Tensor</span>
+<span class="sd">        Label tensor to compute gradients</span>
+<span class="sd">    save_root : str</span>
+<span class="sd">        Directory to save visualizations</span>
+<span class="sd">    reshape_fn : callable or None</span>
+<span class="sd">        Function to reshape gradients for visualization</span>
+<span class="sd">    reshape_exc_syn : bool</span>
+<span class="sd">        Whether to reshape excitatory synaptic gradients</span>
+<span class="sd">    save_in_dir : bool</span>
+<span class="sd">        Whether to save in a subdirectory</span>
+<span class="sd">    filename : str</span>
+<span class="sd">        Base filename for saving</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+</pre></div>
+</div>
+<p>This function helps understand how the network learns by visualizing the flow of gradients through the dendritic branches.</p>
+</section>
+</section>
+<section id="branch-information-analysis">
+<h2>Branch Information Analysis<a class="headerlink" href="#branch-information-analysis" title="Link to this heading"></a></h2>
+<p>The framework includes tools for information-theoretic analysis of branch behavior.</p>
+<section id="branch-mutual-information">
+<h3>Branch Mutual Information<a class="headerlink" href="#branch-mutual-information" title="Link to this heading"></a></h3>
+<p>The <code class="docutils literal notranslate"><span class="pre">compute_MI</span></code> function calculates mutual information between branch activations and labels:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="k">def</span><span class="w"> </span><span class="nf">compute_MI</span><span class="p">(</span><span class="n">activations</span><span class="p">,</span> <span class="n">labels</span><span class="p">,</span> <span class="n">n_bins</span><span class="o">=</span><span class="mi">10</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Estimate mutual information between activations and labels.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    activations : torch.Tensor</span>
+<span class="sd">        Activation values</span>
+<span class="sd">    labels : torch.Tensor</span>
+<span class="sd">        Label values</span>
+<span class="sd">    n_bins : int</span>
+<span class="sd">        Number of bins for discretization</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    float</span>
+<span class="sd">        Mutual information value</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+</pre></div>
+</div>
+<p>This function helps quantify how much information about the class labels is present in each branch’s activation.</p>
+<p>A comprehensive branch information analysis function is also available:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="k">def</span><span class="w"> </span><span class="nf">analyze_branch_information</span><span class="p">(</span><span class="n">model</span><span class="p">,</span> <span class="n">dataset</span><span class="p">,</span> <span class="n">batch_size</span><span class="o">=</span><span class="mi">64</span><span class="p">,</span> <span class="n">device</span><span class="o">=</span><span class="s1">&#39;cpu&#39;</span><span class="p">,</span> <span class="n">n_bins</span><span class="o">=</span><span class="mi">10</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Analyze information content in each branch layer.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    model : torch.nn.Module</span>
+<span class="sd">        The model to analyze (must support forward_with_branch_outputs)</span>
+<span class="sd">    dataset : torch.utils.data.Dataset</span>
+<span class="sd">        Dataset to analyze</span>
+<span class="sd">    batch_size : int</span>
+<span class="sd">        Batch size for processing</span>
+<span class="sd">    device : str</span>
+<span class="sd">        Device to use for computation</span>
+<span class="sd">    n_bins : int</span>
+<span class="sd">        Number of bins for MI estimation</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    dict</span>
+<span class="sd">        Dictionary mapping layer indices to MI values</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+</pre></div>
+</div>
+<p>This function helps understand how information flows through the layers of the dendritic network.</p>
+</section>
+</section>
+<section id="ablation-studies">
+<h2>Ablation Studies<a class="headerlink" href="#ablation-studies" title="Link to this heading"></a></h2>
+<p>The framework provides tools for ablation studies to understand the contribution of different branches.</p>
+<section id="branch-ablation">
+<h3>Branch Ablation<a class="headerlink" href="#branch-ablation" title="Link to this heading"></a></h3>
+<p>The <code class="docutils literal notranslate"><span class="pre">ablate_branch</span></code> function allows ablating specific branches:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="k">def</span><span class="w"> </span><span class="nf">ablate_branch</span><span class="p">(</span><span class="n">model</span><span class="p">,</span> <span class="n">layer_idx</span><span class="p">,</span> <span class="n">branch_ids</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">mode</span><span class="o">=</span><span class="s1">&#39;direct&#39;</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Zero out weights for branch(es) at the specified layer.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    model : torch.nn.Module</span>
+<span class="sd">        The model to ablate</span>
+<span class="sd">    layer_idx : int</span>
+<span class="sd">        Index of the layer to ablate</span>
+<span class="sd">    branch_ids : list or None</span>
+<span class="sd">        IDs of branches to ablate, or None for all branches</span>
+<span class="sd">    mode : str</span>
+<span class="sd">        Ablation mode: &#39;direct&#39; or &#39;full&#39;</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+</pre></div>
+</div>
+<p>This function helps understand the role of specific branches by measuring performance changes after ablation.</p>
+<p>A comprehensive ablation analysis function is also available:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="k">def</span><span class="w"> </span><span class="nf">analyze_branch_ablation</span><span class="p">(</span><span class="n">model</span><span class="p">,</span> <span class="n">dataset</span><span class="p">,</span> <span class="n">layer_idx</span><span class="p">,</span> <span class="n">branch_ids</span><span class="p">,</span>
+                           <span class="n">mode</span><span class="o">=</span><span class="s1">&#39;direct&#39;</span><span class="p">,</span> <span class="n">device</span><span class="o">=</span><span class="s1">&#39;cpu&#39;</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Perform ablation analysis for specific branches.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    model : torch.nn.Module</span>
+<span class="sd">        The model to analyze</span>
+<span class="sd">    dataset : torch.utils.data.Dataset</span>
+<span class="sd">        Dataset to evaluate on</span>
+<span class="sd">    layer_idx : int</span>
+<span class="sd">        Index of the layer to ablate</span>
+<span class="sd">    branch_ids : list or None</span>
+<span class="sd">        IDs of branches to ablate, or None for all branches</span>
+<span class="sd">    mode : str</span>
+<span class="sd">        Ablation mode: &#39;direct&#39; or &#39;full&#39;</span>
+<span class="sd">    device : str</span>
+<span class="sd">        Device to use for computation</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    tuple</span>
+<span class="sd">        (baseline_accuracy, results_dict)</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+</pre></div>
+</div>
+<p>This function helps quantify the importance of each branch for the network’s performance.</p>
+</section>
+</section>
+<section id="dendritic-tree-visualization">
+<h2>Dendritic Tree Visualization<a class="headerlink" href="#dendritic-tree-visualization" title="Link to this heading"></a></h2>
+<p>The framework includes tools for visualizing the structure of dendritic trees.</p>
+<section id="tree-graph-visualization">
+<h3>Tree Graph Visualization<a class="headerlink" href="#tree-graph-visualization" title="Link to this heading"></a></h3>
+<p>The <code class="docutils literal notranslate"><span class="pre">build_dendritic_tree_graph</span></code> and <code class="docutils literal notranslate"><span class="pre">visualize_dendritic_tree</span></code> functions create visualizations of the dendritic tree structure:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="k">def</span><span class="w"> </span><span class="nf">build_dendritic_tree_graph</span><span class="p">(</span><span class="n">model</span><span class="p">,</span> <span class="n">branch_info</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">ablation_info</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Build a graph representation of the dendritic tree.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    model : torch.nn.Module</span>
+<span class="sd">        The model to visualize</span>
+<span class="sd">    branch_info : dict or None</span>
+<span class="sd">        Branch information from analyze_branch_information</span>
+<span class="sd">    ablation_info : dict or None</span>
+<span class="sd">        Ablation results from analyze_branch_ablation</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    networkx.Graph</span>
+<span class="sd">        Graph representation of the dendritic tree</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+</pre></div>
+</div>
+<p>These visualizations help understand the hierarchical structure of the dendritic network and the information flow through it.</p>
+</section>
+</section>
+<section id="comprehensive-visualization-script">
+<h2>Comprehensive Visualization Script<a class="headerlink" href="#comprehensive-visualization-script" title="Link to this heading"></a></h2>
+<p>The <code class="docutils literal notranslate"><span class="pre">visualize.py</span></code> script provides a comprehensive visualization pipeline:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="k">def</span><span class="w"> </span><span class="nf">get_and_save_performance_and_visuals</span><span class="p">(</span><span class="n">clf</span><span class="p">,</span> <span class="n">data</span><span class="p">,</span> <span class="n">n_tasks</span><span class="p">,</span> <span class="n">input_list</span><span class="p">,</span>
+                                       <span class="n">reshape_fn</span><span class="p">,</span> <span class="n">reshape_exc_syn</span><span class="p">,</span> <span class="n">logspace</span><span class="p">,</span>
+                                       <span class="n">save_path</span><span class="p">,</span> <span class="n">filename</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Generate and save comprehensive visualizations for a model.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    clf : torch.nn.Module</span>
+<span class="sd">        The classifier model</span>
+<span class="sd">    data : dict</span>
+<span class="sd">        Dictionary with &#39;train&#39;, &#39;valid&#39;, and &#39;test&#39; datasets</span>
+<span class="sd">    n_tasks : int</span>
+<span class="sd">        Number of tasks</span>
+<span class="sd">    input_list : list</span>
+<span class="sd">        List of input tensors</span>
+<span class="sd">    reshape_fn : callable</span>
+<span class="sd">        Function to reshape weights for visualization</span>
+<span class="sd">    reshape_exc_syn : bool</span>
+<span class="sd">        Whether to reshape excitatory synaptic weights</span>
+<span class="sd">    logspace : bool</span>
+<span class="sd">        Whether weights are in log space</span>
+<span class="sd">    save_path : str</span>
+<span class="sd">        Directory to save visualizations</span>
+<span class="sd">    filename : str</span>
+<span class="sd">        Base filename for saving</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+</pre></div>
+</div>
+<p>This function generates a complete set of visualizations for a trained model, including performance metrics, parameter visualizations, gradient visualizations, and activation visualizations.</p>
+</section>
+<section id="best-practices-for-evaluation-and-visualization">
+<h2>Best Practices for Evaluation and Visualization<a class="headerlink" href="#best-practices-for-evaluation-and-visualization" title="Link to this heading"></a></h2>
+<ol class="arabic simple">
+<li><p><strong>Compare with baselines</strong>: Always compare dendritic networks with standard neural networks</p></li>
+<li><p><strong>Analyze branch specialization</strong>: Use branch information analysis to understand specialization</p></li>
+<li><p><strong>Perform ablation studies</strong>: Use ablation to understand the role of each branch</p></li>
+<li><p><strong>Visualize weights</strong>: Examine weight matrices to understand learned patterns</p></li>
+<li><p><strong>Monitor activations</strong>: Track how activations change for different inputs</p></li>
+<li><p><strong>Use appropriate metrics</strong>: Choose metrics that align with your research questions</p></li>
+</ol>
+<p>Visualizations are particularly important for dendritic networks because they help reveal the specialized computational roles of different branches and how they work together to process information.</p>
+</section>
+</section>
+
+
+           </div>
+          </div>
+          <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
+        <a href="experiment_tracking.html" class="btn btn-neutral float-left" title="Experiment Tracking and Logging" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
+        <a href="contributing.html" class="btn btn-neutral float-right" title="Contributing to Dendritic Modeling" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright 2025, Research and Engineering at Kempner.</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>

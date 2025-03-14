@@ -1,0 +1,521 @@
+
+
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" data-content_root="../../">
+<head>
+  <meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Network Structures &mdash; dendritic_modeling 0.1.0 documentation</title>
+      <link rel="stylesheet" type="text/css" href="../../_static/pygments.css?v=b86133f3" />
+      <link rel="stylesheet" type="text/css" href="../../_static/css/theme.css?v=e59714d7" />
+      <link rel="stylesheet" type="text/css" href="../../_static/copybutton.css?v=76b2166b" />
+
+  
+      <script src="../../_static/jquery.js?v=5d32c60e"></script>
+      <script src="../../_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
+      <script src="../../_static/documentation_options.js?v=01f34227"></script>
+      <script src="../../_static/doctools.js?v=9bcbadda"></script>
+      <script src="../../_static/sphinx_highlight.js?v=dc90522c"></script>
+      <script src="../../_static/clipboard.min.js?v=a7894cd8"></script>
+      <script src="../../_static/copybutton.js?v=f281be69"></script>
+      <script crossorigin="anonymous" integrity="sha256-Ae2Vz/4ePdIu6ZyI/5ZGsYnb+m0JlOmKPjt6XZ9JJkA=" src="https://cdnjs.cloudflare.com/ajax/libs/require.js/2.3.4/require.min.js"></script>
+    <script src="../../_static/js/theme.js"></script>
+    <link rel="author" title="About these documents" href="../../about.html" />
+    <link rel="index" title="Index" href="../../genindex.html" />
+    <link rel="search" title="Search" href="../../search.html" />
+    <link rel="next" title="Gradient Scaling Techniques" href="gradient_scaling.html" />
+    <link rel="prev" title="Network Structure and Input Modes" href="network_structure.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+
+          
+          
+          <a href="../../index.html" class="icon icon-home">
+            dendritic_modeling
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <p class="caption" role="heading"><span class="caption-text">Introduction</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../about.html">About</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">User Guide</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../users/installation.html">Installation</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../users/quickstart.html">Quickstart</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../users/examples.html">Examples</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../users/concepts.html">Key Concepts</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../users/configuration.html">Configuration System</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../users/experiment_tracking.html">Experiment Tracking</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../users/interactive_run.html">Running an interactive session</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../users/user_sweep_job_submission.html">Sweep Job Submission (User)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../users/cifar10_tutorial.html">CIFAR10 Tutorial</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Concepts and API</span></p>
+<ul class="current">
+<li class="toctree-l1"><a class="reference internal" href="concepts_overview.html">Concepts Overview</a></li>
+<li class="toctree-l1"><a class="reference internal" href="installation_setup.html">Installation and Setup</a></li>
+<li class="toctree-l1"><a class="reference internal" href="learning_strategies.html">Learning Strategies</a></li>
+<li class="toctree-l1"><a class="reference internal" href="api_reference.html">API Reference</a></li>
+<li class="toctree-l1"><a class="reference internal" href="weight_initialization.html">Weight Initialization Methods</a></li>
+<li class="toctree-l1"><a class="reference internal" href="visualization_guide.html">Network Visualization Guide</a></li>
+<li class="toctree-l1"><a class="reference internal" href="topk_linear.html">TopKLinear Layers and Dendritic Processing</a></li>
+<li class="toctree-l1"><a class="reference internal" href="synthetic_datasets.html">Datasets and Data Utilities</a></li>
+<li class="toctree-l1"><a class="reference internal" href="output_handling.html">Output Handling and Loss Functions</a></li>
+<li class="toctree-l1"><a class="reference internal" href="sweep_job_submission.html">Sweep Job Submission</a></li>
+<li class="toctree-l1"><a class="reference internal" href="network_structure.html">Network Structure and Input Modes</a></li>
+<li class="toctree-l1 current"><a class="current reference internal" href="#">Network Structures</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="#overview">Overview</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#available-network-types">Available Network Types</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#excitation-inhibition-network-einet">Excitation-Inhibition Network (EINet)</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#implementation">Implementation</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#excitation-inhibition-layer">Excitation-Inhibition Layer</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#dendritic-branch-processing">Dendritic Branch Processing</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#branch-parameters">Branch Parameters</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="#standard-mlp">Standard MLP</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#sparse-mlp">Sparse MLP</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#input-transformation-networks">Input Transformation Networks</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#basic-configuration">Basic Configuration</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#input-network-types">Input Network Types</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#input-network-architecture">Input Network Architecture</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#training-strategies">Training Strategies</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="#sequential-vs-joint-training">Sequential vs. Joint Training</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#independent-head-training">Independent Head Training</a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="#pre-trained-input-networks">Pre-trained Input Networks</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#transfer-learning-options">Transfer Learning Options</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#example-configurations">Example Configurations</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#implementation-details-overview">Implementation Details (Overview)</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="#network-output-types">Network Output Types</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#creating-custom-networks">Creating Custom Networks</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#computational-properties">Computational Properties</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#choosing-the-right-architecture">Choosing the Right Architecture</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#implementation-details">Implementation Details</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="gradient_scaling.html">Gradient Scaling Techniques</a></li>
+<li class="toctree-l1"><a class="reference internal" href="experiment_tracking.html">Experiment Tracking and Logging</a></li>
+<li class="toctree-l1"><a class="reference internal" href="evaluation_visualization.html">Evaluation and Visualization</a></li>
+<li class="toctree-l1"><a class="reference internal" href="contributing.html">Contributing to Dendritic Modeling</a></li>
+<li class="toctree-l1"><a class="reference internal" href="configuration_system.html">Configuration System</a></li>
+<li class="toctree-l1"><a class="reference internal" href="activation_functions.html">Activation Functions</a></li>
+<li class="toctree-l1"><a class="reference internal" href="ablation_studies.html">Ablation Studies</a></li>
+<li class="toctree-l1"><a class="reference internal" href="ablation_information_analysis.html">Ablation Studies and Information Analysis</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../dendritic_modeling.html">dendritic_modeling package</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Developer Guide</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../contributing.html">Contributing</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Additional Resources</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../additional_resources.html">Additional Resources</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../glossary.html">Glossary</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../references.html">References</a></li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../../index.html">dendritic_modeling</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="../../index.html" class="icon icon-home" aria-label="Home"></a></li>
+      <li class="breadcrumb-item active">Network Structures</li>
+      <li class="wy-breadcrumbs-aside">
+            <a href="../../_sources/source/dend_m/network_structures.rst.txt" rel="nofollow"> View page source</a>
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <section id="network-structures">
+<span id="id1"></span><h1>Network Structures<a class="headerlink" href="#network-structures" title="Link to this heading"></a></h1>
+<section id="overview">
+<h2>Overview<a class="headerlink" href="#overview" title="Link to this heading"></a></h2>
+<p>This document describes the neural network architectures available in the dendritic modeling framework,
+their configurations, and how to customize them for specific tasks.</p>
+</section>
+<section id="available-network-types">
+<h2>Available Network Types<a class="headerlink" href="#available-network-types" title="Link to this heading"></a></h2>
+<p>The framework provides several network types with different architectures:</p>
+<ol class="arabic simple">
+<li><p><strong>EINet (Excitation-Inhibition Network)</strong>: A biologically-inspired architecture with dendritic branches
+and separate excitatory and inhibitory pathways.</p></li>
+<li><p><strong>Standard MLP</strong>: A traditional multilayer perceptron with fully-connected layers.</p></li>
+<li><p><strong>Sparse MLP</strong>: An MLP with sparse connectivity patterns.</p></li>
+</ol>
+<section id="excitation-inhibition-network-einet">
+<h3>Excitation-Inhibition Network (EINet)<a class="headerlink" href="#excitation-inhibition-network-einet" title="Link to this heading"></a></h3>
+<p>The EINet is the primary architecture of the framework, implementing a biologically-inspired neural network
+with dendritic branches, excitatory-inhibitory balance, and sparse connectivity.</p>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>The EINet architecture is inspired by observations of biological neurons, where
+excitatory and inhibitory inputs are processed differently and integrated in dendritic branches.</p>
+</div>
+</section>
+<section id="implementation">
+<h3>Implementation<a class="headerlink" href="#implementation" title="Link to this heading"></a></h3>
+<p>The EINet is implemented through several core classes:</p>
+<ul class="simple">
+<li><p><cite>ExcitationInhibitionNetwork</cite>: The main network class</p></li>
+<li><p><cite>ExcitationInhibitionLayer</cite>: Individual layer with excitatory and inhibitory cells</p></li>
+<li><p><cite>TopKLinear</cite>: Sparse connectivity implementation</p></li>
+<li><p><cite>BlockLinear</cite>: Layer for integrating branch outputs</p></li>
+</ul>
+</section>
+<section id="excitation-inhibition-layer">
+<h3>Excitation-Inhibition Layer<a class="headerlink" href="#excitation-inhibition-layer" title="Link to this heading"></a></h3>
+<p>Each layer in an EINet contains both excitatory and inhibitory cells. The excitatory cells
+receive inputs and produce outputs that propagate to the next layer, while inhibitory cells
+modulate the activity of excitatory cells through inhibitory connections.</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="c1"># Example configuration of an EI layer</span>
+<span class="n">layer</span> <span class="o">=</span> <span class="n">ExcitationInhibitionLayer</span><span class="p">(</span>
+    <span class="n">n_excitatory_cells</span><span class="o">=</span><span class="mi">10</span><span class="p">,</span>
+    <span class="n">n_inhibitory_cells</span><span class="o">=</span><span class="mi">20</span><span class="p">,</span>
+    <span class="n">excitatory_branch_factors</span><span class="o">=</span><span class="p">[</span><span class="mi">2</span><span class="p">,</span> <span class="mi">2</span><span class="p">],</span>
+    <span class="n">inhibitory_branch_factors</span><span class="o">=</span><span class="p">[],</span>
+    <span class="n">excitatory_input_dim</span><span class="o">=</span><span class="mi">784</span><span class="p">,</span>
+    <span class="n">ee_synapses_per_branch</span><span class="o">=</span><span class="mi">24</span><span class="p">,</span>
+    <span class="n">ei_synapses_per_branch</span><span class="o">=</span><span class="mi">100</span><span class="p">,</span>
+    <span class="n">inhibitory_input_dim</span><span class="o">=</span><span class="mi">784</span><span class="p">,</span>
+    <span class="n">ie_synapses_per_branch</span><span class="o">=</span><span class="mi">2</span><span class="p">,</span>
+    <span class="n">reactivate</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+    <span class="n">somatic_synapses</span><span class="o">=</span><span class="kc">True</span>
+<span class="p">)</span>
+</pre></div>
+</div>
+</section>
+<section id="dendritic-branch-processing">
+<h3>Dendritic Branch Processing<a class="headerlink" href="#dendritic-branch-processing" title="Link to this heading"></a></h3>
+<p>Dendritic branches implement a form of nonlinear integration of inputs, inspired by the
+computation performed in biological dendrites.</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="c1"># Simplified pseudocode for dendritic computation</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">dendritic_computation</span><span class="p">(</span><span class="n">excitatory_input</span><span class="p">,</span> <span class="n">inhibitory_input</span><span class="p">):</span>
+    <span class="c1"># Compute excitatory and inhibitory contributions</span>
+    <span class="n">excitation</span> <span class="o">=</span> <span class="n">weighted_sum</span><span class="p">(</span><span class="n">excitatory_input</span><span class="p">)</span>
+    <span class="n">inhibition</span> <span class="o">=</span> <span class="n">weighted_sum</span><span class="p">(</span><span class="n">inhibitory_input</span><span class="p">)</span>
+
+    <span class="c1"># Shunting inhibition (division-based)</span>
+    <span class="n">voltage</span> <span class="o">=</span> <span class="n">excitation</span> <span class="o">/</span> <span class="p">(</span><span class="n">excitation</span> <span class="o">+</span> <span class="n">inhibition</span> <span class="o">+</span> <span class="mi">1</span><span class="p">)</span>
+
+    <span class="c1"># Apply nonlinear activation</span>
+    <span class="n">output</span> <span class="o">=</span> <span class="n">activation_function</span><span class="p">(</span><span class="n">voltage</span><span class="p">)</span>
+
+    <span class="k">return</span> <span class="n">output</span>
+</pre></div>
+</div>
+</section>
+<section id="branch-parameters">
+<h3>Branch Parameters<a class="headerlink" href="#branch-parameters" title="Link to this heading"></a></h3>
+<p>The EINet architecture is highly configurable through various parameters:</p>
+<ul class="simple">
+<li><p><strong>Layer sizes</strong>: Number of excitatory and inhibitory cells in each layer</p></li>
+<li><p><strong>Branch factors</strong>: Number of dendritic branches per cell</p></li>
+<li><dl class="simple">
+<dt><strong>Synapse counts</strong>: Number of synapses per branch for each connection type</dt><dd><ul>
+<li><p><cite>ee_synapses_per_branch_per_layer</cite>: Excitatory-to-excitatory connections</p></li>
+<li><p><cite>ei_synapses_per_branch_per_layer</cite>: Excitatory-to-inhibitory connections</p></li>
+<li><p><cite>ie_synapses_per_branch_per_layer</cite>: Inhibitory-to-excitatory connections</p></li>
+<li><p><cite>ii_synapses_per_branch_per_layer</cite>: Inhibitory-to-inhibitory connections</p></li>
+</ul>
+</dd>
+</dl>
+</li>
+<li><p><strong>Reactivation parameters</strong>: Controls the nonlinear activation in branches</p></li>
+<li><p><strong>Somatic synapses</strong>: Whether to include direct synapses to the soma</p></li>
+</ul>
+</section>
+</section>
+<section id="standard-mlp">
+<h2>Standard MLP<a class="headerlink" href="#standard-mlp" title="Link to this heading"></a></h2>
+<p>For baseline comparisons, the framework includes a standard multilayer perceptron implementation.</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="c1"># Example of configuring an MLP</span>
+<span class="n">mlp_params</span> <span class="o">=</span> <span class="p">{</span>
+    <span class="s1">&#39;input_dim&#39;</span><span class="p">:</span> <span class="mi">784</span><span class="p">,</span>
+    <span class="s1">&#39;hidden_dims&#39;</span><span class="p">:</span> <span class="p">[</span><span class="mi">128</span><span class="p">,</span> <span class="mi">64</span><span class="p">],</span>
+    <span class="s1">&#39;output_dim&#39;</span><span class="p">:</span> <span class="mi">10</span><span class="p">,</span>
+    <span class="s1">&#39;activation&#39;</span><span class="p">:</span> <span class="s1">&#39;relu&#39;</span><span class="p">,</span>
+    <span class="s1">&#39;dropout&#39;</span><span class="p">:</span> <span class="mf">0.2</span>
+<span class="p">}</span>
+
+<span class="n">model</span> <span class="o">=</span> <span class="n">SimpleMLP</span><span class="p">(</span><span class="o">**</span><span class="n">mlp_params</span><span class="p">)</span>
+</pre></div>
+</div>
+</section>
+<section id="sparse-mlp">
+<h2>Sparse MLP<a class="headerlink" href="#sparse-mlp" title="Link to this heading"></a></h2>
+<p>The Sparse MLP implements a traditional MLP architecture but with sparse connectivity
+patterns similar to those in the EINet.</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="c1"># Example of configuring a sparse MLP</span>
+<span class="n">sparse_mlp_params</span> <span class="o">=</span> <span class="p">{</span>
+    <span class="s1">&#39;input_dim&#39;</span><span class="p">:</span> <span class="mi">784</span><span class="p">,</span>
+    <span class="s1">&#39;hidden_dims&#39;</span><span class="p">:</span> <span class="p">[</span><span class="mi">128</span><span class="p">,</span> <span class="mi">64</span><span class="p">],</span>
+    <span class="s1">&#39;output_dim&#39;</span><span class="p">:</span> <span class="mi">10</span><span class="p">,</span>
+    <span class="s1">&#39;sparsity&#39;</span><span class="p">:</span> <span class="mf">0.1</span>  <span class="c1"># Only 10% of connections are active</span>
+<span class="p">}</span>
+
+<span class="n">model</span> <span class="o">=</span> <span class="n">SparseMLP</span><span class="p">(</span><span class="o">**</span><span class="n">sparse_mlp_params</span><span class="p">)</span>
+</pre></div>
+</div>
+</section>
+<section id="input-transformation-networks">
+<h2>Input Transformation Networks<a class="headerlink" href="#input-transformation-networks" title="Link to this heading"></a></h2>
+<section id="basic-configuration">
+<h3>Basic Configuration<a class="headerlink" href="#basic-configuration" title="Link to this heading"></a></h3>
+<p>Input transformation networks preprocess inputs before they reach the dendritic network.
+This can help in separating information into excitatory and inhibitory pathways.</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="c1"># Basic configuration for input transformation</span>
+<span class="n">input_transform_config</span> <span class="o">=</span> <span class="p">{</span>
+    <span class="s1">&#39;type&#39;</span><span class="p">:</span> <span class="s1">&#39;MLPInputTransform&#39;</span><span class="p">,</span>
+    <span class="s1">&#39;hidden_dims&#39;</span><span class="p">:</span> <span class="p">[</span><span class="mi">256</span><span class="p">,</span> <span class="mi">128</span><span class="p">],</span>
+    <span class="s1">&#39;output_dim&#39;</span><span class="p">:</span> <span class="mi">64</span>
+<span class="p">}</span>
+</pre></div>
+</div>
+</section>
+<section id="input-network-types">
+<h3>Input Network Types<a class="headerlink" href="#input-network-types" title="Link to this heading"></a></h3>
+<p>The framework supports several types of input transformation networks:</p>
+<ol class="arabic simple">
+<li><p><strong>MLPInputTransform</strong>: Simple multi-layer perceptron for transforming inputs</p></li>
+<li><p><strong>CNNInputTransform</strong>: Convolutional network for image data</p></li>
+<li><p><strong>AlexNetTransform</strong>: Based on AlexNet architecture (for transfer learning)</p></li>
+<li><p><strong>ResNetTransform</strong>: Based on ResNet architecture (for complex feature extraction)</p></li>
+</ol>
+</section>
+<section id="input-network-architecture">
+<h3>Input Network Architecture<a class="headerlink" href="#input-network-architecture" title="Link to this heading"></a></h3>
+<p>A typical input network architecture includes:</p>
+<ol class="arabic simple">
+<li><p>Feature extraction layers (CNN or MLP)</p></li>
+<li><p>Shared feature processing</p></li>
+<li><p>Separate heads for excitatory and inhibitory pathways</p></li>
+</ol>
+</section>
+<section id="training-strategies">
+<h3>Training Strategies<a class="headerlink" href="#training-strategies" title="Link to this heading"></a></h3>
+<p>Several strategies are available for training input transformation networks:</p>
+<section id="sequential-vs-joint-training">
+<h4>Sequential vs. Joint Training<a class="headerlink" href="#sequential-vs-joint-training" title="Link to this heading"></a></h4>
+<p>Input networks can be trained either sequentially (before the dendritic network)
+or jointly (simultaneously with the dendritic network).</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="c1"># Configuration for sequential training</span>
+<span class="n">input_net_training</span> <span class="o">=</span> <span class="p">{</span>
+    <span class="s1">&#39;training_mode&#39;</span><span class="p">:</span> <span class="s1">&#39;sequential&#39;</span><span class="p">,</span>
+    <span class="s1">&#39;train_input_net&#39;</span><span class="p">:</span> <span class="kc">True</span><span class="p">,</span>
+    <span class="s1">&#39;input_net_epochs&#39;</span><span class="p">:</span> <span class="mi">20</span>
+<span class="p">}</span>
+
+<span class="c1"># Configuration for joint training</span>
+<span class="n">input_net_training</span> <span class="o">=</span> <span class="p">{</span>
+    <span class="s1">&#39;training_mode&#39;</span><span class="p">:</span> <span class="s1">&#39;joint&#39;</span>
+<span class="p">}</span>
+</pre></div>
+</div>
+</section>
+<section id="independent-head-training">
+<h4>Independent Head Training<a class="headerlink" href="#independent-head-training" title="Link to this heading"></a></h4>
+<p>The excitatory and inhibitory heads can be trained independently with different objectives.</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="c1"># Configuration for independent head training</span>
+<span class="n">input_net_training</span> <span class="o">=</span> <span class="p">{</span>
+    <span class="s1">&#39;train_heads_independently&#39;</span><span class="p">:</span> <span class="kc">True</span><span class="p">,</span>
+    <span class="s1">&#39;inhibitory_head_objective&#39;</span><span class="p">:</span> <span class="s1">&#39;diversity&#39;</span><span class="p">,</span>
+    <span class="s1">&#39;diversity_weight&#39;</span><span class="p">:</span> <span class="mf">0.5</span>
+<span class="p">}</span>
+</pre></div>
+</div>
+</section>
+</section>
+<section id="pre-trained-input-networks">
+<h3>Pre-trained Input Networks<a class="headerlink" href="#pre-trained-input-networks" title="Link to this heading"></a></h3>
+<p>For complex tasks, pre-trained networks can be used to extract features.</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="c1"># Configuration for using pre-trained weights</span>
+<span class="n">input_net_training</span> <span class="o">=</span> <span class="p">{</span>
+    <span class="s1">&#39;train_input_net&#39;</span><span class="p">:</span> <span class="kc">False</span><span class="p">,</span>
+    <span class="s1">&#39;pretrained_options&#39;</span><span class="p">:</span> <span class="p">{</span>
+        <span class="s1">&#39;source&#39;</span><span class="p">:</span> <span class="s1">&#39;pytorch&#39;</span><span class="p">,</span>
+        <span class="s1">&#39;pytorch_model&#39;</span><span class="p">:</span> <span class="s1">&#39;resnet18&#39;</span>
+    <span class="p">}</span>
+<span class="p">}</span>
+</pre></div>
+</div>
+</section>
+<section id="transfer-learning-options">
+<h3>Transfer Learning Options<a class="headerlink" href="#transfer-learning-options" title="Link to this heading"></a></h3>
+<p>When using pre-trained networks, several transfer learning approaches are available:</p>
+<ol class="arabic simple">
+<li><p><strong>Feature extraction</strong>: Freeze pre-trained layers and train only new layers</p></li>
+<li><p><strong>Fine-tuning</strong>: Update all layers but with lower learning rates for pre-trained layers</p></li>
+<li><p><strong>Progressive unfreezing</strong>: Gradually unfreeze deeper layers during training</p></li>
+</ol>
+</section>
+<section id="example-configurations">
+<h3>Example Configurations<a class="headerlink" href="#example-configurations" title="Link to this heading"></a></h3>
+<p>Here are some example configurations for different network types:</p>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="c1"># EINet with input transformation</span>
+<span class="nt">model</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">task</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">classification</span>
+<span class="w">  </span><span class="nt">probabilistic</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+<span class="w">  </span><span class="nt">network</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">type</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">EINet</span>
+<span class="w">    </span><span class="nt">parameters</span><span class="p">:</span>
+<span class="w">      </span><span class="nt">excitatory_layer_sizes</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">10</span><span class="p p-Indicator">]</span>
+<span class="w">      </span><span class="nt">inhibitory_layer_sizes</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">20</span><span class="p p-Indicator">]</span>
+<span class="w">      </span><span class="nt">excitatory_branch_factors</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">2</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">2</span><span class="p p-Indicator">]</span>
+<span class="w">      </span><span class="nt">inhibitory_branch_factors</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[]</span>
+<span class="w">      </span><span class="nt">reactivate</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+<span class="w">      </span><span class="nt">somatic_synapses</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+<span class="w">      </span><span class="nt">ee_synapses_per_branch_per_layer</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">24</span><span class="p p-Indicator">]</span>
+<span class="w">      </span><span class="nt">ei_synapses_per_branch_per_layer</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">100</span><span class="p p-Indicator">]</span>
+<span class="w">      </span><span class="nt">ie_synapses_per_branch_per_layer</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">2</span><span class="p p-Indicator">]</span>
+<span class="w">      </span><span class="nt">ii_synapses_per_branch_per_layer</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">0</span><span class="p p-Indicator">]</span>
+<span class="w">      </span><span class="nt">use_shunting</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+<span class="w">      </span><span class="nt">reactivation_type</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">param_tanh</span>
+<span class="w">      </span><span class="nt">reactivation_strategy</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">inverse</span>
+<span class="w">      </span><span class="nt">blocklinear_strategy</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">block_conductance_dynamic</span>
+<span class="w">      </span><span class="nt">enable_branch_outputs</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">false</span>
+<span class="w">      </span><span class="nt">output_dim</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">10</span>
+<span class="w">      </span><span class="nt">input_mode</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">2</span>
+<span class="w">      </span><span class="nt">input_net_dict</span><span class="p">:</span>
+<span class="w">        </span><span class="nt">type</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">MLPInputTransform</span>
+<span class="w">        </span><span class="nt">hidden_dims</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">256</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">128</span><span class="p p-Indicator">]</span>
+<span class="w">        </span><span class="nt">output_dim</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">64</span>
+</pre></div>
+</div>
+</section>
+<section id="implementation-details-overview">
+<h3>Implementation Details (Overview)<a class="headerlink" href="#implementation-details-overview" title="Link to this heading"></a></h3>
+<p>The implementation of network structures is modular and follows object-oriented principles:</p>
+<ol class="arabic simple">
+<li><p>Base classes define common interfaces and methods</p></li>
+<li><p>Derived classes implement specific network architectures</p></li>
+<li><p>Factory functions create appropriate networks based on configuration</p></li>
+</ol>
+</section>
+</section>
+<section id="network-output-types">
+<h2>Network Output Types<a class="headerlink" href="#network-output-types" title="Link to this heading"></a></h2>
+<p>The framework supports different output types depending on the task:</p>
+<ol class="arabic simple">
+<li><p><strong>Probabilistic Classification</strong>: Returns a probability distribution over classes</p></li>
+<li><p><strong>Deterministic Classification</strong>: Returns class logits or predictions</p></li>
+<li><p><strong>Regression</strong>: Returns continuous values</p></li>
+</ol>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="c1"># Probabilistic classifier</span>
+<span class="k">class</span><span class="w"> </span><span class="nc">ProbabilisticClassifier</span><span class="p">(</span><span class="n">nn</span><span class="o">.</span><span class="n">Module</span><span class="p">):</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">forward</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">x</span><span class="p">):</span>
+        <span class="n">logits</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">network</span><span class="p">(</span><span class="n">x</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">torch</span><span class="o">.</span><span class="n">distributions</span><span class="o">.</span><span class="n">Categorical</span><span class="p">(</span><span class="n">logits</span><span class="o">=</span><span class="n">logits</span><span class="p">)</span>
+
+<span class="c1"># Deterministic classifier</span>
+<span class="k">class</span><span class="w"> </span><span class="nc">Classifier</span><span class="p">(</span><span class="n">nn</span><span class="o">.</span><span class="n">Module</span><span class="p">):</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">forward</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">x</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">network</span><span class="p">(</span><span class="n">x</span><span class="p">)</span>
+</pre></div>
+</div>
+</section>
+<section id="creating-custom-networks">
+<h2>Creating Custom Networks<a class="headerlink" href="#creating-custom-networks" title="Link to this heading"></a></h2>
+<p>The framework is designed to be extensible, allowing users to create custom network architectures.</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="c1"># Example of creating a custom network</span>
+<span class="k">class</span><span class="w"> </span><span class="nc">CustomEINet</span><span class="p">(</span><span class="n">ExcitationInhibitionNetwork</span><span class="p">):</span>
+    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+        <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span><span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
+        <span class="c1"># Add custom layers or components</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">attention_layer</span> <span class="o">=</span> <span class="n">SelfAttention</span><span class="p">(</span><span class="n">dim</span><span class="o">=</span><span class="n">kwargs</span><span class="p">[</span><span class="s1">&#39;excitatory_layer_sizes&#39;</span><span class="p">][</span><span class="o">-</span><span class="mi">1</span><span class="p">])</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">forward</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">x</span><span class="p">):</span>
+        <span class="c1"># Custom forward pass</span>
+        <span class="n">features</span> <span class="o">=</span> <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="n">forward</span><span class="p">(</span><span class="n">x</span><span class="p">)</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">attention_layer</span><span class="p">(</span><span class="n">features</span><span class="p">)</span>
+</pre></div>
+</div>
+</section>
+<section id="computational-properties">
+<h2>Computational Properties<a class="headerlink" href="#computational-properties" title="Link to this heading"></a></h2>
+<p>Dendritic networks have unique computational properties compared to traditional ANNs:</p>
+<ol class="arabic simple">
+<li><p><strong>Local nonlinearity</strong>: Dendritic branches implement nonlinear computations before integration</p></li>
+<li><p><strong>Sparse connectivity</strong>: Each branch connects to a small subset of potential inputs</p></li>
+<li><p><strong>Shunting inhibition</strong>: Division-based inhibition instead of subtraction</p></li>
+<li><p><strong>Hierarchical processing</strong>: Information is processed at multiple levels (branch, cell, layer)</p></li>
+</ol>
+</section>
+<section id="choosing-the-right-architecture">
+<h2>Choosing the Right Architecture<a class="headerlink" href="#choosing-the-right-architecture" title="Link to this heading"></a></h2>
+<p>Guidelines for selecting the appropriate network architecture:</p>
+<ol class="arabic simple">
+<li><p>For simple tasks with limited data, start with a standard MLP</p></li>
+<li><p>For tasks requiring complex feature extraction, use input transformation with EINet</p></li>
+<li><p>For tasks with multiple input modalities, consider separate input networks for each modality</p></li>
+<li><p>For tasks requiring hierarchical processing, leverage deep EINets with multiple layers</p></li>
+</ol>
+</section>
+<section id="implementation-details">
+<h2>Implementation Details<a class="headerlink" href="#implementation-details" title="Link to this heading"></a></h2>
+<p>Under the hood, the network structures are implemented using PyTorch modules and custom layers.
+The implementation is designed to be efficient, leveraging techniques like sparse operations
+and parallelized computation.</p>
+</section>
+</section>
+
+
+           </div>
+          </div>
+          <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
+        <a href="network_structure.html" class="btn btn-neutral float-left" title="Network Structure and Input Modes" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
+        <a href="gradient_scaling.html" class="btn btn-neutral float-right" title="Gradient Scaling Techniques" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright 2025, Research and Engineering at Kempner.</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>

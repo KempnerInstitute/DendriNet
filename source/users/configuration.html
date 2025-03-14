@@ -1,0 +1,417 @@
+
+
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" data-content_root="../../">
+<head>
+  <meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Configuration System &mdash; dendritic_modeling 0.1.0 documentation</title>
+      <link rel="stylesheet" type="text/css" href="../../_static/pygments.css?v=b86133f3" />
+      <link rel="stylesheet" type="text/css" href="../../_static/css/theme.css?v=e59714d7" />
+      <link rel="stylesheet" type="text/css" href="../../_static/copybutton.css?v=76b2166b" />
+
+  
+      <script src="../../_static/jquery.js?v=5d32c60e"></script>
+      <script src="../../_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
+      <script src="../../_static/documentation_options.js?v=01f34227"></script>
+      <script src="../../_static/doctools.js?v=9bcbadda"></script>
+      <script src="../../_static/sphinx_highlight.js?v=dc90522c"></script>
+      <script src="../../_static/clipboard.min.js?v=a7894cd8"></script>
+      <script src="../../_static/copybutton.js?v=f281be69"></script>
+      <script crossorigin="anonymous" integrity="sha256-Ae2Vz/4ePdIu6ZyI/5ZGsYnb+m0JlOmKPjt6XZ9JJkA=" src="https://cdnjs.cloudflare.com/ajax/libs/require.js/2.3.4/require.min.js"></script>
+    <script src="../../_static/js/theme.js"></script>
+    <link rel="author" title="About these documents" href="../../about.html" />
+    <link rel="index" title="Index" href="../../genindex.html" />
+    <link rel="search" title="Search" href="../../search.html" />
+    <link rel="next" title="Experiment Tracking" href="experiment_tracking.html" />
+    <link rel="prev" title="Key Concepts" href="concepts.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+
+          
+          
+          <a href="../../index.html" class="icon icon-home">
+            dendritic_modeling
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <p class="caption" role="heading"><span class="caption-text">Introduction</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../about.html">About</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">User Guide</span></p>
+<ul class="current">
+<li class="toctree-l1"><a class="reference internal" href="installation.html">Installation</a></li>
+<li class="toctree-l1"><a class="reference internal" href="quickstart.html">Quickstart</a></li>
+<li class="toctree-l1"><a class="reference internal" href="examples.html">Examples</a></li>
+<li class="toctree-l1"><a class="reference internal" href="concepts.html">Key Concepts</a></li>
+<li class="toctree-l1 current"><a class="current reference internal" href="#">Configuration System</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="#basic-configuration-structure">Basic Configuration Structure</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#model-configuration">Model Configuration</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#training-configuration">Training Configuration</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#task-configuration">Task Configuration</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#experiment-tracking">Experiment Tracking</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#visualization-configuration">Visualization Configuration</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#output-configuration">Output Configuration</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#loading-configurations-in-code">Loading Configurations in Code</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#parameter-sweeps">Parameter Sweeps</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#best-practices">Best Practices</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#example-configurations">Example Configurations</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="experiment_tracking.html">Experiment Tracking</a></li>
+<li class="toctree-l1"><a class="reference internal" href="interactive_run.html">Running an interactive session</a></li>
+<li class="toctree-l1"><a class="reference internal" href="user_sweep_job_submission.html">Sweep Job Submission (User)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="cifar10_tutorial.html">CIFAR10 Tutorial</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Concepts and API</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../dend_m/concepts_overview.html">Concepts Overview</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../dend_m/installation_setup.html">Installation and Setup</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../dend_m/learning_strategies.html">Learning Strategies</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../dend_m/api_reference.html">API Reference</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../dend_m/weight_initialization.html">Weight Initialization Methods</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../dend_m/visualization_guide.html">Network Visualization Guide</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../dend_m/topk_linear.html">TopKLinear Layers and Dendritic Processing</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../dend_m/synthetic_datasets.html">Datasets and Data Utilities</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../dend_m/output_handling.html">Output Handling and Loss Functions</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../dend_m/sweep_job_submission.html">Sweep Job Submission</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../dend_m/network_structure.html">Network Structure and Input Modes</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../dend_m/network_structures.html">Network Structures</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../dend_m/gradient_scaling.html">Gradient Scaling Techniques</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../dend_m/experiment_tracking.html">Experiment Tracking and Logging</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../dend_m/evaluation_visualization.html">Evaluation and Visualization</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../dend_m/contributing.html">Contributing to Dendritic Modeling</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../dend_m/configuration_system.html">Configuration System</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../dend_m/activation_functions.html">Activation Functions</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../dend_m/ablation_studies.html">Ablation Studies</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../dend_m/ablation_information_analysis.html">Ablation Studies and Information Analysis</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../dendritic_modeling.html">dendritic_modeling package</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Developer Guide</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../contributing.html">Contributing</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Additional Resources</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../additional_resources.html">Additional Resources</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../glossary.html">Glossary</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../references.html">References</a></li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../../index.html">dendritic_modeling</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="../../index.html" class="icon icon-home" aria-label="Home"></a></li>
+      <li class="breadcrumb-item active">Configuration System</li>
+      <li class="wy-breadcrumbs-aside">
+            <a href="../../_sources/source/users/configuration.rst.txt" rel="nofollow"> View page source</a>
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <section id="configuration-system">
+<h1>Configuration System<a class="headerlink" href="#configuration-system" title="Link to this heading"></a></h1>
+<p>The Dendritic Modeling framework uses a flexible YAML-based configuration system to define experiment parameters. This approach allows you to:</p>
+<ol class="arabic simple">
+<li><p>Define complex experiments without changing code</p></li>
+<li><p>Track experiment parameters for reproducibility</p></li>
+<li><p>Run parameter sweeps by varying configuration values</p></li>
+<li><p>Share experiment setups with colleagues</p></li>
+</ol>
+<section id="basic-configuration-structure">
+<h2>Basic Configuration Structure<a class="headerlink" href="#basic-configuration-structure" title="Link to this heading"></a></h2>
+<p>Configuration files are organized into several sections:</p>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">model</span><span class="p">:</span>
+<span class="w">  </span><span class="c1"># Model architecture and parameters</span>
+
+<span class="nt">train</span><span class="p">:</span>
+<span class="w">  </span><span class="c1"># Training parameters</span>
+
+<span class="nt">task</span><span class="p">:</span>
+<span class="w">  </span><span class="c1"># Dataset and task parameters</span>
+
+<span class="nt">wandb</span><span class="p">:</span>
+<span class="w">  </span><span class="c1"># Experiment tracking settings</span>
+
+<span class="nt">visualization</span><span class="p">:</span>
+<span class="w">  </span><span class="c1"># Visualization parameters</span>
+
+<span class="nt">outputs</span><span class="p">:</span>
+<span class="w">  </span><span class="c1"># Output directory settings</span>
+</pre></div>
+</div>
+<p>Let’s explore each section in detail:</p>
+</section>
+<section id="model-configuration">
+<h2>Model Configuration<a class="headerlink" href="#model-configuration" title="Link to this heading"></a></h2>
+<p>The <cite>model</cite> section defines the network architecture and parameters:</p>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">model</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">task</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">classification</span>
+<span class="w">  </span><span class="nt">probabilistic</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">false</span>
+<span class="w">  </span><span class="nt">network</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">type</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">EINet</span><span class="w">  </span><span class="c1"># &quot;EINet&quot; or &quot;MLP&quot;</span>
+<span class="w">    </span><span class="nt">parameters</span><span class="p">:</span>
+<span class="w">      </span><span class="nt">excitatory_layer_sizes</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">10</span><span class="p p-Indicator">]</span>
+<span class="w">      </span><span class="nt">inhibitory_layer_sizes</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">20</span><span class="p p-Indicator">]</span>
+<span class="w">      </span><span class="nt">excitatory_branch_factors</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">2</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">2</span><span class="p p-Indicator">]</span>
+<span class="w">      </span><span class="nt">inhibitory_branch_factors</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[]</span>
+<span class="w">      </span><span class="nt">ee_synapses_per_branch_per_layer</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">24</span><span class="p p-Indicator">]</span>
+<span class="w">      </span><span class="nt">ei_synapses_per_branch_per_layer</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">100</span><span class="p p-Indicator">]</span>
+<span class="w">      </span><span class="nt">ie_synapses_per_branch_per_layer</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">2</span><span class="p p-Indicator">]</span>
+<span class="w">      </span><span class="nt">ii_synapses_per_branch_per_layer</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">0</span><span class="p p-Indicator">]</span>
+<span class="w">      </span><span class="nt">reactivate</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+<span class="w">      </span><span class="nt">somatic_synapses</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+<span class="w">      </span><span class="nt">topk_init_method</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">xavier_normal</span>
+<span class="w">      </span><span class="nt">use_shunting</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+<span class="w">      </span><span class="nt">reactivation_type</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">param_tanh</span>
+<span class="w">      </span><span class="nt">reactivation_strategy</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">inverse</span>
+<span class="w">      </span><span class="nt">blocklinear_strategy</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">block_conductance_dynamic</span>
+
+<span class="w">      </span><span class="c1"># Input mode (0=original, 1=exc=x+inh=x, 2=input_net)</span>
+<span class="w">      </span><span class="nt">input_mode</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">2</span>
+<span class="w">      </span><span class="nt">input_net_dict</span><span class="p">:</span>
+<span class="w">        </span><span class="nt">type</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;MLPInputTransform&quot;</span>
+<span class="w">        </span><span class="nt">hidden_dims</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">512</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">256</span><span class="p p-Indicator">]</span>
+<span class="w">        </span><span class="nt">output_dim</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">128</span>
+</pre></div>
+</div>
+<p>Key parameters include:</p>
+<ul class="simple">
+<li><p><strong>network.type</strong>: Network architecture to use (<cite>EINet</cite> or <cite>MLP</cite>)</p></li>
+<li><p><strong>excitatory_layer_sizes/inhibitory_layer_sizes</strong>: Number of cells in each layer</p></li>
+<li><p><strong>excitatory_branch_factors/inhibitory_branch_factors</strong>: Branching structure</p></li>
+<li><p><strong>synapses_per_branch_per_layer</strong>: Connectivity parameters</p></li>
+<li><p><strong>input_mode</strong>: Method for handling inputs (direct or through input network)</p></li>
+</ul>
+</section>
+<section id="training-configuration">
+<h2>Training Configuration<a class="headerlink" href="#training-configuration" title="Link to this heading"></a></h2>
+<p>The <cite>train</cite> section defines the training process and hyperparameters:</p>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">train</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">learning_strategy</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">mle</span><span class="w">  </span><span class="c1"># &quot;mle&quot;, &quot;freeze_layers&quot;, &quot;local_credit_assignment&quot;, &quot;two_step&quot;, &quot;two_step_kl&quot;</span>
+<span class="w">  </span><span class="nt">run_name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">mnist_einet</span>
+<span class="w">  </span><span class="nt">seed</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">42</span>
+<span class="w">  </span><span class="nt">train_valid_split</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">0.8</span>
+<span class="w">  </span><span class="nt">lr</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">0.001</span>
+<span class="w">  </span><span class="nt">weight_decay_rate</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">0.01</span>
+<span class="w">  </span><span class="nt">epochs</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">50</span>
+<span class="w">  </span><span class="nt">batch_size</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">64</span>
+<span class="w">  </span><span class="nt">grad_clip_value</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">1.0</span>
+
+<span class="w">  </span><span class="c1"># For specialized learning strategies</span>
+<span class="w">  </span><span class="nt">epochs_per_layer</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">10</span><span class="w">  </span><span class="c1"># For &quot;freeze_layers&quot;</span>
+<span class="w">  </span><span class="nt">pretrain_epochs</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">5</span><span class="w">    </span><span class="c1"># For &quot;two_step&quot;</span>
+
+<span class="w">  </span><span class="c1"># Input network training configuration</span>
+<span class="w">  </span><span class="nt">input_net_training</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">training_mode</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;sequential&quot;</span><span class="w">  </span><span class="c1"># &quot;joint&quot; or &quot;sequential&quot;</span>
+<span class="w">    </span><span class="nt">train_input_net</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+<span class="w">    </span><span class="nt">input_net_epochs</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">20</span>
+<span class="w">    </span><span class="nt">train_heads_independently</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">false</span>
+<span class="w">    </span><span class="nt">inhibitory_head_objective</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;classification&quot;</span>
+<span class="w">    </span><span class="nt">diversity_weight</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">0.5</span>
+<span class="w">    </span><span class="nt">pretrained_options</span><span class="p">:</span>
+<span class="w">      </span><span class="nt">source</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;file&quot;</span>
+<span class="w">      </span><span class="nt">weights_path</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;&quot;</span>
+<span class="w">      </span><span class="nt">pytorch_model</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;&quot;</span>
+</pre></div>
+</div>
+<p>Key parameters include:</p>
+<ul class="simple">
+<li><p><strong>learning_strategy</strong>: Algorithm for training the network</p></li>
+<li><p><strong>lr</strong>, <strong>batch_size</strong>, <strong>epochs</strong>: Standard training hyperparameters</p></li>
+<li><p><strong>input_net_training</strong>: Configuration for input transformation networks</p></li>
+</ul>
+</section>
+<section id="task-configuration">
+<h2>Task Configuration<a class="headerlink" href="#task-configuration" title="Link to this heading"></a></h2>
+<p>The <cite>task</cite> section defines the dataset and task-specific parameters:</p>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">task</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">dataset</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">mnist</span><span class="w">  </span><span class="c1"># &quot;mnist&quot;, &quot;cifar10&quot;, or synthetic datasets</span>
+<span class="w">  </span><span class="nt">data_path</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;/path/to/data&quot;</span><span class="w">  </span><span class="c1"># Optional custom path</span>
+<span class="w">  </span><span class="nt">parameters</span><span class="p">:</span>
+<span class="w">    </span><span class="c1"># For synthetic datasets</span>
+<span class="w">    </span><span class="nt">train_size</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">8000</span>
+<span class="w">    </span><span class="nt">valid_size</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">1000</span>
+<span class="w">    </span><span class="nt">test_size</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">1000</span>
+<span class="w">    </span><span class="nt">image_size</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">16</span>
+</pre></div>
+</div>
+<p>For synthetic datasets, additional parameters may be required based on the dataset type.</p>
+</section>
+<section id="experiment-tracking">
+<h2>Experiment Tracking<a class="headerlink" href="#experiment-tracking" title="Link to this heading"></a></h2>
+<p>The <cite>wandb</cite> section configures Weights &amp; Biases integration:</p>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">wandb</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">entity</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;your-username&quot;</span>
+<span class="w">  </span><span class="nt">project</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;dendritic-experiments&quot;</span>
+<span class="w">  </span><span class="nt">group</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;mnist-comparison&quot;</span>
+<span class="w">  </span><span class="nt">tags</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="s">&quot;dendritic&quot;</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="s">&quot;mnist&quot;</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="s">&quot;experiment1&quot;</span><span class="p p-Indicator">]</span>
+<span class="w">  </span><span class="nt">use_wandb</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+</pre></div>
+</div>
+<p>Set <cite>use_wandb: false</cite> to disable Weights &amp; Biases tracking.</p>
+</section>
+<section id="visualization-configuration">
+<h2>Visualization Configuration<a class="headerlink" href="#visualization-configuration" title="Link to this heading"></a></h2>
+<p>The <cite>visualization</cite> section controls the generation of visualizations:</p>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">visualization</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">enabled</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+<span class="w">  </span><span class="nt">visualize_epochs</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">10</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">30</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">50</span><span class="p p-Indicator">]</span><span class="w">  </span><span class="c1"># At which epochs to generate visualizations</span>
+<span class="w">  </span><span class="nt">plots</span><span class="p">:</span>
+<span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">weights</span><span class="w">      </span><span class="c1"># Plot dendritic weights</span>
+<span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">activations</span><span class="w">  </span><span class="c1"># Plot activation distributions</span>
+<span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">gradients</span><span class="w">    </span><span class="c1"># Plot gradient distributions</span>
+<span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">branch_info</span><span class="w">  </span><span class="c1"># Plot mutual information in branches</span>
+<span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">ablation</span><span class="w">     </span><span class="c1"># Perform and plot ablation studies</span>
+</pre></div>
+</div>
+</section>
+<section id="output-configuration">
+<h2>Output Configuration<a class="headerlink" href="#output-configuration" title="Link to this heading"></a></h2>
+<p>The <cite>outputs</cite> section configures where results are saved:</p>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">outputs</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">dir</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;results/experiment1&quot;</span>
+</pre></div>
+</div>
+</section>
+<section id="loading-configurations-in-code">
+<h2>Loading Configurations in Code<a class="headerlink" href="#loading-configurations-in-code" title="Link to this heading"></a></h2>
+<p>To use configurations in your code:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span><span class="w"> </span><span class="nn">dendritic_modeling.config</span><span class="w"> </span><span class="kn">import</span> <span class="n">load_config</span>
+
+<span class="c1"># Load the configuration</span>
+<span class="n">config</span> <span class="o">=</span> <span class="n">load_config</span><span class="p">(</span><span class="s2">&quot;path/to/config.yaml&quot;</span><span class="p">)</span>
+
+<span class="c1"># Access configuration values</span>
+<span class="n">learning_rate</span> <span class="o">=</span> <span class="n">config</span><span class="o">.</span><span class="n">train</span><span class="o">.</span><span class="n">lr</span>
+<span class="n">batch_size</span> <span class="o">=</span> <span class="n">config</span><span class="o">.</span><span class="n">train</span><span class="o">.</span><span class="n">batch_size</span>
+
+<span class="c1"># Create model from configuration</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">dendritic_modeling.networks</span><span class="w"> </span><span class="kn">import</span> <span class="n">ExcitationInhibitionNetwork</span>
+
+<span class="n">net_params</span> <span class="o">=</span> <span class="n">config</span><span class="o">.</span><span class="n">model</span><span class="o">.</span><span class="n">network</span><span class="o">.</span><span class="n">parameters</span>
+<span class="n">model</span> <span class="o">=</span> <span class="n">ExcitationInhibitionNetwork</span><span class="p">(</span>
+    <span class="n">input_dim</span><span class="o">=</span><span class="mi">784</span><span class="p">,</span>  <span class="c1"># This might come from your dataset</span>
+    <span class="n">excitatory_layer_sizes</span><span class="o">=</span><span class="n">net_params</span><span class="o">.</span><span class="n">excitatory_layer_sizes</span><span class="p">,</span>
+    <span class="n">inhibitory_layer_sizes</span><span class="o">=</span><span class="n">net_params</span><span class="o">.</span><span class="n">inhibitory_layer_sizes</span><span class="p">,</span>
+    <span class="n">excitatory_branch_factors</span><span class="o">=</span><span class="n">net_params</span><span class="o">.</span><span class="n">excitatory_branch_factors</span><span class="p">,</span>
+    <span class="n">inhibitory_branch_factors</span><span class="o">=</span><span class="n">net_params</span><span class="o">.</span><span class="n">inhibitory_branch_factors</span><span class="p">,</span>
+    <span class="n">ee_synapses_per_branch_per_layer</span><span class="o">=</span><span class="n">net_params</span><span class="o">.</span><span class="n">ee_synapses_per_branch_per_layer</span><span class="p">,</span>
+    <span class="n">ei_synapses_per_branch_per_layer</span><span class="o">=</span><span class="n">net_params</span><span class="o">.</span><span class="n">ei_synapses_per_branch_per_layer</span><span class="p">,</span>
+    <span class="n">ie_synapses_per_branch_per_layer</span><span class="o">=</span><span class="n">net_params</span><span class="o">.</span><span class="n">ie_synapses_per_branch_per_layer</span><span class="p">,</span>
+    <span class="n">ii_synapses_per_branch_per_layer</span><span class="o">=</span><span class="n">net_params</span><span class="o">.</span><span class="n">ii_synapses_per_branch_per_layer</span><span class="p">,</span>
+    <span class="n">reactivate</span><span class="o">=</span><span class="n">net_params</span><span class="o">.</span><span class="n">reactivate</span><span class="p">,</span>
+    <span class="n">somatic_synapses</span><span class="o">=</span><span class="n">net_params</span><span class="o">.</span><span class="n">somatic_synapses</span>
+<span class="p">)</span>
+</pre></div>
+</div>
+</section>
+<section id="parameter-sweeps">
+<h2>Parameter Sweeps<a class="headerlink" href="#parameter-sweeps" title="Link to this heading"></a></h2>
+<p>For parameter sweeps, you can use the provided utility scripts:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>python<span class="w"> </span>scripts/generate_sweep_configs.py<span class="w"> </span>--base-config<span class="w"> </span>configs/base_config.yaml<span class="w"> </span>--sweep-params<span class="w"> </span>configs/sweep_params.yaml<span class="w"> </span>--output-dir<span class="w"> </span>configs/sweep
+</pre></div>
+</div>
+<p>A sweep parameter file might look like:</p>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="c1"># sweep_params.yaml</span>
+<span class="nt">model.network.parameters.excitatory_branch_factors</span><span class="p">:</span>
+<span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">1</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">2</span><span class="p p-Indicator">]</span>
+<span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">2</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">2</span><span class="p p-Indicator">]</span>
+<span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">2</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">4</span><span class="p p-Indicator">]</span>
+
+<span class="nt">train.lr</span><span class="p">:</span>
+<span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">0.0001</span>
+<span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">0.001</span>
+<span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">0.01</span>
+
+<span class="nt">train.batch_size</span><span class="p">:</span>
+<span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">32</span>
+<span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">64</span>
+<span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">128</span>
+</pre></div>
+</div>
+<p>This would generate 27 configuration files (3 branch factors × 3 learning rates × 3 batch sizes) in the specified output directory.</p>
+</section>
+<section id="best-practices">
+<h2>Best Practices<a class="headerlink" href="#best-practices" title="Link to this heading"></a></h2>
+<ol class="arabic simple">
+<li><p><strong>Version Control</strong>: Keep configuration files in version control to track experiment changes</p></li>
+<li><p><strong>Comments</strong>: Add comments to complex parameters to explain their purpose</p></li>
+<li><p><strong>Defaults</strong>: Use reasonable defaults in your base configurations</p></li>
+<li><p><strong>Validation</strong>: The framework validates configurations, but check for logical consistency</p></li>
+<li><p><strong>Reproducibility</strong>: Set the random seed in the configuration for reproducible results</p></li>
+<li><p><strong>Modularity</strong>: Create base configurations that can be extended for specific experiments</p></li>
+</ol>
+</section>
+<section id="example-configurations">
+<h2>Example Configurations<a class="headerlink" href="#example-configurations" title="Link to this heading"></a></h2>
+<p>The framework includes several example configurations in the <cite>configs</cite> directory:</p>
+<ul class="simple">
+<li><p><cite>mnist_einet.yaml</cite>: Basic EINet for MNIST classification</p></li>
+<li><p><cite>cifar10_einet.yaml</cite>: EINet for CIFAR-10 classification</p></li>
+<li><p><cite>synthetic_tasks.yaml</cite>: Configuration for synthetic datasets</p></li>
+<li><p><cite>ablation_study.yaml</cite>: Setup for branch ablation experiments</p></li>
+</ul>
+<p>You can use these as starting points for your own experiments.</p>
+</section>
+</section>
+
+
+           </div>
+          </div>
+          <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
+        <a href="concepts.html" class="btn btn-neutral float-left" title="Key Concepts" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
+        <a href="experiment_tracking.html" class="btn btn-neutral float-right" title="Experiment Tracking" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright 2025, Research and Engineering at Kempner.</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>

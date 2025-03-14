@@ -6,7 +6,7 @@
   <meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
 
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Sweep Job Submission &mdash; dendritic_modeling 0.1.0 documentation</title>
+  <title>Sweep Job Submission (User) &mdash; dendritic_modeling 0.1.0 documentation</title>
       <link rel="stylesheet" type="text/css" href="../../_static/pygments.css?v=b86133f3" />
       <link rel="stylesheet" type="text/css" href="../../_static/css/theme.css?v=e59714d7" />
       <link rel="stylesheet" type="text/css" href="../../_static/copybutton.css?v=76b2166b" />
@@ -24,7 +24,7 @@
     <link rel="author" title="About these documents" href="../../about.html" />
     <link rel="index" title="Index" href="../../genindex.html" />
     <link rel="search" title="Search" href="../../search.html" />
-    <link rel="next" title="Concepts Overview" href="../dend_m/concepts_overview.html" />
+    <link rel="next" title="CIFAR10 Tutorial" href="cifar10_tutorial.html" />
     <link rel="prev" title="Running an interactive session" href="interactive_run.html" /> 
 </head>
 
@@ -51,12 +51,16 @@
 <ul>
 <li class="toctree-l1"><a class="reference internal" href="../../about.html">About</a></li>
 </ul>
-<p class="caption" role="heading"><span class="caption-text">Users Guide</span></p>
+<p class="caption" role="heading"><span class="caption-text">User Guide</span></p>
 <ul class="current">
-<li class="toctree-l1"><a class="reference internal" href="users.html">Installation</a></li>
-<li class="toctree-l1"><a class="reference internal" href="users.html#build-the-documentation">Build the documentation</a></li>
+<li class="toctree-l1"><a class="reference internal" href="installation.html">Installation</a></li>
+<li class="toctree-l1"><a class="reference internal" href="quickstart.html">Quickstart</a></li>
+<li class="toctree-l1"><a class="reference internal" href="examples.html">Examples</a></li>
+<li class="toctree-l1"><a class="reference internal" href="concepts.html">Key Concepts</a></li>
+<li class="toctree-l1"><a class="reference internal" href="configuration.html">Configuration System</a></li>
+<li class="toctree-l1"><a class="reference internal" href="experiment_tracking.html">Experiment Tracking</a></li>
 <li class="toctree-l1"><a class="reference internal" href="interactive_run.html">Running an interactive session</a></li>
-<li class="toctree-l1 current"><a class="current reference internal" href="#">Sweep Job Submission</a><ul>
+<li class="toctree-l1 current"><a class="current reference internal" href="#">Sweep Job Submission (User)</a><ul>
 <li class="toctree-l2"><a class="reference internal" href="#step-1-prepare-sweep-configuration-file">Step 1: Prepare sweep configuration file</a><ul>
 <li class="toctree-l3"><a class="reference internal" href="#slurm-configuration">Slurm configuration</a></li>
 <li class="toctree-l3"><a class="reference internal" href="#train-configuration">Train configuration</a></li>
@@ -67,23 +71,41 @@
 <li class="toctree-l2"><a class="reference internal" href="#step-3-submit-the-sweep-job">Step 3: Submit the sweep job</a></li>
 </ul>
 </li>
+<li class="toctree-l1"><a class="reference internal" href="cifar10_tutorial.html">CIFAR10 Tutorial</a></li>
 </ul>
-<p class="caption" role="heading"><span class="caption-text">Dendritic Modeling</span></p>
+<p class="caption" role="heading"><span class="caption-text">Concepts and API</span></p>
 <ul>
 <li class="toctree-l1"><a class="reference internal" href="../dend_m/concepts_overview.html">Concepts Overview</a></li>
-</ul>
-<p class="caption" role="heading"><span class="caption-text">References</span></p>
-<ul>
-<li class="toctree-l1"><a class="reference internal" href="references.html">References</a></li>
-</ul>
-<p class="caption" role="heading"><span class="caption-text">Appendix and Resources</span></p>
-<ul>
-<li class="toctree-l1"><a class="reference internal" href="../additional_resources.html">Additional resources</a></li>
-<li class="toctree-l1"><a class="reference internal" href="../glossary.html">Glossary</a></li>
-</ul>
-<p class="caption" role="heading"><span class="caption-text">API Reference</span></p>
-<ul>
+<li class="toctree-l1"><a class="reference internal" href="../dend_m/installation_setup.html">Installation and Setup</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../dend_m/learning_strategies.html">Learning Strategies</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../dend_m/api_reference.html">API Reference</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../dend_m/weight_initialization.html">Weight Initialization Methods</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../dend_m/visualization_guide.html">Network Visualization Guide</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../dend_m/topk_linear.html">TopKLinear Layers and Dendritic Processing</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../dend_m/synthetic_datasets.html">Datasets and Data Utilities</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../dend_m/output_handling.html">Output Handling and Loss Functions</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../dend_m/sweep_job_submission.html">Sweep Job Submission</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../dend_m/network_structure.html">Network Structure and Input Modes</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../dend_m/network_structures.html">Network Structures</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../dend_m/gradient_scaling.html">Gradient Scaling Techniques</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../dend_m/experiment_tracking.html">Experiment Tracking and Logging</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../dend_m/evaluation_visualization.html">Evaluation and Visualization</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../dend_m/contributing.html">Contributing to Dendritic Modeling</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../dend_m/configuration_system.html">Configuration System</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../dend_m/activation_functions.html">Activation Functions</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../dend_m/ablation_studies.html">Ablation Studies</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../dend_m/ablation_information_analysis.html">Ablation Studies and Information Analysis</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../dendritic_modeling.html">dendritic_modeling package</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Developer Guide</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../contributing.html">Contributing</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Additional Resources</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../additional_resources.html">Additional Resources</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../glossary.html">Glossary</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../references.html">References</a></li>
 </ul>
 
         </div>
@@ -100,9 +122,9 @@
           <div role="navigation" aria-label="Page navigation">
   <ul class="wy-breadcrumbs">
       <li><a href="../../index.html" class="icon icon-home" aria-label="Home"></a></li>
-      <li class="breadcrumb-item active">Sweep Job Submission</li>
+      <li class="breadcrumb-item active">Sweep Job Submission (User)</li>
       <li class="wy-breadcrumbs-aside">
-            <a href="../../_sources/source/users/sweep_job_submission.rst.txt" rel="nofollow"> View page source</a>
+            <a href="../../_sources/source/users/user_sweep_job_submission.rst.txt" rel="nofollow"> View page source</a>
       </li>
   </ul>
   <hr/>
@@ -110,12 +132,12 @@
           <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
            <div itemprop="articleBody">
              
-  <section id="sweep-job-submission">
-<h1>Sweep Job Submission<a class="headerlink" href="#sweep-job-submission" title="Link to this heading"></a></h1>
+  <section id="sweep-job-submission-user">
+<h1>Sweep Job Submission (User)<a class="headerlink" href="#sweep-job-submission-user" title="Link to this heading"></a></h1>
 <p>Sumbitting a sweep job is as easy of submitting a single job. All you need to do is to create a sweep configuration file and run <cite>scripts/generate_sweep_configs.py</cite> script, to setup the sweep job. In the following sections, we will walk you through the process of setting up a sweep job.</p>
 <section id="step-1-prepare-sweep-configuration-file">
 <h2>Step 1: Prepare sweep configuration file<a class="headerlink" href="#step-1-prepare-sweep-configuration-file" title="Link to this heading"></a></h2>
-<p>This file contains all necessary information to setup the sweep job. Here is an example of a sweep configuration file (NEED TO BE UPDATED WITH THE NEW CONFIG):</p>
+<p>This file contains all necessary information to setup the sweep job. Here is an example of a sweep configuration file:</p>
 <div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">slurm_config</span><span class="p">:</span>
 <span class="w">  </span><span class="nt">output_dir</span><span class="p">:</span><span class="w">  </span><span class="c1"># &lt;--- Add your output directory path</span>
 <span class="w">  </span><span class="nt">conda_env_path</span><span class="p">:</span><span class="w"> </span><span class="c1"># &lt;--- Add your conda environment path</span>
@@ -217,7 +239,7 @@
           </div>
           <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
         <a href="interactive_run.html" class="btn btn-neutral float-left" title="Running an interactive session" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
-        <a href="../dend_m/concepts_overview.html" class="btn btn-neutral float-right" title="Concepts Overview" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
+        <a href="cifar10_tutorial.html" class="btn btn-neutral float-right" title="CIFAR10 Tutorial" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
     </div>
 
   <hr/>
