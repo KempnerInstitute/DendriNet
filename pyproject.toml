@@ -46,14 +46,11 @@ dev = [
     "setuptools",
     "wheel",
     "build",
+    "seaborn"
 ]
 
 train = [
 
-]
-
-all = [
-    "dendritic_modeling[dev,train]",
 ]
 
 docs = [
@@ -67,4 +64,9 @@ docs = [
     "sphinxcontrib-bibtex",
 
 ]
+
+all = [
+    "dendritic_modeling[dev,train, docs]",
+]
+
 
