@@ -8,8 +8,8 @@ Step 1: Prepare sweep configuration file
 
 This file contains all necessary information to setup the sweep job. Here is an example of a sweep configuration file:
 
-.. code-block:: yaml
-
+.. code-block:: yaml 
+  
   slurm_config:
     output_dir:  # <--- Add your output directory path
     conda_env_path: # <--- Add your conda environment path
@@ -103,6 +103,7 @@ After creating the sweep configuration file (let's say `sweep_params.yaml`), you
 Running this command will generate a set of configuration files and a slurm script that will run the sweep job. The configuration files will be saved in the `configs` directory, and the slurm script will be saved in the current directory.
 
 Step 3: Submit the sweep job
+----------------------------
 
 Once you have generated the sweep configuration files and the slurm script, you can submit the sweep job using the following command:
 
