@@ -1,14 +1,15 @@
 .. _examples:
+
 Examples
 ========
 
 This page contains a collection of example scripts and use cases for the Dendritic Modeling framework. These examples demonstrate the framework's capabilities and provide templates for your own experiments.
 
 Basic Examples
-------------
+--------------
 
 MNIST Classification
-~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~
 
 A simple example of training a dendritic network on MNIST:
 
@@ -58,7 +59,7 @@ A simple example of training a dendritic network on MNIST:
     print(f"Test accuracy: {test_accuracy:.4f}")
 
 Synthetic Dataset Example
-~~~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~~~~~
 
 Training a dendritic network on a synthetic dataset designed to test specific computational capabilities:
 
@@ -93,10 +94,10 @@ Training a dendritic network on a synthetic dataset designed to test specific co
     # Continue with training as in the MNIST example...
 
 Advanced Examples
----------------
+-----------------
 
 Two-Step Training
-~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~
 
 Using the two-step training strategy for more complex networks:
 
@@ -122,7 +123,7 @@ Using the two-step training strategy for more complex networks:
     )
 
 Input Transformation Network
-~~~~~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 Using an input transformation network for better feature extraction:
 
@@ -163,7 +164,7 @@ Using an input transformation network for better feature extraction:
     # Use appropriate trainer for this configuration...
 
 Branch Information Analysis
-~~~~~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 Analyzing information content in dendritic branches:
 
@@ -193,7 +194,7 @@ Analyzing information content in dendritic branches:
     plt.show()
 
 Ablation Studies
-~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~
 
 Performing ablation studies to understand branch importance:
 
@@ -218,7 +219,7 @@ Performing ablation studies to understand branch importance:
         print(f"Branch {branch_id}: Accuracy drop = {delta:.4f}")
 
 Configuration-Based Experiment
-~~~~~~~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 Running an experiment with YAML configuration:
 
@@ -285,7 +286,7 @@ Running an experiment with YAML configuration:
         }, f)
 
 Notebook Examples
---------------
+-----------------
 
 For additional examples, explore the Jupyter notebooks in the `examples` directory of the repository:
 

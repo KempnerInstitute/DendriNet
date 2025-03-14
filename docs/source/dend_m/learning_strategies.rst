@@ -22,7 +22,7 @@ of dendritic networks:
 5. **Two-Step Training with KL Divergence**: Similar to two-step, but with KL regularization
 
 Maximum Likelihood Estimation (MLE)
-----------------------------------
+-----------------------------------
 
 The MLE strategy is the most straightforward approach, applying standard backpropagation
 to train the entire network end-to-end.

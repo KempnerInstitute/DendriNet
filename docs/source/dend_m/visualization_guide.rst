@@ -1,8 +1,7 @@
 .. _visualization_guide:
 
 Network Visualization Guide
-==========================
-
+===========================
 Overview
 --------
 
@@ -39,7 +38,7 @@ Key components to visualize include:
     )
 
 Input Transformation Networks
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 Input transformation networks preprocess data before it enters the dendritic network.
 Visualizing these components helps understand how information is transformed and separated
@@ -74,7 +73,7 @@ into excitatory and inhibitory pathways.
         return fig
 
 Input Modes Comparison
-~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~~
 
 The framework supports different input transformation modes that can be visualized for comparison:
 
@@ -153,7 +152,7 @@ Visualizing the training process helps understand the tradeoffs.
         return fig
 
 Independent Head Training
-~~~~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~~~~~
 
 Visualize the effects of training excitatory and inhibitory heads independently versus jointly.
 
@@ -185,7 +184,7 @@ Visualize the effects of training excitatory and inhibitory heads independently 
         return fig
 
 Learning Strategies
-~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~
 
 Visualize and compare different learning strategies available in the framework:
 
@@ -220,10 +219,10 @@ Visualize and compare different learning strategies available in the framework:
         return fig
 
 Computational Mechanism Visualizations
--------------------------------------
+--------------------------------------
 
 Dendritic Computation
-~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~
 
 Visualize the computational mechanisms within dendritic branches to understand how
 they process information differently from traditional neural networks.
@@ -269,7 +268,7 @@ they process information differently from traditional neural networks.
             return fig
 
 Network Pruning and Ablation
-~~~~~~~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 Visualize the impact of pruning or ablating specific dendritic branches to understand
 their contribution to the network's overall performance.
@@ -311,10 +310,10 @@ their contribution to the network's overall performance.
         return fig
 
 Advanced Visualization Topics
----------------------------
+-----------------------------
 
 Animated Visualizations
-~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~~~
 
 Creating animated visualizations can help understand the training dynamics over time.
 
@@ -339,7 +338,7 @@ Creating animated visualizations can help understand the training dynamics over 
         return ani
 
 3D Visualizations
-~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~
 
 Three-dimensional visualizations can reveal patterns that might not be apparent in 2D.
 
@@ -378,7 +377,7 @@ Three-dimensional visualizations can reveal patterns that might not be apparent 
         return fig
 
 Interactive Visualizations
-~~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 Interactive visualizations allow exploring the data more dynamically.
 
@@ -420,7 +419,7 @@ Interactive visualizations allow exploring the data more dynamically.
         return fig, layer_selector, branch_selector
 
 Best Practices for Visualizations
------------------------------
+---------------------------------
 
 When creating visualizations for your dendritic network experiments, consider these best practices:
 
@@ -440,7 +439,7 @@ When creating visualizations for your dendritic network experiments, consider th
 5. **Create explanatory diagrams**: Combine visualizations with explanatory text and arrows
 
 Visualization Resources
--------------------
+-----------------------
 
 Here are some useful resources for creating effective visualizations:
 
@@ -450,110 +449,113 @@ Here are some useful resources for creating effective visualizations:
 - **NetworkX for graph visualizations**: https://networkx.org/
 - **Plotly for interactive visualizations**: https://plotly.com/python/
 
-import matplotlib.pyplot as plt
-import numpy as np
-from matplotlib.patches import Rectangle, FancyArrowPatch
 
-def create_input_network_diagram(save_path='input_network_architecture.png'):
-    plt.figure(figsize=(10, 6))
-    plt.rcParams.update({'font.size': 12})
-    
-    # Set up the figure
-    fig, ax = plt.subplots(figsize=(12, 7))
-    
-    # Colors
-    input_color = '#D3D3D3'  # light gray
-    hidden_color = '#AED6F1'  # light blue
-    excit_color = '#F5B7B1'   # light red
-    inhib_color = '#ABEBC6'   # light green
-    dendritic_color = '#FAD7A0'  # light orange
-    
-    # Layer dimensions
-    layer_width = 1.0
-    layer_height = 0.8
-    layer_spacing = 2.0
-    
-    # Draw input layer
-    ax.add_patch(Rectangle((0, 1), layer_width, layer_height, 
-                          fc=input_color, ec='black', lw=2))
-    ax.text(0.5, 1.4, 'Input', ha='center', va='center', fontweight='bold')
-    
-    # Draw hidden layers
-    for i, (size, name) in enumerate(zip([256, 128], ['Hidden Layer 1', 'Hidden Layer 2'])):
-        x_pos = (i+1) * layer_spacing
-        height = layer_height * (size/256)
-        y_pos = 1 + (layer_height - height)/2
-        
-        ax.add_patch(Rectangle((x_pos, y_pos), layer_width, height, 
-                             fc=hidden_color, ec='black', lw=2))
-        ax.text(x_pos + 0.5, 0.7, name, ha='center', va='center')
-        
-        # Connect to previous layer
-        ax.add_patch(FancyArrowPatch((i*layer_spacing + layer_width, 1.4), 
-                                   (x_pos, 1.4),
-                                   arrowstyle='->', lw=2,
-                                   connectionstyle='arc3,rad=0.0'))
-    
-    # Draw output heads
-    head_x = 3 * layer_spacing
-    
-    # Excitatory head
-    ax.add_patch(Rectangle((head_x, 2.2), layer_width, layer_height, 
-                         fc=excit_color, ec='black', lw=2))
-    ax.text(head_x + 0.5, 2.6, 'Excitatory Head', ha='center', va='center', fontweight='bold')
-    
-    # Inhibitory head
-    ax.add_patch(Rectangle((head_x, 0.0), layer_width, layer_height, 
-                         fc=inhib_color, ec='black', lw=2))
-    ax.text(head_x + 0.5, 0.4, 'Inhibitory Head', ha='center', va='center', fontweight='bold')
-    
-    # Connect feature extraction to heads
-    ax.add_patch(FancyArrowPatch((2*layer_spacing + layer_width, 1.4), 
-                               (head_x, 2.6),
-                               arrowstyle='->', lw=2, color='#E74C3C',
-                               connectionstyle='arc3,rad=0.2'))
-    
-    ax.add_patch(FancyArrowPatch((2*layer_spacing + layer_width, 1.4), 
-                               (head_x, 0.4),
-                               arrowstyle='->', lw=2, color='#229954',
-                               connectionstyle='arc3,rad=-0.2'))
-    
-    # Dendritic network
-    ax.add_patch(Rectangle((head_x + 2*layer_spacing, 1), layer_width*1.5, layer_height, 
-                         fc=dendritic_color, ec='black', lw=2))
-    ax.text(head_x + 2*layer_spacing + 0.75, 1.4, 'Dendritic Network', 
-           ha='center', va='center', fontweight='bold')
-    
-    # Connect heads to dendritic network
-    ax.add_patch(FancyArrowPatch((head_x + layer_width, 2.6), 
-                               (head_x + 2*layer_spacing, 1.4),
-                               arrowstyle='->', lw=2, color='#E74C3C',
-                               connectionstyle='arc3,rad=-0.2'))
-    
-    ax.add_patch(FancyArrowPatch((head_x + layer_width, 0.4), 
-                               (head_x + 2*layer_spacing, 1.4),
-                               arrowstyle='->', lw=2, color='#229954',
-                               connectionstyle='arc3,rad=0.2'))
-    
-    # Labels for excitatory and inhibitory paths
-    ax.text(head_x + layer_spacing, 2.2, 'Excitatory Path', 
-           ha='center', va='center', color='#E74C3C', fontweight='bold')
-    ax.text(head_x + layer_spacing, 0.7, 'Inhibitory Path', 
-           ha='center', va='center', color='#229954', fontweight='bold')
-    
-    # Feature extraction label
-    ax.text(layer_spacing, 0.0, 'Feature Extraction', ha='center', va='center', fontweight='bold')
-    
-    # Set axis properties
-    ax.set_xlim(-0.5, head_x + 3*layer_spacing)
-    ax.set_ylim(-0.5, 3.5)
-    ax.axis('off')
-    
-    plt.title('Input Transformation Network Architecture', fontsize=16, pad=20)
-    plt.tight_layout()
-    plt.savefig(save_path, dpi=300, bbox_inches='tight')
-    plt.close()
-    
-    print(f"Input network architecture diagram saved to {save_path}")
+.. code-block:: python
 
-create_input_network_diagram() 
+    import matplotlib.pyplot as plt
+    import numpy as np
+    from matplotlib.patches import Rectangle, FancyArrowPatch
+
+    def create_input_network_diagram(save_path='input_network_architecture.png'):
+        plt.figure(figsize=(10, 6))
+        plt.rcParams.update({'font.size': 12})
+        
+        # Set up the figure
+        fig, ax = plt.subplots(figsize=(12, 7))
+        
+        # Colors
+        input_color = '#D3D3D3'  # light gray
+        hidden_color = '#AED6F1'  # light blue
+        excit_color = '#F5B7B1'   # light red
+        inhib_color = '#ABEBC6'   # light green
+        dendritic_color = '#FAD7A0'  # light orange
+        
+        # Layer dimensions
+        layer_width = 1.0
+        layer_height = 0.8
+        layer_spacing = 2.0
+        
+        # Draw input layer
+        ax.add_patch(Rectangle((0, 1), layer_width, layer_height, 
+                            fc=input_color, ec='black', lw=2))
+        ax.text(0.5, 1.4, 'Input', ha='center', va='center', fontweight='bold')
+        
+        # Draw hidden layers
+        for i, (size, name) in enumerate(zip([256, 128], ['Hidden Layer 1', 'Hidden Layer 2'])):
+            x_pos = (i+1) * layer_spacing
+            height = layer_height * (size/256)
+            y_pos = 1 + (layer_height - height)/2
+            
+            ax.add_patch(Rectangle((x_pos, y_pos), layer_width, height, 
+                                fc=hidden_color, ec='black', lw=2))
+            ax.text(x_pos + 0.5, 0.7, name, ha='center', va='center')
+            
+            # Connect to previous layer
+            ax.add_patch(FancyArrowPatch((i*layer_spacing + layer_width, 1.4), 
+                                    (x_pos, 1.4),
+                                    arrowstyle='->', lw=2,
+                                    connectionstyle='arc3,rad=0.0'))
+        
+        # Draw output heads
+        head_x = 3 * layer_spacing
+        
+        # Excitatory head
+        ax.add_patch(Rectangle((head_x, 2.2), layer_width, layer_height, 
+                            fc=excit_color, ec='black', lw=2))
+        ax.text(head_x + 0.5, 2.6, 'Excitatory Head', ha='center', va='center', fontweight='bold')
+        
+        # Inhibitory head
+        ax.add_patch(Rectangle((head_x, 0.0), layer_width, layer_height, 
+                            fc=inhib_color, ec='black', lw=2))
+        ax.text(head_x + 0.5, 0.4, 'Inhibitory Head', ha='center', va='center', fontweight='bold')
+        
+        # Connect feature extraction to heads
+        ax.add_patch(FancyArrowPatch((2*layer_spacing + layer_width, 1.4), 
+                                (head_x, 2.6),
+                                arrowstyle='->', lw=2, color='#E74C3C',
+                                connectionstyle='arc3,rad=0.2'))
+        
+        ax.add_patch(FancyArrowPatch((2*layer_spacing + layer_width, 1.4), 
+                                (head_x, 0.4),
+                                arrowstyle='->', lw=2, color='#229954',
+                                connectionstyle='arc3,rad=-0.2'))
+        
+        # Dendritic network
+        ax.add_patch(Rectangle((head_x + 2*layer_spacing, 1), layer_width*1.5, layer_height, 
+                            fc=dendritic_color, ec='black', lw=2))
+        ax.text(head_x + 2*layer_spacing + 0.75, 1.4, 'Dendritic Network', 
+            ha='center', va='center', fontweight='bold')
+        
+        # Connect heads to dendritic network
+        ax.add_patch(FancyArrowPatch((head_x + layer_width, 2.6), 
+                                (head_x + 2*layer_spacing, 1.4),
+                                arrowstyle='->', lw=2, color='#E74C3C',
+                                connectionstyle='arc3,rad=-0.2'))
+        
+        ax.add_patch(FancyArrowPatch((head_x + layer_width, 0.4), 
+                                (head_x + 2*layer_spacing, 1.4),
+                                arrowstyle='->', lw=2, color='#229954',
+                                connectionstyle='arc3,rad=0.2'))
+        
+        # Labels for excitatory and inhibitory paths
+        ax.text(head_x + layer_spacing, 2.2, 'Excitatory Path', 
+            ha='center', va='center', color='#E74C3C', fontweight='bold')
+        ax.text(head_x + layer_spacing, 0.7, 'Inhibitory Path', 
+            ha='center', va='center', color='#229954', fontweight='bold')
+        
+        # Feature extraction label
+        ax.text(layer_spacing, 0.0, 'Feature Extraction', ha='center', va='center', fontweight='bold')
+        
+        # Set axis properties
+        ax.set_xlim(-0.5, head_x + 3*layer_spacing)
+        ax.set_ylim(-0.5, 3.5)
+        ax.axis('off')
+        
+        plt.title('Input Transformation Network Architecture', fontsize=16, pad=20)
+        plt.tight_layout()
+        plt.savefig(save_path, dpi=300, bbox_inches='tight')
+        plt.close()
+        
+        print(f"Input network architecture diagram saved to {save_path}")
+
+    create_input_network_diagram() 

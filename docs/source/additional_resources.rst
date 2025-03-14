@@ -110,7 +110,8 @@ Standard datasets often used in dendritic computing papers:
 
 * `Fashion-MNIST <https://github.com/zalandoresearch/fashion-mnist>`_ - Clothing item recognition
 
-Specialized datasets:
+Specialized datasets
+---------------------
 
 * `Neuromorphic-MNIST <https://www.garrickorchard.com/datasets/n-mnist>`_ - Spiking neuron version of MNIST
 
@@ -121,7 +122,7 @@ Specialized datasets:
 Videos and Lectures
 -------------------
 
-* `Dendritic Computation <https://www.youtube.com/watch?v=8h_gF_3nufE>`_ - Michael Häusser at the Bernstein Conference
+* `Dendritic Computation (Lecture) <https://www.youtube.com/watch?v=8h_gF_3nufE>`_ - Michael Häusser at the Bernstein Conference
 
 * `Cortical Microcircuits <https://www.youtube.com/watch?v=cAftEkiMUj8>`_ - Lecture by Henry Markram 
 

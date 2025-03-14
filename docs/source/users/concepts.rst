@@ -34,7 +34,7 @@ In our framework, dendritic branches are computational units that process inputs
 - Applies nonlinear transformations
 - Integrates signals locally before sending them to the soma
 
-.. figure:: /_static/dendritic_branch_concept.png
+.. figure:: figures/pdf/place_holder.pdf
    :alt: Dendritic Branch Concept
    :align: center
    :width: 500px
@@ -67,7 +67,7 @@ Biological neural networks maintain a careful balance between excitatory (positi
 - Shunting inhibition, where inhibitory inputs divide rather than subtract
 - Dynamic adaptation of excitation-inhibition balance during learning
 
-.. figure:: /_static/excitation_inhibition_concept.png
+.. figure:: figures/pdf/place_holder.pdf
    :alt: Excitation-Inhibition Balance
    :align: center
    :width: 500px
@@ -148,7 +148,7 @@ Example: XOR Problem
 
 The XOR logical operation is a classic example that requires nonlinear processing. A dendritic network can solve this efficiently:
 
-.. figure:: /_static/xor_dendritic_solution.png
+.. figure:: figures/pdf/place_holder.pdf
    :alt: XOR Dendritic Solution
    :align: center
    :width: 400px

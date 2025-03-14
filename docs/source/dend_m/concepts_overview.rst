@@ -4,7 +4,7 @@ Concepts Overview
 =================
 
 Biological Inspiration and Theoretical Foundation
-------------------------------------------------
+-------------------------------------------------
 
 Dendritic modeling draws inspiration from the complex computational capabilities of biological neurons. In the brain, neurons receive inputs through branching tree-like structures called dendrites, which perform nonlinear operations on incoming signals before they reach the cell body (soma). This dendritic computation is far more sophisticated than the simple weighted summation typically modeled in artificial neural networks.
 
@@ -16,7 +16,7 @@ The dendritic modeling framework implemented in this package aims to capture som
 4. **Compartmentalized computation**: Different segments of the dendritic tree can perform distinct operations
 
 Network Architecture
--------------------
+--------------------
 
 The initial dendritic model is designed as follows: external input data (considered as excitatory input) is fed into an excitatory/inhibitory classifier (``EINetClassifier``). This classifier model contains a single excitatory/inhibitory network (``ExcitationInhibitionNetwork``), which consists of one or more excitation-inhibition layers (``ExcitationInhibitionLayer``). Each excitation-inhibition layer has two dendritic layers (``Dendrinet``). 
 
@@ -51,7 +51,7 @@ The following figure shows the data flow to the second dendritic layer in the De
     : Dataflow diagram of the Dendrinet model for the second layer. The blue arrows represent the flow of excitatory data, and the red arrows represent the flow of inhibitory data. Each dendritic branch layer (``DendriticBranchLayer``) accepts three types of inputs: excitatory, inhibitory, and data flow from upstream layers through branch factor. 
 
 Key Computational Components
----------------------------
+----------------------------
 
 ### TopKLinear Class
 
@@ -99,7 +99,7 @@ Where m (multiplier) and b (bias) are learnable parameters. This allows:
 - More flexible nonlinear transformations than standard fixed activations
 
 Inhibitory and Excitatory Interactions
--------------------------------------
+--------------------------------------
 
 The balance between excitation and inhibition is crucial for neural computation. In this model:
 
@@ -112,7 +112,7 @@ These interactions implement several important computational principles:
 - **Selective activation**: The combination of excitation and inhibition can create highly selective response patterns
 
 Training and Learning Approaches
--------------------------------
+--------------------------------
 
 The framework supports several training strategies tailored to dendritic networks:
 
@@ -124,7 +124,7 @@ The framework supports several training strategies tailored to dendritic network
 Each approach offers different advantages in terms of training stability, final performance, and ability to learn complex dendritic computations.
 
 Benefits of Dendritic Computation
---------------------------------
+---------------------------------
 
 This architectural design captures several benefits of dendritic computation:
 
@@ -134,7 +134,7 @@ This architectural design captures several benefits of dendritic computation:
 4. **Biologically plausible computation**: The model more closely approximates the computation performed by biological neurons
 
 Advanced Computational Features
-------------------------------
+-------------------------------
 
 The dendritic modeling framework includes several advanced features:
 

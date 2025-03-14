@@ -167,7 +167,7 @@ Step 4: Install dependencies
 
 The ``requirements.txt`` file includes all the necessary dependencies:
 
-.. code-block:: text
+.. code-block:: bash
 
     numpy>=1.20.0
     pandas>=1.3.0
@@ -445,7 +445,7 @@ After setting up the framework, you can:
 3. Try training on different datasets
 4. Experiment with different dendritic architectures
 
-.. figure:: ../images/installation_workflow.png
+.. figure:: figures/pdf/place_holder.pdf
    :alt: Installation Workflow
    :width: 600px
    :align: center

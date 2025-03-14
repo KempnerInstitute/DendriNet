@@ -35,18 +35,16 @@ To quickly get started with the framework:
    source/users/concepts
    source/users/configuration
    source/users/experiment_tracking
-   source/users/visualization_guide
    source/users/interactive_run
-   source/users/sweep_job_submission
+   source/users/user_sweep_job_submission
    source/users/cifar10_tutorial
 
 .. toctree::
    :maxdepth: 2
-   :caption: Concepts and API:
+   :caption: Concepts and API
 
    source/dend_m/concepts_overview
    source/dend_m/installation_setup
-   source/dend_m/neural_models
    source/dend_m/learning_strategies
    source/dend_m/api_reference
    source/dend_m/weight_initialization
@@ -70,15 +68,13 @@ To quickly get started with the framework:
 
 .. toctree::
    :maxdepth: 2
-   :caption: Developer Guide:
+   :caption: Developer Guide
 
    source/contributing
-   source/development_setup
-   source/testing
 
 .. toctree::
    :maxdepth: 2
-   :caption: Additional Resources:
+   :caption: Additional Resources
 
    source/additional_resources
    source/glossary

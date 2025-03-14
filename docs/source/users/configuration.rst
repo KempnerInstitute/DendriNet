@@ -1,5 +1,5 @@
 Configuration System
-==================
+====================
 
 The Dendritic Modeling framework uses a flexible YAML-based configuration system to define experiment parameters. This approach allows you to:
 
@@ -9,7 +9,7 @@ The Dendritic Modeling framework uses a flexible YAML-based configuration system
 4. Share experiment setups with colleagues
 
 Basic Configuration Structure
----------------------------
+-----------------------------
 
 Configuration files are organized into several sections:
 
@@ -36,7 +36,7 @@ Configuration files are organized into several sections:
 Let's explore each section in detail:
 
 Model Configuration
------------------
+-------------------
 
 The `model` section defines the network architecture and parameters:
 
@@ -80,7 +80,7 @@ Key parameters include:
 - **input_mode**: Method for handling inputs (direct or through input network)
 
 Training Configuration
---------------------
+----------------------
 
 The `train` section defines the training process and hyperparameters:
 
@@ -121,7 +121,7 @@ Key parameters include:
 - **input_net_training**: Configuration for input transformation networks
 
 Task Configuration
-----------------
+------------------
 
 The `task` section defines the dataset and task-specific parameters:
 
@@ -140,7 +140,7 @@ The `task` section defines the dataset and task-specific parameters:
 For synthetic datasets, additional parameters may be required based on the dataset type.
 
 Experiment Tracking
------------------
+-------------------
 
 The `wandb` section configures Weights & Biases integration:
 
@@ -156,7 +156,7 @@ The `wandb` section configures Weights & Biases integration:
 Set `use_wandb: false` to disable Weights & Biases tracking.
 
 Visualization Configuration
-------------------------
+---------------------------
 
 The `visualization` section controls the generation of visualizations:
 
@@ -173,7 +173,7 @@ The `visualization` section controls the generation of visualizations:
         - ablation     # Perform and plot ablation studies
 
 Output Configuration
------------------
+--------------------
 
 The `outputs` section configures where results are saved:
 
@@ -183,7 +183,7 @@ The `outputs` section configures where results are saved:
       dir: "results/experiment1"
 
 Loading Configurations in Code
-----------------------------
+------------------------------
 
 To use configurations in your code:
 
@@ -217,7 +217,7 @@ To use configurations in your code:
     )
 
 Parameter Sweeps
---------------
+----------------
 
 For parameter sweeps, you can use the provided utility scripts:
 
@@ -248,7 +248,7 @@ A sweep parameter file might look like:
 This would generate 27 configuration files (3 branch factors × 3 learning rates × 3 batch sizes) in the specified output directory.
 
 Best Practices
-------------
+--------------
 
 1. **Version Control**: Keep configuration files in version control to track experiment changes
 2. **Comments**: Add comments to complex parameters to explain their purpose
@@ -258,7 +258,7 @@ Best Practices
 6. **Modularity**: Create base configurations that can be extended for specific experiments
 
 Example Configurations
--------------------
+----------------------
 
 The framework includes several example configurations in the `configs` directory:
 

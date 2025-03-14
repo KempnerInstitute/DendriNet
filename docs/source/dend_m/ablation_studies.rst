@@ -342,7 +342,7 @@ The framework provides functions for visualizing ablation results:
 
 This function creates a bar chart showing the impact of ablating each branch.
 
-.. figure:: ../images/branch_ablation.png
+.. figure:: figures/pdf/place_holder.pdf
    :alt: Branch Ablation Results
    :width: 600px
    :align: center
@@ -437,7 +437,7 @@ Ablation studies are a powerful tool for understanding dendritic networks in res
 
 By conducting systematic ablation studies, researchers can gain insights into the inner workings of dendritic networks and identify the key computational principles that drive their performance.
 
-.. figure:: figures/png/ablation_workflow.png
+.. figure:: figures/pdf/place_holder.pdf
    :alt: Ablation Study Workflow
    :width: 600px
    :align: center
