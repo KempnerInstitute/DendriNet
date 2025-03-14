@@ -9,6 +9,7 @@ from torchvision import datasets, transforms
 
 from torchvision.datasets import MNIST
 import torchvision.transforms as T
+from dendritic_modeling import logger  # Import logger from dendritic_modeling package
 ########################################
 # Original tasks: line, center_surround, orientation_bars, multi_xor, plus standard MNIST
 ########################################
@@ -526,13 +527,7 @@ def get_unified_datasets(task_cfg, train_cfg):
         train_ds, valid_ds, test_ds = load_mnist_as_datasets(train_valid_split=train_valid_split, data_path=data_path)
         return train_ds, valid_ds, test_ds
     elif dataset_name == "mnist_modulo10":
-        data = load_MNIST_modulo10(train_valid_split=train_valid_split, cache_dir=data_path)
-        train_ds = data['train']
-        if 'valid' in data:
-            valid_ds = data['valid']
-        else:
-            valid_ds = data['test']
-        test_ds = data['test']
+        train_ds, valid_ds, test_ds = load_MNIST_modulo10(data_path=data_path, training_split=train_valid_split)
         return train_ds, valid_ds, test_ds
     elif dataset_name == "mnist_switch2":
         data = load_MNIST_task_switch(train_valid_split=train_valid_split, cache_dir=data_path)
@@ -586,3 +581,78 @@ def split_MNIST_inputs(inputs, labels):
         ix = torch.where(labels == unique, True, False)
         input_list.append(inputs[ix])
     return input_list
+
+def load_MNIST_modulo10(data_path=None, download=True, training_split=0.8):
+    """
+    Load MNIST dataset and create a modulo 10 version where each sample is 
+    a pair of digits and the label is (digit1 + digit2) % 10.
+    
+    Args:
+        data_path (str): Path to data directory
+        download (bool): Whether to download the dataset if not found
+        training_split (float): Fraction of data to use for training
+        
+    Returns:
+        train_dataset, valid_dataset, test_dataset
+    """
+    import torch
+    from torchvision import datasets, transforms
+    from torch.utils.data import TensorDataset, random_split
+    import numpy as np
+    
+    # Standard MNIST transform
+    transform = transforms.Compose([
+        transforms.ToTensor(),
+        transforms.Normalize((0.1307,), (0.3081,))
+    ])
+    
+    # Load original MNIST
+    train_dataset = datasets.MNIST(data_path, train=True, download=download, transform=transform)
+    test_dataset = datasets.MNIST(data_path, train=False, download=download, transform=transform)
+    
+    # Extract images and labels
+    train_images = train_dataset.data.float() / 255.0
+    train_labels = train_dataset.targets
+    test_images = test_dataset.data.float() / 255.0
+    test_labels = test_dataset.targets
+    
+    # Reshape to flat vectors
+    train_images = train_images.reshape(-1, 28*28)
+    test_images = test_images.reshape(-1, 28*28)
+    
+    # Create pairs for training set
+    n_train = len(train_images)
+    rng = np.random.RandomState(42)  # Fixed seed for reproducibility
+    idx1 = rng.randint(0, n_train, size=n_train)
+    idx2 = rng.randint(0, n_train, size=n_train)
+    
+    train_pairs = torch.cat([train_images[idx1], train_images[idx2]], dim=1)
+    train_mod_labels = (train_labels[idx1] + train_labels[idx2]) % 10
+    
+    # Create pairs for test set
+    n_test = len(test_images)
+    idx1 = rng.randint(0, n_test, size=n_test)
+    idx2 = rng.randint(0, n_test, size=n_test)
+    
+    test_pairs = torch.cat([test_images[idx1], test_images[idx2]], dim=1)
+    test_mod_labels = (test_labels[idx1] + test_labels[idx2]) % 10
+    
+    # Split training data into train and validation
+    train_size = int(len(train_pairs) * training_split)
+    valid_size = len(train_pairs) - train_size
+    
+    train_data = TensorDataset(train_pairs[:train_size], train_mod_labels[:train_size])
+    valid_data = TensorDataset(train_pairs[train_size:], train_mod_labels[train_size:])
+    test_data = TensorDataset(test_pairs, test_mod_labels)
+    
+    # Use try-except to handle case where logger isn't available
+    try:
+        logger.info(f"MNIST_modulo10 dataset: {len(train_data)} training samples, "
+                   f"{len(valid_data)} validation samples, {len(test_data)} test samples")
+        logger.info(f"Each sample has {train_pairs.shape[1]} features (two concatenated MNIST digits)")
+    except (NameError, AttributeError):
+        print(f"MNIST_modulo10 dataset: {len(train_data)} training samples, "
+              f"{len(valid_data)} validation samples, {len(test_data)} test samples")
+        print(f"Each sample has {train_pairs.shape[1]} features (two concatenated MNIST digits)")
+    
+    return train_data, valid_data, test_data

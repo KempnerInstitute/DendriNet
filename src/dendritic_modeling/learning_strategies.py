@@ -946,9 +946,9 @@ class VoltageStabilizationTrainer(BaseTrainer):
                 
                 self.optimizer.step()
                 
-                # Weight decay
+                # Apply weight decay
                 if hasattr(model, 'decay_weights'):
-                    model.decay_weights()
+                    model.decay_weights(weight_decay=0.1)
                 
                 epoch_train_loss += loss.item()
             
