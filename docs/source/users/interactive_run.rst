@@ -1,7 +1,7 @@
 Running an interactive session
 ==============================
 
-This section provides a step-by-step guide to running an interactive session with the Dendritic Modeling package. Interactive sessions are useful for exploring the package's features, testing different network configurations, and visualizing the results of your experiments.
+This section provides a step-by-step guide to running an interactive session with the `dendritic_modeling` package. Interactive sessions are useful for exploring the package's features, testing different network configurations, and visualizing the results of your experiments.
 
 To run a job with the `dendritic_modeling` package, we need the following components:
 
@@ -9,7 +9,7 @@ To run a job with the `dendritic_modeling` package, we need the following compon
 - A configuration file
 - A run script 
 
-In the following sections, we will walk you through the process of setting up an interactive session with the Dendritic Modeling package.
+In the following sections, we will walk you through the process of setting up an interactive session with the `dendritic_modeling` package.
 
 Step 1: Prepare your run environment
 ------------------------------------
@@ -18,6 +18,7 @@ The first step is setting up your compute environment. It can be your laptop or 
 
 
 Step 2: Create a configuration file
+-----------------------------------
 
 Each compute job requires a configuration file that specifies the network architecture, training parameters, and other experimental settings. The following shows an example of a configuration file:
 
@@ -92,8 +93,8 @@ Each compute job requires a configuration file that specifies the network archit
 
 
 The configuration file defines three main sections:
-  - **model**: Specifies the network architecture, including the type of network (e.g., EINet), layer sizes, branch factors, synaptic connections, and reactivation settings. Notice the new options for reactivation (e.g. using either a full parametric tanh or a version with only m trainable via "param_tanh_only_m").
-  - **train**: Defines the training parameters, such as the learning strategy (e.g., "mle", "freeze_layers", "two_step", etc.), total number of epochs, batch size, and an additional list called "visualize_epochs" that determines at which epochs the visualization routines should run.
+  - **model**: Specifies the network architecture, including the type of network (e.g., EINet), layer sizes, branch factors, synaptic connections, and reactivation settings. Notice the new options for reactivation (e.g. using either a full parametric `tanh` or a version with only m trainable via *param_tanh_only_m*).
+  - **train**: Defines the training parameters, such as the learning strategy (e.g., "mle", "freeze_layers", "two_step", etc.), total number of epochs, batch size, and an additional list called *visualize_epochs* that determines at which epochs the visualization routines should run.
   - **wandb**: Contains settings for logging the experiment to Weights & Biases (W&B).
   - **visualization**: Contains settings for saving the generated plots and the list of plot types.
 
@@ -106,21 +107,21 @@ Once you have set up your environment and created the configuration file, you ca
 
 .. code-block:: bash
 
-    $ python src/dendritic_modeling/train_experiments.py configs/config_exp.yaml --output_dir results --experiment_name mnist_einet
+  $ python src/dendritic_modeling/train_experiments.py configs/config_exp.yaml --output_dir results --experiment_name mnist_einet
 
 
 The `output_dir` and `experiment_name` arguments specify the output directory and the name of the experiment, respectively. The `train_experiments.py` script will load the configuration file `config_exp.yaml` and start the training process. You can monitor the training progress and visualize the results using the W&B dashboard.
 
 
 Step 4: Monitor outputs and visualizations
--------------------------------------------
+------------------------------------------
 
 During training, the log messages will indicate:
   - The completion of each epoch.
   - When an intermediate visualization is generated (including the epoch number and the type of plot, such as weights, activations, gradients, branch_info, or ablation).
   - The final performance metrics (train, validation, and test accuracy) will be logged.
 
-Additionally, if W&B is enabled, you can monitor the training progress and visualizations on the W&B dashboard.
+Additionally, if *W&B* is enabled, you can monitor the training progress and visualizations on the W&B dashboard.
 
 For further analysis, the generated plots (including loss curves, weight maps, activation distributions, gradient maps, branch information, and ablation results) are saved in the directory specified under the visualization section of the config file.
 
