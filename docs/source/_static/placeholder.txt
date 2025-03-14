@@ -1,4 +1,0 @@
-This is a placeholder file to ensure that the _static directory exists.
-This directory will contain images, CSS, and JavaScript files used by the documentation.
-
-Images referenced in the documentation should be placed in this directory. 
