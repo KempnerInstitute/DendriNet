@@ -64,6 +64,7 @@
 </ul>
 </li>
 <li class="toctree-l2"><a class="reference internal" href="#step-2-generate-sweep-configureation-files-and-slurm-script">Step 2: Generate sweep configureation files and slurm script</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#step-3-submit-the-sweep-job">Step 3: Submit the sweep job</a></li>
 </ul>
 </li>
 </ul>
@@ -114,7 +115,66 @@
 <p>Sumbitting a sweep job is as easy of submitting a single job. All you need to do is to create a sweep configuration file and run <cite>scripts/generate_sweep_configs.py</cite> script, to setup the sweep job. In the following sections, we will walk you through the process of setting up a sweep job.</p>
 <section id="step-1-prepare-sweep-configuration-file">
 <h2>Step 1: Prepare sweep configuration file<a class="headerlink" href="#step-1-prepare-sweep-configuration-file" title="Link to this heading"></a></h2>
-<p>This file contains all necessary information to setup the sweep job. Here is an example of a sweep configuration file:</p>
+<p>This file contains all necessary information to setup the sweep job. Here is an example of a sweep configuration file (NEED TO BE UPDATED WITH THE NEW CONFIG):</p>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">slurm_config</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">output_dir</span><span class="p">:</span><span class="w">  </span><span class="c1"># &lt;--- Add your output directory path</span>
+<span class="w">  </span><span class="nt">conda_env_path</span><span class="p">:</span><span class="w"> </span><span class="c1"># &lt;--- Add your conda environment path</span>
+<span class="w">  </span><span class="nt">modules_to_load</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="s">&quot;python/3.12.5-fasrc01&quot;</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="s">&quot;cuda/12.4.1-fasrc01&quot;</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="s">&quot;cudnn/8.9.2.26_cuda12-fasrc01&quot;</span><span class="p p-Indicator">]</span><span class="w"> </span><span class="c1"># &lt;--- Modify this based on your requirements</span>
+<span class="w">  </span><span class="nt">max_concurrent_jobs</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">8</span>
+<span class="w">  </span><span class="nt">training_script</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;scripts/train_mnist.py&quot;</span>
+<span class="w">  </span><span class="nt">config_filename_init</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;test_config&quot;</span>
+
+<span class="w">  </span><span class="nt">account</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;kempner_dev&quot;</span>
+<span class="w">  </span><span class="nt">nodes</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">1</span>
+<span class="w">  </span><span class="nt">ntasks_per_node</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">1</span>
+<span class="w">  </span><span class="nt">gpus_per_node</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">1</span>
+<span class="w">  </span><span class="nt">cpus_per_task</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">10</span>
+<span class="w">  </span><span class="nt">mem</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">64GB</span>
+<span class="w">  </span><span class="nt">time</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;1:00:00&quot;</span>
+<span class="w">  </span><span class="nt">partition</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;kempner&quot;</span>
+
+
+<span class="nt">train_config</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">train</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">run_name</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;dendritic_modeling_sweep&quot;</span>
+<span class="w">    </span><span class="nt">seed</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">0</span>
+<span class="w">    </span><span class="nt">epochs</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">10</span>
+<span class="w">    </span><span class="nt">batch_size</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">32</span>
+
+<span class="w">  </span><span class="nt">wandb</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">entity</span><span class="p">:</span><span class="w">  </span><span class="c1"># &lt;---- Add your entity</span>
+<span class="w">    </span><span class="nt">project</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">dendritic_modeling_pr</span>
+<span class="w">    </span><span class="nt">group</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">debug</span>
+<span class="w">    </span><span class="nt">tags</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">mnist_1</span><span class="p p-Indicator">]</span>
+
+<span class="w">  </span><span class="nt">optimizer</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;adam&quot;</span>
+<span class="w">    </span><span class="nt">learning_rate</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">0.001</span>
+
+<span class="w">  </span><span class="nt">scheduler</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;none&quot;</span>
+
+<span class="w">  </span><span class="nt">model</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">input_dim</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">784</span>
+<span class="w">    </span><span class="nt">excitatory_layer_sizes</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">10</span><span class="p p-Indicator">]</span>
+<span class="w">    </span><span class="nt">inhibitory_layer_sizes</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">20</span><span class="p p-Indicator">]</span>
+<span class="w">    </span><span class="nt">excitatory_branch_factors</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">24</span><span class="p p-Indicator">]</span>
+<span class="w">    </span><span class="nt">inhibitory_branch_factors</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[]</span>
+<span class="w">    </span><span class="nt">reactivate</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+<span class="w">    </span><span class="nt">somatic_synapses</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+<span class="w">    </span><span class="nt">ee_synapses_per_branch_per_layer</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">24</span><span class="p p-Indicator">]</span>
+<span class="w">    </span><span class="nt">ei_synapses_per_branch_per_layer</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">100</span><span class="p p-Indicator">]</span>
+<span class="w">    </span><span class="nt">ie_synapses_per_branch_per_layer</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">1</span><span class="p p-Indicator">]</span>
+<span class="w">    </span><span class="nt">ii_synapses_per_branch_per_layer</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[]</span>
+
+<span class="nt">sweep_config</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">optimizer</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">learning_rate</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">0.001</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">0.0001</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">0.1</span><span class="p p-Indicator">]</span>
+<span class="w">  </span><span class="nt">model</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">inhibitory_layer_sizes</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[[</span><span class="nv">10</span><span class="p p-Indicator">],</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">20</span><span class="p p-Indicator">],</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">30</span><span class="p p-Indicator">]]</span>
+<span class="w">    </span><span class="nt">ee_synapses_per_branch_per_layer</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[[</span><span class="nv">24</span><span class="p p-Indicator">],</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">22</span><span class="p p-Indicator">]]</span>
+</pre></div>
+</div>
 <p>The sweep configuration file has three major sections:</p>
 <ul class="simple">
 <li><p><cite>slurm_config</cite>,</p></li>
@@ -141,7 +201,9 @@
 </pre></div>
 </div>
 <p>Running this command will generate a set of configuration files and a slurm script that will run the sweep job. The configuration files will be saved in the <cite>configs</cite> directory, and the slurm script will be saved in the current directory.</p>
-<p>Step 3: Submit the sweep job</p>
+</section>
+<section id="step-3-submit-the-sweep-job">
+<h2>Step 3: Submit the sweep job<a class="headerlink" href="#step-3-submit-the-sweep-job" title="Link to this heading"></a></h2>
 <p>Once you have generated the sweep configuration files and the slurm script, you can submit the sweep job using the following command:</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span>sbatch<span class="w"> </span>run.sh
 </pre></div>
@@ -161,7 +223,7 @@
   <hr/>
 
   <div role="contentinfo">
-    <p>&#169; Copyright 2024, Research and Engineering at Kempner.</p>
+    <p>&#169; Copyright 2025, Research and Engineering at Kempner.</p>
   </div>
 
   Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a

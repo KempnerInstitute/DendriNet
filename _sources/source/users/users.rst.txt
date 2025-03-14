@@ -86,7 +86,7 @@ Build the documentation
 
 .. code-block:: shell
 
-    pip install -e '.[docs]'
+    pip install -e '.[all]'
 
 
 - Step 2: Build the documentation

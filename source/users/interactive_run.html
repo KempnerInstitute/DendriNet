@@ -57,6 +57,7 @@
 <li class="toctree-l1"><a class="reference internal" href="users.html#build-the-documentation">Build the documentation</a></li>
 <li class="toctree-l1 current"><a class="current reference internal" href="#">Running an interactive session</a><ul>
 <li class="toctree-l2"><a class="reference internal" href="#step-1-prepare-your-run-environment">Step 1: Prepare your run environment</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#step-2-create-a-configuration-file">Step 2: Create a configuration file</a></li>
 <li class="toctree-l2"><a class="reference internal" href="#step-3-run-the-interactive-session">Step 3: Run the interactive session</a></li>
 <li class="toctree-l2"><a class="reference internal" href="#step-4-monitor-outputs-and-visualizations">Step 4: Monitor outputs and visualizations</a></li>
 </ul>
@@ -107,18 +108,20 @@
              
   <section id="running-an-interactive-session">
 <h1>Running an interactive session<a class="headerlink" href="#running-an-interactive-session" title="Link to this heading"></a></h1>
-<p>This section provides a step-by-step guide to running an interactive session with the Dendritic Modeling package. Interactive sessions are useful for exploring the package’s features, testing different network configurations, and visualizing the results of your experiments.</p>
+<p>This section provides a step-by-step guide to running an interactive session with the <cite>dendritic_modeling</cite> package. Interactive sessions are useful for exploring the package’s features, testing different network configurations, and visualizing the results of your experiments.</p>
 <p>To run a job with the <cite>dendritic_modeling</cite> package, we need the following components:</p>
 <ul class="simple">
 <li><p>A Python environment with the required dependencies installed</p></li>
 <li><p>A configuration file</p></li>
 <li><p>A run script</p></li>
 </ul>
-<p>In the following sections, we will walk you through the process of setting up an interactive session with the Dendritic Modeling package.</p>
+<p>In the following sections, we will walk you through the process of setting up an interactive session with the <cite>dendritic_modeling</cite> package.</p>
 <section id="step-1-prepare-your-run-environment">
 <h2>Step 1: Prepare your run environment<a class="headerlink" href="#step-1-prepare-your-run-environment" title="Link to this heading"></a></h2>
 <p>The first step is setting up your compute environment. It can be your laptop or an an interactive session on the cluster. You will need to get the code and install the package in your conda environment. Please refer to the <a class="reference internal" href="users.html#installation-guide"><span class="std std-ref">Installation</span></a> for detailed instructions on setting up your environment.</p>
-<p>Step 2: Create a configuration file</p>
+</section>
+<section id="step-2-create-a-configuration-file">
+<h2>Step 2: Create a configuration file<a class="headerlink" href="#step-2-create-a-configuration-file" title="Link to this heading"></a></h2>
 <p>Each compute job requires a configuration file that specifies the network architecture, training parameters, and other experimental settings. The following shows an example of a configuration file:</p>
 <div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">model</span><span class="p">:</span>
 <span class="w">  </span><span class="nt">task</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">classification</span>
@@ -190,8 +193,8 @@
 </div>
 <dl class="simple">
 <dt>The configuration file defines three main sections:</dt><dd><ul class="simple">
-<li><p><strong>model</strong>: Specifies the network architecture, including the type of network (e.g., EINet), layer sizes, branch factors, synaptic connections, and reactivation settings. Notice the new options for reactivation (e.g. using either a full parametric tanh or a version with only m trainable via “param_tanh_only_m”).</p></li>
-<li><p><strong>train</strong>: Defines the training parameters, such as the learning strategy (e.g., “mle”, “freeze_layers”, “two_step”, etc.), total number of epochs, batch size, and an additional list called “visualize_epochs” that determines at which epochs the visualization routines should run.</p></li>
+<li><p><strong>model</strong>: Specifies the network architecture, including the type of network (e.g., EINet), layer sizes, branch factors, synaptic connections, and reactivation settings. Notice the new options for reactivation (e.g. using either a full parametric <cite>tanh</cite> or a version with only m trainable via <em>param_tanh_only_m</em>).</p></li>
+<li><p><strong>train</strong>: Defines the training parameters, such as the learning strategy (e.g., “mle”, “freeze_layers”, “two_step”, etc.), total number of epochs, batch size, and an additional list called <em>visualize_epochs</em> that determines at which epochs the visualization routines should run.</p></li>
 <li><p><strong>wandb</strong>: Contains settings for logging the experiment to Weights &amp; Biases (W&amp;B).</p></li>
 <li><p><strong>visualization</strong>: Contains settings for saving the generated plots and the list of plot types.</p></li>
 </ul>
@@ -217,7 +220,7 @@
 </ul>
 </dd>
 </dl>
-<p>Additionally, if W&amp;B is enabled, you can monitor the training progress and visualizations on the W&amp;B dashboard.</p>
+<p>Additionally, if <em>W&amp;B</em> is enabled, you can monitor the training progress and visualizations on the W&amp;B dashboard.</p>
 <p>For further analysis, the generated plots (including loss curves, weight maps, activation distributions, gradient maps, branch information, and ablation results) are saved in the directory specified under the visualization section of the config file.</p>
 </section>
 </section>
@@ -233,7 +236,7 @@
   <hr/>
 
   <div role="contentinfo">
-    <p>&#169; Copyright 2024, Research and Engineering at Kempner.</p>
+    <p>&#169; Copyright 2025, Research and Engineering at Kempner.</p>
   </div>
 
   Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a

@@ -707,20 +707,20 @@ This will be used to demonstrate good performance on MNIST.</p>
 ExcitationInhibitionNetwork.</p>
 <section id="requests">
 <h3>Requests:<a class="headerlink" href="#requests" title="Link to this heading"></a></h3>
-<ol class="arabic">
-<li><p>input_mode=0:
-- The <em>first-layer</em> inhibitory net does get built with input=x,
-- Then the inhibitory net’s output is used by the excitatory net’s inhibitory synapses</p>
-<blockquote>
-<div><p>in <em>that same layer</em> (the original behavior).</p>
-</div></blockquote>
+<ol class="arabic simple">
+<li><p>input_mode=0:</p>
+<ul class="simple">
+<li><p>The <em>first-layer</em> inhibitory net does get built with input=x,</p></li>
+<li><p>Then the inhibitory net’s output is used by the excitatory net’s inhibitory synapses
+in <em>that same layer</em> (the original behavior).</p></li>
+</ul>
 </li>
-<li><p>input_mode=1 and 2:
-- Skip making the inhibitory sub-network ONLY in the <em>first layer</em>,</p>
-<blockquote>
-<div><p>but do allow the inhibitory sub-network for subsequent layers
-(if inhibitory_layer_sizes &gt; 0 for those layers).</p>
-</div></blockquote>
+<li><p>input_mode=1 and 2:</p>
+<ul class="simple">
+<li><p>Skip making the inhibitory sub-network ONLY in the <em>first layer</em>,
+but do allow the inhibitory sub-network for subsequent layers
+(if inhibitory_layer_sizes &gt; 0 for those layers).</p></li>
+</ul>
 </li>
 <li><p>We still have an MLP transform if input_mode=2 (for the first layer).</p></li>
 </ol>
@@ -1268,7 +1268,7 @@ doesn’t try to use both regular and full backward hooks on the same module.</p
   <hr/>
 
   <div role="contentinfo">
-    <p>&#169; Copyright 2024, Research and Engineering at Kempner.</p>
+    <p>&#169; Copyright 2025, Research and Engineering at Kempner.</p>
   </div>
 
   Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a

@@ -107,11 +107,13 @@
 <span class="sd">Requests:</span>
 <span class="sd">---------</span>
 <span class="sd">1) input_mode=0:</span>
+
 <span class="sd">   - The *first-layer* inhibitory net does get built with input=x,</span>
 <span class="sd">   - Then the inhibitory net&#39;s output is used by the excitatory net&#39;s inhibitory synapses </span>
 <span class="sd">     in *that same layer* (the original behavior).</span>
 
 <span class="sd">2) input_mode=1 and 2:</span>
+
 <span class="sd">   - Skip making the inhibitory sub-network ONLY in the *first layer*,</span>
 <span class="sd">     but do allow the inhibitory sub-network for subsequent layers </span>
 <span class="sd">     (if inhibitory_layer_sizes &gt; 0 for those layers).</span>
@@ -973,7 +975,7 @@
   <hr/>
 
   <div role="contentinfo">
-    <p>&#169; Copyright 2024, Research and Engineering at Kempner.</p>
+    <p>&#169; Copyright 2025, Research and Engineering at Kempner.</p>
   </div>
 
   Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
