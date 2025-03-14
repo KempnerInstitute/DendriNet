@@ -759,7 +759,298 @@ class TwoStepTrainerWithKL(BaseTrainer):
         return results
 
 
+class VoltageStabilizationTrainer(BaseTrainer):
+    """
+    A trainer that first uses a voltage stabilization loss to warm up the network,
+    then switches to the actual task loss.
+    
+    This approach helps in initializing the network by encouraging stable voltage
+    levels across different components (soma, dendrites, branches) before 
+    training on the actual task.
+    """
+    
+    def train(self, model, train_data, valid_data=None, 
+              warmup_epochs=5, maintrain_epochs=45,
+              batch_size=256, grad_clip_value=5, shuffle=True, 
+              load_best_state_dict=True, plot_losses=False, save_path=None,
+              target_voltage=0.5):
+        """
+        Train with a warm-up phase using voltage stabilization loss.
+        
+        Parameters
+        ----------
+        model : nn.Module
+            The model to train.
+        train_data : tuple or torch.utils.data.Dataset
+            The training data.
+        valid_data : tuple or torch.utils.data.Dataset, optional
+            The validation data.
+        warmup_epochs : int
+            Number of epochs to train with voltage stabilization loss.
+        maintrain_epochs : int
+            Number of epochs to train with the task loss.
+        batch_size : int
+            The batch size.
+        grad_clip_value : float
+            Clip gradients to this value.
+        shuffle : bool
+            Whether to shuffle the data.
+        load_best_state_dict : bool
+            Whether to load the best state dictionary at the end.
+        plot_losses : bool
+            Whether to plot losses.
+        save_path : str, optional
+            Path to save the model.
+        target_voltage : float
+            Target voltage for the stabilization loss (default: 0.5).
+            
+        Returns
+        -------
+        tuple
+            (train_losses, valid_losses)
+        """
+        import torch
+        import torch.nn as nn
+        import torch.nn.functional as F
+        from torch.utils.data import DataLoader, TensorDataset
+        import time
+        
+        device = next(model.parameters()).device
+        
+        # Prepare data
+        if isinstance(train_data, tuple):
+            X_train, y_train = train_data
+            train_dataset = TensorDataset(X_train, y_train)
+        else:
+            train_dataset = train_data
+            
+        train_loader = DataLoader(
+            train_dataset, batch_size=batch_size, shuffle=shuffle
+        )
+        
+        if valid_data is not None:
+            if isinstance(valid_data, tuple):
+                X_valid, y_valid = valid_data
+                valid_dataset = TensorDataset(X_valid, y_valid)
+            else:
+                valid_dataset = valid_data
+                
+            valid_loader = DataLoader(
+                valid_dataset, batch_size=batch_size, shuffle=False
+            )
+        else:
+            valid_loader = None
+        
+        # Define the task loss function
+        if hasattr(model, 'log_prob'):
+            # Use NLL for probabilistic models
+            task_loss_fn = lambda model, X, y: -model.log_prob(X, y).mean()
+        else:
+            # Use cross-entropy for deterministic classification models
+            task_loss_fn = lambda model, X, y: F.cross_entropy(model(X), y)
+        
+        # Define the voltage stabilization loss function
+        def voltage_stabilization_loss(model, X, target_voltage=0.5):
+            """
+            Calculate voltage stabilization loss to encourage 
+            stable voltage levels across the network.
+            """
+            # Forward pass to get all voltages
+            _ = model(X)  # Run forward to populate internal states
+            
+            total_loss = 0.0
+            voltage_values = []
+            
+            # Collect voltage values from each branch layer and soma
+            if hasattr(model, 'layers'):  # For ExcitationInhibitionNetwork
+                for layer in model.layers:
+                    # Get voltages from excitatory cells
+                    if hasattr(layer, 'excitatory_cells'):
+                        if hasattr(layer.excitatory_cells, 'soma_layer') and hasattr(layer.excitatory_cells.soma_layer, 'voltage'):
+                            voltage_values.append(layer.excitatory_cells.soma_layer.voltage)
+                        
+                        # Get voltages from branch layers
+                        if hasattr(layer.excitatory_cells, 'branch_layers'):
+                            for branch_layer in layer.excitatory_cells.branch_layers:
+                                if hasattr(branch_layer, 'voltage'):
+                                    voltage_values.append(branch_layer.voltage)
+                    
+                    # If available, get voltages from inhibitory cells
+                    if hasattr(layer, 'inhibitory_cells') and layer.inhibitory_cells is not None:
+                        if hasattr(layer.inhibitory_cells, 'soma_layer') and hasattr(layer.inhibitory_cells.soma_layer, 'voltage'):
+                            voltage_values.append(layer.inhibitory_cells.soma_layer.voltage)
+                        
+                        if hasattr(layer.inhibitory_cells, 'branch_layers'):
+                            for branch_layer in layer.inhibitory_cells.branch_layers:
+                                if hasattr(branch_layer, 'voltage'):
+                                    voltage_values.append(branch_layer.voltage)
+            
+            # For DendriNet models directly
+            elif hasattr(model, 'branch_layers'):
+                for branch_layer in model.branch_layers:
+                    if hasattr(branch_layer, 'voltage'):
+                        voltage_values.append(branch_layer.voltage)
+                
+                if hasattr(model, 'soma_layer') and hasattr(model.soma_layer, 'voltage'):
+                    voltage_values.append(model.soma_layer.voltage)
+            
+            # Calculate MSE loss between each voltage and target
+            for v in voltage_values:
+                if v is not None:
+                    total_loss += F.mse_loss(v, torch.ones_like(v) * target_voltage)
+            
+            # If no voltage values found, default to model output
+            if len(voltage_values) == 0:
+                outputs = model(X)
+                total_loss = F.mse_loss(outputs, torch.ones_like(outputs) * target_voltage)
+                
+            return total_loss
+        
+        # Create optimizer
+        if self.optimizer is None:
+            self.optimizer = torch.optim.Adam(model.parameters())
+        
+        # Initialize tracking variables
+        best_valid_loss = float('inf')
+        best_state_dict = None
+        train_losses = []
+        valid_losses = []
+        
+        total_epochs = warmup_epochs + maintrain_epochs
+        start_time = time.time()
+        
+        # Training loop
+        for epoch in range(total_epochs):
+            model.train()
+            epoch_train_loss = 0.0
+            
+            # Determine which loss function to use
+            is_warmup_phase = epoch < warmup_epochs
+            if is_warmup_phase:
+                loss_fn = lambda X, y: voltage_stabilization_loss(model, X, target_voltage)
+                phase = "Warmup"
+            else:
+                loss_fn = lambda X, y: task_loss_fn(model, X, y)
+                phase = "Training"
+            
+            for X_batch, y_batch in train_loader:
+                X_batch, y_batch = X_batch.to(device), y_batch.to(device)
+                
+                self.optimizer.zero_grad()
+                loss = loss_fn(X_batch, y_batch)
+                loss.backward()
+                
+                # Gradient clipping
+                if grad_clip_value > 0:
+                    torch.nn.utils.clip_grad_norm_(model.parameters(), grad_clip_value)
+                
+                self.optimizer.step()
+                
+                # Weight decay
+                if hasattr(model, 'decay_weights'):
+                    model.decay_weights()
+                
+                epoch_train_loss += loss.item()
+            
+            epoch_train_loss /= len(train_loader)
+            train_losses.append(epoch_train_loss)
+            
+            # Validation
+            if valid_loader is not None:
+                model.eval()
+                epoch_valid_loss = 0.0
+                
+                with torch.no_grad():
+                    for X_batch, y_batch in valid_loader:
+                        X_batch, y_batch = X_batch.to(device), y_batch.to(device)
+                        
+                        # Always use task loss for validation, even during warmup
+                        valid_loss = task_loss_fn(model, X_batch, y_batch)
+                        epoch_valid_loss += valid_loss.item()
+                
+                epoch_valid_loss /= len(valid_loader)
+                valid_losses.append(epoch_valid_loss)
+                
+                # Save best model
+                if epoch >= warmup_epochs and epoch_valid_loss < best_valid_loss:
+                    best_valid_loss = epoch_valid_loss
+                    best_state_dict = model.state_dict().copy()
+                    
+                    if save_path:
+                        torch.save(best_state_dict, save_path)
+                
+                if not self.suppress and (epoch + 1) % self.print_every == 0:
+                    elapsed = time.time() - start_time
+                    print(f"{phase} Epoch {epoch+1}/{total_epochs}, "
+                          f"Train Loss: {epoch_train_loss:.6f}, "
+                          f"Valid Loss: {epoch_valid_loss:.6f}, "
+                          f"Elapsed: {elapsed:.1f}s")
+            else:
+                if not self.suppress and (epoch + 1) % self.print_every == 0:
+                    elapsed = time.time() - start_time
+                    print(f"{phase} Epoch {epoch+1}/{total_epochs}, "
+                          f"Train Loss: {epoch_train_loss:.6f}, "
+                          f"Elapsed: {elapsed:.1f}s")
+            
+            # Important phase transition message
+            if is_warmup_phase and epoch == warmup_epochs - 1:
+                if not self.suppress:
+                    print(f"Switching from voltage stabilization loss to task loss")
+                    
+            # Log to wandb if available
+            if wandb.run is not None:
+                log_dict = {
+                    "epoch": epoch,
+                    "train_loss": epoch_train_loss,
+                    "phase": phase,
+                }
+                if valid_loader is not None:
+                    log_dict["valid_loss"] = epoch_valid_loss
+                wandb.log(log_dict)
+        
+        # Load best model if applicable
+        if load_best_state_dict and best_state_dict is not None:
+            model.load_state_dict(best_state_dict)
+        
+        # Plotting if requested
+        if plot_losses:
+            import matplotlib.pyplot as plt
+            plt.figure(figsize=(10, 5))
+            plt.plot(train_losses, label='Train Loss')
+            if valid_loader is not None:
+                plt.plot(valid_losses, label='Valid Loss')
+            plt.axvline(x=warmup_epochs, color='r', linestyle='--', 
+                        label='Warmup to Task Transition')
+            plt.xlabel('Epoch')
+            plt.ylabel('Loss')
+            plt.legend()
+            plt.title('Loss Curves')
+            plt.show()
+        
+        # Return just the two values expected by the calling code
+        return train_losses, valid_losses if valid_loader is not None else None
+
+
 def get_trainer(strategy, optimizer, suppress_prints=False, print_every=10):
+    """
+    Get the appropriate trainer for the specified training strategy.
+    
+    Parameters
+    ----------
+    strategy : str
+        The training strategy.
+    optimizer : torch.optim.Optimizer
+        The optimizer to use.
+    suppress_prints : bool
+        Whether to suppress prints.
+    print_every : int
+        How often to print.
+        
+    Returns
+    -------
+    BaseTrainer
+        The trainer.
+    """
     strategy = strategy.lower()
     if strategy == "mle":
         return TrainerMLE(optimizer, suppress_prints, print_every)
@@ -767,10 +1058,14 @@ def get_trainer(strategy, optimizer, suppress_prints=False, print_every=10):
         return TrainerMLE(optimizer, suppress_prints, print_every)
     elif strategy == "local_credit_assignment":
         return LocalCreditAssignment(optimizer, suppress_prints, print_every)
+    elif strategy == "only_m":
+        return TrainOnlyMReactivation(optimizer, suppress_prints, print_every)
     elif strategy == "two_step":
         return TwoStepTrainer(optimizer, suppress_prints, print_every)
     elif strategy == "two_step_kl":
         return TwoStepTrainerWithKL(optimizer, suppress_prints, print_every)
+    elif strategy == "voltage_stabilization":
+        return VoltageStabilizationTrainer(optimizer, suppress_prints, print_every)
     else:
         logger.info(f"Unrecognized strategy '{strategy}', defaulting to 'mle'.")
         return TrainerMLE(optimizer, suppress_prints, print_every)
@@ -1170,16 +1465,18 @@ class InhibitoryHeadTrainer:
                         xb = xb.to(device)
                         yb = yb.to(device)
                         
-                        # Use classification loss for validation
-                        loss = self.compute_classification_loss(xb, yb)
-                        val_loss += loss.item()
+                        # Always use task loss for validation, even during warmup
+                        valid_loss = self.compute_classification_loss(xb, yb)
+                        val_loss += valid_loss.item()
                 
                 val_loss /= len(valid_loader)
                 valid_losses.append(val_loss)
                 
-                if val_loss < best_loss:
-                    best_loss = val_loss
+                # Save best model
+                if epoch >= warmup_epochs and epoch_valid_loss < best_valid_loss:
+                    best_valid_loss = epoch_valid_loss
                     best_state = deepcopy(model.state_dict())
+                    
                     if save_path and os.path.exists(save_path):
                         torch.save(best_state, os.path.join(save_path, "best_model.pt"))
             

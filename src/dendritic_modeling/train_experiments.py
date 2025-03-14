@@ -5,14 +5,7 @@ train_experiments.py
 Main script that reads config_exp.yaml, builds the model,
 chooses a training strategy, trains, and evaluates using
 a unified data-loading function from synthetic_datasets.py.
-
-Learning Strategies:
-- mle: Standard Maximum Likelihood Estimation (default)
-- freeze_layers: Train one layer at a time, freezing others
-- two_step: Two-phase training with pretraining and main training
-- mlp_only: Train only the MLP component, then train the full model
-- dendrinet_from_mlp: Train MLP first, then use it to initialize and train the dendrinet
-
+...
 Example usage:
 python src/dendritic_modeling/train_experiments.py .vscode/config_exp.yaml --learning_strategy dendrinet_from_mlp
 """
@@ -295,118 +288,142 @@ def train_and_evaluate(
     train_cfg, visualization_cfg, run_save_path
 ):
     """
-    Train the model and evaluate its performance.
-    
-    Args:
-        model: The initialized model
-        train_ds, valid_ds, test_ds: The datasets
-        trainer: The training strategy
-        train_cfg: Training configuration
-        visualization_cfg: Visualization configuration
-        run_save_path: Directory to save results
-        
-    Returns:
-        The results dictionary from training
+    Train and evaluate a model.
     """
-    # Get learning strategy
-    learning_strategy = train_cfg.learning_strategy.lower()
+    device = next(model.parameters()).device
+    batch_size = train_cfg.batch_size
+
+    # Choose training approach based on strategy
+    strategy = train_cfg.learning_strategy
     
-    # Train the model using the appropriate strategy
-    if learning_strategy in ["two_step", "two_step_kl"]:
-        logger.info(f"Training with {learning_strategy} strategy: {train_cfg.pretrain_epochs} pretrain epochs + {train_cfg.epochs - train_cfg.pretrain_epochs} main epochs")
-        results = trainer.train(
-            model=model,
-            train_data=train_ds,
-            valid_data=valid_ds,
-            pretrain_epochs=train_cfg.pretrain_epochs,
-            maintrain_epochs=train_cfg.epochs - train_cfg.pretrain_epochs,
-            batch_size=train_cfg.batch_size,
-            grad_clip_value=train_cfg.grad_clip_value,
-            shuffle=True,
-            load_best_state_dict=True,
-            plot_losses=True,
-            save_path=run_save_path
-        )
-    elif learning_strategy == "freeze_layers":
-        logger.info(f"Training with freeze_layers strategy: {train_cfg.epochs_per_layer} epochs per layer")
-        results = trainer.train_freeze_layers(
+    train_results = {}
+    epochs_str = ''
+    
+    # Train with the appropriate strategy
+    if strategy == "freeze_layers":
+        trainer_result = trainer.train_freeze_layers(
             model=model,
             train_data=train_ds,
             valid_data=valid_ds,
             epochs_per_layer=train_cfg.epochs_per_layer,
-            batch_size=train_cfg.batch_size,
-            grad_clip_value=train_cfg.grad_clip_value,
+            batch_size=batch_size,
             shuffle=True,
-            plot_losses=True,
-            save_path=run_save_path
+            grad_clip_value=train_cfg.grad_clip_value,
+            final_tune_epochs=10
         )
-    else:
-        logger.info(f"Training with standard approach: {train_cfg.epochs} epochs")
-        results = trainer.train(
+        epochs_str = f"{train_cfg.epochs_per_layer} per layer + 10 final"
+        
+    elif strategy in ["two_step", "two_step_kl"]:
+        trainer_result = trainer.train(
+            model=model,
+            train_data=train_ds,
+            valid_data=valid_ds,
+            pretrain_epochs=train_cfg.pretrain_epochs,
+            maintrain_epochs=train_cfg.epochs,
+            batch_size=batch_size,
+            shuffle=True,
+            grad_clip_value=train_cfg.grad_clip_value,
+            save_path=os.path.join(run_save_path, "best_model.pt"),
+        )
+        epochs_str = f"{train_cfg.pretrain_epochs} pretrain + {train_cfg.epochs} main"
+        
+    elif strategy == "voltage_stabilization":
+        trainer_result = trainer.train(
+            model=model,
+            train_data=train_ds,
+            valid_data=valid_ds,
+            warmup_epochs=train_cfg.pretrain_epochs,  # Use pretrain_epochs for warmup
+            maintrain_epochs=train_cfg.epochs,
+            batch_size=batch_size,
+            shuffle=True,
+            grad_clip_value=train_cfg.grad_clip_value,
+            save_path=os.path.join(run_save_path, "best_model.pt"),
+            target_voltage=train_cfg.target_voltage if hasattr(train_cfg, 'target_voltage') else 0.5
+        )
+        epochs_str = f"{train_cfg.pretrain_epochs} warmup + {train_cfg.epochs} main"
+        
+    else:  # Default strategy: "mle"
+        trainer_result = trainer.train(
             model=model,
             train_data=train_ds,
             valid_data=valid_ds,
             epochs=train_cfg.epochs,
-            batch_size=train_cfg.batch_size,
-            grad_clip_value=train_cfg.grad_clip_value,
+            batch_size=batch_size,
             shuffle=True,
-            load_best_state_dict=True,
-            plot_losses=True,
-            save_path=run_save_path
+            grad_clip_value=train_cfg.grad_clip_value,
+            save_path=os.path.join(run_save_path, "best_model.pt"),
+        )
+        epochs_str = f"{train_cfg.epochs} total"
+    
+    # Process trainer result to extract train_losses and valid_losses
+    if isinstance(trainer_result, tuple) and len(trainer_result) == 2:
+        # If result is a tuple of (train_losses, valid_losses)
+        train_losses, valid_losses = trainer_result
+    elif isinstance(trainer_result, dict) and "train losses" in trainer_result:
+        # If result is a dictionary with "train losses" and "valid losses" keys (TwoStepTrainerWithKL)
+        train_losses = trainer_result.get("train losses", [])
+        valid_losses = trainer_result.get("valid losses", [])
+    else:
+        # Fallback - in case we can't extract losses properly
+        logger.warning(f"Unknown trainer result format from {strategy} strategy. Loss curves may not be saved.")
+        train_losses = []
+        valid_losses = []
+    
+    # Compute accuracy on train, validation, and test sets
+    train_acc = evaluate_accuracy(model, train_ds)
+    valid_acc = evaluate_accuracy(model, valid_ds)
+    test_acc = evaluate_accuracy(model, test_ds)
+    
+    # --- FIX: If evaluate_accuracy returns a tuple, extract the first element.
+    if isinstance(train_acc, (tuple, list)):
+        train_acc = train_acc[0]
+    if isinstance(valid_acc, (tuple, list)):
+        valid_acc = valid_acc[0]
+    if isinstance(test_acc, (tuple, list)):
+        test_acc = test_acc[0]
+    
+    # Record results
+    train_results.update({
+        'train_accuracy': train_acc,
+        'valid_accuracy': valid_acc,
+        'test_accuracy': test_acc,
+        'epochs': epochs_str
+    })
+    
+    # Log final results
+    logger.info(f"Final Train Accuracy: {train_acc:.4f}")
+    logger.info(f"Final Valid Accuracy: {valid_acc:.4f}")
+    logger.info(f"Final Test Accuracy: {test_acc:.4f}")
+    
+    # Save model and metrics
+    if not os.path.exists(run_save_path):
+        os.makedirs(run_save_path)
+    
+    # Save loss curves
+    if train_losses and len(train_losses) > 1:
+        plot_NLL_loss_curves(
+            train_losses,
+            valid_losses if valid_losses else [],
+            int(train_losses[-1]) if isinstance(train_losses[-1], (int, float)) else len(train_losses),
+            run_save_path
         )
     
-    # Save the final model
+    # Save model
     save_model(model, run_save_path, "final_model.pt")
     
-    # Plot loss curves if we have valid loss history
-    train_losses = results.get('train_losses', [])
-    valid_losses = results.get('valid_losses', [])
+    # Save accuracy results
+    # FIX: Pass three arguments: dictionary, output directory, and filename.
+    save_dict(train_results, run_save_path, "accuracy_results.json")
     
-    if len(train_losses) > 0:
-        logger.info("Plotting loss curves")
-        # Handle case where epochs don't match losses (can happen with freeze_layers)
-        if len(train_losses) != train_cfg.epochs:
-            logger.warning(f"Number of loss points ({len(train_losses)}) doesn't match epochs ({train_cfg.epochs})")
-            plot_epochs = len(train_losses)
-        else:
-            plot_epochs = train_cfg.epochs
-            
-        plot_NLL_loss_curves(train_losses, valid_losses, plot_epochs, run_save_path)
-    
-    # Evaluate final model performance
-    logger.info("Evaluating final model performance")
-    train_acc, valid_acc, test_acc = evaluate_accuracy(
-        model, train_ds, valid_ds, test_ds, 
-        save_path=os.path.join(run_save_path, 'performance'), 
-        filename="final",
-    )
-    logger.info(f"Final accuracy: train={train_acc:.4f}, valid={valid_acc:.4f}, test={test_acc:.4f}")
-    
-    # Log to W&B if initialized
+    # Log to wandb if configured
     if wandb.run is not None:
         wandb.log({
             "final_train_acc": train_acc,
             "final_valid_acc": valid_acc,
-            "final_test_acc": test_acc
+            "final_test_acc": test_acc,
         })
     
-    # Create visualizations if enabled
-    if hasattr(visualization_cfg, 'enabled') and visualization_cfg.enabled:
-        logger.info("Creating visualizations")
-        try:
-            plot_manager = PlotManager(
-                model=model,
-                train_data=train_ds,
-                valid_data=valid_ds,
-                test_data=test_ds,
-                save_path=os.path.join(run_save_path, 'visualizations'),
-                plots=visualization_cfg.plots
-            )
-            plot_manager.create_visualizations()
-        except Exception as e:
-            logger.error(f"Error creating visualizations: {e}")
-    
-    return results
+    return train_results, train_losses, valid_losses
 
 
 def train_sequential_input_net(model_cfg, train_cfg, task_cfg, train_ds, valid_ds, test_ds, run_save_path):
@@ -854,9 +871,9 @@ def train_and_evaluate_main(config_path, args=None):
         )
         # Evaluate final model
         results = {
-            "train_acc": evaluate_accuracy(model, train_ds),
-            "valid_acc": evaluate_accuracy(model, valid_ds),
-            "test_acc": evaluate_accuracy(model, test_ds)
+            "train_acc": evaluate_accuracy(model, train_ds)[0],
+            "valid_acc": evaluate_accuracy(model, valid_ds)[0],
+            "test_acc": evaluate_accuracy(model, test_ds)[0]
         }
     else:
         logger.info("Using standard training mode")
@@ -898,7 +915,7 @@ if __name__ == '__main__':
     parser.add_argument("--output_dir", help="Override output directory specified in config.")
     parser.add_argument("--run_name", help="Override run name specified in config.")
     parser.add_argument("--learning_strategy", 
-                       choices=["mle", "freeze_layers", "two_step", "two_step_kl"],
+                       choices=["mle", "freeze_layers", "two_step", "two_step_kl", "voltage_stabilization"],
                        help="Override learning strategy specified in config.")
     
     args = parser.parse_args()

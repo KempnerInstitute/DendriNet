@@ -35,7 +35,7 @@ model:
         output_dim: 128             # Output dimension for both excitatory and inhibitory pathways
         
 train:
-  learning_strategy: mle #"mle", "freeze_layers", "local_credit_assignment", "two_step", "two_step_kl"
+  learning_strategy: mle # Options: "mle", "freeze_layers", "local_credit_assignment", "two_step", "two_step_kl", "voltage_stabilization"
   run_name: mnist_einet
   seed: 0 
   train_valid_split: 0.8
@@ -44,8 +44,13 @@ train:
   batch_size: 1024  # Smaller batch size for better generalization
   grad_clip_value: 5  # Reasonable gradient clipping
   epochs_per_layer: 50  ## this is only for "freeze_layers" and any other method which has sequential single layer training
-  pretrain_epochs: 10   ## for "two_step"
+  pretrain_epochs: 10   ## For "two_step" and warmup phase of "voltage_stabilization"
+  
+  # Voltage stabilization parameters
+  target_voltage: 0.5   # Target voltage for voltage stabilization warm-up (default 0.5)
+  
   weight_decay_rate: 0.1  # Standard weight decay
+  
   # Input network training configuration
   input_net_training:
     training_mode: "sequential"     # "joint" (train everything together) or "sequential" (train input_net first, then dendrinet)

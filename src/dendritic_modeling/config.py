@@ -77,6 +77,11 @@ class TrainConfig(BaseConfig):
     grad_clip_value: float = 5.0
     epochs_per_layer: int = 50
     pretrain_epochs: int = 50
+    
+    # Voltage stabilization parameters
+    target_voltage: float = 0.5  # Target voltage for voltage stabilization warm-up
+    
+    # Input network training configuration
     input_net_training: dict = field(default_factory=dict)
 
 @dataclass

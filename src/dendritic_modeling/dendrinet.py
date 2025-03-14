@@ -419,6 +419,9 @@ class DendriticBranchLayer(nn.Module):
             gradient_scaler.register_reactivation_inverse(self.reactivation)
         self.reactivate = reactivate
 
+        # Add voltage property to store intermediate values for voltage stabilization loss
+        self.voltage = None
+
         self.initialize()
     
     def initialize(self):
@@ -466,7 +469,15 @@ class DendriticBranchLayer(nn.Module):
                 denominator = denominator + self.branch_inhibition(inhibitory_input)
         # current divided by conductance is voltage
         voltage = numerator / denominator
-        return self.reactivation(voltage) if self.reactivate else voltage
+        
+        # Store voltage for voltage stabilization loss
+        self.voltage = voltage
+        
+        # Apply reactivation if enabled
+        if self.reactivate:
+            return self.reactivation(voltage)
+        else:
+            return voltage
 
     def get_weights(self):
         if self.input_inhibitory:
