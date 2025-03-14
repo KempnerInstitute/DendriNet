@@ -14,7 +14,7 @@ release = '0.1.0'
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#project-information
 
 project = 'dendritic_modeling'
-copyright = '2024, Research and Engineering at Kempner'
+copyright = '2025, Research and Engineering at Kempner'
 author = 'Research and Engineering at Kempner'
 
 # -- General configuration ---------------------------------------------------

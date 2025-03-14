@@ -7,11 +7,13 @@ ExcitationInhibitionNetwork.
 Requests:
 ---------
 1) input_mode=0:
+
    - The *first-layer* inhibitory net does get built with input=x,
    - Then the inhibitory net's output is used by the excitatory net's inhibitory synapses 
      in *that same layer* (the original behavior).
 
 2) input_mode=1 and 2:
+
    - Skip making the inhibitory sub-network ONLY in the *first layer*,
      but do allow the inhibitory sub-network for subsequent layers 
      (if inhibitory_layer_sizes > 0 for those layers).
