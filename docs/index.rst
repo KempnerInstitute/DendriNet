@@ -1,18 +1,13 @@
-dendritic_modeling
-==================
+Dendritic Modeling Framework
+============================
+*A Python framework for creating, training, and analyzing neural networks with dendritic-inspired architectures*
 
-*The Dendritic Modeling Package provides a neural network framework that emulates biological neuron dynamics, enabling advanced probabilistic models with dendritic-inspired computations.*
+.. image:: figures/png/dendritic_diagram.png
+   :width: 400
+   :alt: Dendritic neuron diagram
 
-.. figure:: figures/pdf/landing_page_1.pdf
-   :width: 100%
-   :alt: Dendritic Modeling Package Overview
-   :align: center
-   :name: landing_page_1
 
-Dendritic Modeling is a powerful neural network library designed to simulate complex dendritic computations inspired by biological neurons. This package provides an innovative approach to understanding how neurons integrate excitatory and inhibitory signals at the branch and soma levels, offering users a flexible platform to explore dendritic processing in artificial neural networks. By mimicking the nuanced interactions within real neurons, Dendritic Modeling enables researchers to investigate how dynamic, localized computations influence learning and behavior in neural systems. The package supports modular network construction, fine-grained parameter control, and customizable reactivation functions, making it highly adaptable to diverse experimental setups.
-
-Ideal for neuroscience researchers, Dendritic Modeling integrates seamlessly with PyTorch, leveraging the familiar tools and scalability of this widely-used deep learning framework. The package includes an excitation-inhibition network architecture, which models intricate interactions between excitatory and inhibitory neurons, and a probabilistic classification layer, designed to support both deterministic and stochastic predictions. Comprehensive documentation, including tutorials and API references, makes Dendritic Modeling package accessible to users at all levels, from beginners to experienced researchers aiming to bridge the gap between artificial intelligence and biological plausibility.
-
+This documentation provides comprehensive information about the dendritic modeling framework, its theoretical foundations, implementation details, and practical usage guides.
 
 .. toctree::
    :maxdepth: 2
@@ -20,40 +15,75 @@ Ideal for neuroscience researchers, Dendritic Modeling integrates seamlessly wit
 
    about
 
+
+Getting Started
+---------------
+
+To quickly get started with the framework:
+
+1. :ref:`Install the package <installation_section>`
+2. :ref:`Follow the quickstart guide <quickstart>`
+3. :ref:`Explore examples <examples>`
+
 .. toctree::
    :maxdepth: 2
-   :caption: Users Guide
+   :caption: User Guide
 
-   source/users/users
+   source/users/installation
+   source/users/quickstart
+   source/users/examples
+   source/users/concepts
+   source/users/configuration
+   source/users/experiment_tracking
    source/users/interactive_run
-   source/users/sweep_job_submission
-
+   source/users/user_sweep_job_submission
+   source/users/cifar10_tutorial
 
 .. toctree::
    :maxdepth: 2
-   :caption: Dendritic Modeling
+   :caption: Concepts and API
 
    source/dend_m/concepts_overview
+   source/dend_m/installation_setup
+   source/dend_m/learning_strategies
+   source/dend_m/api_reference
+   source/dend_m/weight_initialization
+   source/dend_m/visualization_guide
+   source/dend_m/topk_linear
+   source/dend_m/synthetic_datasets
+   source/dend_m/output_handling
+   source/dend_m/sweep_job_submission
+   source/dend_m/network_structure
+   source/dend_m/network_structures
+   source/dend_m/gradient_scaling
+   source/dend_m/experiment_tracking
+   source/dend_m/evaluation_visualization
+   source/dend_m/contributing
+   source/dend_m/configuration_system
+   source/dend_m/activation_functions
+   source/dend_m/ablation_studies
+   source/dend_m/ablation_information_analysis
+   source/dendritic_modeling
 
 
 .. toctree::
    :maxdepth: 2
-   :caption: References
-  
-   source/users/references
+   :caption: Developer Guide
 
+   source/contributing
 
 .. toctree::
    :maxdepth: 2
-   :caption: Appendix and Resources
-   
+   :caption: Additional Resources
+
    source/additional_resources
    source/glossary
-  
+   source/references
 
-.. toctree::
-   :maxdepth: 2
-   :caption: API Reference
+Indices and tables
+==================
 
-   source/dendritic_modeling
+* :ref:`genindex`
+* :ref:`modindex`
+* :ref:`search`
 

@@ -57,6 +57,8 @@ napoleon_use_param = True
 napoleon_use_rtype = True
 napoleon_preprocess_types = False
 napoleon_type_aliases = None
+autosectionlabel_prefix_document = True
+
 
 bibtex_bibfiles = ['refs.bib']
 
