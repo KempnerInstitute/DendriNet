@@ -1,10 +1,10 @@
 Key Concepts
-===========
+============
 
 This page explains the fundamental concepts behind dendritic computing and how they are implemented in the Dendritic Modeling framework.
 
 Biological Background
--------------------
+---------------------
 
 In biological neurons, dendrites are branch-like structures that receive inputs from other neurons. Unlike the simplified model used in artificial neural networks, where a neuron is treated as a single computational unit, real neurons have complex dendritic trees with thousands of branches that perform sophisticated computations before signals reach the cell body (soma).
 
@@ -21,12 +21,12 @@ Key properties of biological dendrites include:
 5. **Excitation-Inhibition Balance**: Excitatory and inhibitory inputs interact in dendrites to control neural activity.
 
 Artificial Dendritic Networks
----------------------------
+-----------------------------
 
 The Dendritic Modeling framework implements artificial neural networks inspired by these biological principles. Here are the key concepts:
 
 Dendritic Branches
-~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~
 
 In our framework, dendritic branches are computational units that process inputs before sending signals to the cell body. Each branch:
 
@@ -42,7 +42,7 @@ In our framework, dendritic branches are computational units that process inputs
    Conceptual illustration of a dendritic branch with sparse connectivity to inputs
 
 Sparse Connectivity (TopK)
-~~~~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 Real neurons don't connect to all possible inputs - they form specific, sparse connections. We implement this through the `TopKLinear` layer, which:
 
@@ -59,7 +59,7 @@ Real neurons don't connect to all possible inputs - they form specific, sparse c
     sparse_layer = TopKLinear(in_features=100, out_features=50, K=10)
 
 Excitation-Inhibition Balance
-~~~~~~~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 Biological neural networks maintain a careful balance between excitatory (positive) and inhibitory (negative) inputs. Our framework implements this through:
 
@@ -75,7 +75,7 @@ Biological neural networks maintain a careful balance between excitatory (positi
    Interaction between excitatory and inhibitory inputs in a dendritic branch
 
 Nonlinear Activation Functions
-~~~~~~~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 To model the nonlinear response properties of dendrites, we implement specialized activation functions:
 
@@ -83,7 +83,7 @@ To model the nonlinear response properties of dendrites, we implement specialize
 - **Shunting Inhibition**: Division-based inhibition rather than subtraction
 
 Branch-Specific Learning
-~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~~~~
 
 Dendritic branches can learn independently, allowing specialization for different input patterns:
 
@@ -92,7 +92,7 @@ Dendritic branches can learn independently, allowing specialization for differen
 - The soma integrates information from specialized branches
 
 Gradient Flow in Dendritic Networks
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 Training dendritic networks presents unique challenges:
 
@@ -103,7 +103,7 @@ Training dendritic networks presents unique challenges:
 Our framework implements specialized learning strategies and gradient scaling methods to address these challenges.
 
 Comparison with Traditional ANNs
-------------------------------
+--------------------------------
 
 Traditional ANNs vs. Dendritic Networks:
 
@@ -126,7 +126,7 @@ Traditional ANNs vs. Dendritic Networks:
 +---------------------------+-------------------------------------+---------------------------------------+
 
 Theoretical Advantages of Dendritic Networks
------------------------------------------
+--------------------------------------------
 
 Dendritic networks offer several theoretical advantages:
 
@@ -144,7 +144,7 @@ Research has shown that dendritic networks can efficiently solve problems that r
 - Nonlinear feature binding
 
 Example: XOR Problem
-~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~
 
 The XOR logical operation is a classic example that requires nonlinear processing. A dendritic network can solve this efficiently:
 
@@ -156,7 +156,7 @@ The XOR logical operation is a classic example that requires nonlinear processin
    Dendritic solution to the XOR problem using branch-specific processing
 
 Practical Applications
--------------------
+----------------------
 
 Dendritic networks are particularly suitable for:
 
@@ -167,7 +167,7 @@ Dendritic networks are particularly suitable for:
 5. **Neuromorphic Hardware Implementation**: Matches well with emerging hardware architectures
 
 Further Reading
-------------
+---------------
 
 For more detailed information on the theoretical background of dendritic computing, refer to:
 

@@ -4,7 +4,7 @@ Experiment Tracking
 The Dendritic Modeling framework provides comprehensive tools for tracking experiments, logging results, and visualizing outcomes. This guide explains how to use these features effectively.
 
 Logging System
-------------
+--------------
 
 The framework includes a built-in logging system that records important information during training and evaluation:
 
@@ -24,7 +24,7 @@ The framework includes a built-in logging system that records important informat
 By default, logs are written to both console and a file called `dendritic_modeling.log` in your working directory.
 
 Configuring the Logger
-~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~~
 
 You can customize the logging behavior:
 
@@ -52,7 +52,7 @@ You can customize the logging behavior:
     logger.addHandler(experiment_handler)
 
 Local Experiment Tracking
------------------------
+-------------------------
 
 For basic experiment tracking, the framework provides utilities to save results locally:
 
@@ -89,7 +89,7 @@ For basic experiment tracking, the framework provides utilities to save results 
 This saves a structured JSON file that you can later analyze.
 
 Visualizing Local Results
-~~~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~~~~~
 
 The framework includes visualization utilities to plot results:
 
@@ -106,12 +106,12 @@ The framework includes visualization utilities to plot results:
     )
 
 Integration with Weights & Biases
--------------------------------
+---------------------------------
 
 For more advanced experiment tracking, the framework integrates with Weights & Biases (wandb):
 
 Setting Up Weights & Biases
-~~~~~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 1. Install wandb:
 
@@ -151,7 +151,7 @@ Setting Up Weights & Biases
           )
 
 Logging Metrics to Weights & Biases
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 During training, log metrics to wandb:
 
@@ -172,7 +172,7 @@ During training, log metrics to wandb:
             })
 
 Logging Model Architecture
-~~~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 Log the model architecture to wandb:
 
@@ -183,7 +183,7 @@ Log the model architecture to wandb:
         wandb.watch(model, log="all", log_freq=100)
 
 Saving and Logging Artifacts
-~~~~~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 Save model checkpoints and visualizations as wandb artifacts:
 
@@ -223,7 +223,7 @@ Save model checkpoints and visualizations as wandb artifacts:
             })
 
 Running Sweeps with Weights & Biases
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 Wandb supports parameter sweeps for hyperparameter optimization:
 
@@ -269,10 +269,10 @@ Wandb supports parameter sweeps for hyperparameter optimization:
       wandb.agent(sweep_id, train_sweep, count=9)  # 9 combinations in our grid
 
 Comparing Experiments
-------------------
+---------------------
 
 Analyzing Experiment Results
-~~~~~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 The framework provides utilities to compare multiple experiments:
 
@@ -311,7 +311,7 @@ The framework provides utilities to compare multiple experiments:
 With Weights & Biases, you can use their dashboard for more advanced comparisons.
 
 Reproducibility
--------------
+---------------
 
 To ensure experiment reproducibility:
 
@@ -347,7 +347,7 @@ To ensure experiment reproducibility:
 3. Version control your code and configurations
 
 Best Practices
-------------
+--------------
 
 1. **Systematic Naming**: Use consistent naming conventions for experiments
 2. **Hyperparameter Tracking**: Always record all hyperparameters used

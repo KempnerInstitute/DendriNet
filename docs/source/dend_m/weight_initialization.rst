@@ -1,7 +1,7 @@
 .. _weight_initialization:
 
 Weight Initialization Methods
-===========================
+=============================
 
 Proper weight initialization is critical for training dendritic networks successfully. This document explains the initialization methods used in the dendritic modeling framework and their importance for dendritic computation.
 
@@ -18,7 +18,7 @@ Dendritic networks have unique initialization requirements due to:
 The framework provides several initialization methods that address these challenges, with specific consideration for the selective activation patterns in dendritic branches.
 
 TopKLinear Initialization
------------------------
+-------------------------
 
 The ``TopKLinear`` layer, which models selective synaptic activation in dendrites, has specialized initialization options that can be selected through the ``topk_init_method`` parameter:
 
@@ -88,7 +88,7 @@ Implementation details:
         return weight
 
 Xavier vs. Kaiming Initialization
--------------------------------
+---------------------------------
 
 For dendritic networks, the choice between Xavier and Kaiming initialization depends on the activation functions and network depth:
 
@@ -105,7 +105,7 @@ For dendritic networks, the choice between Xavier and Kaiming initialization dep
    - Better for deeper networks
 
 The init_gain Parameter
----------------------
+-----------------------
 
 The ``init_gain`` parameter scales the standard deviation or bounds of the initialization:
 
@@ -124,7 +124,7 @@ Guidelines for different activation functions:
 - For flatter ParametricTanh (lower m): gain ≈ 1.2-1.5
 
 Inhibitory Weight Initialization
-------------------------------
+--------------------------------
 
 Inhibitory connections often require different initialization to maintain proper excitation-inhibition balance. The framework provides the ``init_inhib_offset`` parameter:
 
@@ -153,7 +153,7 @@ Implementation:
         nn.init.normal_(weight, mean=0.0, std=std)
 
 Sparse Initialization for TopK
-----------------------------
+------------------------------
 
 For TopKLinear layers, standard initialization methods may not be optimal due to the sparse connectivity pattern. The sparse_normal method adjusts the scale based on the number of active connections:
 
@@ -187,7 +187,7 @@ For TopKLinear layers, standard initialization methods may not be optimal due to
 This accounts for the fact that during forward propagation, only k out of fan_in inputs will be active for each output.
 
 BlockLinear Initialization
-------------------------
+--------------------------
 
 For BlockLinear layers, which handle information flow between branches, initialization needs to consider the block structure:
 
@@ -227,7 +227,7 @@ For BlockLinear layers, which handle information flow between branches, initiali
         return weight * mask
 
 Initialization of ParametricTanh Parameters
-----------------------------------------
+-------------------------------------------
 
 The learnable parameters in ParametricTanh activations (m and b) also require careful initialization:
 
@@ -252,7 +252,7 @@ These values strongly influence the initial response properties of dendritic bra
    - The optimal value depends on the distribution of pre-activation values
 
 Best Practices for Initialization
--------------------------------
+---------------------------------
 
 For optimal performance when training dendritic networks:
 

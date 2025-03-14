@@ -10,7 +10,7 @@ Prerequisites
 
 Before starting this tutorial, make sure you have:
 - Installed the dendritic modeling package and its dependencies
-- Set up a conda environment as described in the :ref:`installation_guide`
+- Set up a conda environment as described in the :ref:`installation_section`
 - Basic familiarity with the concepts described in :ref:`concept_overview`
 
 Step 1: Prepare the configuration file
@@ -93,7 +93,7 @@ Let's examine the key differences from MNIST configuration:
 4. **Batch size**: Larger batch size for better gradient estimates
 
 Step 2: Run the training script
-------------------------------
+-------------------------------
 
 Execute the following command to start training:
 
@@ -108,7 +108,7 @@ This will:
 4. Save the results in the output directory
 
 Step 3: Monitor training progress
---------------------------------
+---------------------------------
 
 During training, you can monitor:
 - Training and validation loss/accuracy in the console output
@@ -116,7 +116,7 @@ During training, you can monitor:
 - Generated visualizations in the output directory
 
 Step 4: Analyze results
----------------------
+-----------------------
 
 After training completes, you can analyze the results:
 
@@ -130,7 +130,7 @@ After training completes, you can analyze the results:
 3. **Learning dynamics**: Analyze how loss and accuracy changed during training
 
 Optimizing for CIFAR10
----------------------
+----------------------
 
 CIFAR10 is more challenging than MNIST. Here are some tips for improving performance:
 
@@ -148,7 +148,7 @@ CIFAR10 is more challenging than MNIST. Here are some tips for improving perform
    - Although not directly supported in the config, you can modify the dataset loading to include data augmentation
 
 Advanced: Adding Data Augmentation
---------------------------------
+----------------------------------
 
 For improved performance, you can add data augmentation by modifying the dataset loading code:
 
@@ -174,7 +174,7 @@ For improved performance, you can add data augmentation by modifying the dataset
 2. Use the modified script for training with augmentation
 
 Comparison with Standard Neural Networks
---------------------------------------
+----------------------------------------
 
 It's instructive to compare dendritic networks with standard neural networks on CIFAR10:
 
@@ -183,7 +183,7 @@ It's instructive to compare dendritic networks with standard neural networks on 
 3. **Interpretability**: The branch structure offers additional interpretability by examining branch-specific activities
 
 Troubleshooting
--------------
+---------------
 
 Common issues when training on CIFAR10:
 

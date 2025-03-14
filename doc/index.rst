@@ -1,7 +1,7 @@
 .. Dendritic Modeling documentation master file
 
 Welcome to Dendritic Modeling's Documentation
-============================================
+=============================================
 
 .. image:: _static/dendritic_network_banner.png
    :alt: Dendritic Network Illustration
@@ -14,7 +14,7 @@ Welcome to Dendritic Modeling's Documentation
    This framework is designed for researchers in computational neuroscience, machine learning, and artificial intelligence interested in biologically-inspired computing.
 
 Key Features
------------
+------------
 
 * **Biologically-inspired architectures**: Models with dendritic branching structures
 * **Excitation-Inhibition Networks**: Separate excitatory and inhibitory pathways
@@ -23,7 +23,7 @@ Key Features
 * **Configurable experiments**: YAML-based experiment configuration
 
 Getting Started
---------------
+---------------
 
 .. toctree::
    :maxdepth: 1
@@ -82,7 +82,7 @@ If you use this framework in your research, please cite:
 See :doc:`about` for more information on the project and its contributors.
 
 Indices and Tables
------------------
+------------------
 
 * :ref:`genindex`
 * :ref:`modindex`

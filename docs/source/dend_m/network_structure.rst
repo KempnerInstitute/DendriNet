@@ -1,7 +1,7 @@
 .. _network_structure:
 
 Network Structure and Input Modes
-===============================
+=================================
 
 The dendritic modeling framework provides a flexible architecture that can be configured in various ways. This document explains the network structure and the different input processing modes available.
 
@@ -18,7 +18,7 @@ The dendritic network architecture consists of several key components:
 The framework allows for different configurations of these components, particularly in how inputs are processed before entering the dendritic layers.
 
 Network Architecture
------------------
+--------------------
 
 The core network architecture is defined by the following parameters:
 
@@ -45,7 +45,7 @@ These parameters define:
 6. **output_dim**: Dimension of the output (e.g., number of classes for classification)
 
 ExcitationInhibitionNetwork
--------------------------
+---------------------------
 
 The ``ExcitationInhibitionNetwork`` is the main network class that implements the excitatory-inhibitory architecture:
 
@@ -68,7 +68,7 @@ The ``ExcitationInhibitionNetwork`` is the main network class that implements th
 The network consists of a sequence of ``ExcitationInhibitionLayer`` instances, each containing excitatory and inhibitory dendritic networks.
 
 Input Modes
----------
+-----------
 
 One of the most important configuration options is the ``input_mode`` parameter, which determines how inputs are processed before entering the dendritic layers:
 
@@ -99,7 +99,7 @@ The framework supports three input modes:
    - Requires more careful training
 
 Input Mode 0: Raw Input
----------------------
+-----------------------
 
 In input mode 0, the raw inputs are passed directly to the dendritic layers:
 
@@ -125,7 +125,7 @@ This mode is suitable when:
 - You want to ensure the dendritic layers see the raw input patterns
 
 Input Mode 1: Linear Transform
----------------------------
+------------------------------
 
 In input mode 1, the input is transformed through a linear layer:
 
@@ -153,7 +153,7 @@ This mode is useful when:
 - You want to maintain a relatively direct connection to the input data
 
 Input Mode 2: Network Transform
-----------------------------
+-------------------------------
 
 In input mode 2, the input is transformed through a more complex network:
 
@@ -181,7 +181,7 @@ This mode is suitable when:
 - The task benefits from hierarchical feature processing
 
 Input Network Configuration
-------------------------
+---------------------------
 
 When using input mode 2, you can configure the input network through the ``input_net_dict`` parameter:
 
@@ -260,7 +260,7 @@ Implementation details:
             return self.model(x)
 
 Sequential Input Network Training
-------------------------------
+---------------------------------
 
 When using input mode 2, you can enable sequential training of the input network:
 
@@ -280,7 +280,7 @@ With sequential training:
 This approach can lead to more stable training and better final performance, especially for complex datasets.
 
 Choosing the Right Input Mode
----------------------------
+-----------------------------
 
 The choice of input mode depends on the specific task and data:
 
@@ -300,7 +300,7 @@ The choice of input mode depends on the specific task and data:
    - Tasks requiring sophisticated feature extraction before dendritic processing
 
 Combining with Other Configuration Options
----------------------------------------
+------------------------------------------
 
 The input mode should be considered in relation to other configuration options:
 
@@ -317,7 +317,7 @@ The input mode should be considered in relation to other configuration options:
    - Input mode 2 may allow for shallower dendritic networks
 
 Example Complete Configuration
-----------------------------
+------------------------------
 
 Here's an example of a complete configuration with input mode 2:
 

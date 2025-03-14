@@ -1,7 +1,7 @@
 .. _learning_strategies:
 
 Learning Strategies
-==================
+===================
 
 Overview
 --------
@@ -10,7 +10,7 @@ This document describes the learning strategies available in the dendritic model
 for training neural networks with dendritic-inspired architectures.
 
 Available Learning Strategies
-----------------------------
+-----------------------------
 
 The framework provides several learning strategies tailored to the unique characteristics
 of dendritic networks:
@@ -52,7 +52,7 @@ Key features of MLE training:
 - Supports both probabilistic and deterministic models
 
 Freeze Layers Strategy
--------------------
+----------------------
 
 The freeze layers strategy trains the network one layer at a time, starting from the input layer
 and progressively moving to deeper layers.
@@ -82,7 +82,7 @@ Key benefits of the freeze layers approach:
 - Implements a form of curriculum learning
 
 Local Credit Assignment
---------------------
+-----------------------
 
 The local credit assignment strategy trains each layer with a locally-computed loss,
 reducing reliance on backpropagating gradients through the entire network.
@@ -111,7 +111,7 @@ Key characteristics:
 - Well-suited for networks with many layers
 
 Two-Step Training
---------------
+-----------------
 
 The two-step training strategy first trains a simplified model, then uses this model
 to initialize parts of the full dendritic network.
@@ -141,7 +141,7 @@ Key aspects of two-step training:
 - Provides a good initialization for complex architectures
 
 Two-Step Training with KL Divergence
----------------------------------
+------------------------------------
 
 This strategy extends the two-step approach by using KL divergence to ensure
 the dendritic network remains close to the auxiliary network's behavior.
@@ -172,7 +172,7 @@ Benefits of the KL approach:
 - Provides regularization for the dendritic network
 
 Input Network Training Strategies
--------------------------------
+---------------------------------
 
 When using input transformation networks with the dendritic model, several specialized
 training strategies are available:
@@ -195,7 +195,7 @@ training strategies are available:
     }
 
 Sequential vs. Joint Training
-~~~~~~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 Input networks can be trained either before the dendritic network (sequential)
 or simultaneously with it (joint).
@@ -251,7 +251,7 @@ or simultaneously with it (joint).
         trainer.train(model, train_ds, valid_ds, epochs=50)
 
 Independent Head Training
-~~~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~~~~~
 
 When the input transformation network has separate heads for excitatory and inhibitory
 pathways, they can be trained with different objectives.
@@ -290,7 +290,7 @@ Available objectives for inhibitory head:
 - **Combined**: Weighted sum of classification and diversity
 
 Using Pre-trained Input Networks
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 Pre-trained networks can be used as feature extractors, particularly for image data.
 
@@ -331,7 +331,7 @@ Pre-trained networks can be used as feature extractors, particularly for image d
             return create_input_network(model_cfg)
 
 Combined Strategies
-~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~
 
 For complex tasks, different learning strategies can be combined:
 
@@ -364,7 +364,7 @@ For complex tasks, different learning strategies can be combined:
         trainer.train(model, train_ds, valid_ds, epochs=10)
 
 Choosing the Right Strategy
-------------------------
+---------------------------
 
 Guidelines for selecting an appropriate learning strategy:
 
@@ -375,7 +375,7 @@ Guidelines for selecting an appropriate learning strategy:
 5. **For biological plausibility**: Local credit assignment provides a more biologically-inspired approach
 
 Custom Weight Decay
-----------------
+-------------------
 
 The framework provides a custom weight decay implementation that applies regularization
 differently to different network components:
@@ -389,7 +389,7 @@ differently to different network components:
     optimizer = CustomWeightDecayOptimizer(model, base_optimizer, weight_decay=0.1)
 
 Implementation Details
-------------------
+----------------------
 
 All learning strategies are implemented as trainer classes that follow a common interface:
 

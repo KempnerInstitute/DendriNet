@@ -1,33 +1,33 @@
-.. dendritic_modeling documentation master file, created by
-   sphinx-quickstart on Tue Sep 5 21:22:30 2023.
-   You can adapt this file completely to your liking, but it should at least
-   contain the root `toctree` directive.
+Dendritic Modeling Framework
+============================
+*A Python framework for creating, training, and analyzing neural networks with dendritic-inspired architectures*
 
-Welcome to the Dendritic Modeling Framework
-===========================================
-
-.. image:: _static/dendritic_diagram.png
+.. image:: figures/png/dendritic_diagram.png
    :width: 400
    :alt: Dendritic neuron diagram
 
-**A Python framework for creating, training, and analyzing neural networks with dendritic-inspired architectures**
 
 This documentation provides comprehensive information about the dendritic modeling framework, its theoretical foundations, implementation details, and practical usage guides.
 
-.. include:: about.rst
+.. toctree::
+   :maxdepth: 2
+   :caption: Introduction
+
+   about
+
 
 Getting Started
---------------
+---------------
 
 To quickly get started with the framework:
 
-1. :doc:`Install the package <source/users/installation>`
-2. :doc:`Follow the quickstart guide <source/users/quickstart>`
-3. :doc:`Explore example notebooks <source/users/examples>`
+1. :ref:`Install the package <installation_section>`
+2. :ref:`Follow the quickstart guide <quickstart>`
+3. :ref:`Explore examples <examples>`
 
 .. toctree::
    :maxdepth: 2
-   :caption: User Guide:
+   :caption: User Guide
 
    source/users/installation
    source/users/quickstart
@@ -45,10 +45,28 @@ To quickly get started with the framework:
    :caption: Concepts and API:
 
    source/dend_m/concepts_overview
+   source/dend_m/installation_setup
    source/dend_m/neural_models
    source/dend_m/learning_strategies
    source/dend_m/api_reference
+   source/dend_m/weight_initialization
+   source/dend_m/visualization_guide
+   source/dend_m/topk_linear
+   source/dend_m/synthetic_datasets
+   source/dend_m/output_handling
+   source/dend_m/sweep_job_submission
+   source/dend_m/network_structure
+   source/dend_m/network_structures
+   source/dend_m/gradient_scaling
+   source/dend_m/experiment_tracking
+   source/dend_m/evaluation_visualization
+   source/dend_m/contributing
+   source/dend_m/configuration_system
+   source/dend_m/activation_functions
+   source/dend_m/ablation_studies
+   source/dend_m/ablation_information_analysis
    source/dendritic_modeling
+
 
 .. toctree::
    :maxdepth: 2

@@ -1,7 +1,7 @@
 .. _sweep_job_submission:
 
 Sweep Job Submission
-===================
+====================
 
 This document explains how to run large-scale parameter sweeps and submit jobs to a SLURM cluster using the dendritic modeling framework.
 
@@ -17,7 +17,7 @@ Running large-scale experiments is essential for exploring the parameter space o
 These capabilities allow researchers to efficiently explore the parameter space and identify optimal configurations for specific tasks.
 
 Parameter Sweeps
---------------
+----------------
 
 The framework provides a dedicated script ``generate_sweep_configs.py`` for generating parameter sweeps:
 
@@ -28,7 +28,7 @@ The framework provides a dedicated script ``generate_sweep_configs.py`` for gene
 This script takes a sweep parameters file and generates multiple configuration files, each with a different combination of parameter values.
 
 Sweep Parameters File
-~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~
 
 The sweep parameters file defines:
 
@@ -142,7 +142,7 @@ Here's an example sweep parameters file:
 The ``sweep_config`` section defines which parameters to vary and what values to use. The script will generate all possible combinations of these parameter values.
 
 Generating Sweep Configurations
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 When you run the ``generate_sweep_configs.py`` script, it:
 
@@ -155,7 +155,7 @@ When you run the ``generate_sweep_configs.py`` script, it:
 For example, if you have 3 parameters with 3 values each, it will generate 27 configuration files.
 
 Structure of Generated Files
-~~~~~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 The script generates three types of files:
 
@@ -166,7 +166,7 @@ The script generates three types of files:
 The configuration files follow the structure of the base configuration but with parameter values replaced according to the sweep configuration.
 
 SLURM Job Submission
-------------------
+--------------------
 
 The framework can generate a SLURM batch script for running the parameter sweep as an array job:
 
@@ -177,7 +177,7 @@ The framework can generate a SLURM batch script for running the parameter sweep 
 This script contains all necessary SLURM directives and commands to run the experiments.
 
 SLURM Array Jobs
-~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~
 
 SLURM array jobs allow running multiple similar jobs with different parameters. The generated batch script uses the array job feature to run all configurations in parallel:
 
@@ -204,7 +204,7 @@ This batch script includes:
 3. **Array job configuration**: Which configurations to run and concurrency limit
 
 SLURM Array Task IDs
-~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~
 
 Within the batch script, the array task ID (``SLURM_ARRAY_TASK_ID``) is used to select the appropriate configuration file:
 
@@ -217,7 +217,7 @@ Within the batch script, the array task ID (``SLURM_ARRAY_TASK_ID``) is used to 
 This ensures each job uses the correct configuration file.
 
 Output Organization
-~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~
 
 The batch script organizes output files into directories based on the job ID and array task ID:
 
@@ -236,7 +236,7 @@ This creates a hierarchical directory structure that keeps outputs from differen
    Workflow for generating and running SLURM array jobs. [PLACEHOLDER FOR DIAGRAM]
 
 Customizing SLURM Configuration
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 You can customize the SLURM configuration by editing the ``slurm_config`` section in the sweep parameters file:
 
@@ -263,12 +263,12 @@ You can customize the SLURM configuration by editing the ``slurm_config`` sectio
 Each field in this configuration maps to a SLURM directive or environment variable in the generated batch script.
 
 Analysis and Hyperparameter Search
--------------------------------
+----------------------------------
 
 After running a parameter sweep, you need to analyze the results to identify the best parameter combination.
 
 Collecting Results
-~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~
 
 To collect results from all runs, you can use the following script:
 
@@ -338,7 +338,7 @@ To collect results from all runs, you can use the following script:
 This script collects results from all runs in a sweep and returns a DataFrame with the best validation accuracy for each parameter combination.
 
 Finding the Best Configuration
-~~~~~~~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 You can then find the best parameter combination:
 
@@ -354,7 +354,7 @@ You can then find the best parameter combination:
 This identifies the parameter combination that achieved the highest validation accuracy.
 
 Visualizing Sweep Results
-~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~~~~~
 
 You can visualize how different parameters affect performance:
 
@@ -374,7 +374,7 @@ You can visualize how different parameters affect performance:
 This helps visualize the effect of different parameters on model performance.
 
 Tips for Running Large-Scale Sweeps
---------------------------------
+-----------------------------------
 
 1. **Start small**: Begin with a small subset of parameters and values to test the workflow
 2. **Monitor resource usage**: Check memory and GPU usage to ensure efficient resource allocation
@@ -384,12 +384,12 @@ Tips for Running Large-Scale Sweeps
 6. **Use unique run names**: Include timestamp or unique identifier in run names
 
 Advanced Sweep Strategies
-----------------------
+-------------------------
 
 Beyond the basic grid search, you can implement more advanced hyperparameter search strategies:
 
 Random Search
-~~~~~~~~~~
+~~~~~~~~~~~~~
 
 Instead of trying all combinations, you can randomly sample from the parameter space. Modify ``generate_sweep_configs.py`` to sample random combinations:
 
@@ -417,7 +417,7 @@ Instead of trying all combinations, you can randomly sample from the parameter s
 This approach can be more efficient when exploring large parameter spaces.
 
 Bayesian Optimization
-~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~
 
 For even more efficient hyperparameter search, you can use Bayesian optimization. This requires additional libraries like ``scikit-optimize`` or ``ax-platform``:
 
