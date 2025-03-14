@@ -1,10 +1,11 @@
+.. _installation_section:
 Installation
 ============
 
 This guide will help you set up the Dendritic Modeling framework on your system.
 
 Prerequisites
-------------
+-------------
 
 Before installing the package, ensure you have the following:
 
@@ -13,12 +14,12 @@ Before installing the package, ensure you have the following:
 * Git
 
 Installation Methods
-------------------
+--------------------
 
 There are several ways to install the framework:
 
 Quick Installation
-~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~
 
 For a quick installation using pip:
 
@@ -27,7 +28,7 @@ For a quick installation using pip:
     pip install dendritic-modeling
 
 Development Installation
-~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~~~~
 
 For development or the latest features, install from source:
 
@@ -41,7 +42,7 @@ For development or the latest features, install from source:
     pip install -e .
 
 Docker Installation
-~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~
 
 For an isolated environment with all dependencies:
 
@@ -54,12 +55,12 @@ For an isolated environment with all dependencies:
     docker run --gpus all -it dendritic-modeling
 
 Detailed Installation Steps
--------------------------
+---------------------------
 
 If you prefer a step-by-step approach:
 
 Step 1: Set up the Python environment
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 We recommend using conda or virtualenv to create a clean environment:
 
@@ -74,7 +75,7 @@ We recommend using conda or virtualenv to create a clean environment:
     source dendritic-env/bin/activate  # On Windows: dendritic-env\Scripts\activate
 
 Step 2: Install PyTorch
-~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~~~
 
 Install PyTorch with the appropriate CUDA version for your system:
 
@@ -87,7 +88,7 @@ Install PyTorch with the appropriate CUDA version for your system:
     pip install torch==2.0.0 torchvision==0.15.1
 
 Step 3: Clone the repository
-~~~~~~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 Get the source code:
 
@@ -97,7 +98,7 @@ Get the source code:
     cd dendritic-modeling
 
 Step 4: Install dependencies
-~~~~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 Install the package and its dependencies:
 
@@ -113,7 +114,7 @@ Install the package and its dependencies:
     pip install -r requirements-dev.txt
 
 Step 5: Verify installation
-~~~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 Ensure that the installation was successful:
 
@@ -126,10 +127,10 @@ Ensure that the installation was successful:
     pytest tests/
 
 Configuring for Different Hardware
--------------------------------
+----------------------------------
 
 CPU-only configuration
-~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~~
 
 For systems without a GPU:
 
@@ -139,7 +140,7 @@ For systems without a GPU:
     export CUDA_VISIBLE_DEVICES=""
 
 Multi-GPU configuration
-~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~~~
 
 For systems with multiple GPUs:
 
@@ -154,7 +155,7 @@ For systems with multiple GPUs:
     model = torch.nn.DataParallel(model)
 
 Cluster configuration (SLURM)
-~~~~~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 For HPC environments using SLURM:
 
@@ -172,7 +173,7 @@ For HPC environments using SLURM:
     python train_experiments.py --config configs/config_exp.yaml
 
 Directory Structure
-----------------
+-------------------
 
 Once installed, the package structure is as follows:
 
@@ -192,10 +193,10 @@ Once installed, the package structure is as follows:
     └── notebooks/                # Example notebooks
 
 Common Issues and Solutions
--------------------------
+---------------------------
 
 CUDA version mismatch
-~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~
 
 If you encounter CUDA version errors:
 
@@ -214,7 +215,7 @@ Solution:
     pip install torch==2.0.0+cu117 -f https://download.pytorch.org/whl/torch_stable.html
 
 Out of memory errors
-~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~
 
 If you encounter GPU memory issues:
 
@@ -241,7 +242,7 @@ Solution:
             optimizer.zero_grad()
 
 Module not found errors
-~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~~~
 
 If the package cannot be found:
 
@@ -261,7 +262,7 @@ Solution:
     pip install -e .
 
 Slow training
-~~~~~~~~~~
+~~~~~~~~~~~~~
 
 If training is unusually slow:
 
@@ -300,7 +301,7 @@ Solutions:
     print(prof.key_averages().table(sort_by="cuda_time_total"))
 
 Development Setup
---------------
+-----------------
 
 For developers contributing to the project:
 
@@ -324,7 +325,7 @@ For developers contributing to the project:
     flake8 src/ tests/
 
 Starting Your First Experiment
----------------------------
+------------------------------
 
 To get started with your first experiment:
 
@@ -343,7 +344,7 @@ To get started with your first experiment:
     jupyter notebook examples/quickstart.ipynb
 
 Next Steps
----------
+----------
 
 Now that you have installed the framework, you can:
 

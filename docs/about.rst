@@ -7,7 +7,7 @@ The Dendritic Modeling Framework
 The goal of the Dendritic Modeling codebase is to define and explore dendritic neural network models, inspired by the biological and morphological characteristics of neurons. By simulating how excitatory and inhibitory synapses process signals within neurons, particularly through shunting mechanisms, we aim to better understand both biological neural computations and develop more powerful artificial neural networks.
 
 Key Features
------------
+------------
 
 * **Biologically-Inspired Architecture**: Models that capture dendritic branching, excitation-inhibition balance, and shunting inhibition
 * **Flexible Network Configurations**: Customizable branch factors, synapse counts, and layer topologies
@@ -16,7 +16,7 @@ Key Features
 * **Experiment Framework**: Structured environment for running, tracking, and analyzing experiments across various datasets and model configurations
 
 Research Applications
--------------------
+---------------------
 
 The framework facilitates research in several important areas:
 

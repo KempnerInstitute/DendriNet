@@ -1,7 +1,7 @@
 .. _ablation_information_analysis:
 
 Ablation Studies and Information Analysis
-=====================================
+=========================================
 
 This document provides detailed guidance on performing ablation studies and information-theoretic analyses of dendritic networks, with a specific focus on layer-based and branch-based synaptic weights.
 
@@ -16,12 +16,12 @@ Understanding how dendritic networks process information requires specialized an
 These techniques help reveal the computational mechanisms of dendritic networks beyond standard performance metrics.
 
 Ablation Studies
--------------
+----------------
 
 Ablation studies involve systematically removing or modifying components of the network to understand their contribution to overall performance.
 
 Types of Ablation
-^^^^^^^^^^^^^^
+^^^^^^^^^^^^^^^^^
 
 The framework supports several types of ablation studies:
 
@@ -32,7 +32,7 @@ The framework supports several types of ablation studies:
 5. **Mechanism ablation**: Replacing mechanisms like top-k selection with alternatives
 
 Basic Ablation Configuration
-^^^^^^^^^^^^^^^^^^^^^^^^^
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 Configure ablation studies in your evaluation:
 
@@ -71,7 +71,7 @@ Configure ablation studies in your evaluation:
 This configuration specifies which components to ablate and which metrics to measure after ablation.
 
 Pathway Ablation
-^^^^^^^^^^^^^
+^^^^^^^^^^^^^^^^
 
 Pathway ablation examines the contribution of entire excitatory or inhibitory pathways:
 
@@ -90,7 +90,7 @@ Analyzing pathway ablation results reveals:
 3. How the pathways interact in different tasks or data regimes
 
 Layer Ablation
-^^^^^^^^^^^
+^^^^^^^^^^^^^^
 
 Layer ablation examines the contribution of specific layers:
 
@@ -110,7 +110,7 @@ Analyzing layer ablation results reveals:
 3. Layer-specific specialization for different aspects of the task
 
 Branch Ablation
-^^^^^^^^^^^^
+^^^^^^^^^^^^^^^
 
 Branch ablation is particularly important for dendritic networks, as it examines the contribution of specific dendritic branches:
 
@@ -134,13 +134,14 @@ Branch ablation is particularly important for dendritic networks, as it examines
             method: "zero_weights"
 
 Analyzing branch ablation results reveals:
+
 1. Which branches are most important for overall performance
 2. Whether branches specialize in specific features or patterns
 3. How redundant or complementary different branches are
 4. Class-specific branch specialization
 
 Mechanism Ablation
-^^^^^^^^^^^^^^^
+^^^^^^^^^^^^^^^^^^
 
 Mechanism ablation examines the contribution of specific computational mechanisms:
 
@@ -159,7 +160,7 @@ Common mechanisms to ablate include:
 3. **branch_activation**: Activation functions in branches
 
 Progressive Ablation
-^^^^^^^^^^^^^^^^
+^^^^^^^^^^^^^^^^^^^^
 
 Progressive ablation involves removing components incrementally to understand their cumulative impact:
 
@@ -177,7 +178,7 @@ Progressive ablation involves removing components incrementally to understand th
           steps: 20                   # Total number of steps
 
 Synaptic Weight Ablation
-^^^^^^^^^^^^^^^^^^^^^
+^^^^^^^^^^^^^^^^^^^^^^^^
 
 For detailed analysis of synaptic weights, you can ablate specific weight connections:
 
@@ -195,7 +196,7 @@ For detailed analysis of synaptic weights, you can ablate specific weight connec
           layers: [0, 1]               # Which layers
 
 Ablation Analysis
-^^^^^^^^^^^^^^
+^^^^^^^^^^^^^^^^^
 
 After performing ablations, analyze the results to understand component contributions:
 
@@ -215,12 +216,12 @@ After performing ablations, analyze the results to understand component contribu
 The framework may provide tools to visualize ablation results, showing the impact of different ablations on performance metrics.
 
 Information Analysis
------------------
+--------------------
 
 Information analysis applies concepts from information theory to understand how dendritic networks process and transform information.
 
 Information Measures
-^^^^^^^^^^^^^^^^
+^^^^^^^^^^^^^^^^^^^^
 
 Common information-theoretic measures include:
 
@@ -230,7 +231,7 @@ Common information-theoretic measures include:
 4. **Channel capacity**: Measures maximum information transfer capability
 
 Basic Information Analysis Configuration
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 Configure information analysis in your evaluation:
 
@@ -247,7 +248,7 @@ Configure information analysis in your evaluation:
         output_dir: "info_analysis/"
 
 Layer-Based Information Analysis
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 Analyze information flow through network layers:
 
@@ -269,7 +270,7 @@ This analysis reveals:
 4. How excitatory and inhibitory pathways interact informationally
 
 Branch-Based Information Analysis
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 Analyze information processing within and between dendritic branches:
 
@@ -291,7 +292,7 @@ This analysis reveals:
 4. How branch outputs combine to form layer outputs
 
 Synaptic Weight Information Analysis
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 Detailed analysis of how synaptic weights contribute to information processing:
 
@@ -309,7 +310,7 @@ Detailed analysis of how synaptic weights contribute to information processing:
             metric: "information_gain"   # Metric for measuring importance
 
 Receptive Field Analysis
-^^^^^^^^^^^^^^^^^^^^
+^^^^^^^^^^^^^^^^^^^^^^^^
 
 Analyze the receptive fields of different branches:
 
@@ -331,7 +332,7 @@ This analysis reveals:
 3. Whether branches have specialized for specific features
 
 Information Bottleneck Analysis
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 Apply information bottleneck theory to understand the efficiency of information processing:
 
@@ -351,7 +352,7 @@ This analysis reveals:
 3. The trade-off between compression and task performance
 
 Combining Ablation and Information Analysis
----------------------------------------
+-------------------------------------------
 
 For the most comprehensive understanding, combine ablation and information analysis:
 
@@ -379,7 +380,7 @@ This combined approach reveals:
 3. The information-theoretic contribution of different components
 
 Visualizing Information Analysis Results
--------------------------------------
+----------------------------------------
 
 The framework provides various visualizations for information analysis:
 
@@ -398,7 +399,7 @@ The framework provides various visualizations for information analysis:
           output_dir: "visualizations/info_analysis/"
 
 Best Practices for Ablation and Information Analysis
-------------------------------------------------
+----------------------------------------------------
 
 1. **Start with coarse-grained ablations**: Begin with pathway or layer ablations before moving to more fine-grained branch ablations
 
@@ -415,7 +416,7 @@ Best Practices for Ablation and Information Analysis
 7. **Cross-validate**: Ensure results are consistent across different data splits
 
 Complete Analysis Example
----------------------
+-------------------------
 
 Here's a complete example configuration for comprehensive ablation and information analysis:
 

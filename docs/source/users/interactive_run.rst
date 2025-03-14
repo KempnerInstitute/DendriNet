@@ -14,7 +14,7 @@ In the following sections, we will walk you through the process of setting up an
 Step 1: Prepare your run environment
 ------------------------------------
 
-The first step is setting up your compute environment. It can be your laptop or an an interactive session on the cluster. You will need to get the code and install the package in your conda environment. Please refer to the :ref:`installation_guide` for detailed instructions on setting up your environment.
+The first step is setting up your compute environment. It can be your laptop or an an interactive session on the cluster. You will need to get the code and install the package in your conda environment. Please refer to the :ref:`installation_section` for detailed instructions on setting up your environment.
 
 
 Step 2: Create a configuration file

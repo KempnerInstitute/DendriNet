@@ -1,7 +1,7 @@
 .. _experiment_tracking:
 
 Experiment Tracking and Logging
-=============================
+===============================
 
 This document explains the experiment tracking and logging capabilities of the dendritic modeling framework, including integration with Weights & Biases (W&B) and local logging features.
 
@@ -18,7 +18,7 @@ Tracking experiments is crucial for research reproducibility and comparison of r
 These tracking mechanisms help maintain a record of experiments, compare different configurations, and identify the most promising approaches.
 
 Weights & Biases Integration
----------------------------
+----------------------------
 
 The framework integrates with Weights & Biases (W&B) for experiment tracking. This is configured in the ``wandb`` section of the configuration file:
 
@@ -34,7 +34,7 @@ The framework integrates with Weights & Biases (W&B) for experiment tracking. Th
 When ``use_wandb`` is set to ``true``, the framework initializes W&B at the start of training and logs metrics, hyperparameters, and visualizations.
 
 Initialization
-~~~~~~~~~~~~
+~~~~~~~~~~~~~~
 
 W&B is initialized in the training script:
 
@@ -54,7 +54,7 @@ W&B is initialized in the training script:
 This logs the complete configuration for reproducibility and creates a new run with the specified name.
 
 Metrics Logging
-~~~~~~~~~~~~
+~~~~~~~~~~~~~~~
 
 During training, metrics are logged to W&B at the end of each epoch:
 
@@ -73,7 +73,7 @@ During training, metrics are logged to W&B at the end of each epoch:
 Additional metrics can be logged during training, such as learning rate, gradient norms, and custom metrics specific to dendritic networks.
 
 Model Checkpoints
-~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~
 
 W&B can also track model checkpoints:
 
@@ -86,7 +86,7 @@ W&B can also track model checkpoints:
 This allows downloading model checkpoints directly from the W&B interface.
 
 Visualizations
-~~~~~~~~~~~
+~~~~~~~~~~~~~~
 
 Visualizations are uploaded to W&B when generated:
 
@@ -99,7 +99,7 @@ Visualizations are uploaded to W&B when generated:
 This makes it easy to compare visualizations across different runs.
 
 Best Practices for W&B
-~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~~
 
 1. **Use consistent project names**: Keep related experiments in the same project
 2. **Use groups for experiment series**: Group runs that test similar hypotheses
@@ -108,7 +108,7 @@ Best Practices for W&B
 5. **Log all relevant metrics**: Include custom metrics that give insight into dendritic dynamics
 
 Local CSV Logging
----------------
+-----------------
 
 Even when W&B is disabled, the framework logs metrics to local CSV files:
 
@@ -123,7 +123,7 @@ Even when W&B is disabled, the framework logs metrics to local CSV files:
 This creates a ``metrics.csv`` file in the output directory with all training metrics.
 
 Structure of the Logging System
------------------------------
+-------------------------------
 
 The logging system uses Python's built-in ``logging`` module, configured in ``logging_config.py``:
 
@@ -175,7 +175,7 @@ The logging system uses Python's built-in ``logging`` module, configured in ``lo
 This creates a logger that writes both to a file and to the console.
 
 Using the Logger
-~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~
 
 The logger is used throughout the codebase to record events and errors:
 
@@ -201,7 +201,7 @@ The logger is used throughout the codebase to record events and errors:
 Log files are saved in the output directory specified in the configuration.
 
 Model Checkpointing
------------------
+-------------------
 
 The framework automatically saves model checkpoints during training:
 
@@ -225,7 +225,7 @@ By default, checkpoints are saved at the end of each epoch. For longer training 
       checkpoint_frequency: 10  # Save checkpoint every 10 epochs
 
 Best Model Tracking
-~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~
 
 The framework also keeps track of the best model according to validation metrics:
 
@@ -241,7 +241,7 @@ The framework also keeps track of the best model according to validation metrics
 This ensures you always have access to the best-performing model.
 
 Resuming Training
-~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~
 
 Checkpoints allow resuming training from a specific epoch:
 
@@ -255,7 +255,7 @@ Checkpoints allow resuming training from a specific epoch:
         logger.info(f"Resuming training from epoch {start_epoch}")
 
 Visualization Generation
-----------------------
+------------------------
 
 The framework can generate visualizations at specified intervals during training:
 
@@ -287,7 +287,7 @@ Visualizations are saved in the output directory and can also be logged to W&B.
    Overview of the experiment tracking and logging system in the dendritic modeling framework. [PLACEHOLDER FOR DIAGRAM]
 
 Custom Metrics for Dendritic Networks
-----------------------------------
+-------------------------------------
 
 The framework includes custom metrics specific to dendritic networks:
 
@@ -299,7 +299,7 @@ The framework includes custom metrics specific to dendritic networks:
 These metrics are calculated during training and logged along with standard metrics.
 
 Best Practices for Tracking
-------------------------
+---------------------------
 
 1. **Unique run names**: Use descriptive, unique names for each run
 2. **Version your configurations**: Keep configurations under version control
@@ -308,7 +308,7 @@ Best Practices for Tracking
 5. **Archive important runs**: Keep archives of particularly important results
 
 Example: Using the Tracking System
----------------------------------
+----------------------------------
 
 Here's an example of how to use the tracking system in a custom script:
 

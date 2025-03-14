@@ -1,7 +1,7 @@
 .. _configuration_system:
 
 Configuration System
-===================
+====================
 
 This document explains the YAML configuration system used in the dendritic modeling framework, which provides a flexible way to define experiment parameters without changing code.
 
@@ -19,7 +19,7 @@ The dendritic modeling framework uses a hierarchical YAML configuration system l
 This design separates the configuration from the code, making it easier to run experiments with different settings and ensuring reproducibility.
 
 Running Experiments
-------------------
+-------------------
 
 You can run experiments using the provided training script with a configuration file:
 
@@ -28,7 +28,7 @@ You can run experiments using the provided training script with a configuration 
     python scripts/train_experiments.py configs/config_exp.yaml
 
 Configuration Structure
-----------------------
+-----------------------
 
 The configuration is organized into six main sections:
 
@@ -111,7 +111,7 @@ Here's an example of a complete configuration (simplified):
       dir: outputs
 
 Model Configuration
-------------------
+-------------------
 
 The ``model`` section defines the neural network architecture and its parameters:
 
@@ -163,7 +163,7 @@ The framework supports three input modes:
 3. **input_mode=2**: Input network mode where inputs are first transformed through a separate network
 
 Input Network
-~~~~~~~~~~~~
+~~~~~~~~~~~~~
 
 When ``input_mode=2``, the ``input_net_dict`` specifies the architecture of the input transformation network:
 
@@ -175,7 +175,7 @@ When ``input_mode=2``, the ``input_net_dict`` specifies the architecture of the 
       output_dim: 128           # Output dimension
 
 Training Configuration
----------------------
+----------------------
 
 The ``train`` section defines the training procedure and hyperparameters:
 
@@ -203,7 +203,7 @@ The ``train`` section defines the training procedure and hyperparameters:
         diversity_weight: 0.5  # Weight for diversity loss
 
 Task Configuration
------------------
+------------------
 
 The ``task`` section defines the dataset and task-specific parameters:
 
@@ -223,7 +223,7 @@ Available datasets include:
 - Synthetic datasets: ``"line"``, ``"center_surround"``, ``"orientation_bars"``, ``"multi_xor"``, ``"mnist_modulo10"``, ``"mnist_switch2"``, ``"info_shunting"``, ``"noise_resilience"``, ``"feature_selectivity"``
 
 Visualization Configuration
---------------------------
+---------------------------
 
 The ``visualization`` section controls what aspects of the model to visualize:
 
@@ -241,7 +241,7 @@ The ``visualization`` section controls what aspects of the model to visualize:
         - ablation  # Plot ablation studies
 
 WandB Configuration
------------------
+-------------------
 
 The ``wandb`` section configures Weights & Biases integration:
 
@@ -255,7 +255,7 @@ The ``wandb`` section configures Weights & Biases integration:
       use_wandb: false  # Whether to use WandB
 
 Outputs Configuration
--------------------
+---------------------
 
 The ``outputs`` section specifies where to save outputs:
 
@@ -265,7 +265,7 @@ The ``outputs`` section specifies where to save outputs:
       dir: outputs  # Directory for saving outputs
 
 Generating Sweep Configurations
-------------------------------
+-------------------------------
 
 The framework includes a powerful tool for generating parameter sweeps. Using the ``generate_sweep_configs.py`` script, you can create multiple configuration files that cover a range of parameter values:
 
@@ -274,7 +274,7 @@ The framework includes a powerful tool for generating parameter sweeps. Using th
     python scripts/generate_sweep_configs.py --param_file configs/sweep_params.yaml --output_dir configs/sweeps
 
 Sweep Parameters File
-~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~
 
 Create a ``sweep_params.yaml`` file that defines the parameters to sweep:
 
@@ -300,7 +300,7 @@ Create a ``sweep_params.yaml`` file that defines the parameters to sweep:
 This will generate 27 configuration files (3×3×3 combinations) in the specified output directory.
 
 Generating Job Submission Scripts
---------------------------------
+---------------------------------
 
 The ``generate_sweep_configs.py`` script can also generate SLURM job submission scripts:
 
@@ -318,7 +318,7 @@ This will create a ``run.sh`` file that submits all generated configuration file
    Diagram showing how the configuration system integrates with different components. [PLACEHOLDER FOR DIAGRAM]
 
 Loading and Extending Configurations
------------------------------------
+------------------------------------
 
 In custom scripts, you can load and modify configurations programmatically:
 

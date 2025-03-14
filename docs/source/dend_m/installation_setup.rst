@@ -1,7 +1,7 @@
 .. _installation_setup:
 
 Installation and Setup
-====================
+======================
 
 This document provides step-by-step instructions for installing and setting up the dendritic modeling framework, including environment configuration, dependencies, and troubleshooting common issues.
 
@@ -17,7 +17,7 @@ The dendritic modeling framework is a PyTorch-based library for implementing and
 5. Troubleshoot common installation issues
 
 System Requirements
------------------
+-------------------
 
 Before installing, ensure your system meets the following requirements:
 
@@ -29,7 +29,7 @@ Before installing, ensure your system meets the following requirements:
 * **GPU**: NVIDIA GPU with at least 4GB VRAM (recommended for training)
 
 Installation Methods
-------------------
+--------------------
 
 There are three main methods to install the framework:
 
@@ -38,7 +38,7 @@ There are three main methods to install the framework:
 3. Using a Docker container (recommended for reproducibility)
 
 Method 1: Using pip
-~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~
 
 The simplest way to install the framework is using pip:
 
@@ -55,7 +55,7 @@ The simplest way to install the framework is using pip:
     pip install dendritic-modeling
 
 Method 2: Installing from source
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 For the latest features or if you plan to contribute to the framework:
 
@@ -76,7 +76,7 @@ For the latest features or if you plan to contribute to the framework:
     pip install -e .
 
 Method 3: Using Docker
-~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~~
 
 For a consistent environment across different systems:
 
@@ -89,12 +89,12 @@ For a consistent environment across different systems:
     docker run --gpus all -it dendritic-modeling bash
 
 Detailed Installation Steps
-------------------------
+---------------------------
 
 Here's a more detailed guide to installing the framework from source:
 
 Step 1: Set up the Python environment
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 Using conda (recommended):
 
@@ -120,7 +120,7 @@ Using virtualenv (alternative):
     source dendritic-env/bin/activate
 
 Step 2: Install PyTorch
-~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~~~
 
 Install PyTorch with GPU support:
 
@@ -143,7 +143,7 @@ Verify PyTorch installation:
     python -c "import torch; print(f'PyTorch version: {torch.__version__}'); print(f'CUDA available: {torch.cuda.is_available()}')"
 
 Step 3: Clone the repository
-~~~~~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. code-block:: bash
 
@@ -152,7 +152,7 @@ Step 3: Clone the repository
     cd dendritic-modeling
 
 Step 4: Install dependencies
-~~~~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. code-block:: bash
 
@@ -182,7 +182,7 @@ The ``requirements.txt`` file includes all the necessary dependencies:
     networkx>=2.6.0
 
 Step 5: Verify installation
-~~~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 Run a simple test to verify the installation:
 
@@ -195,10 +195,10 @@ Run a simple test to verify the installation:
     pytest -xvs tests/
 
 Configuring for Different Hardware
--------------------------------
+----------------------------------
 
 CPU-only configuration
-~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~~
 
 If you don't have a GPU, modify the installation:
 
@@ -208,7 +208,7 @@ If you don't have a GPU, modify the installation:
     conda install pytorch torchvision torchaudio cpuonly -c pytorch
 
 Multi-GPU configuration
-~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~~~
 
 For systems with multiple GPUs:
 
@@ -223,7 +223,7 @@ For systems with multiple GPUs:
 The framework automatically uses all available GPUs for data-parallel training.
 
 Cluster configuration (SLURM)
-~~~~~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 For HPC clusters with SLURM:
 
@@ -237,7 +237,7 @@ For HPC clusters with SLURM:
     sbatch scripts/slurm/run_experiment.sh configs/config_exp.yaml
 
 Directory Structure
-----------------
+-------------------
 
 After installation, the framework has the following directory structure:
 
@@ -264,10 +264,10 @@ After installation, the framework has the following directory structure:
     └── requirements.txt        # Dependencies
 
 Common Issues and Solutions
--------------------------
+---------------------------
 
 CUDA version mismatch
-~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~
 
 **Issue**: Error messages related to CUDA version incompatibility.
 
@@ -293,7 +293,7 @@ CUDA version mismatch
        pip install -e .
 
 Out of memory errors
-~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~
 
 **Issue**: CUDA out of memory errors during training.
 
@@ -324,7 +324,7 @@ Out of memory errors
              inhibitory_layer_sizes: [20]
 
 Module not found errors
-~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~~~
 
 **Issue**: ``ModuleNotFoundError`` when importing from the framework.
 
@@ -349,7 +349,7 @@ Module not found errors
        python -c "import sys; print(sys.path)"
 
 Slow training
-~~~~~~~~~~
+~~~~~~~~~~~~~
 
 **Issue**: Training is unexpectedly slow.
 
@@ -379,7 +379,7 @@ Slow training
        print(prof.key_averages().table(sort_by="cuda_time_total", row_limit=10))
 
 Development Setup
---------------
+-----------------
 
 If you plan to contribute to the framework, additional setup is recommended:
 
@@ -401,7 +401,7 @@ If you plan to contribute to the framework, additional setup is recommended:
    - pytest for running tests
 
 Starting Your First Experiment
----------------------------
+------------------------------
 
 After installation, you can run your first experiment:
 
@@ -436,7 +436,7 @@ After installation, you can run your first experiment:
        ls outputs/my_experiment/figures/
 
 Next Steps
----------
+----------
 
 After setting up the framework, you can:
 

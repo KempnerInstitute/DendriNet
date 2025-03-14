@@ -4,10 +4,10 @@ Additional Resources
 This page provides additional resources for learning about dendritic computing, biological inspiration for neural networks, and related research topics.
 
 Academic Papers
--------------
+---------------
 
 Fundamental Dendritic Computing Papers
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 * London, M., & Häusser, M. (2005). `Dendritic computation <https://doi.org/10.1146/annurev.neuro.28.061604.135703>`_. Annual Review of Neuroscience, 28, 503-532.
 
@@ -18,7 +18,7 @@ Fundamental Dendritic Computing Papers
 * Koch, C., Poggio, T., & Torre, V. (1983). `Nonlinear interactions in a dendritic tree: localization, timing, and role in information processing <https://doi.org/10.1073/pnas.80.9.2799>`_. Proceedings of the National Academy of Sciences, 80(9), 2799-2802.
 
 Dendritic Computing in Machine Learning
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 * Guerguiev, J., Lillicrap, T. P., & Richards, B. A. (2017). `Towards deep learning with segregated dendrites <https://doi.org/10.7554/eLife.22901>`_. eLife, 6, e22901.
 
@@ -29,7 +29,7 @@ Dendritic Computing in Machine Learning
 * Uria, B., Kononowicz, T., Watters, N., Muldal, A., Kaplanis, C., Kramár, M., Schneider, T., & Lillicrap, T. P. (2022). `Neural networks with recurrent dendritic compartments <https://openreview.net/forum?id=1GNWBRiAo8Y>`_. International Conference on Learning Representations.
 
 Recent Advances
-~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~
 
 * Beniaguev, D., Segev, I., & London, M. (2021). `Single cortical neurons as deep artificial neural networks <https://doi.org/10.1016/j.neuron.2021.07.002>`_. Neuron, 109(17), 2727-2739.
 
@@ -47,7 +47,7 @@ Books
 * Arbib, M. A. (Ed.). (2003). `The Handbook of Brain Theory and Neural Networks <https://mitpress.mit.edu/books/handbook-brain-theory-and-neural-networks-second-edition>`_. MIT press.
 
 Online Courses
-------------
+--------------
 
 * `Computational Neuroscience <https://www.coursera.org/learn/computational-neuroscience>`_ (Coursera) - University of Washington
 
@@ -56,7 +56,7 @@ Online Courses
 * `Neural Networks for Machine Learning <https://www.cs.toronto.edu/~hinton/coursera_lectures.html>`_ - Geoffrey Hinton, University of Toronto
 
 Software Tools
-------------
+--------------
 
 * `NEURON <https://neuron.yale.edu/neuron/>`_ - Simulation environment for modeling individual neurons and networks of neurons
 
@@ -69,7 +69,7 @@ Software Tools
 * `NetPyNE <http://www.netpyne.org/>`_ - Python package for developing biologically detailed neuronal networks
 
 Conferences and Workshops
-----------------------
+-------------------------
 
 * `Computational and Systems Neuroscience (COSYNE) <https://www.cosyne.org/>`_
 
@@ -80,7 +80,7 @@ Conferences and Workshops
 * `Annual Meeting of the Society for Neuroscience <https://www.sfn.org/meetings/neuroscience-2023>`_
 
 Research Groups
-------------
+---------------
 
 * `Blue Brain Project <https://www.epfl.ch/research/domains/bluebrain/>`_ - Reconstruction and simulation of the mammalian brain
 
@@ -91,7 +91,7 @@ Research Groups
 * `The Center for Brains, Minds and Machines <https://cbmm.mit.edu/>`_ (CBMM) at MIT
 
 Related Repositories
------------------
+--------------------
 
 * `DendriticNet <https://github.com/babinyurii/dendriticnet>`_ - Implementation of neural networks with dendritic-like processing
 
@@ -100,7 +100,7 @@ Related Repositories
 * `DeNSE <https://github.com/SENeC-Initiative/DeNSE>`_ - Dendritic Neuron Simulation Environment
 
 Datasets for Benchmarking
-----------------------
+-------------------------
 
 Standard datasets often used in dendritic computing papers:
 
@@ -119,7 +119,7 @@ Specialized datasets:
 * `Spikefinder <http://spikefinder.codeneuro.org/>`_ - Challenge connecting calcium imaging data and electrophysiology
 
 Videos and Lectures
-----------------
+-------------------
 
 * `Dendritic Computation <https://www.youtube.com/watch?v=8h_gF_3nufE>`_ - Michael Häusser at the Bernstein Conference
 

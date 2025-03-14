@@ -1,7 +1,7 @@
 .. _ablation_studies:
 
 Ablation Studies
-==============
+================
 
 This document explains how to conduct ablation studies using the dendritic modeling framework to understand the contribution of different components to network performance.
 
@@ -20,12 +20,12 @@ The dendritic modeling framework provides specialized tools for conducting ablat
 These studies help identify which components are essential for performance and which components are specialized for specific inputs or tasks.
 
 Branch Ablation
--------------
+---------------
 
 The most common type of ablation study in dendritic networks is branch ablation, which involves removing individual dendritic branches and measuring the impact on performance.
 
 Branch Ablation Functions
-~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~~~~~
 
 The framework provides functions for branch ablation in ``plot_utils.py``:
 
@@ -83,7 +83,7 @@ A comprehensive branch ablation analysis function is also available:
 This function ablates specific branches and measures the change in performance, helping identify the branches that are most important for specific tasks.
 
 Example: Branch Ablation
-~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~~~~
 
 Here's an example of how to conduct a branch ablation study:
 
@@ -115,12 +115,12 @@ Here's an example of how to conduct a branch ablation study:
 This code performs ablation for each branch in layer 0 and identifies the branches with the largest impact on performance.
 
 Layer Ablation
-------------
+--------------
 
 Layer ablation involves removing entire layers of branches to understand the contribution of each layer to performance.
 
 Layer Ablation Functions
-~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~~~~
 
 The framework provides functions for layer ablation:
 
@@ -166,7 +166,7 @@ A comprehensive layer ablation analysis function is also available:
 This function ablates each layer in the network and measures the change in performance, helping identify the layers that are most important for the task.
 
 Example: Layer Ablation
-~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~~~
 
 Here's an example of how to conduct a layer ablation study:
 
@@ -195,12 +195,12 @@ Here's an example of how to conduct a layer ablation study:
 This code performs ablation for each layer in the network and ranks the layers by importance.
 
 Feature Ablation
--------------
+----------------
 
 Feature ablation involves removing specific input features to understand their importance for the network's decision-making.
 
 Feature Ablation Functions
-~~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 The framework provides functions for feature ablation:
 
@@ -228,7 +228,7 @@ The framework provides functions for feature ablation:
 This function zeros out specific input features and computes the network's output, helping understand which features are most important for the task.
 
 Example: Feature Ablation
-~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~~~~~
 
 Here's an example of how to conduct a feature ablation study:
 
@@ -268,12 +268,12 @@ Here's an example of how to conduct a feature ablation study:
 This code performs ablation for each input feature and identifies the features with the largest impact on performance.
 
 Mechanism Ablation
----------------
+------------------
 
 Mechanism ablation involves disabling specific computational mechanisms to understand their contribution to performance.
 
 Mechanism Ablation Functions
-~~~~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 The framework provides functions for mechanism ablation:
 
@@ -294,7 +294,7 @@ The framework provides functions for mechanism ablation:
 This function disables specific computational mechanisms, helping understand their contribution to performance.
 
 Example: Shunting Inhibition Ablation
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 Here's an example of how to ablate shunting inhibition:
 
@@ -320,7 +320,7 @@ Here's an example of how to ablate shunting inhibition:
 This code disables shunting inhibition and measures the change in performance.
 
 Visualizing Ablation Results
--------------------------
+----------------------------
 
 The framework provides functions for visualizing ablation results:
 
@@ -350,7 +350,7 @@ This function creates a bar chart showing the impact of ablating each branch.
    Example visualization of branch ablation results, showing the importance of each branch. [PLACEHOLDER FOR DIAGRAM]
 
 Comprehensive Ablation Analysis
-----------------------------
+-------------------------------
 
 For a comprehensive understanding of network behavior, you can combine different types of ablation studies:
 
@@ -413,7 +413,7 @@ For a comprehensive understanding of network behavior, you can combine different
 This function performs a comprehensive ablation analysis, including layer ablation, branch ablation, and mechanism ablation.
 
 Best Practices for Ablation Studies
---------------------------------
+-----------------------------------
 
 1. **Start with trained models**: Conduct ablation studies on well-trained models that have reached good performance
 2. **Ablate systematically**: Systematically ablate each component to ensure comprehensive understanding
@@ -424,7 +424,7 @@ Best Practices for Ablation Studies
 7. **Combine with visualization**: Combine ablation studies with visualizations of weights and activations
 
 Ablation in Research
------------------
+--------------------
 
 Ablation studies are a powerful tool for understanding dendritic networks in research:
 
@@ -437,7 +437,7 @@ Ablation studies are a powerful tool for understanding dendritic networks in res
 
 By conducting systematic ablation studies, researchers can gain insights into the inner workings of dendritic networks and identify the key computational principles that drive their performance.
 
-.. figure:: ../images/ablation_workflow.png
+.. figure:: figures/png/ablation_workflow.png
    :alt: Ablation Study Workflow
    :width: 600px
    :align: center

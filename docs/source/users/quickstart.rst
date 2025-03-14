@@ -1,10 +1,11 @@
+.. _quickstart:
 Quickstart
 ==========
 
 This quickstart guide will help you get up and running with the Dendritic Modeling framework. We'll cover the basics of creating, training, and evaluating a dendritic network model.
 
 Creating a Simple Dendritic Network
----------------------------------
+-----------------------------------
 
 Let's start by creating a simple dendritic network model for MNIST classification:
 
@@ -35,7 +36,7 @@ Let's start by creating a simple dendritic network model for MNIST classificatio
     )
 
 Loading a Dataset
----------------
+-----------------
 
 Now, let's load the MNIST dataset:
 
@@ -51,7 +52,7 @@ Now, let's load the MNIST dataset:
     print(f"Input shape: {x_sample.shape}, Label: {y_sample}")
 
 Training the Model
-----------------
+------------------
 
 Now, let's train our model using a standard learning strategy:
 
@@ -88,7 +89,7 @@ Now, let's train our model using a standard learning strategy:
     plt.show()
 
 Evaluating the Model
-------------------
+--------------------
 
 Let's evaluate our trained model:
 
@@ -110,7 +111,7 @@ Let's evaluate our trained model:
     print("Predictions:", predictions)
 
 Visualizing the Network
----------------------
+-----------------------
 
 The framework provides tools to visualize the dendritic network:
 
@@ -135,7 +136,7 @@ The framework provides tools to visualize the dendritic network:
     )
 
 Using YAML Configuration
-----------------------
+------------------------
 
 For more complex experiments, you can use YAML configuration files:
 
@@ -166,7 +167,7 @@ For more complex experiments, you can use YAML configuration files:
     )
 
 Next Steps
----------
+----------
 
 Now that you've learned the basics of the Dendritic Modeling framework, you can:
 
