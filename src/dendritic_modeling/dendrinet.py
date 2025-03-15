@@ -370,7 +370,7 @@ class DendriticBranchLayer(nn.Module):
         self.blocklinear_strategy = blocklinear_strategy
         self.use_shunting = use_shunting
         
-        self.input_excitatory = excitatory_input_dim is not None
+        self.input_excitatory = (excitatory_input_dim is not None)
         if self.input_excitatory:
             self.branch_excitation = TopKLinear(
                 in_features=excitatory_input_dim,
@@ -379,8 +379,10 @@ class DendriticBranchLayer(nn.Module):
                 init_method=topk_init_method,
             )
             self.excitatory_input_dim = excitatory_input_dim
+        else:
+            self.branch_excitation = None
 
-        self.input_inhibitory = inhibitory_input_dim is not None
+        self.input_inhibitory = (inhibitory_input_dim is not None)
         if self.input_inhibitory:
             self.branch_inhibition = TopKLinear(
                 in_features=inhibitory_input_dim,
@@ -389,6 +391,8 @@ class DendriticBranchLayer(nn.Module):
                 init_method=topk_init_method,
             )
             self.inhibitory_input_dim = inhibitory_input_dim
+        else:
+            self.branch_inhibition = None
 
         gradient_scaler = GradientScaler(
             reactivation_strategy=reactivation_strategy,
@@ -417,89 +421,111 @@ class DendriticBranchLayer(nn.Module):
                 init_b=0.5,
             )
             gradient_scaler.register_reactivation_inverse(self.reactivation)
+        else:
+            self.reactivation = nn.Identity()
         self.reactivate = reactivate
 
         self.initialize()
     
     def initialize(self):
         with torch.no_grad():
-            if self.input_excitatory:
+            if self.input_excitatory and self.branch_excitation is not None:
                 self.branch_excitation.initialize()
-            
-            if self.input_inhibitory:
+            if self.input_inhibitory and self.branch_inhibition is not None:
                 self.branch_inhibition.initialize()
 
             if self.input_branches:
                 if (self.input_excitatory or self.input_inhibitory) and self.use_shunting:
                     sum_synapse_conductances = 0
-                    if self.input_excitatory:
+                    if self.input_excitatory and self.branch_excitation is not None:
                         sum_synapse_conductances += self.branch_excitation.weight().sum(dim=1)
-                    if self.input_inhibitory:
+                    if self.input_inhibitory and self.branch_inhibition is not None:
                         sum_synapse_conductances += self.branch_inhibition.weight().sum(dim=1)
                 else:
                     sum_synapse_conductances = None
                 self.branches_to_output.initialize(sum_synapse_conductances)
     
     def decay_weights(self, weight_decay):
-        if self.input_excitatory:
+        if self.input_excitatory and self.branch_excitation is not None:
             self.branch_excitation.decay_weights(weight_decay)
-        if self.input_inhibitory:
+        if self.input_inhibitory and self.branch_inhibition is not None:
             self.branch_inhibition.decay_weights(weight_decay)
+        if self.input_branches:
+            self.branches_to_output.decay_weights(weight_decay)
 
     def forward(self, x, inhibitory_input = None, branch_input = None):
-        # compute excitation along each branch in layer
-        excitation = self.branch_excitation(x)
-        # initialize numerator and denominator variables
+        if self.input_excitatory and self.branch_excitation is not None:
+            excitation = self.branch_excitation(x)
+        else:
+            excitation = 0.0
+        
         numerator = excitation
         denominator = excitation + 1
-        # if receiving inputs from upstream branches
-        if self.input_branches:
-            # compute current contribution from upstream branches and add to numerator
+
+        if self.input_branches and branch_input is not None:
             current = self.branches_to_output(branch_input)
             numerator = numerator + current
-            # compute total conductance of upstream branches and add to denominator
             conductance = self.branches_to_output.sum_conductances()
             denominator = denominator + conductance
-        # if receiving inhibitory inputs
-        if self.input_inhibitory and inhibitory_input is not None:
-            if isinstance(inhibitory_input, torch.Tensor) and inhibitory_input.dim() > 0:
-                denominator = denominator + self.branch_inhibition(inhibitory_input)
-        # current divided by conductance is voltage
+        
+        if self.input_inhibitory and self.branch_inhibition is not None and inhibitory_input is not None:
+            denominator = denominator + self.branch_inhibition(inhibitory_input)
+        
         voltage = numerator / denominator
-        return self.reactivation(voltage) if self.reactivate else voltage
+        return self.reactivation(voltage)
 
     def get_weights(self):
-        if self.input_inhibitory:
+        if self.input_inhibitory and self.input_excitatory:
             return (self.branch_excitation.weight(), self.branch_inhibition.weight())
-        else:
+        elif self.input_excitatory:
             return self.branch_excitation.weight()
+        elif self.input_inhibitory:
+            return self.branch_inhibition.weight()
+        else:
+            return None
     
     def get_log_weights(self):
-        if self.input_inhibitory:
+        if self.input_inhibitory and self.input_excitatory:
             return (self.branch_excitation.log_weight(), self.branch_inhibition.log_weight())
-        else:
+        elif self.input_excitatory:
             return self.branch_excitation.log_weight()
+        elif self.input_inhibitory:
+            return self.branch_inhibition.log_weight()
+        else:
+            return None
 
     def get_mask(self):
-        if self.input_inhibitory:
+        if self.input_inhibitory and self.input_excitatory:
             return (self.branch_excitation.weight_mask(), self.branch_inhibition.weight_mask())
-        else:
+        elif self.input_excitatory:
             return self.branch_excitation.weight_mask()
+        elif self.input_inhibitory:
+            return self.branch_inhibition.weight_mask()
+        else:
+            return None
 
     def get_pruned_weights(self):
-        if self.input_inhibitory:
+        if self.input_inhibitory and self.input_excitatory:
             return (self.branch_excitation.pruned_weight(), self.branch_inhibition.pruned_weight())
-        else:
+        elif self.input_excitatory:
             return self.branch_excitation.pruned_weight()
+        elif self.input_inhibitory:
+            return self.branch_inhibition.pruned_weight()
+        else:
+            return None
     
     def get_log_pruned_weights(self):
-        if self.input_inhibitory:
+        if self.input_inhibitory and self.input_excitatory:
             return (
                 self.branch_excitation.log_pruned_weight(),
                 self.branch_inhibition.log_pruned_weight()
             )
-        else:
+        elif self.input_excitatory:
             return self.branch_excitation.log_pruned_weight()
+        elif self.input_inhibitory:
+            return self.branch_inhibition.log_pruned_weight()
+        else:
+            return None
 
 class DendriNet(nn.Module):
     """
@@ -683,7 +709,6 @@ class DendriNetWithOutputs(DendriNet):
         per_layer_acts = []
         output = None
         for i in range(self.n_branch_layers):
-            # Store excitatory and inhibitory inputs for visualization if needed
             if hasattr(self.branch_layers[i], 'excitatory_input'):
                 self.branch_layers[i].excitatory_input = x
             
@@ -693,7 +718,6 @@ class DendriNetWithOutputs(DendriNet):
             output = self.branch_layers[i](x, inhibitory_input, output)
             per_layer_acts.append(output)
             
-        # Store inputs for the final layer
         if hasattr(self.branch_layers[-1], 'excitatory_input'):
             self.branch_layers[-1].excitatory_input = x
         
@@ -707,7 +731,6 @@ class DendriNetWithOutputs(DendriNet):
     def forward(self, x, inhibitory_input=None):
         output = None
         for i in range(self.n_branch_layers):
-            # Store excitatory and inhibitory inputs for visualization if needed
             if hasattr(self.branch_layers[i], 'excitatory_input'):
                 self.branch_layers[i].excitatory_input = x
             
@@ -716,7 +739,6 @@ class DendriNetWithOutputs(DendriNet):
                 
             output = self.branch_layers[i](x, inhibitory_input, output)
             
-        # Store inputs for the final layer
         if hasattr(self.branch_layers[-1], 'excitatory_input'):
             self.branch_layers[-1].excitatory_input = x
         

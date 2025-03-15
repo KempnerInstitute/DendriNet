@@ -1,4 +1,5 @@
 # synthetic_datasets.py
+
 import os
 import shutil
 import numpy as np
@@ -9,11 +10,12 @@ from torchvision import datasets, transforms
 
 from torchvision.datasets import MNIST
 import torchvision.transforms as T
+
 ########################################
 # Original tasks: line, center_surround, orientation_bars, multi_xor, plus standard MNIST
 ########################################
 
-# Create a centralized function to get or create the data directory
+# Create a centralized function to get or create a data directory
 def get_data_directory(data_type, custom_path=None):
     """
     Get or create a data directory for the specified data type.
@@ -171,18 +173,14 @@ def load_mnist_as_datasets(train_valid_split=0.8, data_path=None):
     Returns:
         tuple: (train_dataset, valid_dataset, test_dataset)
     """
-    # Get the MNIST data directory
     mnist_dir = get_data_directory('mnist', data_path)
     
-    # Load training data
     train_dataset = datasets.MNIST(
         root=mnist_dir,
         train=True,
         download=True,
         transform=transforms.ToTensor()
     )
-    
-    # Load test data
     test_dataset = datasets.MNIST(
         root=mnist_dir,
         train=False,
@@ -190,7 +188,6 @@ def load_mnist_as_datasets(train_valid_split=0.8, data_path=None):
         transform=transforms.ToTensor()
     )
     
-    # Split training data into train and validation
     train_size = int(len(train_dataset) * train_valid_split)
     valid_size = len(train_dataset) - train_size
     
@@ -198,7 +195,6 @@ def load_mnist_as_datasets(train_valid_split=0.8, data_path=None):
         train_dataset, [train_size, valid_size]
     )
     
-    # Format datasets as tuples of tensors (inputs, labels)
     x_train = torch.stack([img for img, _ in train_dataset])
     y_train = torch.tensor([label for _, label in train_dataset])
     
@@ -213,10 +209,9 @@ def load_mnist_as_datasets(train_valid_split=0.8, data_path=None):
     x_valid = x_valid.view(x_valid.shape[0], -1)
     x_test = x_test.view(x_test.shape[0], -1)
     
-    # Create and return tensor datasets
     train_ds = torch.utils.data.TensorDataset(x_train, y_train)
     valid_ds = torch.utils.data.TensorDataset(x_valid, y_valid)
-    test_ds = torch.utils.data.TensorDataset(x_test, y_test)
+    test_ds  = torch.utils.data.TensorDataset(x_test,  y_test)
     
     return train_ds, valid_ds, test_ds
 
@@ -384,6 +379,7 @@ class CompositionalMNIST(Dataset):
     def __getitem__(self,idx):
         return self.data[idx],self.labels[idx]
 
+
 def load_cifar10_as_datasets(train_valid_split=1.0, data_path=None):
     """
     Load the CIFAR-10 dataset and split into train, validation, and test sets.
@@ -395,16 +391,13 @@ def load_cifar10_as_datasets(train_valid_split=1.0, data_path=None):
     Returns:
         tuple: (train_dataset, valid_dataset, test_dataset)
     """
-    # Define transforms
     transform = transforms.Compose([
         transforms.ToTensor(),
         transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))
     ])
     
-    # Get the CIFAR data directory
     cifar_dir = get_data_directory('cifar', data_path)
     
-    # Load training data
     train_dataset = datasets.CIFAR10(
         root=cifar_dir,
         train=True,
@@ -412,7 +405,6 @@ def load_cifar10_as_datasets(train_valid_split=1.0, data_path=None):
         transform=transform
     )
     
-    # Load test data
     test_dataset = datasets.CIFAR10(
         root=cifar_dir,
         train=False,
@@ -420,25 +412,17 @@ def load_cifar10_as_datasets(train_valid_split=1.0, data_path=None):
         transform=transform
     )
     
-    # Helper function to convert datasets to tensor format
     def convert_to_tensor(dataset):
-        # Extract data and labels
         data = []
         labels = []
         for img, label in dataset:
             data.append(img)
             labels.append(label)
-        
-        # Stack into tensors
         data_tensor = torch.stack(data)
         label_tensor = torch.tensor(labels)
-        
-        # Flatten images
         data_tensor = data_tensor.view(data_tensor.size(0), -1)
-        
         return data_tensor, label_tensor
 
-    # Split training data into train and validation if needed
     if train_valid_split < 1.0:
         train_size = int(len(train_dataset) * train_valid_split)
         valid_size = len(train_dataset) - train_size
@@ -447,30 +431,147 @@ def load_cifar10_as_datasets(train_valid_split=1.0, data_path=None):
             train_dataset, [train_size, valid_size]
         )
         
-        # Convert to tensors
         x_train, y_train = convert_to_tensor(train_dataset)
         x_valid, y_valid = convert_to_tensor(valid_dataset)
         x_test, y_test = convert_to_tensor(test_dataset)
         
-        # Create tensor datasets
         train_ds = torch.utils.data.TensorDataset(x_train, y_train)
         valid_ds = torch.utils.data.TensorDataset(x_valid, y_valid)
-        test_ds = torch.utils.data.TensorDataset(x_test, y_test)
+        test_ds  = torch.utils.data.TensorDataset(x_test,  y_test)
     else:
-        # No validation split needed
         x_train, y_train = convert_to_tensor(train_dataset)
-        x_test, y_test = convert_to_tensor(test_dataset)
-        
-        # Create tensor datasets
+        x_test,  y_test  = convert_to_tensor(test_dataset)
         train_ds = torch.utils.data.TensorDataset(x_train, y_train)
-        valid_ds = train_ds  # Use training data for validation
-        test_ds = torch.utils.data.TensorDataset(x_test, y_test)
+        valid_ds = train_ds
+        test_ds  = torch.utils.data.TensorDataset(x_test,  y_test)
     
     return train_ds, valid_ds, test_ds
 
 ########################################
 # The single get_unified_datasets(...) function
 ########################################
+
+def applyRandomFlip(images, labels, setAll=False, setValue=0):
+    """
+    This function modifies images and labels in-place to flip the label
+    or shift it. The 'first 3 pixels' logic sets a code:
+      pixel0=10 => normal
+      pixel1=10 => flip to 9-digit
+      pixel2=10 => shift by -1 mod 10
+    """
+    images_flip = images.clone()
+    labels_flip = labels.clone()
+    if setAll:
+        # set all flips to a single mode
+        if setValue==0:
+            # normal
+            images_flip[:,0] = 10
+            images_flip[:,1] = 0
+            images_flip[:,2] = 0
+        elif setValue==1:
+            # 9 - label
+            labels_flip = 9 - labels_flip
+            images_flip[:,0] = 0
+            images_flip[:,1] = 10
+            images_flip[:,2] = 0
+        else:
+            # label-1 mod 10
+            labels_flip = (labels_flip - 1) % 10
+            images_flip[:,0] = 0
+            images_flip[:,1] = 0
+            images_flip[:,2] = 10
+        return images_flip, labels_flip, None
+    else:
+        # random assignment
+        randFlips = torch.randint(0, 3, (images_flip.shape[0],), device=images_flip.device)
+        # mode=0 => normal, mode=1 => flip 9-lbl, mode=2 => lbl-1 mod10
+        # set the first pixel code
+        images_flip[randFlips==0,0] = 10
+        images_flip[randFlips==0,1] = 0
+        images_flip[randFlips==0,2] = 0
+        
+        labels_flip[randFlips==1] = 9 - labels_flip[randFlips==1]
+        images_flip[randFlips==1,0] = 0
+        images_flip[randFlips==1,1] = 10
+        images_flip[randFlips==1,2] = 0
+        
+        labels_flip[randFlips==2] = (labels_flip[randFlips==2] - 1) % 10
+        images_flip[randFlips==2,0] = 0
+        images_flip[randFlips==2,1] = 0
+        images_flip[randFlips==2,2] = 10
+        
+        return images_flip, labels_flip, randFlips
+
+class RandomFlipMNISTDataset(Dataset):
+    """
+    Loads standard MNIST and applies the applyRandomFlip() transform
+    to each sample in __getitem__ if random_flip=True.
+    This modifies the first 3 pixels and possibly flips/shifts the label.
+    """
+    def __init__(self, split='train', transform=None, data_path=None,
+                 random_flip=True, setAll=None, setValue=0):
+        """
+        split: 'train', 'valid', or 'test'
+        random_flip: if False, no flipping is applied
+        setAll: if an integer in [0,1,2], then all flips set to that mode
+        setValue: same as above
+        """
+        super().__init__()
+        self.transform = transform
+        self.random_flip = random_flip
+        self.setAll = setAll
+        self.setValue = setValue
+        # load full MNIST or we can do partial
+        mnist_dir = get_data_directory('mnist', data_path)
+        if split=='test':
+            base_ds = datasets.MNIST(root=mnist_dir, train=False, download=True)
+        else:
+            base_ds = datasets.MNIST(root=mnist_dir, train=True, download=True)
+        
+        # For simplicity, we'll just store the entire split in memory
+        data_tensors = []
+        label_tensors = []
+        for img, lbl in base_ds:
+            arr = np.array(img, dtype=np.float32)
+            arr = arr.reshape(-1)
+            data_tensors.append(arr)
+            label_tensors.append(lbl)
+        X = torch.tensor(np.stack(data_tensors))
+        Y = torch.tensor(label_tensors, dtype=torch.long)
+        
+        # If user wants a valid split, we do that
+        if split=='train':
+            # we'll take first 50k
+            self.X = X[:50000]
+            self.Y = Y[:50000]
+        elif split=='valid':
+            # next 10k
+            self.X = X[50000:]
+            self.Y = Y[50000:]
+        else: # test
+            self.X = X
+            self.Y = Y
+        
+    def __len__(self):
+        return len(self.X)
+    
+    def __getitem__(self, idx):
+        x = self.X[idx]
+        y = self.Y[idx]
+        
+        if self.random_flip:
+            if self.setAll is not None:
+                x, y, _ = applyRandomFlip(x.unsqueeze(0), y.unsqueeze(0),
+                                          setAll=True, setValue=self.setAll)
+                x = x.squeeze(0)
+                y = y.squeeze(0)
+            else:
+                x, y, _ = applyRandomFlip(x.unsqueeze(0), y.unsqueeze(0), setAll=False)
+                x = x.squeeze(0)
+                y = y.squeeze(0)
+        return x, y
+
+
 def get_unified_datasets(task_cfg, train_cfg):
     """
     Get datasets based on configuration.
@@ -525,6 +626,13 @@ def get_unified_datasets(task_cfg, train_cfg):
     elif dataset_name == "mnist":
         train_ds, valid_ds, test_ds = load_mnist_as_datasets(train_valid_split=train_valid_split, data_path=data_path)
         return train_ds, valid_ds, test_ds
+    elif dataset_name == "random_flip_mnist":
+        # Our newly added dataset that uses RandomFlipMNISTDataset
+        # We'll treat train vs valid vs test accordingly
+        train_dataset = RandomFlipMNISTDataset(split='train', data_path=data_path, random_flip=True)
+        valid_dataset = RandomFlipMNISTDataset(split='valid', data_path=data_path, random_flip=True)
+        test_dataset  = RandomFlipMNISTDataset(split='test',  data_path=data_path, random_flip=True)
+        return train_dataset, valid_dataset, test_dataset
     elif dataset_name == "mnist_modulo10":
         data = load_MNIST_modulo10(train_valid_split=train_valid_split, cache_dir=data_path)
         train_ds = data['train']
@@ -577,6 +685,7 @@ def get_unified_datasets(task_cfg, train_cfg):
         return load_cifar10_as_datasets(train_valid_split=train_valid_split,data_path=data_path)
     else:
         raise ValueError(f"Unknown dataset name: {dataset_name}")
+
 
 # Added function from the older codebase for splitting MNIST inputs.
 def split_MNIST_inputs(inputs, labels):
