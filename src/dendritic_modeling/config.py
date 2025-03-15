@@ -23,6 +23,7 @@ class BaseConfig:
     def asdict(self):
         return asdict(self)
 
+
 @dataclass
 class EINetParameters(BaseConfig):
     input_dim: int = 784
@@ -45,6 +46,7 @@ class EINetParameters(BaseConfig):
     output_layer: bool = False
     output_dim: int = 10
 
+
 @dataclass
 class FeedForwardParameters(BaseConfig):
     input_dim: int = 784
@@ -53,16 +55,19 @@ class FeedForwardParameters(BaseConfig):
     dropout: float = 0.2
     output_dim: int = 10
 
+
 @dataclass
 class ModelNetworkConfig(BaseConfig):
     type: str = "EINet"
     parameters: EINetParameters = field(default_factory=EINetParameters)
+
 
 @dataclass
 class ModelConfig(BaseConfig):
     task: str = "classification"
     probabilistic: bool = True
     network: ModelNetworkConfig = field(default_factory=ModelNetworkConfig)
+
 
 @dataclass
 class TrainConfig(BaseConfig):
@@ -79,11 +84,17 @@ class TrainConfig(BaseConfig):
     pretrain_epochs: int = 50
     input_net_training: dict = field(default_factory=dict)
 
+    # Newly added fields for "voltage_stabilization" strategy:
+    warmup_epochs: int = 5  # how many epochs to do MSE warmup
+    stability_target_voltage: float = 0.5  # the target "voltage" used in warmup
+
+
 @dataclass
 class VisualizationConfig(BaseConfig):
     enabled: bool = False
     visualize_epochs: List[int] = field(default_factory=lambda: [])
     plots: List[str] = field(default_factory=lambda: ["branch_info", "ablation"])
+
 
 @dataclass
 class WandbConfig(BaseConfig):
@@ -93,15 +104,18 @@ class WandbConfig(BaseConfig):
     tags: List[str] = field(default_factory=list)
     use_wandb: bool = False
 
+
 @dataclass
 class TaskConfig(BaseConfig):
     dataset: str = "mnist"
     data_path: str = ""
     parameters: Dict = field(default_factory=dict)
 
+
 @dataclass
 class OutputsConfig(BaseConfig):
     dir: str = "outputs"
+
 
 @dataclass
 class Config:
@@ -111,6 +125,7 @@ class Config:
     visualization: VisualizationConfig = field(default_factory=VisualizationConfig)
     task: TaskConfig = field(default_factory=TaskConfig)
     outputs: OutputsConfig = field(default_factory=OutputsConfig)
+
 
 def load_config(path: str = None) -> Config:
     """Load configuration from a file or use defaults."""

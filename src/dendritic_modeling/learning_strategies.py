@@ -8,6 +8,7 @@ Houses multiple learning/training strategies:
   - LocalCreditAssignment (advanced local learning using feedback alignment)
   - TwoStepTrainer        (pretrain each layer with local supervision using cross-entropy loss, then full end-to-end training)
   - TwoStepTrainerWithKL  (pretrain each layer with local supervision using a combined loss (cross-entropy + KL divergence), then full end-to-end training)
+  - TrainerVoltageStabilization (does a warmup with MSE to a target voltage, then CE)
 
 A factory function get_trainer(...) returns the chosen strategy based on a string.
 """
@@ -37,8 +38,7 @@ def compute_metrics_classification(preds, labels):
 
 
 class CustomWeightDecayOptimizer():
-
-    def __init__(self, model, optimizer, weight_decay = 0.1):
+    def __init__(self, model, optimizer, weight_decay=0.1):
         self.model = model
         self.optimizer = optimizer
         self.weight_decay = weight_decay
@@ -48,7 +48,7 @@ class CustomWeightDecayOptimizer():
     
     def step(self):
         lr = self.optimizer.param_groups[0]['lr']
-        self.model.decay_weights(weight_decay = lr * self.weight_decay)
+        self.model.decay_weights(weight_decay=lr * self.weight_decay)
         self.optimizer.step()
 
 
@@ -84,7 +84,7 @@ class BaseTrainer:
 
 class TrainerMLE(BaseTrainer):
     def train(self, model, train_data, valid_data=None, grad_clip_value=5, epochs=100,
-              batch_size=256, shuffle=True, load_best_state_dict=True, best_loss = float('inf'),
+              batch_size=256, shuffle=True, load_best_state_dict=True, best_loss=float('inf'),
               plot_losses=False, save_path=None):
         device = 'cuda' if torch.cuda.is_available() else 'cpu'
         model = model.to(device)
@@ -94,6 +94,7 @@ class TrainerMLE(BaseTrainer):
         best_epoch = 1
         best_state = deepcopy(model.state_dict())
         start_time = time.time()
+
         for epoch in range(1, epochs + 1):
             model.train()
             epoch_train_loss = 0.0
@@ -118,12 +119,14 @@ class TrainerMLE(BaseTrainer):
             train_losses.append(epoch_train_loss)
             val_loss, val_acc = self._eval_dataset(model, valid_data, device, batch_size)
             valid_losses.append(val_loss)
+
             if val_loss < best_loss:
                 best_loss = val_loss
                 best_epoch = epoch
                 best_state = deepcopy(model.state_dict())
                 if save_path and os.path.exists(save_path):
                     torch.save(best_state, os.path.join(save_path, "best_model.pt"))
+
             if (not self.suppress) and (epoch % self.print_every == 0):
                 elapsed = time.time() - start_time
                 logger.info(f"[Epoch {epoch}/{epochs}] train_loss={epoch_train_loss:.4f}, train_acc={train_acc:.3f}, "
@@ -136,8 +139,10 @@ class TrainerMLE(BaseTrainer):
                     "valid_loss": val_loss,
                     "valid_acc": val_acc
                 })
+
         if load_best_state_dict:
             model.load_state_dict(best_state)
+
         results = {
             "best epoch": best_epoch,
             "best loss": best_loss,
@@ -162,6 +167,7 @@ class TrainerMLE(BaseTrainer):
             return self.train(model, train_data, valid_data, grad_clip_value=grad_clip_value,
                               epochs=epochs_per_layer, batch_size=batch_size, shuffle=shuffle,
                               plot_losses=plot_losses, save_path=save_path)
+
         n_layers = len(model.net.layers)
         logger.info(f"train_freeze_layers: found {n_layers} layers. Training them sequentially.")
         train_losses = []
@@ -171,21 +177,26 @@ class TrainerMLE(BaseTrainer):
         total_epochs = n_layers * epochs_per_layer
         epoch_counter = 0
         start_time = time.time()
+
         for layer_idx in range(n_layers):
             for name, param in model.named_parameters():
                 param.requires_grad = False
+
             target_str = f"layers.{layer_idx}."
             for name, param in model.named_parameters():
                 if target_str in name:
                     param.requires_grad = True
+
             logger.info(f"Training only layer {layer_idx} for {epochs_per_layer} epochs.")
             train_loader = DataLoader(train_data, batch_size=batch_size, shuffle=shuffle)
+
             for e in range(1, epochs_per_layer + 1):
                 epoch_counter += 1
                 model.train()
                 epoch_train_loss = 0.0
                 preds_list = []
                 labels_list = []
+
                 for xb, yb in train_loader:
                     xb = xb.to(device)
                     yb = yb.to(device)
@@ -198,6 +209,7 @@ class TrainerMLE(BaseTrainer):
                     p = model.predict(xb)
                     preds_list.append(p.cpu())
                     labels_list.append(yb.cpu())
+
                 epoch_train_loss /= len(train_loader)
                 preds_cat = torch.cat(preds_list, dim=0)
                 labels_cat = torch.cat(labels_list, dim=0)
@@ -205,14 +217,17 @@ class TrainerMLE(BaseTrainer):
                 train_losses.append(epoch_train_loss)
                 val_loss, val_acc = self._eval_dataset(model, valid_data, device, batch_size)
                 valid_losses.append(val_loss)
+
                 if val_loss < best_loss:
                     best_loss = val_loss
                     best_state = deepcopy(model.state_dict())
+
                 if (not self.suppress) and (epoch_counter % self.print_every == 0):
                     elapsed = time.time() - start_time
                     logger.info(f"[Freeze-layers] layer={layer_idx}, epoch={epoch_counter}/{total_epochs}, "
                                 f"train_loss={epoch_train_loss:.4f}, train_acc={train_acc:.3f}, "
                                 f"valid_loss={val_loss:.4f}, valid_acc={val_acc:.3f}, elapsed={elapsed:.1f}s")
+
                 if wandb.run is not None:
                     wandb.log({
                         "epoch": epoch_counter,
@@ -222,14 +237,16 @@ class TrainerMLE(BaseTrainer):
                         "valid_loss": val_loss,
                         "valid_acc": val_acc
                     })
+
         logger.info("Done freeze-layers. Unfreezing all layers and loading best state.")
         for name, param in model.named_parameters():
             param.requires_grad = True
+
         model.load_state_dict(best_state)
         logger.info(f"Starting final full-network tuning for {final_tune_epochs} epochs.")
-        final_results = self.train(model, train_data, valid_data, grad_clip_value=grad_clip_value,
+        final_results = self.train(model, train_data, valid_data, grad_clip_value=5,
                                    epochs=final_tune_epochs, batch_size=batch_size, shuffle=shuffle,
-                                   load_best_state_dict=load_best_state_dict, plot_losses=plot_losses, save_path=save_path)
+                                   load_best_state_dict=True, plot_losses=plot_losses, save_path=save_path)
         return final_results
 
 
@@ -239,12 +256,14 @@ class LocalCreditAssignment(BaseTrainer):
         device = 'cuda' if torch.cuda.is_available() else 'cpu'
         model = model.to(device)
         train_loader = DataLoader(train_data, batch_size=batch_size, shuffle=shuffle)
+
         best_loss = float('inf')
         best_epoch = 1
         best_state = deepcopy(model.state_dict())
         train_losses = []
         valid_losses = []
         start_time = time.time()
+
         logger.info("LocalCreditAssignment: Using feedback alignment for local updates.")
         if hasattr(model, 'net') and hasattr(model.net, 'layers'):
             if not hasattr(self, 'feedback_matrices_initialized') or not self.feedback_matrices_initialized:
@@ -258,48 +277,60 @@ class LocalCreditAssignment(BaseTrainer):
                 self.feedback_matrices_initialized = True
         else:
             logger.info("No 'model.net.layers' found => feedback alignment may not apply.")
+
         for epoch in range(1, epochs + 1):
             model.train()
             epoch_train_loss = 0.0
             preds_list = []
             labels_list = []
+
             for p in model.parameters():
                 p.requires_grad_(False)
+
             for xb, yb in train_loader:
                 xb = xb.to(device)
                 yb = yb.to(device)
+
                 with torch.no_grad():
                     logits = model(xb)
                     loss_val = model.compute_loss(xb, yb)
+
                 epoch_train_loss += loss_val.item()
                 preds = model.predict(xb)
                 preds_list.append(preds.cpu())
                 labels_list.append(yb.cpu())
+
                 alpha = 1e-3
                 error_signal = (yb - preds.to(device)).float()
                 batch_error = error_signal.sum().item()
                 sign_of_error = 1.0 if batch_error > 0 else -1.0 if batch_error < 0 else 0.0
                 for p in model.parameters():
                     p.data -= alpha * sign_of_error
+
                 if grad_clip_value is not None:
                     for p in model.parameters():
                         p.data = torch.clamp(p.data, -grad_clip_value, grad_clip_value)
+
             epoch_train_loss /= len(train_loader)
             preds_cat = torch.cat(preds_list, dim=0)
             labels_cat = torch.cat(labels_list, dim=0)
             train_acc = compute_metrics_classification(preds_cat, labels_cat)['accuracy']
             train_losses.append(epoch_train_loss)
+
             val_loss, val_acc = self._eval_dataset(model, valid_data, device, batch_size)
             valid_losses.append(val_loss)
+
             if val_loss < best_loss:
                 best_loss = val_loss
                 best_epoch = epoch
                 best_state = deepcopy(model.state_dict())
+
             if (not self.suppress) and (epoch % self.print_every == 0):
                 elapsed = time.time() - start_time
                 logger.info(f"[LocalCredit] epoch={epoch}/{epochs}, train_loss={epoch_train_loss:.4f}, "
                             f"train_acc={train_acc:.3f}, valid_loss={val_loss:.4f}, valid_acc={val_acc:.3f}, "
                             f"elapsed={elapsed:.1f}s")
+
             if wandb.run is not None:
                 wandb.log({
                     "epoch": epoch,
@@ -308,8 +339,10 @@ class LocalCreditAssignment(BaseTrainer):
                     "valid_loss": val_loss,
                     "valid_acc": val_acc
                 })
+
         if load_best_state_dict:
             model.load_state_dict(best_state)
+
         results = {
             "best epoch": best_epoch,
             "train losses": train_losses,
@@ -326,19 +359,16 @@ class LocalCreditAssignment(BaseTrainer):
 class TrainOnlyMReactivation(BaseTrainer):
     def train(self, model, train_data, valid_data=None, grad_clip_value=5, epochs=100,
               batch_size=256, shuffle=True, load_best_state_dict=True, plot_losses=False, save_path=None):
-        """
-        TrainOnlyMReactivation: Freeze only the log_b parameters in the activation modules,
-        so that only the slope (m) is updated. This allows the reactivation to behave like a sigmoid
-        (with a fixed midpoint), while still learning a proper slope.
-        """
         device = 'cuda' if torch.cuda.is_available() else 'cpu'
         model = model.to(device)
         logger.info("TrainOnlyMReactivation: Freezing log_b and training all other parameters.")
+
         for name, param in model.named_parameters():
             if "log_b" in name:
                 param.requires_grad = False
             else:
                 param.requires_grad = True
+
         train_loader = DataLoader(train_data, batch_size=batch_size, shuffle=shuffle)
         train_losses = []
         valid_losses = []
@@ -346,6 +376,7 @@ class TrainOnlyMReactivation(BaseTrainer):
         best_epoch = 1
         best_state = deepcopy(model.state_dict())
         start_time = time.time()
+
         for epoch in range(1, epochs + 1):
             model.train()
             epoch_train_loss = 0.0
@@ -363,6 +394,7 @@ class TrainOnlyMReactivation(BaseTrainer):
                 p = model.predict(xb)
                 preds_list.append(p.cpu())
                 labels_list.append(yb.cpu())
+
             epoch_train_loss /= len(train_loader)
             preds_cat = torch.cat(preds_list, dim=0)
             labels_cat = torch.cat(labels_list, dim=0)
@@ -387,6 +419,7 @@ class TrainOnlyMReactivation(BaseTrainer):
                     "valid_loss": val_loss,
                     "valid_acc": val_acc
                 })
+
         if load_best_state_dict:
             model.load_state_dict(best_state)
         results = {
@@ -406,18 +439,16 @@ class TwoStepTrainer(BaseTrainer):
     def train(self, model, train_data, valid_data=None, pretrain_epochs=5, maintrain_epochs=45,
               batch_size=256, grad_clip_value=5, shuffle=True, load_best_state_dict=True,
               plot_losses=False, save_path=None):
-        """
-        TwoStepTrainer: Stage 1 uses only cross-entropy loss for local pretraining;
-        Stage 2 is full end-to-end training.
-        """
         device = 'cuda' if torch.cuda.is_available() else 'cpu'
         model = model.to(device)
+
         if hasattr(model, 'net'):
             net_obj = model.net
         elif hasattr(model, 'network'):
             net_obj = model.network
         else:
             net_obj = model
+
         if hasattr(net_obj, 'layers'):
             if not hasattr(self, 'local_heads'):
                 self.local_heads = []
@@ -449,6 +480,7 @@ class TwoStepTrainer(BaseTrainer):
                                      epochs=pretrain_epochs+maintrain_epochs, batch_size=batch_size,
                                      shuffle=shuffle, load_best_state_dict=load_best_state_dict,
                                      plot_losses=plot_losses, save_path=save_path)
+
         all_train_losses = []
         all_valid_losses = []
         best_loss = float('inf')
@@ -579,11 +611,6 @@ class TwoStepTrainerWithKL(BaseTrainer):
     def train(self, model, train_data, valid_data=None, pretrain_epochs=5, maintrain_epochs=45,
               batch_size=256, grad_clip_value=5, shuffle=True, load_best_state_dict=True,
               plot_losses=False, save_path=None, **kwargs):
-        """
-        TwoStepTrainerWithKL uses a combined loss during Stage 1 (local pretraining):
-        a weighted sum of cross-entropy and KL divergence between the local head's output and the full model's output.
-        Extra keyword arguments (e.g. 'epochs') are ignored.
-        """
         device = 'cuda' if torch.cuda.is_available() else 'cpu'
         model = model.to(device)
         if hasattr(model, 'net'):
@@ -663,8 +690,8 @@ class TwoStepTrainerWithKL(BaseTrainer):
                     with torch.no_grad():
                         final_logits = model(xb).detach()
                     kl_loss = F.kl_div(torch.log_softmax(local_logits, dim=-1),
-                                         torch.softmax(final_logits, dim=-1),
-                                         reduction='batchmean')
+                                       torch.softmax(final_logits, dim=-1),
+                                       reduction='batchmean')
                     weight_alpha = (layer_idx + 1) / n_layers
                     weight_beta = 1.0 - weight_alpha
                     loss_val = weight_alpha * ce_loss + weight_beta * kl_loss
@@ -759,7 +786,431 @@ class TwoStepTrainerWithKL(BaseTrainer):
         return results
 
 
-def get_trainer(strategy, optimizer, suppress_prints=False, print_every=10):
+def voltage_warmup_loss(model, x, target_val=0.5):
+    outputs = model(x)
+    to_stabilize = []
+    if hasattr(model, 'soma_out'):
+        to_stabilize.append(model.soma_out)
+    if hasattr(model, 'dendrite_out'):
+        to_stabilize.append(model.dendrite_out)
+    if hasattr(model, 'dendrite_branch_out'):
+        to_stabilize.append(model.dendrite_branch_out)
+    if hasattr(model, 'inhibition_out'):
+        to_stabilize.append(model.inhibition_out)
+    if len(to_stabilize) == 0:
+        if isinstance(outputs, torch.Tensor):
+            to_stabilize.append(outputs)
+        else:
+            return torch.tensor(0.0, device=x.device, requires_grad=True)
+    losses = []
+    for t in to_stabilize:
+        losses.append(torch.mean((t - target_val) ** 2))
+    return torch.mean(torch.stack(losses))
+
+
+class TrainerVoltageStabilization(BaseTrainer):
+    def __init__(self, optimizer, stability_target_voltage=0.5, suppress_prints=False, print_every=10):
+        super().__init__(optimizer, suppress_prints, print_every)
+        self.stability_target_voltage = stability_target_voltage
+
+    def train(self, model, train_data, valid_data=None, grad_clip_value=5, epochs=20,
+              batch_size=256, shuffle=True, load_best_state_dict=True,
+              warmup_epochs=5, plot_losses=False, save_path=None):
+        device = 'cuda' if torch.cuda.is_available() else 'cpu'
+        model = model.to(device)
+        train_loader = DataLoader(train_data, batch_size=batch_size, shuffle=shuffle)
+
+        best_loss = float('inf')
+        best_epoch = 1
+        best_state = deepcopy(model.state_dict())
+        train_losses = []
+        valid_losses = []
+        start_time = time.time()
+
+        for epoch in range(1, epochs + 1):
+            model.train()
+            epoch_train_loss = 0.0
+            preds_list = []
+            labels_list = []
+
+            for xb, yb in train_loader:
+                xb = xb.to(device)
+                yb = yb.to(device)
+                self.optimizer.zero_grad()
+                if epoch <= warmup_epochs:
+                    loss_val = voltage_warmup_loss(model, xb, target_val=self.stability_target_voltage)
+                else:
+                    loss_val = model.compute_loss(xb, yb)
+                loss_val.backward()
+                clip_grad_value_(model.parameters(), grad_clip_value)
+                self.optimizer.step()
+                epoch_train_loss += loss_val.item()
+                p = model.predict(xb)
+                preds_list.append(p.cpu())
+                labels_list.append(yb.cpu())
+
+            epoch_train_loss /= len(train_loader)
+            preds_cat = torch.cat(preds_list, dim=0)
+            labels_cat = torch.cat(labels_list, dim=0)
+            train_acc = compute_metrics_classification(preds_cat, labels_cat)['accuracy']
+            train_losses.append(epoch_train_loss)
+            val_loss, val_acc = self._eval_dataset(model, valid_data, device, batch_size)
+            valid_losses.append(val_loss)
+            if val_loss < best_loss:
+                best_loss = val_loss
+                best_epoch = epoch
+                best_state = deepcopy(model.state_dict())
+                if save_path and os.path.exists(save_path):
+                    torch.save(best_state, os.path.join(save_path, "best_model.pt"))
+            if (not self.suppress) and (epoch % self.print_every == 0):
+                elapsed = time.time() - start_time
+                if epoch <= warmup_epochs:
+                    logger.info(f"[VoltageWarmup] epoch={epoch}/{epochs}, warmup_loss={epoch_train_loss:.4f}, "
+                                f"train_acc={train_acc:.3f}, valid_loss={val_loss:.4f}, valid_acc={val_acc:.3f}, "
+                                f"elapsed={elapsed:.1f}s")
+                else:
+                    logger.info(f"[VoltageWarmup->CE] epoch={epoch}/{epochs}, train_loss={epoch_train_loss:.4f}, "
+                                f"train_acc={train_acc:.3f}, valid_loss={val_loss:.4f}, valid_acc={val_acc:.3f}, "
+                                f"elapsed={elapsed:.1f}s")
+            if wandb.run is not None:
+                wandb.log({
+                    "epoch": epoch,
+                    "train_loss": epoch_train_loss,
+                    "train_acc": train_acc,
+                    "valid_loss": val_loss,
+                    "valid_acc": val_acc,
+                    "warmup_phase": (epoch <= warmup_epochs),
+                })
+
+        if load_best_state_dict:
+            model.load_state_dict(best_state)
+        results = {
+            "best epoch": best_epoch,
+            "train losses": train_losses,
+            "valid losses": valid_losses
+        }
+        if plot_losses and len(train_losses) > 1:
+            if save_path and os.path.exists(save_path):
+                plot_NLL_loss_curves(train_losses, valid_losses, epochs, save_path)
+            else:
+                plot_NLL_loss_curves(train_losses, valid_losses, epochs)
+        return results
+
+
+def train_simple_mlp(input_dim, hidden_dims, output_dim, train_ds, valid_ds, test_ds, 
+                     epochs=20, batch_size=128, lr=0.001, run_save_path=None, device=None):
+    """
+    Train a simple MLP model with better performance.
+    Returns the trained model and its accuracy.
+
+    Args:
+        input_dim (int): Input dimension
+        hidden_dims (list): List of hidden layer dimensions
+        output_dim (int): Output dimension (number of classes)
+        train_ds, valid_ds, test_ds (Dataset): PyTorch datasets
+        epochs (int): Number of training epochs
+        batch_size (int): Batch size for training
+        lr (float): Learning rate
+        run_save_path (str): Path to save model checkpoints
+        device (str): Device to use ('cuda' or 'cpu')
+
+    Returns:
+        Tuple of (model, (train_acc, valid_acc, test_acc))
+    """
+    if device is None:
+        device = 'cuda' if torch.cuda.is_available() else 'cpu'
+
+    from dendritic_modeling.models import SimpleClassifier
+
+    model = SimpleClassifier(input_dim, hidden_dims, output_dim)
+    model = model.to(device)
+    optimizer = torch.optim.Adam(model.parameters(), lr=lr)
+    train_loader = torch.utils.data.DataLoader(train_ds, batch_size=batch_size, shuffle=True)
+    valid_loader = torch.utils.data.DataLoader(valid_ds, batch_size=batch_size)
+
+    best_valid_acc = 0.0
+    best_state = None
+
+    for epoch in range(1, epochs + 1):
+        model.train()
+        train_loss = 0.0
+        train_correct = 0
+        train_total = 0
+        
+        for xb, yb in train_loader:
+            xb = xb.to(device)
+            yb = yb.to(device)
+            optimizer.zero_grad()
+            outputs = model(xb)
+            loss = model.criterion(outputs, yb)
+            loss.backward()
+            optimizer.step()
+
+            train_loss += loss.item()
+            _, predicted = outputs.max(1)
+            train_total += yb.size(0)
+            train_correct += predicted.eq(yb).sum().item()
+
+        train_loss /= len(train_loader)
+        train_acc = train_correct / train_total
+
+        # Validation
+        model.eval()
+        valid_loss = 0.0
+        valid_correct = 0
+        valid_total = 0
+        with torch.no_grad():
+            for xb, yb in valid_loader:
+                xb = xb.to(device)
+                yb = yb.to(device)
+                outputs = model(xb)
+                loss = model.criterion(outputs, yb)
+                valid_loss += loss.item()
+                _, predicted = outputs.max(1)
+                valid_total += yb.size(0)
+                valid_correct += predicted.eq(yb).sum().item()
+
+        valid_loss /= len(valid_loader)
+        valid_acc = valid_correct / valid_total
+
+        if valid_acc > best_valid_acc:
+            best_valid_acc = valid_acc
+            best_state = deepcopy(model.state_dict())
+            if run_save_path:
+                os.makedirs(run_save_path, exist_ok=True)
+                save_path = os.path.join(run_save_path, "best_simple_mlp.pt")
+                torch.save(best_state, save_path)
+
+        logger.info(f"[Epoch {epoch}/{epochs}] train_loss={train_loss:.4f}, train_acc={train_acc:.4f}, "
+                    f"valid_loss={valid_loss:.4f}, valid_acc={valid_acc:.4f}")
+
+    # Load best model
+    if best_state:
+        model.load_state_dict(best_state)
+
+    # Evaluate on test
+    model.eval()
+    test_loader = torch.utils.data.DataLoader(test_ds, batch_size=batch_size)
+    test_correct = 0
+    test_total = 0
+    with torch.no_grad():
+        for xb, yb in test_loader:
+            xb = xb.to(device)
+            yb = yb.to(device)
+            outputs = model(xb)
+            _, predicted = outputs.max(1)
+            test_total += yb.size(0)
+            test_correct += predicted.eq(yb).sum().item()
+
+    test_acc = test_correct / test_total
+    logger.info(f"Test accuracy: {test_acc:.4f}")
+
+    return model, (train_acc, best_valid_acc, test_acc)
+
+
+def train_mlp_with_classification_head(feature_extractor, num_features, num_classes,
+                                       train_ds, valid_ds, test_ds,
+                                       epochs=20, batch_size=128, lr=0.001, run_save_path=None, device=None):
+    """
+    Train an MLP with a classification head, then return the trained feature extractor part.
+
+    Args:
+        feature_extractor: The feature extraction part of the MLP
+        num_features: The output dimension of the feature extractor
+        num_classes: The number of classes for classification
+        train_ds, valid_ds, test_ds: The datasets
+        epochs, batch_size, lr: Training parameters
+        run_save_path: Where to save the model and logs
+        device: Device to use ('cuda' or 'cpu')
+
+    Returns:
+        The trained feature extractor and performance metrics
+    """
+    if device is None:
+        device = 'cuda' if torch.cuda.is_available() else 'cpu'
+
+    from dendritic_modeling.models import MLPWithClassificationHead
+
+    model = MLPWithClassificationHead(feature_extractor, num_features, num_classes)
+    model = model.to(device)
+    optimizer = torch.optim.Adam(model.parameters(), lr=lr)
+
+    train_loader = torch.utils.data.DataLoader(train_ds, batch_size=batch_size, shuffle=True)
+    valid_loader = torch.utils.data.DataLoader(valid_ds, batch_size=batch_size)
+
+    best_valid_acc = 0.0
+    best_state = None
+    best_epoch = 0
+
+    if run_save_path:
+        os.makedirs(run_save_path, exist_ok=True)
+        logger.info(f"Will save best model to {run_save_path} at the end of training")
+
+    for epoch in range(1, epochs + 1):
+        model.train()
+        train_loss = 0.0
+        train_correct = 0
+        train_total = 0
+
+        for xb, yb in train_loader:
+            xb = xb.to(device)
+            yb = yb.to(device)
+
+            optimizer.zero_grad()
+            outputs = model(xb)
+            loss = model.criterion(outputs, yb)
+            loss.backward()
+            optimizer.step()
+
+            train_loss += loss.item()
+            _, predicted = outputs.max(1)
+            train_total += yb.size(0)
+            train_correct += predicted.eq(yb).sum().item()
+
+        train_loss /= len(train_loader)
+        train_acc = train_correct / train_total
+
+        model.eval()
+        valid_loss = 0.0
+        valid_correct = 0
+        valid_total = 0
+        with torch.no_grad():
+            for xb, yb in valid_loader:
+                xb = xb.to(device)
+                yb = yb.to(device)
+                outputs = model(xb)
+                loss = model.criterion(outputs, yb)
+                valid_loss += loss.item()
+                _, predicted = outputs.max(1)
+                valid_total += yb.size(0)
+                valid_correct += predicted.eq(yb).sum().item()
+
+        valid_loss /= len(valid_loader)
+        valid_acc = valid_correct / valid_total
+
+        if valid_acc > best_valid_acc:
+            best_valid_acc = valid_acc
+            best_state = deepcopy(model.state_dict())
+            best_epoch = epoch
+            logger.info(f"New best model found at epoch {epoch} with validation accuracy: {valid_acc:.4f}")
+
+        logger.info(f"[Epoch {epoch}/{epochs}] train_loss={train_loss:.4f}, train_acc={train_acc:.4f}, "
+                    f"valid_loss={valid_loss:.4f}, valid_acc={valid_acc:.4f}")
+
+        if wandb.run is not None:
+            wandb.log({
+                "mlp_train_loss": train_loss,
+                "mlp_train_acc": train_acc,
+                "mlp_valid_loss": valid_loss,
+                "mlp_valid_acc": valid_acc,
+            })
+
+    if best_state and run_save_path:
+        save_path = os.path.join(run_save_path, "best_mlp_with_classification.pt")
+        torch.save(best_state, save_path)
+        logger.info(f"Saved best model (from epoch {best_epoch}) to {save_path}")
+
+    if best_state:
+        model.load_state_dict(best_state)
+        logger.info(f"Loaded best model from epoch {best_epoch} with validation accuracy: {best_valid_acc:.4f}")
+
+    test_loader = torch.utils.data.DataLoader(test_ds, batch_size=batch_size)
+    test_correct = 0
+    test_total = 0
+    model.eval()
+    with torch.no_grad():
+        for xb, yb in test_loader:
+            xb = xb.to(device)
+            yb = yb.to(device)
+            outputs = model(xb)
+            _, predicted = outputs.max(1)
+            test_total += yb.size(0)
+            test_correct += predicted.eq(yb).sum().item()
+
+    test_acc = test_correct / test_total
+    logger.info(f"Test accuracy with classification head: {test_acc:.4f}")
+
+    return model.feature_extractor, (train_acc, best_valid_acc, test_acc)
+
+
+def transfer_mlp_weights_to_input_net(mlp_net, input_net, head_type="excitatory"):
+    logger.info(f"Transferring weights from MLP to {head_type} head of InputNetTransform")
+    if hasattr(mlp_net, 'layers'):
+        mlp_layers = mlp_net.layers
+    elif hasattr(mlp_net, 'net') and hasattr(mlp_net.net, 'layers'):
+        mlp_layers = mlp_net.net.layers
+    else:
+        logger.warning(f"Could not extract layers from MLP model. Using random initialization for {head_type} head.")
+        return
+    shared_layers = []
+    for module in input_net.shared:
+        if isinstance(module, torch.nn.Linear):
+            shared_layers.append(module)
+    target_head = input_net.head_exc if head_type == "excitatory" else input_net.head_inh
+    head_layers = []
+    for module in target_head:
+        if isinstance(module, torch.nn.Linear):
+            head_layers.append(module)
+    if head_type == "excitatory":
+        for i, shared_layer in enumerate(shared_layers):
+            if i < len(mlp_layers) - 1:
+                mlp_layer = mlp_layers[i]
+                if hasattr(mlp_layer, 'excit_pre_w'):
+                    shared_layer.weight.data = mlp_layer.excit_pre_w.exp().t()
+                    shared_layer.bias.data = mlp_layer.bias.data
+                else:
+                    logger.warning(f"Unexpected MLP layer structure. Using random initialization for shared layer {i}.")
+    if len(head_layers) > 0 and len(mlp_layers) > 0:
+        last_mlp_layer = mlp_layers[-1]
+        if hasattr(last_mlp_layer, 'excit_pre_w'):
+            head_layers[0].weight.data = last_mlp_layer.excit_pre_w.exp().t()
+            head_layers[0].bias.data = last_mlp_layer.bias.data
+        else:
+            logger.warning(f"Unexpected MLP layer structure. Using random initialization for {head_type} head.")
+    logger.info(f"Weight transfer completed for {head_type} head")
+
+
+def extract_weights_from_simple_mlp(simple_mlp, input_net_transform):
+    logger.info("Transferring weights from SimpleMLP to InputNetTransform")
+    mlp_modules = list(simple_mlp.net.network.children())
+    mlp_linear_modules = [m for m in mlp_modules if isinstance(m, torch.nn.Linear)]
+    shared_modules = []
+    for module in input_net_transform.shared:
+        if isinstance(module, torch.nn.Linear):
+            shared_modules.append(module)
+    exc_head_modules = []
+    for module in input_net_transform.head_exc:
+        if isinstance(module, torch.nn.Linear):
+            exc_head_modules.append(module)
+    inh_head_modules = []
+    for module in input_net_transform.head_inh:
+        if isinstance(module, torch.nn.Linear):
+            inh_head_modules.append(module)
+    for i, shared_module in enumerate(shared_modules):
+        if i < len(mlp_linear_modules) - 1:
+            mlp_layer = mlp_linear_modules[i]
+            shared_module.weight.data = mlp_layer.weight.data.clone()
+            shared_module.bias.data = mlp_layer.bias.data.clone()
+            logger.info(f"Transferred weights for shared layer {i}")
+    if len(mlp_linear_modules) > 0 and len(exc_head_modules) > 0:
+        if len(mlp_linear_modules) >= 2:
+            source_layer = mlp_linear_modules[-2]
+        else:
+            source_layer = mlp_linear_modules[0]
+        exc_head_modules[0].weight.data = source_layer.weight.data[:exc_head_modules[0].weight.shape[0], :].clone()
+        exc_head_modules[0].bias.data = source_layer.bias.data[:exc_head_modules[0].bias.shape[0]].clone()
+        logger.info("Transferred weights to excitatory head")
+        inh_head_modules[0].weight.data = source_layer.weight.data[:inh_head_modules[0].weight.shape[0], :].clone()
+        inh_head_modules[0].bias.data = source_layer.bias.data[:inh_head_modules[0].bias.shape[0]].clone()
+        logger.info("Transferred weights to inhibitory head")
+    logger.info("Weight transfer from SimpleMLP to InputNetTransform completed")
+
+
+def get_trainer(strategy,
+                optimizer,
+                suppress_prints=False,
+                print_every=10,
+                stability_target_voltage=0.5):
     strategy = strategy.lower()
     if strategy == "mle":
         return TrainerMLE(optimizer, suppress_prints, print_every)
@@ -771,566 +1222,13 @@ def get_trainer(strategy, optimizer, suppress_prints=False, print_every=10):
         return TwoStepTrainer(optimizer, suppress_prints, print_every)
     elif strategy == "two_step_kl":
         return TwoStepTrainerWithKL(optimizer, suppress_prints, print_every)
+    elif strategy == "voltage_stabilization":
+        return TrainerVoltageStabilization(
+            optimizer,
+            stability_target_voltage=stability_target_voltage,
+            suppress_prints=suppress_prints,
+            print_every=print_every
+        )
     else:
         logger.info(f"Unrecognized strategy '{strategy}', defaulting to 'mle'.")
         return TrainerMLE(optimizer, suppress_prints, print_every)
-
-
-# Add a function to train the simple MLP
-def train_simple_mlp(input_dim, hidden_dims, output_dim, train_ds, valid_ds, test_ds, 
-                     epochs=20, batch_size=128, lr=0.001, run_save_path=None, device=None):
-    """
-    Train a simple MLP model with better performance.
-    Returns the trained model and its accuracy.
-    
-    Args:
-        input_dim (int): Input dimension
-        hidden_dims (list): List of hidden layer dimensions
-        output_dim (int): Output dimension (number of classes)
-        train_ds, valid_ds, test_ds (Dataset): PyTorch datasets
-        epochs (int): Number of training epochs
-        batch_size (int): Batch size for training
-        lr (float): Learning rate
-        run_save_path (str): Path to save model checkpoints
-        device (str): Device to use ('cuda' or 'cpu')
-        
-    Returns:
-        Tuple of (model, (train_acc, valid_acc, test_acc))
-    """
-    if device is None:
-        device = 'cuda' if torch.cuda.is_available() else 'cpu'
-    
-    # Import here to avoid circular imports
-    from dendritic_modeling.models import SimpleClassifier
-    
-    # Create the model
-    model = SimpleClassifier(input_dim, hidden_dims, output_dim)
-    model = model.to(device)
-    
-    # Create optimizer
-    optimizer = torch.optim.Adam(model.parameters(), lr=lr)
-    
-    # Set up dataloaders
-    train_loader = torch.utils.data.DataLoader(train_ds, batch_size=batch_size, shuffle=True)
-    valid_loader = torch.utils.data.DataLoader(valid_ds, batch_size=batch_size)
-    
-    # Training loop
-    best_valid_acc = 0.0
-    best_state = None
-    
-    for epoch in range(1, epochs + 1):
-        # Training phase
-        model.train()
-        train_loss = 0.0
-        train_correct = 0
-        train_total = 0
-        
-        for xb, yb in train_loader:
-            xb = xb.to(device)
-            yb = yb.to(device)
-            
-            optimizer.zero_grad()
-            outputs = model(xb)
-            loss = model.criterion(outputs, yb)
-            loss.backward()
-            optimizer.step()
-            
-            train_loss += loss.item()
-            _, predicted = outputs.max(1)
-            train_total += yb.size(0)
-            train_correct += predicted.eq(yb).sum().item()
-        
-        train_loss /= len(train_loader)
-        train_acc = train_correct / train_total
-        
-        # Validation phase
-        model.eval()
-        valid_loss = 0.0
-        valid_correct = 0
-        valid_total = 0
-        
-        with torch.no_grad():
-            for xb, yb in valid_loader:
-                xb = xb.to(device)
-                yb = yb.to(device)
-                
-                outputs = model(xb)
-                loss = model.criterion(outputs, yb)
-                
-                valid_loss += loss.item()
-                _, predicted = outputs.max(1)
-                valid_total += yb.size(0)
-                valid_correct += predicted.eq(yb).sum().item()
-        
-        valid_loss /= len(valid_loader)
-        valid_acc = valid_correct / valid_total
-        
-        # Save best model
-        if valid_acc > best_valid_acc:
-            best_valid_acc = valid_acc
-            best_state = deepcopy(model.state_dict())
-            
-            if run_save_path:
-                os.makedirs(run_save_path, exist_ok=True)
-                save_path = os.path.join(run_save_path, "best_simple_mlp.pt")
-                torch.save(best_state, save_path)
-        
-        # Log progress
-        logger.info(f"[Epoch {epoch}/{epochs}] train_loss={train_loss:.4f}, train_acc={train_acc:.4f}, "
-                    f"valid_loss={valid_loss:.4f}, valid_acc={valid_acc:.4f}")
-    
-    # Load best model
-    if best_state:
-        model.load_state_dict(best_state)
-    
-    # Evaluate on test set
-    model.eval()
-    test_loader = torch.utils.data.DataLoader(test_ds, batch_size=batch_size)
-    test_correct = 0
-    test_total = 0
-    
-    with torch.no_grad():
-        for xb, yb in test_loader:
-            xb = xb.to(device)
-            yb = yb.to(device)
-            
-            outputs = model(xb)
-            _, predicted = outputs.max(1)
-            test_total += yb.size(0)
-            test_correct += predicted.eq(yb).sum().item()
-    
-    test_acc = test_correct / test_total
-    logger.info(f"Test accuracy: {test_acc:.4f}")
-    
-    # Return the model and its accuracy
-    return model, (train_acc, best_valid_acc, test_acc)
-
-
-# Function to train an MLP with a classification head for feature learning
-def train_mlp_with_classification_head(feature_extractor, num_features, num_classes, 
-                                     train_ds, valid_ds, test_ds, 
-                                     epochs=20, batch_size=128, lr=0.001, run_save_path=None, device=None):
-    """
-    Train an MLP with a classification head, then return the trained feature extractor part.
-    
-    Args:
-        feature_extractor: The feature extraction part of the MLP
-        num_features: The output dimension of the feature extractor
-        num_classes: The number of classes for classification
-        train_ds, valid_ds, test_ds: The datasets
-        epochs, batch_size, lr: Training parameters
-        run_save_path: Where to save the model and logs
-        device: Device to use ('cuda' or 'cpu')
-        
-    Returns:
-        The trained feature extractor and performance metrics
-    """
-    if device is None:
-        device = 'cuda' if torch.cuda.is_available() else 'cpu'
-    
-    # Import here to avoid circular imports
-    from dendritic_modeling.models import MLPWithClassificationHead
-    
-    # Create the model with classification head
-    model = MLPWithClassificationHead(feature_extractor, num_features, num_classes)
-    model = model.to(device)
-    
-    # Create optimizer
-    optimizer = torch.optim.Adam(model.parameters(), lr=lr)
-    
-    # Set up dataloaders
-    train_loader = torch.utils.data.DataLoader(train_ds, batch_size=batch_size, shuffle=True)
-    valid_loader = torch.utils.data.DataLoader(valid_ds, batch_size=batch_size)
-    
-    # Training loop
-    best_valid_acc = 0.0
-    best_state = None
-    best_epoch = 0
-    
-    # Create the save directory if it doesn't exist
-    if run_save_path:
-        # Ensure the main directory exists
-        os.makedirs(run_save_path, exist_ok=True)
-        logger.info(f"Will save best model to {run_save_path} at the end of training")
-    
-    for epoch in range(1, epochs + 1):
-        # Training phase
-        model.train()
-        train_loss = 0.0
-        train_correct = 0
-        train_total = 0
-        
-        for xb, yb in train_loader:
-            xb = xb.to(device)
-            yb = yb.to(device)
-            
-            optimizer.zero_grad()
-            outputs = model(xb)
-            loss = model.criterion(outputs, yb)
-            loss.backward()
-            optimizer.step()
-            
-            train_loss += loss.item()
-            _, predicted = outputs.max(1)
-            train_total += yb.size(0)
-            train_correct += predicted.eq(yb).sum().item()
-        
-        train_loss /= len(train_loader)
-        train_acc = train_correct / train_total
-        
-        # Validation phase
-        model.eval()
-        valid_loss = 0.0
-        valid_correct = 0
-        valid_total = 0
-        
-        with torch.no_grad():
-            for xb, yb in valid_loader:
-                xb = xb.to(device)
-                yb = yb.to(device)
-                
-                outputs = model(xb)
-                loss = model.criterion(outputs, yb)
-                
-                valid_loss += loss.item()
-                _, predicted = outputs.max(1)
-                valid_total += yb.size(0)
-                valid_correct += predicted.eq(yb).sum().item()
-        
-        valid_loss /= len(valid_loader)
-        valid_acc = valid_correct / valid_total
-        
-        # Track best model but don't save yet
-        if valid_acc > best_valid_acc:
-            best_valid_acc = valid_acc
-            best_state = deepcopy(model.state_dict())
-            best_epoch = epoch
-            logger.info(f"New best model found at epoch {epoch} with validation accuracy: {valid_acc:.4f}")
-        
-        # Log progress
-        logger.info(f"[Epoch {epoch}/{epochs}] train_loss={train_loss:.4f}, train_acc={train_acc:.4f}, "
-                    f"valid_loss={valid_loss:.4f}, valid_acc={valid_acc:.4f}")
-        
-        # Log to wandb if available
-        if wandb.run is not None:
-            wandb.log({
-                "mlp_train_loss": train_loss,
-                "mlp_train_acc": train_acc,
-                "mlp_valid_loss": valid_loss,
-                "mlp_valid_acc": valid_acc,
-            })
-    
-    # Save only the best model at the end of training
-    if best_state and run_save_path:
-        save_path = os.path.join(run_save_path, "best_mlp_with_classification.pt")
-        torch.save(best_state, save_path)
-        logger.info(f"Saved best model (from epoch {best_epoch}) to {save_path}")
-    
-    # Load best model
-    if best_state:
-        model.load_state_dict(best_state)
-        logger.info(f"Loaded best model from epoch {best_epoch} with validation accuracy: {best_valid_acc:.4f}")
-    
-    # Evaluate on test set
-    model.eval()
-    test_loader = torch.utils.data.DataLoader(test_ds, batch_size=batch_size)
-    test_correct = 0
-    test_total = 0
-    
-    with torch.no_grad():
-        for xb, yb in test_loader:
-            xb = xb.to(device)
-            yb = yb.to(device)
-            
-            outputs = model(xb)
-            _, predicted = outputs.max(1)
-            test_total += yb.size(0)
-            test_correct += predicted.eq(yb).sum().item()
-    
-    test_acc = test_correct / test_total
-    logger.info(f"Test accuracy with classification head: {test_acc:.4f}")
-    
-    # Return the feature extractor part (without the classification head)
-    return model.feature_extractor, (train_acc, best_valid_acc, test_acc)
-
-
-class InhibitoryHeadTrainer:
-    """
-    Custom trainer for the inhibitory head with different objective functions.
-    """
-    def __init__(self, model, optimizer, objective="classification", 
-                 excit_head_model=None, alpha=0.5,
-                 suppress_prints=False, print_every=10):
-        self.model = model
-        self.optimizer = optimizer
-        self.objective = objective
-        self.excit_head_model = excit_head_model
-        self.alpha = alpha  # Weight for the diversity loss
-        self.suppress = suppress_prints
-        self.print_every = print_every
-        
-    def compute_classification_loss(self, x, y):
-        """Standard classification loss"""
-        return self.model.compute_loss(x, y)
-    
-    def compute_diversity_loss(self, x):
-        """
-        Diversity loss: encourages inhibitory head to learn features different from excitatory head
-        by maximizing the cosine distance between their representations.
-        """
-        if self.excit_head_model is None:
-            return torch.tensor(0.0, device=x.device)
-        
-        # Get representations from both heads
-        with torch.no_grad():
-            if hasattr(self.excit_head_model, 'net'):
-                excit_repr = self.excit_head_model.net(x)
-            elif hasattr(self.excit_head_model, 'network'):
-                excit_repr = self.excit_head_model.network(x)
-            else:
-                excit_repr = self.excit_head_model(x)
-        
-        if hasattr(self.model, 'net'):
-            inhib_repr = self.model.net(x)
-        elif hasattr(self.model, 'network'):
-            inhib_repr = self.model.network(x)
-        else:
-            inhib_repr = self.model(x)
-        
-        # Normalize the representations
-        excit_repr = F.normalize(excit_repr, p=2, dim=1)
-        inhib_repr = F.normalize(inhib_repr, p=2, dim=1)
-        
-        # Compute cosine similarity (we want to minimize this, or maximize negative)
-        similarity = torch.sum(excit_repr * inhib_repr, dim=1).mean()
-        
-        # Return negative similarity to maximize distance
-        return similarity
-    
-    def train(self, model, train_data, valid_data=None, epochs=100, batch_size=256, 
-              grad_clip_value=5, shuffle=True, load_best_state_dict=True, 
-              plot_losses=False, save_path=None):
-        """
-        Train the inhibitory head with the specified objective.
-        """
-        device = 'cuda' if torch.cuda.is_available() else 'cpu'
-        model = model.to(device)
-        if self.excit_head_model is not None:
-            self.excit_head_model = self.excit_head_model.to(device)
-        
-        train_loader = torch.utils.data.DataLoader(train_data, batch_size=batch_size, shuffle=shuffle)
-        
-        train_losses = []
-        valid_losses = []
-        best_loss = float('inf')
-        best_state = deepcopy(model.state_dict())
-        
-        start_time = time.time()
-        
-        for epoch in range(1, epochs + 1):
-            model.train()
-            epoch_train_loss = 0.0
-            
-            for xb, yb in train_loader:
-                xb = xb.to(device)
-                yb = yb.to(device)
-                
-                # Compute the appropriate loss based on the objective
-                if self.objective == "classification":
-                    loss = self.compute_classification_loss(xb, yb)
-                elif self.objective == "diversity":
-                    class_loss = self.compute_classification_loss(xb, yb)
-                    div_loss = self.compute_diversity_loss(xb)
-                    loss = class_loss + self.alpha * div_loss
-                elif self.objective == "combined":
-                    class_loss = self.compute_classification_loss(xb, yb)
-                    div_loss = self.compute_diversity_loss(xb)
-                    loss = class_loss + self.alpha * div_loss
-                else:
-                    raise ValueError(f"Unknown objective: {self.objective}")
-                
-                self.optimizer.zero_grad()
-                loss.backward()
-                torch.nn.utils.clip_grad_value_(model.parameters(), grad_clip_value)
-                self.optimizer.step()
-                
-                epoch_train_loss += loss.item()
-            
-            epoch_train_loss /= len(train_loader)
-            train_losses.append(epoch_train_loss)
-            
-            # Evaluate on validation set
-            model.eval()
-            val_loss = 0.0
-            
-            if valid_data is not None:
-                valid_loader = torch.utils.data.DataLoader(valid_data, batch_size=batch_size)
-                with torch.no_grad():
-                    for xb, yb in valid_loader:
-                        xb = xb.to(device)
-                        yb = yb.to(device)
-                        
-                        # Use classification loss for validation
-                        loss = self.compute_classification_loss(xb, yb)
-                        val_loss += loss.item()
-                
-                val_loss /= len(valid_loader)
-                valid_losses.append(val_loss)
-                
-                if val_loss < best_loss:
-                    best_loss = val_loss
-                    best_state = deepcopy(model.state_dict())
-                    if save_path and os.path.exists(save_path):
-                        torch.save(best_state, os.path.join(save_path, "best_model.pt"))
-            
-            if (not self.suppress) and (epoch % self.print_every == 0):
-                elapsed = time.time() - start_time
-                if valid_data is not None:
-                    logger.info(f"[Epoch {epoch}/{epochs}] train_loss={epoch_train_loss:.4f}, "
-                                f"valid_loss={val_loss:.4f}, elapsed={elapsed:.1f}s")
-                else:
-                    logger.info(f"[Epoch {epoch}/{epochs}] train_loss={epoch_train_loss:.4f}, "
-                                f"elapsed={elapsed:.1f}s")
-            
-            if wandb.run is not None:
-                log_dict = {
-                    "epoch": epoch,
-                    "train_loss": epoch_train_loss,
-                }
-                if valid_data is not None:
-                    log_dict["valid_loss"] = val_loss
-                wandb.log(log_dict)
-        
-        if load_best_state_dict and valid_data is not None:
-            model.load_state_dict(best_state)
-        
-        results = {
-            "train_losses": train_losses,
-            "valid_losses": valid_losses if valid_data is not None else [],
-            "best_loss": best_loss if valid_data is not None else None,
-        }
-        
-        if plot_losses and len(train_losses) > 1:
-            if save_path and os.path.exists(save_path):
-                from dendritic_modeling.plot_utils import plot_NLL_loss_curves
-                plot_NLL_loss_curves(train_losses, valid_losses if valid_data is not None else [], 
-                                     epochs, save_path)
-        
-        return results
-
-
-def transfer_mlp_weights_to_input_net(mlp_net, input_net, head_type="excitatory"):
-    """
-    Transfer weights from a trained MLP to the corresponding part of an InputNetTransform.
-    
-    Args:
-        mlp_net: The trained MLP network
-        input_net: The InputNetTransform to transfer weights to
-        head_type: Either "excitatory" or "inhibitory" to specify which head to update
-    """
-    logger.info(f"Transferring weights from MLP to {head_type} head of InputNetTransform")
-    
-    # Extract the MLP layers
-    if hasattr(mlp_net, 'layers'):
-        mlp_layers = mlp_net.layers
-    elif hasattr(mlp_net, 'net') and hasattr(mlp_net.net, 'layers'):
-        mlp_layers = mlp_net.net.layers
-    else:
-        logger.warning(f"Could not extract layers from MLP model. Using random initialization for {head_type} head.")
-        return
-    
-    # Get the shared backbone and target head of the InputNetTransform
-    shared_layers = []
-    for module in input_net.shared:
-        if isinstance(module, torch.nn.Linear):
-            shared_layers.append(module)
-    
-    target_head = input_net.head_exc if head_type == "excitatory" else input_net.head_inh
-    head_layers = []
-    for module in target_head:
-        if isinstance(module, torch.nn.Linear):
-            head_layers.append(module)
-    
-    # Transfer weights for the shared backbone (only once, typically from excitatory head)
-    if head_type == "excitatory":
-        for i, shared_layer in enumerate(shared_layers):
-            if i < len(mlp_layers) - 1:  # All but the last MLP layer go to shared backbone
-                mlp_layer = mlp_layers[i]
-                if hasattr(mlp_layer, 'excit_pre_w'):
-                    # MLPExcInhLayer has a different structure
-                    shared_layer.weight.data = mlp_layer.excit_pre_w.exp().t()
-                    shared_layer.bias.data = mlp_layer.bias.data
-                else:
-                    logger.warning(f"Unexpected MLP layer structure. Using random initialization for shared layer {i}.")
-    
-    # Transfer weights for the head-specific part
-    if len(head_layers) > 0 and len(mlp_layers) > 0:
-        # The last layer of MLP goes to the head
-        last_mlp_layer = mlp_layers[-1]
-        if hasattr(last_mlp_layer, 'excit_pre_w'):
-            head_layers[0].weight.data = last_mlp_layer.excit_pre_w.exp().t()
-            head_layers[0].bias.data = last_mlp_layer.bias.data
-        else:
-            logger.warning(f"Unexpected MLP layer structure. Using random initialization for {head_type} head.")
-    
-    logger.info(f"Weight transfer completed for {head_type} head")
-
-
-def extract_weights_from_simple_mlp(simple_mlp, input_net_transform):
-    """
-    Extract weights from a SimpleMLP model and transfer them to an InputNetTransform.
-    
-    Args:
-        simple_mlp: The trained SimpleMLP model
-        input_net_transform: The InputNetTransform to transfer weights to
-    """
-    logger.info("Transferring weights from SimpleMLP to InputNetTransform")
-    
-    # Get network modules
-    mlp_modules = list(simple_mlp.net.network.children())
-    mlp_linear_modules = [m for m in mlp_modules if isinstance(m, torch.nn.Linear)]
-    
-    # Get shared backbone modules of InputNetTransform
-    shared_modules = []
-    for module in input_net_transform.shared:
-        if isinstance(module, torch.nn.Linear):
-            shared_modules.append(module)
-    
-    # Get head modules
-    exc_head_modules = []
-    for module in input_net_transform.head_exc:
-        if isinstance(module, torch.nn.Linear):
-            exc_head_modules.append(module)
-    
-    inh_head_modules = []
-    for module in input_net_transform.head_inh:
-        if isinstance(module, torch.nn.Linear):
-            inh_head_modules.append(module)
-    
-    # Transfer weights for the shared backbone (from early layers of MLP)
-    for i, shared_module in enumerate(shared_modules):
-        if i < len(mlp_linear_modules) - 1:  # All but the last MLP layer
-            mlp_layer = mlp_linear_modules[i]
-            shared_module.weight.data = mlp_layer.weight.data.clone()
-            shared_module.bias.data = mlp_layer.bias.data.clone()
-            logger.info(f"Transferred weights for shared layer {i}")
-    
-    # Transfer weights for heads (from last layer of MLP)
-    if len(mlp_linear_modules) > 0 and len(exc_head_modules) > 0:
-        # Use the second-to-last layer for the heads (since the last layer is the classifier)
-        if len(mlp_linear_modules) >= 2:
-            source_layer = mlp_linear_modules[-2]
-        else:
-            source_layer = mlp_linear_modules[0]
-        
-        # Transfer to excitatory head
-        exc_head_modules[0].weight.data = source_layer.weight.data[:exc_head_modules[0].weight.shape[0], :].clone()
-        exc_head_modules[0].bias.data = source_layer.bias.data[:exc_head_modules[0].bias.shape[0]].clone()
-        logger.info("Transferred weights to excitatory head")
-        
-        # Transfer to inhibitory head
-        inh_head_modules[0].weight.data = source_layer.weight.data[:inh_head_modules[0].weight.shape[0], :].clone()
-        inh_head_modules[0].bias.data = source_layer.bias.data[:inh_head_modules[0].bias.shape[0]].clone()
-        logger.info("Transferred weights to inhibitory head")
-    
-    logger.info("Weight transfer from SimpleMLP to InputNetTransform completed")
