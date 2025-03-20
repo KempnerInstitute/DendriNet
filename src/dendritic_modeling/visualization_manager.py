@@ -8,6 +8,8 @@ and analysis functions to produce actual visualizations for "gradients",
 
 import os
 import logging
+import pandas as pd
+import traceback
 
 import matplotlib.pyplot as plt
 from torch.utils.data import DataLoader
@@ -66,7 +68,9 @@ class PlotManager:
             "branch_info": self._branch_info,
             "ablation": self._branch_ablation,
             "layerwise_ablation": self._branch_ablation,
+            "layer_ablation": self._branch_ablation,
             "branch_ablation": self._branch_ablation,
+            "dendritic_ablation_all": self._dendritic_ablation_all
         }
 
     def run_plot(self, plot_name, epoch=None):
@@ -79,14 +83,23 @@ class PlotManager:
         if func is not None:
             # Store the current plot name for reference in the plot method
             self.current_plot = plot_name
-            func()
-            self.current_plot = None
-            if epoch is not None:
-                logging.info(f"Plot '{plot_name}' saved for epoch {epoch}.")
-            else:
-                logging.info(f"Plot '{plot_name}' saved.")
+            try:
+                print(f"Starting to generate plot '{plot_name}'...")
+                func()
+                print(f"Successfully completed plot '{plot_name}'")
+                self.current_plot = None
+                if epoch is not None:
+                    logging.info(f"Plot '{plot_name}' saved for epoch {epoch}.")
+                else:
+                    logging.info(f"Plot '{plot_name}' saved.")
+            except Exception as e:
+                print(f"Error generating plot '{plot_name}': {e}")
+                print(traceback.format_exc())
+                logging.error(f"Error generating plot '{plot_name}': {e}")
+                logging.error(traceback.format_exc())
         else:
-            logging.info(f"Plot name '{plot_name}' not recognized in PlotManager.")
+            logging.info(f"Plot name '{plot_name}' not recognized in PlotManager. Available plots: {list(self.plot_methods.keys())}")
+            print(f"Plot name '{plot_name}' not recognized. Available plots: {list(self.plot_methods.keys())}")
 
     def _plot_weights(self):
         if hasattr(self.model, 'net'):
@@ -536,8 +549,27 @@ class PlotManager:
             logging.info("Both layer_ablation and branch_ablation are disabled in config. Skipping analysis.")
             return
         
-        print(f"Model has {len(net.branch_layers)} branch layers")
-        logging.info(f"Model has {len(net.branch_layers)} branch layers")
+        # Access branch layers - try different model structures
+        branch_layers = []
+        if hasattr(net, 'branch_layers'):
+            branch_layers = net.branch_layers
+            print(f"Found branch_layers directly. Model has {len(branch_layers)} branch layers")
+        elif hasattr(net, 'layers'):
+            # EINet structure has layers with excitatory_cells and inhibitory_cells
+            branch_layers = []
+            for layer_idx, layer in enumerate(net.layers):
+                if hasattr(layer, 'excitatory_cells') and hasattr(layer.excitatory_cells, 'branch_layers'):
+                    branch_layers.extend(layer.excitatory_cells.branch_layers)
+                if hasattr(layer, 'inhibitory_cells') and hasattr(layer.inhibitory_cells, 'branch_layers'):
+                    branch_layers.extend(layer.inhibitory_cells.branch_layers)
+            print(f"Extracted branch_layers from layers structure. Found {len(branch_layers)} branch layers")
+        
+        if not branch_layers:
+            print("No branch layers found in model. Skipping ablation analysis.")
+            logging.error("No branch layers found in model. Skipping ablation analysis.")
+            return
+        
+        logging.info(f"Model has {len(branch_layers)} branch layers")
         
         print("Performing branch ablation analysis...")
         logging.info("Performing branch ablation analysis...")
@@ -572,23 +604,33 @@ class PlotManager:
         branch_inh_ablated_acc = []
         
         # For each layer
-        for layer_idx in range(len(net.branch_layers)):
-            layer = net.branch_layers[layer_idx]
+        for layer_idx, layer in enumerate(branch_layers):
             print(f"\nAblating layer {layer_idx}...")
             logging.info(f"Ablating layer {layer_idx}...")
             
+            # Determine if layer has branch_excitation or branch_inhibition
+            has_branch_excitation = hasattr(layer, 'branch_excitation')
+            has_branch_inhibition = hasattr(layer, 'branch_inhibition')
+            
+            if not (has_branch_excitation or has_branch_inhibition):
+                print(f"  Layer {layer_idx} has neither branch_excitation nor branch_inhibition. Skipping.")
+                logging.info(f"Layer {layer_idx} has neither branch_excitation nor branch_inhibition. Skipping.")
+                continue
+            
             # Get number of branches
             n_branches = 0
-            if hasattr(layer, 'branch_excitation'):
-                n_branches = layer.branch_excitation.pre_w.shape[0]
-                print(f"  Layer {layer_idx} has branch_excitation with {n_branches} branches")
-            elif hasattr(layer, 'branch_inhibition'):
-                n_branches = layer.branch_inhibition.pre_w.shape[0]
-                print(f"  Layer {layer_idx} has branch_inhibition with {n_branches} branches")
+            if has_branch_excitation:
+                if hasattr(layer.branch_excitation, 'pre_w'):
+                    n_branches = layer.branch_excitation.pre_w.shape[0]
+                    print(f"  Layer {layer_idx} has branch_excitation with {n_branches} branches")
+            elif has_branch_inhibition:
+                if hasattr(layer.branch_inhibition, 'pre_w'):
+                    n_branches = layer.branch_inhibition.pre_w.shape[0]
+                    print(f"  Layer {layer_idx} has branch_inhibition with {n_branches} branches")
             
             if n_branches == 0:
-                print(f"  Layer {layer_idx} has no branches. Skipping.")
-                logging.info(f"Layer {layer_idx} has no branches. Skipping.")
+                print(f"  Layer {layer_idx} has no branches or pre_w not found. Skipping.")
+                logging.info(f"Layer {layer_idx} has no branches or pre_w not found. Skipping.")
                 continue
                 
             print(f"  Layer {layer_idx} has {n_branches} branches")
@@ -599,13 +641,13 @@ class PlotManager:
                 print("  Performing layer-level ablation...")
                 
                 # 1.1 Ablate both excitatory and inhibitory inputs
-                if hasattr(layer, 'branch_excitation'):
-                    layer.branch_excitation.pre_w.data.zero_()
-                    print("    Zeroed excitatory weights")
+                if has_branch_excitation and hasattr(layer.branch_excitation, 'pre_w'):
+                    layer.branch_excitation.pre_w.data.zero_()  # Use exact zeros
+                    print("    Set excitatory weights to zero")
                 
-                if hasattr(layer, 'branch_inhibition'):
-                    layer.branch_inhibition.pre_w.data.zero_()
-                    print("    Zeroed inhibitory weights")
+                if has_branch_inhibition and hasattr(layer.branch_inhibition, 'pre_w'):
+                    layer.branch_inhibition.pre_w.data.zero_()  # Use exact zeros
+                    print("    Set inhibitory weights to zero")
                 
                 # Measure accuracy
                 print("    Measuring accuracy with both ablated...")
@@ -620,9 +662,9 @@ class PlotManager:
                 print("    Restored original parameters")
                 
                 # 1.2 Ablate only excitatory inputs
-                if hasattr(layer, 'branch_excitation'):
-                    layer.branch_excitation.pre_w.data.zero_()
-                    print("    Zeroed excitatory weights only")
+                if has_branch_excitation and hasattr(layer.branch_excitation, 'pre_w'):
+                    layer.branch_excitation.pre_w.data.zero_()  # Use exact zeros
+                    print("    Set excitatory weights to zero")
                     
                     # Measure accuracy
                     print("    Measuring accuracy with excitatory ablated...")
@@ -641,9 +683,9 @@ class PlotManager:
                 print("    Restored original parameters")
                 
                 # 1.3 Ablate only inhibitory inputs
-                if hasattr(layer, 'branch_inhibition'):
-                    layer.branch_inhibition.pre_w.data.zero_()
-                    print("    Zeroed inhibitory weights only")
+                if has_branch_inhibition and hasattr(layer.branch_inhibition, 'pre_w'):
+                    layer.branch_inhibition.pre_w.data.zero_()  # Use exact zeros
+                    print("    Set inhibitory weights to zero")
                     
                     # Measure accuracy
                     print("    Measuring accuracy with inhibitory ablated...")
@@ -678,15 +720,15 @@ class PlotManager:
                     exc_ablated = False
                     inh_ablated = False
                     
-                    if hasattr(layer, 'branch_excitation'):
-                        layer.branch_excitation.pre_w.data[branch_idx].zero_()
+                    if has_branch_excitation and hasattr(layer.branch_excitation, 'pre_w'):
+                        layer.branch_excitation.pre_w.data[branch_idx].zero_()  # Use exact zeros
                         exc_ablated = True
-                        print(f"      Zeroed excitatory weights for branch {branch_idx}")
+                        print(f"      Set excitatory weights to zero for branch {branch_idx}")
                     
-                    if hasattr(layer, 'branch_inhibition'):
-                        layer.branch_inhibition.pre_w.data[branch_idx].zero_()
+                    if has_branch_inhibition and hasattr(layer.branch_inhibition, 'pre_w'):
+                        layer.branch_inhibition.pre_w.data[branch_idx].zero_()  # Use exact zeros
                         inh_ablated = True
-                        print(f"      Zeroed inhibitory weights for branch {branch_idx}")
+                        print(f"      Set inhibitory weights to zero for branch {branch_idx}")
                     
                     if not (exc_ablated or inh_ablated):
                         print(f"      No weights to ablate for branch {branch_idx}. Skipping.")
@@ -705,9 +747,9 @@ class PlotManager:
                     print(f"      Restored original parameters")
                     
                     # 2.2 Ablate only excitatory inputs for this branch
-                    if hasattr(layer, 'branch_excitation'):
-                        layer.branch_excitation.pre_w.data[branch_idx].zero_()
-                        print(f"      Zeroed excitatory weights only for branch {branch_idx}")
+                    if has_branch_excitation and hasattr(layer.branch_excitation, 'pre_w'):
+                        layer.branch_excitation.pre_w.data[branch_idx].zero_()  # Use exact zeros
+                        print(f"      Set excitatory weights to zero for branch {branch_idx}")
                         
                         # Measure accuracy
                         print(f"      Measuring accuracy with excitatory ablated...")
@@ -726,9 +768,9 @@ class PlotManager:
                     print(f"      Restored original parameters")
                     
                     # 2.3 Ablate only inhibitory inputs for this branch
-                    if hasattr(layer, 'branch_inhibition'):
-                        layer.branch_inhibition.pre_w.data[branch_idx].zero_()
-                        print(f"      Zeroed inhibitory weights only for branch {branch_idx}")
+                    if has_branch_inhibition and hasattr(layer.branch_inhibition, 'pre_w'):
+                        layer.branch_inhibition.pre_w.data[branch_idx].zero_()  # Use exact zeros
+                        print(f"      Set inhibitory weights to zero for branch {branch_idx}")
                         
                         # Measure accuracy
                         print(f"      Measuring accuracy with inhibitory ablated...")
@@ -766,6 +808,7 @@ class PlotManager:
         
         # Layer-level results
         if do_layer_ablation and layer_indices:
+            import pandas as pd
             df_layer = pd.DataFrame({
                 'layer_idx': layer_indices,
                 'baseline_acc': [baseline_acc] * len(layer_indices),
@@ -781,27 +824,36 @@ class PlotManager:
             print(f"Saved layer results to {layer_csv}")
             
             # Layer plots
-            plt.figure(figsize=(12, 8))
-            x = np.arange(len(layer_indices))
-            width = 0.25
-            
-            plt.bar(x - width, [baseline_acc - acc for acc in layer_both_ablated_acc], width, label='Both Ablated')
-            plt.bar(x, [baseline_acc - acc for acc in layer_exc_ablated_acc], width, label='Excitatory Ablated')
-            plt.bar(x + width, [baseline_acc - acc for acc in layer_inh_ablated_acc], width, label='Inhibitory Ablated')
-            
-            plt.xlabel('Layer Index (lower = closer to soma)')
-            plt.ylabel('Accuracy Drop')
-            plt.title('Layer-wise Ablation Analysis')
-            plt.xticks(x, layer_indices)
-            plt.legend()
-            plt.grid(True, alpha=0.3)
-            
-            plt.tight_layout()
-            plt.savefig(os.path.join(save_dir, 'layer_ablation_plot.png'), dpi=300)
-            plt.close()
+            try:
+                print("Generating layer-level ablation plot...")
+                plt.figure(figsize=(12, 8))
+                x = np.arange(len(layer_indices))
+                width = 0.25
+                
+                plt.bar(x - width, [baseline_acc - acc for acc in layer_both_ablated_acc], width, label='Both Ablated')
+                plt.bar(x, [baseline_acc - acc for acc in layer_exc_ablated_acc], width, label='Excitatory Ablated')
+                plt.bar(x + width, [baseline_acc - acc for acc in layer_inh_ablated_acc], width, label='Inhibitory Ablated')
+                
+                plt.xlabel('Layer Index (lower = closer to soma)')
+                plt.ylabel('Accuracy Drop')
+                plt.title('Layer-wise Ablation Analysis')
+                plt.xticks(x, layer_indices)
+                plt.legend()
+                plt.grid(True, alpha=0.3)
+                
+                plt.tight_layout()
+                layer_plot_path = os.path.join(save_dir, 'layer_ablation_plot.png')
+                plt.savefig(layer_plot_path, dpi=300)
+                plt.close()
+                print(f"Saved layer ablation plot to {layer_plot_path}")
+            except Exception as e:
+                print(f"Error generating layer ablation plot: {e}")
+                import traceback
+                print(traceback.format_exc())
         
         # Branch-level results
         if do_branch_ablation and branch_indices:
+            import pandas as pd
             df_branch = pd.DataFrame({
                 'branch_idx': branch_indices,
                 'layer_idx': branch_layer_indices,
@@ -868,27 +920,35 @@ class PlotManager:
             
             # Plot branch summary statistics
             if len(df_branch_summary) > 0:
-                plt.figure(figsize=(12, 8))
-                x = np.arange(len(df_branch_summary))
-                width = 0.25
-                
-                plt.bar(x - width, df_branch_summary['both_mean_drop'], width, yerr=df_branch_summary['both_std_drop'], 
-                        label='Both Ablated', capsize=5, color='purple', alpha=0.7)
-                plt.bar(x, df_branch_summary['exc_mean_drop'], width, yerr=df_branch_summary['exc_std_drop'], 
-                        label='Excitatory Ablated', capsize=5, color='red', alpha=0.7)
-                plt.bar(x + width, df_branch_summary['inh_mean_drop'], width, yerr=df_branch_summary['inh_std_drop'], 
-                        label='Inhibitory Ablated', capsize=5, color='blue', alpha=0.7)
-                
-                plt.xlabel('Layer Index (lower = closer to soma)')
-                plt.ylabel('Mean Accuracy Drop (with std dev)')
-                plt.title('Average Branch Ablation Effect by Layer')
-                plt.xticks(x, df_branch_summary['layer_idx'])
-                plt.legend()
-                plt.grid(True, alpha=0.3)
-                
-                plt.tight_layout()
-                plt.savefig(os.path.join(save_dir, 'branch_ablation_summary_plot.png'), dpi=300)
-                plt.close()
+                try:
+                    print("Generating branch summary plot...")
+                    plt.figure(figsize=(12, 8))
+                    x = np.arange(len(df_branch_summary))
+                    width = 0.25
+                    
+                    plt.bar(x - width, df_branch_summary['both_mean_drop'], width, yerr=df_branch_summary['both_std_drop'], 
+                            label='Both Ablated', capsize=5, color='purple', alpha=0.7)
+                    plt.bar(x, df_branch_summary['exc_mean_drop'], width, yerr=df_branch_summary['exc_std_drop'], 
+                            label='Excitatory Ablated', capsize=5, color='red', alpha=0.7)
+                    plt.bar(x + width, df_branch_summary['inh_mean_drop'], width, yerr=df_branch_summary['inh_std_drop'], 
+                            label='Inhibitory Ablated', capsize=5, color='blue', alpha=0.7)
+                    
+                    plt.xlabel('Layer Index (lower = closer to soma)')
+                    plt.ylabel('Mean Accuracy Drop (with std dev)')
+                    plt.title('Average Branch Ablation Effect by Layer')
+                    plt.xticks(x, df_branch_summary['layer_idx'])
+                    plt.legend()
+                    plt.grid(True, alpha=0.3)
+                    
+                    plt.tight_layout()
+                    plot_path = os.path.join(save_dir, 'branch_ablation_summary_plot.png')
+                    plt.savefig(plot_path, dpi=300)
+                    plt.close()
+                    print(f"Saved branch summary plot to {plot_path}")
+                except Exception as e:
+                    print(f"Error generating branch summary plot: {e}")
+                    import traceback
+                    print(traceback.format_exc())
         
         # Print summary tables
         if do_layer_ablation and layer_indices:
@@ -903,7 +963,7 @@ class PlotManager:
                 print(f"{layer_idx:<8} {baseline_acc:<10.4f} {layer_both_ablated_acc[i]:<10.4f} {both_drop:<10.4f} {layer_exc_ablated_acc[i]:<10.4f} {exc_drop:<10.4f} {layer_inh_ablated_acc[i]:<10.4f} {inh_drop:<10.4f}")
             print("-" * 80)
         
-        if do_branch_ablation and len(df_branch_summary) > 0:
+        if do_branch_ablation and 'df_branch_summary' in locals() and len(df_branch_summary) > 0:
             print("\nBranch-level Summary Statistics by Layer:")
             print("-" * 100)
             print(f"{'Layer':<8} {'# Branches':<12} {'Both Mean':<12} {'Both Std':<12} {'Exc Mean':<12} {'Exc Std':<12} {'Inh Mean':<12} {'Inh Std':<12}")
@@ -914,4 +974,325 @@ class PlotManager:
         
         print(f"Branch ablation analysis completed. Results saved to {save_dir}")
         logging.info(f"Saved branch ablation plots in {save_dir}")
+        print("="*80 + "\n")
+
+    def _dendritic_ablation_all(self):
+        """
+        Performs ablation analysis by dendritic order rather than by individual branches.
+        For each dendritic order (primary, secondary, tertiary, etc.), it:
+        1. Ablates all branches at that order
+        2. Measures the performance drop
+        3. Creates plots showing impact by dendritic order
+        """
+        print("\n" + "="*80)
+        print("STARTING DENDRITIC ORDER ABLATION ANALYSIS")
+        print("="*80)
+        
+        if not hasattr(self.model, 'net'):
+            print("ERROR: No 'net' attribute found on model. Skipping dendritic order ablation analysis.")
+            logging.error("No 'net' attribute found on model. Skipping dendritic order ablation analysis.")
+            return
+        net = self.model.net
+        
+        # Get the number of dendritic orders (from excitatory_branch_factors length)
+        if hasattr(net, 'excitatory_branch_factors'):
+            n_orders = len(net.excitatory_branch_factors)
+            print(f"Found {n_orders} dendritic orders from excitatory_branch_factors")
+        else:
+            print("No excitatory_branch_factors found. Trying to infer from branches structure.")
+            n_orders = 0
+            if hasattr(net, 'branch_layers'):
+                n_orders = len(net.branch_layers)
+        
+        # Check if somatic synapses are enabled
+        has_somatic = getattr(net, 'somatic_synapses', False)
+        if has_somatic:
+            print("Somatic synapses are enabled. Including somatic order (Order 0) in analysis.")
+            order_names = [f"Order {i}" for i in range(n_orders + 1)]  # Start from 0 for soma
+        else:
+            print("Somatic synapses are disabled. Analyzing only dendritic orders.")
+            order_names = [f"Order {i+1}" for i in range(n_orders)]
+        
+        # Identify branches by order - this mapping will depend on your network structure
+        order_to_branches = {}
+        
+        # Access branch layers - try different model structures
+        branch_layers = []
+        if hasattr(net, 'branch_layers'):
+            branch_layers = net.branch_layers
+            print(f"Found branch_layers directly. Model has {len(branch_layers)} branch layers")
+        elif hasattr(net, 'layers'):
+            # EINet structure has layers with excitatory_cells and inhibitory_cells
+            branch_layers = []
+            for layer_idx, layer in enumerate(net.layers):
+                if hasattr(layer, 'excitatory_cells') and hasattr(layer.excitatory_cells, 'branch_layers'):
+                    branch_layers.extend(layer.excitatory_cells.branch_layers)
+                if hasattr(layer, 'inhibitory_cells') and hasattr(layer.inhibitory_cells, 'branch_layers'):
+                    branch_layers.extend(layer.inhibitory_cells.branch_layers)
+            print(f"Extracted branch_layers from layers structure. Found {len(branch_layers)} branch layers")
+        
+        if not branch_layers:
+            print("No branch layers found in model. Skipping ablation analysis.")
+            logging.error("No branch layers found in model. Skipping dendritic order ablation analysis.")
+            return
+        
+        # Map layer indices to dendritic orders
+        # For EINet, typically:
+        # - Order 1 (primary) = layer 0
+        # - Order 2 (secondary) = layer 1
+        # - etc.
+        for i, _ in enumerate(branch_layers):
+            if i < n_orders:
+                order_idx = i + 1  # Order 1 = Primary, Order 2 = Secondary, etc.
+                order_name = f"Order {order_idx}"
+                order_to_branches[order_name] = {"layer_idx": i}
+        
+        if has_somatic:
+            # Add somatic synapse mapping if enabled
+            order_to_branches["Order 0"] = {"layer_idx": -1}  # Special case for soma
+        
+        print(f"Dendritic orders identified: {list(order_to_branches.keys())}")
+        
+        # Get baseline performance
+        from dendritic_modeling.utils import measure_performance
+        print("Measuring baseline performance...")
+        baseline_acc = measure_performance(net, self.data['test'], device=self.device)
+        print(f"Baseline accuracy on test set: {baseline_acc:.4f}")
+        logging.info(f"Dendritic order ablation baseline acc on test = {baseline_acc:.4f}")
+        
+        # Store original parameters for restoration
+        print("Storing original model parameters...")
+        original = {}
+        for n, p in net.named_parameters():
+            original[n] = p.detach().clone()
+        
+        # Initialize results
+        results = {
+            "order_names": [],
+            "exc_ablated_acc": [],
+            "inh_ablated_acc": [],
+            "both_ablated_acc": []
+        }
+        
+        # Perform ablation for each dendritic order
+        for order_name, order_info in order_to_branches.items():
+            print(f"\nAblating {order_name}...")
+            
+            if order_name == "Order 0" and has_somatic:
+                # Special case for somatic synapses
+                print("Ablating somatic synapses (Order 0)...")
+                
+                # Attempt to ablate somatic connections if they exist
+                somatic_ablated = False
+                
+                # Look for somatic weights in the model
+                for name, param in net.named_parameters():
+                    if 'somatic' in name.lower() and 'weight' in name.lower():
+                        param.data.zero_()  # Zero out somatic weights
+                        print(f"  Zeroed somatic weights in {name}")
+                        somatic_ablated = True
+                
+                if not somatic_ablated:
+                    # Try alternative approaches if explicit somatic weights aren't found
+                    if hasattr(net, 'somatic_weights'):
+                        net.somatic_weights.data.zero_()
+                        print("  Zeroed somatic_weights attribute")
+                        somatic_ablated = True
+                    
+                    # Check for other potential somatic connection parameters
+                    # This will depend on how somatic connections are implemented in your network
+                    for name, param in net.named_parameters():
+                        if ('input_layer' in name.lower() or 'input_weights' in name.lower()) and not any(f'layer_{i}' in name.lower() for i in range(n_orders)):
+                            param.data.zero_()  # Zero out direct input weights
+                            print(f"  Zeroed potential somatic weights in {name}")
+                            somatic_ablated = True
+                
+                if not somatic_ablated:
+                    print("  Could not identify somatic weights to ablate. Somatic ablation may not be accurate.")
+                    continue
+                
+                # Measure accuracy with somatic connections ablated
+                both_acc = measure_performance(net, self.data['test'], device=self.device)
+                both_drop = baseline_acc - both_acc
+                print(f"  {order_name} with somatic ablated: acc={both_acc:.4f}, drop={both_drop:.4f}")
+                
+                # Restore parameters
+                for n, p in net.named_parameters():
+                    p.data.copy_(original[n])
+                print("  Restored original parameters")
+                
+                # Store results for somatic ablation
+                # For somatic, we use the same value for exc, inh, and both
+                results["order_names"].append(order_name)
+                results["both_ablated_acc"].append(both_acc)
+                results["exc_ablated_acc"].append(both_acc)  # Same as both for soma
+                results["inh_ablated_acc"].append(both_acc)  # Same as both for soma
+                
+                continue
+            
+            layer_idx = order_info["layer_idx"]
+            if layer_idx >= len(branch_layers):
+                print(f"Layer index {layer_idx} out of range. Skipping.")
+                continue
+                
+            layer = branch_layers[layer_idx]
+            
+            # Determine if layer has branch_excitation or branch_inhibition
+            has_branch_excitation = hasattr(layer, 'branch_excitation')
+            has_branch_inhibition = hasattr(layer, 'branch_inhibition')
+            
+            # 1. Ablate both excitatory and inhibitory inputs for this order
+            if has_branch_excitation and hasattr(layer.branch_excitation, 'pre_w'):
+                layer.branch_excitation.pre_w.data.zero_()  # Set all weights to zero
+                print(f"  Set all excitatory weights to zero for {order_name}")
+            
+            if has_branch_inhibition and hasattr(layer.branch_inhibition, 'pre_w'):
+                layer.branch_inhibition.pre_w.data.zero_()  # Set all weights to zero
+                print(f"  Set all inhibitory weights to zero for {order_name}")
+            
+            # Measure accuracy
+            print(f"  Measuring accuracy with both ablated...")
+            both_acc = measure_performance(net, self.data['test'], device=self.device)
+            both_drop = baseline_acc - both_acc
+            print(f"  {order_name} with both ablated: acc={both_acc:.4f}, drop={both_drop:.4f}")
+            
+            # Restore parameters
+            for n, p in net.named_parameters():
+                p.data.copy_(original[n])
+            print("  Restored original parameters")
+            
+            # 2. Ablate only excitatory inputs for this order
+            if has_branch_excitation and hasattr(layer.branch_excitation, 'pre_w'):
+                layer.branch_excitation.pre_w.data.zero_()
+                print(f"  Set all excitatory weights to zero for {order_name}")
+                
+                # Measure accuracy
+                print(f"  Measuring accuracy with excitatory ablated...")
+                exc_acc = measure_performance(net, self.data['test'], device=self.device)
+                exc_drop = baseline_acc - exc_acc
+                print(f"  {order_name} with excitatory ablated: acc={exc_acc:.4f}, drop={exc_drop:.4f}")
+            else:
+                print(f"  No excitatory weights to ablate for {order_name}")
+                exc_acc = baseline_acc
+            
+            # Restore parameters
+            for n, p in net.named_parameters():
+                p.data.copy_(original[n])
+            print("  Restored original parameters")
+            
+            # 3. Ablate only inhibitory inputs for this order
+            if has_branch_inhibition and hasattr(layer.branch_inhibition, 'pre_w'):
+                layer.branch_inhibition.pre_w.data.zero_()
+                print(f"  Set all inhibitory weights to zero for {order_name}")
+                
+                # Measure accuracy
+                print(f"  Measuring accuracy with inhibitory ablated...")
+                inh_acc = measure_performance(net, self.data['test'], device=self.device)
+                inh_drop = baseline_acc - inh_acc
+                print(f"  {order_name} with inhibitory ablated: acc={inh_acc:.4f}, drop={inh_drop:.4f}")
+            else:
+                print(f"  No inhibitory weights to ablate for {order_name}")
+                inh_acc = baseline_acc
+            
+            # Restore parameters
+            for n, p in net.named_parameters():
+                p.data.copy_(original[n])
+            print("  Restored original parameters")
+            
+            # Store results
+            results["order_names"].append(order_name)
+            results["both_ablated_acc"].append(both_acc)
+            results["exc_ablated_acc"].append(exc_acc)
+            results["inh_ablated_acc"].append(inh_acc)
+        
+        # Calculate drops
+        results["both_drop"] = [baseline_acc - acc for acc in results["both_ablated_acc"]]
+        results["exc_drop"] = [baseline_acc - acc for acc in results["exc_ablated_acc"]]
+        results["inh_drop"] = [baseline_acc - acc for acc in results["inh_ablated_acc"]]
+        
+        # Create plots and save results
+        save_dir = os.path.join(self.save_path, "dendritic_ablation_all")
+        os.makedirs(save_dir, exist_ok=True)
+        print(f"\nResults will be saved to: {save_dir}")
+        
+        # Save results to CSV
+        import pandas as pd
+        df = pd.DataFrame({
+            "order_name": results["order_names"],
+            "baseline_acc": [baseline_acc] * len(results["order_names"]),
+            "both_ablated_acc": results["both_ablated_acc"],
+            "exc_ablated_acc": results["exc_ablated_acc"],
+            "inh_ablated_acc": results["inh_ablated_acc"],
+            "both_drop": results["both_drop"],
+            "exc_drop": results["exc_drop"],
+            "inh_drop": results["inh_drop"]
+        })
+        
+        csv_path = os.path.join(save_dir, "dendritic_ablation_all.csv")
+        df.to_csv(csv_path, index=False)
+        print(f"Saved results to {csv_path}")
+        
+        # Create plots
+        try:
+            plt.figure(figsize=(12, 8))
+            x = np.arange(len(results["order_names"]))
+            width = 0.25
+            
+            plt.bar(x - width, results["both_drop"], width, label='Both Ablated')
+            plt.bar(x, results["exc_drop"], width, label='Excitatory Ablated')
+            plt.bar(x + width, results["inh_drop"], width, label='Inhibitory Ablated')
+            
+            plt.xlabel('Dendritic Order')
+            plt.ylabel('Accuracy Drop')
+            plt.title('Dendritic Order Ablation Analysis')
+            plt.xticks(x, results["order_names"])
+            plt.legend()
+            plt.grid(True, alpha=0.3)
+            
+            plt.tight_layout()
+            plot_path = os.path.join(save_dir, "dendritic_ablation_all.png")
+            plt.savefig(plot_path, dpi=300)
+            plt.close()
+            print(f"Saved plot to {plot_path}")
+            
+            # Create a second plot with percentage drop
+            plt.figure(figsize=(12, 8))
+            perc_both_drop = [drop * 100 / baseline_acc for drop in results["both_drop"]]
+            perc_exc_drop = [drop * 100 / baseline_acc for drop in results["exc_drop"]]
+            perc_inh_drop = [drop * 100 / baseline_acc for drop in results["inh_drop"]]
+            
+            plt.bar(x - width, perc_both_drop, width, label='Both Ablated')
+            plt.bar(x, perc_exc_drop, width, label='Excitatory Ablated')
+            plt.bar(x + width, perc_inh_drop, width, label='Inhibitory Ablated')
+            
+            plt.xlabel('Dendritic Order')
+            plt.ylabel('Percent Accuracy Drop')
+            plt.title('Dendritic Order Ablation Analysis (% Accuracy Drop)')
+            plt.xticks(x, results["order_names"])
+            plt.legend()
+            plt.grid(True, alpha=0.3)
+            
+            plt.tight_layout()
+            perc_plot_path = os.path.join(save_dir, "dendritic_ablation_all_percent.png")
+            plt.savefig(perc_plot_path, dpi=300)
+            plt.close()
+            print(f"Saved percentage plot to {perc_plot_path}")
+        except Exception as e:
+            print(f"Error creating plots: {e}")
+            import traceback
+            print(traceback.format_exc())
+        
+        # Print summary table
+        print("\nDendritic Order Ablation Analysis Summary:")
+        print("-" * 100)
+        print(f"{'Order':<15} {'Baseline':<10} {'Both Acc':<10} {'Both Drop':<10} {'Exc Acc':<10} {'Exc Drop':<10} {'Inh Acc':<10} {'Inh Drop':<10}")
+        print("-" * 100)
+        for i, order in enumerate(results["order_names"]):
+            both_drop = results["both_drop"][i]
+            exc_drop = results["exc_drop"][i]
+            inh_drop = results["inh_drop"][i]
+            print(f"{order:<15} {baseline_acc:<10.4f} {results['both_ablated_acc'][i]:<10.4f} {both_drop:<10.4f} {results['exc_ablated_acc'][i]:<10.4f} {exc_drop:<10.4f} {results['inh_ablated_acc'][i]:<10.4f} {inh_drop:<10.4f}")
+        print("-" * 100)
+        
+        print("Dendritic order ablation analysis completed.")
         print("="*80 + "\n")
