@@ -245,18 +245,32 @@ def train_and_evaluate(model, train_ds, valid_ds, test_ds, trainer, train_cfg, v
         )
     else:
         logger.info(f"Training with standard approach: {train_cfg.epochs} epochs")
-        results = trainer.train(
-            model=model,
-            train_data=train_ds,
-            valid_data=valid_ds,
-            epochs=train_cfg.epochs,
-            batch_size=train_cfg.batch_size,
-            grad_clip_value=train_cfg.grad_clip_value,
-            shuffle=True,
-            load_best_state_dict=True,
-            plot_losses=True,
-            save_path=run_save_path
-        )
+        # Check if the trainer is VoltageStabilizationTrainer which doesn't accept load_best_state_dict
+        if isinstance(trainer, VoltageStabilizationTrainer):
+            results = trainer.train(
+                model=model,
+                train_data=train_ds,
+                valid_data=valid_ds,
+                epochs=train_cfg.epochs,
+                batch_size=train_cfg.batch_size,
+                grad_clip_value=train_cfg.grad_clip_value,
+                shuffle=True,
+                plot_losses=True,
+                save_path=run_save_path
+            )
+        else:
+            results = trainer.train(
+                model=model,
+                train_data=train_ds,
+                valid_data=valid_ds,
+                epochs=train_cfg.epochs,
+                batch_size=train_cfg.batch_size,
+                grad_clip_value=train_cfg.grad_clip_value,
+                shuffle=True,
+                load_best_state_dict=True,
+                plot_losses=True,
+                save_path=run_save_path
+            )
     
     save_model(model, run_save_path, "final_model.pt")
     train_losses = results.get('train_losses', [])
