@@ -761,6 +761,201 @@ def voltage_warmup_loss(model, x, target_val=0.5):
     return torch.mean((outputs - target_val)**2)
 
 
+def generate_warmup_report(model, data_loader, pre_state, post_state, device, save_path):
+    """Generate a report on the differences before and after voltage warm-up.
+    
+    Args:
+        model: The model being trained
+        data_loader: DataLoader with a batch of data to test
+        pre_state: Model state dict before warm-up
+        post_state: Model state dict after warm-up
+        device: Device to run model on
+        save_path: Directory to save report files
+    
+    Returns:
+        report_data: Dictionary with report metrics
+    """
+    import os
+    import torch
+    import numpy as np
+    import matplotlib.pyplot as plt
+    from copy import deepcopy
+    
+    report_data = {}
+    
+    # Create report directory
+    warmup_report_dir = os.path.join(save_path, "warmup_report")
+    os.makedirs(warmup_report_dir, exist_ok=True)
+    
+    # Get a batch of data for visualization
+    x_batch, _ = next(iter(data_loader))
+    x_batch = x_batch.to(device)
+    
+    # Save current model state
+    current_state = deepcopy(model.state_dict())
+    
+    # Function to collect outputs and activations
+    def collect_model_stats(state_dict):
+        model.load_state_dict(state_dict)
+        model.eval()
+        with torch.no_grad():
+            outputs = model(x_batch)
+            output_stats = {
+                "mean": outputs.mean().item(),
+                "std": outputs.std().item(),
+                "min": outputs.min().item(),
+                "max": outputs.max().item(),
+                "histogram": outputs.detach().cpu().numpy().flatten()
+            }
+            
+            # Collect activations from each layer if they're available
+            layer_activations = {}
+            if hasattr(model, 'net'):
+                if hasattr(model.net, 'branch_layers'):
+                    # Store the original state of activation tracking
+                    activation_tracking_state = {}
+                    
+                    # Try to enable activation tracking if it exists
+                    for i, layer in enumerate(model.net.branch_layers):
+                        if hasattr(layer, 'enable_branch_outputs'):
+                            activation_tracking_state[i] = layer.enable_branch_outputs
+                            layer.enable_branch_outputs = True
+                    
+                    # Forward pass to collect activations
+                    _ = model(x_batch)
+                    
+                    # Collect branch activations if they exist
+                    for i, layer in enumerate(model.net.branch_layers):
+                        if hasattr(layer, 'branch_activations'):
+                            layer_activations[f"layer_{i}"] = {
+                                "mean": layer.branch_activations.mean().item(),
+                                "std": layer.branch_activations.std().item(),
+                                "min": layer.branch_activations.min().item(),
+                                "max": layer.branch_activations.max().item(),
+                                "histogram": layer.branch_activations.detach().cpu().numpy().flatten()
+                            }
+                    
+                    # Restore original state
+                    for i, state in activation_tracking_state.items():
+                        model.net.branch_layers[i].enable_branch_outputs = state
+        
+        return output_stats, layer_activations
+    
+    # Collect statistics before and after warm-up
+    pre_output_stats, pre_activations = collect_model_stats(pre_state)
+    post_output_stats, post_activations = collect_model_stats(post_state)
+    
+    # Calculate differences
+    output_diff = {
+        "mean_diff": post_output_stats["mean"] - pre_output_stats["mean"],
+        "std_diff": post_output_stats["std"] - pre_output_stats["std"],
+        "min_diff": post_output_stats["min"] - pre_output_stats["min"],
+        "max_diff": post_output_stats["max"] - pre_output_stats["max"]
+    }
+    
+    # Store report data
+    report_data["pre_warmup"] = {"outputs": pre_output_stats, "activations": pre_activations}
+    report_data["post_warmup"] = {"outputs": post_output_stats, "activations": post_activations}
+    report_data["diff"] = {"outputs": output_diff}
+    
+    # Generate output distribution plots
+    plt.figure(figsize=(12, 8))
+    
+    plt.subplot(2, 1, 1)
+    plt.hist(pre_output_stats["histogram"], bins=50, alpha=0.5, label='Pre-warmup')
+    plt.hist(post_output_stats["histogram"], bins=50, alpha=0.5, label='Post-warmup')
+    plt.axvline(x=0.5, color='r', linestyle='--', label='Target voltage (0.5)')
+    plt.title("Output Distribution Before and After Warm-up")
+    plt.xlabel("Output Value")
+    plt.ylabel("Frequency")
+    plt.legend()
+    
+    plt.subplot(2, 1, 2)
+    for key in ["mean", "std", "min", "max"]:
+        x = [0, 1]
+        y = [pre_output_stats[key], post_output_stats[key]]
+        plt.plot(x, y, marker='o', label=key)
+    plt.axhline(y=0.5, color='r', linestyle='--', label='Target voltage (0.5)')
+    plt.xticks([0, 1], ['Pre-Warmup', 'Post-Warmup'])
+    plt.title("Output Statistics Before and After Warm-up")
+    plt.ylabel("Value")
+    plt.legend()
+    
+    plt.tight_layout()
+    plt.savefig(os.path.join(warmup_report_dir, "output_distribution.png"))
+    plt.close()
+    
+    # Generate activation comparison plots for each layer
+    common_layers = set(pre_activations.keys()) & set(post_activations.keys())
+    for layer in common_layers:
+        plt.figure(figsize=(12, 8))
+        
+        plt.subplot(2, 1, 1)
+        plt.hist(pre_activations[layer]["histogram"], bins=50, alpha=0.5, label='Pre-warmup')
+        plt.hist(post_activations[layer]["histogram"], bins=50, alpha=0.5, label='Post-warmup')
+        plt.title(f"{layer} Activation Distribution Before and After Warm-up")
+        plt.xlabel("Activation Value")
+        plt.ylabel("Frequency")
+        plt.legend()
+        
+        plt.subplot(2, 1, 2)
+        for key in ["mean", "std", "min", "max"]:
+            x = [0, 1]
+            y = [pre_activations[layer][key], post_activations[layer][key]]
+            plt.plot(x, y, marker='o', label=key)
+        plt.xticks([0, 1], ['Pre-Warmup', 'Post-Warmup'])
+        plt.title(f"{layer} Activation Statistics Before and After Warm-up")
+        plt.ylabel("Value")
+        plt.legend()
+        
+        plt.tight_layout()
+        plt.savefig(os.path.join(warmup_report_dir, f"{layer}_activation.png"))
+        plt.close()
+    
+    # Save report summary as text file
+    with open(os.path.join(warmup_report_dir, "warmup_report_summary.txt"), "w") as f:
+        f.write("Voltage Warm-up Report Summary\n")
+        f.write("==============================\n\n")
+        f.write("Output Statistics:\n")
+        f.write(f"  Before warm-up: mean={pre_output_stats['mean']:.4f}, std={pre_output_stats['std']:.4f}, min={pre_output_stats['min']:.4f}, max={pre_output_stats['max']:.4f}\n")
+        f.write(f"  After warm-up: mean={post_output_stats['mean']:.4f}, std={post_output_stats['std']:.4f}, min={post_output_stats['min']:.4f}, max={post_output_stats['max']:.4f}\n")
+        f.write(f"  Change: mean_diff={output_diff['mean_diff']:.4f}, std_diff={output_diff['std_diff']:.4f}, min_diff={output_diff['min_diff']:.4f}, max_diff={output_diff['max_diff']:.4f}\n\n")
+        
+        if common_layers:
+            f.write("Layer Activation Statistics:\n")
+            for layer in common_layers:
+                pre = pre_activations[layer]
+                post = post_activations[layer]
+                f.write(f"  {layer}:\n")
+                f.write(f"    Before warm-up: mean={pre['mean']:.4f}, std={pre['std']:.4f}, min={pre['min']:.4f}, max={pre['max']:.4f}\n")
+                f.write(f"    After warm-up: mean={post['mean']:.4f}, std={post['std']:.4f}, min={post['min']:.4f}, max={post['max']:.4f}\n")
+                f.write(f"    Change: mean_diff={post['mean']-pre['mean']:.4f}, std_diff={post['std']-pre['std']:.4f}, min_diff={post['min']-pre['min']:.4f}, max_diff={post['max']-pre['max']:.4f}\n\n")
+    
+    # Save numeric data as JSON for later analysis
+    json_data = {
+        "pre_warmup": {
+            "outputs": {k: v for k, v in pre_output_stats.items() if k != "histogram"},
+            "activations": {layer: {k: v for k, v in stats.items() if k != "histogram"} 
+                            for layer, stats in pre_activations.items()}
+        },
+        "post_warmup": {
+            "outputs": {k: v for k, v in post_output_stats.items() if k != "histogram"},
+            "activations": {layer: {k: v for k, v in stats.items() if k != "histogram"} 
+                            for layer, stats in post_activations.items()}
+        },
+        "diff": {"outputs": output_diff}
+    }
+    
+    with open(os.path.join(warmup_report_dir, "warmup_data.json"), "w") as f:
+        import json
+        json.dump(json_data, f, indent=2)
+    
+    # Restore original model state
+    model.load_state_dict(current_state)
+    
+    return report_data
+
+
 class VoltageStabilizationTrainer(BaseTrainer):
     def __init__(self, optimizer, suppress_prints=False, print_every=10, warmup_epochs=1, stability_target_voltage=0.5):
         super().__init__(optimizer, suppress_prints, print_every)
@@ -776,10 +971,13 @@ class VoltageStabilizationTrainer(BaseTrainer):
         train_losses = []
         valid_losses = []
         best_loss = float('inf')
-        best_state = deepcopy(model.state_dict())
+        
+        # Store the model state before warm-up
+        pre_warmup_state = deepcopy(model.state_dict())
+        
         start_time = time.time()
 
-        print("=== Starting warm-up phase ===")
+        logger.info("=== Starting warm-up phase ===")
         for epoch in range(1, self.warmup_epochs + 1):
             model.train()
             epoch_train_loss = 0.0
@@ -808,7 +1006,52 @@ class VoltageStabilizationTrainer(BaseTrainer):
                     "valid_loss": val_loss
                 })
 
-        print("=== Warm-up phase ended ===")
+        logger.info("=== Warm-up phase ended ===")
+        
+        # Store the model state after warm-up
+        post_warmup_state = deepcopy(model.state_dict())
+        
+        # Print brief warmup statistics instead of generating a full report
+        with torch.no_grad():
+            model.eval()
+            # Get a small batch of data for quick statistics
+            sample_loader = DataLoader(train_data, batch_size=min(32, len(train_data)), shuffle=True)
+            x_sample, _ = next(iter(sample_loader))
+            x_sample = x_sample.to(device)
+            
+            # Get pre-warmup stats
+            model.load_state_dict(pre_warmup_state)
+            pre_outputs = model(x_sample)
+            pre_mean = pre_outputs.mean().item()
+            pre_std = pre_outputs.std().item()
+            
+            # Get post-warmup stats
+            model.load_state_dict(post_warmup_state)
+            post_outputs = model(x_sample)
+            post_mean = post_outputs.mean().item()
+            post_std = post_outputs.std().item()
+            
+            # Calculate changes
+            mean_change = post_mean - pre_mean
+            mean_pct_change = (mean_change / (abs(pre_mean) + 1e-8)) * 100
+            std_change = post_std - pre_std
+            std_pct_change = (std_change / (abs(pre_std) + 1e-8)) * 100
+            
+            # Print summary
+            logger.info("=== Warm-up Effect Summary ===")
+            logger.info(f"Target voltage: {self.stability_target_voltage:.4f}")
+            logger.info(f"Output mean: {pre_mean:.4f} → {post_mean:.4f} (Δ: {mean_change:.4f}, {mean_pct_change:+.1f}%)")
+            logger.info(f"Output std: {pre_std:.4f} → {post_std:.4f} (Δ: {std_change:.4f}, {std_pct_change:+.1f}%)")
+            
+            # Calculate distance to target
+            pre_dist = abs(pre_mean - self.stability_target_voltage)
+            post_dist = abs(post_mean - self.stability_target_voltage)
+            dist_change = pre_dist - post_dist
+            logger.info(f"Distance to target: {pre_dist:.4f} → {post_dist:.4f} (Improved by: {dist_change:.4f})")
+            logger.info("=============================")
+            
+            # Restore the state after warmup
+            model.load_state_dict(post_warmup_state)
 
         remaining_epochs = epochs - self.warmup_epochs
         start_main_phase = time.time()
@@ -854,8 +1097,8 @@ class VoltageStabilizationTrainer(BaseTrainer):
 
         model.load_state_dict(best_state)
         results = {
-            "train losses": train_losses,
-            "valid losses": valid_losses
+            "train_losses": train_losses,
+            "valid_losses": valid_losses
         }
         if plot_losses and len(train_losses) > 1:
             if save_path and os.path.exists(save_path):
