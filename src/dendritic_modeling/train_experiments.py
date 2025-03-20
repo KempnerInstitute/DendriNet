@@ -27,6 +27,7 @@ import time
 from copy import deepcopy
 import json
 import yaml
+import traceback
 
 import wandb
 import torch
@@ -40,7 +41,8 @@ from dendritic_modeling import logger
 from dendritic_modeling.learning_strategies import (
     get_trainer, CustomWeightDecayOptimizer, 
     train_simple_mlp, train_mlp_with_classification_head,
-    transfer_mlp_weights_to_input_net, extract_weights_from_simple_mlp
+    transfer_mlp_weights_to_input_net, extract_weights_from_simple_mlp,
+    VoltageStabilizationTrainer
 )
 from dendritic_modeling.models import (
     ProbabilisticClassifier, Classifier, 
@@ -300,21 +302,6 @@ def train_and_evaluate(model, train_ds, valid_ds, test_ds, trainer, train_cfg, v
             "final_test_acc": test_acc
         })
     
-    if hasattr(visualization_cfg, 'enabled') and visualization_cfg.enabled:
-        logger.info("Creating visualizations")
-        try:
-            plot_manager = PlotManager(
-                model=model,
-                train_data=train_ds,
-                valid_data=valid_ds,
-                test_data=test_ds,
-                save_path=os.path.join(run_save_path, 'visualizations'),
-                plots=visualization_cfg.plots
-            )
-            plot_manager.create_visualizations()
-        except Exception as e:
-            logger.error(f"Error creating visualizations: {e}")
-    
     return results
 
 
@@ -512,36 +499,43 @@ def train_single_input_net(
 
 def run_analysis(model, train_ds, valid_ds, test_ds, outputs_cfg, visualization_cfg, run_save_path):
     is_visualization_enabled = (visualization_cfg and hasattr(visualization_cfg, 'enabled') and visualization_cfg.enabled)
-    if is_visualization_enabled and hasattr(outputs_cfg, 'enable_ablation') and outputs_cfg.enable_ablation:
-        ablation_plots = []
-        if hasattr(visualization_cfg, 'plots'):
-            ablation_plots = [p for p in visualization_cfg.plots if 'ablation' in p]
-        if ablation_plots:
-            device = 'cuda' if torch.cuda.is_available() else 'cpu'
-            batch_size = outputs_cfg.ablation_batch_size if hasattr(outputs_cfg, 'ablation_batch_size') else 64
-            if 'branch_ablation' in ablation_plots:
-                logger.info("Running branch-level ablation analysis")
-                try:
-                    for layer_idx in range(len(model.net.excitatory_layer_sizes)):
-                        for branch_idx in range(model.net.excitatory_branch_factors[layer_idx]):
-                            analyze_branch_ablation(
-                                model, train_ds, valid_ds, test_ds,
-                                layer_idx, branch_idx,
-                                device=device,
-                                save_path=os.path.join(run_save_path, 'ablation')
-                            )
-                except Exception as e:
-                    logger.error(f"Error in branch ablation analysis: {e}")
-            if 'layer_ablation' in ablation_plots:
-                logger.info("Running layer-level ablation analysis")
-                try:
-                    analyze_layerwise_ablation(
-                        model, train_ds, valid_ds, test_ds,
-                        save_path=os.path.join(run_save_path, 'ablation'),
-                        device=device
-                    )
-                except Exception as e:
-                    logger.error(f"Error in layer ablation analysis: {e}")
+    if is_visualization_enabled:
+        logger.info("Visualization is enabled. Setting up PlotManager...")
+        # Create a class to hold args in the format expected by PlotManager
+        class Args:
+            def __init__(self, viz_cfg, save_path):
+                self.visualization = viz_cfg
+                self.save_path = save_path
+                self.file_name = "final"
+                self.shape = None
+                self.train = None
+        
+        # Create args and data dictionary for PlotManager
+        args = Args(visualization_cfg, run_save_path)
+        data = {
+            'train': train_ds,
+            'valid': valid_ds,
+            'test': test_ds
+        }
+        
+        # Create PlotManager instance
+        device = 'cuda' if torch.cuda.is_available() else 'cpu'
+        plot_manager = PlotManager(model, data, args, device=device)
+        
+        # Get the list of plots to generate
+        plots = visualization_cfg.plots if hasattr(visualization_cfg, 'plots') else []
+        logger.info(f"Generating the following plots: {plots}")
+        
+        # Run each requested plot
+        for plot_name in plots:
+            try:
+                logger.info(f"Generating plot: {plot_name}")
+                plot_manager.run_plot(plot_name)
+            except Exception as e:
+                logger.error(f"Error generating plot '{plot_name}': {e}")
+                logger.error(traceback.format_exc())
+    else:
+        logger.info("Visualization is disabled. Skipping plot generation.")
 
 
 def train_and_evaluate_main(config_path, args=None):

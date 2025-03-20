@@ -19,7 +19,7 @@ cifar-10-*
 wandb/*
 
 notebooks/*
-
+None/*
 #ndb/ Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
