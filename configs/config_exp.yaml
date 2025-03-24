@@ -43,7 +43,9 @@ train:
   batch_size: 1024  # Smaller batch size for better generalization
   grad_clip_value: 5  # Reasonable gradient clipping
   epochs_per_layer: 50  ## this is only for "freeze_layers" and any other method which has sequential single layer training
-    # Parameters for two_step and voltage_stabilization strategies
+  final_tune_epochs: 10  ## Number of epochs for final fine-tuning after layer-by-layer training
+  
+  # Parameters for two_step and voltage_stabilization strategies
   warmup_epochs: 1  # or however many you want
   stability_target_voltage: 0.5  # the target "voltage"
 

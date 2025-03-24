@@ -81,6 +81,7 @@ class TrainConfig(BaseConfig):
     batch_size: int = 128
     grad_clip_value: float = 5.0
     epochs_per_layer: int = 50
+    final_tune_epochs: int = 10  # Number of epochs for final fine-tuning after layer-by-layer training
     pretrain_epochs: int = 50
     input_net_training: dict = field(default_factory=dict)
 

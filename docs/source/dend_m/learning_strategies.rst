@@ -55,7 +55,8 @@ Freeze Layers Strategy
 ----------------------
 
 The freeze layers strategy trains the network one layer at a time, starting from the input layer
-and progressively moving to deeper layers.
+and progressively moving to deeper layers. After all layers have been trained independently, a final
+fine-tuning phase trains the full network end-to-end for a specified number of epochs.
 
 .. code-block:: python
 
@@ -71,7 +72,7 @@ and progressively moving to deeper layers.
         valid_data=valid_ds,
         epochs_per_layer=20,
         batch_size=128,
-        final_tune_epochs=10
+        final_tune_epochs=10  # Final fine-tuning with all layers unfrozen
     )
 
 Key benefits of the freeze layers approach:
@@ -80,6 +81,111 @@ Key benefits of the freeze layers approach:
 - Ensures good feature extraction at earlier layers
 - Reduces vanishing gradient issues
 - Implements a form of curriculum learning
+- Allows fine-tuning all layers together during the final phase (controlled by final_tune_epochs)
+- Helps integrate layer-specific representations into a coherent whole
+
+Freeze Layers with Pretraining Strategy
+-------------------------------------
+
+The freeze layers with pretraining strategy enhances the standard freeze layers approach by adding an initial
+full-network training phase before the layer-by-layer training:
+
+1. Initial full-network training: Train all layers together for pretrain_epochs
+2. Layer-by-layer training: Train each layer sequentially from soma to input (freezing all others)
+3. Final fine-tuning: Train the full network end-to-end for fine-tuning
+
+.. code-block:: python
+
+    # Example of using freeze layers with pretraining trainer
+    from dendritic_modeling.learning_strategies import TrainerMLE
+    
+    optimizer = torch.optim.Adam(model.parameters(), lr=0.001)
+    trainer = TrainerMLE(optimizer)
+    
+    results = trainer.train_freeze_layers_with_pretraining(
+        model=model,
+        train_data=train_ds,
+        valid_data=valid_ds,
+        pretrain_epochs=10,   # Initial full network training
+        epochs_per_layer=20,  # Per-layer training
+        batch_size=128,
+        final_tune_epochs=10  # Final fine-tuning with all layers unfrozen
+    )
+
+Key benefits of this approach:
+
+- Provides a better initialization for layer-specific training
+- Helps avoid getting stuck in poor local optima
+- Initial training can establish useful feature representations
+- Ensures that representations across layers are coherent
+- Combines the benefits of joint and layer-wise training
+
+Freeze Layers Reversed Strategy
+------------------------------
+
+The freeze layers reversed strategy is similar to the freeze layers strategy, but trains the network
+in the opposite direction: starting from the input layers (distal dendrites) and progressively moving
+toward the soma. This approach follows the biological flow of information in dendrites.
+
+.. code-block:: python
+
+    # Example of using freeze layers reversed trainer
+    from dendritic_modeling.learning_strategies import TrainerMLE
+    
+    optimizer = torch.optim.Adam(model.parameters(), lr=0.001)
+    trainer = TrainerMLE(optimizer)
+    
+    results = trainer.train_freeze_layers_reversed(
+        model=model,
+        train_data=train_ds,
+        valid_data=valid_ds,
+        epochs_per_layer=20,
+        batch_size=128,
+        final_tune_epochs=10  # Final fine-tuning with all layers unfrozen
+    )
+
+Key benefits of the freeze layers reversed approach:
+
+- Follows the natural flow of information in neural systems (from input to output)
+- May improve feature extraction in early layers by training them first
+- Reduces vanishing gradient issues by establishing strong early-layer representations
+- Potentially more biologically plausible learning sequence
+- Like standard freeze layers, includes a final fine-tuning phase
+
+Freeze Layers Reversed with Pretraining Strategy
+---------------------------------------------
+
+This strategy combines the benefits of initial full-network training with the reversed layer-by-layer training:
+
+1. Initial full-network training: Train all layers together for pretrain_epochs
+2. Layer-by-layer training: Train each layer sequentially from input to soma (freezing all others)
+3. Final fine-tuning: Train the full network end-to-end for fine-tuning
+
+.. code-block:: python
+
+    # Example of using freeze layers reversed with pretraining trainer
+    from dendritic_modeling.learning_strategies import TrainerMLE
+    
+    optimizer = torch.optim.Adam(model.parameters(), lr=0.001)
+    trainer = TrainerMLE(optimizer)
+    
+    results = trainer.train_freeze_layers_reversed_with_pretraining(
+        model=model,
+        train_data=train_ds,
+        valid_data=valid_ds,
+        pretrain_epochs=10,   # Initial full network training
+        epochs_per_layer=20,  # Per-layer training
+        batch_size=128,
+        final_tune_epochs=10  # Final fine-tuning with all layers unfrozen
+    )
+
+Key benefits of this approach:
+
+- Combines initial joint training with biologically-plausible layer sequence
+- Follows the natural flow of information (input → output)
+- Early layers receive focused training after good initialization
+- May be particularly effective for deep dendritic networks
+- Reduces risk of catastrophic forgetting during layer-specific training
 
 Local Credit Assignment
 -----------------------
@@ -354,7 +460,8 @@ For complex tasks, different learning strategies can be combined:
         
         trainer.train_freeze_layers(
             model, train_ds, valid_ds,
-            epochs_per_layer=10
+            epochs_per_layer=10,
+            final_tune_epochs=5  # Fine-tune layers together after individual training
         )
         
         # 3. Fine-tune everything with MLE
