@@ -233,7 +233,7 @@ def train_and_evaluate(model, train_ds, valid_ds, test_ds, trainer, train_cfg, v
             save_path=run_save_path
         )
     elif learning_strategy == "freeze_layers":
-        logger.info(f"Training with freeze_layers strategy: {train_cfg.epochs_per_layer} epochs per layer")
+        logger.info(f"Training with freeze_layers strategy: {train_cfg.epochs_per_layer} epochs per layer + {train_cfg.final_tune_epochs} final tuning epochs")
         results = trainer.train_freeze_layers(
             model=model,
             train_data=train_ds,
@@ -243,7 +243,52 @@ def train_and_evaluate(model, train_ds, valid_ds, test_ds, trainer, train_cfg, v
             grad_clip_value=train_cfg.grad_clip_value,
             shuffle=True,
             plot_losses=True,
-            save_path=run_save_path
+            save_path=run_save_path,
+            final_tune_epochs=train_cfg.final_tune_epochs
+        )
+    elif learning_strategy == "freeze_layers_with_pretraining":
+        logger.info(f"Training with freeze_layers_with_pretraining strategy: {train_cfg.pretrain_epochs} pretrain epochs + {train_cfg.epochs_per_layer} epochs per layer + {train_cfg.final_tune_epochs} final tuning epochs")
+        results = trainer.train_freeze_layers_with_pretraining(
+            model=model,
+            train_data=train_ds,
+            valid_data=valid_ds,
+            pretrain_epochs=train_cfg.pretrain_epochs,
+            epochs_per_layer=train_cfg.epochs_per_layer,
+            batch_size=train_cfg.batch_size,
+            grad_clip_value=train_cfg.grad_clip_value,
+            shuffle=True,
+            plot_losses=True,
+            save_path=run_save_path,
+            final_tune_epochs=train_cfg.final_tune_epochs
+        )
+    elif learning_strategy == "freeze_layers_reversed":
+        logger.info(f"Training with freeze_layers_reversed strategy: {train_cfg.epochs_per_layer} epochs per layer + {train_cfg.final_tune_epochs} final tuning epochs (from input to soma)")
+        results = trainer.train_freeze_layers_reversed(
+            model=model,
+            train_data=train_ds,
+            valid_data=valid_ds,
+            epochs_per_layer=train_cfg.epochs_per_layer,
+            batch_size=train_cfg.batch_size,
+            grad_clip_value=train_cfg.grad_clip_value,
+            shuffle=True,
+            plot_losses=True,
+            save_path=run_save_path,
+            final_tune_epochs=train_cfg.final_tune_epochs
+        )
+    elif learning_strategy == "freeze_layers_reversed_with_pretraining":
+        logger.info(f"Training with freeze_layers_reversed_with_pretraining strategy: {train_cfg.pretrain_epochs} pretrain epochs + {train_cfg.epochs_per_layer} epochs per layer + {train_cfg.final_tune_epochs} final tuning epochs (from input to soma)")
+        results = trainer.train_freeze_layers_reversed_with_pretraining(
+            model=model,
+            train_data=train_ds,
+            valid_data=valid_ds,
+            pretrain_epochs=train_cfg.pretrain_epochs,
+            epochs_per_layer=train_cfg.epochs_per_layer,
+            batch_size=train_cfg.batch_size,
+            grad_clip_value=train_cfg.grad_clip_value,
+            shuffle=True,
+            plot_losses=True,
+            save_path=run_save_path,
+            final_tune_epochs=train_cfg.final_tune_epochs
         )
     else:
         logger.info(f"Training with standard approach: {train_cfg.epochs} epochs")
@@ -627,7 +672,9 @@ if __name__ == '__main__':
     parser.add_argument("--output_dir", help="Override output directory specified in config.")
     parser.add_argument("--run_name", help="Override run name specified in config.")
     parser.add_argument("--learning_strategy", 
-                       choices=["mle", "freeze_layers", "two_step", "two_step_kl"],
+                       choices=["mle", "freeze_layers", "freeze_layers_reversed", 
+                                "freeze_layers_with_pretraining", "freeze_layers_reversed_with_pretraining",
+                                "two_step", "two_step_kl"],
                        help="Override learning strategy specified in config.")
     args = parser.parse_args()
     main(config_path=args.config, args=args)
