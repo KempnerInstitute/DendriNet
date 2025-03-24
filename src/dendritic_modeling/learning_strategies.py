@@ -1450,14 +1450,6 @@ def get_trainer(strategy, optimizer, suppress_prints=False, print_every=10):
     strategy = strategy.lower()
     if strategy == "mle":
         return TrainerMLE(optimizer, suppress_prints, print_every)
-    elif strategy == "freeze_layers" or strategy == "freeze_layers_by_layer":
-        return TrainerMLE(optimizer, suppress_prints, print_every)
-    elif strategy == "freeze_layers_reversed" or strategy == "freeze_layers_reversed_by_layer":
-        return TrainerMLE(optimizer, suppress_prints, print_every)
-    elif strategy == "freeze_layers_with_pretraining":
-        return TrainerMLE(optimizer, suppress_prints, print_every)
-    elif strategy == "freeze_layers_reversed_with_pretraining":
-        return TrainerMLE(optimizer, suppress_prints, print_every)
     elif strategy == "freeze_branches":
         return TrainerMLE(optimizer, suppress_prints, print_every)
     elif strategy == "freeze_branches_reversed":
