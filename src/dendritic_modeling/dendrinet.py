@@ -709,23 +709,54 @@ class DendriNetWithOutputs(DendriNet):
         per_layer_acts = []
         output = None
         for i in range(self.n_branch_layers):
-            if hasattr(self.branch_layers[i], 'excitatory_input'):
-                self.branch_layers[i].excitatory_input = x
+            # Store the inputs for later visualization
+            current_layer = self.branch_layers[i]
             
-            if hasattr(self.branch_layers[i], 'inhibitory_input'):
-                self.branch_layers[i].inhibitory_input = inhibitory_input
-                
-            output = self.branch_layers[i](x, inhibitory_input, output)
-            per_layer_acts.append(output)
+            if hasattr(current_layer, 'excitatory_input'):
+                current_layer.excitatory_input = x
+            
+            if hasattr(current_layer, 'inhibitory_input'):
+                current_layer.inhibitory_input = inhibitory_input
+            
+            # Process the input through the layer
+            output = current_layer(x, inhibitory_input, output)
+            
+            # Get more detailed information if available
+            if hasattr(current_layer, 'branch_excitation') and hasattr(current_layer, 'branch_inhibition'):
+                # Try to extract excitatory and inhibitory components separately
+                try:
+                    exc_input = current_layer.branch_excitation(x)
+                    inh_input = current_layer.branch_inhibition(inhibitory_input) if inhibitory_input is not None else None
+                    
+                    # Store as [excitatory_input, inhibitory_input, final_output]
+                    per_layer_acts.append([exc_input, inh_input, output])
+                except:
+                    # If extraction fails, just store the output
+                    per_layer_acts.append(output)
+            else:
+                per_layer_acts.append(output)
             
         if hasattr(self.branch_layers[-1], 'excitatory_input'):
             self.branch_layers[-1].excitatory_input = x
         
         if hasattr(self.branch_layers[-1], 'inhibitory_input'):
             self.branch_layers[-1].inhibitory_input = inhibitory_input
-            
+        
+        # Get the final soma output    
         final_soma = self.branch_layers[-1](x, inhibitory_input, output)
-        per_layer_acts.append(final_soma)
+        
+        # Try to extract final layer components
+        final_layer = self.branch_layers[-1]
+        if hasattr(final_layer, 'branch_excitation') and hasattr(final_layer, 'branch_inhibition'):
+            try:
+                exc_input = final_layer.branch_excitation(x)
+                inh_input = final_layer.branch_inhibition(inhibitory_input) if inhibitory_input is not None else None
+                per_layer_acts.append([exc_input, inh_input, final_soma])
+            except:
+                per_layer_acts.append(final_soma)
+        else:
+            per_layer_acts.append(final_soma)
+            
         return final_soma, per_layer_acts
 
     def forward(self, x, inhibitory_input=None):
