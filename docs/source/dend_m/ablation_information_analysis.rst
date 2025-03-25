@@ -294,49 +294,112 @@ This analysis reveals:
 Dendritic Information Analysis Implementation
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-The framework includes a built-in visualization option called ``dendritic_information`` that quantifies how much task-relevant information is contained in the activations of each dendritic branch. This can be enabled in your configuration file:
+The framework provides a specialized visualization for performing ablation analysis by dendritic order (primary, secondary, etc.) called ``dendritic_ablation_all``. This can be enabled in your configuration file:
 
 .. code-block:: yaml
 
     visualization:
       enabled: true
       plots:
-        - dendritic_information   # Analyze information content in dendritic branches
+        - dendritic_ablation_all  # Activates the dendritic order ablation analysis
 
-The implementation works as follows:
+The implementation consists of the following steps:
 
-1. **Activation Extraction**: For each branch in the network, raw activations (input × weight) are collected during a forward pass.
+1. **Baseline Performance Measurement**: The model's baseline performance is measured on the specified dataset.
 
-2. **MLP Classifier Training**: For each branch (or branch depth), a simple MLP classifier is trained to predict the task labels using only that branch's activations:
+2. **Order-wise Ablation**: The model is systematically ablated at each dendritic order:
+   - Excitatory Ablation: All excitatory branches at a specific dendritic order are ablated.
+   - Inhibitory Ablation: All inhibitory branches at a specific dendritic order are ablated.
 
-   .. code-block:: python
-   
-       class MLPClassifier(nn.Module):
-           def __init__(self, input_dim, hidden_dims, output_dim):
-               super().__init__()
-               layers = []
-               prev_dim = input_dim
-               for hdim in hidden_dims:
-                   layers.append(nn.Linear(prev_dim, hdim))
-                   layers.append(nn.ReLU())
-                   prev_dim = hdim
-               layers.append(nn.Linear(prev_dim, output_dim))
-               self.model = nn.Sequential(*layers)
-               
-           def forward(self, x):
-               return self.model(x)
+3. **Result Analysis**: The performance drop for each ablation is calculated. 
+   - Both absolute performance drops and percentage drops relative to baseline are computed.
+   - If the results contain lists instead of single values (e.g., from multiple runs), they are appropriately processed.
 
-   By default, this classifier uses hidden dimensions of ``[100, 50]`` and is trained for 20 epochs.
+4. **Visualization**: The results are visualized as line plots showing the performance drop as a function of dendritic order, with separate lines for excitatory and inhibitory pathways.
 
-3. **Information Measurement**: The final classification accuracy of each branch's MLP is used as a proxy for the amount of task-relevant information contained in that branch. Branches with higher accuracy values contain more useful information for solving the task.
+The implementation handles potential edge cases:
+- Results may contain lists of values for each order (e.g., when aggregating multiple runs)
+- Some dendritic orders might not have inhibitory branches
+- Results are normalized relative to baseline performance for more interpretable comparisons
 
-4. **Result Visualization**: Results are plotted showing the information content (classification accuracy) for different branches, allowing you to see which branches are most informative.
+Example configuration:
 
-This approach provides insights into:
-1. How information is distributed across branches
-2. Which branches are most critical for the task
-3. How the network's architecture influences information flow
-4. Whether proximal or distal branches capture more task-relevant information
+.. code-block:: yaml
+
+    visualization:
+      enabled: true
+      plots:
+        - dendritic_ablation_all
+      parameters:
+        dendritic_ablation_all:
+          save_data: true  # Optionally save raw data for further analysis
+          figsize: [10, 6]  # Customize figure size
+          colors: ['blue', 'red']  # Colors for excitatory and inhibitory lines
+
+The analysis provides insights into:
+- How information is distributed across dendritic orders
+- The relative importance of proximal versus distal dendritic segments
+- The complementary roles of excitatory and inhibitory pathways at different hierarchical levels
+
+Information Analysis Implementation
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+To enable the branch information analysis visualization:
+
+.. code-block:: yaml
+
+    visualization:
+      enabled: true
+      plots:
+        - dendritic_information  # Activates the dendritic information analysis
+
+The implementation follows these steps:
+
+1. **Activation Extraction**: The model is run on the dataset, and activations from branches at each dendritic order are extracted.
+   - Branches are categorized by type (excitatory, inhibitory) and by dendritic order.
+   - Activations are collected in appropriate tensors, handling potential device issues.
+
+2. **Branch Categorization**: Branches are grouped by their dendritic depth and type.
+   - The model's architecture is traversed to identify branches at each depth.
+   - Each branch is classified as excitatory or inhibitory.
+
+3. **MLP Classifier Training**: For each branch category (excitatory, inhibitory, combined at each depth):
+   - A simple MLP classifier is trained to predict labels from branch activations.
+   - Performance metrics (accuracy) are recorded.
+   - Training follows a standard procedure with specified hyperparameters.
+
+4. **Information Measurement**: The classification accuracy serves as a proxy for the amount of task-relevant information contained in each branch type/depth.
+   - Higher accuracy indicates more discriminative information.
+   - Results are also normalized relative to chance performance.
+
+5. **Result Visualization**: Two types of visualizations are generated:
+   - Raw accuracy plot: Shows the classification accuracy for each branch category.
+   - Normalized information plot: Shows the percentage above random chance.
+
+Example configuration:
+
+.. code-block:: yaml
+
+    visualization:
+      enabled: true
+      plots:
+        - dendritic_information
+      parameters:
+        dendritic_information:
+          mlp_hidden_dims: [100, 50]  # Hidden layer dimensions for the MLP classifier
+          training_epochs: 20  # Number of epochs for MLP training
+          batch_size: 64  # Batch size for MLP training
+          save_data: true  # Save raw data for further analysis
+
+The implementation handles several edge cases:
+- Some dendritic orders might not have both excitatory and inhibitory branches
+- NaN values are used for missing branch types
+- Device management ensures tensors are on appropriate devices
+
+This analysis provides insights into:
+- How information is distributed across different branch depths
+- The relative information content in excitatory vs. inhibitory branches
+- How combining excitatory and inhibitory information affects classification performance
 
 Synaptic Weight Information Analysis
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
