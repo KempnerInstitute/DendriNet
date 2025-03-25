@@ -31,11 +31,10 @@ Before installing, ensure your system meets the following requirements:
 Installation Methods
 --------------------
 
-There are three main methods to install the framework:
+There are two main methods to install the framework:
 
 1. Using pip (recommended for most users)
 2. Installing from source (recommended for developers)
-3. Using a Docker container (recommended for reproducibility)
 
 Method 1: Using pip
 ~~~~~~~~~~~~~~~~~~~
@@ -74,19 +73,6 @@ For the latest features or if you plan to contribute to the framework:
     
     # Install in development mode
     pip install -e .
-
-Method 3: Using Docker
-~~~~~~~~~~~~~~~~~~~~~~
-
-For a consistent environment across different systems:
-
-.. code-block:: bash
-
-    # Build the Docker image
-    docker build -t dendritic-modeling .
-    
-    # Run a container with GPU support
-    docker run --gpus all -it dendritic-modeling bash
 
 Detailed Installation Steps
 ---------------------------
