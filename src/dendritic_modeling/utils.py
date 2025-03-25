@@ -928,3 +928,562 @@ class SafeHookModule(nn.Module):
     
     def forward(self, *args, **kwargs):
         return self.module(*args, **kwargs)
+
+def analyze_dendritic_information(model, dataset, device='cuda', mlp_hidden_dims=[100, 50], 
+                                 training_epochs=20, batch_size=64, use_excitatory=True, 
+                                 use_inhibitory=True):
+    """
+    Analyze information content in dendritic branches by training an MLP classifier on branch activations.
+    
+    This function:
+    1. Extracts w_i * x_i vectors from each branch at different depths
+    2. Trains MLP classifiers to predict input labels from these vectors
+    3. Reports classification accuracy as a measure of information content
+    
+    Parameters
+    ----------
+    model : nn.Module
+        The dendritic network model
+    dataset : torch.utils.data.Dataset
+        Dataset containing inputs and labels
+    device : str
+        Device to use for computation
+    mlp_hidden_dims : list
+        Hidden layer dimensions for the MLP classifier
+    training_epochs : int
+        Number of epochs to train each MLP
+    batch_size : int
+        Batch size for training
+    use_excitatory : bool
+        Whether to use excitatory branch activations
+    use_inhibitory : bool
+        Whether to use inhibitory branch activations
+    
+    Returns
+    -------
+    dict
+        Dictionary containing results for each branch depth
+    """
+    from sklearn.model_selection import train_test_split
+    from torch.utils.data import TensorDataset, DataLoader
+    from torch.optim import Adam
+    
+    # Set model to evaluation mode
+    model.eval()
+    
+    # Check if model has the branch structure we need
+    if not hasattr(model, 'net'):
+        raise ValueError("Model does not have a 'net' attribute")
+    
+    # Check if model has forward_with_branch_outputs method
+    if not hasattr(model, 'forward_with_branch_outputs') and not hasattr(model.net, 'forward_with_branch_outputs'):
+        print("Model does not have forward_with_branch_outputs method. Will use hooks as fallback.")
+        
+        # Try to enable capturing activations across the model as fallback
+        try:
+            activation_captures = {}
+            
+            def make_activation_hook(name, capture_dict):
+                def hook_fn(module, input, output):
+                    # If output is a tuple, take the first item
+                    if isinstance(output, tuple):
+                        output = output[0]
+                    # Store activation with the module name
+                    capture_dict[name] = output.detach().cpu()
+                return hook_fn
+            
+            # Register hooks on all modules that might be branches
+            hooks = []
+            for name, module in model.named_modules():
+                if any(branch_term in name.lower() for branch_term in ['branch', 'dendrit', 'excit', 'inhib']):
+                    hook = module.register_forward_hook(make_activation_hook(name, activation_captures))
+                    hooks.append(hook)
+            
+            print(f"Registered {len(hooks)} activation capture hooks on branch-related modules")
+        except Exception as e:
+            print(f"Warning: Could not set up activation capture hooks: {e}")
+            activation_captures = None
+    else:
+        print("Model has forward_with_branch_outputs method. Will use it to extract branch activations.")
+    
+    # Create a dataloader
+    data_loader = DataLoader(dataset, batch_size=batch_size, shuffle=False)
+    
+    # Get number of classes from the dataset
+    # Try multiple approaches to handle different dataset formats
+    if hasattr(dataset, 'targets'):
+        # Standard torchvision datasets have a 'targets' attribute
+        targets = dataset.targets
+        if hasattr(targets, 'numpy'):
+            targets = targets.numpy()
+        num_classes = len(set(targets))
+    elif isinstance(dataset, torch.utils.data.Dataset):
+        # If it's a Dataset but doesn't have targets attribute, try to get all labels
+        all_targets = []
+        for _, label in data_loader:
+            if isinstance(label, torch.Tensor):
+                all_targets.append(label)
+            elif isinstance(label, tuple) and len(label) > 0:
+                # Handle tuple case (when label might be tuple of tensors)
+                all_targets.append(label[0])
+        if all_targets:
+            all_targets = torch.cat(all_targets)
+            num_classes = len(torch.unique(all_targets))
+        else:
+            # Default if we can't determine
+            num_classes = 10
+    else:
+        # Default to a reasonable number if can't determine
+        num_classes = 10
+        print("Warning: Could not determine number of classes from dataset. Using default value of 10.")
+    
+    # Store results
+    results = {
+        "branch_depths": [],
+        "exc_accuracy": [],
+        "inh_accuracy": [],
+        "combined_accuracy": []
+    }
+    
+    # Collect all branch activations using forward_with_branch_outputs
+    all_branch_activations = []
+    all_labels = []
+    
+    with torch.no_grad():
+        for inputs, labels in data_loader:
+            inputs = inputs.to(device)
+            
+            # Use forward_with_branch_outputs if available
+            if hasattr(model, 'forward_with_branch_outputs'):
+                _, branch_acts = model.forward_with_branch_outputs(inputs)
+                all_branch_activations.append(branch_acts)
+            elif hasattr(model.net, 'forward_with_branch_outputs'):
+                _, branch_acts = model.net.forward_with_branch_outputs(inputs)
+                all_branch_activations.append(branch_acts)
+            else:
+                # Fallback - just do a regular forward pass to populate hooks
+                _ = model(inputs)
+            
+            all_labels.append(labels)
+    
+    # Concatenate labels
+    all_labels = torch.cat(all_labels, dim=0).numpy()
+    
+    # If we collected branch activations via forward_with_branch_outputs
+    if all_branch_activations:
+        print(f"Collected branch activations from {len(all_branch_activations)} batches")
+        
+        # For each depth, concatenate across batches
+        # branch_acts from forward_with_branch_outputs is a list [batch_size, branch_features] for each depth
+        depth_acts = [[] for _ in range(len(all_branch_activations[0]))]
+        
+        for batch_acts in all_branch_activations:
+            for depth_idx, depth_act in enumerate(batch_acts):
+                # Move to CPU and store
+                depth_acts[depth_idx].append(depth_act.cpu())
+        
+        # Now process each depth
+        for depth_idx, acts_list in enumerate(depth_acts):
+            # Skip if no activations
+            if not acts_list:
+                continue
+                
+            # Concatenate across batches
+            depth_act_tensor = torch.cat(acts_list, dim=0)
+            depth_name = f"Depth {depth_idx+1}"
+            results["branch_depths"].append(depth_name)
+            
+            print(f"Processing branch depth {depth_idx+1} with activation shape: {depth_act_tensor.shape}")
+            
+            # If tensor has more than 2 dimensions, flatten except for batch dim
+            if depth_act_tensor.dim() > 2:
+                orig_shape = depth_act_tensor.shape
+                depth_act_tensor = depth_act_tensor.reshape(orig_shape[0], -1)
+                print(f"  Reshaped from {orig_shape} to {depth_act_tensor.shape}")
+            
+            # Check for NaN or Inf
+            if torch.isnan(depth_act_tensor).any() or torch.isinf(depth_act_tensor).any():
+                print(f"  Warning: Found NaN or Inf in activations!")
+                depth_act_tensor = torch.nan_to_num(depth_act_tensor, nan=0.0, posinf=0.0, neginf=0.0)
+            
+            # Split tensor into excitatory/inhibitory portions if relevant
+            # For simplicity, assume first half is excitatory, second half is inhibitory
+            # This is a simplified approach - adjust based on your actual model structure
+            feature_dim = depth_act_tensor.shape[1]
+            split_point = feature_dim // 2
+            
+            # Excitatory features
+            if use_excitatory and split_point > 0:
+                exc_data = depth_act_tensor[:, :split_point].numpy()
+                exc_accuracy = train_and_evaluate_classifier(
+                    exc_data, all_labels, 
+                    hidden_dims=mlp_hidden_dims,
+                    num_classes=num_classes,
+                    epochs=training_epochs,
+                    device=device
+                )
+                print(f"  Excitatory information accuracy: {exc_accuracy:.4f}")
+                results["exc_accuracy"].append(exc_accuracy)
+            else:
+                results["exc_accuracy"].append(None)
+            
+            # Inhibitory features
+            if use_inhibitory and split_point < feature_dim:
+                inh_data = depth_act_tensor[:, split_point:].numpy()
+                inh_accuracy = train_and_evaluate_classifier(
+                    inh_data, all_labels, 
+                    hidden_dims=mlp_hidden_dims,
+                    num_classes=num_classes,
+                    epochs=training_epochs,
+                    device=device
+                )
+                print(f"  Inhibitory information accuracy: {inh_accuracy:.4f}")
+                results["inh_accuracy"].append(inh_accuracy)
+            else:
+                results["inh_accuracy"].append(None)
+            
+            # Full activation tensor for combined
+            combined_data = depth_act_tensor.numpy()
+            combined_accuracy = train_and_evaluate_classifier(
+                combined_data, all_labels, 
+                hidden_dims=mlp_hidden_dims,
+                num_classes=num_classes,
+                epochs=training_epochs,
+                device=device
+            )
+            print(f"  Combined information accuracy: {combined_accuracy:.4f}")
+            results["combined_accuracy"].append(combined_accuracy)
+    
+    else:
+        # Legacy approach if forward_with_branch_outputs isn't available or didn't work
+        print("Warning: Could not collect branch activations using forward_with_branch_outputs.")
+        print("Checking if model has branch_layers structure...")
+        
+        # Get branch layers
+        branch_layers = []
+        if hasattr(model.net, 'branch_layers'):
+            branch_layers = model.net.branch_layers
+        elif hasattr(model.net, 'layers'):
+            # EINet structure has layers with excitatory_cells and inhibitory_cells
+            for layer in model.net.layers:
+                if hasattr(layer, 'excitatory_cells') and hasattr(layer.excitatory_cells, 'branch_layers'):
+                    branch_layers.extend(layer.excitatory_cells.branch_layers)
+        
+        if not branch_layers:
+            print("WARNING: Could not find branch layers in the model. No information to analyze.")
+            # Return empty results with at least one entry to avoid plotting errors
+            results["branch_depths"].append("No branches found")
+            results["exc_accuracy"].append(None)
+            results["inh_accuracy"].append(None)
+            results["combined_accuracy"].append(None)
+            return results
+        
+        print(f"Found {len(branch_layers)} branch layers for information analysis")
+        
+        # Continue with the rest of the original implementation...
+        # (keeping the original code from here for legacy support)
+        
+        # For each branch depth
+        for depth_idx, layer in enumerate(branch_layers):
+            print(f"Analyzing information content at branch depth {depth_idx+1}...")
+            depth_name = f"Depth {depth_idx+1}"
+            results["branch_depths"].append(depth_name)
+            
+            # Check for branch excitation and inhibition
+            has_branch_excitation = hasattr(layer, 'branch_excitation')
+            has_branch_inhibition = hasattr(layer, 'branch_inhibition')
+            
+            # Collect activations (w_i * x_i) for each branch
+            exc_activations = []
+            inh_activations = []
+            all_labels = []
+            
+            with torch.no_grad():
+                for inputs, labels in data_loader:
+                    inputs = inputs.to(device)
+                    
+                    # Forward pass to get branch activations
+                    _ = model(inputs)  # This populates activations in branches
+                    
+                    # Extract weighted activations (w_i * x_i)
+                    if has_branch_excitation and use_excitatory:
+                        # Extract branch excitation activations
+                        # For each sample, get the raw activations before any nonlinearity
+                        exc_act = None  # Initialize to None
+                        success = False
+                        
+                        # Try different attribute approaches to access branch activations
+                        try:
+                            if hasattr(layer, 'last_exc_input'):
+                                # If model stores activations directly
+                                exc_act = layer.last_exc_input.detach().cpu()
+                                success = True
+                                print(f"  Found excitatory activations through last_exc_input: shape {exc_act.shape}")
+                            elif hasattr(layer.branch_excitation, 'last_input') and hasattr(layer.branch_excitation, 'pruned_weight'):
+                                # Calculate w_i * x_i from raw inputs and weights
+                                x_i = layer.branch_excitation.last_input.detach().cpu()
+                                w_i = layer.branch_excitation.pruned_weight().detach().cpu()
+                                print(f"  Found excitatory inputs x_i: {x_i.shape}, weights w_i: {w_i.shape}")
+                                
+                                # For each neuron, compute the weighted activation
+                                exc_act = torch.matmul(x_i, w_i.t())  # Shape: [batch_size, num_neurons]
+                                success = True
+                                print(f"  Computed excitatory activations via matmul: shape {exc_act.shape}")
+                            elif hasattr(layer, 'forward_excitatory'):
+                                # Try direct forward pass of the excitatory component
+                                dummy_input = torch.zeros(inputs.shape).to(device)
+                                with torch.no_grad():
+                                    exc_act = layer.forward_excitatory(dummy_input).detach().cpu()
+                                success = True
+                                print(f"  Computed excitatory activations via forward_excitatory: shape {exc_act.shape}")
+                            else:
+                                # Try to access any direct attributes that might have activations
+                                print(f"  Warning: Could not find standard excitatory activation attributes for layer {depth_idx}")
+                                for attr_name in dir(layer):
+                                    if 'excitatory' in attr_name.lower() and not attr_name.startswith('_'):
+                                        attr = getattr(layer, attr_name)
+                                        if isinstance(attr, torch.Tensor) and attr.dim() > 1:
+                                            exc_act = attr.detach().cpu()
+                                            success = True
+                                            print(f"  Found alternative excitatory activation via {attr_name}: shape {exc_act.shape}")
+                                            break
+                        except Exception as e:
+                            print(f"  Error extracting excitatory activations: {e}")
+                        
+                        if exc_act is not None and success:
+                            # Check for NaN or infinite values
+                            if torch.isnan(exc_act).any() or torch.isinf(exc_act).any():
+                                print(f"  Warning: Found NaN or Inf in excitatory activations!")
+                                # Try to clean bad values
+                                exc_act = torch.nan_to_num(exc_act, nan=0.0, posinf=0.0, neginf=0.0)
+                            exc_activations.append(exc_act)
+                        else:
+                            print(f"  Warning: Failed to get excitatory activations for layer {depth_idx}")
+                    
+                    if has_branch_inhibition and use_inhibitory:
+                        # Extract branch inhibition activations
+                        inh_act = None  # Initialize to None
+                        success = False
+                        
+                        # Try different attribute approaches to access branch activations
+                        try:
+                            if hasattr(layer, 'last_inh_input'):
+                                # If model stores activations directly
+                                inh_act = layer.last_inh_input.detach().cpu()
+                                success = True
+                                print(f"  Found inhibitory activations through last_inh_input: shape {inh_act.shape}")
+                            elif hasattr(layer.branch_inhibition, 'last_input') and hasattr(layer.branch_inhibition, 'pruned_weight'):
+                                # Calculate w_i * x_i from raw inputs and weights
+                                x_i = layer.branch_inhibition.last_input.detach().cpu()
+                                w_i = layer.branch_inhibition.pruned_weight().detach().cpu()
+                                print(f"  Found inhibitory inputs x_i: {x_i.shape}, weights w_i: {w_i.shape}")
+                                
+                                # For each neuron, compute the weighted activation
+                                inh_act = torch.matmul(x_i, w_i.t())  # Shape: [batch_size, num_neurons]
+                                success = True
+                                print(f"  Computed inhibitory activations via matmul: shape {inh_act.shape}")
+                            elif hasattr(layer, 'forward_inhibitory'):
+                                # Try direct forward pass of the inhibitory component
+                                dummy_input = torch.zeros(inputs.shape).to(device)
+                                with torch.no_grad():
+                                    inh_act = layer.forward_inhibitory(dummy_input).detach().cpu()
+                                success = True
+                                print(f"  Computed inhibitory activations via forward_inhibitory: shape {inh_act.shape}")
+                            else:
+                                # Try to access any direct attributes that might have activations
+                                print(f"  Warning: Could not find standard inhibitory activation attributes for layer {depth_idx}")
+                                for attr_name in dir(layer):
+                                    if 'inhibitory' in attr_name.lower() and not attr_name.startswith('_'):
+                                        attr = getattr(layer, attr_name)
+                                        if isinstance(attr, torch.Tensor) and attr.dim() > 1:
+                                            inh_act = attr.detach().cpu()
+                                            success = True
+                                            print(f"  Found alternative inhibitory activation via {attr_name}: shape {inh_act.shape}")
+                                            break
+                        except Exception as e:
+                            print(f"  Error extracting inhibitory activations: {e}")
+                        
+                        if inh_act is not None and success:
+                            # Check for NaN or infinite values
+                            if torch.isnan(inh_act).any() or torch.isinf(inh_act).any():
+                                print(f"  Warning: Found NaN or Inf in inhibitory activations!")
+                                # Try to clean bad values
+                                inh_act = torch.nan_to_num(inh_act, nan=0.0, posinf=0.0, neginf=0.0)
+                            inh_activations.append(inh_act)
+                        else:
+                            print(f"  Warning: Failed to get inhibitory activations for layer {depth_idx}")
+                    
+                    all_labels.append(labels)
+            
+            # Concatenate activations and labels
+            all_labels = torch.cat(all_labels, dim=0).numpy()
+            
+            # Train MLP classifier on excitatory activations
+            if exc_activations and use_excitatory:
+                exc_data = torch.cat(exc_activations, dim=0).numpy()
+                exc_accuracy = train_and_evaluate_classifier(
+                    exc_data, all_labels, 
+                    hidden_dims=mlp_hidden_dims,
+                    num_classes=num_classes,
+                    epochs=training_epochs,
+                    device=device
+                )
+                print(f"  Excitatory information accuracy: {exc_accuracy:.4f}")
+                results["exc_accuracy"].append(exc_accuracy)
+            else:
+                results["exc_accuracy"].append(None)
+            
+            # Train MLP classifier on inhibitory activations
+            if inh_activations and use_inhibitory:
+                inh_data = torch.cat(inh_activations, dim=0).numpy()
+                inh_accuracy = train_and_evaluate_classifier(
+                    inh_data, all_labels, 
+                    hidden_dims=mlp_hidden_dims,
+                    num_classes=num_classes,
+                    epochs=training_epochs,
+                    device=device
+                )
+                print(f"  Inhibitory information accuracy: {inh_accuracy:.4f}")
+                results["inh_accuracy"].append(inh_accuracy)
+            else:
+                results["inh_accuracy"].append(None)
+            
+            # Train MLP classifier on combined activations
+            if exc_activations and inh_activations and use_excitatory and use_inhibitory:
+                exc_data = torch.cat(exc_activations, dim=0).numpy()
+                inh_data = torch.cat(inh_activations, dim=0).numpy()
+                
+                # Concatenate excitatory and inhibitory activations
+                combined_data = np.concatenate([exc_data, inh_data], axis=1)
+                
+                combined_accuracy = train_and_evaluate_classifier(
+                    combined_data, all_labels, 
+                    hidden_dims=mlp_hidden_dims,
+                    num_classes=num_classes,
+                    epochs=training_epochs,
+                    device=device
+                )
+                print(f"  Combined information accuracy: {combined_accuracy:.4f}")
+                results["combined_accuracy"].append(combined_accuracy)
+            else:
+                results["combined_accuracy"].append(None)
+    
+    # Make sure we have at least one entry to avoid plotting errors
+    if not results["branch_depths"]:
+        print("WARNING: No branch depths analyzed. Adding a placeholder entry.")
+        results["branch_depths"].append("No valid branches")
+        results["exc_accuracy"].append(None)
+        results["inh_accuracy"].append(None)
+        results["combined_accuracy"].append(None)
+    
+    return results
+
+
+def train_and_evaluate_classifier(X, y, hidden_dims=[100, 50], num_classes=10, 
+                                 epochs=20, batch_size=64, device='cuda'):
+    """
+    Train and evaluate an MLP classifier on the given data.
+    
+    Parameters
+    ----------
+    X : numpy.ndarray
+        Input features
+    y : numpy.ndarray
+        Target labels
+    hidden_dims : list
+        Hidden layer dimensions
+    num_classes : int
+        Number of classes
+    epochs : int
+        Number of training epochs
+    batch_size : int
+        Batch size for training
+    device : str
+        Device to use for training
+    
+    Returns
+    -------
+    float
+        Classification accuracy
+    """
+    from sklearn.model_selection import train_test_split
+    from torch.utils.data import TensorDataset, DataLoader
+    from torch.optim import Adam
+    import torch.nn.functional as F
+    
+    # Convert to torch tensors
+    X = torch.tensor(X, dtype=torch.float32)
+    y = torch.tensor(y, dtype=torch.long)
+    
+    # Split into train and validation sets
+    X_train, X_val, y_train, y_val = train_test_split(X, y, test_size=0.2, random_state=42)
+    
+    # Create datasets and dataloaders
+    train_dataset = TensorDataset(X_train, y_train)
+    val_dataset = TensorDataset(X_val, y_val)
+    
+    train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True)
+    val_loader = DataLoader(val_dataset, batch_size=batch_size, shuffle=False)
+    
+    # Create MLP classifier
+    input_dim = X.shape[1]
+    model = MLPClassifier(input_dim, hidden_dims, num_classes)
+    model = model.to(device)
+    
+    # Set up optimizer and loss function
+    optimizer = Adam(model.parameters(), lr=0.001)
+    criterion = nn.CrossEntropyLoss()
+    
+    # Train the model
+    best_val_acc = 0.0
+    best_model_state = None
+    
+    for epoch in range(epochs):
+        # Training
+        model.train()
+        for inputs, targets in train_loader:
+            inputs, targets = inputs.to(device), targets.to(device)
+            
+            optimizer.zero_grad()
+            outputs = model(inputs)
+            loss = criterion(outputs, targets)
+            loss.backward()
+            optimizer.step()
+        
+        # Validation
+        model.eval()
+        correct = 0
+        total = 0
+        
+        with torch.no_grad():
+            for inputs, targets in val_loader:
+                inputs, targets = inputs.to(device), targets.to(device)
+                outputs = model(inputs)
+                _, predicted = torch.max(outputs.data, 1)
+                total += targets.size(0)
+                correct += (predicted == targets).sum().item()
+        
+        val_acc = correct / total
+        
+        if val_acc > best_val_acc:
+            best_val_acc = val_acc
+            best_model_state = model.state_dict().copy()
+    
+    # Load best model state
+    model.load_state_dict(best_model_state)
+    
+    # Evaluate on validation set
+    model.eval()
+    correct = 0
+    total = 0
+    
+    with torch.no_grad():
+        for inputs, targets in val_loader:
+            inputs, targets = inputs.to(device), targets.to(device)
+            outputs = model(inputs)
+            _, predicted = torch.max(outputs.data, 1)
+            total += targets.size(0)
+            correct += (predicted == targets).sum().item()
+    
+    final_accuracy = correct / total
+    return final_accuracy
