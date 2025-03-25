@@ -1922,7 +1922,7 @@ def plot_depth_info(branch_info):
     plt.show()
 
 
-def plot_ei_sweep_results(results_csv_path, ei_ratio_range, metric='acc', split='test'):
+def plot_ei_sweep_results(results_csv_path, ei_ratio_range, split='test'):
     """
     Plot detailed analysis of EI sweep results comparing shunting vs non-shunting.
     
@@ -2061,7 +2061,7 @@ def plot_ei_sweep_results(results_csv_path, ei_ratio_range, metric='acc', split=
     plt.close(fig)
     
 
-def plot_branch_sweep_results(results_csv_path, metric='acc', split='test'):
+def plot_branch_sweep_results(results_csv_path, split='test'):
     """
     Plot analysis of branch sweep results comparing MLP vs EINet with/without shunting.
     
@@ -2103,10 +2103,11 @@ def plot_branch_sweep_results(results_csv_path, metric='acc', split='test'):
                     color='blue', alpha=0.2, zorder=1)
     
     # Add branch factor labels for shunting=True
-    for _, row in shunt_true_df.groupby(['branch_factors', 'nparams'])[split].mean().reset_index().iterrows():
+    for i, row in shunt_true_df.groupby(['branch_factors', 'nparams'])[split].mean().reset_index().iterrows():
+        y_offset = -15 if i % 2 == 0 else -25
         plt.annotate(f'[{row["branch_factors"]}]', 
                     xy=(row['nparams'], row[split]),
-                    xytext=(10, 10), textcoords='offset points',
+                    xytext=(10, y_offset), textcoords='offset points',
                     color='blue', fontsize=10)
     
     # Plot EINet without shunting results
@@ -2119,14 +2120,24 @@ def plot_branch_sweep_results(results_csv_path, metric='acc', split='test'):
                     color='red', alpha=0.2, zorder=1)
     
     # Add branch factor labels for shunting=False
-    for _, row in shunt_false_df.groupby(['branch_factors', 'nparams'])[split].mean().reset_index().iterrows():
+    for i, row in shunt_false_df.groupby(['branch_factors', 'nparams'])[split].mean().reset_index().iterrows():
+        y_offset = 15 if i % 2 == 0 else 25
         plt.annotate(f'[{row["branch_factors"]}]', 
                     xy=(row['nparams'], row[split]),
-                    xytext=(10, -10), textcoords='offset points',
+                    xytext=(10, y_offset), textcoords='offset points',
                     color='red', fontsize=10)
     
     # Customize plot
     plt.xscale('log')
+    
+    # Set 6 evenly spaced x-axis ticks in scientific notation
+    all_params = pd.concat([mlp_means['nparams'], 
+                           shunt_true_means['nparams'], 
+                           shunt_false_means['nparams']]).unique()
+    min_params, max_params = all_params.min(), all_params.max()
+    tick_locations = np.logspace(np.log10(min_params), np.log10(max_params), 6)
+    plt.xticks(tick_locations, [f'{x:.1e}' for x in tick_locations])
+    
     plt.xlabel('Number of Parameters')
     plt.ylabel(f'{split.capitalize()} Accuracy')
     plt.title('Model Performance vs Number of Parameters')
@@ -2137,16 +2148,232 @@ def plot_branch_sweep_results(results_csv_path, metric='acc', split='test'):
     plt.tight_layout()
     fig.savefig(os.path.join(os.path.dirname(results_csv_path), 'branch_sweep_results.jpeg'))
     plt.close(fig)
+
+
+def plot_noise_sweep_ei_results(results_csv_path, noise_type='gaussian'):
+    """
+    Plot performance vs varying levels of noise for EI sweep.
     
+    Args:
+        results_csv_path (str): Path to CSV with noise robustness results
+        noise_type (str): Type of noise to analyze ('gaussian', 'uniform', 'poisson', or 'frequency')
+    """
+    # Read data
+    df = pd.read_csv(results_csv_path)
     
+    # Split by model type and shunting
+    einet_df = df[df['model'] == 'EINet']
+    shunt_true_df = einet_df[einet_df['shunting'] == True].copy()
+    shunt_false_df = einet_df[einet_df['shunting'] == False].copy()
     
+    # Get all metrics for the selected noise type
+    noise_cols = [col for col in df.columns if f'{noise_type}_' in col]
+    mean_cols = [col for col in noise_cols if '_mean' in col]
     
+    # Extract noise levels from column names
+    noise_levels = []
+    for col in mean_cols:
+        # Extract the number between noise_type_ and _mean
+        level_str = col.split(f'{noise_type}_')[1].split('_mean')[0]
+        # Convert to float (handles both "1" and "1.5" formats)
+        level = float(level_str)
+        noise_levels.append(level)
     
+    # Sort columns by noise level
+    sorted_indices = np.argsort(noise_levels)
+    noise_levels = [noise_levels[i] for i in sorted_indices]
+    mean_cols = [mean_cols[i] for i in sorted_indices]
     
+    # Create figure with 4 subplots in a single row
+    fig, axes = plt.subplots(1, 4, figsize=(20, 5), sharey=True)
     
+    # Find optimal excitation and inhibition values for each shunting setting
+    best_exc = {}
+    best_inh = {}
     
+    for shunting in [True, False]:
+        df_subset = einet_df[einet_df['shunting'] == shunting]
+        
+        # Find best exc and inh
+        best_idx = df_subset['test_mean'].idxmax()
+        best_exc[shunting] = df_subset.loc[best_idx, 'exc']
+        best_inh[shunting] = df_subset.loc[best_idx, 'inh']
     
+    # Find global min and max for consistent color scale across all noise columns
+    vmin = df[mean_cols].min().min()  # Min of all noise columns
+    vmax = df[mean_cols].max().max()  # Max of all noise columns
+    vcenter = (vmin + vmax) / 2
     
+    # Create a normalization that will center the colormap at vcenter
+    norm = TwoSlopeNorm(vmin=vmin, vcenter=vcenter, vmax=vmax)
     
+    # Define configurations for each subplot
+    plot_configs = [
+        # (shunting, dataframe, fixed_param, param_to_vary)
+        (True, shunt_true_df, 'exc', 'inh'),
+        (True, shunt_true_df, 'inh', 'exc'),
+        (False, shunt_false_df, 'exc', 'inh'),
+        (False, shunt_false_df, 'inh', 'exc')
+    ]
     
+    # Plot each heatmap
+    for i, (ax, (shunting, df_subset, fixed_param, param_to_vary)) in enumerate(zip(axes, plot_configs)):
+        fixed_value = best_exc[shunting] if fixed_param == 'exc' else best_inh[shunting]
+        df_filtered = df_subset[df_subset[fixed_param] == fixed_value]
+        
+        # Get parameter values
+        param_values = sorted(df_filtered[param_to_vary].unique())
+        
+        # Create a matrix for the heatmap
+        heatmap_data = np.zeros((len(noise_levels), len(param_values)))
+        
+        for i_row, col_name in enumerate(mean_cols):
+            for i_col, param_val in enumerate(param_values):
+                row = df_filtered[df_filtered[param_to_vary] == param_val]
+                if not row.empty:
+                    heatmap_data[i_row, i_col] = row[col_name].values[0]
+        
+        # For Poisson noise, we want higher values at the bottom (not inverted)
+        # For all other noise types, we want higher values at the top (inverted)
+        if noise_type == 'poisson':
+            heatmap_data = np.flipud(heatmap_data)
+            extent = [min(param_values), max(param_values), 
+                     min(noise_levels), max(noise_levels)]
+        else:
+            extent = [min(param_values), max(param_values), 
+                     max(noise_levels), min(noise_levels)]
+        
+        # Plot heatmap with the normalized colormap
+        im = ax.imshow(heatmap_data, aspect='auto', 
+                     cmap='viridis', norm=norm,
+                     extent=extent)
+        
+        # Set titles and labels
+        shunt_label = "Shunting" if shunting else "No Shunting"
+        fixed_label = f"Fixed {fixed_param.capitalize()}={fixed_value}"
+        ax.set_title(f'{shunt_label}, {fixed_label}')
+        
+        param_label = "Inhibitory Synapses" if param_to_vary == 'inh' else "Excitatory Synapses"
+        ax.set_xlabel(param_label)
+        
+        if i == 0:  # Only set y-label for the first plot
+            ax.set_ylabel(f'{noise_type.capitalize()} Noise')
     
+    # Add colorbar
+    add_colorbars(fig, [ax], [im], 'right', '5%', 0.05)
+    
+    # Add overall title
+    fig.suptitle(f'Performance vs {noise_type.capitalize()} Noise', fontsize=16)
+    
+    # Save plot
+    fig.savefig(os.path.join(os.path.dirname(results_csv_path), f'noise_sweep_ei_{noise_type}.jpeg'))
+    plt.close(fig)
+
+
+def plot_noise_sweep_branch_results(results_csv_path, noise_type='gaussian'):
+    """
+    Plot performance vs varying levels of noise.
+    
+    Args:
+        results_csv_path (str): Path to CSV with noise robustness results
+        noise_type (str): Type of noise to analyze ('gaussian', 'uniform', 'poisson', or 'frequency')
+    """
+    # Read and separate data
+    df = pd.read_csv(results_csv_path)
+    
+    # Split by model type
+    mlp_df = df[df['model'] == 'MLP'].copy()
+    einet_df = df[df['model'] == 'EINet'].copy()
+    
+    # Split EINet by shunting
+    shunt_true_df = einet_df[einet_df['shunting'] == True].copy()
+    shunt_false_df = einet_df[einet_df['shunting'] == False].copy()
+    
+    # Sort all dataframes by nparams
+    mlp_df = mlp_df.sort_values('nparams')
+    shunt_true_df = shunt_true_df.sort_values('nparams')
+    shunt_false_df = shunt_false_df.sort_values('nparams')
+    
+    # Get all metrics for the selected noise type
+    noise_cols = [col for col in df.columns if f'{noise_type}_' in col]
+    mean_cols = [col for col in noise_cols if '_mean' in col]
+    std_cols = [col for col in noise_cols if '_std' in col]
+    
+    # Extract noise levels from column names
+    noise_levels = []
+    for col in mean_cols:
+        # Extract the number between noise_type_ and _mean
+        level = float(col.split(f'{noise_type}_')[1].split('_mean')[0])
+        noise_levels.append(level)
+    
+    # Sort columns by noise level
+    sorted_indices = np.argsort(noise_levels)
+    noise_levels = [noise_levels[i] for i in sorted_indices]
+    noise_type_means = [mean_cols[i] for i in sorted_indices]
+    noise_type_stds = [std_cols[i] for i in sorted_indices]
+    
+    # Create figure with a single subplot
+    fig, ax = plt.subplots(figsize=(8, 6))
+    
+    # Define color maps for each model type
+    mlp_colors = plt.cm.Greys(np.linspace(0.3, 0.8, len(mlp_df['branch_factors'].unique())))
+    shunt_true_colors = plt.cm.Blues(np.linspace(0.3, 0.8, len(shunt_true_df['branch_factors'].unique())))
+    shunt_false_colors = plt.cm.Reds(np.linspace(0.3, 0.8, len(shunt_false_df['branch_factors'].unique())))
+    
+    # Plot MLP results
+    for i, (bf, bf_data) in enumerate(mlp_df.groupby('branch_factors')):
+    
+        # Get performance change across noise levels
+        performance_means = np.array([bf_data[metric].iloc[0] for metric in noise_type_means])
+        performance_stds = np.array([bf_data[metric].iloc[0] for metric in noise_type_stds])
+        ax.plot(noise_levels, performance_means, '-', color=mlp_colors[i], label=f'MLP')
+        ax.fill_between(
+            noise_levels, 
+            performance_means - performance_stds, 
+            performance_means + performance_stds, 
+            alpha=0.2, color=mlp_colors[i])
+    
+    # Plot EINet with shunting results
+    for i, (bf, bf_data) in enumerate(shunt_true_df.groupby('branch_factors')):
+        
+        # Get performance change across noise levels
+        performance_means = np.array([bf_data[metric].iloc[0] for metric in noise_type_means])
+        performance_stds = np.array([bf_data[metric].iloc[0] for metric in noise_type_stds])
+        ax.plot(noise_levels, performance_means, '-', color=shunt_true_colors[i], label=f'Shunting {bf}')
+        ax.fill_between(
+            noise_levels, 
+            performance_means - performance_stds, 
+            performance_means + performance_stds, 
+            alpha=0.2, color=shunt_true_colors[i])
+    
+    # Plot EINet without shunting results
+    for i, (bf, bf_data) in enumerate(shunt_false_df.groupby('branch_factors')):
+        
+        # Get performance change across noise levels
+        performance_means = np.array([bf_data[metric].iloc[0] for metric in noise_type_means])
+        performance_stds = np.array([bf_data[metric].iloc[0] for metric in noise_type_stds])
+        ax.plot(noise_levels, performance_means, '-', color=shunt_false_colors[i], label=f'No Shunting {bf}')
+        ax.fill_between(
+            noise_levels, 
+            performance_means - performance_stds, 
+            performance_means + performance_stds, 
+            alpha=0.2, color=shunt_false_colors[i])
+    
+    ax.set_title(f'Performance vs {noise_type.capitalize()}')
+
+    if noise_type == 'uniform':
+        xlabel = 'Magnitude'
+    elif noise_type == 'poisson':
+        xlabel = 'Rate'
+        ax.invert_xaxis()
+    else:
+        xlabel = 'Standard Deviations'
+
+    ax.set_xlabel(xlabel)
+    ax.set_ylabel('Test Accuracy')
+    ax.grid(True, alpha=0.3)
+    
+    # Save plot
+    plt.tight_layout()
+    fig.savefig(os.path.join(os.path.dirname(results_csv_path), f'noise_sweep_branch_{noise_type}.jpeg'))
+    plt.close(fig)

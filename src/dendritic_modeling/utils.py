@@ -7,7 +7,7 @@ and model evaluation.
 
 import os
 import json
-from typing import Optional
+from typing import Optional, Tuple
 import torch
 import numpy as np
 import random
@@ -63,13 +63,21 @@ def save_dict(dict_obj: dict, save_path: str, fname: str):
         json.dump(dict_obj, f, indent=4)
 
 
-def accuracy_score(classifier: torch.nn.Module, inputs: torch.Tensor, labels: torch.Tensor):
-    device = 'cuda' if torch.cuda.is_available() else 'cpu'
-    classifier = classifier.to(device)
-    inputs = inputs.to(device)
-    labels = labels.to(device)
-    yhat = classifier.predict(inputs)
-    accuracy = torch.mean((yhat == labels).float()).item()
+def accuracy_score(
+    classifier: torch.nn.Module, 
+    inputs: torch.Tensor, 
+    labels: torch.Tensor, 
+    reduce_dim: int = 0,
+    move_device: bool = True,
+    device: str = 'cuda' if torch.cuda.is_available() else 'cpu',
+):
+    if move_device:
+        classifier = classifier.to(device)
+        inputs = inputs.to(device)
+        labels = labels.to(device)
+    with torch.no_grad():
+        yhat = classifier.predict(inputs)
+        accuracy = torch.mean((yhat == labels).float(), dim=reduce_dim)
     return accuracy
 
 
@@ -78,25 +86,154 @@ def evaluate_accuracy(
     train_ds: Optional[torch.utils.data.Dataset] = None, 
     valid_ds: Optional[torch.utils.data.Dataset] = None, 
     test_ds: Optional[torch.utils.data.Dataset] = None,
+    reduce_dim: int = 0,
+    move_device: bool = True,
+    device: str = 'cuda' if torch.cuda.is_available() else 'cpu',
     save_path: Optional[str] = None,
     filename: Optional[str] = 'accuracy',
 ):
-    train_acc = accuracy_score(classifier, *train_ds[:]) if train_ds else None
-    valid_acc = accuracy_score(classifier, *valid_ds[:]) if valid_ds else None
-    test_acc  = accuracy_score(classifier, *test_ds[:]) if test_ds else None
+    train_acc = accuracy_score(
+        classifier, *train_ds[:], reduce_dim=reduce_dim, move_device=move_device, device=device,
+    ) if train_ds else None
+    valid_acc = accuracy_score(
+        classifier, *valid_ds[:], reduce_dim=reduce_dim, move_device=move_device, device=device,
+    ) if valid_ds else None
+    test_acc  = accuracy_score(
+        classifier, *test_ds[:], reduce_dim=reduce_dim, move_device=move_device, device=device,
+    ) if test_ds else None
+
+    if train_acc is not None:
+        if train_acc.numel() == 1:
+            train_acc = train_acc.item()
+    if valid_acc is not None:
+        if valid_acc.numel() == 1:
+            valid_acc = valid_acc.item()
+    if test_acc is not None:
+        if test_acc.numel() == 1:
+            test_acc = test_acc.item()
 
     if save_path is not None:
         save_dict(
             {
-                'train accuracy': train_acc,
-                'valid accuracy': valid_acc,
-                'test accuracy': test_acc
+                'train accuracy': train_acc.tolist() if isinstance(train_acc, torch.Tensor) else train_acc,
+                'valid accuracy': valid_acc.tolist() if isinstance(valid_acc, torch.Tensor) else valid_acc,
+                'test accuracy': test_acc.tolist() if isinstance(test_acc, torch.Tensor) else test_acc
             },
             save_path,
             filename
         )
         
     return train_acc, valid_acc, test_acc
+
+
+def add_gaussian_noise(
+    x: torch.Tensor, 
+    std: float = 0.1, 
+    n_samples: int = 1,
+) -> torch.Tensor:
+    """
+    Add gaussian noise to x.
+    
+    Args:
+        x (torch.Tensor): Input x of shape [batch, features]
+        std (float): Standard deviation of the gaussian noise
+        n_samples (int): Number of noise samples to generate
+        
+    Returns:
+        torch.Tensor: Perturbed x of shape [n_samples, batch, features]
+    """    
+    # Generate noise samples
+    noise = torch.randn(n_samples, *x.shape, device=x.device) * std
+    # Add noise to expanded images
+    noisy_x = x[None, ...] + noise
+    # Clamp values to [0,1]
+    return torch.clamp(noisy_x, 0, 1)
+
+def add_uniform_noise(
+    x: torch.Tensor, 
+    spread: float = 0.1, 
+    n_samples: int = 1,
+) -> torch.Tensor:
+    """
+    Add uniform noise to x.
+    
+    Args:
+        x (torch.Tensor): Input x of shape [batch, features]
+        spread (float): Width of uniform distribution [-spread, spread]
+        n_samples (int): Number of noise samples to generate
+        
+    Returns:
+        torch.Tensor: Perturbed x of shape [n_samples, batch, features]
+    """
+    # Generate uniform noise
+    noise = torch.rand(n_samples, *x.shape, device=x.device) * spread
+    # Add noise to expanded x
+    noisy_x = x[None, ...] + noise
+    # Clamp values to [0,1]
+    return torch.clamp(noisy_x, 0, 1)
+
+def add_poisson_noise(
+    x: torch.Tensor,
+    rate: float = 1, 
+    n_samples: int = 1,
+) -> torch.Tensor:
+    """
+    Add Poisson noise to x, simulating photon noise.
+    
+    Args:
+        x (torch.Tensor): Input x of shape [batch, features]
+        rate (float): Rate parameter for Poisson distribution
+        n_samples (int): Number of noise samples to generate
+        
+    Returns:
+        torch.Tensor: Perturbed x of shape [n_samples, batch, features]
+    """
+    # Scale x by rate parameter
+    scaled_x = x * rate
+    # Generate Poisson samples
+    noisy_scaled_x = torch.poisson(scaled_x[None, ...].expand(n_samples, *x.shape))
+    # Scale back
+    noisy_x = noisy_scaled_x / rate
+    # Clamp values to [0,1]
+    return torch.clamp(noisy_x, 0, 1)
+
+def add_frequency_noise(
+    x: torch.Tensor,
+    std: float = 0.1,
+    n_samples: int = 1,
+    n_channels: int = 1,
+    image_shape: Tuple[int, int] = (28, 28),
+) -> torch.Tensor:
+    """
+    Add noise in the frequency domain with separate real and imaginary components.
+    
+    Args:
+        x (torch.Tensor): Input x of shape [batch, features]
+        std (float): Standard deviation for noise components
+        n_samples (int): Number of noise samples to generate
+        n_channels (int): Number of channels in the image
+        image_shape (tuple): Original image shape (height, width)
+        
+    Returns:
+        torch.Tensor: Perturbed x of shape [n_samples, batch, features]
+    """
+    batch = x.shape[:-1]
+    height, width = image_shape
+    # Reshape to image format for FFT
+    images = x.view(*batch, n_channels, height, width)
+    # Compute FFT
+    fft = torch.fft.fft2(images)
+    # Generate complex noise
+    real_noise = torch.randn(n_samples, *batch, n_channels, height, width, device=x.device) * std
+    imag_noise = torch.randn(n_samples, *batch, n_channels, height, width, device=x.device) * std
+    freq_noise = torch.complex(real_noise, imag_noise)
+    # Add noise in frequency domain
+    noisy_fft = fft[None, ...] + freq_noise
+    # Inverse FFT
+    noisy_images = torch.fft.ifft2(noisy_fft).real
+    # Reshape and clamp
+    noisy_x = noisy_images.reshape(n_samples, *batch, -1)
+    return torch.clamp(noisy_x, 0, 1)
 
 
 ################################################################################
