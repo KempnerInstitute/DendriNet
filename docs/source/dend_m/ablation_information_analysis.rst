@@ -291,6 +291,53 @@ This analysis reveals:
 3. How selective branches are to specific input patterns
 4. How branch outputs combine to form layer outputs
 
+Dendritic Information Analysis Implementation
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+The framework includes a built-in visualization option called ``dendritic_information`` that quantifies how much task-relevant information is contained in the activations of each dendritic branch. This can be enabled in your configuration file:
+
+.. code-block:: yaml
+
+    visualization:
+      enabled: true
+      plots:
+        - dendritic_information   # Analyze information content in dendritic branches
+
+The implementation works as follows:
+
+1. **Activation Extraction**: For each branch in the network, raw activations (input × weight) are collected during a forward pass.
+
+2. **MLP Classifier Training**: For each branch (or branch depth), a simple MLP classifier is trained to predict the task labels using only that branch's activations:
+
+   .. code-block:: python
+   
+       class MLPClassifier(nn.Module):
+           def __init__(self, input_dim, hidden_dims, output_dim):
+               super().__init__()
+               layers = []
+               prev_dim = input_dim
+               for hdim in hidden_dims:
+                   layers.append(nn.Linear(prev_dim, hdim))
+                   layers.append(nn.ReLU())
+                   prev_dim = hdim
+               layers.append(nn.Linear(prev_dim, output_dim))
+               self.model = nn.Sequential(*layers)
+               
+           def forward(self, x):
+               return self.model(x)
+
+   By default, this classifier uses hidden dimensions of ``[100, 50]`` and is trained for 20 epochs.
+
+3. **Information Measurement**: The final classification accuracy of each branch's MLP is used as a proxy for the amount of task-relevant information contained in that branch. Branches with higher accuracy values contain more useful information for solving the task.
+
+4. **Result Visualization**: Results are plotted showing the information content (classification accuracy) for different branches, allowing you to see which branches are most informative.
+
+This approach provides insights into:
+1. How information is distributed across branches
+2. Which branches are most critical for the task
+3. How the network's architecture influences information flow
+4. Whether proximal or distal branches capture more task-relevant information
+
 Synaptic Weight Information Analysis
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
