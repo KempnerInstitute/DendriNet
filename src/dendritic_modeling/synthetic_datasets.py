@@ -215,6 +215,43 @@ def load_mnist_as_datasets(train_valid_split=0.8, data_path=None):
     
     return train_ds, valid_ds, test_ds
 
+def load_MNIST_modulo10(shuffle_iterations = 2, 
+                        train_valid_split = 1,
+                        cache_dir = None):
+    
+    train_ds, valid_ds, test_ds = load_mnist_as_datasets(train_valid_split, cache_dir)
+    data = {'train': train_ds, 'valid': valid_ds, 'test': test_ds}
+
+    for key, ds in data.items():
+        ix = torch.randperm(len(ds))
+        ix0 = ix[:int(len(ds)/2)]
+        ix1 = ix[int(len(ds)/2):]
+
+        input0, label0 = ds[ix0]
+        input1, label1 = ds[ix1]
+        assert(label0.shape[0] == label1.shape[0])
+
+        inputs = []
+        labels = []
+        for _ in range(shuffle_iterations):
+            inputs.append(torch.cat([input0, input1], dim = -1))
+            labels.append((label0 + label1) % 10)
+
+            ix0 = torch.randperm(input0.shape[0])
+            input0 = input0[ix0]
+            label0 = label0[ix0]
+
+            ix1 = torch.randperm(input1.shape[0])
+            input1 = input1[ix1]
+            label1 = label1[ix1]
+        
+        inputs = torch.cat(inputs, dim = 0)
+        labels = torch.cat(labels, dim = 0)
+
+        data[key] = TensorDataset(inputs, labels)
+
+    return data
+
 class InfoShuntingDataset(Dataset):
     """
     half = Gaussian, half = Uniform; label=0 or 1
