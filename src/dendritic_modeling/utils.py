@@ -676,7 +676,7 @@ def get_ablated_activations(model, data_loader, ablation_type, device='cuda'):
                     original_params[layer_idx] = layer.branch_excitation.pre_w.data.clone()
             
             # For each layer, ablate that layer and get activations
-            for layer_idx in range(len(model.branch_layers)):
+            for layer_idx in range(len(model.branch_inputs)):
                 # Ablate the specified input type for this layer
                 if ablation_type == 'inhibitory' and hasattr(model.branch_layers[layer_idx], 'branch_inhibition'):
                     model.branch_layers[layer_idx].branch_inhibition.pre_w.data.fill_(float('-inf'))
@@ -1115,7 +1115,7 @@ def analyze_dendritic_information(model, dataset, device='cuda',
                     # Store the dictionary with CPU tensors
                     batch_cpu_acts = {k: v.cpu().detach() for k, v in batch_acts.items()}
                     branch_activations.append(batch_cpu_acts)
-        else:
+                else:
                     # Unknown format, store as is and hope for the best
                     branch_activations.append(batch_acts)
                     
@@ -1297,7 +1297,7 @@ def analyze_dendritic_information(model, dataset, device='cuda',
                         # Train classifier
                         combined_accuracy = train_classifier(train_combined_data, valid_combined_data, 
                                                         combined_acts.shape[1], num_classes)
-                        except Exception as e:
+                except Exception as e:
                     logging.error(f"Error analyzing combined branches at depth {depth_idx}: {str(e)}")
             
             # Store results
@@ -1334,10 +1334,10 @@ def analyze_dendritic_information(model, dataset, device='cuda',
                     results["exc_accuracy"].append(accuracy)
                     results["inh_accuracy"].append(accuracy)  # Same value
                     results["combined_accuracy"].append(accuracy)  # Same value
-            else:
+                else:
                     # No activations for this depth
                     results["exc_accuracy"].append(None)
-                results["inh_accuracy"].append(None)
+                    results["inh_accuracy"].append(None)
                     results["combined_accuracy"].append(None)
             except Exception as e:
                 logging.error(f"Error analyzing branches at depth {depth_idx}: {str(e)}")
@@ -1375,16 +1375,16 @@ def analyze_dendritic_information(model, dataset, device='cuda',
                     results["exc_accuracy"].append(accuracy)
                     results["inh_accuracy"].append(accuracy)
                     results["combined_accuracy"].append(accuracy)
-            else:
+                else:
                     # No activations for this key
                     results["exc_accuracy"].append(None)
                     results["inh_accuracy"].append(None)
-                results["combined_accuracy"].append(None)
+                    results["combined_accuracy"].append(None)
             except Exception as e:
                 logging.error(f"Error analyzing branches for key {key}: {str(e)}")
-        results["exc_accuracy"].append(None)
-        results["inh_accuracy"].append(None)
-        results["combined_accuracy"].append(None)
+                results["exc_accuracy"].append(None)
+                results["inh_accuracy"].append(None)
+                results["combined_accuracy"].append(None)
     
     else:
         # Unknown format - create placeholder results
