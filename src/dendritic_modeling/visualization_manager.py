@@ -24,7 +24,8 @@ from dendritic_modeling.utils import (
     analyze_branch_ablation,
     analyze_branch_information,
     analyze_layerwise_ablation,
-    measure_performance
+    measure_performance,
+    analyze_dendritic_information
 )
 from dendritic_modeling.plot_utils import (
     plot_einet_params, 
@@ -70,7 +71,8 @@ class PlotManager:
             "layerwise_ablation": self._branch_ablation,
             "layer_ablation": self._branch_ablation,
             "branch_ablation": self._branch_ablation,
-            "dendritic_ablation_all": self._dendritic_ablation_all
+            "dendritic_ablation_all": self._dendritic_ablation_all,
+            "dendritic_information": self._dendritic_information
         }
 
     def run_plot(self, plot_name, epoch=None):
@@ -566,7 +568,7 @@ class PlotManager:
         
         if not branch_layers:
             print("No branch layers found in model. Skipping ablation analysis.")
-            logging.error("No branch layers found in model. Skipping ablation analysis.")
+            logging.error("No branch layers found in model. Skipping branch_ablation analysis.")
             return
         
         logging.info(f"Model has {len(branch_layers)} branch layers")
@@ -1036,6 +1038,20 @@ class PlotManager:
             logging.error("No branch layers found in model. Skipping dendritic order ablation analysis.")
             return
         
+        logging.info(f"Model has {len(branch_layers)} branch layers")
+        
+        print("Performing branch ablation analysis...")
+        logging.info("Performing branch ablation analysis...")
+        
+        # Define ablation options - these were undefined and causing errors
+        do_layer_ablation = False   # By default, don't do layer ablation
+        do_branch_ablation = True   # By default, do branch ablation
+        
+        print(f"Layer ablation enabled: {do_layer_ablation}")
+        print(f"Branch ablation enabled: {do_branch_ablation}")
+        logging.info(f"Layer ablation enabled: {do_layer_ablation}")
+        logging.info(f"Branch ablation enabled: {do_branch_ablation}")
+        
         # Map layer indices to dendritic orders
         # For EINet, typically:
         # - Order 1 (primary) = layer 0
@@ -1058,7 +1074,7 @@ class PlotManager:
         print("Measuring baseline performance...")
         baseline_acc = measure_performance(net, self.data['test'], device=self.device)
         print(f"Baseline accuracy on test set: {baseline_acc:.4f}")
-        logging.info(f"Dendritic order ablation baseline acc on test = {baseline_acc:.4f}")
+        logging.info(f"Branch ablation baseline acc on test = {baseline_acc:.4f}")
         
         # Store original parameters for restoration
         print("Storing original model parameters...")
@@ -1257,42 +1273,237 @@ class PlotManager:
             
             # Create a second plot with percentage drop
             plt.figure(figsize=(12, 8))
-            perc_both_drop = [drop * 100 / baseline_acc for drop in results["both_drop"]]
-            perc_exc_drop = [drop * 100 / baseline_acc for drop in results["exc_drop"]]
-            perc_inh_drop = [drop * 100 / baseline_acc for drop in results["inh_drop"]]
             
-            plt.bar(x - width, perc_both_drop, width, label='Both Ablated')
-            plt.bar(x, perc_exc_drop, width, label='Excitatory Ablated')
-            plt.bar(x + width, perc_inh_drop, width, label='Inhibitory Ablated')
+            # Calculate percentage above random chance
+            exc_pct = (results["exc_drop"] - (baseline_acc - baseline_acc)) * 100 / (baseline_acc - baseline_acc)
+            inh_pct = (results["inh_drop"] - (baseline_acc - baseline_acc)) * 100 / (baseline_acc - baseline_acc)
+            both_pct = (results["both_drop"] - (baseline_acc - baseline_acc)) * 100 / (baseline_acc - baseline_acc)
             
+            # Plot bars for each accuracy type
+            plt.bar(x - width, exc_pct, width, label='Excitatory Ablated')
+            plt.bar(x, inh_pct, width, label='Inhibitory Ablated')
+            plt.bar(x + width, both_pct, width, label='Both Ablated')
+            
+            # Add labels and title
             plt.xlabel('Dendritic Order')
             plt.ylabel('Percent Accuracy Drop')
             plt.title('Dendritic Order Ablation Analysis (% Accuracy Drop)')
             plt.xticks(x, results["order_names"])
             plt.legend()
-            plt.grid(True, alpha=0.3)
+            
+            # Draw line for random chance (0%)
+            plt.axhline(y=0, color='gray', linestyle='--', label='Random Chance')
             
             plt.tight_layout()
             perc_plot_path = os.path.join(save_dir, "dendritic_ablation_all_percent.png")
             plt.savefig(perc_plot_path, dpi=300)
             plt.close()
             print(f"Saved percentage plot to {perc_plot_path}")
+
+            # Print summary table
+            print("\nDendritic Order Ablation Analysis Summary:")
+            print("-" * 100)
+            print(f"{'Order':<15} {'Baseline':<10} {'Both Acc':<10} {'Both Drop':<10} {'Exc Acc':<10} {'Exc Drop':<10} {'Inh Acc':<10} {'Inh Drop':<10}")
+            print("-" * 100)
+            for i, order in enumerate(results["order_names"]):
+                both_drop = results["both_drop"][i]
+                exc_drop = results["exc_drop"][i]
+                inh_drop = results["inh_drop"][i]
+                print(f"{order:<15} {baseline_acc:<10.4f} {results['both_ablated_acc'][i]:<10.4f} {both_drop:<10.4f} {exc_drop:<10.4f} {inh_drop:<10.4f}")
+            print("-" * 100)
+
+            print("Dendritic order ablation analysis completed.")
+            print("="*80 + "\n")
+            
         except Exception as e:
-            print(f"Error creating plots: {e}")
-            import traceback
+            print(f"Error in dendritic order ablation analysis: {e}")
             print(traceback.format_exc())
+            logging.error(f"Error in dendritic order ablation analysis: {e}")
+            logging.error(traceback.format_exc())
+
+    def _dendritic_information(self):
+        """
+        Analyze information content in dendritic branches by training an MLP on branch activations (w_i * x_i vectors).
+        This analysis:
+        1. Extracts w_i * x_i vectors from each branch depth
+        2. Trains an MLP classifier on these vectors to predict input labels
+        3. Reports classification accuracy as a measure of information content
+        4. Visualizes information content by branch depth
+        """
+        print("\n" + "="*80)
+        print("STARTING DENDRITIC INFORMATION ANALYSIS")
+        print("="*80)
         
-        # Print summary table
-        print("\nDendritic Order Ablation Analysis Summary:")
-        print("-" * 100)
-        print(f"{'Order':<15} {'Baseline':<10} {'Both Acc':<10} {'Both Drop':<10} {'Exc Acc':<10} {'Exc Drop':<10} {'Inh Acc':<10} {'Inh Drop':<10}")
-        print("-" * 100)
-        for i, order in enumerate(results["order_names"]):
-            both_drop = results["both_drop"][i]
-            exc_drop = results["exc_drop"][i]
-            inh_drop = results["inh_drop"][i]
-            print(f"{order:<15} {baseline_acc:<10.4f} {results['both_ablated_acc'][i]:<10.4f} {both_drop:<10.4f} {results['exc_ablated_acc'][i]:<10.4f} {exc_drop:<10.4f} {results['inh_ablated_acc'][i]:<10.4f} {inh_drop:<10.4f}")
-        print("-" * 100)
+        if not hasattr(self.model, 'net'):
+            print("ERROR: No 'net' attribute found on model. Skipping dendritic information analysis.")
+            logging.error("No 'net' attribute found on model. Skipping dendritic information analysis.")
+            return
+            
+        # Create output directory
+        save_dir = os.path.join(self.save_path, "dendritic_information")
+        os.makedirs(save_dir, exist_ok=True)
+        print(f"Results will be saved to: {save_dir}")
         
-        print("Dendritic order ablation analysis completed.")
-        print("="*80 + "\n")
+        # Get the right dataset(s)
+        if hasattr(self.data, 'test') and self.data['test'] is not None:
+            dataset = self.data['test']
+            print(f"Using test dataset with {len(dataset)} samples")
+        elif hasattr(self.data, 'valid') and self.data['valid'] is not None:
+            dataset = self.data['valid']
+            print(f"Using validation dataset with {len(dataset)} samples")
+        else:
+            dataset = self.data['train']
+            print(f"Using training dataset with {len(dataset)} samples")
+            
+        # Parameters for MLP classifier
+        mlp_hidden_dims = [100, 50]  # Hidden layer dimensions
+        training_epochs = 20         # Number of epochs for training
+        batch_size = 64              # Batch size for dataloaders
+        
+        try:
+            # Use the analyze_dendritic_information function
+            results = analyze_dendritic_information(
+                model=self.model,
+                dataset=dataset,
+                device=self.device,
+                mlp_hidden_dims=mlp_hidden_dims,
+                training_epochs=training_epochs,
+                batch_size=batch_size,
+                use_excitatory=True,
+                use_inhibitory=True
+            )
+            
+            # Save results to CSV
+            import pandas as pd
+            df = pd.DataFrame({
+                "branch_depth": results["branch_depths"],
+                "exc_accuracy": results["exc_accuracy"],
+                "inh_accuracy": results["inh_accuracy"],
+                "combined_accuracy": results["combined_accuracy"]
+            })
+            
+            csv_path = os.path.join(save_dir, "dendritic_information.csv")
+            df.to_csv(csv_path, index=False)
+            print(f"Saved results to {csv_path}")
+            
+            # Create visualization plots
+            import matplotlib.pyplot as plt
+            import numpy as np
+            
+            # Filter out None values for plotting
+            depth_names = results["branch_depths"]
+            exc_acc = np.array([acc if acc is not None else np.nan for acc in results["exc_accuracy"]])
+            inh_acc = np.array([acc if acc is not None else np.nan for acc in results["inh_accuracy"]])
+            combined_acc = np.array([acc if acc is not None else np.nan for acc in results["combined_accuracy"]])
+            
+            # Print the values to see if we have any data
+            print("DEBUG: Information Content Analysis Values:")
+            print(f"Branch Depths: {depth_names}")
+            print(f"Excitatory Accuracy: {exc_acc}")
+            print(f"Inhibitory Accuracy: {inh_acc}")
+            print(f"Combined Accuracy: {combined_acc}")
+            
+            # Set up the plot
+            plt.figure(figsize=(10, 6))
+            
+            # Plot each type of accuracy
+            x = np.arange(len(depth_names))
+            width = 0.25
+            
+            # Check if we have any non-NaN values to plot
+            has_exc_data = not np.all(np.isnan(exc_acc))
+            has_inh_data = not np.all(np.isnan(inh_acc))
+            has_combined_data = not np.all(np.isnan(combined_acc))
+            
+            if not (has_exc_data or has_inh_data or has_combined_data):
+                print("WARNING: No valid accuracy data to plot. Creating a placeholder plot.")
+                # Create a placeholder plot with a message
+                plt.text(0.5, 0.5, "No branch information data available",
+                       horizontalalignment='center', verticalalignment='center',
+                       transform=plt.gca().transAxes, fontsize=14)
+            else:
+                # Plot bars for each accuracy type
+                if has_exc_data:
+                    plt.bar(x - width, exc_acc, width, label='Excitatory', color='green', alpha=0.7)
+                if has_inh_data:
+                    plt.bar(x, inh_acc, width, label='Inhibitory', color='red', alpha=0.7)
+                if has_combined_data:
+                    plt.bar(x + width, combined_acc, width, label='Combined', color='blue', alpha=0.7)
+                
+                # Add labels and title
+                plt.xlabel('Branch Depth')
+                plt.ylabel('Classification Accuracy')
+                plt.title('Information Content in Dendritic Branches')
+                plt.xticks(x, depth_names)
+                plt.legend()
+                
+                # Draw line for random chance accuracy
+                # Handle different dataset formats for random chance calculation
+                try:
+                    if hasattr(dataset, 'targets'):
+                        targets = dataset.targets
+                        if hasattr(targets, 'numpy'):
+                            targets = targets.numpy()
+                        num_classes = len(np.unique(targets))
+                    elif isinstance(dataset, torch.utils.data.Dataset):
+                        # Try to determine from the results we already have
+                        if results and "exc_accuracy" in results and results["exc_accuracy"]:
+                            # Use the num_classes that was used in analyze_dendritic_information
+                            # We don't need to recalculate it
+                            num_classes = len(np.unique(all_labels)) if 'all_labels' in locals() else 10
+                        else:
+                            num_classes = 10
+                    else:
+                        num_classes = 10
+                except Exception as e:
+                    print(f"Error determining number of classes for random chance: {e}")
+                    num_classes = 10
+                    
+                random_chance = 1.0 / num_classes
+                plt.axhline(y=random_chance, color='gray', linestyle='--', label=f'Random Chance ({random_chance:.3f})')
+                
+                plt.tight_layout()
+                plt.grid(True, linestyle='--', alpha=0.7)
+                
+                # Save the plot
+                plt_path = os.path.join(save_dir, "dendritic_information.png")
+                plt.savefig(plt_path, dpi=300)
+                plt.close()
+                print(f"Saved plot to {plt_path}")
+                
+                # Create a second plot showing information content as a percentage above random chance
+                plt.figure(figsize=(10, 6))
+                
+                # Calculate percentage above random chance
+                exc_pct = (exc_acc - random_chance) * 100 / (1 - random_chance)
+                inh_pct = (inh_acc - random_chance) * 100 / (1 - random_chance)
+                combined_pct = (combined_acc - random_chance) * 100 / (1 - random_chance)
+                
+                # Plot bars for each accuracy type
+                plt.bar(x - width, exc_pct, width, label='Excitatory', color='green', alpha=0.7)
+                plt.bar(x, inh_pct, width, label='Inhibitory', color='red', alpha=0.7)
+                plt.bar(x + width, combined_pct, width, label='Combined', color='blue', alpha=0.7)
+                
+                # Add labels and title
+                plt.xlabel('Branch Depth')
+                plt.ylabel('Information Content (% above random)')
+                plt.title('Normalized Information Content in Dendritic Branches')
+                plt.xticks(x, depth_names)
+                plt.legend()
+                
+                # Draw line for random chance (0%)
+                plt.axhline(y=0, color='gray', linestyle='--', label='Random Chance')
+                
+                plt.tight_layout()
+                plt_norm_path = os.path.join(save_dir, "dendritic_information_percent.png")
+                plt.savefig(plt_norm_path, dpi=300)
+                plt.close()
+                print(f"Saved normalized plot to {plt_norm_path}")
+                
+                print("Dendritic information analysis completed successfully!")
+                
+        except Exception as e:
+            print(f"Error in dendritic information analysis: {e}")
+            print(traceback.format_exc())
+            logging.error(f"Error in dendritic information analysis: {e}")
+            logging.error(traceback.format_exc())
