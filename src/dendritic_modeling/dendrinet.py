@@ -144,7 +144,7 @@ class TopKLinear(nn.Module):
         
     def forward(self, x):
         pruned_weight = self.pruned_weight()
-        return torch.mm(x, pruned_weight.t())
+        return torch.matmul(x, pruned_weight.t())
     
     def weight(self):
         if self.param_space == 'log':
@@ -285,7 +285,7 @@ class BlockLinear(nn.Module):
             self.log_weight.data -= weight_decay
 
     def forward(self, x):
-        return torch.mm(x, self.block().t())
+        return torch.matmul(x, self.block().t())
     
     def sum_conductances(self):
         return self.log_weight.exp().sum(dim=1)
@@ -387,8 +387,8 @@ class DendriticBranchLayer(nn.Module):
             self.reactivation = ActivationFactory.create(
                 act_type=reactivation_type,
                 output_dim=output_dim,
-                init_m=1,
-                init_b=0.5,
+                init_m=1 if use_shunting else 0.1,
+                init_b=0.5 if use_shunting else 0.1,
             )
             gradient_scaler.register_reactivation_inverse(self.reactivation)
         self.reactivate = reactivate
