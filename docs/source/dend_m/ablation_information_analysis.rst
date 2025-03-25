@@ -308,6 +308,7 @@ The implementation consists of the following steps:
 1. **Baseline Performance Measurement**: The model's baseline performance is measured on the specified dataset.
 
 2. **Order-wise Ablation**: The model is systematically ablated at each dendritic order:
+   - Combined Ablation: Both excitatory and inhibitory branches at a specific dendritic order are ablated simultaneously.
    - Excitatory Ablation: All excitatory branches at a specific dendritic order are ablated.
    - Inhibitory Ablation: All inhibitory branches at a specific dendritic order are ablated.
 
@@ -315,11 +316,12 @@ The implementation consists of the following steps:
    - Both absolute performance drops and percentage drops relative to baseline are computed.
    - If the results contain lists instead of single values (e.g., from multiple runs), they are appropriately processed.
 
-4. **Visualization**: The results are visualized as line plots showing the performance drop as a function of dendritic order, with separate lines for excitatory and inhibitory pathways.
+4. **Visualization**: The results are visualized as bar plots showing the performance drop as a function of dendritic order, with separate bars for excitatory, inhibitory, and combined ablation.
 
 The implementation handles potential edge cases:
 - Results may contain lists of values for each order (e.g., when aggregating multiple runs)
-- Some dendritic orders might not have inhibitory branches
+- Some dendritic orders might not have both excitatory and inhibitory branches
+- When only one pathway exists, the combined ablation result reflects that pathway's ablation
 - Results are normalized relative to baseline performance for more interpretable comparisons
 
 Example configuration:
@@ -334,12 +336,13 @@ Example configuration:
         dendritic_ablation_all:
           save_data: true  # Optionally save raw data for further analysis
           figsize: [10, 6]  # Customize figure size
-          colors: ['blue', 'red']  # Colors for excitatory and inhibitory lines
+          colors: ['blue', 'red', 'purple']  # Colors for excitatory, inhibitory, and combined lines
 
 The analysis provides insights into:
 - How information is distributed across dendritic orders
 - The relative importance of proximal versus distal dendritic segments
 - The complementary roles of excitatory and inhibitory pathways at different hierarchical levels
+- Whether ablating both pathways has a superadditive or subadditive effect compared to ablating individual pathways
 
 Information Analysis Implementation
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -351,7 +354,17 @@ To enable the branch information analysis visualization:
     visualization:
       enabled: true
       plots:
-        - dendritic_information  # Activates the dendritic information analysis
+        - dendritic_information_inputs    # Analyze information in branch inputs (pre-shunting)
+        - dendritic_information_activations  # Analyze information in branch outputs (post-shunting)
+      parameters:
+        dendritic_information_inputs:
+          mlp_hidden_dims: [100, 50]  # Hidden layer dimensions for the MLP classifier
+          training_epochs: 20  # Number of epochs for MLP training
+          batch_size: 64  # Batch size for MLP training
+        dendritic_information_activations:
+          mlp_hidden_dims: [100, 50]  # Hidden layer dimensions for the MLP classifier
+          training_epochs: 20  # Number of epochs for MLP training
+          batch_size: 64  # Batch size for MLP training
 
 The implementation follows these steps:
 
@@ -376,30 +389,93 @@ The implementation follows these steps:
    - Raw accuracy plot: Shows the classification accuracy for each branch category.
    - Normalized information plot: Shows the percentage above random chance.
 
-Example configuration:
+Analyzing Pre-Shunting Branch Inputs
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+The `dendritic_information_inputs` visualization analyzes the raw inputs to each branch before nonlinear processing:
+
+- Excitatory inputs: :math:`w_i^{exc} \cdot x_i`
+- Inhibitory inputs: :math:`w_i^{inh} \cdot x_i`
+- Combined inputs: concatenation of excitatory and inhibitory inputs
+
+This analysis reveals:
+- Information content in the raw synaptic inputs
+- How information is distributed across different branch depths
+- The relative information content in excitatory vs. inhibitory input channels
+- How combining excitatory and inhibitory inputs affects classification performance
+
+To enable this analysis:
 
 .. code-block:: yaml
 
     visualization:
       enabled: true
       plots:
-        - dendritic_information
+        - dendritic_information_inputs
       parameters:
-        dendritic_information:
+        dendritic_information_inputs:
           mlp_hidden_dims: [100, 50]  # Hidden layer dimensions for the MLP classifier
           training_epochs: 20  # Number of epochs for MLP training
           batch_size: 64  # Batch size for MLP training
-          save_data: true  # Save raw data for further analysis
+
+Analyzing Post-Shunting Branch Activations
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+The `dendritic_information_activations` visualization analyzes the outputs after nonlinear processing:
+
+- With shunting: :math:`\frac{w_i^{exc} \cdot x_i}{w_i^{exc} \cdot x_i + w_i^{inh} \cdot x_i + 1}`
+- Without shunting: :math:`w_i^{exc} \cdot x_i - w_i^{inh} \cdot x_i`
+
+This analysis reveals:
+- Information content after nonlinear mixing operations
+- How shunting inhibition transforms information
+- How nonlinear operations enhance or suppress certain types of information
+
+To enable this analysis:
+
+.. code-block:: yaml
+
+    visualization:
+      enabled: true
+      plots:
+        - dendritic_information_activations
+      parameters:
+        dendritic_information_activations:
+          mlp_hidden_dims: [100, 50]  # Hidden layer dimensions for the MLP classifier
+          training_epochs: 20  # Number of epochs for MLP training
+          batch_size: 64  # Batch size for MLP training
+
+Comparing Pre-Shunting vs. Post-Shunting Information
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Using both visualization methods together provides a comprehensive view of information flow through dendritic branches:
+
+.. code-block:: yaml
+
+    visualization:
+      enabled: true
+      plots:
+        - dendritic_information_inputs     # Pre-shunting analysis
+        - dendritic_information_activations  # Post-shunting analysis
+      parameters:
+        dendritic_information_inputs:
+          mlp_hidden_dims: [100, 50]
+          training_epochs: 20
+          batch_size: 64
+        dendritic_information_activations:
+          mlp_hidden_dims: [100, 50]
+          training_epochs: 20
+          batch_size: 64
+
+Comparing the results from both analyses reveals:
+- How much information is preserved or lost during nonlinear processing
+- Whether shunting enhances or diminishes specific types of information
+- At which dendritic orders nonlinear processing has the greatest impact
 
 The implementation handles several edge cases:
 - Some dendritic orders might not have both excitatory and inhibitory branches
 - NaN values are used for missing branch types
 - Device management ensures tensors are on appropriate devices
-
-This analysis provides insights into:
-- How information is distributed across different branch depths
-- The relative information content in excitatory vs. inhibitory branches
-- How combining excitatory and inhibitory information affects classification performance
 
 Synaptic Weight Information Analysis
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^

@@ -182,7 +182,7 @@ The ``train`` section defines the training procedure and hyperparameters:
 .. code-block:: yaml
 
     train:
-      learning_strategy: mle  # Learning strategy: "mle", "freeze_layers", "local_credit_assignment", "two_step", "two_step_kl"
+      learning_strategy: mle  # Learning strategy (see options below)
       run_name: mnist_einet  # Name for the experiment run
       seed: 42  # Random seed for reproducibility
       train_valid_split: 0.8  # Train/validation split ratio
@@ -191,8 +191,18 @@ The ``train`` section defines the training procedure and hyperparameters:
       epochs: 50  # Number of training epochs
       batch_size: 64  # Batch size
       grad_clip_value: 1.0  # Gradient clipping value
-      epochs_per_layer: 50  # Epochs per layer for layer-wise training
-      pretrain_epochs: 10  # Pretraining epochs for two-step strategies
+      
+      # Layer-wise and branch-wise training parameters
+      epochs_per_layer: 20  # Epochs per layer/branch for layer/branch-wise training
+      final_tune_epochs: 10  # Final fine-tuning epochs after layer/branch-wise training
+      
+      # Pretraining parameters
+      pretrain_epochs: 10  # Pretraining epochs for strategies with pretraining
+      
+      # Voltage stabilization parameters
+      warmup_epochs: 1  # Warm-up epochs for voltage stabilization
+      stability_target_voltage: 0.5  # Target activation value for stabilization
+      
       # Input network training options
       input_net_training:
         training_mode: "sequential"  # "joint" or "sequential"
@@ -201,6 +211,61 @@ The ``train`` section defines the training procedure and hyperparameters:
         train_heads_independently: false  # Train excitatory and inhibitory heads independently
         inhibitory_head_objective: "classification"  # "classification", "diversity", "combined"
         diversity_weight: 0.5  # Weight for diversity loss
+
+Available Learning Strategies
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+The framework supports several learning strategies, specified by the ``learning_strategy`` parameter:
+
+1. **MLE** (``mle``): Standard end-to-end training
+2. **Freeze Layers** (``freeze_layers``): Train layers sequentially from soma to input
+3. **Freeze Layers Reversed** (``freeze_layers_reversed``): Train layers sequentially from input to soma
+4. **Freeze Layers with Pretraining** (``freeze_layers_with_pretraining``): Pretrain full network, then train layers from soma to input
+5. **Freeze Layers Reversed with Pretraining** (``freeze_layers_reversed_with_pretraining``): Pretrain full network, then train layers from input to soma
+6. **Freeze Branches** (``freeze_branches``): Train branches sequentially from soma to input
+7. **Freeze Branches Reversed** (``freeze_branches_reversed``): Train branches sequentially from input to soma
+8. **Freeze Branches with Pretraining** (``freeze_branches_with_pretraining``): Pretrain full network, then train branches from soma to input
+9. **Freeze Branches Reversed with Pretraining** (``freeze_branches_reversed_with_pretraining``): Pretrain full network, then train branches from input to soma
+10. **Local Credit Assignment** (``local_credit_assignment``): Train with locally-computed gradients
+11. **Two-Step** (``two_step``): Train auxiliary network before full model
+12. **Two-Step with KL** (``two_step_kl``): Train auxiliary network with KL regularization
+13. **Voltage Stabilization** (``voltage_stabilization``): Include warm-up phase to stabilize activations
+
+Strategy Examples
+~~~~~~~~~~~~~~~~
+
+Here are examples of configuration sections for different learning strategies:
+
+**Freeze Layers with Pretraining**:
+
+.. code-block:: yaml
+
+    train:
+      learning_strategy: freeze_layers_with_pretraining
+      epochs: 60  # Total epochs
+      pretrain_epochs: 10  # Phase 1: Full network training
+      epochs_per_layer: 20  # Phase 2: Per-layer training
+      final_tune_epochs: 10  # Phase 3: Final fine-tuning
+
+**Freeze Branches Reversed**:
+
+.. code-block:: yaml
+
+    train:
+      learning_strategy: freeze_branches_reversed
+      epochs: 50  # Total epochs
+      epochs_per_layer: 20  # Per-branch training (parameter name is reused)
+      final_tune_epochs: 10  # Final fine-tuning
+
+**Voltage Stabilization**:
+
+.. code-block:: yaml
+
+    train:
+      learning_strategy: voltage_stabilization
+      epochs: 50  # Total epochs
+      warmup_epochs: 5  # Initial warmup phase
+      stability_target_voltage: 0.5  # Target activation value
 
 Task Configuration
 ------------------

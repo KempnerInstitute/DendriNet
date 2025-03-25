@@ -294,7 +294,7 @@ class ExcitationInhibitionLayer(nn.Module):
             # When there are no inhibitory cells, pass the original inhibitory_input
             inhibitory_final = inhibitory_input
             inh_acts = []
-        
+         
         # Additional safety checks for inhibitory_final
         if not isinstance(inhibitory_final, torch.Tensor):
             # Set to None so it gets properly handled in excitatory_cells
@@ -305,13 +305,31 @@ class ExcitationInhibitionLayer(nn.Module):
         elif inhibitory_final.dim() == 1:
             # If it's a 1D tensor, make it 2D [1, features]
             inhibitory_final = inhibitory_final.unsqueeze(0)
-            
+             
         # Ensure x is a properly formed 2D tensor
         if x.dim() == 1:
             x = x.unsqueeze(0)
-
+ 
         excitatory_final, exc_acts = self.excitatory_cells.forward_with_branch_outputs(x, inhibitory_final)
-        return excitatory_final, inhibitory_final, inh_acts, exc_acts
+        
+        # Enhance the activation information for better visualization
+        # Try to enhance the excitatory activations with information about inhibitory components
+        enhanced_acts = []
+        for i, act in enumerate(exc_acts):
+            if isinstance(act, torch.Tensor):
+                # Get corresponding inhibitory activation if available
+                inh_act = inh_acts[i] if i < len(inh_acts) else None
+                
+                # Create a list containing both excitatory and inhibitory information
+                if inh_act is not None:
+                    # Include both components plus a placeholder for combined output
+                    enhanced_acts.append([act, inh_act, None])
+                else:
+                    enhanced_acts.append(act)
+            else:
+                enhanced_acts.append(act)
+        
+        return excitatory_final, inhibitory_final, inh_acts, enhanced_acts
 
 
 ###############################################################################
@@ -555,11 +573,17 @@ class ExcitationInhibitionNetwork(nn.Module):
         return self.branch_activations
 
     def forward_with_branch_outputs(self, x):
+        """Forward pass that extracts activations from all layers.
+        
+        Args:
+            x: Input tensor
+            
+        Returns:
+            tuple: (output, per_layer_activations)
+                Where per_layer_activations is a list of activation tensors or lists
+                from each layer in the network.
         """
-        Forward pass that also returns branch activation outputs.
-        Used when branch_outputs=True for visualization and analysis.
-        """
-        # Handle the input based on input_mode
+        # Apply input transformations and create appropriate pathways
         if self.input_mode == 0:
             excitatory_input = x
             inhibitory_input = None
@@ -575,21 +599,46 @@ class ExcitationInhibitionNetwork(nn.Module):
                 inhibitory_input = None
         else:
             raise ValueError(f"Unknown input_mode={self.input_mode}")
-
+        
         # Use forward_with_branch_outputs for each layer
         excitatory_output, inhibitory_output, inh_acts, exc_acts = \
             self.layers[0].forward_with_branch_outputs(excitatory_input, inhibitory_input)
-        all_acts = exc_acts
+        
+        # Process the enhanced activations to create a list of activation tensors or lists
+        # that contain information about both excitatory and inhibitory components
+        all_acts = []
+        for act in exc_acts:
+            if isinstance(act, list) and len(act) > 1:
+                # This is already an enhanced activation with [exc, inh, output] format
+                all_acts.append(act)
+            else:
+                # Just use the excitatory activation as is
+                all_acts.append(act)
 
         for i in range(1, len(self.layers)):
-            excitatory_output, inhibitory_output, inh_acts, exc_acts = \
+            excitatory_output, inhibitory_output, layer_inh_acts, layer_exc_acts = \
                 self.layers[i].forward_with_branch_outputs(excitatory_output, inhibitory_output)
-            all_acts.extend(exc_acts)
+            
+            # Process this layer's activations similarly
+            for act in layer_exc_acts:
+                if isinstance(act, list) and len(act) > 1:
+                    # Enhanced activation
+                    all_acts.append(act)
+                else:
+                    # Just excitatory
+                    all_acts.append(act)
 
-        # Apply output layer if enabled
-        if self.output_layer and hasattr(self, 'output_classifier'):
-            output = self.output_classifier(excitatory_output)
-        return excitatory_output, all_acts
+        # Apply output layer if enabled - check if it's actually a callable object not a boolean
+        output = excitatory_output
+        if hasattr(self, 'output_layer') and self.output_layer is not None:
+            if callable(self.output_layer):
+                if hasattr(self.output_layer, 'forward_with_activations'):
+                    output, out_acts = self.output_layer.forward_with_activations(excitatory_output)
+                    all_acts.extend(out_acts)
+                else:
+                    output = self.output_layer(excitatory_output)
+        
+        return output, all_acts
 
     def compute_local_loss(self, x, y=None):
         return 0.0

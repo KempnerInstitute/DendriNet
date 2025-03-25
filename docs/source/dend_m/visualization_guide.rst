@@ -380,13 +380,19 @@ Another powerful visualization is the dendritic information analysis, which quan
     visualization:
       enabled: true
       plots:
-        - dendritic_information  # Information content analysis
+        - dendritic_information_inputs    # Information content in raw branch inputs
+        - dendritic_information_activations  # Information content in processed branch outputs
 
-This visualization:
+This visualization now comes in two types:
+
+1. **dendritic_information_inputs**: Analyzes information in the raw inputs to branches (pre-shunting)
+2. **dendritic_information_activations**: Analyzes information in the processed branch outputs (post-shunting)
+
+Each visualization:
 1. Extracts branch activations at each dendritic order
 2. Trains simple MLP classifiers to predict labels from these activations
 3. Uses classification accuracy as a proxy for information content
-4. Creates visualizations showing both raw accuracy and normalized information content
+4. Creates visualizations showing information content across dendritic orders
 
 .. code-block:: python
 
@@ -394,17 +400,18 @@ This visualization:
     import matplotlib.pyplot as plt
     import numpy as np
     
-    def plot_dendritic_information(model, dataset, device='cuda'):
-        """Visualize information content in dendritic orders"""
+    def plot_dendritic_information_inputs(model, dataset, device='cuda'):
+        """Visualize information content in raw dendritic inputs"""
         
-        # Analyze information content
+        # Analyze information content in branch inputs (pre-shunting)
         results = analyze_dendritic_information(
             model=model,
             dataset=dataset,
             device=device,
             mlp_hidden_dims=[100, 50],
             training_epochs=20,
-            batch_size=64
+            batch_size=64,
+            use_post_shunting=False  # Analyze raw inputs
         )
         
         # Extract results
@@ -418,56 +425,60 @@ This visualization:
         x = np.arange(len(depth_names))
         width = 0.25
         
-        # Plot each type of accuracy
-        ax.bar(x - width, exc_acc, width, label='Excitatory', color='green', alpha=0.7)
-        ax.bar(x, inh_acc, width, label='Inhibitory', color='red', alpha=0.7)
-        ax.bar(x + width, combined_acc, width, label='Combined', color='blue', alpha=0.7)
+        # Plot each type of accuracy (only if data exists)
+        if not np.all(np.isnan(exc_acc)):
+            ax.bar(x - width, exc_acc, width, label='Excitatory Inputs', color='blue', alpha=0.7)
+        if not np.all(np.isnan(inh_acc)):
+            ax.bar(x, inh_acc, width, label='Inhibitory Inputs', color='red', alpha=0.7)
+        if not np.all(np.isnan(combined_acc)):
+            ax.bar(x + width, combined_acc, width, label='Combined Inputs', color='purple', alpha=0.7)
         
         # Add labels and title
         ax.set_xlabel('Branch Depth')
         ax.set_ylabel('Classification Accuracy')
-        ax.set_title('Information Content in Dendritic Branches')
+        ax.set_title('Information Content in Branch Inputs (Pre-Shunting)')
         ax.set_xticks(x)
         ax.set_xticklabels(depth_names)
         ax.legend()
         
-        # Add random chance line
-        num_classes = 10  # Default for MNIST
-        random_chance = 1.0 / num_classes
-        ax.axhline(y=random_chance, color='gray', linestyle='--', 
-                   label=f'Random Chance ({random_chance:.3f})')
+        return fig, results
+        
+    def plot_dendritic_information_activations(model, dataset, device='cuda'):
+        """Visualize information content in processed dendritic outputs"""
+        
+        # Analyze information content in branch outputs (post-shunting)
+        results = analyze_dendritic_information(
+            model=model,
+            dataset=dataset,
+            device=device,
+            mlp_hidden_dims=[100, 50],
+            training_epochs=20,
+            batch_size=64,
+            use_post_shunting=True  # Analyze processed outputs
+        )
+        
+        # Extract results
+        depth_names = results["branch_depths"]
+        activation_acc = np.array([acc if acc is not None else np.nan for acc in results["exc_accuracy"]])
+        
+        # Create visualization
+        fig, ax = plt.subplots(figsize=(10, 6))
+        x = np.arange(len(depth_names))
+        width = 0.4
+        
+        # Plot activation accuracy (only if data exists)
+        if not np.all(np.isnan(activation_acc)):
+            ax.bar(x, activation_acc, width, label='Branch Activations', color='green', alpha=0.7)
+        
+        # Add labels and title
+        ax.set_xlabel('Branch Depth')
+        ax.set_ylabel('Classification Accuracy')
+        ax.set_title('Information Content in Branch Outputs (Post-Shunting)')
+        ax.set_xticks(x)
+        ax.set_xticklabels(depth_names)
+        ax.legend()
         
         return fig, results
-
-The visualization manager also creates a normalized version showing the percentage above random chance:
-
-.. code-block:: python
-
-    # Create normalized visualization
-    fig, ax = plt.subplots(figsize=(10, 6))
-    
-    # Calculate percentage above random chance
-    norm_factor = (1 - random_chance)
-    exc_pct = (exc_acc - random_chance) * 100 / norm_factor
-    inh_pct = (inh_acc - random_chance) * 100 / norm_factor
-    combined_pct = (combined_acc - random_chance) * 100 / norm_factor
-    
-    # Plot normalized data
-    ax.bar(x - width, exc_pct, width, label='Excitatory', color='green', alpha=0.7)
-    ax.bar(x, inh_pct, width, label='Inhibitory', color='red', alpha=0.7)
-    ax.bar(x + width, combined_pct, width, label='Combined', color='blue', alpha=0.7)
-    
-    ax.set_xlabel('Branch Depth')
-    ax.set_ylabel('Information Content (% above random)')
-    ax.set_title('Normalized Information Content in Dendritic Branches')
-    ax.set_xticks(x)
-    ax.set_xticklabels(depth_names)
-    ax.legend()
-    
-    # Draw line for random chance (0%)
-    ax.axhline(y=0, color='gray', linestyle='--', label='Random Chance')
-
-These analyses together provide deep insights into the computational roles of different dendritic orders and how they process information.
 
 Advanced Visualization Topics
 -----------------------------
