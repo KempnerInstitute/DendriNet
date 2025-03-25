@@ -82,6 +82,8 @@ def train_and_evaluate(model, train_ds, valid_ds, test_ds, train_cfg, run_save_p
         grad_clip_value=train_cfg.grad_clip_value,
         shuffle=True,
         load_best_state_dict=True,
+        early_stopping=True,
+        patience=100,
         plot_losses=True,
         save_path=run_save_path
     )
@@ -217,7 +219,7 @@ def main():
                 if not experiment_completed('EINet', seed, branch_config, use_shunting):
                     total_remaining += 1
     
-    logger.info(f"\nRemaining experiments to run: {total_remaining}")
+    logger.info(f"Remaining experiments to run: {total_remaining}")
     current = 0
     
     # Run experiments
@@ -238,7 +240,7 @@ def main():
                             f"Seed: {seed} (already completed)")
             else:
                 current += 1
-                logger.info(f"\nRunning combination [{current}/{total_remaining}]"
+                logger.info(f"Running combination [{current}/{total_remaining}]"
                           f" MLP, Branch Factors: {branch_config}, Seed: {seed}")
                 
                 run_save_path = os.path.join(seed_path, 'mlp')
@@ -268,7 +270,7 @@ def main():
                     continue
                 
                 current += 1
-                logger.info(f"\nRunning combination [{current}/{total_remaining}]"
+                logger.info(f"Running combination [{current}/{total_remaining}]"
                           f" EINet, Branch Factors: {branch_config}, "
                           f"Seed: {seed}, Shunting: {use_shunting}")
                 
@@ -296,10 +298,10 @@ def main():
                                f"shunting {use_shunting}: {str(e)}")
                     continue
     
-    logger.info("\nParameter sweep completed. Results saved to: " + results_file)
+    logger.info("Parameter sweep completed. Results saved to:\n" + results_file)
     
     logger.info("Plotting results...")
-    plot_branch_sweep_results(results_file, metric='acc', split='test')
+    plot_branch_sweep_results(results_file, split='test')
     logger.info("  done...")
 
 if __name__ == "__main__":

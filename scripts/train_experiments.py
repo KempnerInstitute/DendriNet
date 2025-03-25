@@ -263,6 +263,8 @@ def main(config_path: str):
                 grad_clip_value=train_cfg.grad_clip_value,
                 shuffle=True,
                 load_best_state_dict=True,
+                early_stopping=True,
+                patience=100,
                 plot_losses=True,
                 save_path=run_save_path
             )
