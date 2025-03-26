@@ -706,57 +706,97 @@ class DendriNetWithOutputs(DendriNet):
     (final_soma_output, list_of_layer_activations).
     """
     def forward_with_branch_outputs(self, x, inhibitory_input=None):
+        """
+        Forward pass that returns branch activations for each layer.
+        Important: For visualization and information analysis.
+        Properly handles somatic_synapses=False configuration.
+        
+        Returns:
+            final_soma: Tensor of final output
+            per_layer_acts: List of processed activations per layer
+                Each element is a list with format [excitatory, inhibitory, combined]
+                Elements may be None if not available for that layer
+        """
         per_layer_acts = []
-        output = None
+        branch_input = None
+        
+        # Process through each branch layer
         for i in range(self.n_branch_layers):
-            # Store the inputs for later visualization
             current_layer = self.branch_layers[i]
             
+            # Store inputs for this layer
             if hasattr(current_layer, 'excitatory_input'):
                 current_layer.excitatory_input = x
             
             if hasattr(current_layer, 'inhibitory_input'):
                 current_layer.inhibitory_input = inhibitory_input
+                
+            # We'll explicitly calculate the components for visualization
+            # Extract the raw excitatory and inhibitory inputs (pre-shunting)
+            excitatory_input = None
+            inhibitory_input_processed = None
             
-            # Process the input through the layer
-            output = current_layer(x, inhibitory_input, output)
-            
-            # Get more detailed information if available
-            if hasattr(current_layer, 'branch_excitation') and hasattr(current_layer, 'branch_inhibition'):
-                # Try to extract excitatory and inhibitory components separately
+            # Get excitatory input component if available
+            if hasattr(current_layer, 'branch_excitation') and current_layer.branch_excitation is not None:
                 try:
-                    exc_input = current_layer.branch_excitation(x)
-                    inh_input = current_layer.branch_inhibition(inhibitory_input) if inhibitory_input is not None else None
-                    
-                    # Store as [excitatory_input, inhibitory_input, final_output]
-                    per_layer_acts.append([exc_input, inh_input, output])
-                except:
-                    # If extraction fails, just store the output
-                    per_layer_acts.append(output)
-            else:
-                per_layer_acts.append(output)
+                    excitatory_input = current_layer.branch_excitation(x)
+                except Exception as e:
+                    # It's okay if this fails - may not have this component
+                    pass
             
-        if hasattr(self.branch_layers[-1], 'excitatory_input'):
-            self.branch_layers[-1].excitatory_input = x
-        
-        if hasattr(self.branch_layers[-1], 'inhibitory_input'):
-            self.branch_layers[-1].inhibitory_input = inhibitory_input
-        
-        # Get the final soma output    
-        final_soma = self.branch_layers[-1](x, inhibitory_input, output)
-        
-        # Try to extract final layer components
+            # Get inhibitory input component if available
+            if inhibitory_input is not None and hasattr(current_layer, 'branch_inhibition') and current_layer.branch_inhibition is not None:
+                try:
+                    inhibitory_input_processed = current_layer.branch_inhibition(inhibitory_input)
+                except Exception as e:
+                    # It's okay if this fails - may not have this component
+                    pass
+            
+            # Process the layer normally
+            output = current_layer(x, inhibitory_input, branch_input)
+            
+            # Store the components together, with None for missing components
+            # Format: [excitatory_input, inhibitory_input, post_shunting_output]
+            layer_info = [excitatory_input, inhibitory_input_processed, output]
+            per_layer_acts.append(layer_info)
+            
+            # Update branch_input for next layer
+            branch_input = output
+            
+        # Final soma layer processing
         final_layer = self.branch_layers[-1]
-        if hasattr(final_layer, 'branch_excitation') and hasattr(final_layer, 'branch_inhibition'):
-            try:
-                exc_input = final_layer.branch_excitation(x)
-                inh_input = final_layer.branch_inhibition(inhibitory_input) if inhibitory_input is not None else None
-                per_layer_acts.append([exc_input, inh_input, final_soma])
-            except:
-                per_layer_acts.append(final_soma)
-        else:
-            per_layer_acts.append(final_soma)
+        
+        if hasattr(final_layer, 'excitatory_input'):
+            final_layer.excitatory_input = x
+        
+        if hasattr(final_layer, 'inhibitory_input'):
+            final_layer.inhibitory_input = inhibitory_input
             
+        # Get final soma output
+        final_soma = final_layer(x, inhibitory_input, branch_input)
+        
+        # Also capture the final layer components
+        final_excitatory = None
+        final_inhibitory = None
+        
+        # Only try to get components if they exist
+        if hasattr(final_layer, 'branch_excitation') and final_layer.branch_excitation is not None:
+            try:
+                final_excitatory = final_layer.branch_excitation(x)
+            except Exception as e:
+                # It's okay if this fails with somatic_synapses=False
+                pass
+        
+        if inhibitory_input is not None and hasattr(final_layer, 'branch_inhibition') and final_layer.branch_inhibition is not None:
+            try:
+                final_inhibitory = final_layer.branch_inhibition(inhibitory_input)
+            except Exception as e:
+                # It's okay if this fails with somatic_synapses=False
+                pass
+        
+        # Add final layer info with possibly None components
+        per_layer_acts.append([final_excitatory, final_inhibitory, final_soma])
+        
         return final_soma, per_layer_acts
 
     def forward(self, x, inhibitory_input=None):
