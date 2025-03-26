@@ -19,7 +19,7 @@ from dendritic_modeling import logger, logger_manager
 from dendritic_modeling.config import load_config
 from dendritic_modeling.models import ProbabilisticClassifier, Classifier
 from dendritic_modeling.networks import ExcitationInhibitionNetwork, MatchedParamMLP
-from dendritic_modeling.synthetic_datasets2 import get_unified_datasets
+from dendritic_modeling.synthetic_datasets import get_unified_datasets
 from dendritic_modeling.learning_strategies import get_trainer, CustomWeightDecayOptimizer
 from dendritic_modeling.utils import evaluate_accuracy, save_dict, set_seed
 from dendritic_modeling.plot_utils import plot_ei_sweep_results
@@ -84,6 +84,8 @@ def train_and_evaluate(model, train_ds, valid_ds, test_ds, train_cfg, run_save_p
         grad_clip_value=train_cfg.grad_clip_value,
         shuffle=True,
         load_best_state_dict=True,
+        early_stopping=True,
+        patience=100,
         plot_losses=True,
         save_path=run_save_path
     )
@@ -303,7 +305,7 @@ def main():
     logger.info("Plotting results...")
     plot_ei_sweep_results(
         results_csv_path = results_file, 
-        metric = 'acc', split = 'test', 
+        split = 'test', 
         ei_ratio_range = (0, 30),
     )
     logger.info("  done...")
