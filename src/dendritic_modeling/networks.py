@@ -631,12 +631,21 @@ class ExcitationInhibitionNetwork(nn.Module):
         # Apply output layer if enabled - check if it's actually a callable object not a boolean
         output = excitatory_output
         if hasattr(self, 'output_layer') and self.output_layer is not None:
-            if callable(self.output_layer):
+            if isinstance(self.output_layer, bool):
+                # If output_layer is just a boolean flag, don't try to call it
+                pass  # Just use excitatory_output as is
+            elif callable(self.output_layer):
+                # If it's a callable module, use it
                 if hasattr(self.output_layer, 'forward_with_activations'):
                     output, out_acts = self.output_layer.forward_with_activations(excitatory_output)
                     all_acts.extend(out_acts)
                 else:
-                    output = self.output_layer(excitatory_output)
+                    try:
+                        output = self.output_layer(excitatory_output)
+                    except Exception as e:
+                        print(f"Warning: Could not call output_layer (type: {type(self.output_layer)}): {e}")
+            else:
+                print(f"Warning: output_layer is type {type(self.output_layer)}, not callable or boolean")
         
         return output, all_acts
 
