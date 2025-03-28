@@ -700,17 +700,19 @@ class DendriNet(nn.Module):
             exc_total = self.sum_weights(pruned=pruned)
             return (exc_total + 1e-8).log()
 
+
 class DendriNetWithOutputs(DendriNet):
     """
     Extends the existing DendriNet to provide a method that returns
     (final_soma_output, list_of_layer_activations).
     """
+
     def forward_with_branch_outputs(self, x, inhibitory_input=None):
         """
         Forward pass that returns branch activations for each layer.
         Important: For visualization and information analysis.
         Properly handles somatic_synapses=False configuration.
-        
+
         Returns:
             final_soma: Tensor of final output
             per_layer_acts: List of processed activations per layer
@@ -719,102 +721,146 @@ class DendriNetWithOutputs(DendriNet):
         """
         per_layer_acts = []
         branch_input = None
-        
-        # Process through each branch layer
+
         for i in range(self.n_branch_layers):
             current_layer = self.branch_layers[i]
-            
-            # Store inputs for this layer
-            if hasattr(current_layer, 'excitatory_input'):
-                current_layer.excitatory_input = x
-            
-            if hasattr(current_layer, 'inhibitory_input'):
-                current_layer.inhibitory_input = inhibitory_input
-                
-            # We'll explicitly calculate the components for visualization
-            # Extract the raw excitatory and inhibitory inputs (pre-shunting)
+
+            # --- Compute excitatory & inhibitory partial transforms ---
             excitatory_input = None
             inhibitory_input_processed = None
-            
-            # Get excitatory input component if available
+
             if hasattr(current_layer, 'branch_excitation') and current_layer.branch_excitation is not None:
                 try:
                     excitatory_input = current_layer.branch_excitation(x)
-                except Exception as e:
-                    # It's okay if this fails - may not have this component
+                except Exception:
                     pass
-            
-            # Get inhibitory input component if available
-            if inhibitory_input is not None and hasattr(current_layer, 'branch_inhibition') and current_layer.branch_inhibition is not None:
+
+            if (
+                inhibitory_input is not None
+                and hasattr(current_layer, 'branch_inhibition')
+                and current_layer.branch_inhibition is not None
+            ):
                 try:
                     inhibitory_input_processed = current_layer.branch_inhibition(inhibitory_input)
-                except Exception as e:
-                    # It's okay if this fails - may not have this component
+                except Exception:
                     pass
-            
-            # Process the layer normally
+
+            if hasattr(current_layer, 'excitatory_input'):
+                current_layer.excitatory_input = excitatory_input  # was 'x' before
+
+            if hasattr(current_layer, 'inhibitory_input'):
+                current_layer.inhibitory_input = inhibitory_input_processed  # was 'inhibitory_input' before
+
             output = current_layer(x, inhibitory_input, branch_input)
-            
-            # Store the components together, with None for missing components
-            # Format: [excitatory_input, inhibitory_input, post_shunting_output]
+
             layer_info = [excitatory_input, inhibitory_input_processed, output]
             per_layer_acts.append(layer_info)
-            
-            # Update branch_input for next layer
+
             branch_input = output
-            
+
+        # -----------------------------
         # Final soma layer processing
         final_layer = self.branch_layers[-1]
-        
-        if hasattr(final_layer, 'excitatory_input'):
-            final_layer.excitatory_input = x
-        
-        if hasattr(final_layer, 'inhibitory_input'):
-            final_layer.inhibitory_input = inhibitory_input
-            
-        # Get final soma output
-        final_soma = final_layer(x, inhibitory_input, branch_input)
-        
-        # Also capture the final layer components
+
+        # Compute final excit/inhib partial transforms for the final layer
         final_excitatory = None
         final_inhibitory = None
-        
-        # Only try to get components if they exist
+
         if hasattr(final_layer, 'branch_excitation') and final_layer.branch_excitation is not None:
             try:
                 final_excitatory = final_layer.branch_excitation(x)
-            except Exception as e:
-                # It's okay if this fails with somatic_synapses=False
+            except Exception:
                 pass
-        
-        if inhibitory_input is not None and hasattr(final_layer, 'branch_inhibition') and final_layer.branch_inhibition is not None:
+
+        if (
+            inhibitory_input is not None
+            and hasattr(final_layer, 'branch_inhibition')
+            and final_layer.branch_inhibition is not None
+        ):
             try:
                 final_inhibitory = final_layer.branch_inhibition(inhibitory_input)
-            except Exception as e:
-                # It's okay if this fails with somatic_synapses=False
+            except Exception:
                 pass
-        
-        # Add final layer info with possibly None components
+
+        if hasattr(final_layer, 'excitatory_input'):
+            final_layer.excitatory_input = final_excitatory
+
+        if hasattr(final_layer, 'inhibitory_input'):
+            final_layer.inhibitory_input = final_inhibitory
+
+        # Now get final soma output:
+        final_soma = final_layer(x, inhibitory_input, branch_input)
+
+        # Add the final layer's info to the per_layer_acts
         per_layer_acts.append([final_excitatory, final_inhibitory, final_soma])
-        
+
         return final_soma, per_layer_acts
 
     def forward(self, x, inhibitory_input=None):
+        """
+        The simpler forward pass, typically used during training.
+        We still assign excitatory_input / inhibitory_input to the partial transforms
+        so that any visualization or ablation code sees them.
+        """
         output = None
         for i in range(self.n_branch_layers):
-            if hasattr(self.branch_layers[i], 'excitatory_input'):
-                self.branch_layers[i].excitatory_input = x
-            
-            if hasattr(self.branch_layers[i], 'inhibitory_input'):
-                self.branch_layers[i].inhibitory_input = inhibitory_input
-                
-            output = self.branch_layers[i](x, inhibitory_input, output)
-            
-        if hasattr(self.branch_layers[-1], 'excitatory_input'):
-            self.branch_layers[-1].excitatory_input = x
-        
-        if hasattr(self.branch_layers[-1], 'inhibitory_input'):
-            self.branch_layers[-1].inhibitory_input = inhibitory_input
-            
-        final_soma = self.branch_layers[-1](x, inhibitory_input, output)
+            layer_i = self.branch_layers[i]
+
+            excitatory_in = None
+            inhibitory_in = None
+
+            if hasattr(layer_i, 'branch_excitation') and layer_i.branch_excitation is not None:
+                try:
+                    excitatory_in = layer_i.branch_excitation(x)
+                except Exception:
+                    pass
+
+            if (
+                inhibitory_input is not None
+                and hasattr(layer_i, 'branch_inhibition')
+                and layer_i.branch_inhibition is not None
+            ):
+                try:
+                    inhibitory_in = layer_i.branch_inhibition(inhibitory_input)
+                except Exception:
+                    pass
+
+            if hasattr(layer_i, 'excitatory_input'):
+                layer_i.excitatory_input = excitatory_in  # was 'x'
+
+            if hasattr(layer_i, 'inhibitory_input'):
+                layer_i.inhibitory_input = inhibitory_in  # was 'inhibitory_input'
+
+            # Actually run the layer
+            output = layer_i(x, inhibitory_input, output)
+
+        # For the final layer:
+        final_layer = self.branch_layers[-1]
+
+        final_excit = None
+        final_inhib = None
+
+        if hasattr(final_layer, 'branch_excitation') and final_layer.branch_excitation is not None:
+            try:
+                final_excit = final_layer.branch_excitation(x)
+            except Exception:
+                pass
+
+        if (
+            inhibitory_input is not None
+            and hasattr(final_layer, 'branch_inhibition')
+            and final_layer.branch_inhibition is not None
+        ):
+            try:
+                final_inhib = final_layer.branch_inhibition(inhibitory_input)
+            except Exception:
+                pass
+
+        if hasattr(final_layer, 'excitatory_input'):
+            final_layer.excitatory_input = final_excit
+
+        if hasattr(final_layer, 'inhibitory_input'):
+            final_layer.inhibitory_input = final_inhib
+
+        final_soma = final_layer(x, inhibitory_input, output)
         return final_soma
