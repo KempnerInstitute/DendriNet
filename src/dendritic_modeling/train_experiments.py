@@ -63,7 +63,6 @@ from dendritic_modeling.utils import (
 )
 from omegaconf import OmegaConf
 
-
 def initialize_model(model_cfg, visualization_enabled=False):
     task = model_cfg.task
     probabilistic = model_cfg.probabilistic
@@ -315,8 +314,8 @@ def train_and_evaluate(model, train_ds, valid_ds, test_ds, trainer, train_cfg, v
                 grad_clip_value=train_cfg.grad_clip_value,
                 shuffle=True,
                 load_best_state_dict=True,
-                #early_stopping=True,
-                #patience=100,
+                early_stopping=True,
+                patience=100,
                 plot_losses=True,
                 save_path=run_save_path
             )
