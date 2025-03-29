@@ -151,38 +151,6 @@ The most basic visualization for training is plotting accuracy and loss curves o
         plt.tight_layout()
         return fig
 
-Independent Head Training
-~~~~~~~~~~~~~~~~~~~~~~~~~
-
-Visualize the effects of training excitatory and inhibitory heads independently versus jointly.
-
-.. code-block:: python
-
-    # Visualization for independent head training
-    def visualize_head_training(exc_features, inh_features, labels):
-        """Visualize feature space learned by independently trained heads"""
-        fig, axes = plt.subplots(1, 2, figsize=(14, 6))
-        
-        # Use t-SNE to reduce dimensionality for visualization
-        from sklearn.manifold import TSNE
-        
-        # Excitatory features
-        tsne_exc = TSNE(n_components=2).fit_transform(exc_features)
-        scatter_exc = axes[0].scatter(tsne_exc[:, 0], tsne_exc[:, 1], c=labels, cmap='tab10')
-        axes[0].set_title('Excitatory Head Feature Space')
-        
-        # Inhibitory features
-        tsne_inh = TSNE(n_components=2).fit_transform(inh_features)
-        scatter_inh = axes[1].scatter(tsne_inh[:, 0], tsne_inh[:, 1], c=labels, cmap='tab10')
-        axes[1].set_title('Inhibitory Head Feature Space')
-        
-        # Add color bar
-        fig.colorbar(scatter_exc, ax=axes[0], label='Class')
-        fig.colorbar(scatter_inh, ax=axes[1], label='Class')
-        
-        plt.tight_layout()
-        return fig
-
 Computational Mechanism Visualizations
 --------------------------------------
 
@@ -337,7 +305,7 @@ The framework provides a PlotManager class that can automate many of these visua
         data={'train': train_data, 'valid': valid_data, 'test': test_data},
         save_path="visualization_outputs",
         device='cuda',
-        plots=['weights', 'activations', 'branch_info', 'branch_ablation']
+        plots=['weights', 'activations', 'branch_info', 'ablation']
     )
     
     # Generate all plots
@@ -360,7 +328,7 @@ You can also enable visualizations through the configuration system:
         - weights
         - activations
         - branch_info
-        - branch_ablation
+        - ablation
       parameters:
         save_figures: true
         figure_format: "png"
@@ -370,7 +338,7 @@ Recommended Visualization Practices
 
 1. **Start Simple**: Begin with weights and activation visualizations
 2. **Track Progress**: Generate visualizations at multiple epochs to track learning progress
-3. **Compare Strategies**: Use the same visualization approach to compare different learning strategies
+3. **Compare Strategies**: Use similar visualizations when comparing different learning strategies
 4. **Interactive Exploration**: Use interactive plots when possible for deeper analysis
 5. **Combine with Analysis**: Pair visualizations with quantitative analysis for deeper insights
 

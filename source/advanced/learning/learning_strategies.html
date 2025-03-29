@@ -167,7 +167,7 @@ to train the entire network end-to-end.</p>
 <li><p>Optimizes all parameters simultaneously</p></li>
 <li><p>Applies gradient clipping to prevent instability</p></li>
 <li><p>Monitors validation performance for early stopping</p></li>
-<li><p>Supports both probabilistic and deterministic models</p></li>
+<li><p>Supports both standard and dendritic network models</p></li>
 </ul>
 </section>
 <section id="freeze-branches-strategy">
@@ -185,7 +185,7 @@ independently, a final fine-tuning phase trains the full network end-to-end for 
     <span class="n">model</span><span class="o">=</span><span class="n">model</span><span class="p">,</span>
     <span class="n">train_data</span><span class="o">=</span><span class="n">train_ds</span><span class="p">,</span>
     <span class="n">valid_data</span><span class="o">=</span><span class="n">valid_ds</span><span class="p">,</span>
-    <span class="n">epochs_per_branch</span><span class="o">=</span><span class="mi">20</span><span class="p">,</span>
+    <span class="n">epochs_per_layer</span><span class="o">=</span><span class="mi">20</span><span class="p">,</span>
     <span class="n">batch_size</span><span class="o">=</span><span class="mi">128</span><span class="p">,</span>
     <span class="n">final_tune_epochs</span><span class="o">=</span><span class="mi">10</span>  <span class="c1"># Final fine-tuning with all branches unfrozen</span>
 <span class="p">)</span>
@@ -220,7 +220,7 @@ full-network training phase before the branch-by-branch training:</p>
     <span class="n">train_data</span><span class="o">=</span><span class="n">train_ds</span><span class="p">,</span>
     <span class="n">valid_data</span><span class="o">=</span><span class="n">valid_ds</span><span class="p">,</span>
     <span class="n">pretrain_epochs</span><span class="o">=</span><span class="mi">10</span><span class="p">,</span>     <span class="c1"># Initial full network training</span>
-    <span class="n">epochs_per_branch</span><span class="o">=</span><span class="mi">20</span><span class="p">,</span>   <span class="c1"># Per-branch training</span>
+    <span class="n">epochs_per_layer</span><span class="o">=</span><span class="mi">20</span><span class="p">,</span>   <span class="c1"># Per-branch training</span>
     <span class="n">batch_size</span><span class="o">=</span><span class="mi">128</span><span class="p">,</span>
     <span class="n">final_tune_epochs</span><span class="o">=</span><span class="mi">10</span>    <span class="c1"># Final fine-tuning with all branches unfrozen</span>
 <span class="p">)</span>
@@ -250,7 +250,7 @@ toward the soma. This approach follows the biological flow of information in den
     <span class="n">model</span><span class="o">=</span><span class="n">model</span><span class="p">,</span>
     <span class="n">train_data</span><span class="o">=</span><span class="n">train_ds</span><span class="p">,</span>
     <span class="n">valid_data</span><span class="o">=</span><span class="n">valid_ds</span><span class="p">,</span>
-    <span class="n">epochs_per_branch</span><span class="o">=</span><span class="mi">20</span><span class="p">,</span>
+    <span class="n">epochs_per_layer</span><span class="o">=</span><span class="mi">20</span><span class="p">,</span>
     <span class="n">batch_size</span><span class="o">=</span><span class="mi">128</span><span class="p">,</span>
     <span class="n">final_tune_epochs</span><span class="o">=</span><span class="mi">10</span>  <span class="c1"># Final fine-tuning with all branches unfrozen</span>
 <span class="p">)</span>
@@ -284,7 +284,7 @@ toward the soma. This approach follows the biological flow of information in den
     <span class="n">train_data</span><span class="o">=</span><span class="n">train_ds</span><span class="p">,</span>
     <span class="n">valid_data</span><span class="o">=</span><span class="n">valid_ds</span><span class="p">,</span>
     <span class="n">pretrain_epochs</span><span class="o">=</span><span class="mi">10</span><span class="p">,</span>     <span class="c1"># Initial full network training</span>
-    <span class="n">epochs_per_branch</span><span class="o">=</span><span class="mi">20</span><span class="p">,</span>   <span class="c1"># Per-branch training</span>
+    <span class="n">epochs_per_layer</span><span class="o">=</span><span class="mi">20</span><span class="p">,</span>   <span class="c1"># Per-branch training</span>
     <span class="n">batch_size</span><span class="o">=</span><span class="mi">128</span><span class="p">,</span>
     <span class="n">final_tune_epochs</span><span class="o">=</span><span class="mi">10</span>    <span class="c1"># Final fine-tuning with all branches unfrozen</span>
 <span class="p">)</span>
@@ -370,8 +370,8 @@ This can help with difficult optimization landscapes.</p>
 <span class="w">  </span><span class="nt">epochs</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">50</span><span class="w">                       </span><span class="c1"># Total epochs for training</span>
 <span class="w">  </span><span class="nt">batch_size</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">128</span><span class="w">                  </span><span class="c1"># Batch size</span>
 <span class="w">  </span><span class="nt">grad_clip_value</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">5.0</span><span class="w">             </span><span class="c1"># Gradient clipping value</span>
-<span class="w">  </span><span class="nt">epochs_per_branch</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">50</span><span class="w">             </span><span class="c1"># Epochs per branch for branch-wise training</span>
-<span class="w">  </span><span class="nt">final_tune_epochs</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">10</span><span class="w">            </span><span class="c1"># Fine-tuning epochs after branch-wise training</span>
+<span class="w">  </span><span class="nt">epochs_per_layer</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">50</span><span class="w">            </span><span class="c1"># Epochs per layer for layer-wise training</span>
+<span class="w">  </span><span class="nt">final_tune_epochs</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">10</span><span class="w">            </span><span class="c1"># Fine-tuning epochs after layer-wise training</span>
 <span class="w">  </span><span class="nt">pretrain_epochs</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">50</span><span class="w">              </span><span class="c1"># Pretraining epochs (for two-step approaches)</span>
 <span class="w">  </span><span class="nt">warmup_epochs</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">5</span><span class="w">                 </span><span class="c1"># Warmup epochs for voltage stabilization</span>
 <span class="w">  </span><span class="nt">stability_target_voltage</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">0.5</span><span class="w">    </span><span class="c1"># Target voltage for stabilization</span>

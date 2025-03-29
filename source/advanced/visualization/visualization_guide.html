@@ -71,7 +71,6 @@
 </li>
 <li class="toctree-l3"><a class="reference internal" href="#training-visualizations">Training Visualizations</a><ul>
 <li class="toctree-l4"><a class="reference internal" href="#accuracy-and-loss-curves">Accuracy and Loss Curves</a></li>
-<li class="toctree-l4"><a class="reference internal" href="#independent-head-training">Independent Head Training</a></li>
 </ul>
 </li>
 <li class="toctree-l3"><a class="reference internal" href="#computational-mechanism-visualizations">Computational Mechanism Visualizations</a><ul>
@@ -269,36 +268,6 @@ into excitatory and inhibitory pathways.</p>
 </pre></div>
 </div>
 </section>
-<section id="independent-head-training">
-<h3>Independent Head Training<a class="headerlink" href="#independent-head-training" title="Link to this heading"></a></h3>
-<p>Visualize the effects of training excitatory and inhibitory heads independently versus jointly.</p>
-<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="c1"># Visualization for independent head training</span>
-<span class="k">def</span><span class="w"> </span><span class="nf">visualize_head_training</span><span class="p">(</span><span class="n">exc_features</span><span class="p">,</span> <span class="n">inh_features</span><span class="p">,</span> <span class="n">labels</span><span class="p">):</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;Visualize feature space learned by independently trained heads&quot;&quot;&quot;</span>
-    <span class="n">fig</span><span class="p">,</span> <span class="n">axes</span> <span class="o">=</span> <span class="n">plt</span><span class="o">.</span><span class="n">subplots</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="mi">2</span><span class="p">,</span> <span class="n">figsize</span><span class="o">=</span><span class="p">(</span><span class="mi">14</span><span class="p">,</span> <span class="mi">6</span><span class="p">))</span>
-
-    <span class="c1"># Use t-SNE to reduce dimensionality for visualization</span>
-    <span class="kn">from</span><span class="w"> </span><span class="nn">sklearn.manifold</span><span class="w"> </span><span class="kn">import</span> <span class="n">TSNE</span>
-
-    <span class="c1"># Excitatory features</span>
-    <span class="n">tsne_exc</span> <span class="o">=</span> <span class="n">TSNE</span><span class="p">(</span><span class="n">n_components</span><span class="o">=</span><span class="mi">2</span><span class="p">)</span><span class="o">.</span><span class="n">fit_transform</span><span class="p">(</span><span class="n">exc_features</span><span class="p">)</span>
-    <span class="n">scatter_exc</span> <span class="o">=</span> <span class="n">axes</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">scatter</span><span class="p">(</span><span class="n">tsne_exc</span><span class="p">[:,</span> <span class="mi">0</span><span class="p">],</span> <span class="n">tsne_exc</span><span class="p">[:,</span> <span class="mi">1</span><span class="p">],</span> <span class="n">c</span><span class="o">=</span><span class="n">labels</span><span class="p">,</span> <span class="n">cmap</span><span class="o">=</span><span class="s1">&#39;tab10&#39;</span><span class="p">)</span>
-    <span class="n">axes</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">set_title</span><span class="p">(</span><span class="s1">&#39;Excitatory Head Feature Space&#39;</span><span class="p">)</span>
-
-    <span class="c1"># Inhibitory features</span>
-    <span class="n">tsne_inh</span> <span class="o">=</span> <span class="n">TSNE</span><span class="p">(</span><span class="n">n_components</span><span class="o">=</span><span class="mi">2</span><span class="p">)</span><span class="o">.</span><span class="n">fit_transform</span><span class="p">(</span><span class="n">inh_features</span><span class="p">)</span>
-    <span class="n">scatter_inh</span> <span class="o">=</span> <span class="n">axes</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span><span class="o">.</span><span class="n">scatter</span><span class="p">(</span><span class="n">tsne_inh</span><span class="p">[:,</span> <span class="mi">0</span><span class="p">],</span> <span class="n">tsne_inh</span><span class="p">[:,</span> <span class="mi">1</span><span class="p">],</span> <span class="n">c</span><span class="o">=</span><span class="n">labels</span><span class="p">,</span> <span class="n">cmap</span><span class="o">=</span><span class="s1">&#39;tab10&#39;</span><span class="p">)</span>
-    <span class="n">axes</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span><span class="o">.</span><span class="n">set_title</span><span class="p">(</span><span class="s1">&#39;Inhibitory Head Feature Space&#39;</span><span class="p">)</span>
-
-    <span class="c1"># Add color bar</span>
-    <span class="n">fig</span><span class="o">.</span><span class="n">colorbar</span><span class="p">(</span><span class="n">scatter_exc</span><span class="p">,</span> <span class="n">ax</span><span class="o">=</span><span class="n">axes</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">label</span><span class="o">=</span><span class="s1">&#39;Class&#39;</span><span class="p">)</span>
-    <span class="n">fig</span><span class="o">.</span><span class="n">colorbar</span><span class="p">(</span><span class="n">scatter_inh</span><span class="p">,</span> <span class="n">ax</span><span class="o">=</span><span class="n">axes</span><span class="p">[</span><span class="mi">1</span><span class="p">],</span> <span class="n">label</span><span class="o">=</span><span class="s1">&#39;Class&#39;</span><span class="p">)</span>
-
-    <span class="n">plt</span><span class="o">.</span><span class="n">tight_layout</span><span class="p">()</span>
-    <span class="k">return</span> <span class="n">fig</span>
-</pre></div>
-</div>
-</section>
 </section>
 <section id="computational-mechanism-visualizations">
 <h2>Computational Mechanism Visualizations<a class="headerlink" href="#computational-mechanism-visualizations" title="Link to this heading"></a></h2>
@@ -440,7 +409,7 @@ into excitatory and inhibitory pathways.</p>
     <span class="n">data</span><span class="o">=</span><span class="p">{</span><span class="s1">&#39;train&#39;</span><span class="p">:</span> <span class="n">train_data</span><span class="p">,</span> <span class="s1">&#39;valid&#39;</span><span class="p">:</span> <span class="n">valid_data</span><span class="p">,</span> <span class="s1">&#39;test&#39;</span><span class="p">:</span> <span class="n">test_data</span><span class="p">},</span>
     <span class="n">save_path</span><span class="o">=</span><span class="s2">&quot;visualization_outputs&quot;</span><span class="p">,</span>
     <span class="n">device</span><span class="o">=</span><span class="s1">&#39;cuda&#39;</span><span class="p">,</span>
-    <span class="n">plots</span><span class="o">=</span><span class="p">[</span><span class="s1">&#39;weights&#39;</span><span class="p">,</span> <span class="s1">&#39;activations&#39;</span><span class="p">,</span> <span class="s1">&#39;branch_info&#39;</span><span class="p">,</span> <span class="s1">&#39;branch_ablation&#39;</span><span class="p">]</span>
+    <span class="n">plots</span><span class="o">=</span><span class="p">[</span><span class="s1">&#39;weights&#39;</span><span class="p">,</span> <span class="s1">&#39;activations&#39;</span><span class="p">,</span> <span class="s1">&#39;branch_info&#39;</span><span class="p">,</span> <span class="s1">&#39;ablation&#39;</span><span class="p">]</span>
 <span class="p">)</span>
 
 <span class="c1"># Generate all plots</span>
@@ -461,7 +430,7 @@ into excitatory and inhibitory pathways.</p>
 <span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">weights</span>
 <span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">activations</span>
 <span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">branch_info</span>
-<span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">branch_ablation</span>
+<span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">ablation</span>
 <span class="w">  </span><span class="nt">parameters</span><span class="p">:</span>
 <span class="w">    </span><span class="nt">save_figures</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
 <span class="w">    </span><span class="nt">figure_format</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;png&quot;</span>
@@ -473,7 +442,7 @@ into excitatory and inhibitory pathways.</p>
 <ol class="arabic simple">
 <li><p><strong>Start Simple</strong>: Begin with weights and activation visualizations</p></li>
 <li><p><strong>Track Progress</strong>: Generate visualizations at multiple epochs to track learning progress</p></li>
-<li><p><strong>Compare Strategies</strong>: Use the same visualization approach to compare different learning strategies</p></li>
+<li><p><strong>Compare Strategies</strong>: Use similar visualizations when comparing different learning strategies</p></li>
 <li><p><strong>Interactive Exploration</strong>: Use interactive plots when possible for deeper analysis</p></li>
 <li><p><strong>Combine with Analysis</strong>: Pair visualizations with quantitative analysis for deeper insights</p></li>
 </ol>

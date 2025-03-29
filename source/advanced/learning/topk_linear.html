@@ -68,11 +68,10 @@
 <li class="toctree-l3"><a class="reference internal" href="#branch-factor-selection">Branch Factor Selection</a></li>
 <li class="toctree-l3"><a class="reference internal" href="#biological-intuition">Biological Intuition</a></li>
 <li class="toctree-l3"><a class="reference internal" href="#forward-pass-implementation">Forward Pass Implementation</a></li>
-<li class="toctree-l3"><a class="reference internal" href="#variations-of-topklinear">Variations of TopKLinear</a></li>
-<li class="toctree-l3"><a class="reference internal" href="#probabilistic-activation">Probabilistic Activation</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#reactivation-strategies">Reactivation Strategies</a></li>
 <li class="toctree-l3"><a class="reference internal" href="#gradient-flow-in-topklinear">Gradient Flow in TopKLinear</a></li>
-<li class="toctree-l3"><a class="reference internal" href="#block-structured-topklinear">Block-Structured TopKLinear</a></li>
 <li class="toctree-l3"><a class="reference internal" href="#comparison-with-standard-linear-layers">Comparison with Standard Linear Layers</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#blocklinear-strategies">BlockLinear Strategies</a></li>
 <li class="toctree-l3"><a class="reference internal" href="#best-practices">Best Practices</a></li>
 <li class="toctree-l3"><a class="reference internal" href="#example-configuration">Example Configuration</a></li>
 </ul>
@@ -206,7 +205,6 @@
 <span class="w">      </span><span class="nt">excitatory_branch_factors</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">64</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">32</span><span class="p p-Indicator">]</span><span class="w">  </span><span class="c1"># k values for excitatory layers</span>
 <span class="w">      </span><span class="nt">inhibitory_branch_factors</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">32</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">16</span><span class="p p-Indicator">]</span><span class="w">  </span><span class="c1"># k values for inhibitory layers</span>
 <span class="w">      </span><span class="nt">topk_init_method</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;xavier_normal&quot;</span><span class="w">    </span><span class="c1"># Weight initialization method</span>
-<span class="w">      </span><span class="nt">branch_probabilistic</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span><span class="w">           </span><span class="c1"># Whether branches activate probabilistically</span>
 </pre></div>
 </div>
 <p>The <code class="docutils literal notranslate"><span class="pre">branch_factors</span></code> parameters define the k value for each layer, which determines how many inputs are selected by each dendritic branch.</p>
@@ -299,63 +297,22 @@
 </pre></div>
 </div>
 </section>
-<section id="variations-of-topklinear">
-<h2>Variations of TopKLinear<a class="headerlink" href="#variations-of-topklinear" title="Link to this heading"></a></h2>
-<p>The framework includes several variations of the TopKLinear layer:</p>
+<section id="reactivation-strategies">
+<h2>Reactivation Strategies<a class="headerlink" href="#reactivation-strategies" title="Link to this heading"></a></h2>
+<p>The framework supports reactivation strategies that modify the behavior of TopKLinear layers:</p>
 <ol class="arabic simple">
-<li><p><strong>ProbTopKLinear</strong>: Probabilistic version of TopKLinear
-- Selects inputs based on a probability distribution rather than a hard cutoff
-- More biologically plausible and easier to optimize</p></li>
-<li><p><strong>BlockTopKLinear</strong>: Block-structured version for hierarchical processing
-- Inputs are divided into blocks, and top-k selection happens within each block
-- Models the compartmentalized structure of dendritic trees</p></li>
-<li><p><strong>LayerNormTopKLinear</strong>: TopKLinear with layer normalization
-- Applies layer normalization before or after the top-k selection
-- Helps stabilize training, especially in deeper networks</p></li>
+<li><p><strong>None</strong>: Standard top-k selection without any modification</p></li>
+<li><p><strong>Inverse</strong>: Scales the activations by the inverse of the sum, encouraging more balanced activation</p></li>
+<li><p><strong>Param_tanh</strong>: Uses a parametric tanh activation after selection for smoother activation profiles</p></li>
 </ol>
-</section>
-<section id="probabilistic-activation">
-<h2>Probabilistic Activation<a class="headerlink" href="#probabilistic-activation" title="Link to this heading"></a></h2>
-<p>When <code class="docutils literal notranslate"><span class="pre">branch_probabilistic</span></code> is set to <code class="docutils literal notranslate"><span class="pre">true</span></code>, the network uses probabilistic branch activation:</p>
+<p>These can be configured in the YAML configuration:</p>
 <div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">model</span><span class="p">:</span>
 <span class="w">  </span><span class="nt">network</span><span class="p">:</span>
 <span class="w">    </span><span class="nt">parameters</span><span class="p">:</span>
-<span class="w">      </span><span class="nt">branch_probabilistic</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
-<span class="w">      </span><span class="nt">probabilistic_temperature</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">1.0</span>
+<span class="w">      </span><span class="nt">reactivation_strategy</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;inverse&quot;</span><span class="w">  </span><span class="c1"># Options: &quot;none&quot;, &quot;inverse&quot;</span>
+<span class="w">      </span><span class="nt">reactivation_type</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;param_tanh&quot;</span><span class="w">   </span><span class="c1"># Options: &quot;none&quot;, &quot;param_tanh&quot;, &quot;relu&quot;, &quot;sigmoid&quot;, &quot;tanh&quot;</span>
 </pre></div>
 </div>
-<p>With probabilistic activation:
-1. Instead of selecting exactly k inputs, each input is selected with a probability
-2. The probability is determined by the input’s potential and a temperature parameter
-3. Higher potential inputs have higher probability of being selected
-4. The temperature controls how deterministic the selection is (lower = more deterministic)</p>
-<p>Implementation:</p>
-<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="k">def</span><span class="w"> </span><span class="nf">forward</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="nb">input</span><span class="p">,</span> <span class="n">temperature</span><span class="o">=</span><span class="mf">1.0</span><span class="p">):</span>
-    <span class="c1"># Compute all potential contributions</span>
-    <span class="n">potential</span> <span class="o">=</span> <span class="n">F</span><span class="o">.</span><span class="n">linear</span><span class="p">(</span><span class="nb">input</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">weight</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span>
-
-    <span class="c1"># Calculate selection probabilities using softmax</span>
-    <span class="n">probabilities</span> <span class="o">=</span> <span class="n">F</span><span class="o">.</span><span class="n">softmax</span><span class="p">(</span><span class="n">potential</span> <span class="o">/</span> <span class="n">temperature</span><span class="p">,</span> <span class="n">dim</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span>
-
-    <span class="c1"># Sample from the probability distribution</span>
-    <span class="n">distribution</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">distributions</span><span class="o">.</span><span class="n">Bernoulli</span><span class="p">(</span><span class="n">probabilities</span><span class="p">)</span>
-    <span class="n">mask</span> <span class="o">=</span> <span class="n">distribution</span><span class="o">.</span><span class="n">sample</span><span class="p">()</span>
-
-    <span class="c1"># Apply the mask and scale by probabilities</span>
-    <span class="n">selected</span> <span class="o">=</span> <span class="n">potential</span> <span class="o">*</span> <span class="n">mask</span> <span class="o">*</span> <span class="n">probabilities</span>
-
-    <span class="c1"># Sum the selected inputs and add bias if present</span>
-    <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">bias</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
-        <span class="k">return</span> <span class="n">selected</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="n">dim</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span> <span class="o">+</span> <span class="bp">self</span><span class="o">.</span><span class="n">bias</span>
-    <span class="k">else</span><span class="p">:</span>
-        <span class="k">return</span> <span class="n">selected</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="n">dim</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span>
-</pre></div>
-</div>
-<p>Probabilistic activation has several advantages:
-1. More biologically plausible (biological neurons have probabilistic activation)
-2. Allows gradient-based optimization through the entire network
-3. Can explore different activation patterns during training
-4. Often leads to better generalization</p>
 </section>
 <section id="gradient-flow-in-topklinear">
 <h2>Gradient Flow in TopKLinear<a class="headerlink" href="#gradient-flow-in-topklinear" title="Link to this heading"></a></h2>
@@ -365,86 +322,7 @@
 <li><p>During backpropagation, gradients flow only through the selected inputs</p></li>
 <li><p>This creates sparse gradients that can lead to unstable training</p></li>
 </ol>
-<p>To address this, the framework provides several mechanisms:</p>
-<ol class="arabic simple">
-<li><p><strong>Gradient scaling</strong>: Scale gradients to compensate for sparsity (see <a class="reference internal" href="../network_structures/gradient_scaling.html#gradient-scaling"><span class="std std-ref">Gradient Scaling Techniques</span></a>)</p></li>
-<li><p><strong>STE (Straight-Through Estimator)</strong>: Pass gradients through the selection operation</p></li>
-<li><p><strong>Probabilistic activation</strong>: Replace hard selection with soft probabilistic selection</p></li>
-</ol>
-</section>
-<section id="block-structured-topklinear">
-<h2>Block-Structured TopKLinear<a class="headerlink" href="#block-structured-topklinear" title="Link to this heading"></a></h2>
-<p>For hierarchical processing, the framework provides block-structured TopKLinear layers:</p>
-<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="k">class</span><span class="w"> </span><span class="nc">BlockTopKLinear</span><span class="p">(</span><span class="n">nn</span><span class="o">.</span><span class="n">Module</span><span class="p">):</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
-<span class="sd">    Block-structured TopKLinear layer.</span>
-
-<span class="sd">    Divides inputs into blocks and performs top-k selection within each block.</span>
-<span class="sd">    This models the compartmentalized structure of dendritic trees.</span>
-
-<span class="sd">    Parameters</span>
-<span class="sd">    ----------</span>
-<span class="sd">    in_features : int</span>
-<span class="sd">        Number of input features</span>
-<span class="sd">    out_features : int</span>
-<span class="sd">        Number of output features</span>
-<span class="sd">    block_size : int</span>
-<span class="sd">        Size of each input block</span>
-<span class="sd">    k_per_block : int</span>
-<span class="sd">        Number of inputs to select from each block</span>
-<span class="sd">    &quot;&quot;&quot;</span>
-
-    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">in_features</span><span class="p">,</span> <span class="n">out_features</span><span class="p">,</span> <span class="n">block_size</span><span class="p">,</span> <span class="n">k_per_block</span><span class="p">):</span>
-        <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="fm">__init__</span><span class="p">()</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">in_features</span> <span class="o">=</span> <span class="n">in_features</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">out_features</span> <span class="o">=</span> <span class="n">out_features</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">block_size</span> <span class="o">=</span> <span class="n">block_size</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">k_per_block</span> <span class="o">=</span> <span class="n">k_per_block</span>
-
-        <span class="c1"># Calculate number of blocks</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">num_blocks</span> <span class="o">=</span> <span class="n">in_features</span> <span class="o">//</span> <span class="n">block_size</span>
-        <span class="k">if</span> <span class="n">in_features</span> <span class="o">%</span> <span class="n">block_size</span> <span class="o">!=</span> <span class="mi">0</span><span class="p">:</span>
-            <span class="bp">self</span><span class="o">.</span><span class="n">num_blocks</span> <span class="o">+=</span> <span class="mi">1</span>
-
-        <span class="c1"># Initialize weights and bias</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">weight</span> <span class="o">=</span> <span class="n">nn</span><span class="o">.</span><span class="n">Parameter</span><span class="p">(</span><span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">(</span><span class="n">out_features</span><span class="p">,</span> <span class="n">in_features</span><span class="p">))</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">bias</span> <span class="o">=</span> <span class="n">nn</span><span class="o">.</span><span class="n">Parameter</span><span class="p">(</span><span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">(</span><span class="n">out_features</span><span class="p">))</span>
-
-        <span class="c1"># Initialize parameters</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">reset_parameters</span><span class="p">()</span>
-
-    <span class="k">def</span><span class="w"> </span><span class="nf">forward</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="nb">input</span><span class="p">):</span>
-        <span class="c1"># Reshape input into blocks</span>
-        <span class="c1"># Original shape: [batch_size, in_features]</span>
-        <span class="c1"># Reshaped: [batch_size, num_blocks, block_size]</span>
-        <span class="n">batch_size</span> <span class="o">=</span> <span class="nb">input</span><span class="o">.</span><span class="n">size</span><span class="p">(</span><span class="mi">0</span><span class="p">)</span>
-        <span class="n">reshaped_input</span> <span class="o">=</span> <span class="nb">input</span><span class="o">.</span><span class="n">view</span><span class="p">(</span><span class="n">batch_size</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">num_blocks</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">block_size</span><span class="p">)</span>
-
-        <span class="c1"># Compute potential for each block</span>
-        <span class="c1"># Shape: [batch_size, num_blocks, block_size]</span>
-        <span class="n">reshaped_weight</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">weight</span><span class="o">.</span><span class="n">view</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">out_features</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">num_blocks</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">block_size</span><span class="p">)</span>
-        <span class="n">potential</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">matmul</span><span class="p">(</span><span class="n">reshaped_input</span><span class="o">.</span><span class="n">unsqueeze</span><span class="p">(</span><span class="mi">1</span><span class="p">),</span> <span class="n">reshaped_weight</span><span class="o">.</span><span class="n">transpose</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="mi">2</span><span class="p">))</span>
-
-        <span class="c1"># Select top-k within each block</span>
-        <span class="c1"># Shape of indices: [batch_size, out_features, num_blocks, k_per_block]</span>
-        <span class="n">_</span><span class="p">,</span> <span class="n">indices</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">topk</span><span class="p">(</span><span class="n">potential</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">k_per_block</span><span class="p">,</span> <span class="n">dim</span><span class="o">=</span><span class="mi">3</span><span class="p">)</span>
-
-        <span class="c1"># Create mask and apply</span>
-        <span class="n">mask</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">zeros_like</span><span class="p">(</span><span class="n">potential</span><span class="p">)</span>
-        <span class="n">mask</span><span class="o">.</span><span class="n">scatter_</span><span class="p">(</span><span class="mi">3</span><span class="p">,</span> <span class="n">indices</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span>
-        <span class="n">selected</span> <span class="o">=</span> <span class="n">potential</span> <span class="o">*</span> <span class="n">mask</span>
-
-        <span class="c1"># Sum selected inputs</span>
-        <span class="n">output</span> <span class="o">=</span> <span class="n">selected</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="n">dim</span><span class="o">=</span><span class="p">[</span><span class="mi">2</span><span class="p">,</span> <span class="mi">3</span><span class="p">])</span>
-
-        <span class="c1"># Add bias</span>
-        <span class="k">return</span> <span class="n">output</span> <span class="o">+</span> <span class="bp">self</span><span class="o">.</span><span class="n">bias</span>
-</pre></div>
-</div>
-<p>Block-structured TopKLinear is beneficial when:
-1. Inputs have a natural block structure (e.g., features from different modalities)
-2. You want to ensure representation from all parts of the input
-3. You’re modeling specific dendritic branch structures</p>
+<p>To address this, the framework uses gradient clipping and appropriate initialization strategies to stabilize training.</p>
 </section>
 <section id="comparison-with-standard-linear-layers">
 <h2>Comparison with Standard Linear Layers<a class="headerlink" href="#comparison-with-standard-linear-layers" title="Link to this heading"></a></h2>
@@ -464,6 +342,22 @@
 - Sparse gradient flow during training</p></li>
 </ol>
 </section>
+<section id="blocklinear-strategies">
+<h2>BlockLinear Strategies<a class="headerlink" href="#blocklinear-strategies" title="Link to this heading"></a></h2>
+<p>The framework implements different blocklinear strategies that affect how inputs are processed:</p>
+<ol class="arabic simple">
+<li><p><strong>None</strong>: No special processing</p></li>
+<li><p><strong>Distal upweight by idx</strong>: Upweights inputs based on their distance</p></li>
+<li><p><strong>Block conductance dynamic</strong>: Uses a dynamic conductance mechanism</p></li>
+</ol>
+<p>Configure these strategies in the YAML configuration:</p>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">model</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">network</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">parameters</span><span class="p">:</span>
+<span class="w">      </span><span class="nt">blocklinear_strategy</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;block_conductance_dynamic&quot;</span><span class="w">  </span><span class="c1"># Options: &quot;none&quot;, &quot;distal_upweight_by_idx&quot;, &quot;block_conductance_dynamic&quot;</span>
+</pre></div>
+</div>
+</section>
 <section id="best-practices">
 <h2>Best Practices<a class="headerlink" href="#best-practices" title="Link to this heading"></a></h2>
 <p>For optimal performance with TopKLinear layers:</p>
@@ -471,18 +365,18 @@
 <li><p><strong>Start with reasonable branch factors</strong>:
 - For initial experimentation, set k to 10-20% of the input dimension
 - Adjust based on performance and desired properties</p></li>
-<li><p><strong>Use probabilistic activation</strong>:
-- Set <cite>branch_probabilistic: true</cite> for more stable training
-- Start with temperature = 1.0 and adjust as needed</p></li>
+<li><p><strong>Use appropriate reactivation strategies</strong>:
+- The “inverse” reactivation strategy often works well with dendritic networks
+- Param_tanh reactivation type provides smooth activation profiles</p></li>
 <li><p><strong>Combine with appropriate activation functions</strong>:
-- ParametricTanh works well with TopKLinear layers
+- Use reactivation_type param_tanh for better performance
 - Consider the interaction between selectivity and nonlinearity</p></li>
 <li><p><strong>Monitor branch activation</strong>:
 - Track which branches are active during training
 - Ensure branches aren’t “dying” (never being selected)</p></li>
-<li><p><strong>Adjust gradient scaling</strong>:
-- Use gradient scaling to stabilize training
-- Higher branch factors may require less aggressive scaling</p></li>
+<li><p><strong>Adjust learning rates carefully</strong>:
+- Use gradient clipping to stabilize training
+- Start with conservative learning rates (0.001) and adjust as needed</p></li>
 </ol>
 </section>
 <section id="example-configuration">
@@ -497,10 +391,12 @@
 <span class="w">      </span><span class="nt">inhibitory_layer_sizes</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">200</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">100</span><span class="p p-Indicator">]</span>
 <span class="w">      </span><span class="nt">excitatory_branch_factors</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">64</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">32</span><span class="p p-Indicator">]</span>
 <span class="w">      </span><span class="nt">inhibitory_branch_factors</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">32</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">16</span><span class="p p-Indicator">]</span>
-<span class="w">      </span><span class="nt">branch_probabilistic</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
-<span class="w">      </span><span class="nt">probabilistic_temperature</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">1.0</span>
+<span class="w">      </span><span class="nt">reactivate</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+<span class="w">      </span><span class="nt">somatic_synapses</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
 <span class="w">      </span><span class="nt">topk_init_method</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;xavier_normal&quot;</span>
-<span class="w">      </span><span class="nt">init_gain</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">1.0</span>
+<span class="w">      </span><span class="nt">reactivation_type</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;param_tanh&quot;</span>
+<span class="w">      </span><span class="nt">reactivation_strategy</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;inverse&quot;</span>
+<span class="w">      </span><span class="nt">blocklinear_strategy</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;block_conductance_dynamic&quot;</span>
 <span class="w">      </span><span class="nt">output_dim</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">10</span>
 </pre></div>
 </div>

@@ -137,14 +137,19 @@
 <span class="c1"># Create model</span>
 <span class="n">model</span> <span class="o">=</span> <span class="n">ExcitationInhibitionNetwork</span><span class="p">(</span>
     <span class="n">input_dim</span><span class="o">=</span><span class="mi">784</span><span class="p">,</span>
-    <span class="n">excitatory_layer_sizes</span><span class="o">=</span><span class="p">[</span><span class="mi">10</span><span class="p">],</span>
-    <span class="n">inhibitory_layer_sizes</span><span class="o">=</span><span class="p">[</span><span class="mi">20</span><span class="p">],</span>
-    <span class="n">excitatory_branch_factors</span><span class="o">=</span><span class="p">[</span><span class="mi">2</span><span class="p">,</span> <span class="mi">2</span><span class="p">],</span>
-    <span class="n">inhibitory_branch_factors</span><span class="o">=</span><span class="p">[],</span>
-    <span class="n">ee_synapses_per_branch_per_layer</span><span class="o">=</span><span class="p">[</span><span class="mi">24</span><span class="p">],</span>
-    <span class="n">ei_synapses_per_branch_per_layer</span><span class="o">=</span><span class="p">[</span><span class="mi">100</span><span class="p">],</span>
-    <span class="n">ie_synapses_per_branch_per_layer</span><span class="o">=</span><span class="p">[</span><span class="mi">2</span><span class="p">],</span>
-    <span class="n">ii_synapses_per_branch_per_layer</span><span class="o">=</span><span class="p">[]</span>
+    <span class="n">excitatory_layer_sizes</span><span class="o">=</span><span class="p">[</span><span class="mi">512</span><span class="p">,</span> <span class="mi">256</span><span class="p">],</span>
+    <span class="n">inhibitory_layer_sizes</span><span class="o">=</span><span class="p">[</span><span class="mi">200</span><span class="p">,</span> <span class="mi">100</span><span class="p">],</span>
+    <span class="n">excitatory_branch_factors</span><span class="o">=</span><span class="p">[</span><span class="mi">64</span><span class="p">,</span> <span class="mi">32</span><span class="p">],</span>
+    <span class="n">inhibitory_branch_factors</span><span class="o">=</span><span class="p">[</span><span class="mi">32</span><span class="p">,</span> <span class="mi">16</span><span class="p">],</span>
+    <span class="n">reactivate</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+    <span class="n">somatic_synapses</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+    <span class="n">topk_init_method</span><span class="o">=</span><span class="s2">&quot;xavier_normal&quot;</span><span class="p">,</span>
+    <span class="n">reactivation_type</span><span class="o">=</span><span class="s2">&quot;param_tanh&quot;</span><span class="p">,</span>
+    <span class="n">reactivation_strategy</span><span class="o">=</span><span class="s2">&quot;inverse&quot;</span><span class="p">,</span>
+    <span class="n">blocklinear_strategy</span><span class="o">=</span><span class="s2">&quot;block_conductance_dynamic&quot;</span><span class="p">,</span>
+    <span class="n">enable_branch_outputs</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+    <span class="n">output_layer</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span>
+    <span class="n">output_dim</span><span class="o">=</span><span class="mi">10</span>
 <span class="p">)</span>
 
 <span class="c1"># Create classifier</span>
@@ -190,14 +195,19 @@
 <span class="c1"># Create a model with suitable architecture for XOR tasks</span>
 <span class="n">model</span> <span class="o">=</span> <span class="n">ExcitationInhibitionNetwork</span><span class="p">(</span>
     <span class="n">input_dim</span><span class="o">=</span><span class="mi">8</span><span class="p">,</span>  <span class="c1"># 8 input bits</span>
-    <span class="n">excitatory_layer_sizes</span><span class="o">=</span><span class="p">[</span><span class="mi">2</span><span class="p">],</span>  <span class="c1"># 2 output classes (0 or 1)</span>
-    <span class="n">inhibitory_layer_sizes</span><span class="o">=</span><span class="p">[</span><span class="mi">4</span><span class="p">],</span>
-    <span class="n">excitatory_branch_factors</span><span class="o">=</span><span class="p">[</span><span class="mi">2</span><span class="p">,</span> <span class="mi">2</span><span class="p">],</span>  <span class="c1"># 4 branches per cell</span>
-    <span class="n">inhibitory_branch_factors</span><span class="o">=</span><span class="p">[],</span>
-    <span class="n">ee_synapses_per_branch_per_layer</span><span class="o">=</span><span class="p">[</span><span class="mi">4</span><span class="p">],</span>  <span class="c1"># Each branch connects to 4 inputs</span>
-    <span class="n">ei_synapses_per_branch_per_layer</span><span class="o">=</span><span class="p">[</span><span class="mi">6</span><span class="p">],</span>
-    <span class="n">ie_synapses_per_branch_per_layer</span><span class="o">=</span><span class="p">[</span><span class="mi">2</span><span class="p">],</span>
-    <span class="n">ii_synapses_per_branch_per_layer</span><span class="o">=</span><span class="p">[]</span>
+    <span class="n">excitatory_layer_sizes</span><span class="o">=</span><span class="p">[</span><span class="mi">16</span><span class="p">,</span> <span class="mi">8</span><span class="p">],</span>
+    <span class="n">inhibitory_layer_sizes</span><span class="o">=</span><span class="p">[</span><span class="mi">12</span><span class="p">,</span> <span class="mi">6</span><span class="p">],</span>
+    <span class="n">excitatory_branch_factors</span><span class="o">=</span><span class="p">[</span><span class="mi">4</span><span class="p">,</span> <span class="mi">2</span><span class="p">],</span>
+    <span class="n">inhibitory_branch_factors</span><span class="o">=</span><span class="p">[</span><span class="mi">3</span><span class="p">,</span> <span class="mi">2</span><span class="p">],</span>
+    <span class="n">reactivate</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+    <span class="n">somatic_synapses</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+    <span class="n">topk_init_method</span><span class="o">=</span><span class="s2">&quot;xavier_normal&quot;</span><span class="p">,</span>
+    <span class="n">reactivation_type</span><span class="o">=</span><span class="s2">&quot;param_tanh&quot;</span><span class="p">,</span>
+    <span class="n">reactivation_strategy</span><span class="o">=</span><span class="s2">&quot;inverse&quot;</span><span class="p">,</span>
+    <span class="n">blocklinear_strategy</span><span class="o">=</span><span class="s2">&quot;block_conductance_dynamic&quot;</span><span class="p">,</span>
+    <span class="n">enable_branch_outputs</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+    <span class="n">output_layer</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span>
+    <span class="n">output_dim</span><span class="o">=</span><span class="mi">2</span>  <span class="c1"># 2 output classes (0 or 1)</span>
 <span class="p">)</span>
 
 <span class="c1"># Continue with training as in the MNIST example...</span>
@@ -237,20 +247,25 @@
 <div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="c1"># Create an EINet with input transformation</span>
 <span class="n">model</span> <span class="o">=</span> <span class="n">ExcitationInhibitionNetwork</span><span class="p">(</span>
     <span class="n">input_dim</span><span class="o">=</span><span class="mi">784</span><span class="p">,</span>
-    <span class="n">excitatory_layer_sizes</span><span class="o">=</span><span class="p">[</span><span class="mi">10</span><span class="p">],</span>
-    <span class="n">inhibitory_layer_sizes</span><span class="o">=</span><span class="p">[</span><span class="mi">20</span><span class="p">],</span>
-    <span class="n">excitatory_branch_factors</span><span class="o">=</span><span class="p">[</span><span class="mi">2</span><span class="p">,</span> <span class="mi">2</span><span class="p">],</span>
-    <span class="n">inhibitory_branch_factors</span><span class="o">=</span><span class="p">[],</span>
-    <span class="n">ee_synapses_per_branch_per_layer</span><span class="o">=</span><span class="p">[</span><span class="mi">24</span><span class="p">],</span>
-    <span class="n">ei_synapses_per_branch_per_layer</span><span class="o">=</span><span class="p">[</span><span class="mi">100</span><span class="p">],</span>
-    <span class="n">ie_synapses_per_branch_per_layer</span><span class="o">=</span><span class="p">[</span><span class="mi">2</span><span class="p">],</span>
-    <span class="n">ii_synapses_per_branch_per_layer</span><span class="o">=</span><span class="p">[],</span>
+    <span class="n">excitatory_layer_sizes</span><span class="o">=</span><span class="p">[</span><span class="mi">512</span><span class="p">,</span> <span class="mi">256</span><span class="p">],</span>
+    <span class="n">inhibitory_layer_sizes</span><span class="o">=</span><span class="p">[</span><span class="mi">200</span><span class="p">,</span> <span class="mi">100</span><span class="p">],</span>
+    <span class="n">excitatory_branch_factors</span><span class="o">=</span><span class="p">[</span><span class="mi">64</span><span class="p">,</span> <span class="mi">32</span><span class="p">],</span>
+    <span class="n">inhibitory_branch_factors</span><span class="o">=</span><span class="p">[</span><span class="mi">32</span><span class="p">,</span> <span class="mi">16</span><span class="p">],</span>
+    <span class="n">reactivate</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+    <span class="n">somatic_synapses</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+    <span class="n">topk_init_method</span><span class="o">=</span><span class="s2">&quot;xavier_normal&quot;</span><span class="p">,</span>
+    <span class="n">reactivation_type</span><span class="o">=</span><span class="s2">&quot;param_tanh&quot;</span><span class="p">,</span>
+    <span class="n">reactivation_strategy</span><span class="o">=</span><span class="s2">&quot;inverse&quot;</span><span class="p">,</span>
+    <span class="n">blocklinear_strategy</span><span class="o">=</span><span class="s2">&quot;block_conductance_dynamic&quot;</span><span class="p">,</span>
     <span class="n">input_mode</span><span class="o">=</span><span class="mi">2</span><span class="p">,</span>  <span class="c1"># Use input transformation network</span>
     <span class="n">input_net_dict</span><span class="o">=</span><span class="p">{</span>
         <span class="s2">&quot;type&quot;</span><span class="p">:</span> <span class="s2">&quot;MLPInputTransform&quot;</span><span class="p">,</span>
         <span class="s2">&quot;hidden_dims&quot;</span><span class="p">:</span> <span class="p">[</span><span class="mi">512</span><span class="p">,</span> <span class="mi">256</span><span class="p">],</span>
         <span class="s2">&quot;output_dim&quot;</span><span class="p">:</span> <span class="mi">128</span>
-    <span class="p">}</span>
+    <span class="p">},</span>
+    <span class="n">enable_branch_outputs</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+    <span class="n">output_layer</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span>
+    <span class="n">output_dim</span><span class="o">=</span><span class="mi">10</span>
 <span class="p">)</span>
 
 <span class="c1"># Train the model with appropriate learning strategy</span>
@@ -270,27 +285,32 @@
 <section id="branch-information-analysis">
 <h3>Branch Information Analysis<a class="headerlink" href="#branch-information-analysis" title="Link to this heading"></a></h3>
 <p>Analyzing information content in dendritic branches:</p>
-<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span><span class="w"> </span><span class="nn">dendritic_modeling.utils</span><span class="w"> </span><span class="kn">import</span> <span class="n">analyze_branch_information</span>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span><span class="w"> </span><span class="nn">dendritic_modeling.utils</span><span class="w"> </span><span class="kn">import</span> <span class="n">compute_branch_info</span><span class="p">,</span> <span class="n">record_branch_activations</span>
 
 <span class="c1"># Create and train a model (as in previous examples)</span>
 <span class="n">model</span> <span class="o">=</span> <span class="n">ExcitationInhibitionNetwork</span><span class="p">(</span><span class="o">...</span><span class="p">)</span>
 <span class="c1"># ... train the model ...</span>
 
-<span class="c1"># Analyze branch information</span>
-<span class="n">branch_info</span> <span class="o">=</span> <span class="n">analyze_branch_information</span><span class="p">(</span>
+<span class="c1"># Record branch activations</span>
+<span class="n">activations</span><span class="p">,</span> <span class="n">labels</span> <span class="o">=</span> <span class="n">record_branch_activations</span><span class="p">(</span>
     <span class="n">model</span><span class="o">=</span><span class="n">model</span><span class="p">,</span>
     <span class="n">dataset</span><span class="o">=</span><span class="n">test_ds</span><span class="p">,</span>
-    <span class="n">batch_size</span><span class="o">=</span><span class="mi">64</span><span class="p">,</span>
-    <span class="n">device</span><span class="o">=</span><span class="s1">&#39;cuda&#39;</span> <span class="k">if</span> <span class="n">torch</span><span class="o">.</span><span class="n">cuda</span><span class="o">.</span><span class="n">is_available</span><span class="p">()</span> <span class="k">else</span> <span class="s1">&#39;cpu&#39;</span><span class="p">,</span>
-    <span class="n">n_bins</span><span class="o">=</span><span class="mi">10</span>  <span class="c1"># Number of bins for mutual information calculation</span>
+    <span class="n">device</span><span class="o">=</span><span class="s1">&#39;cuda&#39;</span> <span class="k">if</span> <span class="n">torch</span><span class="o">.</span><span class="n">cuda</span><span class="o">.</span><span class="n">is_available</span><span class="p">()</span> <span class="k">else</span> <span class="s1">&#39;cpu&#39;</span>
+<span class="p">)</span>
+
+<span class="c1"># Compute branch information</span>
+<span class="n">branch_info</span> <span class="o">=</span> <span class="n">compute_branch_info</span><span class="p">(</span>
+    <span class="n">activations</span><span class="o">=</span><span class="n">activations</span><span class="p">,</span>
+    <span class="n">labels</span><span class="o">=</span><span class="n">labels</span><span class="p">,</span>
+    <span class="n">n_bins</span><span class="o">=</span><span class="mi">10</span>  <span class="c1"># Number of bins for information calculation</span>
 <span class="p">)</span>
 
 <span class="c1"># Plot branch information</span>
 <span class="kn">import</span><span class="w"> </span><span class="nn">matplotlib.pyplot</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">plt</span>
 
 <span class="n">plt</span><span class="o">.</span><span class="n">figure</span><span class="p">(</span><span class="n">figsize</span><span class="o">=</span><span class="p">(</span><span class="mi">10</span><span class="p">,</span> <span class="mi">6</span><span class="p">))</span>
-<span class="n">plt</span><span class="o">.</span><span class="n">bar</span><span class="p">(</span><span class="nb">range</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">branch_info</span><span class="p">)),</span> <span class="n">branch_info</span><span class="p">)</span>
-<span class="n">plt</span><span class="o">.</span><span class="n">xlabel</span><span class="p">(</span><span class="s1">&#39;Branch Layer&#39;</span><span class="p">)</span>
+<span class="n">plt</span><span class="o">.</span><span class="n">bar</span><span class="p">(</span><span class="nb">range</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">branch_info</span><span class="p">[</span><span class="s1">&#39;mi&#39;</span><span class="p">])),</span> <span class="n">branch_info</span><span class="p">[</span><span class="s1">&#39;mi&#39;</span><span class="p">])</span>
+<span class="n">plt</span><span class="o">.</span><span class="n">xlabel</span><span class="p">(</span><span class="s1">&#39;Branch Index&#39;</span><span class="p">)</span>
 <span class="n">plt</span><span class="o">.</span><span class="n">ylabel</span><span class="p">(</span><span class="s1">&#39;Mutual Information with Label&#39;</span><span class="p">)</span>
 <span class="n">plt</span><span class="o">.</span><span class="n">title</span><span class="p">(</span><span class="s1">&#39;Information Content in Dendritic Branches&#39;</span><span class="p">)</span>
 <span class="n">plt</span><span class="o">.</span><span class="n">show</span><span class="p">()</span>
@@ -307,18 +327,28 @@
 <span class="c1"># ... train the model ...</span>
 
 <span class="c1"># Analyze branch ablation</span>
-<span class="n">baseline_acc</span><span class="p">,</span> <span class="n">results</span> <span class="o">=</span> <span class="n">analyze_branch_ablation</span><span class="p">(</span>
+<span class="n">results</span> <span class="o">=</span> <span class="n">analyze_branch_ablation</span><span class="p">(</span>
     <span class="n">model</span><span class="o">=</span><span class="n">model</span><span class="p">,</span>
     <span class="n">dataset</span><span class="o">=</span><span class="n">test_ds</span><span class="p">,</span>
-    <span class="n">layer_idx</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span>  <span class="c1"># First branch layer</span>
-    <span class="n">branch_ids</span><span class="o">=</span><span class="p">[</span><span class="mi">0</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">2</span><span class="p">,</span> <span class="mi">3</span><span class="p">],</span>  <span class="c1"># Analyze each branch separately</span>
-    <span class="n">mode</span><span class="o">=</span><span class="s1">&#39;direct&#39;</span><span class="p">,</span>  <span class="c1"># Ablation mode: &#39;direct&#39; or &#39;indirect&#39;</span>
+    <span class="n">ablation_mode</span><span class="o">=</span><span class="s1">&#39;direct&#39;</span><span class="p">,</span>  <span class="c1"># Ablation mode: &#39;direct&#39; or &#39;indirect&#39;</span>
     <span class="n">device</span><span class="o">=</span><span class="s1">&#39;cuda&#39;</span> <span class="k">if</span> <span class="n">torch</span><span class="o">.</span><span class="n">cuda</span><span class="o">.</span><span class="n">is_available</span><span class="p">()</span> <span class="k">else</span> <span class="s1">&#39;cpu&#39;</span>
 <span class="p">)</span>
 
+<span class="c1"># Extract results</span>
+<span class="n">baseline_acc</span> <span class="o">=</span> <span class="n">results</span><span class="p">[</span><span class="s1">&#39;baseline_acc&#39;</span><span class="p">]</span>
+<span class="n">branch_importances</span> <span class="o">=</span> <span class="n">results</span><span class="p">[</span><span class="s1">&#39;branch_importances&#39;</span><span class="p">]</span>
+
 <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Baseline accuracy: </span><span class="si">{</span><span class="n">baseline_acc</span><span class="si">:</span><span class="s2">.4f</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
-<span class="k">for</span> <span class="n">branch_id</span><span class="p">,</span> <span class="p">(</span><span class="n">acc</span><span class="p">,</span> <span class="n">delta</span><span class="p">)</span> <span class="ow">in</span> <span class="n">results</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
-    <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Branch </span><span class="si">{</span><span class="n">branch_id</span><span class="si">}</span><span class="s2">: Accuracy drop = </span><span class="si">{</span><span class="n">delta</span><span class="si">:</span><span class="s2">.4f</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+
+<span class="c1"># Visualize branch importances</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">matplotlib.pyplot</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">plt</span>
+<span class="n">plt</span><span class="o">.</span><span class="n">figure</span><span class="p">(</span><span class="n">figsize</span><span class="o">=</span><span class="p">(</span><span class="mi">10</span><span class="p">,</span> <span class="mi">6</span><span class="p">))</span>
+<span class="n">plt</span><span class="o">.</span><span class="n">imshow</span><span class="p">(</span><span class="n">branch_importances</span><span class="p">,</span> <span class="n">cmap</span><span class="o">=</span><span class="s1">&#39;RdBu_r&#39;</span><span class="p">,</span> <span class="n">aspect</span><span class="o">=</span><span class="s1">&#39;auto&#39;</span><span class="p">)</span>
+<span class="n">plt</span><span class="o">.</span><span class="n">colorbar</span><span class="p">(</span><span class="n">label</span><span class="o">=</span><span class="s1">&#39;Accuracy Drop&#39;</span><span class="p">)</span>
+<span class="n">plt</span><span class="o">.</span><span class="n">xlabel</span><span class="p">(</span><span class="s1">&#39;Branch Index&#39;</span><span class="p">)</span>
+<span class="n">plt</span><span class="o">.</span><span class="n">ylabel</span><span class="p">(</span><span class="s1">&#39;Layer Index&#39;</span><span class="p">)</span>
+<span class="n">plt</span><span class="o">.</span><span class="n">title</span><span class="p">(</span><span class="s1">&#39;Branch Importance (Accuracy Drop)&#39;</span><span class="p">)</span>
+<span class="n">plt</span><span class="o">.</span><span class="n">show</span><span class="p">()</span>
 </pre></div>
 </div>
 </section>
@@ -337,7 +367,6 @@
 model:</p>
 <blockquote>
 <div><p>task: “classification”
-probabilistic: true
 network:</p>
 <blockquote>
 <div><p>type: “EINet”
@@ -348,14 +377,9 @@ excitatory_layer_sizes: [512, 256]
 inhibitory_layer_sizes: [200, 100]
 excitatory_branch_factors: [64, 32]
 inhibitory_branch_factors: [32, 16]
-ee_synapses_per_branch_per_layer: [24, 24]
-ei_synapses_per_branch_per_layer: [100, 100]
-ie_synapses_per_branch_per_layer: [2, 2]
-ii_synapses_per_branch_per_layer: []
 reactivate: true
 somatic_synapses: true
 topk_init_method: “xavier_normal”
-use_shunting: true
 reactivation_type: “param_tanh”
 reactivation_strategy: “inverse”
 blocklinear_strategy: “block_conductance_dynamic”
@@ -365,7 +389,7 @@ output_dim: 10</p>
 </div></blockquote>
 </div></blockquote>
 </div></blockquote>
-<dl class="simple">
+<dl>
 <dt>train:</dt><dd><p>learning_strategy: “mle”
 run_name: “mnist_einet”
 seed: 0
@@ -386,7 +410,11 @@ parameters: {}</p>
 <dt>visualization:</dt><dd><p>enabled: false
 visualize_epochs: []
 plots: [“branch_info”, “ablation”]
-parameters: {}</p>
+parameters:</p>
+<blockquote>
+<div><p>save_figures: true
+figure_format: “png”</p>
+</div></blockquote>
 </dd>
 <dt>wandb:</dt><dd><p>entity: “”
 project: “”
@@ -401,9 +429,10 @@ use_wandb: false</p>
 <p>3. <strong>Available Learning Strategies</strong>:
 - mle: Standard Maximum Likelihood Estimation (default)
 - freeze_branches: Train branches sequentially
+- freeze_branches_reversed: Train branches in reverse order
+- freeze_branches_with_pretraining: Pretrain then train branches sequentially
+- freeze_branches_reversed_with_pretraining: Pretrain then train branches in reverse order
 - two_step: Two-phase training with pretraining and main training
-- mlp_only: Train only the MLP component, then train the full model
-- dendrinet_from_mlp: Train MLP first, then use it to initialize and train the dendrinet
 - voltage_stabilization: Add voltage stabilization phase</p>
 <p>4. <strong>Command Line Arguments</strong>:
 .. code-block:: bash</p>
@@ -411,7 +440,7 @@ use_wandb: false</p>
 <div><p># Basic usage
 python src/dendritic_modeling/train_experiments.py config_exp.yaml</p>
 <p># Override learning strategy
-python src/dendritic_modeling/train_experiments.py config_exp.yaml –learning_strategy dendrinet_from_mlp</p>
+python src/dendritic_modeling/train_experiments.py config_exp.yaml –train.learning_strategy freeze_branches</p>
 <p># Enable visualization
 python src/dendritic_modeling/train_experiments.py config_exp.yaml –visualization.enabled true</p>
 </div></blockquote>
