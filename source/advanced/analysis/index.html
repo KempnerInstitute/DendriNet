@@ -6,7 +6,7 @@
   <meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
 
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Analysis and Evaluation &mdash; dendritic_modeling 0.1.0 documentation</title>
+  <title>Analysis Tools &mdash; dendritic_modeling 0.1.0 documentation</title>
       <link rel="stylesheet" type="text/css" href="../../../_static/pygments.css?v=b86133f3" />
       <link rel="stylesheet" type="text/css" href="../../../_static/css/theme.css?v=e59714d7" />
       <link rel="stylesheet" type="text/css" href="../../../_static/copybutton.css?v=76b2166b" />
@@ -20,8 +20,6 @@
       <script src="../../../_static/clipboard.min.js?v=a7894cd8"></script>
       <script src="../../../_static/copybutton.js?v=f281be69"></script>
       <script crossorigin="anonymous" integrity="sha256-Ae2Vz/4ePdIu6ZyI/5ZGsYnb+m0JlOmKPjt6XZ9JJkA=" src="https://cdnjs.cloudflare.com/ajax/libs/require.js/2.3.4/require.min.js"></script>
-      <script>window.MathJax = {"tex": {"inlineMath": [["$", "$"], ["\\(", "\\)"]], "processEscapes": true}, "options": {"ignoreHtmlClass": "tex2jax_ignore|mathjax_ignore|document", "processHtmlClass": "tex2jax_process|mathjax_process|math|output_area"}}</script>
-      <script defer="defer" src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
     <script src="../../../_static/js/theme.js"></script>
     <link rel="author" title="About these documents" href="../../../about.html" />
     <link rel="index" title="Index" href="../../../genindex.html" />
@@ -63,12 +61,9 @@
 <li class="toctree-l1"><a class="reference internal" href="../network_structures/index.html">Network Structures</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../learning/index.html">Learning Strategies</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../visualization/index.html">Visualization Guide</a></li>
-<li class="toctree-l1 current"><a class="current reference internal" href="#">Analysis and Evaluation</a><ul>
+<li class="toctree-l1 current"><a class="current reference internal" href="#">Analysis Tools</a><ul>
 <li class="toctree-l2"><a class="reference internal" href="ablation_studies.html">Ablation Studies</a></li>
-<li class="toctree-l2"><a class="reference internal" href="ablation_information_analysis.html">Ablation Studies and Information Analysis</a></li>
 <li class="toctree-l2"><a class="reference internal" href="experiment_tracking.html">Experiment Tracking and Logging</a></li>
-<li class="toctree-l2"><a class="reference internal" href="output_handling.html">Output Handling and Loss Functions</a></li>
-<li class="toctree-l2"><a class="reference internal" href="synthetic_datasets.html">Datasets and Data Utilities</a></li>
 </ul>
 </li>
 </ul>
@@ -95,7 +90,7 @@
           <div role="navigation" aria-label="Page navigation">
   <ul class="wy-breadcrumbs">
       <li><a href="../../../index.html" class="icon icon-home" aria-label="Home"></a></li>
-      <li class="breadcrumb-item active">Analysis and Evaluation</li>
+      <li class="breadcrumb-item active">Analysis Tools</li>
       <li class="wy-breadcrumbs-aside">
             <a href="../../../_sources/source/advanced/analysis/index.rst.txt" rel="nofollow"> View page source</a>
       </li>
@@ -105,29 +100,18 @@
           <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
            <div itemprop="articleBody">
              
-  <section id="analysis-and-evaluation">
-<h1>Analysis and Evaluation<a class="headerlink" href="#analysis-and-evaluation" title="Link to this heading"></a></h1>
+  <section id="analysis-tools">
+<span id="analysis"></span><h1>Analysis Tools<a class="headerlink" href="#analysis-tools" title="Link to this heading"></a></h1>
 <div class="toctree-wrapper compound">
 <p class="caption" role="heading"><span class="caption-text">Contents:</span></p>
 <ul>
 <li class="toctree-l1"><a class="reference internal" href="ablation_studies.html">Ablation Studies</a><ul>
 <li class="toctree-l2"><a class="reference internal" href="ablation_studies.html#overview">Overview</a></li>
 <li class="toctree-l2"><a class="reference internal" href="ablation_studies.html#branch-ablation">Branch Ablation</a></li>
-<li class="toctree-l2"><a class="reference internal" href="ablation_studies.html#layer-ablation">Layer Ablation</a></li>
 <li class="toctree-l2"><a class="reference internal" href="ablation_studies.html#visualizing-ablation-results">Visualizing Ablation Results</a></li>
 <li class="toctree-l2"><a class="reference internal" href="ablation_studies.html#combined-analysis">Combined Analysis</a></li>
 <li class="toctree-l2"><a class="reference internal" href="ablation_studies.html#best-practices-for-ablation-studies">Best Practices for Ablation Studies</a></li>
 <li class="toctree-l2"><a class="reference internal" href="ablation_studies.html#conclusion">Conclusion</a></li>
-</ul>
-</li>
-<li class="toctree-l1"><a class="reference internal" href="ablation_information_analysis.html">Ablation Studies and Information Analysis</a><ul>
-<li class="toctree-l2"><a class="reference internal" href="ablation_information_analysis.html#overview">Overview</a></li>
-<li class="toctree-l2"><a class="reference internal" href="ablation_information_analysis.html#ablation-studies">Ablation Studies</a></li>
-<li class="toctree-l2"><a class="reference internal" href="ablation_information_analysis.html#information-analysis">Information Analysis</a></li>
-<li class="toctree-l2"><a class="reference internal" href="ablation_information_analysis.html#combining-ablation-and-information-analysis">Combining Ablation and Information Analysis</a></li>
-<li class="toctree-l2"><a class="reference internal" href="ablation_information_analysis.html#visualizing-information-analysis-results">Visualizing Information Analysis Results</a></li>
-<li class="toctree-l2"><a class="reference internal" href="ablation_information_analysis.html#best-practices-for-ablation-and-information-analysis">Best Practices for Ablation and Information Analysis</a></li>
-<li class="toctree-l2"><a class="reference internal" href="ablation_information_analysis.html#complete-analysis-example">Complete Analysis Example</a></li>
 </ul>
 </li>
 <li class="toctree-l1"><a class="reference internal" href="experiment_tracking.html">Experiment Tracking and Logging</a><ul>
@@ -140,33 +124,6 @@
 <li class="toctree-l2"><a class="reference internal" href="experiment_tracking.html#custom-metrics-for-dendritic-networks">Custom Metrics for Dendritic Networks</a></li>
 <li class="toctree-l2"><a class="reference internal" href="experiment_tracking.html#best-practices-for-tracking">Best Practices for Tracking</a></li>
 <li class="toctree-l2"><a class="reference internal" href="experiment_tracking.html#example-using-the-tracking-system">Example: Using the Tracking System</a></li>
-</ul>
-</li>
-<li class="toctree-l1"><a class="reference internal" href="output_handling.html">Output Handling and Loss Functions</a><ul>
-<li class="toctree-l2"><a class="reference internal" href="output_handling.html#overview">Overview</a></li>
-<li class="toctree-l2"><a class="reference internal" href="output_handling.html#output-types">Output Types</a></li>
-<li class="toctree-l2"><a class="reference internal" href="output_handling.html#deterministic-vs-probabilistic-outputs">Deterministic vs. Probabilistic Outputs</a></li>
-<li class="toctree-l2"><a class="reference internal" href="output_handling.html#probabilistic-output-layers">Probabilistic Output Layers</a></li>
-<li class="toctree-l2"><a class="reference internal" href="output_handling.html#classification-with-probabilistic-outputs">Classification with Probabilistic Outputs</a></li>
-<li class="toctree-l2"><a class="reference internal" href="output_handling.html#regression-with-probabilistic-outputs">Regression with Probabilistic Outputs</a></li>
-<li class="toctree-l2"><a class="reference internal" href="output_handling.html#loss-functions">Loss Functions</a></li>
-<li class="toctree-l2"><a class="reference internal" href="output_handling.html#negative-log-likelihood-nll-loss">Negative Log Likelihood (NLL) Loss</a></li>
-<li class="toctree-l2"><a class="reference internal" href="output_handling.html#mean-squared-error-mse-loss">Mean Squared Error (MSE) Loss</a></li>
-<li class="toctree-l2"><a class="reference internal" href="output_handling.html#binary-cross-entropy-bce-loss">Binary Cross Entropy (BCE) Loss</a></li>
-<li class="toctree-l2"><a class="reference internal" href="output_handling.html#combined-loss-functions">Combined Loss Functions</a></li>
-<li class="toctree-l2"><a class="reference internal" href="output_handling.html#example-configurations">Example Configurations</a></li>
-<li class="toctree-l2"><a class="reference internal" href="output_handling.html#evaluation-metrics">Evaluation Metrics</a></li>
-<li class="toctree-l2"><a class="reference internal" href="output_handling.html#general-best-practices-for-output-handling">General Best Practices for Output Handling</a></li>
-</ul>
-</li>
-<li class="toctree-l1"><a class="reference internal" href="synthetic_datasets.html">Datasets and Data Utilities</a><ul>
-<li class="toctree-l2"><a class="reference internal" href="synthetic_datasets.html#overview">Overview</a></li>
-<li class="toctree-l2"><a class="reference internal" href="synthetic_datasets.html#dataset-configuration">Dataset Configuration</a></li>
-<li class="toctree-l2"><a class="reference internal" href="synthetic_datasets.html#standard-datasets">Standard Datasets</a></li>
-<li class="toctree-l2"><a class="reference internal" href="synthetic_datasets.html#modified-mnist-variants">Modified MNIST Variants</a></li>
-<li class="toctree-l2"><a class="reference internal" href="synthetic_datasets.html#id1">Synthetic Datasets</a></li>
-<li class="toctree-l2"><a class="reference internal" href="synthetic_datasets.html#data-utilities">Data Utilities</a></li>
-<li class="toctree-l2"><a class="reference internal" href="synthetic_datasets.html#best-practices">Best Practices</a></li>
 </ul>
 </li>
 </ul>

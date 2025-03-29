@@ -78,7 +78,7 @@
 </ul>
 </li>
 <li class="toctree-l1"><a class="reference internal" href="../visualization/index.html">Visualization Guide</a></li>
-<li class="toctree-l1"><a class="reference internal" href="../analysis/index.html">Analysis and Evaluation</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../analysis/index.html">Analysis Tools</a></li>
 </ul>
 <p class="caption" role="heading"><span class="caption-text">Contents</span></p>
 <ul>
@@ -370,8 +370,8 @@ This can help with difficult optimization landscapes.</p>
 <span class="w">  </span><span class="nt">epochs</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">50</span><span class="w">                       </span><span class="c1"># Total epochs for training</span>
 <span class="w">  </span><span class="nt">batch_size</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">128</span><span class="w">                  </span><span class="c1"># Batch size</span>
 <span class="w">  </span><span class="nt">grad_clip_value</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">5.0</span><span class="w">             </span><span class="c1"># Gradient clipping value</span>
-<span class="w">  </span><span class="nt">epochs_per_layer</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">50</span><span class="w">             </span><span class="c1"># Epochs per layer for layer-wise training</span>
-<span class="w">  </span><span class="nt">final_tune_epochs</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">10</span><span class="w">            </span><span class="c1"># Fine-tuning epochs after layer-wise training</span>
+<span class="w">  </span><span class="nt">epochs_per_branch</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">50</span><span class="w">             </span><span class="c1"># Epochs per branch for branch-wise training</span>
+<span class="w">  </span><span class="nt">final_tune_epochs</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">10</span><span class="w">            </span><span class="c1"># Fine-tuning epochs after branch-wise training</span>
 <span class="w">  </span><span class="nt">pretrain_epochs</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">50</span><span class="w">              </span><span class="c1"># Pretraining epochs (for two-step approaches)</span>
 <span class="w">  </span><span class="nt">warmup_epochs</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">5</span><span class="w">                 </span><span class="c1"># Warmup epochs for voltage stabilization</span>
 <span class="w">  </span><span class="nt">stability_target_voltage</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">0.5</span><span class="w">    </span><span class="c1"># Target voltage for stabilization</span>

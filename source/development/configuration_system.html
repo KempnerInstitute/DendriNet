@@ -59,7 +59,7 @@
 <li class="toctree-l1"><a class="reference internal" href="../advanced/network_structures/index.html">Network Structures</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../advanced/learning/index.html">Learning Strategies</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../advanced/visualization/index.html">Visualization Guide</a></li>
-<li class="toctree-l1"><a class="reference internal" href="../advanced/analysis/index.html">Analysis and Evaluation</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../advanced/analysis/index.html">Analysis Tools</a></li>
 </ul>
 <p class="caption" role="heading"><span class="caption-text">Contents</span></p>
 <ul>
@@ -271,9 +271,9 @@
 <span class="w">  </span><span class="nt">batch_size</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">64</span><span class="w">  </span><span class="c1"># Batch size</span>
 <span class="w">  </span><span class="nt">grad_clip_value</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">1.0</span><span class="w">  </span><span class="c1"># Gradient clipping value</span>
 
-<span class="w">  </span><span class="c1"># Layer-wise and branch-wise training parameters</span>
-<span class="w">  </span><span class="nt">epochs_per_layer</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">20</span><span class="w">  </span><span class="c1"># Epochs per layer/branch for layer/branch-wise training</span>
-<span class="w">  </span><span class="nt">final_tune_epochs</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">10</span><span class="w">  </span><span class="c1"># Final fine-tuning epochs after layer/branch-wise training</span>
+<span class="w">  </span><span class="c1"># Branch-wise training parameters</span>
+<span class="w">  </span><span class="nt">epochs_per_branch</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">20</span><span class="w">        </span><span class="c1"># Number of epochs to train each branch</span>
+<span class="w">  </span><span class="nt">final_tune_epochs</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">10</span><span class="w">        </span><span class="c1"># Final fine-tuning epochs</span>
 
 <span class="w">  </span><span class="c1"># Pretraining parameters</span>
 <span class="w">  </span><span class="nt">pretrain_epochs</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">10</span><span class="w">  </span><span class="c1"># Pretraining epochs for strategies with pretraining</span>
@@ -297,29 +297,23 @@
 <p>The framework supports several learning strategies, specified by the <code class="docutils literal notranslate"><span class="pre">learning_strategy</span></code> parameter:</p>
 <ol class="arabic simple">
 <li><p><strong>MLE</strong> (<code class="docutils literal notranslate"><span class="pre">mle</span></code>): Standard end-to-end training</p></li>
-<li><p><strong>Freeze Layers</strong> (<code class="docutils literal notranslate"><span class="pre">freeze_layers</span></code>): Train layers sequentially from soma to input</p></li>
-<li><p><strong>Freeze Layers Reversed</strong> (<code class="docutils literal notranslate"><span class="pre">freeze_layers_reversed</span></code>): Train layers sequentially from input to soma</p></li>
-<li><p><strong>Freeze Layers with Pretraining</strong> (<code class="docutils literal notranslate"><span class="pre">freeze_layers_with_pretraining</span></code>): Pretrain full network, then train layers from soma to input</p></li>
-<li><p><strong>Freeze Layers Reversed with Pretraining</strong> (<code class="docutils literal notranslate"><span class="pre">freeze_layers_reversed_with_pretraining</span></code>): Pretrain full network, then train layers from input to soma</p></li>
-<li><p><strong>Freeze Branches</strong> (<code class="docutils literal notranslate"><span class="pre">freeze_branches</span></code>): Train branches sequentially from soma to input</p></li>
-<li><p><strong>Freeze Branches Reversed</strong> (<code class="docutils literal notranslate"><span class="pre">freeze_branches_reversed</span></code>): Train branches sequentially from input to soma</p></li>
-<li><p><strong>Freeze Branches with Pretraining</strong> (<code class="docutils literal notranslate"><span class="pre">freeze_branches_with_pretraining</span></code>): Pretrain full network, then train branches from soma to input</p></li>
-<li><p><strong>Freeze Branches Reversed with Pretraining</strong> (<code class="docutils literal notranslate"><span class="pre">freeze_branches_reversed_with_pretraining</span></code>): Pretrain full network, then train branches from input to soma</p></li>
-<li><p><strong>Local Credit Assignment</strong> (<code class="docutils literal notranslate"><span class="pre">local_credit_assignment</span></code>): Train with locally-computed gradients</p></li>
-<li><p><strong>Two-Step</strong> (<code class="docutils literal notranslate"><span class="pre">two_step</span></code>): Train auxiliary network before full model</p></li>
-<li><p><strong>Two-Step with KL</strong> (<code class="docutils literal notranslate"><span class="pre">two_step_kl</span></code>): Train auxiliary network with KL regularization</p></li>
+<li><p><strong>Freeze Branches</strong> (<code class="docutils literal notranslate"><span class="pre">freeze_branches</span></code>): Train branches sequentially from soma to distal branches</p></li>
+<li><p><strong>Freeze Branches Reversed</strong> (<code class="docutils literal notranslate"><span class="pre">freeze_branches_reversed</span></code>): Train branches sequentially from distal branches to soma</p></li>
+<li><p><strong>Freeze Branches with Pretraining</strong> (<code class="docutils literal notranslate"><span class="pre">freeze_branches_with_pretraining</span></code>): Pretrain full network, then train branches from soma to distal</p></li>
+<li><p><strong>Freeze Branches Reversed with Pretraining</strong> (<code class="docutils literal notranslate"><span class="pre">freeze_branches_reversed_with_pretraining</span></code>): Pretrain full network, then train branches from distal to soma</p></li>
+<li><p><strong>Two-Step</strong> (<code class="docutils literal notranslate"><span class="pre">two_step</span></code>): Two-phase training approach</p></li>
 <li><p><strong>Voltage Stabilization</strong> (<code class="docutils literal notranslate"><span class="pre">voltage_stabilization</span></code>): Include warm-up phase to stabilize activations</p></li>
 </ol>
 </section>
 <section id="strategy-examples">
 <h3>Strategy Examples<a class="headerlink" href="#strategy-examples" title="Link to this heading"></a></h3>
 <p>Here are examples of configuration sections for different learning strategies:</p>
-<p><strong>Freeze Layers with Pretraining</strong>:</p>
+<p><strong>Freeze Branches with Pretraining</strong>:</p>
 <div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">train</span><span class="p">:</span>
-<span class="w">  </span><span class="nt">learning_strategy</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">freeze_layers_with_pretraining</span>
+<span class="w">  </span><span class="nt">learning_strategy</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">freeze_branches_with_pretraining</span>
 <span class="w">  </span><span class="nt">epochs</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">60</span><span class="w">  </span><span class="c1"># Total epochs</span>
 <span class="w">  </span><span class="nt">pretrain_epochs</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">10</span><span class="w">  </span><span class="c1"># Phase 1: Full network training</span>
-<span class="w">  </span><span class="nt">epochs_per_layer</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">20</span><span class="w">  </span><span class="c1"># Phase 2: Per-layer training</span>
+<span class="w">  </span><span class="nt">epochs_per_branch</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">20</span><span class="w">  </span><span class="c1"># Phase 2: Per-branch training</span>
 <span class="w">  </span><span class="nt">final_tune_epochs</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">10</span><span class="w">  </span><span class="c1"># Phase 3: Final fine-tuning</span>
 </pre></div>
 </div>
@@ -327,7 +321,7 @@
 <div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">train</span><span class="p">:</span>
 <span class="w">  </span><span class="nt">learning_strategy</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">freeze_branches_reversed</span>
 <span class="w">  </span><span class="nt">epochs</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">50</span><span class="w">  </span><span class="c1"># Total epochs</span>
-<span class="w">  </span><span class="nt">epochs_per_layer</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">20</span><span class="w">  </span><span class="c1"># Per-branch training (parameter name is reused)</span>
+<span class="w">  </span><span class="nt">epochs_per_branch</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">20</span><span class="w">  </span><span class="c1"># Per-branch training (parameter name is reused)</span>
 <span class="w">  </span><span class="nt">final_tune_epochs</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">10</span><span class="w">  </span><span class="c1"># Final fine-tuning</span>
 </pre></div>
 </div>
@@ -456,6 +450,15 @@
 </pre></div>
 </div>
 <p>This allows for flexible experimentation while maintaining reproducibility.</p>
+<p># Development parameters
+development_mode: false        # Enable development mode for extra logging
+profiling: false               # Enable profiling for performance analysis</p>
+<p># Experiment parameters
+seed: 42                       # Random seed for reproducibility
+device: ‘auto’                 # ‘auto’, ‘cpu’, ‘cuda’, ‘cuda:0’, etc.</p>
+<p># Branch-wise training parameters
+epochs_per_branch: 20        # Number of epochs to train each branch
+final_tune_epochs: 10        # Final fine-tuning epochs</p>
 </section>
 </section>
 

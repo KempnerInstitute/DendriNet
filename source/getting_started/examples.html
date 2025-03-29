@@ -82,7 +82,7 @@
 <li class="toctree-l1"><a class="reference internal" href="../advanced/network_structures/index.html">Network Structures</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../advanced/learning/index.html">Learning Strategies</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../advanced/visualization/index.html">Visualization Guide</a></li>
-<li class="toctree-l1"><a class="reference internal" href="../advanced/analysis/index.html">Analysis and Evaluation</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../advanced/analysis/index.html">Analysis Tools</a></li>
 </ul>
 <p class="caption" role="heading"><span class="caption-text">Contents</span></p>
 <ul>
@@ -400,11 +400,11 @@ use_wandb: false</p>
 </div></blockquote>
 <p>3. <strong>Available Learning Strategies</strong>:
 - mle: Standard Maximum Likelihood Estimation (default)
-- freeze_layers: Train one layer at a time, freezing others
+- freeze_branches: Train branches sequentially
 - two_step: Two-phase training with pretraining and main training
 - mlp_only: Train only the MLP component, then train the full model
 - dendrinet_from_mlp: Train MLP first, then use it to initialize and train the dendrinet
-- voltage_stabilization: Add a warm-up phase that stabilizes voltages to a target</p>
+- voltage_stabilization: Add voltage stabilization phase</p>
 <p>4. <strong>Command Line Arguments</strong>:
 .. code-block:: bash</p>
 <blockquote>

@@ -14,7 +14,6 @@ The dendritic modeling framework provides specialized tools for conducting ablat
 
 1. **Branch ablation**: Removing individual dendritic branches
 2. **Layer ablation**: Removing entire layers of branches
-3. **Feature ablation**: Removing specific input features
 
 These studies help identify which components are essential for performance and which components are specialized for specific inputs or tasks.
 
@@ -111,69 +110,82 @@ Here's an example of how to conduct a branch ablation study:
     for branch_id, imp in most_important:
         print(f"Branch {branch_id}: Importance = {imp:.4f}")
 
-Layer Ablation
---------------
+Layer-wise Ablation Analysis
+~~~~~~~~~~~~~~~~~~~~~~~
 
-Layer ablation involves analyzing entire layers of branches to understand the contribution of each layer to performance.
-
-Layer Ablation Functions
-~~~~~~~~~~~~~~~~~~~~~~~~
-
-The framework provides a layer-wise ablation analysis function:
+The framework provides a layerwise ablation analysis function:
 
 .. code-block:: python
 
-    def analyze_layerwise_ablation(model, dataset, train_data=None, valid_data=None, 
-                                   test_data=None, save_path=None, device='cuda'):
+    def analyze_layerwise_ablation(model, dataset, train_data=None, valid_data=None,
+                                 ablation_mode='direct', device='cpu'):
         """
-        Perform ablation analysis for each layer.
+        Analyze the impact of ablating each layer on the model's performance.
         
         Parameters
         ----------
-        model : torch.nn.Module
-            The model to analyze
+        model : nn.Module
+            A trained model to analyze.
         dataset : torch.utils.data.Dataset
-            Dataset to evaluate on
+            Test dataset for evaluation.
         train_data : torch.utils.data.Dataset, optional
-            Training dataset
+            Training dataset, used only if retraining is needed.
         valid_data : torch.utils.data.Dataset, optional
-            Validation dataset
-        test_data : torch.utils.data.Dataset, optional
-            Test dataset
-        save_path : str, optional
-            Path to save results
+            Validation dataset, used only if retraining is needed.
+        ablation_mode : str
+            The ablation mode to use. Options: 'direct', 'indirect', 'retrain'.
+            'direct': Simply zero out the layer's outputs.
+            'indirect': Replace the layer with a pass-through.
+            'retrain': Retrain the network with the layer fixed at initialization.
         device : str
-            Device to use for computation
+            Device to use for computation.
+            
+        Returns
+        -------
+        dict
+            Dictionary with ablation results, including baseline accuracy and 
+            accuracy drop for each layer.
         """
+        ...
 
-This function analyzes each layer in the network and measures performance, helping identify the layers that are most important for the task.
-
-Example: Layer Ablation
-~~~~~~~~~~~~~~~~~~~~~~~
-
-Here's an example of how to conduct a layer ablation study:
+To use this function in your analysis:
 
 .. code-block:: python
 
     from dendritic_modeling.utils import analyze_layerwise_ablation
     
-    # Load model and dataset
-    model = torch.load("path/to/model.pt")
-    
-    # Perform layer ablation analysis
-    analyze_layerwise_ablation(
-        model, 
-        dataset=None,
-        train_data=train_ds, 
-        valid_data=valid_ds, 
-        test_data=test_ds,
-        save_path="./ablation_results",
+    # Run layerwise ablation analysis
+    results = analyze_layerwise_ablation(
+        model=trained_model, 
+        dataset=test_dataset,
+        ablation_mode='direct',
         device='cuda'
     )
     
-    # Results are saved to the specified save_path
+    # Print results
+    print(f"Baseline accuracy: {results['baseline_acc']:.4f}")
+    for i, acc_drop in enumerate(results['accuracy_drops']):
+        print(f"Layer {i} ablation: accuracy drop = {acc_drop:.4f}")
 
-This code performs analysis for each layer in the network and saves the results to the specified directory.
+This can help identify which layers are most critical to model performance, providing insights into the hierarchical processing structure of the network.
+
+Example for visualizing layerwise ablation results:
+
+.. code-block:: python
+
+    import matplotlib.pyplot as plt
+    import numpy as np
+    
+    # Plot results
+    plt.figure(figsize=(10, 6))
+    plt.bar(range(len(results['accuracy_drops'])), results['accuracy_drops'])
+    plt.xlabel('Layer Index')
+    plt.ylabel('Accuracy Drop')
+    plt.title('Impact of Layer Ablation on Performance')
+    plt.xticks(range(len(results['accuracy_drops'])))
+    plt.grid(axis='y', linestyle='--', alpha=0.7)
+    plt.tight_layout()
+    plt.show()
 
 Visualizing Ablation Results
 ----------------------------
