@@ -309,6 +309,177 @@ their contribution to the network's overall performance.
         plt.tight_layout()
         return fig
 
+Dendritic Order Ablation
+~~~~~~~~~~~~~~~~~~~~~~~~
+
+The framework provides a built-in visualization for analyzing the impact of ablating entire dendritic orders (primary, secondary, etc.). This can be enabled in your configuration:
+
+.. code-block:: yaml
+
+    visualization:
+      enabled: true
+      plots:
+        - dendritic_ablation_all  # Ablation analysis by dendritic order
+
+This visualization systematically ablates the excitatory and inhibitory branches at each dendritic order and measures the resulting performance drop:
+
+.. code-block:: python
+
+    from dendritic_modeling.utils import analyze_branch_ablation, measure_performance
+    import matplotlib.pyplot as plt
+    import numpy as np
+    import pandas as pd
+    
+    def plot_dendritic_ablation_all(model, dataset, device='cuda'):
+        """Plot the impact of ablating different dendritic orders"""
+        
+        # Perform dendritic order ablation
+        results = analyze_branch_ablation(
+            model, dataset, layer_idx=None, branch_ids=None, device=device
+        )
+        
+        # Calculate baseline accuracy
+        baseline_acc = measure_performance(model, dataset, device=device)
+        
+        # Calculate percentage drops
+        exc_pct = [(drop / baseline_acc) * 100 for drop in results["exc_drop"]]
+        inh_pct = [(drop / baseline_acc) * 100 for drop in results["inh_drop"]]
+        
+        # Create DataFame
+        df = pd.DataFrame({
+            'Order': results['order'],
+            'Excitatory Drop (%)': exc_pct,
+            'Inhibitory Drop (%)': inh_pct
+        })
+        
+        # Create visualization
+        plt.figure(figsize=(10, 6))
+        plt.plot(df['Order'], df['Excitatory Drop (%)'], 'b-', label='Excitatory')
+        plt.plot(df['Order'], df['Inhibitory Drop (%)'], 'r-', label='Inhibitory')
+        
+        plt.xlabel('Dendritic Order')
+        plt.ylabel('Performance Drop (%)')
+        plt.title('Impact of Ablating Dendritic Orders')
+        plt.legend()
+        plt.grid(True)
+        
+        return plt.gcf(), df
+
+The resulting visualization reveals:
+1. The relative importance of each dendritic order
+2. Which orders are most critical for performance
+3. The differential contributions of excitatory vs. inhibitory pathways
+
+Dendritic Information Analysis
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Another powerful visualization is the dendritic information analysis, which quantifies how much task-relevant information is contained in each dendritic order:
+
+.. code-block:: yaml
+
+    visualization:
+      enabled: true
+      plots:
+        - dendritic_information_inputs    # Information content in raw branch inputs
+        - dendritic_information_activations  # Information content in processed branch outputs
+
+This visualization now comes in two types:
+
+1. **dendritic_information_inputs**: Analyzes information in the raw inputs to branches (pre-shunting)
+2. **dendritic_information_activations**: Analyzes information in the processed branch outputs (post-shunting)
+
+Each visualization:
+1. Extracts branch activations at each dendritic order
+2. Trains simple MLP classifiers to predict labels from these activations
+3. Uses classification accuracy as a proxy for information content
+4. Creates visualizations showing information content across dendritic orders
+
+.. code-block:: python
+
+    from dendritic_modeling.utils import analyze_dendritic_information
+    import matplotlib.pyplot as plt
+    import numpy as np
+    
+    def plot_dendritic_information_inputs(model, dataset, device='cuda'):
+        """Visualize information content in raw dendritic inputs"""
+        
+        # Analyze information content in branch inputs (pre-shunting)
+        results = analyze_dendritic_information(
+            model=model,
+            dataset=dataset,
+            device=device,
+            mlp_hidden_dims=[100, 50],
+            training_epochs=20,
+            batch_size=64,
+            use_post_shunting=False  # Analyze raw inputs
+        )
+        
+        # Extract results
+        depth_names = results["branch_depths"]
+        exc_acc = np.array([acc if acc is not None else np.nan for acc in results["exc_accuracy"]])
+        inh_acc = np.array([acc if acc is not None else np.nan for acc in results["inh_accuracy"]])
+        combined_acc = np.array([acc if acc is not None else np.nan for acc in results["combined_accuracy"]])
+        
+        # Create visualization
+        fig, ax = plt.subplots(figsize=(10, 6))
+        x = np.arange(len(depth_names))
+        width = 0.25
+        
+        # Plot each type of accuracy (only if data exists)
+        if not np.all(np.isnan(exc_acc)):
+            ax.bar(x - width, exc_acc, width, label='Excitatory Inputs', color='blue', alpha=0.7)
+        if not np.all(np.isnan(inh_acc)):
+            ax.bar(x, inh_acc, width, label='Inhibitory Inputs', color='red', alpha=0.7)
+        if not np.all(np.isnan(combined_acc)):
+            ax.bar(x + width, combined_acc, width, label='Combined Inputs', color='purple', alpha=0.7)
+        
+        # Add labels and title
+        ax.set_xlabel('Branch Depth')
+        ax.set_ylabel('Classification Accuracy')
+        ax.set_title('Information Content in Branch Inputs (Pre-Shunting)')
+        ax.set_xticks(x)
+        ax.set_xticklabels(depth_names)
+        ax.legend()
+        
+        return fig, results
+        
+    def plot_dendritic_information_activations(model, dataset, device='cuda'):
+        """Visualize information content in processed dendritic outputs"""
+        
+        # Analyze information content in branch outputs (post-shunting)
+        results = analyze_dendritic_information(
+            model=model,
+            dataset=dataset,
+            device=device,
+            mlp_hidden_dims=[100, 50],
+            training_epochs=20,
+            batch_size=64,
+            use_post_shunting=True  # Analyze processed outputs
+        )
+        
+        # Extract results
+        depth_names = results["branch_depths"]
+        activation_acc = np.array([acc if acc is not None else np.nan for acc in results["exc_accuracy"]])
+        
+        # Create visualization
+        fig, ax = plt.subplots(figsize=(10, 6))
+        x = np.arange(len(depth_names))
+        width = 0.4
+        
+        # Plot activation accuracy (only if data exists)
+        if not np.all(np.isnan(activation_acc)):
+            ax.bar(x, activation_acc, width, label='Branch Activations', color='green', alpha=0.7)
+        
+        # Add labels and title
+        ax.set_xlabel('Branch Depth')
+        ax.set_ylabel('Classification Accuracy')
+        ax.set_title('Information Content in Branch Outputs (Post-Shunting)')
+        ax.set_xticks(x)
+        ax.set_xticklabels(depth_names)
+        ax.legend()
+        
+        return fig, results
+
 Advanced Visualization Topics
 -----------------------------
 

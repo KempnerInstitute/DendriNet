@@ -1,18 +1,18 @@
 model:
   task: classification
-  probabilistic: true  # This is only for the final EINet model
+  probabilistic: false  # This is only for the final EINet model
   network:
     type: EINet #"EINet", "MLP"
     parameters:
       excitatory_layer_sizes: [10] 
-      inhibitory_layer_sizes: [20]
-      excitatory_branch_factors: [2,2] 
+      inhibitory_layer_sizes: [40]
+      excitatory_branch_factors: [6,6] 
       inhibitory_branch_factors: []
-      reactivate: true
+      reactivate: false
       somatic_synapses: true
-      ee_synapses_per_branch_per_layer: [24]
+      ee_synapses_per_branch_per_layer: [100]
       ei_synapses_per_branch_per_layer: [200]
-      ie_synapses_per_branch_per_layer: [2]
+      ie_synapses_per_branch_per_layer: [10]
       ii_synapses_per_branch_per_layer: [0]
       topk_init_method: xavier_normal
 
@@ -35,8 +35,7 @@ model:
         output_dim: 128             # Output dimension for both excitatory and inhibitory pathways
         
 train:
-  learning_strategy: mle #"mle", "freeze_layers", "local_credit_assignment", "two_step", "two_step_kl"
-  run_name: mnist_einet
+  learning_strategy: mle # Options: "mle", "freeze_layers", "local_credit_assignment", "two_step", "two_step_kl", "voltage_stabilization"
   seed: 0 
   train_valid_split: 0.8
   lr: 0.01  # Standard learning rate for Adam
@@ -44,7 +43,12 @@ train:
   batch_size: 1024  # Smaller batch size for better generalization
   grad_clip_value: 5  # Reasonable gradient clipping
   epochs_per_layer: 50  ## this is only for "freeze_layers" and any other method which has sequential single layer training
-  pretrain_epochs: 10   ## for "two_step"
+  final_tune_epochs: 10  ## Number of epochs for final fine-tuning after layer-by-layer training
+  
+  # Parameters for two_step and voltage_stabilization strategies
+  warmup_epochs: 1  # or however many you want
+  stability_target_voltage: 0.5  # the target "voltage"
+
   weight_decay_rate: 0.1  # Standard weight decay
   # Input network training configuration
   input_net_training:
@@ -67,7 +71,7 @@ train:
       pytorch_model: ""        # Name of PyTorch model if source is "pytorch"
       
 task:
-  dataset: mnist #mnist, cifar10
+  dataset: random_flip_mnist #mnist, cifar10, mnist_modulo10, random_flip_mnist
   data_path: 
   parameters: {}
   # dataset: "line", "center_surround", "orientation_bars", "multi_xor", "mnist", "mnist_modulo10", "mnist_switch2",
@@ -79,12 +83,12 @@ task:
   #   test_size:  1000
   #   image_size: 16   # relevant for orientation_bars
   #   n_orient_classes: 8
-
+    
 wandb:
   entity: 
-  project: 
-  group: 
-  tags: 
+  project: "dendritic_cifar10"
+  group: "debug"
+  tags: [cifar10]
   use_wandb: false
   
 visualization:
