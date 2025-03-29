@@ -163,27 +163,32 @@ The framework includes tools for information-theoretic analysis of branch behavi
 Branch Mutual Information
 ^^^^^^^^^^^^^^^^^^^^^^^^^
 
-The ``compute_branch_info`` function calculates various information metrics for branch activations:
+The ``analyze_dendritic_information`` function calculates various information metrics for branch activations:
 
 .. code-block:: python
 
-    def compute_branch_info(activations, labels, n_bins=10):
+    def analyze_dendritic_information(model, dataset, device='cuda',
+                                      use_post_shunting=False, output_format='auto'):
         """
-        Estimate information metrics between branch activations and labels.
+        Analyze dendritic information metrics for a trained model.
         
         Parameters
         ----------
-        activations : torch.Tensor
-            Activation values
-        labels : torch.Tensor
-            Label values
-        n_bins : int
-            Number of bins for discretization
+        model : torch.nn.Module
+            The trained model.
+        dataset : torch.utils.data.Dataset
+            The dataset to evaluate on.
+        device : str
+            Device to perform computation on ('cuda' or 'cpu').
+        use_post_shunting : bool
+            Whether to use activations after potential shunting.
+        output_format : str
+            'auto', 'legacy', or 'new'. Specifies the output dictionary format.
             
         Returns
         -------
         dict
-            Dictionary containing information metrics
+            Dictionary containing various information metrics like mutual information, entropy, etc.
         """
 
 This function helps quantify how much information about the class labels is present in each branch's activation.
@@ -232,7 +237,7 @@ The ``analyze_layerwise_ablation`` function performs ablation at the layer level
 
 .. code-block:: python
 
-    def analyze_layerwise_ablation(model, dataset, ablation_mode='direct', device='cpu'):
+    def analyze_layerwise_ablation(model, dataset, train_data=None, valid_data=None, test_data=None, save_path=None, device='cuda'):
         """
         Perform ablation analysis for each layer in the model.
         
@@ -241,18 +246,22 @@ The ``analyze_layerwise_ablation`` function performs ablation at the layer level
         model : torch.nn.Module
             The model to analyze
         dataset : torch.utils.data.Dataset
-            Dataset to evaluate on
-        ablation_mode : str
-            Ablation mode: 'direct' or 'indirect'
-        device : str
-            Device to use for computation
+            Main dataset for evaluation
+        train_data : torch.utils.data.Dataset, optional
+            Training dataset (used for retraining mode if applicable)
+        valid_data : torch.utils.data.Dataset, optional
+            Validation dataset (used for retraining mode if applicable)
+        test_data : torch.utils.data.Dataset, optional
+            Test dataset for evaluation
+        save_path : str, optional
+            Path to save results
+        device : str, default='cuda'
+            Device to use for computation ('cuda' or 'cpu')
             
         Returns
         -------
         dict
-            Dictionary containing ablation results including:
-            - baseline_acc: Accuracy before ablation
-            - accuracy_drops: List of accuracy drops per layer
+            Dictionary containing ablation results including accuracy per layer.
         """
 
 This function helps understand the importance of each layer in the dendritic network.
