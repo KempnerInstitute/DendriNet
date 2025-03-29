@@ -60,7 +60,7 @@ Key features of MLE training:
 - Optimizes all parameters simultaneously
 - Applies gradient clipping to prevent instability
 - Monitors validation performance for early stopping
-- Supports both probabilistic and deterministic models
+- Supports both standard and dendritic network models
 
 Freeze Branches Strategy
 ------------------------
@@ -81,7 +81,7 @@ independently, a final fine-tuning phase trains the full network end-to-end for 
         model=model,
         train_data=train_ds,
         valid_data=valid_ds,
-        epochs_per_branch=20,
+        epochs_per_layer=20,
         batch_size=128,
         final_tune_epochs=10  # Final fine-tuning with all branches unfrozen
     )
@@ -117,7 +117,7 @@ full-network training phase before the branch-by-branch training:
         train_data=train_ds,
         valid_data=valid_ds,
         pretrain_epochs=10,     # Initial full network training
-        epochs_per_branch=20,   # Per-branch training
+        epochs_per_layer=20,   # Per-branch training
         batch_size=128,
         final_tune_epochs=10    # Final fine-tuning with all branches unfrozen
     )
@@ -149,7 +149,7 @@ toward the soma. This approach follows the biological flow of information in den
         model=model,
         train_data=train_ds,
         valid_data=valid_ds,
-        epochs_per_branch=20,
+        epochs_per_layer=20,
         batch_size=128,
         final_tune_epochs=10  # Final fine-tuning with all branches unfrozen
     )
@@ -184,7 +184,7 @@ This strategy combines the benefits of initial full-network training with the re
         train_data=train_ds,
         valid_data=valid_ds,
         pretrain_epochs=10,     # Initial full network training
-        epochs_per_branch=20,   # Per-branch training
+        epochs_per_layer=20,   # Per-branch training
         batch_size=128,
         final_tune_epochs=10    # Final fine-tuning with all branches unfrozen
     )
@@ -276,8 +276,8 @@ The following configuration parameters are available in the `train` section:
       epochs: 50                       # Total epochs for training
       batch_size: 128                  # Batch size
       grad_clip_value: 5.0             # Gradient clipping value
-      epochs_per_branch: 50             # Epochs per branch for branch-wise training
-      final_tune_epochs: 10            # Fine-tuning epochs after branch-wise training
+      epochs_per_layer: 50            # Epochs per layer for layer-wise training
+      final_tune_epochs: 10            # Fine-tuning epochs after layer-wise training
       pretrain_epochs: 50              # Pretraining epochs (for two-step approaches)
       warmup_epochs: 5                 # Warmup epochs for voltage stabilization
       stability_target_voltage: 0.5    # Target voltage for stabilization
