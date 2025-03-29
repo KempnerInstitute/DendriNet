@@ -16,10 +16,21 @@ The framework provides several learning strategies tailored to the unique charac
 of dendritic networks:
 
 1. **Maximum Likelihood Estimation (MLE)**: Standard end-to-end training
-2. **Freeze Branches**: Sequential branch-by-branch training within dendritic trees
-3. **Local Credit Assignment**: Training with locally-computed gradients
-4. **Two-Step Training**: Pre-training an auxiliary network before the full model
-5. **Two-Step Training with KL Divergence**: Similar to two-step, but with KL regularization
+2. **Freeze Branches**: Training branches sequentially from soma to distal branches
+3. **Freeze Branches Reversed**: Training branches sequentially from distal branches to soma
+4. **Freeze Branches with Pretraining**: Initial full-network training followed by branch-wise training from soma to distal
+5. **Freeze Branches Reversed with Pretraining**: Initial full-network training followed by branch-wise training from distal to soma
+6. **Two-Step Training**: Pre-training followed by main training
+7. **Voltage Stabilization**: Initial voltage stabilization phase followed by main training
+
+You can select the learning strategy in your configuration file:
+
+.. code-block:: yaml
+
+    train:
+      learning_strategy: "mle"  # Choices: mle, freeze_branches, freeze_branches_reversed, 
+                                # freeze_branches_with_pretraining, freeze_branches_reversed_with_pretraining,
+                                # two_step, voltage_stabilization
 
 Maximum Likelihood Estimation (MLE)
 -----------------------------------
@@ -50,10 +61,6 @@ Key features of MLE training:
 - Applies gradient clipping to prevent instability
 - Monitors validation performance for early stopping
 - Supports both probabilistic and deterministic models
-
-.. note::
-   The TrainerMLE class also includes a placeholder for SimCLR contrastive learning 
-   (train_simclr method), which will be implemented in future versions.
 
 Freeze Branches Strategy
 ------------------------
@@ -190,174 +197,11 @@ Key benefits of this approach:
 - May be particularly effective for complex dendritic networks
 - Reduces risk of catastrophic forgetting during branch-specific training
 
-Local Credit Assignment
------------------------
-
-The local credit assignment strategy trains each layer with a locally-computed loss,
-reducing reliance on backpropagating gradients through the entire network.
-
-.. code-block:: python
-
-    # Example of using local credit assignment
-    from dendritic_modeling.learning_strategies import LocalCreditAssignment
-    
-    optimizer = torch.optim.Adam(model.parameters(), lr=0.001)
-    trainer = LocalCreditAssignment(optimizer)
-    
-    results = trainer.train(
-        model=model,
-        train_data=train_ds,
-        valid_data=valid_ds,
-        epochs=50,
-        batch_size=128
-    )
-
-Key characteristics:
-
-- Computes local targets for each layer
-- Applies a weighted combination of local and global losses
-- More biologically plausible learning approach
-- Well-suited for networks with many layers
-
-Freeze Layers Strategy
----------------------
-
-The freeze layers strategy trains the dendritic network one layer at a time, starting from the
-layer closest to the soma (output) and progressively moving to layers closer to the input.
-After training all layers independently, a final fine-tuning phase trains the full network end-to-end.
-
-.. code-block:: python
-
-    # Example of using freeze layers trainer
-    from dendritic_modeling.learning_strategies import TrainerMLE
-    
-    optimizer = torch.optim.Adam(model.parameters(), lr=0.001)
-    trainer = TrainerMLE(optimizer)
-    
-    results = trainer.train_freeze_layers_by_layer(
-        model=model,
-        train_data=train_ds,
-        valid_data=valid_ds,
-        epochs_per_layer=20,
-        batch_size=128,
-        final_tune_epochs=10  # Final fine-tuning with all layers unfrozen
-    )
-
-Key benefits of the freeze layers approach:
-
-- Provides a structured approach to training complex dendritic networks
-- Focuses on one layer at a time, allowing more effective learning of each layer's representations
-- Follows a soma-to-input training sequence (proximal to distal)
-- Reduces interference between different layers during training
-- Includes a final fine-tuning phase to integrate all layers
-
-Freeze Layers with Pretraining Strategy
---------------------------------------
-
-The freeze layers with pretraining strategy enhances the standard freeze layers approach by adding an initial
-full-network training phase before the layer-by-layer training:
-
-1. Initial full-network training: Train all layers together for pretrain_epochs
-2. Layer-by-layer training: Train each layer sequentially from soma to input (proximal to distal)
-3. Final fine-tuning: Train the full network end-to-end
-
-.. code-block:: python
-
-    # Example of using freeze layers with pretraining trainer
-    from dendritic_modeling.learning_strategies import TrainerMLE
-    
-    optimizer = torch.optim.Adam(model.parameters(), lr=0.001)
-    trainer = TrainerMLE(optimizer)
-    
-    results = trainer.train_freeze_layers_with_pretraining(
-        model=model,
-        train_data=train_ds,
-        valid_data=valid_ds,
-        pretrain_epochs=10,     # Initial full network training
-        epochs_per_layer=20,   # Per-layer training
-        batch_size=128,
-        final_tune_epochs=10    # Final fine-tuning with all layers unfrozen
-    )
-
-Key benefits of this approach:
-
-- Provides better initialization through initial whole-network training
-- Reduces the risk of getting stuck in poor local optima during layer-specific training
-- Establishes a baseline of feature representations across the entire network before specializing
-- Combines the benefits of joint and layer-wise training
-
-Freeze Layers Reversed Strategy
------------------------------
-
-The freeze layers reversed strategy is similar to the freeze layers strategy, but trains the network
-in the opposite direction: starting from the layers closest to the input and progressively moving
-toward the soma (output). This approach follows the biological flow of information in neural networks.
-
-.. code-block:: python
-
-    # Example of using freeze layers reversed trainer
-    from dendritic_modeling.learning_strategies import TrainerMLE
-    
-    optimizer = torch.optim.Adam(model.parameters(), lr=0.001)
-    trainer = TrainerMLE(optimizer)
-    
-    results = trainer.train_freeze_layers_reversed_by_layer(
-        model=model,
-        train_data=train_ds,
-        valid_data=valid_ds,
-        epochs_per_layer=20,
-        batch_size=128,
-        final_tune_epochs=10  # Final fine-tuning with all layers unfrozen
-    )
-
-Key benefits of the freeze layers reversed approach:
-
-- Follows the natural flow of information in neural networks (from input to output)
-- Establishes good feature extractors near the input before training deeper layers
-- May be more effective for networks with strong hierarchical structure
-- More biologically plausible learning sequence
-- Includes a final fine-tuning phase for integrating all layers
-
-Freeze Layers Reversed with Pretraining Strategy
-----------------------------------------------
-
-This strategy combines the benefits of initial full-network training with the reversed layer-by-layer training:
-
-1. Initial full-network training: Train all layers together for pretrain_epochs
-2. Layer-by-layer training: Train each layer sequentially from input to soma
-3. Final fine-tuning: Train the full network end-to-end
-
-.. code-block:: python
-
-    # Example of using freeze layers reversed with pretraining trainer
-    from dendritic_modeling.learning_strategies import TrainerMLE
-    
-    optimizer = torch.optim.Adam(model.parameters(), lr=0.001)
-    trainer = TrainerMLE(optimizer)
-    
-    results = trainer.train_freeze_layers_reversed_with_pretraining(
-        model=model,
-        train_data=train_ds,
-        valid_data=valid_ds,
-        pretrain_epochs=10,     # Initial full network training
-        epochs_per_layer=20,   # Per-layer training
-        batch_size=128,
-        final_tune_epochs=10    # Final fine-tuning with all layers unfrozen
-    )
-
-Key benefits of this approach:
-
-- Combines whole-network pretraining with biologically-inspired training direction
-- Layers near the input get focused training after a good initialization
-- Following the information flow improves gradient propagation
-- Particularly effective for deep networks or networks with many branches
-- Provides both global and local optimization
-
 Two-Step Training
------------------
+----------------
 
-The two-step training strategy first trains a simplified model, then uses this model
-to initialize parts of the full dendritic network.
+The two-step training strategy applies a two-phase approach: pretraining followed by main training. 
+This can help with difficult optimization landscapes.
 
 .. code-block:: python
 
@@ -371,22 +215,22 @@ to initialize parts of the full dendritic network.
         model=model,
         train_data=train_ds,
         valid_data=valid_ds,
-        pretrain_epochs=10,
-        maintrain_epochs=40,
+        pretrain_epochs=10,     # Phase 1: Pretraining
+        maintrain_epochs=40,    # Phase 2: Main training
         batch_size=128
     )
 
-Key aspects of two-step training:
+Key benefits:
 
-- Trains an auxiliary network (typically an MLP) initially
-- Transfers knowledge from the auxiliary to the main network
-- Fine-tunes the full dendritic network
-- Provides a good initialization for complex architectures
+- First phase can establish good initial representations
+- Second phase refines the representations for the specific task
+- Can help with difficult optimization problems
+- Provides a more stable training trajectory
 
-Voltage Stabilization Training
------------------------------
+Voltage Stabilization Strategy
+----------------------------
 
-The voltage stabilization strategy includes a warm-up phase that stabilizes model activations to a target value before starting the regular training.
+The voltage stabilization strategy adds a warm-up phase to stabilize voltages before the main training phase.
 
 .. code-block:: python
 
@@ -394,320 +238,65 @@ The voltage stabilization strategy includes a warm-up phase that stabilizes mode
     from dendritic_modeling.learning_strategies import VoltageStabilizationTrainer
     
     optimizer = torch.optim.Adam(model.parameters(), lr=0.001)
-    trainer = VoltageStabilizationTrainer(
-        optimizer, 
-        warmup_epochs=5, 
-        stability_target_voltage=0.5
-    )
+    trainer = VoltageStabilizationTrainer(optimizer)
     
     results = trainer.train(
         model=model,
         train_data=train_ds,
         valid_data=valid_ds,
-        epochs=50,  # Total epochs including warmup
+        epochs=50,
         batch_size=128,
-        grad_clip_value=5
+        grad_clip_value=5.0,
+        shuffle=True,
+        plot_losses=True,
+        save_path="./outputs"
     )
 
-Key aspects of voltage stabilization training:
+Key benefits:
 
-- Performs an initial warmup phase that minimizes the MSE between model outputs and a target value
-- Stabilizes model activations before training begins
-- Helps reduce convergence issues in complex models
-- Can significantly improve training of dendritic networks with many branches
-- Combines warmup with regular training in a two-phase approach
+- Initial warm-up phase stabilizes branch voltages
+- Targets a specific voltage level to optimize branch response
+- Prepares the network for better learning in the main phase
+- Can improve stability and convergence
 
-Two-Step Training with KL Divergence
-------------------------------------
+Configuration Parameters for Learning Strategies
+-----------------------------------------------
 
-This strategy extends the two-step approach by using KL divergence to ensure
-the dendritic network remains close to the auxiliary network's behavior.
+The following configuration parameters are available in the `train` section:
+
+.. code-block:: yaml
+
+    train:
+      learning_strategy: "mle"         # Learning strategy to use
+      run_name: "experiment_1"         # Name for the experiment run
+      seed: 0                          # Random seed for reproducibility 
+      train_valid_split: 0.8           # Split ratio for training/validation
+      lr: 0.01                         # Learning rate
+      weight_decay_rate: 0.1           # Weight decay rate
+      epochs: 50                       # Total epochs for training
+      batch_size: 128                  # Batch size
+      grad_clip_value: 5.0             # Gradient clipping value
+      epochs_per_layer: 50             # Epochs per layer for layer-wise training
+      final_tune_epochs: 10            # Fine-tuning epochs after layer-wise training
+      pretrain_epochs: 50              # Pretraining epochs (for two-step approaches)
+      warmup_epochs: 5                 # Warmup epochs for voltage stabilization
+      stability_target_voltage: 0.5    # Target voltage for stabilization
+
+These parameters control various aspects of the learning process and can be adjusted to optimize training for your specific task and model architecture.
+
+Factory Function
+---------------
+
+The framework provides a factory function to create the appropriate trainer based on the learning strategy:
 
 .. code-block:: python
 
-    # Example of using two-step trainer with KL
-    from dendritic_modeling.learning_strategies import TwoStepTrainerWithKL
+    from dendritic_modeling.learning_strategies import get_trainer
     
     optimizer = torch.optim.Adam(model.parameters(), lr=0.001)
-    trainer = TwoStepTrainerWithKL(optimizer)
-    
-    results = trainer.train(
-        model=model,
-        train_data=train_ds,
-        valid_data=valid_ds,
-        pretrain_epochs=10,
-        maintrain_epochs=40,
-        kl_weight=0.1,
-        batch_size=128
+    trainer = get_trainer(
+        strategy="mle",  # learning strategy name
+        optimizer=optimizer
     )
 
-Benefits of the KL approach:
-
-- Prevents catastrophic forgetting of learned patterns
-- Balances innovation with stability
-- Ensures smooth transitions between training phases
-- Provides regularization for the dendritic network
-
-Input Network Training Strategies
----------------------------------
-
-When using input transformation networks with the dendritic model, several specialized
-training strategies are available:
-
-.. code-block:: python
-
-    # Example configuration for input network training
-    input_net_training_config = {
-        'training_mode': 'sequential',  # or 'joint'
-        'train_input_net': True,
-        'input_net_epochs': 20,
-        'train_heads_independently': False,
-        'inhibitory_head_objective': 'classification',  # or 'diversity' or 'combined'
-        'diversity_weight': 0.5,
-        'pretrained_options': {
-            'source': 'none',  # or 'file' or 'pytorch'
-            'weights_path': '',
-            'pytorch_model': ''
-        }
-    }
-
-Sequential vs. Joint Training
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-Input networks can be trained either before the dendritic network (sequential)
-or simultaneously with it (joint).
-
-**Sequential Training**:
-
-1. Train the input transformation network first
-2. Freeze its weights or allow limited updates
-3. Train the dendritic network
-
-.. code-block:: python
-
-    # Sequential training process
-    def train_sequential(model, train_ds, valid_ds):
-        # 1. Train input network only
-        input_net_optimizer = torch.optim.Adam(
-            model.input_transform.parameters(), 
-            lr=0.001
-        )
-        
-        for epoch in range(input_net_epochs):
-            train_input_network(model, train_ds, input_net_optimizer)
-            
-        # 2. Freeze input network weights (optional)
-        for param in model.input_transform.parameters():
-            param.requires_grad = False
-            
-        # 3. Train dendritic network
-        dendritic_optimizer = torch.optim.Adam(
-            [p for p in model.parameters() if p.requires_grad],
-            lr=0.001
-        )
-        
-        trainer = TrainerMLE(dendritic_optimizer)
-        trainer.train(model, train_ds, valid_ds, epochs=50)
-
-**Joint Training**:
-
-1. Train all components simultaneously
-2. Optionally use different learning rates for different components
-
-.. code-block:: python
-
-    # Joint training process
-    def train_joint(model, train_ds, valid_ds):
-        # Use parameter groups with different learning rates
-        optimizer = torch.optim.Adam([
-            {'params': model.input_transform.parameters(), 'lr': 0.001},
-            {'params': model.dendritic_network.parameters(), 'lr': 0.0005}
-        ])
-        
-        trainer = TrainerMLE(optimizer)
-        trainer.train(model, train_ds, valid_ds, epochs=50)
-
-Independent Head Training
-~~~~~~~~~~~~~~~~~~~~~~~~~
-
-When the input transformation network has separate heads for excitatory and inhibitory
-pathways, they can be trained with different objectives.
-
-.. code-block:: python
-
-    # Independent head training
-    def train_independent_heads(model, train_ds, valid_ds):
-        # Train excitatory head for classification
-        exc_optimizer = torch.optim.Adam(
-            model.excitatory_head.parameters(),
-            lr=0.001
-        )
-        
-        for epoch in range(head_training_epochs):
-            train_excitatory_head(model, train_ds, exc_optimizer)
-            
-        # Train inhibitory head with diversity objective
-        inh_optimizer = torch.optim.Adam(
-            model.inhibitory_head.parameters(),
-            lr=0.001
-        )
-        
-        for epoch in range(head_training_epochs):
-            train_inhibitory_head_diversity(model, train_ds, inh_optimizer)
-            
-        # Fine-tune the entire network
-        full_optimizer = torch.optim.Adam(model.parameters(), lr=0.0005)
-        trainer = TrainerMLE(full_optimizer)
-        trainer.train(model, train_ds, valid_ds, epochs=20)
-
-Available objectives for inhibitory head:
-
-- **Classification**: Same objective as excitatory head
-- **Diversity**: Maximize difference from excitatory representation
-- **Combined**: Weighted sum of classification and diversity
-
-Using Pre-trained Input Networks
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-Pre-trained networks can be used as feature extractors, particularly for image data.
-
-.. code-block:: python
-
-    # Using pre-trained weights
-    def setup_pretrained_input_network(model_cfg):
-        """Setup input network with pre-trained weights"""
-        pretrained_options = model_cfg.input_net_training.pretrained_options
-        source = pretrained_options.get('source', 'none')
-        
-        if source == 'pytorch':
-            # Load from torchvision models
-            model_name = pretrained_options.get('pytorch_model', 'resnet18')
-            input_net = getattr(torchvision.models, model_name)(pretrained=True)
-            
-            # Remove the classifier layer
-            if hasattr(input_net, 'fc'):
-                in_features = input_net.fc.in_features
-                input_net.fc = nn.Identity()
-                
-            return input_net, in_features
-                
-        elif source == 'file':
-            # Load from saved weights file
-            weights_path = pretrained_options.get('weights_path', '')
-            if not weights_path:
-                raise ValueError("weights_path must be specified when source='file'")
-                
-            # Create input network and load weights
-            input_net = create_input_network(model_cfg)
-            input_net.load_state_dict(torch.load(weights_path))
-            
-            return input_net
-            
-        else:
-            # Create new input network
-            return create_input_network(model_cfg)
-
-Combined Strategies
-~~~~~~~~~~~~~~~~~~~
-
-For complex tasks, different learning strategies can be combined:
-
-.. code-block:: python
-
-    # Example of combining strategies
-    def train_combined_strategy(model, train_ds, valid_ds):
-        # 1. Pre-train input network
-        input_net_optimizer = torch.optim.Adam(
-            model.input_transform.parameters(), 
-            lr=0.001
-        )
-        
-        for epoch in range(input_net_epochs):
-            train_input_network(model, train_ds, input_net_optimizer)
-            
-        # 2. Train dendritic network using freeze branches
-        dendritic_optimizer = torch.optim.Adam(model.dendritic_network.parameters(), lr=0.0005)
-        trainer = TrainerMLE(dendritic_optimizer)
-        
-        trainer.train_freeze_branches(
-            model, train_ds, valid_ds,
-            epochs_per_branch=10,
-            final_tune_epochs=5  # Fine-tune branches together after individual training
-        )
-        
-        # 3. Fine-tune everything with MLE
-        full_optimizer = torch.optim.Adam(model.parameters(), lr=0.0001)
-        trainer = TrainerMLE(full_optimizer)
-        
-        trainer.train(model, train_ds, valid_ds, epochs=10)
-
-Choosing the Right Strategy
----------------------------
-
-Guidelines for selecting an appropriate learning strategy:
-
-1. **For simple networks**: Start with standard MLE
-2. **For deep networks**: Consider freeze branches or two-step approach
-3. **For networks with input transformation**: Sequential training often works best
-4. **For complex tasks**: Consider combining strategies or using KL regularization
-5. **For biological plausibility**: Local credit assignment provides a more biologically-inspired approach
-
-Custom Weight Decay
--------------------
-
-The framework provides a custom weight decay implementation that applies regularization
-differently to different network components:
-
-.. code-block:: python
-
-    # Custom weight decay optimizer
-    from dendritic_modeling.learning_strategies import CustomWeightDecayOptimizer
-    
-    base_optimizer = torch.optim.Adam(model.parameters(), lr=0.001)
-    optimizer = CustomWeightDecayOptimizer(model, base_optimizer, weight_decay=0.1)
-
-Implementation Details
-----------------------
-
-All learning strategies are implemented as trainer classes that follow a common interface:
-
-.. code-block:: python
-
-    # Generic trainer structure
-    class BaseTrainer:
-        def __init__(self, optimizer, suppress_prints=False, print_every=10):
-            self.optimizer = optimizer
-            self.suppress_prints = suppress_prints
-            self.print_every = print_every
-            
-        def _eval_dataset(self, model, dataset, device, batch_size=256):
-            # Common evaluation logic
-            ...
-            
-        def train(self, model, train_data, valid_data, **kwargs):
-            # Training loop implementation
-            ...
-    
-    # Select appropriate trainer based on strategy
-    def get_trainer(strategy, optimizer, **kwargs):
-        if strategy == "mle":
-            return TrainerMLE(optimizer, **kwargs)
-        elif strategy == "freeze_branches":
-            return TrainerMLE(optimizer, **kwargs)  # Uses train_freeze_branches method
-        elif strategy == "freeze_branches_reversed":
-            return TrainerMLE(optimizer, **kwargs)  # Uses train_freeze_branches_reversed method
-        elif strategy == "freeze_branches_with_pretraining":
-            return TrainerMLE(optimizer, **kwargs)  # Uses train_freeze_branches_with_pretraining method
-        elif strategy == "freeze_branches_reversed_with_pretraining":
-            return TrainerMLE(optimizer, **kwargs)  # Uses train_freeze_branches_reversed_with_pretraining method
-        elif strategy == "local_credit_assignment":
-            return LocalCreditAssignment(optimizer, **kwargs)
-        elif strategy == "two_step":
-            return TwoStepTrainer(optimizer, **kwargs)
-        elif strategy == "two_step_kl":
-            return TwoStepTrainerWithKL(optimizer, **kwargs)
-        elif strategy == "voltage_stabilization":
-            return VoltageStabilizationTrainer(optimizer, **kwargs)
-        else:
-            logger.info(f"Unrecognized strategy '{strategy}', defaulting to 'mle'.")
-            return TrainerMLE(optimizer, **kwargs) 
+The get_trainer function supports all learning strategies discussed in this document. 
