@@ -1,32 +1,54 @@
-Key Concepts
-============
+Key Concepts and Overview
+=====================
 
 This page explains the fundamental concepts behind dendritic computing and how they are implemented in the Dendritic Modeling framework.
 
-Biological Background
----------------------
+Biological Background and Inspiration
+----------------------------------
 
 In biological neurons, dendrites are branch-like structures that receive inputs from other neurons. Unlike the simplified model used in artificial neural networks, where a neuron is treated as a single computational unit, real neurons have complex dendritic trees with thousands of branches that perform sophisticated computations before signals reach the cell body (soma).
 
 Key properties of biological dendrites include:
 
 1. **Compartmentalized Processing**: Different dendritic branches can act as independent computational units.
-
 2. **Nonlinear Integration**: Dendrites can perform nonlinear operations on inputs, such as coincidence detection or local amplification.
-
 3. **Active Properties**: Dendrites contain voltage-gated ion channels that enable them to generate local spikes and perform complex operations.
-
 4. **Synaptic Plasticity**: Dendritic synapses can change strength independently, allowing for branch-specific learning.
-
 5. **Excitation-Inhibition Balance**: Excitatory and inhibitory inputs interact in dendrites to control neural activity.
 
-Artificial Dendritic Networks
------------------------------
+Network Architecture
+------------------
 
-The Dendritic Modeling framework implements artificial neural networks inspired by these biological principles. Here are the key concepts:
+The dendritic modeling framework implements a sophisticated network architecture inspired by biological principles:
+
+.. figure:: figures/pdf/EINetClassifier_dataflow.pdf
+    :align: center
+    :width: 100%
+    :alt: EINetClassifier dataflow
+    :name: EINetClassifier_dataflow
+    
+    : Dataflow diagram of the EINetClassifier model. Blue arrows represent excitatory data flow, red arrows represent inhibitory data flow.
+
+The architecture consists of several key components:
+
+1. **EINetClassifier**: The top-level model that processes external input data
+2. **ExcitationInhibitionNetwork**: Contains one or more excitation-inhibition layers
+3. **ExcitationInhibitionLayer**: Contains two dendritic layers (Dendrinet)
+4. **Dendrinet**: Specialized feedforward multilayer perceptron with dendritic branches
+
+.. figure:: figures/pdf/Dendrinet_1.pdf
+    :align: center
+    :width: 100%
+    :alt: Dendrinet dataflow 1
+    :name: Dendrinet_dataflow_1
+    
+    : Detailed dataflow in a Dendrinet model showing branch factors and layer connectivity.
+
+Key Computational Components
+-------------------------
 
 Dendritic Branches
-~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~
 
 In our framework, dendritic branches are computational units that process inputs before sending signals to the cell body. Each branch:
 
@@ -34,21 +56,10 @@ In our framework, dendritic branches are computational units that process inputs
 - Applies nonlinear transformations
 - Integrates signals locally before sending them to the soma
 
-.. figure:: figures/pdf/place_holder.pdf
-   :alt: Dendritic Branch Concept
-   :align: center
-   :width: 500px
+TopKLinear Layer
+~~~~~~~~~~~~~~~
 
-   Conceptual illustration of a dendritic branch with sparse connectivity to inputs
-
-Sparse Connectivity (TopK)
-~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-Real neurons don't connect to all possible inputs - they form specific, sparse connections. We implement this through the `TopKLinear` layer, which:
-
-- Maintains connections only to the K strongest inputs for each branch
-- Adapts connectivity patterns during learning
-- Reduces computational complexity and prevents overfitting
+The ``TopKLinear`` class implements selective synaptic activation, a key feature of dendritic computation:
 
 .. code-block:: python
 
@@ -58,52 +69,68 @@ Real neurons don't connect to all possible inputs - they form specific, sparse c
     # A layer where each output unit connects to only 10 of the 100 input features
     sparse_layer = TopKLinear(in_features=100, out_features=50, K=10)
 
-Excitation-Inhibition Balance
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+Mathematical formulation:
+```
+y = (W ⊙ M)x + b
+```
+Where M is a binary mask retaining only the top k elements in each row of W.
 
-Biological neural networks maintain a careful balance between excitatory (positive) and inhibitory (negative) inputs. Our framework implements this through:
+BlockLinear Layer
+~~~~~~~~~~~~~~~
 
-- Separate pathways for excitatory and inhibitory signals
-- Shunting inhibition, where inhibitory inputs divide rather than subtract
-- Dynamic adaptation of excitation-inhibition balance during learning
+The ``BlockLinear`` class handles information aggregation through the dendritic tree by:
 
-.. figure:: figures/pdf/place_holder.pdf
-   :alt: Excitation-Inhibition Balance
-   :align: center
-   :width: 500px
+1. Generating structured masks based on branch factors
+2. Controlling information flow between layers
+3. Creating compartmentalized processing paths
 
-   Interaction between excitatory and inhibitory inputs in a dendritic branch
+.. figure:: figures/pdf/Dendrinet_2.pdf
+    :align: center
+    :width: 100%
+    :alt: Dendrinet dataflow 2
+    :name: Dendrinet_dataflow_2
+    
+    : Detailed view of information flow in the second layer of a Dendrinet.
 
 Nonlinear Activation Functions
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-To model the nonlinear response properties of dendrites, we implement specialized activation functions:
+The framework implements specialized activation functions:
 
-- **ParametricTanh**: A sigmoid-like function with learnable parameters for slope and offset
-- **Shunting Inhibition**: Division-based inhibition rather than subtraction
+1. **ParametricTanh**: A trainable activation function with learnable parameters:
+   ```
+   f(x) = m * tanh(x + b)
+   ```
+   where m (multiplier) and b (bias) are learned during training.
 
-Branch-Specific Learning
-~~~~~~~~~~~~~~~~~~~~~~~~
+2. **Shunting Inhibition**: Division-based inhibition rather than subtraction
 
-Dendritic branches can learn independently, allowing specialization for different input patterns:
+Excitation-Inhibition Balance
+~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-- Branches can become tuned to specific features
-- Different branches can respond to different aspects of the input
-- The soma integrates information from specialized branches
+The framework maintains a careful balance between excitatory and inhibitory signals through:
 
-Gradient Flow in Dendritic Networks
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+1. **Separate Pathways**: Distinct processing for excitatory and inhibitory inputs
+2. **Shunting Inhibition**: When enabled (``use_shunting=True``), inhibitory inputs can effectively negate excitatory ones
+3. **Dynamic Balance**: Adaptive adjustment of excitation-inhibition ratios during learning
 
-Training dendritic networks presents unique challenges:
+Training and Learning
+------------------
 
-- Sparse connectivity creates irregular gradient paths
-- Deep branch structures can suffer from vanishing gradients
-- Multiple processing pathways require carefully balanced updates
+The framework supports several specialized training strategies:
 
-Our framework implements specialized learning strategies and gradient scaling methods to address these challenges.
+1. **MLE (Maximum Likelihood Estimation)**: End-to-end training of all components
+2. **Freeze Layers**: Progressive training from input to output
+3. **Two-Step Training**: Pretraining followed by fine-tuning
+4. **Sequential Input Network**: Training input transformation before dendritic components
+
+Advanced Features:
+- Dynamic gradient scaling for deep dendritic networks
+- Reactivation mechanisms to prevent branch "death"
+- Branch-specific learning allowing specialization
 
 Comparison with Traditional ANNs
---------------------------------
+-----------------------------
 
 Traditional ANNs vs. Dendritic Networks:
 
@@ -125,28 +152,21 @@ Traditional ANNs vs. Dendritic Networks:
 | Feature extraction        | Distributed across weights          | Localized in specific branches        |
 +---------------------------+-------------------------------------+---------------------------------------+
 
-Theoretical Advantages of Dendritic Networks
---------------------------------------------
+Practical Applications
+-------------------
 
-Dendritic networks offer several theoretical advantages:
+Dendritic networks are particularly suitable for:
 
-1. **Expressivity**: Can implement complex logical operations with fewer parameters
-2. **Efficiency**: Sparse connectivity reduces computational requirements
-3. **Specialization**: Branches can become specialized feature detectors
-4. **Robustness**: Multiple pathways provide redundancy and noise tolerance
-5. **Biological Plausibility**: Closer to how real neural circuits compute
-
-Research has shown that dendritic networks can efficiently solve problems that require:
-
-- Coincidence detection
-- Context-dependent processing
-- Input segregation
-- Nonlinear feature binding
+1. **Pattern Recognition**: Leveraging branch specialization
+2. **Noise-Robust Classification**: Multiple processing pathways
+3. **Continual Learning**: Reduced catastrophic forgetting
+4. **Low-Power Computing**: Sparse connectivity benefits
+5. **Neuromorphic Hardware**: Compatible with emerging architectures
 
 Example: XOR Problem
-~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~
 
-The XOR logical operation is a classic example that requires nonlinear processing. A dendritic network can solve this efficiently:
+The XOR logical operation demonstrates the power of dendritic computation:
 
 .. figure:: figures/pdf/place_holder.pdf
    :alt: XOR Dendritic Solution
@@ -155,21 +175,10 @@ The XOR logical operation is a classic example that requires nonlinear processin
 
    Dendritic solution to the XOR problem using branch-specific processing
 
-Practical Applications
-----------------------
-
-Dendritic networks are particularly suitable for:
-
-1. **Pattern Recognition**: Leveraging branch specialization for feature detection
-2. **Noise-Robust Classification**: Multiple processing pathways provide redundancy
-3. **Continual Learning**: Compartmentalized learning can reduce catastrophic forgetting
-4. **Low-Power Computing**: Sparse connectivity reduces computational requirements
-5. **Neuromorphic Hardware Implementation**: Matches well with emerging hardware architectures
-
 Further Reading
----------------
+-------------
 
-For more detailed information on the theoretical background of dendritic computing, refer to:
+For more detailed information:
 
 - London, M., & Häusser, M. (2005). Dendritic computation. Annual Review of Neuroscience, 28, 503-532.
 - Poirazi, P., Brannon, T., & Mel, B. W. (2003). Pyramidal neuron as two-layer neural network. Neuron, 37(6), 989-999.
