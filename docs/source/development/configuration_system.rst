@@ -192,9 +192,9 @@ The ``train`` section defines the training procedure and hyperparameters:
       batch_size: 64  # Batch size
       grad_clip_value: 1.0  # Gradient clipping value
       
-      # Layer-wise and branch-wise training parameters
-      epochs_per_layer: 20  # Epochs per layer/branch for layer/branch-wise training
-      final_tune_epochs: 10  # Final fine-tuning epochs after layer/branch-wise training
+      # Branch-wise training parameters
+      epochs_per_branch: 20        # Number of epochs to train each branch
+      final_tune_epochs: 10        # Final fine-tuning epochs
       
       # Pretraining parameters
       pretrain_epochs: 10  # Pretraining epochs for strategies with pretraining
@@ -218,33 +218,27 @@ Available Learning Strategies
 The framework supports several learning strategies, specified by the ``learning_strategy`` parameter:
 
 1. **MLE** (``mle``): Standard end-to-end training
-2. **Freeze Layers** (``freeze_layers``): Train layers sequentially from soma to input
-3. **Freeze Layers Reversed** (``freeze_layers_reversed``): Train layers sequentially from input to soma
-4. **Freeze Layers with Pretraining** (``freeze_layers_with_pretraining``): Pretrain full network, then train layers from soma to input
-5. **Freeze Layers Reversed with Pretraining** (``freeze_layers_reversed_with_pretraining``): Pretrain full network, then train layers from input to soma
-6. **Freeze Branches** (``freeze_branches``): Train branches sequentially from soma to input
-7. **Freeze Branches Reversed** (``freeze_branches_reversed``): Train branches sequentially from input to soma
-8. **Freeze Branches with Pretraining** (``freeze_branches_with_pretraining``): Pretrain full network, then train branches from soma to input
-9. **Freeze Branches Reversed with Pretraining** (``freeze_branches_reversed_with_pretraining``): Pretrain full network, then train branches from input to soma
-10. **Local Credit Assignment** (``local_credit_assignment``): Train with locally-computed gradients
-11. **Two-Step** (``two_step``): Train auxiliary network before full model
-12. **Two-Step with KL** (``two_step_kl``): Train auxiliary network with KL regularization
-13. **Voltage Stabilization** (``voltage_stabilization``): Include warm-up phase to stabilize activations
+2. **Freeze Branches** (``freeze_branches``): Train branches sequentially from soma to distal branches
+3. **Freeze Branches Reversed** (``freeze_branches_reversed``): Train branches sequentially from distal branches to soma
+4. **Freeze Branches with Pretraining** (``freeze_branches_with_pretraining``): Pretrain full network, then train branches from soma to distal
+5. **Freeze Branches Reversed with Pretraining** (``freeze_branches_reversed_with_pretraining``): Pretrain full network, then train branches from distal to soma
+6. **Two-Step** (``two_step``): Two-phase training approach
+7. **Voltage Stabilization** (``voltage_stabilization``): Include warm-up phase to stabilize activations
 
 Strategy Examples
 ~~~~~~~~~~~~~~~~
 
 Here are examples of configuration sections for different learning strategies:
 
-**Freeze Layers with Pretraining**:
+**Freeze Branches with Pretraining**:
 
 .. code-block:: yaml
 
     train:
-      learning_strategy: freeze_layers_with_pretraining
+      learning_strategy: freeze_branches_with_pretraining
       epochs: 60  # Total epochs
       pretrain_epochs: 10  # Phase 1: Full network training
-      epochs_per_layer: 20  # Phase 2: Per-layer training
+      epochs_per_branch: 20  # Phase 2: Per-branch training
       final_tune_epochs: 10  # Phase 3: Final fine-tuning
 
 **Freeze Branches Reversed**:
@@ -254,7 +248,7 @@ Here are examples of configuration sections for different learning strategies:
     train:
       learning_strategy: freeze_branches_reversed
       epochs: 50  # Total epochs
-      epochs_per_layer: 20  # Per-branch training (parameter name is reused)
+      epochs_per_branch: 20  # Per-branch training (parameter name is reused)
       final_tune_epochs: 10  # Final fine-tuning
 
 **Voltage Stabilization**:
@@ -402,3 +396,15 @@ In custom scripts, you can load and modify configurations programmatically:
     # ...
 
 This allows for flexible experimentation while maintaining reproducibility. 
+
+# Development parameters
+development_mode: false        # Enable development mode for extra logging
+profiling: false               # Enable profiling for performance analysis
+
+# Experiment parameters
+seed: 42                       # Random seed for reproducibility
+device: 'auto'                 # 'auto', 'cpu', 'cuda', 'cuda:0', etc.
+
+# Branch-wise training parameters
+epochs_per_branch: 20        # Number of epochs to train each branch
+final_tune_epochs: 10        # Final fine-tuning epochs 
