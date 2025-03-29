@@ -15,7 +15,6 @@ The dendritic modeling framework provides specialized tools for conducting ablat
 1. **Branch ablation**: Removing individual dendritic branches
 2. **Layer ablation**: Removing entire layers of branches
 3. **Feature ablation**: Removing specific input features
-4. **Mechanism ablation**: Disabling computational mechanisms (e.g., shunting inhibition)
 
 These studies help identify which components are essential for performance and which components are specialized for specific inputs or tasks.
 
@@ -45,7 +44,7 @@ The framework provides functions for branch ablation in ``utils.py``:
             IDs of branches to ablate, or None for all branches
         mode : str
             Ablation mode: 'direct' (zero out specific branches) or 
-            'full' (zero out all except specified branches)
+            'indirect' (zero out all except specified branches)
         """
 
 This function zeros out the weights of specified branches, effectively removing them from the network.
@@ -57,7 +56,7 @@ A comprehensive branch ablation analysis function is also available:
     def analyze_branch_ablation(model, dataset, layer_idx=None, branch_ids=None,
                                 mode='direct', device='cpu'):
         """
-        Perform ablation analysis for specific branches or dendritic orders.
+        Perform ablation analysis for specific branches.
         
         Parameters
         ----------
@@ -66,28 +65,21 @@ A comprehensive branch ablation analysis function is also available:
         dataset : torch.utils.data.Dataset
             Dataset to evaluate on
         layer_idx : int or None
-            Index of the layer to ablate. If None and branch_ids is None,
-            perform dendritic order analysis.
+            Index of the layer to ablate
         branch_ids : list or None
             IDs of branches to ablate, or None for all branches
         mode : str
-            Ablation mode: 'direct' or 'full'
+            Ablation mode: 'direct' or 'indirect'
         device : str
             Device to use for computation
             
         Returns
         -------
-        When layer_idx is None and branch_ids is None:
-            Dict with dendritic order analysis results
-        Otherwise:
-            Tuple (baseline_accuracy, results_dict)
+        tuple
+            (baseline_accuracy, results_dict)
         """
 
-This function has two modes of operation:
-1. **Branch-specific ablation**: When `layer_idx` is specified, it ablates specific branches and measures the change in performance
-2. **Dendritic order ablation**: When both `layer_idx` and `branch_ids` are None, it performs ablation analysis by dendritic order
-
-The dendritic order analysis is especially useful for understanding how different levels of the dendritic hierarchy contribute to network performance.
+This function ablates specific branches and measures the change in performance, helping identify which branches are most important for the task.
 
 Example: Branch Ablation
 ~~~~~~~~~~~~~~~~~~~~~~~~
@@ -113,90 +105,26 @@ Here's an example of how to conduct a branch ablation study:
         print(f"Branch {branch_id} ablated: {acc:.4f} (Δ = {delta:.4f})")
     
     # Identify most important branches
-    importance = {branch_id: results[branch_id][1] for branch_id in branch_results}
+    importance = {branch_id: delta for branch_id, (acc, delta) in branch_results.items()}
     most_important = sorted(importance.items(), key=lambda x: x[1], reverse=True)[:5]
     print("Most important branches:")
     for branch_id, imp in most_important:
         print(f"Branch {branch_id}: Importance = {imp:.4f}")
 
-Example: Dendritic Order Ablation
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-Here's an example of how to conduct a dendritic order ablation study:
-
-.. code-block:: python
-
-    from dendritic_modeling.utils import analyze_branch_ablation
-    
-    # Load model and dataset
-    model = torch.load("path/to/model.pt")
-    
-    # Perform dendritic order ablation analysis
-    results = analyze_branch_ablation(
-        model, dataset, layer_idx=None, branch_ids=None, device='cuda'
-    )
-    
-    # Print results
-    print("Dendritic Order Ablation Results:")
-    for i, order in enumerate(results["order"]):
-        exc_drop = results["exc_drop"][i]
-        inh_drop = results["inh_drop"][i]
-        print(f"Order {order}:")
-        print(f"  Excitatory ablation: {exc_drop:.4f}")
-        print(f"  Inhibitory ablation: {inh_drop:.4f}")
-    
-    # Calculate percentage drops
-    baseline_acc = measure_performance(model, dataset, device='cuda')
-    exc_pct = [(drop / baseline_acc) * 100 for drop in results["exc_drop"]]
-    inh_pct = [(drop / baseline_acc) * 100 for drop in results["inh_drop"]]
-    
-    # Create visualization
-    import matplotlib.pyplot as plt
-    
-    plt.figure(figsize=(10, 6))
-    plt.plot(results["order"], exc_pct, 'b-', label='Excitatory')
-    plt.plot(results["order"], inh_pct, 'r-', label='Inhibitory')
-    plt.xlabel('Dendritic Order')
-    plt.ylabel('Performance Drop (%)')
-    plt.title('Dendritic Order Ablation Results')
-    plt.legend()
-    plt.grid(True)
-    plt.savefig('dendritic_order_ablation.png')
-    plt.close()
-
-This code performs ablation for each dendritic order and visualizes the impact on performance.
-
 Layer Ablation
 --------------
 
-Layer ablation involves removing entire layers of branches to understand the contribution of each layer to performance.
+Layer ablation involves analyzing entire layers of branches to understand the contribution of each layer to performance.
 
 Layer Ablation Functions
 ~~~~~~~~~~~~~~~~~~~~~~~~
 
-The framework provides functions for layer ablation:
+The framework provides a layer-wise ablation analysis function:
 
 .. code-block:: python
 
-    def ablate_layer(model, layer_idx):
-        """
-        Zero out weights for an entire layer.
-        
-        Parameters
-        ----------
-        model : torch.nn.Module
-            The model to ablate
-        layer_idx : int
-            Index of the layer to ablate
-        """
-
-This function zeros out all weights in a specified layer, effectively removing it from the network.
-
-A comprehensive layer ablation analysis function is also available:
-
-.. code-block:: python
-
-    def analyze_layer_ablation(model, dataset, device='cpu'):
+    def analyze_layerwise_ablation(model, dataset, train_data=None, valid_data=None, 
+                                   test_data=None, save_path=None, device='cuda'):
         """
         Perform ablation analysis for each layer.
         
@@ -206,16 +134,19 @@ A comprehensive layer ablation analysis function is also available:
             The model to analyze
         dataset : torch.utils.data.Dataset
             Dataset to evaluate on
+        train_data : torch.utils.data.Dataset, optional
+            Training dataset
+        valid_data : torch.utils.data.Dataset, optional
+            Validation dataset
+        test_data : torch.utils.data.Dataset, optional
+            Test dataset
+        save_path : str, optional
+            Path to save results
         device : str
             Device to use for computation
-            
-        Returns
-        -------
-        tuple
-            (baseline_accuracy, results_dict)
         """
 
-This function ablates each layer in the network and measures the change in performance, helping identify the layers that are most important for the task.
+This function analyzes each layer in the network and measures performance, helping identify the layers that are most important for the task.
 
 Example: Layer Ablation
 ~~~~~~~~~~~~~~~~~~~~~~~
@@ -224,274 +155,173 @@ Here's an example of how to conduct a layer ablation study:
 
 .. code-block:: python
 
-    from dendritic_modeling.plot_utils import analyze_layer_ablation
+    from dendritic_modeling.utils import analyze_layerwise_ablation
     
     # Load model and dataset
     model = torch.load("path/to/model.pt")
     
     # Perform layer ablation analysis
-    baseline_acc, layer_results = analyze_layer_ablation(model, dataset)
+    analyze_layerwise_ablation(
+        model, 
+        dataset=None,
+        train_data=train_ds, 
+        valid_data=valid_ds, 
+        test_data=test_ds,
+        save_path="./ablation_results",
+        device='cuda'
+    )
     
-    # Print results
-    print(f"Baseline accuracy: {baseline_acc:.4f}")
-    for layer_idx, acc in layer_results.items():
-        print(f"Layer {layer_idx} ablated: {acc:.4f} (Δ = {acc - baseline_acc:.4f})")
-    
-    # Identify most important layers
-    importance = {layer_idx: baseline_acc - acc for layer_idx, acc in layer_results.items()}
-    most_important = sorted(importance.items(), key=lambda x: x[1], reverse=True)
-    print("Layer importance (descending):")
-    for layer_idx, imp in most_important:
-        print(f"Layer {layer_idx}: Importance = {imp:.4f}")
+    # Results are saved to the specified save_path
 
-This code performs ablation for each layer in the network and ranks the layers by importance.
-
-Feature Ablation
-----------------
-
-Feature ablation involves removing specific input features to understand their importance for the network's decision-making.
-
-Feature Ablation Functions
-~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-The framework provides functions for feature ablation:
-
-.. code-block:: python
-
-    def ablate_features(model, inputs, feature_indices):
-        """
-        Zero out specific input features.
-        
-        Parameters
-        ----------
-        model : torch.nn.Module
-            The model to analyze
-        inputs : torch.Tensor
-            Input tensor
-        feature_indices : list
-            Indices of features to ablate
-            
-        Returns
-        -------
-        torch.Tensor
-            Model output with ablated features
-        """
-
-This function zeros out specific input features and computes the network's output, helping understand which features are most important for the task.
-
-Example: Feature Ablation
-~~~~~~~~~~~~~~~~~~~~~~~~~
-
-Here's an example of how to conduct a feature ablation study:
-
-.. code-block:: python
-
-    import torch
-    import numpy as np
-    from dendritic_modeling.plot_utils import ablate_features
-    
-    # Load model and dataset
-    model = torch.load("path/to/model.pt")
-    
-    # Get a batch of inputs
-    inputs, labels = next(iter(dataloader))
-    
-    # Baseline performance
-    baseline_output = model(inputs)
-    baseline_acc = (baseline_output.argmax(dim=1) == labels).float().mean().item()
-    
-    # Perform feature ablation
-    feature_importance = {}
-    for feature_idx in range(inputs.shape[1]):
-        # Ablate feature
-        ablated_output = ablate_features(model, inputs, [feature_idx])
-        ablated_acc = (ablated_output.argmax(dim=1) == labels).float().mean().item()
-        
-        # Calculate importance
-        importance = baseline_acc - ablated_acc
-        feature_importance[feature_idx] = importance
-    
-    # Identify most important features
-    most_important = sorted(feature_importance.items(), key=lambda x: x[1], reverse=True)[:10]
-    print("Most important features:")
-    for feature_idx, imp in most_important:
-        print(f"Feature {feature_idx}: Importance = {imp:.4f}")
-
-This code performs ablation for each input feature and identifies the features with the largest impact on performance.
-
-Mechanism Ablation
-------------------
-
-Mechanism ablation involves disabling specific computational mechanisms to understand their contribution to performance.
-
-Mechanism Ablation Functions
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-The framework provides functions for mechanism ablation:
-
-.. code-block:: python
-
-    def disable_mechanism(model, mechanism_name):
-        """
-        Disable a specific computational mechanism.
-        
-        Parameters
-        ----------
-        model : torch.nn.Module
-            The model to modify
-        mechanism_name : str
-            Name of mechanism to disable ('shunting', 'reactivation', etc.)
-        """
-
-This function disables specific computational mechanisms, helping understand their contribution to performance.
-
-Example: Shunting Inhibition Ablation
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-Here's an example of how to ablate shunting inhibition:
-
-.. code-block:: python
-
-    # Load model and dataset
-    model = torch.load("path/to/model.pt")
-    
-    # Get baseline performance
-    baseline_acc = evaluate_accuracy(model, test_dataset)
-    
-    # Disable shunting inhibition
-    for layer in model.ei_layers:
-        layer.use_shunting = False
-    
-    # Evaluate performance without shunting inhibition
-    ablated_acc = evaluate_accuracy(model, test_dataset)
-    
-    # Calculate importance
-    importance = baseline_acc - ablated_acc
-    print(f"Shunting inhibition importance: {importance:.4f}")
-
-This code disables shunting inhibition and measures the change in performance.
+This code performs analysis for each layer in the network and saves the results to the specified directory.
 
 Visualizing Ablation Results
 ----------------------------
 
-The framework provides functions for visualizing ablation results:
+The dendritic modeling framework provides visualization tools for ablation studies.
+
+Branch Importance Visualization
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+After performing branch ablation, you can visualize the importance of each branch:
 
 .. code-block:: python
 
-    def plot_branch_ablation(baseline_acc, branch_results, save_path):
-        """
-        Plot the results of branch ablation.
-        
-        Parameters
-        ----------
-        baseline_acc : float
-            Baseline accuracy
-        branch_results : dict
-            Results of branch ablation
-        save_path : str
-            Path to save the plot
-        """
+    import matplotlib.pyplot as plt
+    import numpy as np
+    
+    # Assuming branch_results is the result of analyze_branch_ablation
+    
+    # Extract branch IDs and importance values
+    branch_ids = np.array(list(branch_results.keys()))
+    importance = np.array([delta for _, delta in branch_results.values()])
+    
+    # Sort by importance
+    sort_idx = np.argsort(importance)[::-1]
+    branch_ids = branch_ids[sort_idx]
+    importance = importance[sort_idx]
+    
+    # Plot branch importance
+    plt.figure(figsize=(12, 6))
+    plt.bar(np.arange(len(branch_ids)), importance)
+    plt.xticks(np.arange(len(branch_ids)), branch_ids)
+    plt.xlabel('Branch ID')
+    plt.ylabel('Importance (Accuracy Drop)')
+    plt.title('Branch Importance Analysis')
+    plt.tight_layout()
+    plt.savefig('branch_importance.png')
+    plt.close()
 
-This function creates a bar chart showing the impact of ablating each branch.
+This code creates a bar chart showing the importance of each branch based on the accuracy drop when the branch is ablated.
 
-.. figure:: figures/pdf/place_holder.pdf
-   :alt: Branch Ablation Results
-   :width: 600px
-   :align: center
+Branch Activation Patterns
+~~~~~~~~~~~~~~~~~~~~~~~~~
 
-   Example visualization of branch ablation results, showing the importance of each branch. [PLACEHOLDER FOR DIAGRAM]
-
-Comprehensive Ablation Analysis
--------------------------------
-
-For a comprehensive understanding of network behavior, you can combine different types of ablation studies:
+You can also visualize the activation patterns of different branches to understand their function:
 
 .. code-block:: python
 
-    def comprehensive_ablation_analysis(model, dataset):
-        """
-        Perform comprehensive ablation analysis.
-        
-        Parameters
-        ----------
-        model : torch.nn.Module
-            The model to analyze
-        dataset : torch.utils.data.Dataset
-            Dataset to evaluate on
-            
-        Returns
-        -------
-        dict
-            Dictionary with ablation results
-        """
-        results = {}
-        
-        # Baseline performance
-        baseline_acc = evaluate_accuracy(model, dataset)
-        results['baseline'] = baseline_acc
-        
-        # Layer ablation
-        _, layer_results = analyze_layer_ablation(model, dataset)
-        results['layer_ablation'] = layer_results
-        
-        # Branch ablation for each layer
-        branch_results = {}
-        for layer_idx in range(len(model.ei_layers)):
-            _, layer_branch_results = analyze_branch_ablation(
-                model, dataset, layer_idx, None, 'direct'
-            )
-            branch_results[layer_idx] = layer_branch_results
-        results['branch_ablation'] = branch_results
-        
-        # Mechanism ablation
-        mechanism_results = {}
-        
-        # Shunting inhibition
-        model_copy = deepcopy(model)
-        for layer in model_copy.ei_layers:
-            layer.use_shunting = False
-        mechanism_results['shunting'] = evaluate_accuracy(model_copy, dataset)
-        
-        # Reactivation
-        model_copy = deepcopy(model)
-        for layer in model_copy.ei_layers:
-            layer.reactivate = False
-        mechanism_results['reactivation'] = evaluate_accuracy(model_copy, dataset)
-        
-        results['mechanism_ablation'] = mechanism_results
-        
-        return results
+    from dendritic_modeling.utils import record_branch_activations
+    
+    # Record branch activations for a subset of the dataset
+    activations = record_branch_activations(
+        model, 
+        dataset,
+        batch_size=32,
+        device='cuda'
+    )
+    
+    # Plot activation patterns for the first layer
+    plt.figure(figsize=(15, 10))
+    layer_activations = activations[0]  # First layer
+    
+    for i in range(min(10, layer_activations.shape[0])):
+        plt.subplot(2, 5, i+1)
+        plt.imshow(layer_activations[i].mean(dim=0).reshape(28, 28), cmap='viridis')
+        plt.title(f'Branch {i}')
+        plt.axis('off')
+    
+    plt.suptitle('Branch Activation Patterns (Layer 0)')
+    plt.tight_layout()
+    plt.savefig('branch_activation_patterns.png')
+    plt.close()
 
-This function performs a comprehensive ablation analysis, including layer ablation, branch ablation, and mechanism ablation.
+This code visualizes the mean activation pattern for each branch in the first layer, helping understand what features each branch responds to.
+
+Combined Analysis
+----------------
+
+For a comprehensive understanding of branch function, you can combine branch ablation with other analyses:
+
+.. code-block:: python
+
+    import torch
+    from dendritic_modeling.utils import analyze_branch_ablation, record_branch_activations
+    
+    # Load model and dataset
+    model = torch.load("path/to/model.pt")
+    
+    # Get branch activations
+    activations = record_branch_activations(model, dataset, device='cuda')
+    
+    # Perform branch ablation
+    baseline_acc, branch_results = analyze_branch_ablation(
+        model, dataset, layer_idx=0, device='cuda'
+    )
+    
+    # Combine results
+    results = {}
+    for branch_id, (acc, delta) in branch_results.items():
+        # Get mean activation for this branch
+        mean_activation = activations[0][branch_id].mean().item()
+        
+        # Store combined results
+        results[branch_id] = {
+            'importance': delta,
+            'mean_activation': mean_activation
+        }
+    
+    # Analyze correlation between activation and importance
+    importance_values = [r['importance'] for r in results.values()]
+    activation_values = [r['mean_activation'] for r in results.values()]
+    
+    correlation = np.corrcoef(importance_values, activation_values)[0, 1]
+    print(f"Correlation between importance and activation: {correlation:.4f}")
+    
+    # Create scatter plot
+    plt.figure(figsize=(8, 6))
+    plt.scatter(activation_values, importance_values)
+    plt.xlabel('Mean Activation')
+    plt.ylabel('Importance (Accuracy Drop)')
+    plt.title(f'Activation vs. Importance (r = {correlation:.4f})')
+    plt.grid(True)
+    plt.savefig('activation_vs_importance.png')
+    plt.close()
+
+This code analyzes the relationship between branch activation and importance, helping understand whether the most active branches are also the most important.
 
 Best Practices for Ablation Studies
 -----------------------------------
 
-1. **Start with trained models**: Conduct ablation studies on well-trained models that have reached good performance
-2. **Ablate systematically**: Systematically ablate each component to ensure comprehensive understanding
-3. **Compare across models**: Compare ablation results across different models to identify consistent patterns
-4. **Control for variability**: Run multiple trials to account for variability in results
-5. **Correlate with branch specialization**: Correlate ablation results with branch specialization metrics
-6. **Use multiple datasets**: Test ablation on multiple datasets to ensure generalizable insights
-7. **Combine with visualization**: Combine ablation studies with visualizations of weights and activations
+Here are some best practices for conducting ablation studies with dendritic networks:
 
-Ablation in Research
---------------------
+1. **Use a separate test set**: Always evaluate ablation on a separate test set, not the training set, to avoid biased results.
 
-Ablation studies are a powerful tool for understanding dendritic networks in research:
+2. **Multiple random seeds**: Run ablation studies with multiple random seeds and average the results to ensure robustness.
 
-1. **Hypothesis testing**: Test hypotheses about the computational role of different components
-2. **Model comparison**: Compare the robustness of different model architectures
-3. **Feature importance**: Identify which input features are most important for performance
-4. **Mechanism validation**: Validate the importance of biologically-inspired mechanisms
-5. **Network pruning**: Identify branches that can be pruned without significant performance loss
-6. **Transfer learning**: Understand which components are specialized for specific tasks
+3. **Control for branch size**: Consider the size or capacity of branches when interpreting importance, as larger branches might naturally show higher importance.
 
-By conducting systematic ablation studies, researchers can gain insights into the inner workings of dendritic networks and identify the key computational principles that drive their performance.
+4. **Consider different ablation modes**: Use both 'direct' and 'indirect' ablation modes to get a more complete picture of branch function.
 
-.. figure:: figures/pdf/place_holder.pdf
-   :alt: Ablation Study Workflow
-   :width: 600px
-   :align: center
+5. **Combine with other analyses**: Integrate ablation results with other analyses like activation visualization or information analysis.
 
-   Workflow for conducting comprehensive ablation studies with dendritic networks. [PLACEHOLDER FOR DIAGRAM] 
+6. **Analyze by dendritic order**: Group branches by their dendritic order (distance from soma) to understand the hierarchical structure of computation.
+
+7. **Compare across models**: Compare ablation results across different models or training runs to identify consistent patterns.
+
+Conclusion
+----------
+
+Ablation studies are a powerful tool for understanding the function of dendritic networks. By systematically removing branches or layers and measuring the impact on performance, you can identify which components are critical for different aspects of computation.
+
+The dendritic modeling framework provides specialized tools for conducting these studies, enabling researchers to gain insights into the computational principles of dendritic networks. 
