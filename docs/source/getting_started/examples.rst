@@ -296,11 +296,11 @@ The framework provides a flexible experiment runner through train_experiments.py
 
 3. **Available Learning Strategies**:
 - mle: Standard Maximum Likelihood Estimation (default)
-- freeze_layers: Train one layer at a time, freezing others
+- freeze_branches: Train branches sequentially
 - two_step: Two-phase training with pretraining and main training
 - mlp_only: Train only the MLP component, then train the full model
 - dendrinet_from_mlp: Train MLP first, then use it to initialize and train the dendrinet
-- voltage_stabilization: Add a warm-up phase that stabilizes voltages to a target
+- voltage_stabilization: Add voltage stabilization phase
 
 4. **Command Line Arguments**:
 .. code-block:: bash

@@ -276,8 +276,8 @@ The following configuration parameters are available in the `train` section:
       epochs: 50                       # Total epochs for training
       batch_size: 128                  # Batch size
       grad_clip_value: 5.0             # Gradient clipping value
-      epochs_per_layer: 50             # Epochs per layer for layer-wise training
-      final_tune_epochs: 10            # Fine-tuning epochs after layer-wise training
+      epochs_per_branch: 50             # Epochs per branch for branch-wise training
+      final_tune_epochs: 10            # Fine-tuning epochs after branch-wise training
       pretrain_epochs: 50              # Pretraining epochs (for two-step approaches)
       warmup_epochs: 5                 # Warmup epochs for voltage stabilization
       stability_target_voltage: 0.5    # Target voltage for stabilization
