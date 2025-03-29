@@ -124,29 +124,6 @@ The branch factor (k) is a critical parameter that affects the computational pro
 
 The optimal branch factor depends on the input dimensionality and the desired properties of the network. A common rule of thumb is to set k to approximately 10-20% of the input dimensionality for each branch.
 
-Branch factor calculation:
-
-.. code-block:: python
-
-    def calculate_branch_factor(input_dim, desired_selectivity=0.15):
-        """
-        Calculate a reasonable branch factor based on input dimensionality.
-        
-        Parameters
-        ----------
-        input_dim : int
-            Dimension of the input
-        desired_selectivity : float
-            Desired proportion of inputs to select (0.0-1.0)
-            
-        Returns
-        -------
-        int
-            Recommended branch factor (k)
-        """
-        k = max(1, int(input_dim * desired_selectivity))
-        return k
-
 Biological Intuition
 --------------------
 
