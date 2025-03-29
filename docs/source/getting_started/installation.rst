@@ -33,43 +33,53 @@ Installation Methods
 
 There are two main methods to install the framework:
 
-Quick Installation (Recommended)
+Quick Installation (Recommended for Mamba/Conda Users)
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-For a quick installation using pip:
+For a quick installation using Mamba:
 
 .. code-block:: bash
 
-    # Create a new conda environment
-    conda create -n dendritic python=3.8
-    conda activate dendritic
+    # Install Mamba if you don't have it
+    conda install mamba -n base -c conda-forge
+    
+    # Create a new environment
+    mamba create -n dendritic python=3.10
+    mamba activate dendritic
     
     # Install PyTorch with CUDA (modify cudatoolkit version if needed)
-    conda install pytorch torchvision torchaudio cudatoolkit=11.3 -c pytorch
-    
-    # Install the dendritic modeling framework
-    pip install dendritic-modeling
-
-Development Installation
-~~~~~~~~~~~~~~~~~~~~~~
-
-For development or the latest features, install from source:
-
-.. code-block:: bash
-
-    # Create a new conda environment
-    conda create -n dendritic python=3.8
-    conda activate dendritic
-    
-    # Install PyTorch with CUDA
-    conda install pytorch torchvision torchaudio cudatoolkit=11.3 -c pytorch
+    mamba install pytorch torchvision torchaudio pytorch-cuda=11.8 -c pytorch -c nvidia
     
     # Clone the repository
     git clone https://github.com/KempnerInstitute/dendritic-modeling.git
     cd dendritic-modeling
     
-    # Install in development mode
-    pip install -e .
+    # Install the package
+    pip install .
+
+Development Installation
+~~~~~~~~~~~~~~~~~~~~~~
+
+For development or the latest features, install from source with development dependencies:
+
+.. code-block:: bash
+
+    # Create a new Mamba environment
+    mamba create -n dendritic python=3.10
+    mamba activate dendritic
+    
+    # Install PyTorch with CUDA
+    mamba install pytorch torchvision torchaudio pytorch-cuda=11.8 -c pytorch -c nvidia
+    
+    # Clone the repository
+    git clone https://github.com/KempnerInstitute/dendritic-modeling.git
+    cd dendritic-modeling
+    
+    # Install in development mode with dev dependencies
+    pip install -e '.[dev]'
+    
+    # Install documentation dependencies (optional)
+    pip install -e '.[docs]'
 
 Detailed Installation Steps
 -------------------------
@@ -79,28 +89,17 @@ Here's a more detailed guide to installing the framework from source:
 Step 1: Set up the Python environment
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-Using conda (recommended):
+Using Mamba:
 
 .. code-block:: bash
 
-    # Install Miniconda if you don't have it
-    wget https://repo.anaconda.com/miniconda/Miniconda3-latest-Linux-x86_64.sh
-    bash Miniconda3-latest-Linux-x86_64.sh
+    # Install Mamba if you don't have it
+    conda install mamba -n base -c conda-forge
     
     # Create and activate a new environment
-    conda create -n dendritic python=3.8
-    conda activate dendritic
+    mamba create -n dendritic python=3.10
+    mamba activate dendritic
 
-Using virtualenv (alternative):
-
-.. code-block:: bash
-
-    # Install virtualenv if you don't have it
-    pip install virtualenv
-    
-    # Create and activate a new environment
-    virtualenv dendritic-env
-    source dendritic-env/bin/activate  # On Windows: dendritic-env\Scripts\activate
 
 Step 2: Install PyTorch
 ~~~~~~~~~~~~~~~~~~~~~
@@ -109,11 +108,11 @@ Install PyTorch with GPU support:
 
 .. code-block:: bash
 
-    # For CUDA 11.7
-    pip install torch==2.0.0+cu117 torchvision==0.15.1+cu117 -f https://download.pytorch.org/whl/torch_stable.html
+    # For CUDA 11.8
+    mamba install pytorch torchvision torchaudio pytorch-cuda=11.8 -c pytorch -c nvidia
     
     # For CPU only
-    pip install torch==2.0.0 torchvision==0.15.1
+    mamba install pytorch torchvision torchaudio cpuonly -c pytorch
 
 Verify PyTorch installation:
 
@@ -132,37 +131,48 @@ Get the source code:
     git clone https://github.com/KempnerInstitute/dendritic-modeling.git
     cd dendritic-modeling
 
-Step 4: Install dependencies
+Step 4: Install the package
 ~~~~~~~~~~~~~~~~~~~~~~~~
 
 Install the package and its dependencies:
 
 .. code-block:: bash
 
-    # Install required packages
-    pip install -r requirements.txt
+    # Install the basic package (for users)
+    pip install .
     
-    # Install the package in development mode
+    # OR install in development mode (for developers)
     pip install -e .
     
-    # Install additional development dependencies (optional)
-    pip install -r requirements-dev.txt
+    # Optional: Install with development dependencies
+    pip install -e '.[dev]'
+    
+    # Optional: Install with documentation dependencies
+    pip install -e '.[docs]'
 
-The ``requirements.txt`` file includes all the necessary dependencies:
+The project's dependencies are defined in the pyproject.toml file and include:
 
 .. code-block:: text
 
-    numpy>=1.20.0
-    pandas>=1.3.0
-    matplotlib>=3.4.0
-    seaborn>=0.11.0
-    scikit-learn>=0.24.0
-    tqdm>=4.60.0
-    wandb>=0.12.0
-    omegaconf>=2.1.0
-    pytest>=6.2.0
-    jupyter>=1.0.0
-    networkx>=2.6.0
+    # Core dependencies
+    torch
+    numpy
+    torchvision
+    torchinfo
+    matplotlib
+    wandb
+    pandas
+    omegaconf>=2.3.0
+    scikit-learn
+    
+    # Development dependencies (optional)
+    ruff
+    mypy
+    black
+    isort
+    pytest
+    pytest-cov
+    etc.
 
 Step 5: Verify installation
 ~~~~~~~~~~~~~~~~~~~~~~~
@@ -174,7 +184,7 @@ Ensure that the installation was successful:
     # Run a simple test
     python -c "from dendritic_modeling.networks import ExcitationInhibitionNetwork; print('Installation successful!')"
     
-    # Run the test suite
+    # Run the test suite (if development dependencies were installed)
     pytest tests/
 
 Configuring for Different Hardware
@@ -191,7 +201,7 @@ For systems without a GPU:
     export CUDA_VISIBLE_DEVICES=""
     
     # Install PyTorch for CPU only
-    conda install pytorch torchvision torchaudio cpuonly -c pytorch
+    mamba install pytorch torchvision torchaudio cpuonly -c pytorch
 
 Multi-GPU configuration
 ~~~~~~~~~~~~~~~~~~
@@ -214,172 +224,132 @@ For systems with multiple GPUs:
 Cluster configuration (SLURM)
 ~~~~~~~~~~~~~~~~~~~~~~~~~
 
-For HPC clusters with SLURM:
+For running on a SLURM-managed cluster, such as the Kempner Institute cluster:
 
 .. code-block:: bash
 
+    # Load necessary modules (adjust versions as needed)
+    module load python/3.12.5-fasrc01
+    module load cuda/12.4.1-fasrc01
+    module load cudnn/8.9.2.26_cuda12-fasrc01
+    
+    # Clone the repository and enter directory
+    git clone https://github.com/KempnerInstitute/dendritic-modeling.git
+    cd dendritic-modeling
+    
+    # Install the package
+    pip install -e .
+    
+    # Create a SLURM job submission script (example.sh)
+    cat > example.sh << 'EOL'
     #!/bin/bash
-    #SBATCH --job-name=dendritic
+    #SBATCH --job-name=dendritic_job
+    #SBATCH --output=dendritic_%j.out
+    #SBATCH --error=dendritic_%j.err
+    #SBATCH --time=04:00:00
     #SBATCH --gres=gpu:1
-    #SBATCH --mem=32G
-    #SBATCH --time=24:00:00
+    #SBATCH --mem=16G
+    #SBATCH --cpus-per-task=4
     
-    module load python/3.8 cuda/11.7
-    source activate dendritic
+    # Load modules
+    module load python/3.12.5-fasrc01
+    module load cuda/12.4.1-fasrc01
+    module load cudnn/8.9.2.26_cuda12-fasrc01
     
-    python train_experiments.py --config configs/config_exp.yaml
+    # Activate environment if needed
+    # source /path/to/your/env/bin/activate
+    
+    # Run the experiment with specified config
+    python src/dendritic_modeling/train_experiments.py configs/config_exp.yaml
+    EOL
+    
+    # Submit the job
+    sbatch example.sh
 
-Directory Structure
-----------------
+Virtual Environment Configuration
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-After installation, the framework has the following directory structure:
+If you prefer using venv instead of Conda/Mamba:
 
-.. code-block:: text
+.. code-block:: bash
 
-    dendritic-modeling/
-    ├── src/                     # Source code
-    │   └── dendritic_modeling/  # Main package
-    │       ├── activation_functions.py
-    │       ├── config.py
-    │       ├── dendrinet.py
-    │       └── ...              # Other modules
-    ├── configs/                 # Configuration files
-    ├── scripts/                 # Utility scripts
-    ├── tests/                   # Test suite
-    ├── docs/                    # Documentation
-    └── notebooks/              # Example notebooks
+    # Create a virtual environment
+    python -m venv dendritic-env
+    
+    # Activate the environment
+    # On Linux/Mac:
+    source dendritic-env/bin/activate
+    # On Windows:
+    # dendritic-env\Scripts\activate
+    
+    # Install PyTorch with appropriate CUDA version
+    pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu118
+    
+    # Clone the repository
+    git clone https://github.com/KempnerInstitute/dendritic-modeling.git
+    cd dendritic-modeling
+    
+    # Install the package
+    pip install -e .
 
-Common Issues and Solutions
-------------------------
+Troubleshooting
+--------------
 
-CUDA version mismatch
-~~~~~~~~~~~~~~~~~~
+CUDA Compatibility Issues
+~~~~~~~~~~~~~~~~~~~~~
 
-If you encounter CUDA version errors:
-
-.. code-block:: text
-
-    RuntimeError: CUDA error: no kernel image is available for execution on the device
-
-Solution:
+If you encounter CUDA compatibility issues:
 
 .. code-block:: bash
 
     # Check CUDA version
-    nvidia-smi
+    nvcc --version
     
-    # Install PyTorch for your specific CUDA version
-    pip install torch==2.0.0+cu117 -f https://download.pytorch.org/whl/torch_stable.html
+    # Check PyTorch CUDA compatibility
+    python -c "import torch; print(torch.version.cuda)"
+    
+    # If versions mismatch, reinstall PyTorch with the matching CUDA version
+    pip uninstall torch torchvision torchaudio
+    pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu[version]
+    # Replace [version] with your CUDA version (e.g., cu118 for CUDA 11.8)
 
-Out of memory errors
-~~~~~~~~~~~~~~~~~~
+ImportError Issues
+~~~~~~~~~~~~~~
 
-If you encounter GPU memory issues:
+If you encounter import errors:
 
-.. code-block:: text
+.. code-block:: bash
 
-    RuntimeError: CUDA out of memory
+    # Ensure the package is installed
+    pip show dendritic_modeling
+    
+    # If not installed or in development mode:
+    pip install -e .
+    
+    # Check your PYTHONPATH
+    echo $PYTHONPATH
+    
+    # Add the repository to your PYTHONPATH if needed
+    export PYTHONPATH=$PYTHONPATH:/path/to/dendritic-modeling
 
-Solution:
+Memory Issues
+~~~~~~~~~
 
-.. code-block:: python
+If you encounter out-of-memory errors during training:
 
-    # Reduce batch size
-    batch_size = 32  # Try smaller values
+.. code-block:: bash
+
+    # Reduce batch size in your configuration file or training parameters
+    # config.yaml:
+    train:
+      batch_size: 32  # Try smaller batch size
     
     # Use gradient accumulation
-    optimizer.zero_grad()
-    for i, (inputs, targets) in enumerate(data_loader):
-        outputs = model(inputs)
-        loss = criterion(outputs, targets)
-        loss = loss / accumulation_steps
-        loss.backward()
-        if (i+1) % accumulation_steps == 0:
-            optimizer.step()
-            optimizer.zero_grad()
-
-Module not found errors
-~~~~~~~~~~~~~~~~~~
-
-If the package cannot be found:
-
-.. code-block:: text
-
-    ModuleNotFoundError: No module named 'dendritic_modeling'
-
-Solution:
-
-.. code-block:: bash
-
-    # Make sure you're in the correct environment
-    conda activate dendritic
+    # In your code or config:
+    gradient_accumulation_steps: 2  # Accumulate gradients before updating
     
-    # Install the package in development mode
-    cd /path/to/dendritic-modeling
-    pip install -e .
-
-Slow training
-~~~~~~~~~~~~~
-
-If training is unusually slow:
-
-Solutions:
-
-1. Enable mixed precision training:
-
-.. code-block:: python
-
-    # Use PyTorch's automatic mixed precision
-    from torch.cuda.amp import autocast, GradScaler
-    
-    scaler = GradScaler()
-    for inputs, targets in data_loader:
-        with autocast():
-            outputs = model(inputs)
-            loss = criterion(outputs, targets)
-        
-        scaler.scale(loss).backward()
-        scaler.step(optimizer)
-        scaler.update()
-
-2. Check for bottlenecks with profiling:
-
-.. code-block:: python
-
-    # Profile your training loop
-    with torch.profiler.profile(
-        activities=[torch.profiler.ProfilerActivity.CPU, torch.profiler.ProfilerActivity.CUDA],
-    ) as prof:
-        outputs = model(inputs)
-        loss = criterion(outputs, targets)
-        loss.backward()
-        optimizer.step()
-    
-    print(prof.key_averages().table(sort_by="cuda_time_total"))
-
-Development Setup
------------------
-
-For developers contributing to the project:
-
-.. code-block:: bash
-
-    # Install development dependencies
-    pip install -r requirements-dev.txt
-    
-    # Set up pre-commit hooks
-    pip install pre-commit
-    pre-commit install
-    
-    # Create a new branch for your feature
-    git checkout -b feature/your-feature-name
-    
-    # Make your changes, then test
-    pytest
-    
-    # Format and lint code
-    black src/ tests/
-    flake8 src/ tests/
+    # Clean up GPU memory
+    python -c "import torch; torch.cuda.empty_cache()"
 
 Starting Your First Experiment
 ------------------------------
