@@ -1,0 +1,328 @@
+
+
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" data-content_root="../../../">
+<head>
+  <meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Output Handling and Loss Functions &mdash; dendritic_modeling 0.1.0 documentation</title>
+      <link rel="stylesheet" type="text/css" href="../../../_static/pygments.css?v=b86133f3" />
+      <link rel="stylesheet" type="text/css" href="../../../_static/css/theme.css?v=e59714d7" />
+      <link rel="stylesheet" type="text/css" href="../../../_static/copybutton.css?v=76b2166b" />
+
+  
+      <script src="../../../_static/jquery.js?v=5d32c60e"></script>
+      <script src="../../../_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
+      <script src="../../../_static/documentation_options.js?v=01f34227"></script>
+      <script src="../../../_static/doctools.js?v=9bcbadda"></script>
+      <script src="../../../_static/sphinx_highlight.js?v=dc90522c"></script>
+      <script src="../../../_static/clipboard.min.js?v=a7894cd8"></script>
+      <script src="../../../_static/copybutton.js?v=f281be69"></script>
+      <script crossorigin="anonymous" integrity="sha256-Ae2Vz/4ePdIu6ZyI/5ZGsYnb+m0JlOmKPjt6XZ9JJkA=" src="https://cdnjs.cloudflare.com/ajax/libs/require.js/2.3.4/require.min.js"></script>
+    <script src="../../../_static/js/theme.js"></script>
+    <link rel="author" title="About these documents" href="../../../about.html" />
+    <link rel="index" title="Index" href="../../../genindex.html" />
+    <link rel="search" title="Search" href="../../../search.html" />
+    <link rel="next" title="Datasets and Data Utilities" href="synthetic_datasets.html" />
+    <link rel="prev" title="Experiment Tracking and Logging" href="experiment_tracking.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+
+          
+          
+          <a href="../../../index.html" class="icon icon-home">
+            dendritic_modeling
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../../../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <p class="caption" role="heading"><span class="caption-text">Introduction</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../about.html">About</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Contents</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../getting_started/index.html">Getting Started Guide</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../user_guide/index.html">User Guide</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Contents</span></p>
+<ul class="current">
+<li class="toctree-l1"><a class="reference internal" href="../network_structures/index.html">Network Structures</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../learning/index.html">Learning Strategies</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../visualization/index.html">Visualization Guide</a></li>
+<li class="toctree-l1 current"><a class="reference internal" href="index.html">Analysis and Evaluation</a><ul class="current">
+<li class="toctree-l2"><a class="reference internal" href="ablation_studies.html">Ablation Studies</a></li>
+<li class="toctree-l2"><a class="reference internal" href="ablation_information_analysis.html">Ablation Studies and Information Analysis</a></li>
+<li class="toctree-l2"><a class="reference internal" href="experiment_tracking.html">Experiment Tracking and Logging</a></li>
+<li class="toctree-l2 current"><a class="current reference internal" href="#">Output Handling and Loss Functions</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#overview">Overview</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#output-types">Output Types</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#deterministic-vs-probabilistic-outputs">Deterministic vs. Probabilistic Outputs</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#probabilistic-output-layers">Probabilistic Output Layers</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#classification-with-probabilistic-outputs">Classification with Probabilistic Outputs</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#regression-with-probabilistic-outputs">Regression with Probabilistic Outputs</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#loss-functions">Loss Functions</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#negative-log-likelihood-nll-loss">Negative Log Likelihood (NLL) Loss</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#mean-squared-error-mse-loss">Mean Squared Error (MSE) Loss</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#binary-cross-entropy-bce-loss">Binary Cross Entropy (BCE) Loss</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#combined-loss-functions">Combined Loss Functions</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#example-configurations">Example Configurations</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#evaluation-metrics">Evaluation Metrics</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#general-best-practices-for-output-handling">General Best Practices for Output Handling</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="synthetic_datasets.html">Datasets and Data Utilities</a></li>
+</ul>
+</li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Contents</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../api/index.html">API Reference</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Contents</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../deployment/index.html">Deployment Guide</a></li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../../../index.html">dendritic_modeling</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="../../../index.html" class="icon icon-home" aria-label="Home"></a></li>
+          <li class="breadcrumb-item"><a href="index.html">Analysis and Evaluation</a></li>
+      <li class="breadcrumb-item active">Output Handling and Loss Functions</li>
+      <li class="wy-breadcrumbs-aside">
+            <a href="../../../_sources/source/advanced/analysis/output_handling.rst.txt" rel="nofollow"> View page source</a>
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <section id="output-handling-and-loss-functions">
+<span id="output-handling"></span><h1>Output Handling and Loss Functions<a class="headerlink" href="#output-handling-and-loss-functions" title="Link to this heading"></a></h1>
+<p>This document explains how outputs are processed in the dendritic modeling framework and the various loss functions available for training models.</p>
+<section id="overview">
+<h2>Overview<a class="headerlink" href="#overview" title="Link to this heading"></a></h2>
+<p>The dendritic modeling framework supports both deterministic and probabilistic outputs for different tasks. The output handling mechanisms determine how the network’s final layer is processed and the appropriate loss functions for training.</p>
+<p>The framework supports the following tasks:</p>
+<ol class="arabic simple">
+<li><p><strong>Classification</strong>: Predicting discrete classes</p></li>
+<li><p><strong>Regression</strong>: Predicting continuous values</p></li>
+</ol>
+</section>
+<section id="output-types">
+<h2>Output Types<a class="headerlink" href="#output-types" title="Link to this heading"></a></h2>
+<p>The primary distinction in output handling is between deterministic and probabilistic outputs:</p>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">model</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">task</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;classification&quot;</span><span class="w">  </span><span class="c1"># Options: &quot;classification&quot;, &quot;regression&quot;</span>
+<span class="w">  </span><span class="nt">probabilistic</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span><span class="w">     </span><span class="c1"># Whether to use probabilistic outputs</span>
+</pre></div>
+</div>
+</section>
+<section id="deterministic-vs-probabilistic-outputs">
+<h2>Deterministic vs. Probabilistic Outputs<a class="headerlink" href="#deterministic-vs-probabilistic-outputs" title="Link to this heading"></a></h2>
+<ol class="arabic simple">
+<li><p><strong>Deterministic outputs</strong>:
+- Direct mapping from network output to prediction
+- Simpler training procedure
+- Less expressive, cannot represent uncertainty</p></li>
+<li><p><strong>Probabilistic outputs</strong>:
+- Models a distribution over possible outputs
+- Can represent uncertainty in predictions
+- More expressive but more complex to train
+- Better calibrated probabilities</p></li>
+</ol>
+<p>The choice between deterministic and probabilistic outputs affects both the network architecture and the loss functions used for training.</p>
+</section>
+<section id="probabilistic-output-layers">
+<h2>Probabilistic Output Layers<a class="headerlink" href="#probabilistic-output-layers" title="Link to this heading"></a></h2>
+<p>When <code class="docutils literal notranslate"><span class="pre">probabilistic:</span> <span class="pre">true</span></code> is set, the network adds a distribution layer on top of the base network. The framework implements this through distribution output layers that transform the base network’s outputs into distribution parameters.</p>
+<p>For classification tasks, this typically involves a categorical distribution, while regression tasks use a Gaussian distribution. The parameters of these distributions (such as logits for categorical or mean and variance for Gaussian) are predicted by the network.</p>
+</section>
+<section id="classification-with-probabilistic-outputs">
+<h2>Classification with Probabilistic Outputs<a class="headerlink" href="#classification-with-probabilistic-outputs" title="Link to this heading"></a></h2>
+<p>For classification tasks with probabilistic outputs, the framework uses a categorical distribution. The network outputs logits that are transformed into class probabilities through a softmax function.</p>
+<p>The negative log likelihood (NLL) loss is then used to train the model, which is equivalent to the standard cross-entropy loss for classification.</p>
+</section>
+<section id="regression-with-probabilistic-outputs">
+<h2>Regression with Probabilistic Outputs<a class="headerlink" href="#regression-with-probabilistic-outputs" title="Link to this heading"></a></h2>
+<p>For regression tasks with probabilistic outputs, the framework typically uses a Gaussian distribution. The network outputs both the mean prediction and a measure of uncertainty (variance or standard deviation).</p>
+<p>This allows the model to predict not just a point estimate but also the uncertainty associated with each prediction, which can be valuable for decision-making in many applications.</p>
+</section>
+<section id="loss-functions">
+<h2>Loss Functions<a class="headerlink" href="#loss-functions" title="Link to this heading"></a></h2>
+<p>The framework provides different loss functions depending on the task and whether probabilistic outputs are used:</p>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">train</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">loss</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">type</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;nll&quot;</span><span class="w">  </span><span class="c1"># Options: &quot;nll&quot;, &quot;mse&quot;, &quot;bce&quot;</span>
+</pre></div>
+</div>
+</section>
+<section id="negative-log-likelihood-nll-loss">
+<h2>Negative Log Likelihood (NLL) Loss<a class="headerlink" href="#negative-log-likelihood-nll-loss" title="Link to this heading"></a></h2>
+<p>For probabilistic models, the primary loss function is negative log likelihood (NLL). This loss directly optimizes the likelihood of the observed data under the model’s predicted distribution.</p>
+<p>For classification tasks, this is equivalent to the standard cross-entropy loss, while for regression tasks with Gaussian outputs, it takes into account both the prediction error and the model’s uncertainty estimates.</p>
+</section>
+<section id="mean-squared-error-mse-loss">
+<h2>Mean Squared Error (MSE) Loss<a class="headerlink" href="#mean-squared-error-mse-loss" title="Link to this heading"></a></h2>
+<p>For deterministic regression, the framework uses mean squared error:</p>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">train</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">loss</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">type</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;mse&quot;</span>
+</pre></div>
+</div>
+<p>This is the standard loss function for regression tasks, measuring the average squared difference between the predictions and the targets.</p>
+</section>
+<section id="binary-cross-entropy-bce-loss">
+<h2>Binary Cross Entropy (BCE) Loss<a class="headerlink" href="#binary-cross-entropy-bce-loss" title="Link to this heading"></a></h2>
+<p>For binary classification with deterministic outputs:</p>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">train</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">loss</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">type</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;bce&quot;</span>
+</pre></div>
+</div>
+<p>This is the standard loss function for binary classification tasks, measuring the cross-entropy between the predicted probabilities and the binary targets.</p>
+</section>
+<section id="combined-loss-functions">
+<h2>Combined Loss Functions<a class="headerlink" href="#combined-loss-functions" title="Link to this heading"></a></h2>
+<p>The framework also supports combining multiple loss terms, such as for regularization:</p>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">train</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">loss</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">type</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;combined&quot;</span>
+<span class="w">    </span><span class="nt">components</span><span class="p">:</span>
+<span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">type</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;nll&quot;</span>
+<span class="w">        </span><span class="nt">weight</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">1.0</span>
+<span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">type</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;l2_regularization&quot;</span>
+<span class="w">        </span><span class="nt">weight</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">0.001</span>
+</pre></div>
+</div>
+<p>This allows for adding regularization terms or other custom loss components to the primary task loss.</p>
+</section>
+<section id="example-configurations">
+<h2>Example Configurations<a class="headerlink" href="#example-configurations" title="Link to this heading"></a></h2>
+<p>Classification with probabilistic outputs:</p>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">model</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">task</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;classification&quot;</span>
+<span class="w">  </span><span class="nt">probabilistic</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+<span class="w">  </span><span class="nt">network</span><span class="p">:</span>
+<span class="w">    </span><span class="c1"># Network configuration...</span>
+
+<span class="nt">train</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">loss</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">type</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;nll&quot;</span>
+<span class="w">  </span><span class="nt">optimizer</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">type</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;adam&quot;</span>
+<span class="w">    </span><span class="nt">lr</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">0.001</span>
+</pre></div>
+</div>
+<p>Regression with deterministic outputs:</p>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">model</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">task</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;regression&quot;</span>
+<span class="w">  </span><span class="nt">probabilistic</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">false</span>
+<span class="w">  </span><span class="nt">network</span><span class="p">:</span>
+<span class="w">    </span><span class="c1"># Network configuration...</span>
+
+<span class="nt">train</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">loss</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">type</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;mse&quot;</span>
+<span class="w">  </span><span class="nt">optimizer</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">type</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;adam&quot;</span>
+<span class="w">    </span><span class="nt">lr</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">0.001</span>
+</pre></div>
+</div>
+</section>
+<section id="evaluation-metrics">
+<h2>Evaluation Metrics<a class="headerlink" href="#evaluation-metrics" title="Link to this heading"></a></h2>
+<p>The framework provides common metrics for evaluating models depending on the task:</p>
+<ol class="arabic simple">
+<li><p><strong>Classification metrics</strong>:
+- Accuracy
+- Precision, recall, F1-score
+- AUC-ROC</p></li>
+<li><p><strong>Regression metrics</strong>:
+- Mean squared error (MSE)
+- Mean absolute error (MAE)
+- R-squared</p></li>
+</ol>
+<p>Configuration example:</p>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">evaluate</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">metrics</span><span class="p">:</span>
+<span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="s">&quot;accuracy&quot;</span>
+<span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="s">&quot;f1_score&quot;</span>
+</pre></div>
+</div>
+</section>
+<section id="general-best-practices-for-output-handling">
+<h2>General Best Practices for Output Handling<a class="headerlink" href="#general-best-practices-for-output-handling" title="Link to this heading"></a></h2>
+<p>The following are general recommendations for working with outputs in dendritic networks:</p>
+<ol class="arabic simple">
+<li><p><strong>For classification tasks</strong>:
+- Consider using probabilistic outputs when uncertainty estimation is important
+- Deterministic outputs may be sufficient for simple classification tasks</p></li>
+<li><p><strong>For regression tasks</strong>:
+- Probabilistic outputs can capture varying uncertainty across the input space
+- Deterministic outputs are simpler and may be adequate for many applications</p></li>
+<li><p><strong>For evaluation</strong>:
+- Use multiple metrics to get a comprehensive view of model performance
+- Choose metrics that align with your application’s requirements</p></li>
+<li><p><strong>For loss functions</strong>:
+- Start with standard losses (NLL, MSE) before trying more complex alternatives
+- Consider adding regularization if overfitting is observed</p></li>
+</ol>
+</section>
+</section>
+
+
+           </div>
+          </div>
+          <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
+        <a href="experiment_tracking.html" class="btn btn-neutral float-left" title="Experiment Tracking and Logging" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
+        <a href="synthetic_datasets.html" class="btn btn-neutral float-right" title="Datasets and Data Utilities" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright 2025, Research and Engineering at Kempner.</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>

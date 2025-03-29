@@ -1,0 +1,541 @@
+
+
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" data-content_root="../../../">
+<head>
+  <meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>TopKLinear Layers and Dendritic Processing &mdash; dendritic_modeling 0.1.0 documentation</title>
+      <link rel="stylesheet" type="text/css" href="../../../_static/pygments.css?v=b86133f3" />
+      <link rel="stylesheet" type="text/css" href="../../../_static/css/theme.css?v=e59714d7" />
+      <link rel="stylesheet" type="text/css" href="../../../_static/copybutton.css?v=76b2166b" />
+
+  
+      <script src="../../../_static/jquery.js?v=5d32c60e"></script>
+      <script src="../../../_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
+      <script src="../../../_static/documentation_options.js?v=01f34227"></script>
+      <script src="../../../_static/doctools.js?v=9bcbadda"></script>
+      <script src="../../../_static/sphinx_highlight.js?v=dc90522c"></script>
+      <script src="../../../_static/clipboard.min.js?v=a7894cd8"></script>
+      <script src="../../../_static/copybutton.js?v=f281be69"></script>
+      <script crossorigin="anonymous" integrity="sha256-Ae2Vz/4ePdIu6ZyI/5ZGsYnb+m0JlOmKPjt6XZ9JJkA=" src="https://cdnjs.cloudflare.com/ajax/libs/require.js/2.3.4/require.min.js"></script>
+    <script src="../../../_static/js/theme.js"></script>
+    <link rel="author" title="About these documents" href="../../../about.html" />
+    <link rel="index" title="Index" href="../../../genindex.html" />
+    <link rel="search" title="Search" href="../../../search.html" />
+    <link rel="next" title="Visualization Guide" href="../visualization/index.html" />
+    <link rel="prev" title="Learning Strategies" href="learning_strategies.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+
+          
+          
+          <a href="../../../index.html" class="icon icon-home">
+            dendritic_modeling
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../../../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <p class="caption" role="heading"><span class="caption-text">Introduction</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../about.html">About</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Contents</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../getting_started/index.html">Getting Started Guide</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../user_guide/index.html">User Guide</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Contents</span></p>
+<ul class="current">
+<li class="toctree-l1"><a class="reference internal" href="../network_structures/index.html">Network Structures</a></li>
+<li class="toctree-l1 current"><a class="reference internal" href="index.html">Learning Strategies</a><ul class="current">
+<li class="toctree-l2"><a class="reference internal" href="learning_strategies.html">Learning Strategies</a></li>
+<li class="toctree-l2 current"><a class="current reference internal" href="#">TopKLinear Layers and Dendritic Processing</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#overview">Overview</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#topklinear-architecture">TopKLinear Architecture</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#configuration">Configuration</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#branch-factor-selection">Branch Factor Selection</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#biological-intuition">Biological Intuition</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#forward-pass-implementation">Forward Pass Implementation</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#variations-of-topklinear">Variations of TopKLinear</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#probabilistic-activation">Probabilistic Activation</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#gradient-flow-in-topklinear">Gradient Flow in TopKLinear</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#block-structured-topklinear">Block-Structured TopKLinear</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#comparison-with-standard-linear-layers">Comparison with Standard Linear Layers</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#best-practices">Best Practices</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#example-configuration">Example Configuration</a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="../visualization/index.html">Visualization Guide</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../analysis/index.html">Analysis and Evaluation</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Contents</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../api/index.html">API Reference</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Contents</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../deployment/index.html">Deployment Guide</a></li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../../../index.html">dendritic_modeling</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="../../../index.html" class="icon icon-home" aria-label="Home"></a></li>
+          <li class="breadcrumb-item"><a href="index.html">Learning Strategies</a></li>
+      <li class="breadcrumb-item active">TopKLinear Layers and Dendritic Processing</li>
+      <li class="wy-breadcrumbs-aside">
+            <a href="../../../_sources/source/advanced/learning/topk_linear.rst.txt" rel="nofollow"> View page source</a>
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <section id="topklinear-layers-and-dendritic-processing">
+<span id="topk-linear"></span><h1>TopKLinear Layers and Dendritic Processing<a class="headerlink" href="#topklinear-layers-and-dendritic-processing" title="Link to this heading"></a></h1>
+<p>The TopKLinear layer is the core building block of dendritic computation in the framework. This document explains how TopKLinear layers model biological dendritic computation and how they can be configured.</p>
+<section id="overview">
+<h2>Overview<a class="headerlink" href="#overview" title="Link to this heading"></a></h2>
+<p>Biological dendrites perform selective integration of inputs by activating only the strongest synaptic connections. The <code class="docutils literal notranslate"><span class="pre">TopKLinear</span></code> layer implements this selective activation mechanism by:</p>
+<ol class="arabic simple">
+<li><p>Computing the potential contribution of all inputs</p></li>
+<li><p>Selecting the top k strongest inputs for each output unit</p></li>
+<li><p>Summing only the selected inputs to produce the output</p></li>
+</ol>
+<p>This selective integration is a fundamental departure from standard neural network layers and allows dendritic networks to implement powerful computational properties like context-dependent processing and feature binding.</p>
+</section>
+<section id="topklinear-architecture">
+<h2>TopKLinear Architecture<a class="headerlink" href="#topklinear-architecture" title="Link to this heading"></a></h2>
+<p>The <code class="docutils literal notranslate"><span class="pre">TopKLinear</span></code> layer extends the standard linear layer with a top-k selection mechanism:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="k">class</span><span class="w"> </span><span class="nc">TopKLinear</span><span class="p">(</span><span class="n">nn</span><span class="o">.</span><span class="n">Module</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Linear layer with top-k activation.</span>
+
+<span class="sd">    This layer processes inputs by selecting the top k inputs for each output unit,</span>
+<span class="sd">    modeling the selective integration property of biological dendrites.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    in_features : int</span>
+<span class="sd">        Number of input features</span>
+<span class="sd">    out_features : int</span>
+<span class="sd">        Number of output features</span>
+<span class="sd">    k : int</span>
+<span class="sd">        Number of inputs to select for each output unit</span>
+<span class="sd">    bias : bool</span>
+<span class="sd">        Whether to use a bias term</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">in_features</span><span class="p">,</span> <span class="n">out_features</span><span class="p">,</span> <span class="n">k</span><span class="p">,</span> <span class="n">bias</span><span class="o">=</span><span class="kc">True</span><span class="p">):</span>
+        <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="fm">__init__</span><span class="p">()</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">in_features</span> <span class="o">=</span> <span class="n">in_features</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">out_features</span> <span class="o">=</span> <span class="n">out_features</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">k</span> <span class="o">=</span> <span class="n">k</span>
+
+        <span class="c1"># Initialize weights and bias</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">weight</span> <span class="o">=</span> <span class="n">nn</span><span class="o">.</span><span class="n">Parameter</span><span class="p">(</span><span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">(</span><span class="n">out_features</span><span class="p">,</span> <span class="n">in_features</span><span class="p">))</span>
+        <span class="k">if</span> <span class="n">bias</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">bias</span> <span class="o">=</span> <span class="n">nn</span><span class="o">.</span><span class="n">Parameter</span><span class="p">(</span><span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">(</span><span class="n">out_features</span><span class="p">))</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">register_parameter</span><span class="p">(</span><span class="s1">&#39;bias&#39;</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span>
+
+        <span class="c1"># Initialize parameters</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">reset_parameters</span><span class="p">()</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">forward</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="nb">input</span><span class="p">):</span>
+        <span class="c1"># Compute all potential contributions</span>
+        <span class="n">potential</span> <span class="o">=</span> <span class="n">F</span><span class="o">.</span><span class="n">linear</span><span class="p">(</span><span class="nb">input</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">weight</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span>
+
+        <span class="c1"># Get the indices of the top k inputs for each output unit</span>
+        <span class="n">_</span><span class="p">,</span> <span class="n">indices</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">topk</span><span class="p">(</span><span class="n">potential</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">k</span><span class="p">,</span> <span class="n">dim</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span>
+
+        <span class="c1"># Create a mask for the selected inputs</span>
+        <span class="n">mask</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">zeros_like</span><span class="p">(</span><span class="n">potential</span><span class="p">)</span>
+        <span class="n">mask</span><span class="o">.</span><span class="n">scatter_</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="n">indices</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span>
+
+        <span class="c1"># Apply the mask to select only the top k inputs</span>
+        <span class="n">selected</span> <span class="o">=</span> <span class="n">potential</span> <span class="o">*</span> <span class="n">mask</span>
+
+        <span class="c1"># Sum the selected inputs and add bias if present</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">bias</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">selected</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="n">dim</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span> <span class="o">+</span> <span class="bp">self</span><span class="o">.</span><span class="n">bias</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">selected</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="n">dim</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span>
+</pre></div>
+</div>
+<p>The key components of the TopKLinear layer are:</p>
+<ol class="arabic simple">
+<li><p><strong>Weight matrix</strong> (out_features × in_features): Stores the connection strengths</p></li>
+<li><p><strong>k parameter</strong>: Controls how many inputs are selected for each output</p></li>
+<li><p><strong>Selection mechanism</strong>: Identifies and activates only the strongest connections</p></li>
+<li><p><strong>Masked summation</strong>: Sums only the selected inputs</p></li>
+</ol>
+</section>
+<section id="configuration">
+<h2>Configuration<a class="headerlink" href="#configuration" title="Link to this heading"></a></h2>
+<p>The TopKLinear layer is configured through several parameters:</p>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">model</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">network</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">parameters</span><span class="p">:</span>
+<span class="w">      </span><span class="c1"># TopKLinear configuration</span>
+<span class="w">      </span><span class="nt">excitatory_branch_factors</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">64</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">32</span><span class="p p-Indicator">]</span><span class="w">  </span><span class="c1"># k values for excitatory layers</span>
+<span class="w">      </span><span class="nt">inhibitory_branch_factors</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">32</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">16</span><span class="p p-Indicator">]</span><span class="w">  </span><span class="c1"># k values for inhibitory layers</span>
+<span class="w">      </span><span class="nt">topk_init_method</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;xavier_normal&quot;</span><span class="w">    </span><span class="c1"># Weight initialization method</span>
+<span class="w">      </span><span class="nt">branch_probabilistic</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span><span class="w">           </span><span class="c1"># Whether branches activate probabilistically</span>
+</pre></div>
+</div>
+<p>The <code class="docutils literal notranslate"><span class="pre">branch_factors</span></code> parameters define the k value for each layer, which determines how many inputs are selected by each dendritic branch.</p>
+</section>
+<section id="branch-factor-selection">
+<h2>Branch Factor Selection<a class="headerlink" href="#branch-factor-selection" title="Link to this heading"></a></h2>
+<p>The branch factor (k) is a critical parameter that affects the computational properties of the dendritic network:</p>
+<ol class="arabic simple">
+<li><p><strong>Small k values</strong> (1-10):
+- More selective branches that respond to specific input patterns
+- Greater sparsity and specialization
+- May require more branches to cover the input space</p></li>
+<li><p><strong>Medium k values</strong> (10-100):
+- Balance between selectivity and generalization
+- Good for most applications
+- Approximate biological values for many neural types</p></li>
+<li><p><strong>Large k values</strong> (&gt;100):
+- Less selective, more like standard linear layers
+- Good for dense, distributed representations
+- May require fewer branches overall</p></li>
+</ol>
+<p>The optimal branch factor depends on the input dimensionality and the desired properties of the network. A common rule of thumb is to set k to approximately 10-20% of the input dimensionality for each branch.</p>
+<p>Branch factor calculation:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="k">def</span><span class="w"> </span><span class="nf">calculate_branch_factor</span><span class="p">(</span><span class="n">input_dim</span><span class="p">,</span> <span class="n">desired_selectivity</span><span class="o">=</span><span class="mf">0.15</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Calculate a reasonable branch factor based on input dimensionality.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    input_dim : int</span>
+<span class="sd">        Dimension of the input</span>
+<span class="sd">    desired_selectivity : float</span>
+<span class="sd">        Desired proportion of inputs to select (0.0-1.0)</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    int</span>
+<span class="sd">        Recommended branch factor (k)</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">k</span> <span class="o">=</span> <span class="nb">max</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="nb">int</span><span class="p">(</span><span class="n">input_dim</span> <span class="o">*</span> <span class="n">desired_selectivity</span><span class="p">))</span>
+    <span class="k">return</span> <span class="n">k</span>
+</pre></div>
+</div>
+</section>
+<section id="biological-intuition">
+<h2>Biological Intuition<a class="headerlink" href="#biological-intuition" title="Link to this heading"></a></h2>
+<p>The TopKLinear layer is inspired by several properties of biological dendrites:</p>
+<ol class="arabic simple">
+<li><p><strong>Dendritic spikes</strong>: Dendrites generate local spikes when sufficient inputs are activated</p></li>
+<li><p><strong>Nonlinear integration</strong>: Inputs that arrive on the same dendritic branch can interact nonlinearly</p></li>
+<li><p><strong>Branch-specific processing</strong>: Each dendritic branch can function as a semi-independent processing unit</p></li>
+<li><p><strong>Sparse activation</strong>: Only a subset of synapses are strongly active for any given input</p></li>
+</ol>
+<p>The top-k selection mechanism is a simplified model of these biological properties, capturing the essential computational feature of selective integration.</p>
+</section>
+<section id="forward-pass-implementation">
+<h2>Forward Pass Implementation<a class="headerlink" href="#forward-pass-implementation" title="Link to this heading"></a></h2>
+<p>The forward pass in TopKLinear involves several key steps:</p>
+<ol class="arabic simple">
+<li><p><strong>Linear projection</strong>: Calculate the potential contribution of each input</p></li>
+<li><p><strong>Top-k selection</strong>: Select the k highest-potential inputs</p></li>
+<li><p><strong>Masked summation</strong>: Sum only the selected inputs</p></li>
+</ol>
+<p>Implementation details:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="k">def</span><span class="w"> </span><span class="nf">forward</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="nb">input</span><span class="p">):</span>
+    <span class="c1"># Compute all potential contributions</span>
+    <span class="c1"># Shape: [batch_size, in_features]</span>
+    <span class="n">potential</span> <span class="o">=</span> <span class="n">F</span><span class="o">.</span><span class="n">linear</span><span class="p">(</span><span class="nb">input</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">weight</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span>
+
+    <span class="c1"># Get the indices of the top k inputs for each output unit</span>
+    <span class="c1"># Shape of values: [batch_size, k]</span>
+    <span class="c1"># Shape of indices: [batch_size, k]</span>
+    <span class="n">values</span><span class="p">,</span> <span class="n">indices</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">topk</span><span class="p">(</span><span class="n">potential</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">k</span><span class="p">,</span> <span class="n">dim</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span>
+
+    <span class="c1"># Create a mask for the selected inputs</span>
+    <span class="c1"># Shape: [batch_size, in_features]</span>
+    <span class="n">mask</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">zeros_like</span><span class="p">(</span><span class="n">potential</span><span class="p">)</span>
+    <span class="n">mask</span><span class="o">.</span><span class="n">scatter_</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="n">indices</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span>
+
+    <span class="c1"># Apply the mask to select only the top k inputs</span>
+    <span class="c1"># Shape: [batch_size, in_features]</span>
+    <span class="n">selected</span> <span class="o">=</span> <span class="n">potential</span> <span class="o">*</span> <span class="n">mask</span>
+
+    <span class="c1"># Sum the selected inputs and add bias if present</span>
+    <span class="c1"># Shape: [batch_size, out_features]</span>
+    <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">bias</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="k">return</span> <span class="n">selected</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="n">dim</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span> <span class="o">+</span> <span class="bp">self</span><span class="o">.</span><span class="n">bias</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="k">return</span> <span class="n">selected</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="n">dim</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span>
+</pre></div>
+</div>
+</section>
+<section id="variations-of-topklinear">
+<h2>Variations of TopKLinear<a class="headerlink" href="#variations-of-topklinear" title="Link to this heading"></a></h2>
+<p>The framework includes several variations of the TopKLinear layer:</p>
+<ol class="arabic simple">
+<li><p><strong>ProbTopKLinear</strong>: Probabilistic version of TopKLinear
+- Selects inputs based on a probability distribution rather than a hard cutoff
+- More biologically plausible and easier to optimize</p></li>
+<li><p><strong>BlockTopKLinear</strong>: Block-structured version for hierarchical processing
+- Inputs are divided into blocks, and top-k selection happens within each block
+- Models the compartmentalized structure of dendritic trees</p></li>
+<li><p><strong>LayerNormTopKLinear</strong>: TopKLinear with layer normalization
+- Applies layer normalization before or after the top-k selection
+- Helps stabilize training, especially in deeper networks</p></li>
+</ol>
+</section>
+<section id="probabilistic-activation">
+<h2>Probabilistic Activation<a class="headerlink" href="#probabilistic-activation" title="Link to this heading"></a></h2>
+<p>When <code class="docutils literal notranslate"><span class="pre">branch_probabilistic</span></code> is set to <code class="docutils literal notranslate"><span class="pre">true</span></code>, the network uses probabilistic branch activation:</p>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">model</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">network</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">parameters</span><span class="p">:</span>
+<span class="w">      </span><span class="nt">branch_probabilistic</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+<span class="w">      </span><span class="nt">probabilistic_temperature</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">1.0</span>
+</pre></div>
+</div>
+<p>With probabilistic activation:
+1. Instead of selecting exactly k inputs, each input is selected with a probability
+2. The probability is determined by the input’s potential and a temperature parameter
+3. Higher potential inputs have higher probability of being selected
+4. The temperature controls how deterministic the selection is (lower = more deterministic)</p>
+<p>Implementation:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="k">def</span><span class="w"> </span><span class="nf">forward</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="nb">input</span><span class="p">,</span> <span class="n">temperature</span><span class="o">=</span><span class="mf">1.0</span><span class="p">):</span>
+    <span class="c1"># Compute all potential contributions</span>
+    <span class="n">potential</span> <span class="o">=</span> <span class="n">F</span><span class="o">.</span><span class="n">linear</span><span class="p">(</span><span class="nb">input</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">weight</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span>
+
+    <span class="c1"># Calculate selection probabilities using softmax</span>
+    <span class="n">probabilities</span> <span class="o">=</span> <span class="n">F</span><span class="o">.</span><span class="n">softmax</span><span class="p">(</span><span class="n">potential</span> <span class="o">/</span> <span class="n">temperature</span><span class="p">,</span> <span class="n">dim</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span>
+
+    <span class="c1"># Sample from the probability distribution</span>
+    <span class="n">distribution</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">distributions</span><span class="o">.</span><span class="n">Bernoulli</span><span class="p">(</span><span class="n">probabilities</span><span class="p">)</span>
+    <span class="n">mask</span> <span class="o">=</span> <span class="n">distribution</span><span class="o">.</span><span class="n">sample</span><span class="p">()</span>
+
+    <span class="c1"># Apply the mask and scale by probabilities</span>
+    <span class="n">selected</span> <span class="o">=</span> <span class="n">potential</span> <span class="o">*</span> <span class="n">mask</span> <span class="o">*</span> <span class="n">probabilities</span>
+
+    <span class="c1"># Sum the selected inputs and add bias if present</span>
+    <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">bias</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="k">return</span> <span class="n">selected</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="n">dim</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span> <span class="o">+</span> <span class="bp">self</span><span class="o">.</span><span class="n">bias</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="k">return</span> <span class="n">selected</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="n">dim</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span>
+</pre></div>
+</div>
+<p>Probabilistic activation has several advantages:
+1. More biologically plausible (biological neurons have probabilistic activation)
+2. Allows gradient-based optimization through the entire network
+3. Can explore different activation patterns during training
+4. Often leads to better generalization</p>
+</section>
+<section id="gradient-flow-in-topklinear">
+<h2>Gradient Flow in TopKLinear<a class="headerlink" href="#gradient-flow-in-topklinear" title="Link to this heading"></a></h2>
+<p>The top-k selection creates a sparse computational graph that affects gradient flow:</p>
+<ol class="arabic simple">
+<li><p>During the forward pass, only k inputs are selected</p></li>
+<li><p>During backpropagation, gradients flow only through the selected inputs</p></li>
+<li><p>This creates sparse gradients that can lead to unstable training</p></li>
+</ol>
+<p>To address this, the framework provides several mechanisms:</p>
+<ol class="arabic simple">
+<li><p><strong>Gradient scaling</strong>: Scale gradients to compensate for sparsity (see <a class="reference internal" href="../network_structures/gradient_scaling.html#gradient-scaling"><span class="std std-ref">Gradient Scaling Techniques</span></a>)</p></li>
+<li><p><strong>STE (Straight-Through Estimator)</strong>: Pass gradients through the selection operation</p></li>
+<li><p><strong>Probabilistic activation</strong>: Replace hard selection with soft probabilistic selection</p></li>
+</ol>
+</section>
+<section id="block-structured-topklinear">
+<h2>Block-Structured TopKLinear<a class="headerlink" href="#block-structured-topklinear" title="Link to this heading"></a></h2>
+<p>For hierarchical processing, the framework provides block-structured TopKLinear layers:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="k">class</span><span class="w"> </span><span class="nc">BlockTopKLinear</span><span class="p">(</span><span class="n">nn</span><span class="o">.</span><span class="n">Module</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Block-structured TopKLinear layer.</span>
+
+<span class="sd">    Divides inputs into blocks and performs top-k selection within each block.</span>
+<span class="sd">    This models the compartmentalized structure of dendritic trees.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    in_features : int</span>
+<span class="sd">        Number of input features</span>
+<span class="sd">    out_features : int</span>
+<span class="sd">        Number of output features</span>
+<span class="sd">    block_size : int</span>
+<span class="sd">        Size of each input block</span>
+<span class="sd">    k_per_block : int</span>
+<span class="sd">        Number of inputs to select from each block</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">in_features</span><span class="p">,</span> <span class="n">out_features</span><span class="p">,</span> <span class="n">block_size</span><span class="p">,</span> <span class="n">k_per_block</span><span class="p">):</span>
+        <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="fm">__init__</span><span class="p">()</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">in_features</span> <span class="o">=</span> <span class="n">in_features</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">out_features</span> <span class="o">=</span> <span class="n">out_features</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">block_size</span> <span class="o">=</span> <span class="n">block_size</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">k_per_block</span> <span class="o">=</span> <span class="n">k_per_block</span>
+
+        <span class="c1"># Calculate number of blocks</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">num_blocks</span> <span class="o">=</span> <span class="n">in_features</span> <span class="o">//</span> <span class="n">block_size</span>
+        <span class="k">if</span> <span class="n">in_features</span> <span class="o">%</span> <span class="n">block_size</span> <span class="o">!=</span> <span class="mi">0</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">num_blocks</span> <span class="o">+=</span> <span class="mi">1</span>
+
+        <span class="c1"># Initialize weights and bias</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">weight</span> <span class="o">=</span> <span class="n">nn</span><span class="o">.</span><span class="n">Parameter</span><span class="p">(</span><span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">(</span><span class="n">out_features</span><span class="p">,</span> <span class="n">in_features</span><span class="p">))</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">bias</span> <span class="o">=</span> <span class="n">nn</span><span class="o">.</span><span class="n">Parameter</span><span class="p">(</span><span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">(</span><span class="n">out_features</span><span class="p">))</span>
+
+        <span class="c1"># Initialize parameters</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">reset_parameters</span><span class="p">()</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">forward</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="nb">input</span><span class="p">):</span>
+        <span class="c1"># Reshape input into blocks</span>
+        <span class="c1"># Original shape: [batch_size, in_features]</span>
+        <span class="c1"># Reshaped: [batch_size, num_blocks, block_size]</span>
+        <span class="n">batch_size</span> <span class="o">=</span> <span class="nb">input</span><span class="o">.</span><span class="n">size</span><span class="p">(</span><span class="mi">0</span><span class="p">)</span>
+        <span class="n">reshaped_input</span> <span class="o">=</span> <span class="nb">input</span><span class="o">.</span><span class="n">view</span><span class="p">(</span><span class="n">batch_size</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">num_blocks</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">block_size</span><span class="p">)</span>
+
+        <span class="c1"># Compute potential for each block</span>
+        <span class="c1"># Shape: [batch_size, num_blocks, block_size]</span>
+        <span class="n">reshaped_weight</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">weight</span><span class="o">.</span><span class="n">view</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">out_features</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">num_blocks</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">block_size</span><span class="p">)</span>
+        <span class="n">potential</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">matmul</span><span class="p">(</span><span class="n">reshaped_input</span><span class="o">.</span><span class="n">unsqueeze</span><span class="p">(</span><span class="mi">1</span><span class="p">),</span> <span class="n">reshaped_weight</span><span class="o">.</span><span class="n">transpose</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="mi">2</span><span class="p">))</span>
+
+        <span class="c1"># Select top-k within each block</span>
+        <span class="c1"># Shape of indices: [batch_size, out_features, num_blocks, k_per_block]</span>
+        <span class="n">_</span><span class="p">,</span> <span class="n">indices</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">topk</span><span class="p">(</span><span class="n">potential</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">k_per_block</span><span class="p">,</span> <span class="n">dim</span><span class="o">=</span><span class="mi">3</span><span class="p">)</span>
+
+        <span class="c1"># Create mask and apply</span>
+        <span class="n">mask</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">zeros_like</span><span class="p">(</span><span class="n">potential</span><span class="p">)</span>
+        <span class="n">mask</span><span class="o">.</span><span class="n">scatter_</span><span class="p">(</span><span class="mi">3</span><span class="p">,</span> <span class="n">indices</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span>
+        <span class="n">selected</span> <span class="o">=</span> <span class="n">potential</span> <span class="o">*</span> <span class="n">mask</span>
+
+        <span class="c1"># Sum selected inputs</span>
+        <span class="n">output</span> <span class="o">=</span> <span class="n">selected</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="n">dim</span><span class="o">=</span><span class="p">[</span><span class="mi">2</span><span class="p">,</span> <span class="mi">3</span><span class="p">])</span>
+
+        <span class="c1"># Add bias</span>
+        <span class="k">return</span> <span class="n">output</span> <span class="o">+</span> <span class="bp">self</span><span class="o">.</span><span class="n">bias</span>
+</pre></div>
+</div>
+<p>Block-structured TopKLinear is beneficial when:
+1. Inputs have a natural block structure (e.g., features from different modalities)
+2. You want to ensure representation from all parts of the input
+3. You’re modeling specific dendritic branch structures</p>
+</section>
+<section id="comparison-with-standard-linear-layers">
+<h2>Comparison with Standard Linear Layers<a class="headerlink" href="#comparison-with-standard-linear-layers" title="Link to this heading"></a></h2>
+<p>Compared to standard linear layers, TopKLinear has several key differences:</p>
+<ol class="arabic simple">
+<li><p><strong>Computational complexity</strong>:
+- Forward pass: O(n log k) for top-k selection vs. O(n) for standard linear
+- More computationally intensive due to sorting operation</p></li>
+<li><p><strong>Memory usage</strong>:
+- Similar number of parameters
+- Higher memory usage during training due to storing indices and masks</p></li>
+<li><p><strong>Representational power</strong>:
+- Can implement nonlinear operations that standard linear layers cannot
+- Can adapt its computational behavior to different inputs (context-dependent processing)</p></li>
+<li><p><strong>Sparsity</strong>:
+- Naturally sparse activations (only k connections are active)
+- Sparse gradient flow during training</p></li>
+</ol>
+</section>
+<section id="best-practices">
+<h2>Best Practices<a class="headerlink" href="#best-practices" title="Link to this heading"></a></h2>
+<p>For optimal performance with TopKLinear layers:</p>
+<ol class="arabic simple">
+<li><p><strong>Start with reasonable branch factors</strong>:
+- For initial experimentation, set k to 10-20% of the input dimension
+- Adjust based on performance and desired properties</p></li>
+<li><p><strong>Use probabilistic activation</strong>:
+- Set <cite>branch_probabilistic: true</cite> for more stable training
+- Start with temperature = 1.0 and adjust as needed</p></li>
+<li><p><strong>Combine with appropriate activation functions</strong>:
+- ParametricTanh works well with TopKLinear layers
+- Consider the interaction between selectivity and nonlinearity</p></li>
+<li><p><strong>Monitor branch activation</strong>:
+- Track which branches are active during training
+- Ensure branches aren’t “dying” (never being selected)</p></li>
+<li><p><strong>Adjust gradient scaling</strong>:
+- Use gradient scaling to stabilize training
+- Higher branch factors may require less aggressive scaling</p></li>
+</ol>
+</section>
+<section id="example-configuration">
+<h2>Example Configuration<a class="headerlink" href="#example-configuration" title="Link to this heading"></a></h2>
+<p>Here’s a complete configuration example for a network using TopKLinear layers:</p>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">model</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">network</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">type</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;EINet&quot;</span>
+<span class="w">    </span><span class="nt">parameters</span><span class="p">:</span>
+<span class="w">      </span><span class="nt">input_dim</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">784</span>
+<span class="w">      </span><span class="nt">excitatory_layer_sizes</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">512</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">256</span><span class="p p-Indicator">]</span>
+<span class="w">      </span><span class="nt">inhibitory_layer_sizes</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">200</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">100</span><span class="p p-Indicator">]</span>
+<span class="w">      </span><span class="nt">excitatory_branch_factors</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">64</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">32</span><span class="p p-Indicator">]</span>
+<span class="w">      </span><span class="nt">inhibitory_branch_factors</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">32</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">16</span><span class="p p-Indicator">]</span>
+<span class="w">      </span><span class="nt">branch_probabilistic</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+<span class="w">      </span><span class="nt">probabilistic_temperature</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">1.0</span>
+<span class="w">      </span><span class="nt">topk_init_method</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;xavier_normal&quot;</span>
+<span class="w">      </span><span class="nt">init_gain</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">1.0</span>
+<span class="w">      </span><span class="nt">output_dim</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">10</span>
+</pre></div>
+</div>
+</section>
+</section>
+
+
+           </div>
+          </div>
+          <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
+        <a href="learning_strategies.html" class="btn btn-neutral float-left" title="Learning Strategies" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
+        <a href="../visualization/index.html" class="btn btn-neutral float-right" title="Visualization Guide" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright 2025, Research and Engineering at Kempner.</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>

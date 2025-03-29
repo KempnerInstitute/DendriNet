@@ -1,0 +1,341 @@
+
+
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" data-content_root="../../../">
+<head>
+  <meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Activation Functions &mdash; dendritic_modeling 0.1.0 documentation</title>
+      <link rel="stylesheet" type="text/css" href="../../../_static/pygments.css?v=b86133f3" />
+      <link rel="stylesheet" type="text/css" href="../../../_static/css/theme.css?v=e59714d7" />
+      <link rel="stylesheet" type="text/css" href="../../../_static/copybutton.css?v=76b2166b" />
+
+  
+      <script src="../../../_static/jquery.js?v=5d32c60e"></script>
+      <script src="../../../_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
+      <script src="../../../_static/documentation_options.js?v=01f34227"></script>
+      <script src="../../../_static/doctools.js?v=9bcbadda"></script>
+      <script src="../../../_static/sphinx_highlight.js?v=dc90522c"></script>
+      <script src="../../../_static/clipboard.min.js?v=a7894cd8"></script>
+      <script src="../../../_static/copybutton.js?v=f281be69"></script>
+      <script crossorigin="anonymous" integrity="sha256-Ae2Vz/4ePdIu6ZyI/5ZGsYnb+m0JlOmKPjt6XZ9JJkA=" src="https://cdnjs.cloudflare.com/ajax/libs/require.js/2.3.4/require.min.js"></script>
+    <script src="../../../_static/js/theme.js"></script>
+    <link rel="author" title="About these documents" href="../../../about.html" />
+    <link rel="index" title="Index" href="../../../genindex.html" />
+    <link rel="search" title="Search" href="../../../search.html" />
+    <link rel="next" title="Gradient Scaling Techniques" href="gradient_scaling.html" />
+    <link rel="prev" title="Network Structures" href="index.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+
+          
+          
+          <a href="../../../index.html" class="icon icon-home">
+            dendritic_modeling
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../../../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <p class="caption" role="heading"><span class="caption-text">Introduction</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../about.html">About</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Contents</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../getting_started/index.html">Getting Started Guide</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../user_guide/index.html">User Guide</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Contents</span></p>
+<ul class="current">
+<li class="toctree-l1 current"><a class="reference internal" href="index.html">Network Structures</a><ul class="current">
+<li class="toctree-l2 current"><a class="current reference internal" href="#">Activation Functions</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#overview">Overview</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#available-activation-functions">Available Activation Functions</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#parametrictanh">ParametricTanh</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#parametrictanhonlym">ParametricTanhOnlyM</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#standard-activation-functions">Standard Activation Functions</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#activationfactory">ActivationFactory</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#configuration">Configuration</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#usage-in-the-network">Usage in the Network</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#biological-intuition">Biological Intuition</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#best-practices">Best Practices</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="gradient_scaling.html">Gradient Scaling Techniques</a></li>
+<li class="toctree-l2"><a class="reference internal" href="network_structures.html">Network Structures and Architecture</a></li>
+<li class="toctree-l2"><a class="reference internal" href="weight_initialization.html">Weight Initialization Methods</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="../learning/index.html">Learning Strategies</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../visualization/index.html">Visualization Guide</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../analysis/index.html">Analysis and Evaluation</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Contents</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../api/index.html">API Reference</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Contents</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../deployment/index.html">Deployment Guide</a></li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../../../index.html">dendritic_modeling</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="../../../index.html" class="icon icon-home" aria-label="Home"></a></li>
+          <li class="breadcrumb-item"><a href="index.html">Network Structures</a></li>
+      <li class="breadcrumb-item active">Activation Functions</li>
+      <li class="wy-breadcrumbs-aside">
+            <a href="../../../_sources/source/advanced/network_structures/activation_functions.rst.txt" rel="nofollow"> View page source</a>
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <section id="activation-functions">
+<span id="id1"></span><h1>Activation Functions<a class="headerlink" href="#activation-functions" title="Link to this heading"></a></h1>
+<p>This document explains the specialized activation functions available in the dendritic modeling framework for modeling nonlinear response properties of biological dendrites.</p>
+<section id="overview">
+<h2>Overview<a class="headerlink" href="#overview" title="Link to this heading"></a></h2>
+<p>Biological dendrites exhibit complex nonlinear response properties that are crucial for their computational capabilities. The dendritic modeling framework provides several activation functions to model these properties, with a particular focus on parametric activations that can learn the specific nonlinearities for each dendritic branch.</p>
+</section>
+<section id="available-activation-functions">
+<h2>Available Activation Functions<a class="headerlink" href="#available-activation-functions" title="Link to this heading"></a></h2>
+<p>The framework implements several activation functions in <code class="docutils literal notranslate"><span class="pre">activation_functions.py</span></code>:</p>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">model</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">network</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">parameters</span><span class="p">:</span>
+<span class="w">      </span><span class="nt">reactivation_type</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">param_tanh</span><span class="w">  </span><span class="c1"># Options: &quot;none&quot;, &quot;param_tanh&quot;, &quot;param_tanh_only_m&quot;, &quot;relu&quot;, &quot;sigmoid&quot;, &quot;tanh&quot;</span>
+<span class="w">      </span><span class="nt">reactivation_initial_m</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">1.5</span><span class="w">    </span><span class="c1"># Initial slope parameter for param_tanh</span>
+<span class="w">      </span><span class="nt">reactivation_initial_b</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">1.0</span><span class="w">    </span><span class="c1"># Initial offset parameter for param_tanh</span>
+</pre></div>
+</div>
+<p>These activation functions are created using the <code class="docutils literal notranslate"><span class="pre">ActivationFactory</span></code> class, which provides a unified interface for creating different activation types.</p>
+</section>
+<section id="parametrictanh">
+<h2>ParametricTanh<a class="headerlink" href="#parametrictanh" title="Link to this heading"></a></h2>
+<p>The <code class="docutils literal notranslate"><span class="pre">ParametricTanh</span></code> is a specialized activation function with learnable parameters <code class="docutils literal notranslate"><span class="pre">m</span></code> (slope) and <code class="docutils literal notranslate"><span class="pre">b</span></code> (offset):</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="k">class</span><span class="w"> </span><span class="nc">ParametricTanh</span><span class="p">(</span><span class="n">nn</span><span class="o">.</span><span class="n">Module</span><span class="p">):</span>
+    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">output_dim</span><span class="p">,</span> <span class="n">init_m</span><span class="o">=</span><span class="mf">1.5</span><span class="p">,</span> <span class="n">init_b</span><span class="o">=</span><span class="mf">1.0</span><span class="p">):</span>
+        <span class="nb">super</span><span class="p">(</span><span class="n">ParametricTanh</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="fm">__init__</span><span class="p">()</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">log_m</span> <span class="o">=</span> <span class="n">nn</span><span class="o">.</span><span class="n">Parameter</span><span class="p">(</span><span class="n">torch</span><span class="o">.</span><span class="n">empty</span><span class="p">((</span><span class="n">output_dim</span><span class="p">,)),</span> <span class="n">requires_grad</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">log_b</span> <span class="o">=</span> <span class="n">nn</span><span class="o">.</span><span class="n">Parameter</span><span class="p">(</span><span class="n">torch</span><span class="o">.</span><span class="n">empty</span><span class="p">((</span><span class="n">output_dim</span><span class="p">,)),</span> <span class="n">requires_grad</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+
+        <span class="n">nn</span><span class="o">.</span><span class="n">init</span><span class="o">.</span><span class="n">constant_</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">log_m</span><span class="p">,</span> <span class="n">math</span><span class="o">.</span><span class="n">log</span><span class="p">(</span><span class="n">init_m</span><span class="p">))</span>
+        <span class="n">nn</span><span class="o">.</span><span class="n">init</span><span class="o">.</span><span class="n">constant_</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">log_b</span><span class="p">,</span> <span class="n">math</span><span class="o">.</span><span class="n">log</span><span class="p">(</span><span class="n">init_b</span><span class="p">))</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">forward</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">V</span><span class="p">):</span>
+        <span class="n">m</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">log_m</span><span class="o">.</span><span class="n">exp</span><span class="p">()</span>  <span class="c1"># slope</span>
+        <span class="n">b</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">log_b</span><span class="o">.</span><span class="n">exp</span><span class="p">()</span>  <span class="c1"># midpoint</span>
+        <span class="k">return</span> <span class="p">(</span><span class="n">torch</span><span class="o">.</span><span class="n">tanh</span><span class="p">(</span><span class="n">m</span> <span class="o">*</span> <span class="p">(</span><span class="n">V</span> <span class="o">-</span> <span class="n">b</span><span class="p">))</span> <span class="o">+</span> <span class="mi">1</span><span class="p">)</span> <span class="o">/</span> <span class="mi">2</span>
+</pre></div>
+</div>
+<p>This activation computes a normalized sigmoid-like response from the membrane potential <code class="docutils literal notranslate"><span class="pre">V</span></code>, with:
+- <code class="docutils literal notranslate"><span class="pre">m</span></code> controlling the steepness of the response (higher values give sharper transitions)
+- <code class="docutils literal notranslate"><span class="pre">b</span></code> controlling the threshold/midpoint of the response</p>
+<p>The parameters are stored in log space to ensure positivity and for more stable gradient-based optimization. The <code class="docutils literal notranslate"><span class="pre">init_m</span></code> and <code class="docutils literal notranslate"><span class="pre">init_b</span></code> parameters allow control over the initial parameter values.</p>
+</section>
+<section id="parametrictanhonlym">
+<h2>ParametricTanhOnlyM<a class="headerlink" href="#parametrictanhonlym" title="Link to this heading"></a></h2>
+<p>The <code class="docutils literal notranslate"><span class="pre">ParametricTanhOnlyM</span></code> is a variant where only the slope parameter <code class="docutils literal notranslate"><span class="pre">m</span></code> is learnable, while the offset <code class="docutils literal notranslate"><span class="pre">b</span></code> is fixed:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="k">class</span><span class="w"> </span><span class="nc">ParametricTanhOnlyM</span><span class="p">(</span><span class="n">nn</span><span class="o">.</span><span class="n">Module</span><span class="p">):</span>
+    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">output_dim</span><span class="p">,</span> <span class="n">init_m</span><span class="o">=</span><span class="mf">1.5</span><span class="p">,</span> <span class="n">fixed_b</span><span class="o">=</span><span class="mf">0.5</span><span class="p">):</span>
+        <span class="nb">super</span><span class="p">(</span><span class="n">ParametricTanhOnlyM</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="fm">__init__</span><span class="p">()</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">log_m</span> <span class="o">=</span> <span class="n">nn</span><span class="o">.</span><span class="n">Parameter</span><span class="p">(</span><span class="n">torch</span><span class="o">.</span><span class="n">empty</span><span class="p">((</span><span class="n">output_dim</span><span class="p">,)),</span> <span class="n">requires_grad</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">fixed_b</span> <span class="o">=</span> <span class="n">fixed_b</span>  <span class="c1"># fixed midpoint value</span>
+        <span class="k">with</span> <span class="n">torch</span><span class="o">.</span><span class="n">no_grad</span><span class="p">():</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">log_m</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">fill_</span><span class="p">(</span><span class="n">math</span><span class="o">.</span><span class="n">log</span><span class="p">(</span><span class="n">init_m</span><span class="p">))</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">register_full_backward_hook</span><span class="p">(</span>
+            <span class="k">lambda</span> <span class="n">mod</span><span class="p">,</span> <span class="n">g_in</span><span class="p">,</span> <span class="n">g_out</span><span class="p">:</span> <span class="n">scale_activation_grad_hook</span><span class="p">(</span><span class="n">mod</span><span class="p">,</span> <span class="n">g_in</span><span class="p">,</span> <span class="n">g_out</span><span class="p">)</span>
+        <span class="p">)</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">forward</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">V</span><span class="p">):</span>
+        <span class="n">m</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">log_m</span><span class="o">.</span><span class="n">exp</span><span class="p">()</span>  <span class="c1"># slope</span>
+        <span class="n">b</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">fixed_b</span>       <span class="c1"># fixed midpoint</span>
+        <span class="k">return</span> <span class="p">(</span><span class="n">torch</span><span class="o">.</span><span class="n">tanh</span><span class="p">(</span><span class="n">m</span> <span class="o">*</span> <span class="p">(</span><span class="n">V</span> <span class="o">-</span> <span class="n">b</span><span class="p">))</span> <span class="o">+</span> <span class="mi">1</span><span class="p">)</span> <span class="o">/</span> <span class="mi">2</span>
+</pre></div>
+</div>
+<p>This implementation also registers a gradient scaling hook to help with training stability. The hook is defined in <code class="docutils literal notranslate"><span class="pre">gradient_scaling.py</span></code> and helps ensure appropriate gradient flow through the activation function.</p>
+</section>
+<section id="standard-activation-functions">
+<h2>Standard Activation Functions<a class="headerlink" href="#standard-activation-functions" title="Link to this heading"></a></h2>
+<p>The framework also provides standard activation functions with consistent interfaces:</p>
+<ol class="arabic">
+<li><p><strong>SimpleReLU</strong>: Standard ReLU activation</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="k">class</span><span class="w"> </span><span class="nc">SimpleReLU</span><span class="p">(</span><span class="n">nn</span><span class="o">.</span><span class="n">Module</span><span class="p">):</span>
+    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="nb">super</span><span class="p">(</span><span class="n">SimpleReLU</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="fm">__init__</span><span class="p">()</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">forward</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">x</span><span class="p">):</span>
+        <span class="k">return</span> <span class="n">torch</span><span class="o">.</span><span class="n">relu</span><span class="p">(</span><span class="n">x</span><span class="p">)</span>
+</pre></div>
+</div>
+</li>
+<li><p><strong>SimpleSigmoid</strong>: Standard sigmoid activation</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="k">class</span><span class="w"> </span><span class="nc">SimpleSigmoid</span><span class="p">(</span><span class="n">nn</span><span class="o">.</span><span class="n">Module</span><span class="p">):</span>
+    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="nb">super</span><span class="p">(</span><span class="n">SimpleSigmoid</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="fm">__init__</span><span class="p">()</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">forward</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">x</span><span class="p">):</span>
+        <span class="k">return</span> <span class="n">torch</span><span class="o">.</span><span class="n">sigmoid</span><span class="p">(</span><span class="n">x</span><span class="p">)</span>
+</pre></div>
+</div>
+</li>
+<li><p><strong>SimpleTanh</strong>: Standard tanh activation</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="k">class</span><span class="w"> </span><span class="nc">SimpleTanh</span><span class="p">(</span><span class="n">nn</span><span class="o">.</span><span class="n">Module</span><span class="p">):</span>
+    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="nb">super</span><span class="p">(</span><span class="n">SimpleTanh</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="fm">__init__</span><span class="p">()</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">forward</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">x</span><span class="p">):</span>
+        <span class="k">return</span> <span class="n">torch</span><span class="o">.</span><span class="n">tanh</span><span class="p">(</span><span class="n">x</span><span class="p">)</span>
+</pre></div>
+</div>
+</li>
+</ol>
+</section>
+<section id="activationfactory">
+<h2>ActivationFactory<a class="headerlink" href="#activationfactory" title="Link to this heading"></a></h2>
+<p>To simplify creating the right activation function, the framework provides an <code class="docutils literal notranslate"><span class="pre">ActivationFactory</span></code> class:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="k">class</span><span class="w"> </span><span class="nc">ActivationFactory</span><span class="p">:</span>
+    <span class="nd">@staticmethod</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">create</span><span class="p">(</span><span class="n">act_type</span><span class="p">,</span> <span class="n">output_dim</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">init_m</span><span class="o">=</span><span class="mf">1.5</span><span class="p">,</span> <span class="n">init_b</span><span class="o">=</span><span class="mf">1.0</span><span class="p">,</span> <span class="n">fixed_b</span><span class="o">=</span><span class="mf">0.5</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Create an activation module of the desired type.</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        act_type : str</span>
+<span class="sd">            One of [&quot;none&quot;, &quot;param_tanh&quot;, &quot;param_tanh_only_m&quot;, &quot;relu&quot;, &quot;sigmoid&quot;, &quot;tanh&quot;].</span>
+<span class="sd">        output_dim : int or None</span>
+<span class="sd">            Used by param_tanh and param_tanh_only_m.</span>
+<span class="sd">        init_m : float</span>
+<span class="sd">            Initial value for m.</span>
+<span class="sd">        init_b : float</span>
+<span class="sd">            Initial value for b (used only for param_tanh).</span>
+<span class="sd">        fixed_b : float</span>
+<span class="sd">            The fixed value of b when using param_tanh_only_m.</span>
+<span class="sd">        **kwargs : dict</span>
+<span class="sd">            Additional keyword arguments are accepted but ignored.</span>
+
+<span class="sd">        Returns</span>
+<span class="sd">        -------</span>
+<span class="sd">        nn.Module</span>
+<span class="sd">            The activation module.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">act_type</span> <span class="o">=</span> <span class="n">act_type</span><span class="o">.</span><span class="n">lower</span><span class="p">()</span>
+        <span class="k">if</span> <span class="n">act_type</span> <span class="o">==</span> <span class="s2">&quot;none&quot;</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">nn</span><span class="o">.</span><span class="n">Identity</span><span class="p">()</span>
+        <span class="k">elif</span> <span class="n">act_type</span> <span class="o">==</span> <span class="s2">&quot;param_tanh&quot;</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">output_dim</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+                <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;ParametricTanh requires output_dim.&quot;</span><span class="p">)</span>
+            <span class="k">return</span> <span class="n">ParametricTanh</span><span class="p">(</span><span class="n">output_dim</span><span class="p">,</span> <span class="n">init_m</span><span class="p">,</span> <span class="n">init_b</span><span class="p">)</span>
+        <span class="k">elif</span> <span class="n">act_type</span> <span class="o">==</span> <span class="s2">&quot;param_tanh_only_m&quot;</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">output_dim</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+                <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;ParametricTanhOnlyM requires output_dim.&quot;</span><span class="p">)</span>
+            <span class="k">return</span> <span class="n">ParametricTanhOnlyM</span><span class="p">(</span><span class="n">output_dim</span><span class="p">,</span> <span class="n">init_m</span><span class="p">,</span> <span class="n">fixed_b</span><span class="p">)</span>
+        <span class="k">elif</span> <span class="n">act_type</span> <span class="o">==</span> <span class="s2">&quot;relu&quot;</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">SimpleReLU</span><span class="p">()</span>
+        <span class="k">elif</span> <span class="n">act_type</span> <span class="o">==</span> <span class="s2">&quot;sigmoid&quot;</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">SimpleSigmoid</span><span class="p">()</span>
+        <span class="k">elif</span> <span class="n">act_type</span> <span class="o">==</span> <span class="s2">&quot;tanh&quot;</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">SimpleTanh</span><span class="p">()</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Unknown activation type: </span><span class="si">{</span><span class="n">act_type</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+</pre></div>
+</div>
+<p>This factory pattern makes it easy to create the appropriate activation function based on the configuration.</p>
+</section>
+<section id="configuration">
+<h2>Configuration<a class="headerlink" href="#configuration" title="Link to this heading"></a></h2>
+<p>The activation functions are configured in the model section of the configuration:</p>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">model</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">network</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">parameters</span><span class="p">:</span>
+<span class="w">      </span><span class="nt">reactivation_type</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">param_tanh</span><span class="w">  </span><span class="c1"># Type of activation function</span>
+<span class="w">      </span><span class="nt">reactivation_strategy</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">inverse</span><span class="w">  </span><span class="c1"># Gradient scaling strategy for reactivation</span>
+<span class="w">      </span><span class="nt">reactivate</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span><span class="w">               </span><span class="c1"># Whether to use reactivation</span>
+<span class="w">      </span><span class="nt">use_shunting</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span><span class="w">             </span><span class="c1"># Whether to use shunting inhibition</span>
+</pre></div>
+</div>
+<p>The <code class="docutils literal notranslate"><span class="pre">reactivation_strategy</span></code> parameter affects how gradients flow through the activation, with the “inverse” strategy implemented in the gradient scaling module.</p>
+</section>
+<section id="usage-in-the-network">
+<h2>Usage in the Network<a class="headerlink" href="#usage-in-the-network" title="Link to this heading"></a></h2>
+<p>The activation functions are primarily used in dendritic branch layers, where they model the response of dendritic branches to incoming signals. The <code class="docutils literal notranslate"><span class="pre">ExcitationInhibitionLayer</span></code> in <code class="docutils literal notranslate"><span class="pre">networks.py</span></code> uses these activations to process dendritic inputs.</p>
+</section>
+<section id="biological-intuition">
+<h2>Biological Intuition<a class="headerlink" href="#biological-intuition" title="Link to this heading"></a></h2>
+<p>The parametric activation functions are motivated by biological observations:</p>
+<ol class="arabic simple">
+<li><p><strong>Sigmoidal response</strong>: Dendritic branches show sigmoidal voltage responses to increasing input</p></li>
+<li><p><strong>Variable thresholds</strong>: Different branches can have different activation thresholds</p></li>
+<li><p><strong>Activity-dependent plasticity</strong>: The response properties of dendrites can change with experience</p></li>
+</ol>
+<p>The <code class="docutils literal notranslate"><span class="pre">ParametricTanh</span></code> activation captures these properties by allowing each branch to learn its own response curve through the <code class="docutils literal notranslate"><span class="pre">m</span></code> and <code class="docutils literal notranslate"><span class="pre">b</span></code> parameters.</p>
+</section>
+<section id="best-practices">
+<h2>Best Practices<a class="headerlink" href="#best-practices" title="Link to this heading"></a></h2>
+<p>When working with dendritic activations:</p>
+<ol class="arabic simple">
+<li><p><strong>Initial parameters</strong>: Start with reasonable initial parameters (typical values: <code class="docutils literal notranslate"><span class="pre">init_m=1.5</span></code>, <code class="docutils literal notranslate"><span class="pre">init_b=1.0</span></code>)</p></li>
+<li><p><strong>Gradient scaling</strong>: Use appropriate gradient scaling to ensure stable training</p></li>
+<li><p><strong>Monitor parameters</strong>: Track the learned <code class="docutils literal notranslate"><span class="pre">m</span></code> and <code class="docutils literal notranslate"><span class="pre">b</span></code> values to understand branch specialization</p></li>
+<li><p><strong>Consider constraints</strong>: For some applications, <code class="docutils literal notranslate"><span class="pre">ParametricTanhOnlyM</span></code> with fixed <code class="docutils literal notranslate"><span class="pre">b</span></code> may be more stable</p></li>
+</ol>
+<p>By carefully configuring activation functions, you can create dendritic networks that capture the computational properties of biological dendrites.</p>
+</section>
+</section>
+
+
+           </div>
+          </div>
+          <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
+        <a href="index.html" class="btn btn-neutral float-left" title="Network Structures" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
+        <a href="gradient_scaling.html" class="btn btn-neutral float-right" title="Gradient Scaling Techniques" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright 2025, Research and Engineering at Kempner.</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>

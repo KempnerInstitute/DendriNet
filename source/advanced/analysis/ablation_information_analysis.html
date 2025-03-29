@@ -1,0 +1,834 @@
+
+
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" data-content_root="../../../">
+<head>
+  <meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Ablation Studies and Information Analysis &mdash; dendritic_modeling 0.1.0 documentation</title>
+      <link rel="stylesheet" type="text/css" href="../../../_static/pygments.css?v=b86133f3" />
+      <link rel="stylesheet" type="text/css" href="../../../_static/css/theme.css?v=e59714d7" />
+      <link rel="stylesheet" type="text/css" href="../../../_static/copybutton.css?v=76b2166b" />
+
+  
+      <script src="../../../_static/jquery.js?v=5d32c60e"></script>
+      <script src="../../../_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
+      <script src="../../../_static/documentation_options.js?v=01f34227"></script>
+      <script src="../../../_static/doctools.js?v=9bcbadda"></script>
+      <script src="../../../_static/sphinx_highlight.js?v=dc90522c"></script>
+      <script src="../../../_static/clipboard.min.js?v=a7894cd8"></script>
+      <script src="../../../_static/copybutton.js?v=f281be69"></script>
+      <script crossorigin="anonymous" integrity="sha256-Ae2Vz/4ePdIu6ZyI/5ZGsYnb+m0JlOmKPjt6XZ9JJkA=" src="https://cdnjs.cloudflare.com/ajax/libs/require.js/2.3.4/require.min.js"></script>
+      <script>window.MathJax = {"tex": {"inlineMath": [["$", "$"], ["\\(", "\\)"]], "processEscapes": true}, "options": {"ignoreHtmlClass": "tex2jax_ignore|mathjax_ignore|document", "processHtmlClass": "tex2jax_process|mathjax_process|math|output_area"}}</script>
+      <script defer="defer" src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+    <script src="../../../_static/js/theme.js"></script>
+    <link rel="author" title="About these documents" href="../../../about.html" />
+    <link rel="index" title="Index" href="../../../genindex.html" />
+    <link rel="search" title="Search" href="../../../search.html" />
+    <link rel="next" title="Experiment Tracking and Logging" href="experiment_tracking.html" />
+    <link rel="prev" title="Ablation Studies" href="ablation_studies.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+
+          
+          
+          <a href="../../../index.html" class="icon icon-home">
+            dendritic_modeling
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../../../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <p class="caption" role="heading"><span class="caption-text">Introduction</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../about.html">About</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Contents</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../getting_started/index.html">Getting Started Guide</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../user_guide/index.html">User Guide</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Contents</span></p>
+<ul class="current">
+<li class="toctree-l1"><a class="reference internal" href="../network_structures/index.html">Network Structures</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../learning/index.html">Learning Strategies</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../visualization/index.html">Visualization Guide</a></li>
+<li class="toctree-l1 current"><a class="reference internal" href="index.html">Analysis and Evaluation</a><ul class="current">
+<li class="toctree-l2"><a class="reference internal" href="ablation_studies.html">Ablation Studies</a></li>
+<li class="toctree-l2 current"><a class="current reference internal" href="#">Ablation Studies and Information Analysis</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#overview">Overview</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#ablation-studies">Ablation Studies</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="#types-of-ablation">Types of Ablation</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#basic-ablation-configuration">Basic Ablation Configuration</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#pathway-ablation">Pathway Ablation</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#layer-ablation">Layer Ablation</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#branch-ablation">Branch Ablation</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#mechanism-ablation">Mechanism Ablation</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#progressive-ablation">Progressive Ablation</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#synaptic-weight-ablation">Synaptic Weight Ablation</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#ablation-analysis">Ablation Analysis</a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="#information-analysis">Information Analysis</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="#information-measures">Information Measures</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#basic-information-analysis-configuration">Basic Information Analysis Configuration</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#layer-based-information-analysis">Layer-Based Information Analysis</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#branch-based-information-analysis">Branch-Based Information Analysis</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#dendritic-information-analysis-implementation">Dendritic Information Analysis Implementation</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#analyzing-pre-shunting-branch-inputs">Analyzing Pre-Shunting Branch Inputs</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#analyzing-post-shunting-branch-activations">Analyzing Post-Shunting Branch Activations</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#comparing-pre-shunting-vs-post-shunting-information">Comparing Pre-Shunting vs. Post-Shunting Information</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#synaptic-weight-information-analysis">Synaptic Weight Information Analysis</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#receptive-field-analysis">Receptive Field Analysis</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#information-bottleneck-analysis">Information Bottleneck Analysis</a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="#combining-ablation-and-information-analysis">Combining Ablation and Information Analysis</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#visualizing-information-analysis-results">Visualizing Information Analysis Results</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#best-practices-for-ablation-and-information-analysis">Best Practices for Ablation and Information Analysis</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#complete-analysis-example">Complete Analysis Example</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="experiment_tracking.html">Experiment Tracking and Logging</a></li>
+<li class="toctree-l2"><a class="reference internal" href="output_handling.html">Output Handling and Loss Functions</a></li>
+<li class="toctree-l2"><a class="reference internal" href="synthetic_datasets.html">Datasets and Data Utilities</a></li>
+</ul>
+</li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Contents</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../api/index.html">API Reference</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Contents</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../deployment/index.html">Deployment Guide</a></li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../../../index.html">dendritic_modeling</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="../../../index.html" class="icon icon-home" aria-label="Home"></a></li>
+          <li class="breadcrumb-item"><a href="index.html">Analysis and Evaluation</a></li>
+      <li class="breadcrumb-item active">Ablation Studies and Information Analysis</li>
+      <li class="wy-breadcrumbs-aside">
+            <a href="../../../_sources/source/advanced/analysis/ablation_information_analysis.rst.txt" rel="nofollow"> View page source</a>
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <section id="ablation-studies-and-information-analysis">
+<span id="ablation-information-analysis"></span><h1>Ablation Studies and Information Analysis<a class="headerlink" href="#ablation-studies-and-information-analysis" title="Link to this heading"></a></h1>
+<p>This document provides detailed guidance on performing ablation studies and information-theoretic analyses of dendritic networks, with a specific focus on layer-based and branch-based synaptic weights.</p>
+<section id="overview">
+<h2>Overview<a class="headerlink" href="#overview" title="Link to this heading"></a></h2>
+<p>Understanding how dendritic networks process information requires specialized analysis techniques. Two particularly valuable approaches are:</p>
+<ol class="arabic simple">
+<li><p><strong>Ablation studies</strong>: Systematically removing or modifying components to understand their contribution</p></li>
+<li><p><strong>Information analysis</strong>: Applying information theory to analyze how information flows through the network</p></li>
+</ol>
+<p>These techniques help reveal the computational mechanisms of dendritic networks beyond standard performance metrics.</p>
+</section>
+<section id="ablation-studies">
+<h2>Ablation Studies<a class="headerlink" href="#ablation-studies" title="Link to this heading"></a></h2>
+<p>Ablation studies involve systematically removing or modifying components of the network to understand their contribution to overall performance.</p>
+<section id="types-of-ablation">
+<h3>Types of Ablation<a class="headerlink" href="#types-of-ablation" title="Link to this heading"></a></h3>
+<p>The framework supports several types of ablation studies:</p>
+<ol class="arabic simple">
+<li><p><strong>Pathway ablation</strong>: Removing entire excitatory or inhibitory pathways</p></li>
+<li><p><strong>Layer ablation</strong>: Removing specific layers</p></li>
+<li><p><strong>Branch ablation</strong>: Removing specific branches</p></li>
+<li><p><strong>Feature ablation</strong>: Removing specific input features</p></li>
+<li><p><strong>Mechanism ablation</strong>: Replacing mechanisms like top-k selection with alternatives</p></li>
+</ol>
+</section>
+<section id="basic-ablation-configuration">
+<h3>Basic Ablation Configuration<a class="headerlink" href="#basic-ablation-configuration" title="Link to this heading"></a></h3>
+<p>Configure ablation studies in your evaluation:</p>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">evaluate</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">ablation</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">enabled</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+<span class="w">    </span><span class="nt">save_results</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+<span class="w">    </span><span class="nt">output_dir</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;ablation_results/&quot;</span>
+
+<span class="w">    </span><span class="c1"># Components to ablate</span>
+<span class="w">    </span><span class="nt">components</span><span class="p">:</span>
+<span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">type</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;pathway&quot;</span>
+<span class="w">        </span><span class="nt">target</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;inhibitory&quot;</span><span class="w">  </span><span class="c1"># Options: &quot;excitatory&quot;, &quot;inhibitory&quot;</span>
+
+<span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">type</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;layer&quot;</span>
+<span class="w">        </span><span class="nt">pathway</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;excitatory&quot;</span><span class="w">  </span><span class="c1"># Which pathway the layer belongs to</span>
+<span class="w">        </span><span class="nt">index</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">0</span><span class="w">               </span><span class="c1"># Layer index</span>
+
+<span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">type</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;branch&quot;</span>
+<span class="w">        </span><span class="nt">pathway</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;excitatory&quot;</span>
+<span class="w">        </span><span class="nt">layer</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">0</span>
+<span class="w">        </span><span class="nt">indices</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">0</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">1</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">2</span><span class="p p-Indicator">]</span><span class="w">     </span><span class="c1"># Branch indices</span>
+
+<span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">type</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;mechanism&quot;</span>
+<span class="w">        </span><span class="nt">target</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;topk&quot;</span><span class="w">         </span><span class="c1"># Target mechanism</span>
+<span class="w">        </span><span class="nt">replacement</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;average&quot;</span><span class="w">  </span><span class="c1"># Replacement mechanism</span>
+
+<span class="w">    </span><span class="c1"># Metrics to compute</span>
+<span class="w">    </span><span class="nt">metrics</span><span class="p">:</span>
+<span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="s">&quot;accuracy&quot;</span>
+<span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="s">&quot;loss&quot;</span>
+<span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="s">&quot;per_class_accuracy&quot;</span>
+</pre></div>
+</div>
+<p>This configuration specifies which components to ablate and which metrics to measure after ablation.</p>
+</section>
+<section id="pathway-ablation">
+<h3>Pathway Ablation<a class="headerlink" href="#pathway-ablation" title="Link to this heading"></a></h3>
+<p>Pathway ablation examines the contribution of entire excitatory or inhibitory pathways:</p>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">evaluate</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">ablation</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">components</span><span class="p">:</span>
+<span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">type</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;pathway&quot;</span>
+<span class="w">        </span><span class="nt">target</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;inhibitory&quot;</span><span class="w">     </span><span class="c1"># Remove inhibitory pathway</span>
+<span class="w">        </span><span class="nt">method</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;zero_output&quot;</span><span class="w">    </span><span class="c1"># Method: zero_output, remove, random_weights</span>
+</pre></div>
+</div>
+<p>Analyzing pathway ablation results reveals:
+1. The relative importance of excitatory vs. inhibitory processing
+2. Whether the pathways are redundant or complementary
+3. How the pathways interact in different tasks or data regimes</p>
+</section>
+<section id="layer-ablation">
+<h3>Layer Ablation<a class="headerlink" href="#layer-ablation" title="Link to this heading"></a></h3>
+<p>Layer ablation examines the contribution of specific layers:</p>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">evaluate</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">ablation</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">components</span><span class="p">:</span>
+<span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">type</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;layer&quot;</span>
+<span class="w">        </span><span class="nt">pathway</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;excitatory&quot;</span><span class="w">    </span><span class="c1"># Which pathway</span>
+<span class="w">        </span><span class="nt">index</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">0</span><span class="w">                 </span><span class="c1"># Layer index (0-based)</span>
+<span class="w">        </span><span class="nt">method</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;identity&quot;</span><span class="w">       </span><span class="c1"># Method: identity, zero_output, random_weights</span>
+</pre></div>
+</div>
+<p>Analyzing layer ablation results reveals:
+1. The role of different layers in the processing hierarchy
+2. Whether deeper layers extract more complex features
+3. Layer-specific specialization for different aspects of the task</p>
+</section>
+<section id="branch-ablation">
+<h3>Branch Ablation<a class="headerlink" href="#branch-ablation" title="Link to this heading"></a></h3>
+<p>Branch ablation is particularly important for dendritic networks, as it examines the contribution of specific dendritic branches:</p>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">evaluate</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">ablation</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">components</span><span class="p">:</span>
+<span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">type</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;branch&quot;</span>
+<span class="w">        </span><span class="nt">pathway</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;excitatory&quot;</span><span class="w">    </span><span class="c1"># Which pathway</span>
+<span class="w">        </span><span class="nt">layer</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">0</span><span class="w">                 </span><span class="c1"># Layer index</span>
+<span class="w">        </span><span class="nt">selection</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;top_active&quot;</span><span class="w">  </span><span class="c1"># How to select branches: top_active, random, specific</span>
+<span class="w">        </span><span class="nt">count</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">10</span><span class="w">                </span><span class="c1"># How many branches to ablate</span>
+<span class="w">        </span><span class="nt">method</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;zero_weights&quot;</span><span class="w">   </span><span class="c1"># Method: zero_weights, random_weights, average</span>
+
+<span class="w">      </span><span class="c1"># Or specify exact branches</span>
+<span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">type</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;branch&quot;</span>
+<span class="w">        </span><span class="nt">pathway</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;excitatory&quot;</span>
+<span class="w">        </span><span class="nt">layer</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">0</span>
+<span class="w">        </span><span class="nt">indices</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">0</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">1</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">2</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">5</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">8</span><span class="p p-Indicator">]</span><span class="w">  </span><span class="c1"># Specific branch indices</span>
+<span class="w">        </span><span class="nt">method</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;zero_weights&quot;</span>
+</pre></div>
+</div>
+<p>Analyzing branch ablation results reveals:</p>
+<ol class="arabic simple">
+<li><p>Which branches are most important for overall performance</p></li>
+<li><p>Whether branches specialize in specific features or patterns</p></li>
+<li><p>How redundant or complementary different branches are</p></li>
+<li><p>Class-specific branch specialization</p></li>
+</ol>
+</section>
+<section id="mechanism-ablation">
+<h3>Mechanism Ablation<a class="headerlink" href="#mechanism-ablation" title="Link to this heading"></a></h3>
+<p>Mechanism ablation examines the contribution of specific computational mechanisms:</p>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">evaluate</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">ablation</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">components</span><span class="p">:</span>
+<span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">type</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;mechanism&quot;</span>
+<span class="w">        </span><span class="nt">target</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;topk&quot;</span><span class="w">            </span><span class="c1"># Target mechanism</span>
+<span class="w">        </span><span class="nt">replacement</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;average&quot;</span><span class="w">    </span><span class="c1"># Replacement: average, max, random</span>
+</pre></div>
+</div>
+<p>Common mechanisms to ablate include:
+1. <strong>topk</strong>: The top-k selection mechanism
+2. <strong>gradient_scaling</strong>: Gradient scaling methods
+3. <strong>branch_activation</strong>: Activation functions in branches</p>
+</section>
+<section id="progressive-ablation">
+<h3>Progressive Ablation<a class="headerlink" href="#progressive-ablation" title="Link to this heading"></a></h3>
+<p>Progressive ablation involves removing components incrementally to understand their cumulative impact:</p>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">evaluate</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">ablation</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">progressive</span><span class="p">:</span>
+<span class="w">      </span><span class="nt">enabled</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+<span class="w">      </span><span class="nt">component_type</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;branch&quot;</span><span class="w">    </span><span class="c1"># Component type to progressively ablate</span>
+<span class="w">      </span><span class="nt">pathway</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;excitatory&quot;</span><span class="w">       </span><span class="c1"># Which pathway</span>
+<span class="w">      </span><span class="nt">layer</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">0</span><span class="w">                    </span><span class="c1"># Which layer</span>
+<span class="w">      </span><span class="nt">selection</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;importance&quot;</span><span class="w">     </span><span class="c1"># How to select components: importance, random, activation</span>
+<span class="w">      </span><span class="nt">step_size</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">5</span><span class="w">                </span><span class="c1"># How many components to remove in each step</span>
+<span class="w">      </span><span class="nt">steps</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">20</span><span class="w">                   </span><span class="c1"># Total number of steps</span>
+</pre></div>
+</div>
+</section>
+<section id="synaptic-weight-ablation">
+<h3>Synaptic Weight Ablation<a class="headerlink" href="#synaptic-weight-ablation" title="Link to this heading"></a></h3>
+<p>For detailed analysis of synaptic weights, you can ablate specific weight connections:</p>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">evaluate</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">ablation</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">synaptic_weights</span><span class="p">:</span>
+<span class="w">      </span><span class="nt">enabled</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+<span class="w">      </span><span class="nt">selection</span><span class="p">:</span>
+<span class="w">        </span><span class="nt">method</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;magnitude&quot;</span><span class="w">        </span><span class="c1"># How to select weights: magnitude, random, gradient</span>
+<span class="w">        </span><span class="nt">percentage</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">10</span><span class="w">             </span><span class="c1"># Percentage of weights to ablate</span>
+<span class="w">        </span><span class="nt">absolute_threshold</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">0.1</span><span class="w">    </span><span class="c1"># Or use absolute threshold</span>
+<span class="w">      </span><span class="nt">pathways</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="s">&quot;excitatory&quot;</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="s">&quot;inhibitory&quot;</span><span class="p p-Indicator">]</span><span class="w">  </span><span class="c1"># Which pathways</span>
+<span class="w">      </span><span class="nt">layers</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">0</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">1</span><span class="p p-Indicator">]</span><span class="w">               </span><span class="c1"># Which layers</span>
+</pre></div>
+</div>
+</section>
+<section id="ablation-analysis">
+<h3>Ablation Analysis<a class="headerlink" href="#ablation-analysis" title="Link to this heading"></a></h3>
+<p>After performing ablations, analyze the results to understand component contributions:</p>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">evaluate</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">ablation</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">analysis</span><span class="p">:</span>
+<span class="w">      </span><span class="nt">enabled</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+<span class="w">      </span><span class="nt">compute_importance</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span><span class="w">     </span><span class="c1"># Compute importance scores</span>
+<span class="w">      </span><span class="nt">rank_components</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span><span class="w">        </span><span class="c1"># Rank components by importance</span>
+<span class="w">      </span><span class="nt">class_specific</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span><span class="w">         </span><span class="c1"># Compute class-specific importance</span>
+<span class="w">      </span><span class="nt">visualization</span><span class="p">:</span>
+<span class="w">        </span><span class="nt">enabled</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+<span class="w">        </span><span class="nt">type</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;bar_chart&quot;</span><span class="w">          </span><span class="c1"># Visualization type</span>
+</pre></div>
+</div>
+<p>The framework may provide tools to visualize ablation results, showing the impact of different ablations on performance metrics.</p>
+</section>
+</section>
+<section id="information-analysis">
+<h2>Information Analysis<a class="headerlink" href="#information-analysis" title="Link to this heading"></a></h2>
+<p>Information analysis applies concepts from information theory to understand how dendritic networks process and transform information.</p>
+<section id="information-measures">
+<h3>Information Measures<a class="headerlink" href="#information-measures" title="Link to this heading"></a></h3>
+<p>Common information-theoretic measures include:</p>
+<ol class="arabic simple">
+<li><p><strong>Mutual information (MI)</strong>: Measures shared information between variables</p></li>
+<li><p><strong>Conditional entropy</strong>: Measures uncertainty in one variable given another</p></li>
+<li><p><strong>Information gain</strong>: Measures information added by a component</p></li>
+<li><p><strong>Channel capacity</strong>: Measures maximum information transfer capability</p></li>
+</ol>
+</section>
+<section id="basic-information-analysis-configuration">
+<h3>Basic Information Analysis Configuration<a class="headerlink" href="#basic-information-analysis-configuration" title="Link to this heading"></a></h3>
+<p>Configure information analysis in your evaluation:</p>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">evaluate</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">information_analysis</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">enabled</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+<span class="w">    </span><span class="nt">measures</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="s">&quot;mutual_information&quot;</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="s">&quot;entropy&quot;</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="s">&quot;information_gain&quot;</span><span class="p p-Indicator">]</span>
+<span class="w">    </span><span class="nt">discretization</span><span class="p">:</span>
+<span class="w">      </span><span class="nt">method</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;binning&quot;</span><span class="w">       </span><span class="c1"># Method for discretizing continuous values</span>
+<span class="w">      </span><span class="nt">num_bins</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">30</span><span class="w">            </span><span class="c1"># Number of bins for discretization</span>
+<span class="w">    </span><span class="nt">num_samples</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">1000</span><span class="w">         </span><span class="c1"># Number of samples for estimation</span>
+<span class="w">    </span><span class="nt">output_dir</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;info_analysis/&quot;</span>
+</pre></div>
+</div>
+</section>
+<section id="layer-based-information-analysis">
+<h3>Layer-Based Information Analysis<a class="headerlink" href="#layer-based-information-analysis" title="Link to this heading"></a></h3>
+<p>Analyze information flow through network layers:</p>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">evaluate</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">information_analysis</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">layer_analysis</span><span class="p">:</span>
+<span class="w">      </span><span class="nt">enabled</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+<span class="w">      </span><span class="nt">input_output_mi</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span><span class="w">          </span><span class="c1"># MI between layer input and output</span>
+<span class="w">      </span><span class="nt">layer_layer_mi</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span><span class="w">           </span><span class="c1"># MI between consecutive layers</span>
+<span class="w">      </span><span class="nt">layer_target_mi</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span><span class="w">          </span><span class="c1"># MI between layer output and target</span>
+<span class="w">      </span><span class="nt">pathway_pathway_mi</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span><span class="w">       </span><span class="c1"># MI between excitatory and inhibitory pathways</span>
+</pre></div>
+</div>
+<p>This analysis reveals:
+1. How much information each layer preserves from its input
+2. How much information different layers share
+3. How information about the target variable flows through the network
+4. How excitatory and inhibitory pathways interact informationally</p>
+</section>
+<section id="branch-based-information-analysis">
+<h3>Branch-Based Information Analysis<a class="headerlink" href="#branch-based-information-analysis" title="Link to this heading"></a></h3>
+<p>Analyze information processing within and between dendritic branches:</p>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">evaluate</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">information_analysis</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">branch_analysis</span><span class="p">:</span>
+<span class="w">      </span><span class="nt">enabled</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+<span class="w">      </span><span class="nt">branch_branch_mi</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span><span class="w">         </span><span class="c1"># MI between branches</span>
+<span class="w">      </span><span class="nt">branch_target_mi</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span><span class="w">         </span><span class="c1"># MI between branch output and target</span>
+<span class="w">      </span><span class="nt">synapse_branch_mi</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span><span class="w">        </span><span class="c1"># MI between synaptic inputs and branch output</span>
+<span class="w">      </span><span class="nt">selectivity_analysis</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span><span class="w">     </span><span class="c1"># Analyze branch selectivity</span>
+</pre></div>
+</div>
+<p>This analysis reveals:
+1. How specialized different branches are
+2. Whether branches extract complementary or redundant information
+3. How selective branches are to specific input patterns
+4. How branch outputs combine to form layer outputs</p>
+</section>
+<section id="dendritic-information-analysis-implementation">
+<h3>Dendritic Information Analysis Implementation<a class="headerlink" href="#dendritic-information-analysis-implementation" title="Link to this heading"></a></h3>
+<p>The framework provides a specialized visualization for performing ablation analysis by dendritic order (primary, secondary, etc.) called <code class="docutils literal notranslate"><span class="pre">dendritic_ablation_all</span></code>. This can be enabled in your configuration file:</p>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">visualization</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">enabled</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+<span class="w">  </span><span class="nt">plots</span><span class="p">:</span>
+<span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">dendritic_ablation_all</span><span class="w">  </span><span class="c1"># Activates the dendritic order ablation analysis</span>
+</pre></div>
+</div>
+<p>The implementation consists of the following steps:</p>
+<ol class="arabic simple">
+<li><p><strong>Baseline Performance Measurement</strong>: The model’s baseline performance is measured on the specified dataset.</p></li>
+<li><p><strong>Order-wise Ablation</strong>: The model is systematically ablated at each dendritic order:
+- Combined Ablation: Both excitatory and inhibitory branches at a specific dendritic order are ablated simultaneously.
+- Excitatory Ablation: All excitatory branches at a specific dendritic order are ablated.
+- Inhibitory Ablation: All inhibitory branches at a specific dendritic order are ablated.</p></li>
+<li><p><strong>Result Analysis</strong>: The performance drop for each ablation is calculated.
+- Both absolute performance drops and percentage drops relative to baseline are computed.
+- If the results contain lists instead of single values (e.g., from multiple runs), they are appropriately processed.</p></li>
+<li><p><strong>Visualization</strong>: The results are visualized as bar plots showing the performance drop as a function of dendritic order, with separate bars for excitatory, inhibitory, and combined ablation.</p></li>
+</ol>
+<p>The implementation handles potential edge cases:
+- Results may contain lists of values for each order (e.g., when aggregating multiple runs)
+- Some dendritic orders might not have both excitatory and inhibitory branches
+- When only one pathway exists, the combined ablation result reflects that pathway’s ablation
+- Results are normalized relative to baseline performance for more interpretable comparisons</p>
+<p>Example configuration:</p>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">visualization</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">enabled</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+<span class="w">  </span><span class="nt">plots</span><span class="p">:</span>
+<span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">dendritic_ablation_all</span>
+<span class="w">  </span><span class="nt">parameters</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">dendritic_ablation_all</span><span class="p">:</span>
+<span class="w">      </span><span class="nt">save_data</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span><span class="w">  </span><span class="c1"># Optionally save raw data for further analysis</span>
+<span class="w">      </span><span class="nt">figsize</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">10</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">6</span><span class="p p-Indicator">]</span><span class="w">  </span><span class="c1"># Customize figure size</span>
+<span class="w">      </span><span class="nt">colors</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="s">&#39;blue&#39;</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="s">&#39;red&#39;</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="s">&#39;purple&#39;</span><span class="p p-Indicator">]</span><span class="w">  </span><span class="c1"># Colors for excitatory, inhibitory, and combined lines</span>
+</pre></div>
+</div>
+<p>The analysis provides insights into:
+- How information is distributed across dendritic orders
+- The relative importance of proximal versus distal dendritic segments
+- The complementary roles of excitatory and inhibitory pathways at different hierarchical levels
+- Whether ablating both pathways has a superadditive or subadditive effect compared to ablating individual pathways</p>
+<section id="information-analysis-implementation">
+<h4>Information Analysis Implementation<a class="headerlink" href="#information-analysis-implementation" title="Link to this heading"></a></h4>
+<p>To enable the branch information analysis visualization:</p>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">visualization</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">enabled</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+<span class="w">  </span><span class="nt">plots</span><span class="p">:</span>
+<span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">dendritic_information_inputs</span><span class="w">    </span><span class="c1"># Analyze information in branch inputs (pre-shunting)</span>
+<span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">dendritic_information_activations</span><span class="w">  </span><span class="c1"># Analyze information in branch outputs (post-shunting)</span>
+<span class="w">  </span><span class="nt">parameters</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">dendritic_information_inputs</span><span class="p">:</span>
+<span class="w">      </span><span class="nt">mlp_hidden_dims</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">100</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">50</span><span class="p p-Indicator">]</span><span class="w">  </span><span class="c1"># Hidden layer dimensions for the MLP classifier</span>
+<span class="w">      </span><span class="nt">training_epochs</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">20</span><span class="w">  </span><span class="c1"># Number of epochs for MLP training</span>
+<span class="w">      </span><span class="nt">batch_size</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">64</span><span class="w">  </span><span class="c1"># Batch size for MLP training</span>
+<span class="w">    </span><span class="nt">dendritic_information_activations</span><span class="p">:</span>
+<span class="w">      </span><span class="nt">mlp_hidden_dims</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">100</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">50</span><span class="p p-Indicator">]</span><span class="w">  </span><span class="c1"># Hidden layer dimensions for the MLP classifier</span>
+<span class="w">      </span><span class="nt">training_epochs</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">20</span><span class="w">  </span><span class="c1"># Number of epochs for MLP training</span>
+<span class="w">      </span><span class="nt">batch_size</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">64</span><span class="w">  </span><span class="c1"># Batch size for MLP training</span>
+</pre></div>
+</div>
+<p>The implementation follows these steps:</p>
+<ol class="arabic simple">
+<li><p><strong>Activation Extraction</strong>: The model is run on the dataset, and activations from branches at each dendritic order are extracted.
+- Branches are categorized by type (excitatory, inhibitory) and by dendritic order.
+- Activations are collected in appropriate tensors, handling potential device issues.</p></li>
+<li><p><strong>Branch Categorization</strong>: Branches are grouped by their dendritic depth and type.
+- The model’s architecture is traversed to identify branches at each depth.
+- Each branch is classified as excitatory or inhibitory.</p></li>
+<li><p><strong>MLP Classifier Training</strong>: For each branch category (excitatory, inhibitory, combined at each depth):
+- A simple MLP classifier is trained to predict labels from branch activations.
+- Performance metrics (accuracy) are recorded.
+- Training follows a standard procedure with specified hyperparameters.</p></li>
+<li><p><strong>Information Measurement</strong>: The classification accuracy serves as a proxy for the amount of task-relevant information contained in each branch type/depth.
+- Higher accuracy indicates more discriminative information.
+- Results are also normalized relative to chance performance.</p></li>
+<li><p><strong>Result Visualization</strong>: Two types of visualizations are generated:
+- Raw accuracy plot: Shows the classification accuracy for each branch category.
+- Normalized information plot: Shows the percentage above random chance.</p></li>
+</ol>
+</section>
+</section>
+<section id="analyzing-pre-shunting-branch-inputs">
+<h3>Analyzing Pre-Shunting Branch Inputs<a class="headerlink" href="#analyzing-pre-shunting-branch-inputs" title="Link to this heading"></a></h3>
+<p>The <cite>dendritic_information_inputs</cite> visualization analyzes the raw inputs to each branch before nonlinear processing:</p>
+<ul class="simple">
+<li><p>Excitatory inputs: <span class="math notranslate nohighlight">\(w_i^{exc} \cdot x_i\)</span></p></li>
+<li><p>Inhibitory inputs: <span class="math notranslate nohighlight">\(w_i^{inh} \cdot x_i\)</span></p></li>
+<li><p>Combined inputs: concatenation of excitatory and inhibitory inputs</p></li>
+</ul>
+<p>This analysis reveals:
+- Information content in the raw synaptic inputs
+- How information is distributed across different branch depths
+- The relative information content in excitatory vs. inhibitory input channels
+- How combining excitatory and inhibitory inputs affects classification performance</p>
+<p>To enable this analysis:</p>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">visualization</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">enabled</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+<span class="w">  </span><span class="nt">plots</span><span class="p">:</span>
+<span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">dendritic_information_inputs</span>
+<span class="w">  </span><span class="nt">parameters</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">dendritic_information_inputs</span><span class="p">:</span>
+<span class="w">      </span><span class="nt">mlp_hidden_dims</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">100</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">50</span><span class="p p-Indicator">]</span><span class="w">  </span><span class="c1"># Hidden layer dimensions for the MLP classifier</span>
+<span class="w">      </span><span class="nt">training_epochs</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">20</span><span class="w">  </span><span class="c1"># Number of epochs for MLP training</span>
+<span class="w">      </span><span class="nt">batch_size</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">64</span><span class="w">  </span><span class="c1"># Batch size for MLP training</span>
+</pre></div>
+</div>
+</section>
+<section id="analyzing-post-shunting-branch-activations">
+<h3>Analyzing Post-Shunting Branch Activations<a class="headerlink" href="#analyzing-post-shunting-branch-activations" title="Link to this heading"></a></h3>
+<p>The <cite>dendritic_information_activations</cite> visualization analyzes the outputs after nonlinear processing:</p>
+<ul class="simple">
+<li><p>With shunting: <span class="math notranslate nohighlight">\(\frac{w_i^{exc} \cdot x_i}{w_i^{exc} \cdot x_i + w_i^{inh} \cdot x_i + 1}\)</span></p></li>
+<li><p>Without shunting: <span class="math notranslate nohighlight">\(w_i^{exc} \cdot x_i - w_i^{inh} \cdot x_i\)</span></p></li>
+</ul>
+<p>This analysis reveals:
+- Information content after nonlinear mixing operations
+- How shunting inhibition transforms information
+- How nonlinear operations enhance or suppress certain types of information</p>
+<p>To enable this analysis:</p>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">visualization</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">enabled</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+<span class="w">  </span><span class="nt">plots</span><span class="p">:</span>
+<span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">dendritic_information_activations</span>
+<span class="w">  </span><span class="nt">parameters</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">dendritic_information_activations</span><span class="p">:</span>
+<span class="w">      </span><span class="nt">mlp_hidden_dims</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">100</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">50</span><span class="p p-Indicator">]</span><span class="w">  </span><span class="c1"># Hidden layer dimensions for the MLP classifier</span>
+<span class="w">      </span><span class="nt">training_epochs</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">20</span><span class="w">  </span><span class="c1"># Number of epochs for MLP training</span>
+<span class="w">      </span><span class="nt">batch_size</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">64</span><span class="w">  </span><span class="c1"># Batch size for MLP training</span>
+</pre></div>
+</div>
+</section>
+<section id="comparing-pre-shunting-vs-post-shunting-information">
+<h3>Comparing Pre-Shunting vs. Post-Shunting Information<a class="headerlink" href="#comparing-pre-shunting-vs-post-shunting-information" title="Link to this heading"></a></h3>
+<p>Using both visualization methods together provides a comprehensive view of information flow through dendritic branches:</p>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">visualization</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">enabled</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+<span class="w">  </span><span class="nt">plots</span><span class="p">:</span>
+<span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">dendritic_information_inputs</span><span class="w">     </span><span class="c1"># Pre-shunting analysis</span>
+<span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">dendritic_information_activations</span><span class="w">  </span><span class="c1"># Post-shunting analysis</span>
+<span class="w">  </span><span class="nt">parameters</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">dendritic_information_inputs</span><span class="p">:</span>
+<span class="w">      </span><span class="nt">mlp_hidden_dims</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">100</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">50</span><span class="p p-Indicator">]</span>
+<span class="w">      </span><span class="nt">training_epochs</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">20</span>
+<span class="w">      </span><span class="nt">batch_size</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">64</span>
+<span class="w">    </span><span class="nt">dendritic_information_activations</span><span class="p">:</span>
+<span class="w">      </span><span class="nt">mlp_hidden_dims</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">100</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">50</span><span class="p p-Indicator">]</span>
+<span class="w">      </span><span class="nt">training_epochs</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">20</span>
+<span class="w">      </span><span class="nt">batch_size</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">64</span>
+</pre></div>
+</div>
+<p>Comparing the results from both analyses reveals:
+- How much information is preserved or lost during nonlinear processing
+- Whether shunting enhances or diminishes specific types of information
+- At which dendritic orders nonlinear processing has the greatest impact</p>
+<p>The implementation handles several edge cases:
+- Some dendritic orders might not have both excitatory and inhibitory branches
+- NaN values are used for missing branch types
+- Device management ensures tensors are on appropriate devices</p>
+</section>
+<section id="synaptic-weight-information-analysis">
+<h3>Synaptic Weight Information Analysis<a class="headerlink" href="#synaptic-weight-information-analysis" title="Link to this heading"></a></h3>
+<p>Detailed analysis of how synaptic weights contribute to information processing:</p>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">evaluate</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">information_analysis</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">synaptic_analysis</span><span class="p">:</span>
+<span class="w">      </span><span class="nt">enabled</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+<span class="w">      </span><span class="nt">weight_information</span><span class="p">:</span>
+<span class="w">        </span><span class="nt">enabled</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+<span class="w">        </span><span class="nt">method</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;perturbation&quot;</span><span class="w">       </span><span class="c1"># Method: perturbation, gradient, direct</span>
+<span class="w">      </span><span class="nt">connection_importance</span><span class="p">:</span>
+<span class="w">        </span><span class="nt">enabled</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+<span class="w">        </span><span class="nt">metric</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;information_gain&quot;</span><span class="w">   </span><span class="c1"># Metric for measuring importance</span>
+</pre></div>
+</div>
+</section>
+<section id="receptive-field-analysis">
+<h3>Receptive Field Analysis<a class="headerlink" href="#receptive-field-analysis" title="Link to this heading"></a></h3>
+<p>Analyze the receptive fields of different branches:</p>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">evaluate</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">information_analysis</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">receptive_fields</span><span class="p">:</span>
+<span class="w">      </span><span class="nt">enabled</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+<span class="w">      </span><span class="nt">methods</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="s">&quot;reverse_correlation&quot;</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="s">&quot;maximally_activating&quot;</span><span class="p p-Indicator">]</span>
+<span class="w">      </span><span class="nt">num_samples</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">1000</span>
+<span class="w">      </span><span class="nt">visualization</span><span class="p">:</span>
+<span class="w">        </span><span class="nt">enabled</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+<span class="w">        </span><span class="nt">format</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;heatmap&quot;</span>
+</pre></div>
+</div>
+<p>This analysis reveals:
+1. What input patterns each branch responds to
+2. How receptive fields differ between branches
+3. Whether branches have specialized for specific features</p>
+</section>
+<section id="information-bottleneck-analysis">
+<h3>Information Bottleneck Analysis<a class="headerlink" href="#information-bottleneck-analysis" title="Link to this heading"></a></h3>
+<p>Apply information bottleneck theory to understand the efficiency of information processing:</p>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">evaluate</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">information_analysis</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">bottleneck_analysis</span><span class="p">:</span>
+<span class="w">      </span><span class="nt">enabled</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+<span class="w">      </span><span class="nt">sweep_beta</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span><span class="w">               </span><span class="c1"># Sweep over beta values</span>
+<span class="w">      </span><span class="nt">beta_values</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">0.001</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">0.01</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">0.1</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">1.0</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">10.0</span><span class="p p-Indicator">]</span>
+<span class="w">      </span><span class="nt">compute_ib_curve</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span><span class="w">         </span><span class="c1"># Compute IB curve</span>
+</pre></div>
+</div>
+<p>This analysis reveals:
+1. How efficiently the network extracts task-relevant information
+2. Whether the network compresses input information optimally
+3. The trade-off between compression and task performance</p>
+</section>
+</section>
+<section id="combining-ablation-and-information-analysis">
+<h2>Combining Ablation and Information Analysis<a class="headerlink" href="#combining-ablation-and-information-analysis" title="Link to this heading"></a></h2>
+<p>For the most comprehensive understanding, combine ablation and information analysis:</p>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">evaluate</span><span class="p">:</span>
+<span class="w">  </span><span class="c1"># First perform ablation</span>
+<span class="w">  </span><span class="nt">ablation</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">enabled</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+<span class="w">    </span><span class="nt">components</span><span class="p">:</span>
+<span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">type</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;branch&quot;</span>
+<span class="w">        </span><span class="c1"># ... ablation details ...</span>
+
+<span class="w">  </span><span class="c1"># Then analyze information changes</span>
+<span class="w">  </span><span class="nt">information_analysis</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">enabled</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+<span class="w">    </span><span class="nt">differential</span><span class="p">:</span>
+<span class="w">      </span><span class="nt">enabled</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+<span class="w">      </span><span class="nt">baseline</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;no_ablation&quot;</span><span class="w">        </span><span class="c1"># Compare to non-ablated model</span>
+<span class="w">      </span><span class="nt">compute_mi_difference</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span><span class="w">    </span><span class="c1"># Compute MI differences</span>
+</pre></div>
+</div>
+<p>This combined approach reveals:
+1. How ablating components affects information flow
+2. Whether removing components causes information loss or rerouting
+3. The information-theoretic contribution of different components</p>
+</section>
+<section id="visualizing-information-analysis-results">
+<h2>Visualizing Information Analysis Results<a class="headerlink" href="#visualizing-information-analysis-results" title="Link to this heading"></a></h2>
+<p>The framework provides various visualizations for information analysis:</p>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">evaluate</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">information_analysis</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">visualization</span><span class="p">:</span>
+<span class="w">      </span><span class="nt">enabled</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+<span class="w">      </span><span class="nt">plots</span><span class="p">:</span>
+<span class="w">        </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">type</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;mi_matrix&quot;</span><span class="w">          </span><span class="c1"># Mutual information matrix</span>
+<span class="w">        </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">type</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;information_flow&quot;</span><span class="w">   </span><span class="c1"># Information flow diagram</span>
+<span class="w">        </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">type</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;receptive_fields&quot;</span><span class="w">   </span><span class="c1"># Receptive field visualization</span>
+<span class="w">        </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">type</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;bottleneck_curve&quot;</span><span class="w">   </span><span class="c1"># Information bottleneck curve</span>
+<span class="w">      </span><span class="nt">interactive</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span><span class="w">              </span><span class="c1"># Whether to create interactive visualizations</span>
+<span class="w">      </span><span class="nt">output_dir</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;visualizations/info_analysis/&quot;</span>
+</pre></div>
+</div>
+</section>
+<section id="best-practices-for-ablation-and-information-analysis">
+<h2>Best Practices for Ablation and Information Analysis<a class="headerlink" href="#best-practices-for-ablation-and-information-analysis" title="Link to this heading"></a></h2>
+<ol class="arabic simple">
+<li><p><strong>Start with coarse-grained ablations</strong>: Begin with pathway or layer ablations before moving to more fine-grained branch ablations</p></li>
+<li><p><strong>Compare to baseline</strong>: Always compare ablation results to the full model baseline</p></li>
+<li><p><strong>Combine multiple measures</strong>: Use both performance metrics and information-theoretic measures</p></li>
+<li><p><strong>Consider sample size</strong>: Ensure sufficient samples for reliable information estimation</p></li>
+<li><p><strong>Visualize results</strong>: Create visualizations to help interpret complex information-theoretic results</p></li>
+<li><p><strong>Perform statistical tests</strong>: Assess the statistical significance of observed effects</p></li>
+<li><p><strong>Cross-validate</strong>: Ensure results are consistent across different data splits</p></li>
+</ol>
+</section>
+<section id="complete-analysis-example">
+<h2>Complete Analysis Example<a class="headerlink" href="#complete-analysis-example" title="Link to this heading"></a></h2>
+<p>Here’s a complete example configuration for comprehensive ablation and information analysis:</p>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">evaluate</span><span class="p">:</span>
+<span class="w">  </span><span class="c1"># Ablation studies</span>
+<span class="w">  </span><span class="nt">ablation</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">enabled</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+<span class="w">    </span><span class="nt">save_results</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+<span class="w">    </span><span class="nt">output_dir</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;ablation_results/&quot;</span>
+
+<span class="w">    </span><span class="c1"># Components to ablate</span>
+<span class="w">    </span><span class="nt">components</span><span class="p">:</span>
+<span class="w">      </span><span class="c1"># Pathway ablation</span>
+<span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">type</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;pathway&quot;</span>
+<span class="w">        </span><span class="nt">target</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;inhibitory&quot;</span>
+<span class="w">        </span><span class="nt">method</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;zero_output&quot;</span>
+
+<span class="w">      </span><span class="c1"># Layer ablation</span>
+<span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">type</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;layer&quot;</span>
+<span class="w">        </span><span class="nt">pathway</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;excitatory&quot;</span>
+<span class="w">        </span><span class="nt">index</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">0</span>
+<span class="w">        </span><span class="nt">method</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;identity&quot;</span>
+
+<span class="w">      </span><span class="c1"># Branch ablation</span>
+<span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">type</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;branch&quot;</span>
+<span class="w">        </span><span class="nt">pathway</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;excitatory&quot;</span>
+<span class="w">        </span><span class="nt">layer</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">0</span>
+<span class="w">        </span><span class="nt">selection</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;top_active&quot;</span>
+<span class="w">        </span><span class="nt">count</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">10</span>
+<span class="w">        </span><span class="nt">method</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;zero_weights&quot;</span>
+
+<span class="w">      </span><span class="c1"># Mechanism ablation</span>
+<span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">type</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;mechanism&quot;</span>
+<span class="w">        </span><span class="nt">target</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;topk&quot;</span>
+<span class="w">        </span><span class="nt">replacement</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;average&quot;</span>
+
+<span class="w">    </span><span class="c1"># Progressive branch ablation</span>
+<span class="w">    </span><span class="nt">progressive</span><span class="p">:</span>
+<span class="w">      </span><span class="nt">enabled</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+<span class="w">      </span><span class="nt">component_type</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;branch&quot;</span>
+<span class="w">      </span><span class="nt">pathway</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;excitatory&quot;</span>
+<span class="w">      </span><span class="nt">layer</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">0</span>
+<span class="w">      </span><span class="nt">selection</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;importance&quot;</span>
+<span class="w">      </span><span class="nt">step_size</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">5</span>
+<span class="w">      </span><span class="nt">steps</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">20</span>
+
+<span class="w">    </span><span class="c1"># Metrics to compute</span>
+<span class="w">    </span><span class="nt">metrics</span><span class="p">:</span>
+<span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="s">&quot;accuracy&quot;</span>
+<span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="s">&quot;loss&quot;</span>
+<span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="s">&quot;per_class_accuracy&quot;</span>
+
+<span class="w">    </span><span class="c1"># Analysis of ablation results</span>
+<span class="w">    </span><span class="nt">analysis</span><span class="p">:</span>
+<span class="w">      </span><span class="nt">enabled</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+<span class="w">      </span><span class="nt">compute_importance</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+<span class="w">      </span><span class="nt">rank_components</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+<span class="w">      </span><span class="nt">class_specific</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+<span class="w">      </span><span class="nt">visualization</span><span class="p">:</span>
+<span class="w">        </span><span class="nt">enabled</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+<span class="w">        </span><span class="nt">type</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;bar_chart&quot;</span>
+
+<span class="w">  </span><span class="c1"># Information analysis</span>
+<span class="w">  </span><span class="nt">information_analysis</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">enabled</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+<span class="w">    </span><span class="nt">measures</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="s">&quot;mutual_information&quot;</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="s">&quot;entropy&quot;</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="s">&quot;information_gain&quot;</span><span class="p p-Indicator">]</span>
+<span class="w">    </span><span class="nt">discretization</span><span class="p">:</span>
+<span class="w">      </span><span class="nt">method</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;binning&quot;</span>
+<span class="w">      </span><span class="nt">num_bins</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">30</span>
+<span class="w">    </span><span class="nt">num_samples</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">1000</span>
+<span class="w">    </span><span class="nt">output_dir</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;info_analysis/&quot;</span>
+
+<span class="w">    </span><span class="c1"># Layer-based analysis</span>
+<span class="w">    </span><span class="nt">layer_analysis</span><span class="p">:</span>
+<span class="w">      </span><span class="nt">enabled</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+<span class="w">      </span><span class="nt">input_output_mi</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+<span class="w">      </span><span class="nt">layer_layer_mi</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+<span class="w">      </span><span class="nt">layer_target_mi</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+<span class="w">      </span><span class="nt">pathway_pathway_mi</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+
+<span class="w">    </span><span class="c1"># Branch-based analysis</span>
+<span class="w">    </span><span class="nt">branch_analysis</span><span class="p">:</span>
+<span class="w">      </span><span class="nt">enabled</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+<span class="w">      </span><span class="nt">branch_branch_mi</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+<span class="w">      </span><span class="nt">branch_target_mi</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+<span class="w">      </span><span class="nt">synapse_branch_mi</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+<span class="w">      </span><span class="nt">selectivity_analysis</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+
+<span class="w">    </span><span class="c1"># Synaptic weight analysis</span>
+<span class="w">    </span><span class="nt">synaptic_analysis</span><span class="p">:</span>
+<span class="w">      </span><span class="nt">enabled</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+<span class="w">      </span><span class="nt">weight_information</span><span class="p">:</span>
+<span class="w">        </span><span class="nt">enabled</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+<span class="w">        </span><span class="nt">method</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;perturbation&quot;</span>
+<span class="w">      </span><span class="nt">connection_importance</span><span class="p">:</span>
+<span class="w">        </span><span class="nt">enabled</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+<span class="w">        </span><span class="nt">metric</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;information_gain&quot;</span>
+
+<span class="w">    </span><span class="c1"># Receptive field analysis</span>
+<span class="w">    </span><span class="nt">receptive_fields</span><span class="p">:</span>
+<span class="w">      </span><span class="nt">enabled</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+<span class="w">      </span><span class="nt">methods</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="s">&quot;reverse_correlation&quot;</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="s">&quot;maximally_activating&quot;</span><span class="p p-Indicator">]</span>
+<span class="w">      </span><span class="nt">num_samples</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">1000</span>
+<span class="w">      </span><span class="nt">visualization</span><span class="p">:</span>
+<span class="w">        </span><span class="nt">enabled</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+<span class="w">        </span><span class="nt">format</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;heatmap&quot;</span>
+
+<span class="w">    </span><span class="c1"># Bottleneck analysis</span>
+<span class="w">    </span><span class="nt">bottleneck_analysis</span><span class="p">:</span>
+<span class="w">      </span><span class="nt">enabled</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+<span class="w">      </span><span class="nt">sweep_beta</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+<span class="w">      </span><span class="nt">beta_values</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">0.001</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">0.01</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">0.1</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">1.0</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">10.0</span><span class="p p-Indicator">]</span>
+<span class="w">      </span><span class="nt">compute_ib_curve</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+
+<span class="w">    </span><span class="c1"># Visualizations</span>
+<span class="w">    </span><span class="nt">visualization</span><span class="p">:</span>
+<span class="w">      </span><span class="nt">enabled</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+<span class="w">      </span><span class="nt">plots</span><span class="p">:</span>
+<span class="w">        </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">type</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;mi_matrix&quot;</span>
+<span class="w">        </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">type</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;information_flow&quot;</span>
+<span class="w">        </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">type</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;receptive_fields&quot;</span>
+<span class="w">        </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">type</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;bottleneck_curve&quot;</span>
+<span class="w">      </span><span class="nt">interactive</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+<span class="w">      </span><span class="nt">output_dir</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;visualizations/info_analysis/&quot;</span>
+
+<span class="w">  </span><span class="c1"># Combined analysis</span>
+<span class="w">  </span><span class="nt">combined_analysis</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">enabled</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+<span class="w">    </span><span class="nt">ablation_info</span><span class="p">:</span>
+<span class="w">      </span><span class="nt">enabled</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+<span class="w">      </span><span class="nt">baseline</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;no_ablation&quot;</span>
+<span class="w">      </span><span class="nt">compute_mi_difference</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+</pre></div>
+</div>
+</section>
+</section>
+
+
+           </div>
+          </div>
+          <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
+        <a href="ablation_studies.html" class="btn btn-neutral float-left" title="Ablation Studies" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
+        <a href="experiment_tracking.html" class="btn btn-neutral float-right" title="Experiment Tracking and Logging" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright 2025, Research and Engineering at Kempner.</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>

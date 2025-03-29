@@ -1,0 +1,532 @@
+
+
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" data-content_root="../../">
+<head>
+  <meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>API Reference &mdash; dendritic_modeling 0.1.0 documentation</title>
+      <link rel="stylesheet" type="text/css" href="../../_static/pygments.css?v=b86133f3" />
+      <link rel="stylesheet" type="text/css" href="../../_static/css/theme.css?v=e59714d7" />
+      <link rel="stylesheet" type="text/css" href="../../_static/copybutton.css?v=76b2166b" />
+
+  
+      <script src="../../_static/jquery.js?v=5d32c60e"></script>
+      <script src="../../_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
+      <script src="../../_static/documentation_options.js?v=01f34227"></script>
+      <script src="../../_static/doctools.js?v=9bcbadda"></script>
+      <script src="../../_static/sphinx_highlight.js?v=dc90522c"></script>
+      <script src="../../_static/clipboard.min.js?v=a7894cd8"></script>
+      <script src="../../_static/copybutton.js?v=f281be69"></script>
+      <script crossorigin="anonymous" integrity="sha256-Ae2Vz/4ePdIu6ZyI/5ZGsYnb+m0JlOmKPjt6XZ9JJkA=" src="https://cdnjs.cloudflare.com/ajax/libs/require.js/2.3.4/require.min.js"></script>
+    <script src="../../_static/js/theme.js"></script>
+    <link rel="author" title="About these documents" href="../../about.html" />
+    <link rel="index" title="Index" href="../../genindex.html" />
+    <link rel="search" title="Search" href="../../search.html" />
+    <link rel="next" title="Deployment Guide" href="../deployment/index.html" />
+    <link rel="prev" title="API Reference" href="index.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+
+          
+          
+          <a href="../../index.html" class="icon icon-home">
+            dendritic_modeling
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <p class="caption" role="heading"><span class="caption-text">Introduction</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../about.html">About</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Contents</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../getting_started/index.html">Getting Started Guide</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../user_guide/index.html">User Guide</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Contents</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../advanced/network_structures/index.html">Network Structures</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../advanced/learning/index.html">Learning Strategies</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../advanced/visualization/index.html">Visualization Guide</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../advanced/analysis/index.html">Analysis and Evaluation</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Contents</span></p>
+<ul class="current">
+<li class="toctree-l1 current"><a class="reference internal" href="index.html">API Reference</a><ul class="current">
+<li class="toctree-l2 current"><a class="current reference internal" href="#">API Reference</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#excitationinhibitionnetwork">ExcitationInhibitionNetwork</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#excitationinhibitionlayer">ExcitationInhibitionLayer</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#dendrinet">DendriNet</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#dendriticbranchlayer">DendriticBranchLayer</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#topklinear">TopKLinear</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#blocklinear">BlockLinear</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#parametrictanh">ParametricTanh</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#learning-strategies">Learning Strategies</a></li>
+</ul>
+</li>
+</ul>
+</li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Contents</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../deployment/index.html">Deployment Guide</a></li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../../index.html">dendritic_modeling</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="../../index.html" class="icon icon-home" aria-label="Home"></a></li>
+          <li class="breadcrumb-item"><a href="index.html">API Reference</a></li>
+      <li class="breadcrumb-item active">API Reference</li>
+      <li class="wy-breadcrumbs-aside">
+            <a href="../../_sources/source/api/api_reference.rst.txt" rel="nofollow"> View page source</a>
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <section id="api-reference">
+<span id="id1"></span><h1>API Reference<a class="headerlink" href="#api-reference" title="Link to this heading"></a></h1>
+<p>This section provides detailed documentation of the key classes and methods in the dendritic modeling framework.</p>
+<section id="excitationinhibitionnetwork">
+<h2>ExcitationInhibitionNetwork<a class="headerlink" href="#excitationinhibitionnetwork" title="Link to this heading"></a></h2>
+<p>The <code class="docutils literal notranslate"><span class="pre">ExcitationInhibitionNetwork</span></code> is the core network class that implements the excitatory-inhibitory architecture.</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="k">class</span><span class="w"> </span><span class="nc">ExcitationInhibitionNetwork</span><span class="p">(</span><span class="n">nn</span><span class="o">.</span><span class="n">Module</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    A network with multiple excitatory-inhibitory layers.</span>
+
+<span class="sd">    This network implements a sequence of excitatory and inhibitory dendritic processing</span>
+<span class="sd">    layers that model the complex interactions in biological neural networks.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    input_dim : int</span>
+<span class="sd">        Dimension of the input data</span>
+<span class="sd">    excitatory_layer_sizes : list of int</span>
+<span class="sd">        Sizes of the excitatory layers</span>
+<span class="sd">    inhibitory_layer_sizes : list of int</span>
+<span class="sd">        Sizes of the inhibitory layers</span>
+<span class="sd">    excitatory_branch_factors : list of int</span>
+<span class="sd">        Branch factors for excitatory dendrites in each layer</span>
+<span class="sd">    inhibitory_branch_factors : list of int</span>
+<span class="sd">        Branch factors for inhibitory dendrites in each layer</span>
+<span class="sd">    ee_synapses_per_branch_per_layer : list of int</span>
+<span class="sd">        Number of excitatory-to-excitatory synapses per branch in each layer</span>
+<span class="sd">    ei_synapses_per_branch_per_layer : list of int</span>
+<span class="sd">        Number of excitatory-to-inhibitory synapses per branch in each layer</span>
+<span class="sd">    ie_synapses_per_branch_per_layer : list of int</span>
+<span class="sd">        Number of inhibitory-to-excitatory synapses per branch in each layer</span>
+<span class="sd">    ii_synapses_per_branch_per_layer : list of int</span>
+<span class="sd">        Number of inhibitory-to-inhibitory synapses per branch in each layer</span>
+<span class="sd">    reactivate : bool</span>
+<span class="sd">        Whether to apply reactivation to prevent branch &quot;death&quot; during training</span>
+<span class="sd">    somatic_synapses : bool</span>
+<span class="sd">        Whether to allow direct connections to the somatic layer</span>
+<span class="sd">    topk_init_method : str</span>
+<span class="sd">        Initialization method for TopKLinear weights</span>
+<span class="sd">    use_shunting : bool</span>
+<span class="sd">        Whether to enable shunting inhibition</span>
+<span class="sd">    gradient_strategy : str</span>
+<span class="sd">        Strategy for gradient computation and scaling</span>
+<span class="sd">    gradient_scale_factor : float</span>
+<span class="sd">        Factor for scaling gradients</span>
+<span class="sd">    enable_branch_outputs : bool</span>
+<span class="sd">        Whether to enable access to branch outputs for visualization</span>
+<span class="sd">    learning_strategy : str</span>
+<span class="sd">        Strategy for training the network</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">forward</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">x</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Forward pass through the network.</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        x : torch.Tensor</span>
+<span class="sd">            Input tensor of shape (batch_size, input_dim)</span>
+
+<span class="sd">        Returns</span>
+<span class="sd">        -------</span>
+<span class="sd">        torch.Tensor</span>
+<span class="sd">            Output tensor of shape (batch_size, output_dim)</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="c1"># Implementation details...</span>
+</pre></div>
+</div>
+</section>
+<section id="excitationinhibitionlayer">
+<h2>ExcitationInhibitionLayer<a class="headerlink" href="#excitationinhibitionlayer" title="Link to this heading"></a></h2>
+<p>The <code class="docutils literal notranslate"><span class="pre">ExcitationInhibitionLayer</span></code> implements a single layer of excitatory and inhibitory processing.</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="k">class</span><span class="w"> </span><span class="nc">ExcitationInhibitionLayer</span><span class="p">(</span><span class="n">nn</span><span class="o">.</span><span class="n">Module</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    A layer that processes inputs through excitatory and inhibitory pathways.</span>
+
+<span class="sd">    This layer contains an excitatory dendrinet and an inhibitory dendrinet,</span>
+<span class="sd">    which interact to produce the layer&#39;s output.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    input_dim : int</span>
+<span class="sd">        Dimension of the input data</span>
+<span class="sd">    excitatory_output_dim : int</span>
+<span class="sd">        Size of the excitatory output</span>
+<span class="sd">    inhibitory_output_dim : int</span>
+<span class="sd">        Size of the inhibitory output</span>
+<span class="sd">    excitatory_branch_factor : int</span>
+<span class="sd">        Branch factor for excitatory dendrites</span>
+<span class="sd">    inhibitory_branch_factor : int</span>
+<span class="sd">        Branch factor for inhibitory dendrites</span>
+<span class="sd">    ee_synapses_per_branch : int</span>
+<span class="sd">        Number of excitatory-to-excitatory synapses per branch</span>
+<span class="sd">    ei_synapses_per_branch : int</span>
+<span class="sd">        Number of excitatory-to-inhibitory synapses per branch</span>
+<span class="sd">    ie_synapses_per_branch : int</span>
+<span class="sd">        Number of inhibitory-to-excitatory synapses per branch</span>
+<span class="sd">    ii_synapses_per_branch : int</span>
+<span class="sd">        Number of inhibitory-to-inhibitory synapses per branch</span>
+<span class="sd">    somatic_synapses : bool</span>
+<span class="sd">        Whether to allow direct connections to the somatic layer</span>
+<span class="sd">    use_shunting : bool</span>
+<span class="sd">        Whether to enable shunting inhibition</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">forward</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">excitatory_input</span><span class="p">,</span> <span class="n">inhibitory_input</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Forward pass through the layer.</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        excitatory_input : torch.Tensor</span>
+<span class="sd">            Excitatory input tensor</span>
+<span class="sd">        inhibitory_input : torch.Tensor, optional</span>
+<span class="sd">            Inhibitory input tensor</span>
+
+<span class="sd">        Returns</span>
+<span class="sd">        -------</span>
+<span class="sd">        tuple of torch.Tensor</span>
+<span class="sd">            Excitatory and inhibitory outputs</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="c1"># Implementation details...</span>
+</pre></div>
+</div>
+</section>
+<section id="dendrinet">
+<h2>DendriNet<a class="headerlink" href="#dendrinet" title="Link to this heading"></a></h2>
+<p>The <code class="docutils literal notranslate"><span class="pre">DendriNet</span></code> class implements a dendritic network that processes inputs through a series of branch layers.</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="k">class</span><span class="w"> </span><span class="nc">DendriNet</span><span class="p">(</span><span class="n">nn</span><span class="o">.</span><span class="n">Module</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    A network that models dendritic computation with branch-specific processing.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    input_dim : int</span>
+<span class="sd">        Dimension of the input data</span>
+<span class="sd">    branch_layers_sizes : list of int</span>
+<span class="sd">        Sizes of the branch layers</span>
+<span class="sd">    branch_factors : list of int</span>
+<span class="sd">        Branching factors for each layer</span>
+<span class="sd">    synapses_per_branch : list of int</span>
+<span class="sd">        Number of synapses (connections) per branch for each layer</span>
+<span class="sd">    branch_layers_factors : list of int</span>
+<span class="sd">        Factors for determining branch layer dimensions</span>
+<span class="sd">    enable_outputs : bool</span>
+<span class="sd">        Whether to enable outputs from branches</span>
+<span class="sd">    init_method : str</span>
+<span class="sd">        Method for initializing weights</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">forward</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">x</span><span class="p">,</span> <span class="n">inhibitory_input</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">upstream_output</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Forward pass through the dendritic network.</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        x : torch.Tensor</span>
+<span class="sd">            Input tensor</span>
+<span class="sd">        inhibitory_input : torch.Tensor, optional</span>
+<span class="sd">            Inhibitory input for modulation</span>
+<span class="sd">        upstream_output : torch.Tensor, optional</span>
+<span class="sd">            Output from upstream layers</span>
+
+<span class="sd">        Returns</span>
+<span class="sd">        -------</span>
+<span class="sd">        torch.Tensor</span>
+<span class="sd">            Output tensor</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="c1"># Implementation details...</span>
+</pre></div>
+</div>
+</section>
+<section id="dendriticbranchlayer">
+<h2>DendriticBranchLayer<a class="headerlink" href="#dendriticbranchlayer" title="Link to this heading"></a></h2>
+<p>The <code class="docutils literal notranslate"><span class="pre">DendriticBranchLayer</span></code> implements a single layer of dendritic branches.</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="k">class</span><span class="w"> </span><span class="nc">DendriticBranchLayer</span><span class="p">(</span><span class="n">nn</span><span class="o">.</span><span class="n">Module</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    A layer that models computation in dendritic branches.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    input_dim : int</span>
+<span class="sd">        Dimension of the input data</span>
+<span class="sd">    output_dim : int</span>
+<span class="sd">        Dimension of the output</span>
+<span class="sd">    inhibitory_dim : int</span>
+<span class="sd">        Dimension of the inhibitory input</span>
+<span class="sd">    upstream_dim : int</span>
+<span class="sd">        Dimension of the upstream input</span>
+<span class="sd">    branch_factor : int</span>
+<span class="sd">        Branching factor for this layer</span>
+<span class="sd">    synapses_per_branch : int</span>
+<span class="sd">        Number of synapses per branch</span>
+<span class="sd">    init_method : str</span>
+<span class="sd">        Method for initializing weights</span>
+<span class="sd">    use_shunting : bool</span>
+<span class="sd">        Whether to enable shunting inhibition</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">forward</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">x</span><span class="p">,</span> <span class="n">inhibitory_input</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">upstream_output</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Forward pass through the branch layer.</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        x : torch.Tensor</span>
+<span class="sd">            Input tensor</span>
+<span class="sd">        inhibitory_input : torch.Tensor, optional</span>
+<span class="sd">            Inhibitory input for modulation</span>
+<span class="sd">        upstream_output : torch.Tensor, optional</span>
+<span class="sd">            Output from upstream layers</span>
+
+<span class="sd">        Returns</span>
+<span class="sd">        -------</span>
+<span class="sd">        torch.Tensor</span>
+<span class="sd">            Output tensor</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="c1"># Implementation details...</span>
+</pre></div>
+</div>
+</section>
+<section id="topklinear">
+<h2>TopKLinear<a class="headerlink" href="#topklinear" title="Link to this heading"></a></h2>
+<p>The <code class="docutils literal notranslate"><span class="pre">TopKLinear</span></code> class implements a linear transformation with top-k selection of weights.</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="k">class</span><span class="w"> </span><span class="nc">TopKLinear</span><span class="p">(</span><span class="n">nn</span><span class="o">.</span><span class="n">Module</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    A linear layer that selectively activates only the top-k weights for each output unit.</span>
+
+<span class="sd">    This models the selective activation of synapses in biological dendrites.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    in_features : int</span>
+<span class="sd">        Number of input features</span>
+<span class="sd">    out_features : int</span>
+<span class="sd">        Number of output features</span>
+<span class="sd">    bias : bool</span>
+<span class="sd">        Whether to include a bias term</span>
+<span class="sd">    k : int</span>
+<span class="sd">        Number of top weights to select per output unit</span>
+<span class="sd">    init_method : str</span>
+<span class="sd">        Method for initializing weights</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">forward</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">x</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Forward pass with top-k weight selection.</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        x : torch.Tensor</span>
+<span class="sd">            Input tensor</span>
+
+<span class="sd">        Returns</span>
+<span class="sd">        -------</span>
+<span class="sd">        torch.Tensor</span>
+<span class="sd">            Output tensor</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="c1"># Get weight and create top-k mask</span>
+        <span class="n">weight</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">weight</span>
+
+        <span class="c1"># Create mask for selecting top-k weights</span>
+        <span class="k">with</span> <span class="n">torch</span><span class="o">.</span><span class="n">no_grad</span><span class="p">():</span>
+            <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">k</span> <span class="o">&lt;</span> <span class="bp">self</span><span class="o">.</span><span class="n">in_features</span><span class="p">:</span>
+                <span class="c1"># Compute absolute weight values</span>
+                <span class="n">abs_weight</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">abs</span><span class="p">(</span><span class="n">weight</span><span class="p">)</span>
+
+                <span class="c1"># Find top-k indices for each output unit</span>
+                <span class="n">_</span><span class="p">,</span> <span class="n">indices</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">topk</span><span class="p">(</span><span class="n">abs_weight</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">k</span><span class="p">,</span> <span class="n">dim</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span>
+
+                <span class="c1"># Create binary mask with 1s for top-k weights</span>
+                <span class="n">mask</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">zeros_like</span><span class="p">(</span><span class="n">weight</span><span class="p">)</span>
+                <span class="n">mask</span><span class="o">.</span><span class="n">scatter_</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="n">indices</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="c1"># If k &gt;= in_features, use all weights</span>
+                <span class="n">mask</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">ones_like</span><span class="p">(</span><span class="n">weight</span><span class="p">)</span>
+
+        <span class="c1"># Apply mask to weights and perform linear transformation</span>
+        <span class="n">pruned_weight</span> <span class="o">=</span> <span class="n">weight</span> <span class="o">*</span> <span class="n">mask</span>
+        <span class="n">output</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">mm</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="n">pruned_weight</span><span class="o">.</span><span class="n">t</span><span class="p">())</span>
+
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">bias</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">output</span> <span class="o">+=</span> <span class="bp">self</span><span class="o">.</span><span class="n">bias</span>
+
+        <span class="k">return</span> <span class="n">output</span>
+</pre></div>
+</div>
+</section>
+<section id="blocklinear">
+<h2>BlockLinear<a class="headerlink" href="#blocklinear" title="Link to this heading"></a></h2>
+<p>The <code class="docutils literal notranslate"><span class="pre">BlockLinear</span></code> class implements a masked linear transformation that models branching in dendrites.</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="k">class</span><span class="w"> </span><span class="nc">BlockLinear</span><span class="p">(</span><span class="n">nn</span><span class="o">.</span><span class="n">Module</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    A linear layer with block structure that models dendritic branching.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    in_features : int</span>
+<span class="sd">        Number of input features</span>
+<span class="sd">    out_features : int</span>
+<span class="sd">        Number of output features</span>
+<span class="sd">    branch_factor : int</span>
+<span class="sd">        Branching factor for creating block structure</span>
+<span class="sd">    bias : bool</span>
+<span class="sd">        Whether to include a bias term</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">forward</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">x</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Forward pass with block-structured connections.</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        x : torch.Tensor</span>
+<span class="sd">            Input tensor</span>
+
+<span class="sd">        Returns</span>
+<span class="sd">        -------</span>
+<span class="sd">        torch.Tensor</span>
+<span class="sd">            Output tensor</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="c1"># Create block mask based on branch factor</span>
+        <span class="c1"># Perform masked linear transformation</span>
+        <span class="c1"># Implementation details...</span>
+</pre></div>
+</div>
+</section>
+<section id="parametrictanh">
+<h2>ParametricTanh<a class="headerlink" href="#parametrictanh" title="Link to this heading"></a></h2>
+<p>The <code class="docutils literal notranslate"><span class="pre">ParametricTanh</span></code> class implements a trainable activation function that models nonlinear responses in dendrites.</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="k">class</span><span class="w"> </span><span class="nc">ParametricTanh</span><span class="p">(</span><span class="n">nn</span><span class="o">.</span><span class="n">Module</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    A trainable activation function with learnable slope and offset parameters.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    num_features : int</span>
+<span class="sd">        Number of features (one set of parameters per feature)</span>
+<span class="sd">    train_b : bool</span>
+<span class="sd">        Whether to train the offset parameter b</span>
+<span class="sd">    initial_m : float</span>
+<span class="sd">        Initial value for slope parameter m</span>
+<span class="sd">    initial_b : float</span>
+<span class="sd">        Initial value for offset parameter b</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">forward</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">x</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Forward pass with parametric tanh activation.</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        x : torch.Tensor</span>
+<span class="sd">            Input tensor</span>
+
+<span class="sd">        Returns</span>
+<span class="sd">        -------</span>
+<span class="sd">        torch.Tensor</span>
+<span class="sd">            Output tensor after activation</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="c1"># Apply parametric tanh: m * tanh(x + b)</span>
+        <span class="c1"># Implementation details...</span>
+</pre></div>
+</div>
+</section>
+<section id="learning-strategies">
+<h2>Learning Strategies<a class="headerlink" href="#learning-strategies" title="Link to this heading"></a></h2>
+<p>The framework supports several learning strategies specifically designed for dendritic networks:</p>
+<ol class="arabic">
+<li><p><strong>MLE (Maximum Likelihood Estimation)</strong></p>
+<p>Standard end-to-end training with backpropagation through the entire network.</p>
+</li>
+<li><p><strong>Freeze Layers</strong></p>
+<p>Progressive training where each layer is trained sequentially while keeping previously trained layers frozen.</p>
+</li>
+<li><p><strong>Two-Step Training</strong></p>
+<p>A two-phase approach with:
+- Phase 1: Pretraining of specific components
+- Phase 2: Fine-tuning of the entire network</p>
+</li>
+<li><p><strong>Sequential Input Network</strong></p>
+<p>Training input transformation networks before the dendritic components.</p>
+</li>
+</ol>
+<p>Each strategy can be selected through the configuration file by setting the <code class="docutils literal notranslate"><span class="pre">learning_strategy</span></code> parameter.</p>
+</section>
+</section>
+
+
+           </div>
+          </div>
+          <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
+        <a href="index.html" class="btn btn-neutral float-left" title="API Reference" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
+        <a href="../deployment/index.html" class="btn btn-neutral float-right" title="Deployment Guide" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright 2025, Research and Engineering at Kempner.</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>

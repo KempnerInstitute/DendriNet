@@ -1,0 +1,481 @@
+
+
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" data-content_root="../../../">
+<head>
+  <meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Experiment Tracking and Logging &mdash; dendritic_modeling 0.1.0 documentation</title>
+      <link rel="stylesheet" type="text/css" href="../../../_static/pygments.css?v=b86133f3" />
+      <link rel="stylesheet" type="text/css" href="../../../_static/css/theme.css?v=e59714d7" />
+      <link rel="stylesheet" type="text/css" href="../../../_static/copybutton.css?v=76b2166b" />
+
+  
+      <script src="../../../_static/jquery.js?v=5d32c60e"></script>
+      <script src="../../../_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
+      <script src="../../../_static/documentation_options.js?v=01f34227"></script>
+      <script src="../../../_static/doctools.js?v=9bcbadda"></script>
+      <script src="../../../_static/sphinx_highlight.js?v=dc90522c"></script>
+      <script src="../../../_static/clipboard.min.js?v=a7894cd8"></script>
+      <script src="../../../_static/copybutton.js?v=f281be69"></script>
+      <script crossorigin="anonymous" integrity="sha256-Ae2Vz/4ePdIu6ZyI/5ZGsYnb+m0JlOmKPjt6XZ9JJkA=" src="https://cdnjs.cloudflare.com/ajax/libs/require.js/2.3.4/require.min.js"></script>
+    <script src="../../../_static/js/theme.js"></script>
+    <link rel="author" title="About these documents" href="../../../about.html" />
+    <link rel="index" title="Index" href="../../../genindex.html" />
+    <link rel="search" title="Search" href="../../../search.html" />
+    <link rel="next" title="Output Handling and Loss Functions" href="output_handling.html" />
+    <link rel="prev" title="Ablation Studies and Information Analysis" href="ablation_information_analysis.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+
+          
+          
+          <a href="../../../index.html" class="icon icon-home">
+            dendritic_modeling
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../../../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <p class="caption" role="heading"><span class="caption-text">Introduction</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../about.html">About</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Contents</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../getting_started/index.html">Getting Started Guide</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../user_guide/index.html">User Guide</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Contents</span></p>
+<ul class="current">
+<li class="toctree-l1"><a class="reference internal" href="../network_structures/index.html">Network Structures</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../learning/index.html">Learning Strategies</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../visualization/index.html">Visualization Guide</a></li>
+<li class="toctree-l1 current"><a class="reference internal" href="index.html">Analysis and Evaluation</a><ul class="current">
+<li class="toctree-l2"><a class="reference internal" href="ablation_studies.html">Ablation Studies</a></li>
+<li class="toctree-l2"><a class="reference internal" href="ablation_information_analysis.html">Ablation Studies and Information Analysis</a></li>
+<li class="toctree-l2 current"><a class="current reference internal" href="#">Experiment Tracking and Logging</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#overview">Overview</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#weights-biases-integration">Weights &amp; Biases Integration</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="#initialization">Initialization</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#metrics-logging">Metrics Logging</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#model-checkpoints">Model Checkpoints</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#visualizations">Visualizations</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#best-practices-for-w-b">Best Practices for W&amp;B</a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="#local-csv-logging">Local CSV Logging</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#structure-of-the-logging-system">Structure of the Logging System</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="#using-the-logger">Using the Logger</a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="#model-checkpointing">Model Checkpointing</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="#best-model-tracking">Best Model Tracking</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#resuming-training">Resuming Training</a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="#visualization-generation">Visualization Generation</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#custom-metrics-for-dendritic-networks">Custom Metrics for Dendritic Networks</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#best-practices-for-tracking">Best Practices for Tracking</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#example-using-the-tracking-system">Example: Using the Tracking System</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="output_handling.html">Output Handling and Loss Functions</a></li>
+<li class="toctree-l2"><a class="reference internal" href="synthetic_datasets.html">Datasets and Data Utilities</a></li>
+</ul>
+</li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Contents</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../api/index.html">API Reference</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Contents</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../deployment/index.html">Deployment Guide</a></li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../../../index.html">dendritic_modeling</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="../../../index.html" class="icon icon-home" aria-label="Home"></a></li>
+          <li class="breadcrumb-item"><a href="index.html">Analysis and Evaluation</a></li>
+      <li class="breadcrumb-item active">Experiment Tracking and Logging</li>
+      <li class="wy-breadcrumbs-aside">
+            <a href="../../../_sources/source/advanced/analysis/experiment_tracking.rst.txt" rel="nofollow"> View page source</a>
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <section id="experiment-tracking-and-logging">
+<span id="experiment-tracking"></span><h1>Experiment Tracking and Logging<a class="headerlink" href="#experiment-tracking-and-logging" title="Link to this heading"></a></h1>
+<p>This document explains the experiment tracking and logging capabilities of the dendritic modeling framework, including integration with Weights &amp; Biases (W&amp;B) and local logging features.</p>
+<section id="overview">
+<h2>Overview<a class="headerlink" href="#overview" title="Link to this heading"></a></h2>
+<p>Tracking experiments is crucial for research reproducibility and comparison of results. The dendritic modeling framework provides comprehensive experiment tracking through:</p>
+<ol class="arabic simple">
+<li><p><strong>Weights &amp; Biases (W&amp;B) integration</strong>: Cloud-based experiment tracking</p></li>
+<li><p><strong>Local CSV logging</strong>: Recording metrics to local files</p></li>
+<li><p><strong>Checkpoint saving</strong>: Saving model states for resuming training</p></li>
+<li><p><strong>Visualization generation</strong>: Creating plots of network properties at specified intervals</p></li>
+</ol>
+<p>These tracking mechanisms help maintain a record of experiments, compare different configurations, and identify the most promising approaches.</p>
+</section>
+<section id="weights-biases-integration">
+<h2>Weights &amp; Biases Integration<a class="headerlink" href="#weights-biases-integration" title="Link to this heading"></a></h2>
+<p>The framework integrates with Weights &amp; Biases (W&amp;B) for experiment tracking. This is configured in the <code class="docutils literal notranslate"><span class="pre">wandb</span></code> section of the configuration file:</p>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">wandb</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">entity</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">your_username</span><span class="w">          </span><span class="c1"># Your W&amp;B username or team name</span>
+<span class="w">  </span><span class="nt">project</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">dendritic-networks</span><span class="w">    </span><span class="c1"># Project name</span>
+<span class="w">  </span><span class="nt">group</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">mnist-experiments</span><span class="w">       </span><span class="c1"># Group for related experiments</span>
+<span class="w">  </span><span class="nt">tags</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">dendritic</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">mnist</span><span class="p p-Indicator">]</span><span class="w">       </span><span class="c1"># Tags for filtering experiments</span>
+<span class="w">  </span><span class="nt">use_wandb</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span><span class="w">                </span><span class="c1"># Whether to use W&amp;B logging</span>
+</pre></div>
+</div>
+<p>When <code class="docutils literal notranslate"><span class="pre">use_wandb</span></code> is set to <code class="docutils literal notranslate"><span class="pre">true</span></code>, the framework initializes W&amp;B at the start of training and logs metrics, hyperparameters, and visualizations.</p>
+<section id="initialization">
+<h3>Initialization<a class="headerlink" href="#initialization" title="Link to this heading"></a></h3>
+<p>W&amp;B is initialized in the training script:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="c1"># Initialize W&amp;B if enabled</span>
+<span class="k">if</span> <span class="n">config</span><span class="o">.</span><span class="n">wandb</span><span class="o">.</span><span class="n">use_wandb</span><span class="p">:</span>
+    <span class="n">wandb</span><span class="o">.</span><span class="n">init</span><span class="p">(</span>
+        <span class="n">entity</span><span class="o">=</span><span class="n">config</span><span class="o">.</span><span class="n">wandb</span><span class="o">.</span><span class="n">entity</span><span class="p">,</span>
+        <span class="n">project</span><span class="o">=</span><span class="n">config</span><span class="o">.</span><span class="n">wandb</span><span class="o">.</span><span class="n">project</span><span class="p">,</span>
+        <span class="n">group</span><span class="o">=</span><span class="n">config</span><span class="o">.</span><span class="n">wandb</span><span class="o">.</span><span class="n">group</span><span class="p">,</span>
+        <span class="n">name</span><span class="o">=</span><span class="n">config</span><span class="o">.</span><span class="n">train</span><span class="o">.</span><span class="n">run_name</span><span class="p">,</span>
+        <span class="n">config</span><span class="o">=</span><span class="n">OmegaConf</span><span class="o">.</span><span class="n">to_container</span><span class="p">(</span><span class="n">config</span><span class="p">,</span> <span class="n">resolve</span><span class="o">=</span><span class="kc">True</span><span class="p">),</span>
+        <span class="n">tags</span><span class="o">=</span><span class="n">config</span><span class="o">.</span><span class="n">wandb</span><span class="o">.</span><span class="n">tags</span>
+    <span class="p">)</span>
+</pre></div>
+</div>
+<p>This logs the complete configuration for reproducibility and creates a new run with the specified name.</p>
+</section>
+<section id="metrics-logging">
+<h3>Metrics Logging<a class="headerlink" href="#metrics-logging" title="Link to this heading"></a></h3>
+<p>During training, metrics are logged to W&amp;B at the end of each epoch:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="c1"># Log metrics to W&amp;B</span>
+<span class="k">if</span> <span class="n">config</span><span class="o">.</span><span class="n">wandb</span><span class="o">.</span><span class="n">use_wandb</span><span class="p">:</span>
+    <span class="n">wandb</span><span class="o">.</span><span class="n">log</span><span class="p">({</span>
+        <span class="s2">&quot;train_loss&quot;</span><span class="p">:</span> <span class="n">train_loss</span><span class="p">,</span>
+        <span class="s2">&quot;valid_loss&quot;</span><span class="p">:</span> <span class="n">valid_loss</span><span class="p">,</span>
+        <span class="s2">&quot;train_accuracy&quot;</span><span class="p">:</span> <span class="n">train_accuracy</span><span class="p">,</span>
+        <span class="s2">&quot;valid_accuracy&quot;</span><span class="p">:</span> <span class="n">valid_accuracy</span><span class="p">,</span>
+        <span class="s2">&quot;epoch&quot;</span><span class="p">:</span> <span class="n">epoch</span>
+    <span class="p">})</span>
+</pre></div>
+</div>
+<p>Additional metrics can be logged during training, such as learning rate, gradient norms, and custom metrics specific to dendritic networks.</p>
+</section>
+<section id="model-checkpoints">
+<h3>Model Checkpoints<a class="headerlink" href="#model-checkpoints" title="Link to this heading"></a></h3>
+<p>W&amp;B can also track model checkpoints:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="c1"># Save model checkpoint to W&amp;B</span>
+<span class="k">if</span> <span class="n">config</span><span class="o">.</span><span class="n">wandb</span><span class="o">.</span><span class="n">use_wandb</span><span class="p">:</span>
+    <span class="n">wandb</span><span class="o">.</span><span class="n">save</span><span class="p">(</span><span class="n">checkpoint_path</span><span class="p">)</span>
+</pre></div>
+</div>
+<p>This allows downloading model checkpoints directly from the W&amp;B interface.</p>
+</section>
+<section id="visualizations">
+<h3>Visualizations<a class="headerlink" href="#visualizations" title="Link to this heading"></a></h3>
+<p>Visualizations are uploaded to W&amp;B when generated:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="c1"># Log visualization to W&amp;B</span>
+<span class="k">if</span> <span class="n">config</span><span class="o">.</span><span class="n">wandb</span><span class="o">.</span><span class="n">use_wandb</span><span class="p">:</span>
+    <span class="n">wandb</span><span class="o">.</span><span class="n">log</span><span class="p">({</span><span class="s2">&quot;weight_visualization&quot;</span><span class="p">:</span> <span class="n">wandb</span><span class="o">.</span><span class="n">Image</span><span class="p">(</span><span class="n">viz_path</span><span class="p">)})</span>
+</pre></div>
+</div>
+<p>This makes it easy to compare visualizations across different runs.</p>
+</section>
+<section id="best-practices-for-w-b">
+<h3>Best Practices for W&amp;B<a class="headerlink" href="#best-practices-for-w-b" title="Link to this heading"></a></h3>
+<ol class="arabic simple">
+<li><p><strong>Use consistent project names</strong>: Keep related experiments in the same project</p></li>
+<li><p><strong>Use groups for experiment series</strong>: Group runs that test similar hypotheses</p></li>
+<li><p><strong>Tag runs appropriately</strong>: Add tags to categorize experiments</p></li>
+<li><p><strong>Version your code</strong>: Link W&amp;B runs to specific code commits</p></li>
+<li><p><strong>Log all relevant metrics</strong>: Include custom metrics that give insight into dendritic dynamics</p></li>
+</ol>
+</section>
+</section>
+<section id="local-csv-logging">
+<h2>Local CSV Logging<a class="headerlink" href="#local-csv-logging" title="Link to this heading"></a></h2>
+<p>Even when W&amp;B is disabled, the framework logs metrics to local CSV files:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="c1"># Log metrics to CSV</span>
+<span class="k">with</span> <span class="nb">open</span><span class="p">(</span><span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">output_dir</span><span class="p">,</span> <span class="s2">&quot;metrics.csv&quot;</span><span class="p">),</span> <span class="s2">&quot;a&quot;</span><span class="p">)</span> <span class="k">as</span> <span class="n">f</span><span class="p">:</span>
+    <span class="k">if</span> <span class="n">epoch</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
+        <span class="n">f</span><span class="o">.</span><span class="n">write</span><span class="p">(</span><span class="s2">&quot;epoch,train_loss,valid_loss,train_accuracy,valid_accuracy</span><span class="se">\n</span><span class="s2">&quot;</span><span class="p">)</span>
+    <span class="n">f</span><span class="o">.</span><span class="n">write</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">epoch</span><span class="si">}</span><span class="s2">,</span><span class="si">{</span><span class="n">train_loss</span><span class="si">}</span><span class="s2">,</span><span class="si">{</span><span class="n">valid_loss</span><span class="si">}</span><span class="s2">,</span><span class="si">{</span><span class="n">train_accuracy</span><span class="si">}</span><span class="s2">,</span><span class="si">{</span><span class="n">valid_accuracy</span><span class="si">}</span><span class="se">\n</span><span class="s2">&quot;</span><span class="p">)</span>
+</pre></div>
+</div>
+<p>This creates a <code class="docutils literal notranslate"><span class="pre">metrics.csv</span></code> file in the output directory with all training metrics.</p>
+</section>
+<section id="structure-of-the-logging-system">
+<h2>Structure of the Logging System<a class="headerlink" href="#structure-of-the-logging-system" title="Link to this heading"></a></h2>
+<p>The logging system uses Python’s built-in <code class="docutils literal notranslate"><span class="pre">logging</span></code> module, configured in <code class="docutils literal notranslate"><span class="pre">logging_config.py</span></code>:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="k">def</span><span class="w"> </span><span class="nf">setup_logging</span><span class="p">(</span><span class="n">log_dir</span><span class="p">,</span> <span class="n">experiment_name</span><span class="p">,</span> <span class="n">log_level</span><span class="o">=</span><span class="n">logging</span><span class="o">.</span><span class="n">INFO</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Setup logging configuration.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    log_dir : str</span>
+<span class="sd">        Directory to save log files</span>
+<span class="sd">    experiment_name : str</span>
+<span class="sd">        Name of the experiment</span>
+<span class="sd">    log_level : int</span>
+<span class="sd">        Logging level, default is INFO</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    logging.Logger</span>
+<span class="sd">        Configured logger</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">log_path</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">log_dir</span><span class="p">,</span> <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">experiment_name</span><span class="si">}</span><span class="s2">.log&quot;</span><span class="p">)</span>
+
+    <span class="c1"># Create formatter</span>
+    <span class="n">formatter</span> <span class="o">=</span> <span class="n">logging</span><span class="o">.</span><span class="n">Formatter</span><span class="p">(</span>
+        <span class="s1">&#39;</span><span class="si">%(asctime)s</span><span class="s1"> - </span><span class="si">%(name)s</span><span class="s1"> - </span><span class="si">%(levelname)s</span><span class="s1"> - </span><span class="si">%(message)s</span><span class="s1">&#39;</span>
+    <span class="p">)</span>
+
+    <span class="c1"># File handler</span>
+    <span class="n">file_handler</span> <span class="o">=</span> <span class="n">logging</span><span class="o">.</span><span class="n">FileHandler</span><span class="p">(</span><span class="n">log_path</span><span class="p">)</span>
+    <span class="n">file_handler</span><span class="o">.</span><span class="n">setLevel</span><span class="p">(</span><span class="n">log_level</span><span class="p">)</span>
+    <span class="n">file_handler</span><span class="o">.</span><span class="n">setFormatter</span><span class="p">(</span><span class="n">formatter</span><span class="p">)</span>
+
+    <span class="c1"># Console handler</span>
+    <span class="n">console_handler</span> <span class="o">=</span> <span class="n">logging</span><span class="o">.</span><span class="n">StreamHandler</span><span class="p">()</span>
+    <span class="n">console_handler</span><span class="o">.</span><span class="n">setLevel</span><span class="p">(</span><span class="n">log_level</span><span class="p">)</span>
+    <span class="n">console_handler</span><span class="o">.</span><span class="n">setFormatter</span><span class="p">(</span><span class="n">formatter</span><span class="p">)</span>
+
+    <span class="c1"># Create logger</span>
+    <span class="n">logger</span> <span class="o">=</span> <span class="n">logging</span><span class="o">.</span><span class="n">getLogger</span><span class="p">(</span><span class="n">experiment_name</span><span class="p">)</span>
+    <span class="n">logger</span><span class="o">.</span><span class="n">setLevel</span><span class="p">(</span><span class="n">log_level</span><span class="p">)</span>
+    <span class="n">logger</span><span class="o">.</span><span class="n">addHandler</span><span class="p">(</span><span class="n">file_handler</span><span class="p">)</span>
+    <span class="n">logger</span><span class="o">.</span><span class="n">addHandler</span><span class="p">(</span><span class="n">console_handler</span><span class="p">)</span>
+
+    <span class="k">return</span> <span class="n">logger</span>
+</pre></div>
+</div>
+<p>This creates a logger that writes both to a file and to the console.</p>
+<section id="using-the-logger">
+<h3>Using the Logger<a class="headerlink" href="#using-the-logger" title="Link to this heading"></a></h3>
+<p>The logger is used throughout the codebase to record events and errors:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="c1"># Get logger</span>
+<span class="n">logger</span> <span class="o">=</span> <span class="n">setup_logging</span><span class="p">(</span><span class="n">output_dir</span><span class="p">,</span> <span class="n">config</span><span class="o">.</span><span class="n">train</span><span class="o">.</span><span class="n">run_name</span><span class="p">)</span>
+
+<span class="c1"># Log training progress</span>
+<span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Epoch </span><span class="si">{</span><span class="n">epoch</span><span class="si">}</span><span class="s2">/</span><span class="si">{</span><span class="n">config</span><span class="o">.</span><span class="n">train</span><span class="o">.</span><span class="n">epochs</span><span class="si">}</span><span class="s2"> - &quot;</span>
+            <span class="sa">f</span><span class="s2">&quot;Train Loss: </span><span class="si">{</span><span class="n">train_loss</span><span class="si">:</span><span class="s2">.4f</span><span class="si">}</span><span class="s2">, Valid Loss: </span><span class="si">{</span><span class="n">valid_loss</span><span class="si">:</span><span class="s2">.4f</span><span class="si">}</span><span class="s2">, &quot;</span>
+            <span class="sa">f</span><span class="s2">&quot;Train Acc: </span><span class="si">{</span><span class="n">train_accuracy</span><span class="si">:</span><span class="s2">.4f</span><span class="si">}</span><span class="s2">, Valid Acc: </span><span class="si">{</span><span class="n">valid_accuracy</span><span class="si">:</span><span class="s2">.4f</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+
+<span class="c1"># Log warnings</span>
+<span class="n">logger</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span><span class="s2">&quot;Learning rate is unusually high&quot;</span><span class="p">)</span>
+
+<span class="c1"># Log errors (without stopping execution)</span>
+<span class="k">try</span><span class="p">:</span>
+    <span class="c1"># Some code that might raise an exception</span>
+<span class="k">except</span> <span class="ne">Exception</span> <span class="k">as</span> <span class="n">e</span><span class="p">:</span>
+    <span class="n">logger</span><span class="o">.</span><span class="n">error</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Error during training: </span><span class="si">{</span><span class="n">e</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+</pre></div>
+</div>
+<p>Log files are saved in the output directory specified in the configuration.</p>
+</section>
+</section>
+<section id="model-checkpointing">
+<h2>Model Checkpointing<a class="headerlink" href="#model-checkpointing" title="Link to this heading"></a></h2>
+<p>The framework automatically saves model checkpoints during training:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="c1"># Save checkpoint</span>
+<span class="n">checkpoint_path</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">output_dir</span><span class="p">,</span> <span class="sa">f</span><span class="s2">&quot;checkpoint_epoch_</span><span class="si">{</span><span class="n">epoch</span><span class="si">}</span><span class="s2">.pt&quot;</span><span class="p">)</span>
+<span class="n">torch</span><span class="o">.</span><span class="n">save</span><span class="p">({</span>
+    <span class="s1">&#39;epoch&#39;</span><span class="p">:</span> <span class="n">epoch</span><span class="p">,</span>
+    <span class="s1">&#39;model_state_dict&#39;</span><span class="p">:</span> <span class="n">model</span><span class="o">.</span><span class="n">state_dict</span><span class="p">(),</span>
+    <span class="s1">&#39;optimizer_state_dict&#39;</span><span class="p">:</span> <span class="n">optimizer</span><span class="o">.</span><span class="n">state_dict</span><span class="p">(),</span>
+    <span class="s1">&#39;train_loss&#39;</span><span class="p">:</span> <span class="n">train_loss</span><span class="p">,</span>
+    <span class="s1">&#39;valid_loss&#39;</span><span class="p">:</span> <span class="n">valid_loss</span><span class="p">,</span>
+<span class="p">},</span> <span class="n">checkpoint_path</span><span class="p">)</span>
+</pre></div>
+</div>
+<p>By default, checkpoints are saved at the end of each epoch. For longer training runs, you can configure checkpoint frequency in the configuration:</p>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">train</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">checkpoint_frequency</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">10</span><span class="w">  </span><span class="c1"># Save checkpoint every 10 epochs</span>
+</pre></div>
+</div>
+<section id="best-model-tracking">
+<h3>Best Model Tracking<a class="headerlink" href="#best-model-tracking" title="Link to this heading"></a></h3>
+<p>The framework also keeps track of the best model according to validation metrics:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="c1"># Check if this is the best model so far</span>
+<span class="k">if</span> <span class="n">valid_accuracy</span> <span class="o">&gt;</span> <span class="n">best_valid_accuracy</span><span class="p">:</span>
+    <span class="n">best_valid_accuracy</span> <span class="o">=</span> <span class="n">valid_accuracy</span>
+    <span class="n">best_model_path</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">output_dir</span><span class="p">,</span> <span class="s2">&quot;best_model.pt&quot;</span><span class="p">)</span>
+    <span class="n">torch</span><span class="o">.</span><span class="n">save</span><span class="p">(</span><span class="n">model</span><span class="o">.</span><span class="n">state_dict</span><span class="p">(),</span> <span class="n">best_model_path</span><span class="p">)</span>
+    <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;New best model saved with validation accuracy: </span><span class="si">{</span><span class="n">valid_accuracy</span><span class="si">:</span><span class="s2">.4f</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+</pre></div>
+</div>
+<p>This ensures you always have access to the best-performing model.</p>
+</section>
+<section id="resuming-training">
+<h3>Resuming Training<a class="headerlink" href="#resuming-training" title="Link to this heading"></a></h3>
+<p>Checkpoints allow resuming training from a specific epoch:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="k">if</span> <span class="n">args</span><span class="o">.</span><span class="n">resume_from</span><span class="p">:</span>
+    <span class="n">checkpoint</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">load</span><span class="p">(</span><span class="n">args</span><span class="o">.</span><span class="n">resume_from</span><span class="p">)</span>
+    <span class="n">model</span><span class="o">.</span><span class="n">load_state_dict</span><span class="p">(</span><span class="n">checkpoint</span><span class="p">[</span><span class="s1">&#39;model_state_dict&#39;</span><span class="p">])</span>
+    <span class="n">optimizer</span><span class="o">.</span><span class="n">load_state_dict</span><span class="p">(</span><span class="n">checkpoint</span><span class="p">[</span><span class="s1">&#39;optimizer_state_dict&#39;</span><span class="p">])</span>
+    <span class="n">start_epoch</span> <span class="o">=</span> <span class="n">checkpoint</span><span class="p">[</span><span class="s1">&#39;epoch&#39;</span><span class="p">]</span> <span class="o">+</span> <span class="mi">1</span>
+    <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Resuming training from epoch </span><span class="si">{</span><span class="n">start_epoch</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+</pre></div>
+</div>
+</section>
+</section>
+<section id="visualization-generation">
+<h2>Visualization Generation<a class="headerlink" href="#visualization-generation" title="Link to this heading"></a></h2>
+<p>The framework can generate visualizations at specified intervals during training:</p>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">visualization</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">enabled</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+<span class="w">  </span><span class="nt">visualize_epochs</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">0</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">10</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">50</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">100</span><span class="p p-Indicator">]</span><span class="w">  </span><span class="c1"># Epochs at which to generate visualizations</span>
+<span class="w">  </span><span class="nt">plots</span><span class="p">:</span>
+<span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">weights</span>
+<span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">activations</span>
+<span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">gradients</span>
+</pre></div>
+</div>
+<p>When visualizations are enabled, the framework generates the specified plots at the specified epochs:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="c1"># Generate visualizations if necessary</span>
+<span class="k">if</span> <span class="n">config</span><span class="o">.</span><span class="n">visualization</span><span class="o">.</span><span class="n">enabled</span> <span class="ow">and</span> <span class="n">epoch</span> <span class="ow">in</span> <span class="n">config</span><span class="o">.</span><span class="n">visualization</span><span class="o">.</span><span class="n">visualize_epochs</span><span class="p">:</span>
+    <span class="n">visualize_model</span><span class="p">(</span><span class="n">model</span><span class="p">,</span> <span class="n">data</span><span class="p">,</span> <span class="n">output_dir</span><span class="p">,</span> <span class="n">epoch</span><span class="p">)</span>
+</pre></div>
+</div>
+<p>Visualizations are saved in the output directory and can also be logged to W&amp;B.</p>
+<figure class="align-center" id="id1">
+<a class="reference internal image-reference" href="source/advanced/analysis/figures/pdf/place_holder.pdf"><img alt="Experiment Tracking System" src="source/advanced/analysis/figures/pdf/place_holder.pdf" style="width: 600px;" />
+</a>
+<figcaption>
+<p><span class="caption-number">Figure 7 </span><span class="caption-text">Overview of the experiment tracking and logging system in the dendritic modeling framework. [PLACEHOLDER FOR DIAGRAM]</span><a class="headerlink" href="#id1" title="Link to this image"></a></p>
+</figcaption>
+</figure>
+</section>
+<section id="custom-metrics-for-dendritic-networks">
+<h2>Custom Metrics for Dendritic Networks<a class="headerlink" href="#custom-metrics-for-dendritic-networks" title="Link to this heading"></a></h2>
+<p>The framework includes custom metrics specific to dendritic networks:</p>
+<ol class="arabic simple">
+<li><p><strong>Branch activation ratio</strong>: The fraction of branches that are active for each input</p></li>
+<li><p><strong>Branch specialization metric</strong>: How specialized branches are for different inputs</p></li>
+<li><p><strong>Synaptic weight sparsity</strong>: The fraction of synaptic weights that are close to zero</p></li>
+<li><p><strong>Mutual information</strong>: Information content between branch activations and labels</p></li>
+</ol>
+<p>These metrics are calculated during training and logged along with standard metrics.</p>
+</section>
+<section id="best-practices-for-tracking">
+<h2>Best Practices for Tracking<a class="headerlink" href="#best-practices-for-tracking" title="Link to this heading"></a></h2>
+<ol class="arabic simple">
+<li><p><strong>Unique run names</strong>: Use descriptive, unique names for each run</p></li>
+<li><p><strong>Version your configurations</strong>: Keep configurations under version control</p></li>
+<li><p><strong>Log hardware details</strong>: Note GPU/CPU models for performance comparison</p></li>
+<li><p><strong>Set reasonable checkpoint frequency</strong>: Balance storage space vs. safety</p></li>
+<li><p><strong>Archive important runs</strong>: Keep archives of particularly important results</p></li>
+</ol>
+</section>
+<section id="example-using-the-tracking-system">
+<h2>Example: Using the Tracking System<a class="headerlink" href="#example-using-the-tracking-system" title="Link to this heading"></a></h2>
+<p>Here’s an example of how to use the tracking system in a custom script:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span><span class="w"> </span><span class="nn">dendritic_modeling.config</span><span class="w"> </span><span class="kn">import</span> <span class="n">load_config</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">dendritic_modeling.logging_config</span><span class="w"> </span><span class="kn">import</span> <span class="n">setup_logging</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">wandb</span>
+
+<span class="c1"># Load configuration</span>
+<span class="n">config</span> <span class="o">=</span> <span class="n">load_config</span><span class="p">(</span><span class="s2">&quot;configs/my_experiment.yaml&quot;</span><span class="p">)</span>
+
+<span class="c1"># Set up logging</span>
+<span class="n">logger</span> <span class="o">=</span> <span class="n">setup_logging</span><span class="p">(</span><span class="s2">&quot;outputs&quot;</span><span class="p">,</span> <span class="n">config</span><span class="o">.</span><span class="n">train</span><span class="o">.</span><span class="n">run_name</span><span class="p">)</span>
+
+<span class="c1"># Initialize W&amp;B</span>
+<span class="k">if</span> <span class="n">config</span><span class="o">.</span><span class="n">wandb</span><span class="o">.</span><span class="n">use_wandb</span><span class="p">:</span>
+    <span class="n">wandb</span><span class="o">.</span><span class="n">init</span><span class="p">(</span>
+        <span class="n">entity</span><span class="o">=</span><span class="n">config</span><span class="o">.</span><span class="n">wandb</span><span class="o">.</span><span class="n">entity</span><span class="p">,</span>
+        <span class="n">project</span><span class="o">=</span><span class="n">config</span><span class="o">.</span><span class="n">wandb</span><span class="o">.</span><span class="n">project</span><span class="p">,</span>
+        <span class="n">name</span><span class="o">=</span><span class="n">config</span><span class="o">.</span><span class="n">train</span><span class="o">.</span><span class="n">run_name</span><span class="p">,</span>
+        <span class="n">config</span><span class="o">=</span><span class="n">config</span>
+    <span class="p">)</span>
+
+<span class="c1"># Log parameters</span>
+<span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Starting experiment with learning rate: </span><span class="si">{</span><span class="n">config</span><span class="o">.</span><span class="n">train</span><span class="o">.</span><span class="n">lr</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+
+<span class="c1"># Training loop</span>
+<span class="k">for</span> <span class="n">epoch</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">config</span><span class="o">.</span><span class="n">train</span><span class="o">.</span><span class="n">epochs</span><span class="p">):</span>
+    <span class="c1"># Train model</span>
+    <span class="n">train_loss</span><span class="p">,</span> <span class="n">train_accuracy</span> <span class="o">=</span> <span class="n">train_epoch</span><span class="p">(</span><span class="n">model</span><span class="p">,</span> <span class="n">train_loader</span><span class="p">)</span>
+    <span class="n">valid_loss</span><span class="p">,</span> <span class="n">valid_accuracy</span> <span class="o">=</span> <span class="n">validate_epoch</span><span class="p">(</span><span class="n">model</span><span class="p">,</span> <span class="n">valid_loader</span><span class="p">)</span>
+
+    <span class="c1"># Log metrics</span>
+    <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Epoch </span><span class="si">{</span><span class="n">epoch</span><span class="si">}</span><span class="s2">: Train Acc=</span><span class="si">{</span><span class="n">train_accuracy</span><span class="si">:</span><span class="s2">.4f</span><span class="si">}</span><span class="s2">, Valid Acc=</span><span class="si">{</span><span class="n">valid_accuracy</span><span class="si">:</span><span class="s2">.4f</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+
+    <span class="k">if</span> <span class="n">config</span><span class="o">.</span><span class="n">wandb</span><span class="o">.</span><span class="n">use_wandb</span><span class="p">:</span>
+        <span class="n">wandb</span><span class="o">.</span><span class="n">log</span><span class="p">({</span>
+            <span class="s2">&quot;train_loss&quot;</span><span class="p">:</span> <span class="n">train_loss</span><span class="p">,</span>
+            <span class="s2">&quot;valid_loss&quot;</span><span class="p">:</span> <span class="n">valid_loss</span><span class="p">,</span>
+            <span class="s2">&quot;train_accuracy&quot;</span><span class="p">:</span> <span class="n">train_accuracy</span><span class="p">,</span>
+            <span class="s2">&quot;valid_accuracy&quot;</span><span class="p">:</span> <span class="n">valid_accuracy</span><span class="p">,</span>
+            <span class="s2">&quot;epoch&quot;</span><span class="p">:</span> <span class="n">epoch</span>
+        <span class="p">})</span>
+
+<span class="c1"># Save final model</span>
+<span class="n">torch</span><span class="o">.</span><span class="n">save</span><span class="p">(</span><span class="n">model</span><span class="o">.</span><span class="n">state_dict</span><span class="p">(),</span> <span class="s2">&quot;outputs/final_model.pt&quot;</span><span class="p">)</span>
+<span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s2">&quot;Training complete, model saved.&quot;</span><span class="p">)</span>
+</pre></div>
+</div>
+</section>
+</section>
+
+
+           </div>
+          </div>
+          <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
+        <a href="ablation_information_analysis.html" class="btn btn-neutral float-left" title="Ablation Studies and Information Analysis" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
+        <a href="output_handling.html" class="btn btn-neutral float-right" title="Output Handling and Loss Functions" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright 2025, Research and Engineering at Kempner.</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>

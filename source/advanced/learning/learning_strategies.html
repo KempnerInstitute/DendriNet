@@ -1,0 +1,838 @@
+
+
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" data-content_root="../../../">
+<head>
+  <meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Learning Strategies &mdash; dendritic_modeling 0.1.0 documentation</title>
+      <link rel="stylesheet" type="text/css" href="../../../_static/pygments.css?v=b86133f3" />
+      <link rel="stylesheet" type="text/css" href="../../../_static/css/theme.css?v=e59714d7" />
+      <link rel="stylesheet" type="text/css" href="../../../_static/copybutton.css?v=76b2166b" />
+
+  
+      <script src="../../../_static/jquery.js?v=5d32c60e"></script>
+      <script src="../../../_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
+      <script src="../../../_static/documentation_options.js?v=01f34227"></script>
+      <script src="../../../_static/doctools.js?v=9bcbadda"></script>
+      <script src="../../../_static/sphinx_highlight.js?v=dc90522c"></script>
+      <script src="../../../_static/clipboard.min.js?v=a7894cd8"></script>
+      <script src="../../../_static/copybutton.js?v=f281be69"></script>
+      <script crossorigin="anonymous" integrity="sha256-Ae2Vz/4ePdIu6ZyI/5ZGsYnb+m0JlOmKPjt6XZ9JJkA=" src="https://cdnjs.cloudflare.com/ajax/libs/require.js/2.3.4/require.min.js"></script>
+    <script src="../../../_static/js/theme.js"></script>
+    <link rel="author" title="About these documents" href="../../../about.html" />
+    <link rel="index" title="Index" href="../../../genindex.html" />
+    <link rel="search" title="Search" href="../../../search.html" />
+    <link rel="next" title="TopKLinear Layers and Dendritic Processing" href="topk_linear.html" />
+    <link rel="prev" title="Learning Strategies" href="index.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+
+          
+          
+          <a href="../../../index.html" class="icon icon-home">
+            dendritic_modeling
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../../../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <p class="caption" role="heading"><span class="caption-text">Introduction</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../about.html">About</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Contents</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../getting_started/index.html">Getting Started Guide</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../user_guide/index.html">User Guide</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Contents</span></p>
+<ul class="current">
+<li class="toctree-l1"><a class="reference internal" href="../network_structures/index.html">Network Structures</a></li>
+<li class="toctree-l1 current"><a class="reference internal" href="index.html">Learning Strategies</a><ul class="current">
+<li class="toctree-l2 current"><a class="current reference internal" href="#">Learning Strategies</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#overview">Overview</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#available-learning-strategies">Available Learning Strategies</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#maximum-likelihood-estimation-mle">Maximum Likelihood Estimation (MLE)</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#freeze-branches-strategy">Freeze Branches Strategy</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#freeze-branches-with-pretraining-strategy">Freeze Branches with Pretraining Strategy</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#freeze-branches-reversed-strategy">Freeze Branches Reversed Strategy</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#freeze-branches-reversed-with-pretraining-strategy">Freeze Branches Reversed with Pretraining Strategy</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#local-credit-assignment">Local Credit Assignment</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#freeze-layers-strategy">Freeze Layers Strategy</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#freeze-layers-with-pretraining-strategy">Freeze Layers with Pretraining Strategy</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#freeze-layers-reversed-strategy">Freeze Layers Reversed Strategy</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#freeze-layers-reversed-with-pretraining-strategy">Freeze Layers Reversed with Pretraining Strategy</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#two-step-training">Two-Step Training</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#voltage-stabilization-training">Voltage Stabilization Training</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#two-step-training-with-kl-divergence">Two-Step Training with KL Divergence</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#input-network-training-strategies">Input Network Training Strategies</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="#sequential-vs-joint-training">Sequential vs. Joint Training</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#independent-head-training">Independent Head Training</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#using-pre-trained-input-networks">Using Pre-trained Input Networks</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#combined-strategies">Combined Strategies</a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="#choosing-the-right-strategy">Choosing the Right Strategy</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#custom-weight-decay">Custom Weight Decay</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#implementation-details">Implementation Details</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="topk_linear.html">TopKLinear Layers and Dendritic Processing</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="../visualization/index.html">Visualization Guide</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../analysis/index.html">Analysis and Evaluation</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Contents</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../api/index.html">API Reference</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Contents</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../deployment/index.html">Deployment Guide</a></li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../../../index.html">dendritic_modeling</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="../../../index.html" class="icon icon-home" aria-label="Home"></a></li>
+          <li class="breadcrumb-item"><a href="index.html">Learning Strategies</a></li>
+      <li class="breadcrumb-item active">Learning Strategies</li>
+      <li class="wy-breadcrumbs-aside">
+            <a href="../../../_sources/source/advanced/learning/learning_strategies.rst.txt" rel="nofollow"> View page source</a>
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <section id="learning-strategies">
+<span id="id1"></span><h1>Learning Strategies<a class="headerlink" href="#learning-strategies" title="Link to this heading"></a></h1>
+<section id="overview">
+<h2>Overview<a class="headerlink" href="#overview" title="Link to this heading"></a></h2>
+<p>This document describes the learning strategies available in the dendritic modeling framework
+for training neural networks with dendritic-inspired architectures.</p>
+</section>
+<section id="available-learning-strategies">
+<h2>Available Learning Strategies<a class="headerlink" href="#available-learning-strategies" title="Link to this heading"></a></h2>
+<p>The framework provides several learning strategies tailored to the unique characteristics
+of dendritic networks:</p>
+<ol class="arabic simple">
+<li><p><strong>Maximum Likelihood Estimation (MLE)</strong>: Standard end-to-end training</p></li>
+<li><p><strong>Freeze Branches</strong>: Sequential branch-by-branch training within dendritic trees</p></li>
+<li><p><strong>Local Credit Assignment</strong>: Training with locally-computed gradients</p></li>
+<li><p><strong>Two-Step Training</strong>: Pre-training an auxiliary network before the full model</p></li>
+<li><p><strong>Two-Step Training with KL Divergence</strong>: Similar to two-step, but with KL regularization</p></li>
+</ol>
+</section>
+<section id="maximum-likelihood-estimation-mle">
+<h2>Maximum Likelihood Estimation (MLE)<a class="headerlink" href="#maximum-likelihood-estimation-mle" title="Link to this heading"></a></h2>
+<p>The MLE strategy is the most straightforward approach, applying standard backpropagation
+to train the entire network end-to-end.</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="c1"># Example of using MLE trainer</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">dendritic_modeling.learning_strategies</span><span class="w"> </span><span class="kn">import</span> <span class="n">TrainerMLE</span>
+
+<span class="n">optimizer</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">optim</span><span class="o">.</span><span class="n">Adam</span><span class="p">(</span><span class="n">model</span><span class="o">.</span><span class="n">parameters</span><span class="p">(),</span> <span class="n">lr</span><span class="o">=</span><span class="mf">0.001</span><span class="p">)</span>
+<span class="n">trainer</span> <span class="o">=</span> <span class="n">TrainerMLE</span><span class="p">(</span><span class="n">optimizer</span><span class="p">)</span>
+
+<span class="n">results</span> <span class="o">=</span> <span class="n">trainer</span><span class="o">.</span><span class="n">train</span><span class="p">(</span>
+    <span class="n">model</span><span class="o">=</span><span class="n">model</span><span class="p">,</span>
+    <span class="n">train_data</span><span class="o">=</span><span class="n">train_ds</span><span class="p">,</span>
+    <span class="n">valid_data</span><span class="o">=</span><span class="n">valid_ds</span><span class="p">,</span>
+    <span class="n">epochs</span><span class="o">=</span><span class="mi">50</span><span class="p">,</span>
+    <span class="n">batch_size</span><span class="o">=</span><span class="mi">128</span><span class="p">,</span>
+    <span class="n">grad_clip_value</span><span class="o">=</span><span class="mi">5</span>
+<span class="p">)</span>
+</pre></div>
+</div>
+<p>Key features of MLE training:</p>
+<ul class="simple">
+<li><p>Optimizes all parameters simultaneously</p></li>
+<li><p>Applies gradient clipping to prevent instability</p></li>
+<li><p>Monitors validation performance for early stopping</p></li>
+<li><p>Supports both probabilistic and deterministic models</p></li>
+</ul>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>The TrainerMLE class also includes a placeholder for SimCLR contrastive learning
+(train_simclr method), which will be implemented in future versions.</p>
+</div>
+</section>
+<section id="freeze-branches-strategy">
+<h2>Freeze Branches Strategy<a class="headerlink" href="#freeze-branches-strategy" title="Link to this heading"></a></h2>
+<p>The freeze branches strategy trains the dendritic network one branch at a time, starting from the branches
+closest to the soma and progressively moving to more distal branches. After all branches have been trained
+independently, a final fine-tuning phase trains the full network end-to-end for a specified number of epochs.</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="c1"># Example of using freeze branches trainer</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">dendritic_modeling.learning_strategies</span><span class="w"> </span><span class="kn">import</span> <span class="n">TrainerMLE</span>
+
+<span class="n">optimizer</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">optim</span><span class="o">.</span><span class="n">Adam</span><span class="p">(</span><span class="n">model</span><span class="o">.</span><span class="n">parameters</span><span class="p">(),</span> <span class="n">lr</span><span class="o">=</span><span class="mf">0.001</span><span class="p">)</span>
+<span class="n">trainer</span> <span class="o">=</span> <span class="n">TrainerMLE</span><span class="p">(</span><span class="n">optimizer</span><span class="p">)</span>
+
+<span class="n">results</span> <span class="o">=</span> <span class="n">trainer</span><span class="o">.</span><span class="n">train_freeze_branches</span><span class="p">(</span>
+    <span class="n">model</span><span class="o">=</span><span class="n">model</span><span class="p">,</span>
+    <span class="n">train_data</span><span class="o">=</span><span class="n">train_ds</span><span class="p">,</span>
+    <span class="n">valid_data</span><span class="o">=</span><span class="n">valid_ds</span><span class="p">,</span>
+    <span class="n">epochs_per_branch</span><span class="o">=</span><span class="mi">20</span><span class="p">,</span>
+    <span class="n">batch_size</span><span class="o">=</span><span class="mi">128</span><span class="p">,</span>
+    <span class="n">final_tune_epochs</span><span class="o">=</span><span class="mi">10</span>  <span class="c1"># Final fine-tuning with all branches unfrozen</span>
+<span class="p">)</span>
+</pre></div>
+</div>
+<p>Key benefits of the freeze branches approach:</p>
+<ul class="simple">
+<li><p>Stabilizes training for complex dendritic networks</p></li>
+<li><p>Focuses training on specific dendritic compartments</p></li>
+<li><p>Allows fine-tuning all branches together during the final phase</p></li>
+<li><p>Better mimics biological learning in dendrites</p></li>
+<li><p>Provides a systematic approach to training dendritic trees</p></li>
+</ul>
+</section>
+<section id="freeze-branches-with-pretraining-strategy">
+<h2>Freeze Branches with Pretraining Strategy<a class="headerlink" href="#freeze-branches-with-pretraining-strategy" title="Link to this heading"></a></h2>
+<p>The freeze branches with pretraining strategy enhances the standard freeze branches approach by adding an initial
+full-network training phase before the branch-by-branch training:</p>
+<ol class="arabic simple">
+<li><p>Initial full-network training: Train all branches together for pretrain_epochs</p></li>
+<li><p>Branch-by-branch training: Train each branch sequentially from soma to distal branches (proximal to distal)</p></li>
+<li><p>Final fine-tuning: Train the full network end-to-end for fine-tuning</p></li>
+</ol>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="c1"># Example of using freeze branches with pretraining trainer</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">dendritic_modeling.learning_strategies</span><span class="w"> </span><span class="kn">import</span> <span class="n">TrainerMLE</span>
+
+<span class="n">optimizer</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">optim</span><span class="o">.</span><span class="n">Adam</span><span class="p">(</span><span class="n">model</span><span class="o">.</span><span class="n">parameters</span><span class="p">(),</span> <span class="n">lr</span><span class="o">=</span><span class="mf">0.001</span><span class="p">)</span>
+<span class="n">trainer</span> <span class="o">=</span> <span class="n">TrainerMLE</span><span class="p">(</span><span class="n">optimizer</span><span class="p">)</span>
+
+<span class="n">results</span> <span class="o">=</span> <span class="n">trainer</span><span class="o">.</span><span class="n">train_freeze_branches_with_pretraining</span><span class="p">(</span>
+    <span class="n">model</span><span class="o">=</span><span class="n">model</span><span class="p">,</span>
+    <span class="n">train_data</span><span class="o">=</span><span class="n">train_ds</span><span class="p">,</span>
+    <span class="n">valid_data</span><span class="o">=</span><span class="n">valid_ds</span><span class="p">,</span>
+    <span class="n">pretrain_epochs</span><span class="o">=</span><span class="mi">10</span><span class="p">,</span>     <span class="c1"># Initial full network training</span>
+    <span class="n">epochs_per_branch</span><span class="o">=</span><span class="mi">20</span><span class="p">,</span>   <span class="c1"># Per-branch training</span>
+    <span class="n">batch_size</span><span class="o">=</span><span class="mi">128</span><span class="p">,</span>
+    <span class="n">final_tune_epochs</span><span class="o">=</span><span class="mi">10</span>    <span class="c1"># Final fine-tuning with all branches unfrozen</span>
+<span class="p">)</span>
+</pre></div>
+</div>
+<p>Key benefits of this approach:</p>
+<ul class="simple">
+<li><p>Provides a better initialization for branch-specific training</p></li>
+<li><p>Helps avoid getting stuck in poor local optima during branch-specific training</p></li>
+<li><p>Initial training can establish useful feature representations across the network</p></li>
+<li><p>Ensures that representations across branches are coherent</p></li>
+<li><p>Combines the benefits of joint and branch-wise training</p></li>
+</ul>
+</section>
+<section id="freeze-branches-reversed-strategy">
+<h2>Freeze Branches Reversed Strategy<a class="headerlink" href="#freeze-branches-reversed-strategy" title="Link to this heading"></a></h2>
+<p>The freeze branches reversed strategy is similar to the freeze branches strategy, but trains the network
+in the opposite direction: starting from the most distal branches (furthest from soma) and progressively moving
+toward the soma. This approach follows the biological flow of information in dendrites.</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="c1"># Example of using freeze branches reversed trainer</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">dendritic_modeling.learning_strategies</span><span class="w"> </span><span class="kn">import</span> <span class="n">TrainerMLE</span>
+
+<span class="n">optimizer</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">optim</span><span class="o">.</span><span class="n">Adam</span><span class="p">(</span><span class="n">model</span><span class="o">.</span><span class="n">parameters</span><span class="p">(),</span> <span class="n">lr</span><span class="o">=</span><span class="mf">0.001</span><span class="p">)</span>
+<span class="n">trainer</span> <span class="o">=</span> <span class="n">TrainerMLE</span><span class="p">(</span><span class="n">optimizer</span><span class="p">)</span>
+
+<span class="n">results</span> <span class="o">=</span> <span class="n">trainer</span><span class="o">.</span><span class="n">train_freeze_branches_reversed</span><span class="p">(</span>
+    <span class="n">model</span><span class="o">=</span><span class="n">model</span><span class="p">,</span>
+    <span class="n">train_data</span><span class="o">=</span><span class="n">train_ds</span><span class="p">,</span>
+    <span class="n">valid_data</span><span class="o">=</span><span class="n">valid_ds</span><span class="p">,</span>
+    <span class="n">epochs_per_branch</span><span class="o">=</span><span class="mi">20</span><span class="p">,</span>
+    <span class="n">batch_size</span><span class="o">=</span><span class="mi">128</span><span class="p">,</span>
+    <span class="n">final_tune_epochs</span><span class="o">=</span><span class="mi">10</span>  <span class="c1"># Final fine-tuning with all branches unfrozen</span>
+<span class="p">)</span>
+</pre></div>
+</div>
+<p>Key benefits of the freeze branches reversed approach:</p>
+<ul class="simple">
+<li><p>Follows the natural flow of information in neural dendrites (from distal to proximal)</p></li>
+<li><p>May improve feature extraction in distal branches by training them first</p></li>
+<li><p>Potentially more biologically plausible learning sequence</p></li>
+<li><p>Training progresses from input-focused branches to output-focused branches</p></li>
+<li><p>Includes a final fine-tuning phase for whole-network integration</p></li>
+</ul>
+</section>
+<section id="freeze-branches-reversed-with-pretraining-strategy">
+<h2>Freeze Branches Reversed with Pretraining Strategy<a class="headerlink" href="#freeze-branches-reversed-with-pretraining-strategy" title="Link to this heading"></a></h2>
+<p>This strategy combines the benefits of initial full-network training with the reversed branch-by-branch training:</p>
+<ol class="arabic simple">
+<li><p>Initial full-network training: Train all branches together for pretrain_epochs</p></li>
+<li><p>Branch-by-branch training: Train each branch sequentially from distal to proximal (input to soma)</p></li>
+<li><p>Final fine-tuning: Train the full network end-to-end for fine-tuning</p></li>
+</ol>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="c1"># Example of using freeze branches reversed with pretraining trainer</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">dendritic_modeling.learning_strategies</span><span class="w"> </span><span class="kn">import</span> <span class="n">TrainerMLE</span>
+
+<span class="n">optimizer</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">optim</span><span class="o">.</span><span class="n">Adam</span><span class="p">(</span><span class="n">model</span><span class="o">.</span><span class="n">parameters</span><span class="p">(),</span> <span class="n">lr</span><span class="o">=</span><span class="mf">0.001</span><span class="p">)</span>
+<span class="n">trainer</span> <span class="o">=</span> <span class="n">TrainerMLE</span><span class="p">(</span><span class="n">optimizer</span><span class="p">)</span>
+
+<span class="n">results</span> <span class="o">=</span> <span class="n">trainer</span><span class="o">.</span><span class="n">train_freeze_branches_reversed_with_pretraining</span><span class="p">(</span>
+    <span class="n">model</span><span class="o">=</span><span class="n">model</span><span class="p">,</span>
+    <span class="n">train_data</span><span class="o">=</span><span class="n">train_ds</span><span class="p">,</span>
+    <span class="n">valid_data</span><span class="o">=</span><span class="n">valid_ds</span><span class="p">,</span>
+    <span class="n">pretrain_epochs</span><span class="o">=</span><span class="mi">10</span><span class="p">,</span>     <span class="c1"># Initial full network training</span>
+    <span class="n">epochs_per_branch</span><span class="o">=</span><span class="mi">20</span><span class="p">,</span>   <span class="c1"># Per-branch training</span>
+    <span class="n">batch_size</span><span class="o">=</span><span class="mi">128</span><span class="p">,</span>
+    <span class="n">final_tune_epochs</span><span class="o">=</span><span class="mi">10</span>    <span class="c1"># Final fine-tuning with all branches unfrozen</span>
+<span class="p">)</span>
+</pre></div>
+</div>
+<p>Key benefits of this approach:</p>
+<ul class="simple">
+<li><p>Combines initial joint training with biologically-plausible branch sequence</p></li>
+<li><p>Follows the natural flow of information in dendrites (distal → proximal)</p></li>
+<li><p>Distal branches receive focused training after good initialization</p></li>
+<li><p>May be particularly effective for complex dendritic networks</p></li>
+<li><p>Reduces risk of catastrophic forgetting during branch-specific training</p></li>
+</ul>
+</section>
+<section id="local-credit-assignment">
+<h2>Local Credit Assignment<a class="headerlink" href="#local-credit-assignment" title="Link to this heading"></a></h2>
+<p>The local credit assignment strategy trains each layer with a locally-computed loss,
+reducing reliance on backpropagating gradients through the entire network.</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="c1"># Example of using local credit assignment</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">dendritic_modeling.learning_strategies</span><span class="w"> </span><span class="kn">import</span> <span class="n">LocalCreditAssignment</span>
+
+<span class="n">optimizer</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">optim</span><span class="o">.</span><span class="n">Adam</span><span class="p">(</span><span class="n">model</span><span class="o">.</span><span class="n">parameters</span><span class="p">(),</span> <span class="n">lr</span><span class="o">=</span><span class="mf">0.001</span><span class="p">)</span>
+<span class="n">trainer</span> <span class="o">=</span> <span class="n">LocalCreditAssignment</span><span class="p">(</span><span class="n">optimizer</span><span class="p">)</span>
+
+<span class="n">results</span> <span class="o">=</span> <span class="n">trainer</span><span class="o">.</span><span class="n">train</span><span class="p">(</span>
+    <span class="n">model</span><span class="o">=</span><span class="n">model</span><span class="p">,</span>
+    <span class="n">train_data</span><span class="o">=</span><span class="n">train_ds</span><span class="p">,</span>
+    <span class="n">valid_data</span><span class="o">=</span><span class="n">valid_ds</span><span class="p">,</span>
+    <span class="n">epochs</span><span class="o">=</span><span class="mi">50</span><span class="p">,</span>
+    <span class="n">batch_size</span><span class="o">=</span><span class="mi">128</span>
+<span class="p">)</span>
+</pre></div>
+</div>
+<p>Key characteristics:</p>
+<ul class="simple">
+<li><p>Computes local targets for each layer</p></li>
+<li><p>Applies a weighted combination of local and global losses</p></li>
+<li><p>More biologically plausible learning approach</p></li>
+<li><p>Well-suited for networks with many layers</p></li>
+</ul>
+</section>
+<section id="freeze-layers-strategy">
+<h2>Freeze Layers Strategy<a class="headerlink" href="#freeze-layers-strategy" title="Link to this heading"></a></h2>
+<p>The freeze layers strategy trains the dendritic network one layer at a time, starting from the
+layer closest to the soma (output) and progressively moving to layers closer to the input.
+After training all layers independently, a final fine-tuning phase trains the full network end-to-end.</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="c1"># Example of using freeze layers trainer</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">dendritic_modeling.learning_strategies</span><span class="w"> </span><span class="kn">import</span> <span class="n">TrainerMLE</span>
+
+<span class="n">optimizer</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">optim</span><span class="o">.</span><span class="n">Adam</span><span class="p">(</span><span class="n">model</span><span class="o">.</span><span class="n">parameters</span><span class="p">(),</span> <span class="n">lr</span><span class="o">=</span><span class="mf">0.001</span><span class="p">)</span>
+<span class="n">trainer</span> <span class="o">=</span> <span class="n">TrainerMLE</span><span class="p">(</span><span class="n">optimizer</span><span class="p">)</span>
+
+<span class="n">results</span> <span class="o">=</span> <span class="n">trainer</span><span class="o">.</span><span class="n">train_freeze_layers_by_layer</span><span class="p">(</span>
+    <span class="n">model</span><span class="o">=</span><span class="n">model</span><span class="p">,</span>
+    <span class="n">train_data</span><span class="o">=</span><span class="n">train_ds</span><span class="p">,</span>
+    <span class="n">valid_data</span><span class="o">=</span><span class="n">valid_ds</span><span class="p">,</span>
+    <span class="n">epochs_per_layer</span><span class="o">=</span><span class="mi">20</span><span class="p">,</span>
+    <span class="n">batch_size</span><span class="o">=</span><span class="mi">128</span><span class="p">,</span>
+    <span class="n">final_tune_epochs</span><span class="o">=</span><span class="mi">10</span>  <span class="c1"># Final fine-tuning with all layers unfrozen</span>
+<span class="p">)</span>
+</pre></div>
+</div>
+<p>Key benefits of the freeze layers approach:</p>
+<ul class="simple">
+<li><p>Provides a structured approach to training complex dendritic networks</p></li>
+<li><p>Focuses on one layer at a time, allowing more effective learning of each layer’s representations</p></li>
+<li><p>Follows a soma-to-input training sequence (proximal to distal)</p></li>
+<li><p>Reduces interference between different layers during training</p></li>
+<li><p>Includes a final fine-tuning phase to integrate all layers</p></li>
+</ul>
+</section>
+<section id="freeze-layers-with-pretraining-strategy">
+<h2>Freeze Layers with Pretraining Strategy<a class="headerlink" href="#freeze-layers-with-pretraining-strategy" title="Link to this heading"></a></h2>
+<p>The freeze layers with pretraining strategy enhances the standard freeze layers approach by adding an initial
+full-network training phase before the layer-by-layer training:</p>
+<ol class="arabic simple">
+<li><p>Initial full-network training: Train all layers together for pretrain_epochs</p></li>
+<li><p>Layer-by-layer training: Train each layer sequentially from soma to input (proximal to distal)</p></li>
+<li><p>Final fine-tuning: Train the full network end-to-end</p></li>
+</ol>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="c1"># Example of using freeze layers with pretraining trainer</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">dendritic_modeling.learning_strategies</span><span class="w"> </span><span class="kn">import</span> <span class="n">TrainerMLE</span>
+
+<span class="n">optimizer</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">optim</span><span class="o">.</span><span class="n">Adam</span><span class="p">(</span><span class="n">model</span><span class="o">.</span><span class="n">parameters</span><span class="p">(),</span> <span class="n">lr</span><span class="o">=</span><span class="mf">0.001</span><span class="p">)</span>
+<span class="n">trainer</span> <span class="o">=</span> <span class="n">TrainerMLE</span><span class="p">(</span><span class="n">optimizer</span><span class="p">)</span>
+
+<span class="n">results</span> <span class="o">=</span> <span class="n">trainer</span><span class="o">.</span><span class="n">train_freeze_layers_with_pretraining</span><span class="p">(</span>
+    <span class="n">model</span><span class="o">=</span><span class="n">model</span><span class="p">,</span>
+    <span class="n">train_data</span><span class="o">=</span><span class="n">train_ds</span><span class="p">,</span>
+    <span class="n">valid_data</span><span class="o">=</span><span class="n">valid_ds</span><span class="p">,</span>
+    <span class="n">pretrain_epochs</span><span class="o">=</span><span class="mi">10</span><span class="p">,</span>     <span class="c1"># Initial full network training</span>
+    <span class="n">epochs_per_layer</span><span class="o">=</span><span class="mi">20</span><span class="p">,</span>   <span class="c1"># Per-layer training</span>
+    <span class="n">batch_size</span><span class="o">=</span><span class="mi">128</span><span class="p">,</span>
+    <span class="n">final_tune_epochs</span><span class="o">=</span><span class="mi">10</span>    <span class="c1"># Final fine-tuning with all layers unfrozen</span>
+<span class="p">)</span>
+</pre></div>
+</div>
+<p>Key benefits of this approach:</p>
+<ul class="simple">
+<li><p>Provides better initialization through initial whole-network training</p></li>
+<li><p>Reduces the risk of getting stuck in poor local optima during layer-specific training</p></li>
+<li><p>Establishes a baseline of feature representations across the entire network before specializing</p></li>
+<li><p>Combines the benefits of joint and layer-wise training</p></li>
+</ul>
+</section>
+<section id="freeze-layers-reversed-strategy">
+<h2>Freeze Layers Reversed Strategy<a class="headerlink" href="#freeze-layers-reversed-strategy" title="Link to this heading"></a></h2>
+<p>The freeze layers reversed strategy is similar to the freeze layers strategy, but trains the network
+in the opposite direction: starting from the layers closest to the input and progressively moving
+toward the soma (output). This approach follows the biological flow of information in neural networks.</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="c1"># Example of using freeze layers reversed trainer</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">dendritic_modeling.learning_strategies</span><span class="w"> </span><span class="kn">import</span> <span class="n">TrainerMLE</span>
+
+<span class="n">optimizer</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">optim</span><span class="o">.</span><span class="n">Adam</span><span class="p">(</span><span class="n">model</span><span class="o">.</span><span class="n">parameters</span><span class="p">(),</span> <span class="n">lr</span><span class="o">=</span><span class="mf">0.001</span><span class="p">)</span>
+<span class="n">trainer</span> <span class="o">=</span> <span class="n">TrainerMLE</span><span class="p">(</span><span class="n">optimizer</span><span class="p">)</span>
+
+<span class="n">results</span> <span class="o">=</span> <span class="n">trainer</span><span class="o">.</span><span class="n">train_freeze_layers_reversed_by_layer</span><span class="p">(</span>
+    <span class="n">model</span><span class="o">=</span><span class="n">model</span><span class="p">,</span>
+    <span class="n">train_data</span><span class="o">=</span><span class="n">train_ds</span><span class="p">,</span>
+    <span class="n">valid_data</span><span class="o">=</span><span class="n">valid_ds</span><span class="p">,</span>
+    <span class="n">epochs_per_layer</span><span class="o">=</span><span class="mi">20</span><span class="p">,</span>
+    <span class="n">batch_size</span><span class="o">=</span><span class="mi">128</span><span class="p">,</span>
+    <span class="n">final_tune_epochs</span><span class="o">=</span><span class="mi">10</span>  <span class="c1"># Final fine-tuning with all layers unfrozen</span>
+<span class="p">)</span>
+</pre></div>
+</div>
+<p>Key benefits of the freeze layers reversed approach:</p>
+<ul class="simple">
+<li><p>Follows the natural flow of information in neural networks (from input to output)</p></li>
+<li><p>Establishes good feature extractors near the input before training deeper layers</p></li>
+<li><p>May be more effective for networks with strong hierarchical structure</p></li>
+<li><p>More biologically plausible learning sequence</p></li>
+<li><p>Includes a final fine-tuning phase for integrating all layers</p></li>
+</ul>
+</section>
+<section id="freeze-layers-reversed-with-pretraining-strategy">
+<h2>Freeze Layers Reversed with Pretraining Strategy<a class="headerlink" href="#freeze-layers-reversed-with-pretraining-strategy" title="Link to this heading"></a></h2>
+<p>This strategy combines the benefits of initial full-network training with the reversed layer-by-layer training:</p>
+<ol class="arabic simple">
+<li><p>Initial full-network training: Train all layers together for pretrain_epochs</p></li>
+<li><p>Layer-by-layer training: Train each layer sequentially from input to soma</p></li>
+<li><p>Final fine-tuning: Train the full network end-to-end</p></li>
+</ol>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="c1"># Example of using freeze layers reversed with pretraining trainer</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">dendritic_modeling.learning_strategies</span><span class="w"> </span><span class="kn">import</span> <span class="n">TrainerMLE</span>
+
+<span class="n">optimizer</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">optim</span><span class="o">.</span><span class="n">Adam</span><span class="p">(</span><span class="n">model</span><span class="o">.</span><span class="n">parameters</span><span class="p">(),</span> <span class="n">lr</span><span class="o">=</span><span class="mf">0.001</span><span class="p">)</span>
+<span class="n">trainer</span> <span class="o">=</span> <span class="n">TrainerMLE</span><span class="p">(</span><span class="n">optimizer</span><span class="p">)</span>
+
+<span class="n">results</span> <span class="o">=</span> <span class="n">trainer</span><span class="o">.</span><span class="n">train_freeze_layers_reversed_with_pretraining</span><span class="p">(</span>
+    <span class="n">model</span><span class="o">=</span><span class="n">model</span><span class="p">,</span>
+    <span class="n">train_data</span><span class="o">=</span><span class="n">train_ds</span><span class="p">,</span>
+    <span class="n">valid_data</span><span class="o">=</span><span class="n">valid_ds</span><span class="p">,</span>
+    <span class="n">pretrain_epochs</span><span class="o">=</span><span class="mi">10</span><span class="p">,</span>     <span class="c1"># Initial full network training</span>
+    <span class="n">epochs_per_layer</span><span class="o">=</span><span class="mi">20</span><span class="p">,</span>   <span class="c1"># Per-layer training</span>
+    <span class="n">batch_size</span><span class="o">=</span><span class="mi">128</span><span class="p">,</span>
+    <span class="n">final_tune_epochs</span><span class="o">=</span><span class="mi">10</span>    <span class="c1"># Final fine-tuning with all layers unfrozen</span>
+<span class="p">)</span>
+</pre></div>
+</div>
+<p>Key benefits of this approach:</p>
+<ul class="simple">
+<li><p>Combines whole-network pretraining with biologically-inspired training direction</p></li>
+<li><p>Layers near the input get focused training after a good initialization</p></li>
+<li><p>Following the information flow improves gradient propagation</p></li>
+<li><p>Particularly effective for deep networks or networks with many branches</p></li>
+<li><p>Provides both global and local optimization</p></li>
+</ul>
+</section>
+<section id="two-step-training">
+<h2>Two-Step Training<a class="headerlink" href="#two-step-training" title="Link to this heading"></a></h2>
+<p>The two-step training strategy first trains a simplified model, then uses this model
+to initialize parts of the full dendritic network.</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="c1"># Example of using two-step trainer</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">dendritic_modeling.learning_strategies</span><span class="w"> </span><span class="kn">import</span> <span class="n">TwoStepTrainer</span>
+
+<span class="n">optimizer</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">optim</span><span class="o">.</span><span class="n">Adam</span><span class="p">(</span><span class="n">model</span><span class="o">.</span><span class="n">parameters</span><span class="p">(),</span> <span class="n">lr</span><span class="o">=</span><span class="mf">0.001</span><span class="p">)</span>
+<span class="n">trainer</span> <span class="o">=</span> <span class="n">TwoStepTrainer</span><span class="p">(</span><span class="n">optimizer</span><span class="p">)</span>
+
+<span class="n">results</span> <span class="o">=</span> <span class="n">trainer</span><span class="o">.</span><span class="n">train</span><span class="p">(</span>
+    <span class="n">model</span><span class="o">=</span><span class="n">model</span><span class="p">,</span>
+    <span class="n">train_data</span><span class="o">=</span><span class="n">train_ds</span><span class="p">,</span>
+    <span class="n">valid_data</span><span class="o">=</span><span class="n">valid_ds</span><span class="p">,</span>
+    <span class="n">pretrain_epochs</span><span class="o">=</span><span class="mi">10</span><span class="p">,</span>
+    <span class="n">maintrain_epochs</span><span class="o">=</span><span class="mi">40</span><span class="p">,</span>
+    <span class="n">batch_size</span><span class="o">=</span><span class="mi">128</span>
+<span class="p">)</span>
+</pre></div>
+</div>
+<p>Key aspects of two-step training:</p>
+<ul class="simple">
+<li><p>Trains an auxiliary network (typically an MLP) initially</p></li>
+<li><p>Transfers knowledge from the auxiliary to the main network</p></li>
+<li><p>Fine-tunes the full dendritic network</p></li>
+<li><p>Provides a good initialization for complex architectures</p></li>
+</ul>
+</section>
+<section id="voltage-stabilization-training">
+<h2>Voltage Stabilization Training<a class="headerlink" href="#voltage-stabilization-training" title="Link to this heading"></a></h2>
+<p>The voltage stabilization strategy includes a warm-up phase that stabilizes model activations to a target value before starting the regular training.</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="c1"># Example of using voltage stabilization trainer</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">dendritic_modeling.learning_strategies</span><span class="w"> </span><span class="kn">import</span> <span class="n">VoltageStabilizationTrainer</span>
+
+<span class="n">optimizer</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">optim</span><span class="o">.</span><span class="n">Adam</span><span class="p">(</span><span class="n">model</span><span class="o">.</span><span class="n">parameters</span><span class="p">(),</span> <span class="n">lr</span><span class="o">=</span><span class="mf">0.001</span><span class="p">)</span>
+<span class="n">trainer</span> <span class="o">=</span> <span class="n">VoltageStabilizationTrainer</span><span class="p">(</span>
+    <span class="n">optimizer</span><span class="p">,</span>
+    <span class="n">warmup_epochs</span><span class="o">=</span><span class="mi">5</span><span class="p">,</span>
+    <span class="n">stability_target_voltage</span><span class="o">=</span><span class="mf">0.5</span>
+<span class="p">)</span>
+
+<span class="n">results</span> <span class="o">=</span> <span class="n">trainer</span><span class="o">.</span><span class="n">train</span><span class="p">(</span>
+    <span class="n">model</span><span class="o">=</span><span class="n">model</span><span class="p">,</span>
+    <span class="n">train_data</span><span class="o">=</span><span class="n">train_ds</span><span class="p">,</span>
+    <span class="n">valid_data</span><span class="o">=</span><span class="n">valid_ds</span><span class="p">,</span>
+    <span class="n">epochs</span><span class="o">=</span><span class="mi">50</span><span class="p">,</span>  <span class="c1"># Total epochs including warmup</span>
+    <span class="n">batch_size</span><span class="o">=</span><span class="mi">128</span><span class="p">,</span>
+    <span class="n">grad_clip_value</span><span class="o">=</span><span class="mi">5</span>
+<span class="p">)</span>
+</pre></div>
+</div>
+<p>Key aspects of voltage stabilization training:</p>
+<ul class="simple">
+<li><p>Performs an initial warmup phase that minimizes the MSE between model outputs and a target value</p></li>
+<li><p>Stabilizes model activations before training begins</p></li>
+<li><p>Helps reduce convergence issues in complex models</p></li>
+<li><p>Can significantly improve training of dendritic networks with many branches</p></li>
+<li><p>Combines warmup with regular training in a two-phase approach</p></li>
+</ul>
+</section>
+<section id="two-step-training-with-kl-divergence">
+<h2>Two-Step Training with KL Divergence<a class="headerlink" href="#two-step-training-with-kl-divergence" title="Link to this heading"></a></h2>
+<p>This strategy extends the two-step approach by using KL divergence to ensure
+the dendritic network remains close to the auxiliary network’s behavior.</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="c1"># Example of using two-step trainer with KL</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">dendritic_modeling.learning_strategies</span><span class="w"> </span><span class="kn">import</span> <span class="n">TwoStepTrainerWithKL</span>
+
+<span class="n">optimizer</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">optim</span><span class="o">.</span><span class="n">Adam</span><span class="p">(</span><span class="n">model</span><span class="o">.</span><span class="n">parameters</span><span class="p">(),</span> <span class="n">lr</span><span class="o">=</span><span class="mf">0.001</span><span class="p">)</span>
+<span class="n">trainer</span> <span class="o">=</span> <span class="n">TwoStepTrainerWithKL</span><span class="p">(</span><span class="n">optimizer</span><span class="p">)</span>
+
+<span class="n">results</span> <span class="o">=</span> <span class="n">trainer</span><span class="o">.</span><span class="n">train</span><span class="p">(</span>
+    <span class="n">model</span><span class="o">=</span><span class="n">model</span><span class="p">,</span>
+    <span class="n">train_data</span><span class="o">=</span><span class="n">train_ds</span><span class="p">,</span>
+    <span class="n">valid_data</span><span class="o">=</span><span class="n">valid_ds</span><span class="p">,</span>
+    <span class="n">pretrain_epochs</span><span class="o">=</span><span class="mi">10</span><span class="p">,</span>
+    <span class="n">maintrain_epochs</span><span class="o">=</span><span class="mi">40</span><span class="p">,</span>
+    <span class="n">kl_weight</span><span class="o">=</span><span class="mf">0.1</span><span class="p">,</span>
+    <span class="n">batch_size</span><span class="o">=</span><span class="mi">128</span>
+<span class="p">)</span>
+</pre></div>
+</div>
+<p>Benefits of the KL approach:</p>
+<ul class="simple">
+<li><p>Prevents catastrophic forgetting of learned patterns</p></li>
+<li><p>Balances innovation with stability</p></li>
+<li><p>Ensures smooth transitions between training phases</p></li>
+<li><p>Provides regularization for the dendritic network</p></li>
+</ul>
+</section>
+<section id="input-network-training-strategies">
+<h2>Input Network Training Strategies<a class="headerlink" href="#input-network-training-strategies" title="Link to this heading"></a></h2>
+<p>When using input transformation networks with the dendritic model, several specialized
+training strategies are available:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="c1"># Example configuration for input network training</span>
+<span class="n">input_net_training_config</span> <span class="o">=</span> <span class="p">{</span>
+    <span class="s1">&#39;training_mode&#39;</span><span class="p">:</span> <span class="s1">&#39;sequential&#39;</span><span class="p">,</span>  <span class="c1"># or &#39;joint&#39;</span>
+    <span class="s1">&#39;train_input_net&#39;</span><span class="p">:</span> <span class="kc">True</span><span class="p">,</span>
+    <span class="s1">&#39;input_net_epochs&#39;</span><span class="p">:</span> <span class="mi">20</span><span class="p">,</span>
+    <span class="s1">&#39;train_heads_independently&#39;</span><span class="p">:</span> <span class="kc">False</span><span class="p">,</span>
+    <span class="s1">&#39;inhibitory_head_objective&#39;</span><span class="p">:</span> <span class="s1">&#39;classification&#39;</span><span class="p">,</span>  <span class="c1"># or &#39;diversity&#39; or &#39;combined&#39;</span>
+    <span class="s1">&#39;diversity_weight&#39;</span><span class="p">:</span> <span class="mf">0.5</span><span class="p">,</span>
+    <span class="s1">&#39;pretrained_options&#39;</span><span class="p">:</span> <span class="p">{</span>
+        <span class="s1">&#39;source&#39;</span><span class="p">:</span> <span class="s1">&#39;none&#39;</span><span class="p">,</span>  <span class="c1"># or &#39;file&#39; or &#39;pytorch&#39;</span>
+        <span class="s1">&#39;weights_path&#39;</span><span class="p">:</span> <span class="s1">&#39;&#39;</span><span class="p">,</span>
+        <span class="s1">&#39;pytorch_model&#39;</span><span class="p">:</span> <span class="s1">&#39;&#39;</span>
+    <span class="p">}</span>
+<span class="p">}</span>
+</pre></div>
+</div>
+<section id="sequential-vs-joint-training">
+<h3>Sequential vs. Joint Training<a class="headerlink" href="#sequential-vs-joint-training" title="Link to this heading"></a></h3>
+<p>Input networks can be trained either before the dendritic network (sequential)
+or simultaneously with it (joint).</p>
+<p><strong>Sequential Training</strong>:</p>
+<ol class="arabic simple">
+<li><p>Train the input transformation network first</p></li>
+<li><p>Freeze its weights or allow limited updates</p></li>
+<li><p>Train the dendritic network</p></li>
+</ol>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="c1"># Sequential training process</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">train_sequential</span><span class="p">(</span><span class="n">model</span><span class="p">,</span> <span class="n">train_ds</span><span class="p">,</span> <span class="n">valid_ds</span><span class="p">):</span>
+    <span class="c1"># 1. Train input network only</span>
+    <span class="n">input_net_optimizer</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">optim</span><span class="o">.</span><span class="n">Adam</span><span class="p">(</span>
+        <span class="n">model</span><span class="o">.</span><span class="n">input_transform</span><span class="o">.</span><span class="n">parameters</span><span class="p">(),</span>
+        <span class="n">lr</span><span class="o">=</span><span class="mf">0.001</span>
+    <span class="p">)</span>
+
+    <span class="k">for</span> <span class="n">epoch</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">input_net_epochs</span><span class="p">):</span>
+        <span class="n">train_input_network</span><span class="p">(</span><span class="n">model</span><span class="p">,</span> <span class="n">train_ds</span><span class="p">,</span> <span class="n">input_net_optimizer</span><span class="p">)</span>
+
+    <span class="c1"># 2. Freeze input network weights (optional)</span>
+    <span class="k">for</span> <span class="n">param</span> <span class="ow">in</span> <span class="n">model</span><span class="o">.</span><span class="n">input_transform</span><span class="o">.</span><span class="n">parameters</span><span class="p">():</span>
+        <span class="n">param</span><span class="o">.</span><span class="n">requires_grad</span> <span class="o">=</span> <span class="kc">False</span>
+
+    <span class="c1"># 3. Train dendritic network</span>
+    <span class="n">dendritic_optimizer</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">optim</span><span class="o">.</span><span class="n">Adam</span><span class="p">(</span>
+        <span class="p">[</span><span class="n">p</span> <span class="k">for</span> <span class="n">p</span> <span class="ow">in</span> <span class="n">model</span><span class="o">.</span><span class="n">parameters</span><span class="p">()</span> <span class="k">if</span> <span class="n">p</span><span class="o">.</span><span class="n">requires_grad</span><span class="p">],</span>
+        <span class="n">lr</span><span class="o">=</span><span class="mf">0.001</span>
+    <span class="p">)</span>
+
+    <span class="n">trainer</span> <span class="o">=</span> <span class="n">TrainerMLE</span><span class="p">(</span><span class="n">dendritic_optimizer</span><span class="p">)</span>
+    <span class="n">trainer</span><span class="o">.</span><span class="n">train</span><span class="p">(</span><span class="n">model</span><span class="p">,</span> <span class="n">train_ds</span><span class="p">,</span> <span class="n">valid_ds</span><span class="p">,</span> <span class="n">epochs</span><span class="o">=</span><span class="mi">50</span><span class="p">)</span>
+</pre></div>
+</div>
+<p><strong>Joint Training</strong>:</p>
+<ol class="arabic simple">
+<li><p>Train all components simultaneously</p></li>
+<li><p>Optionally use different learning rates for different components</p></li>
+</ol>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="c1"># Joint training process</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">train_joint</span><span class="p">(</span><span class="n">model</span><span class="p">,</span> <span class="n">train_ds</span><span class="p">,</span> <span class="n">valid_ds</span><span class="p">):</span>
+    <span class="c1"># Use parameter groups with different learning rates</span>
+    <span class="n">optimizer</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">optim</span><span class="o">.</span><span class="n">Adam</span><span class="p">([</span>
+        <span class="p">{</span><span class="s1">&#39;params&#39;</span><span class="p">:</span> <span class="n">model</span><span class="o">.</span><span class="n">input_transform</span><span class="o">.</span><span class="n">parameters</span><span class="p">(),</span> <span class="s1">&#39;lr&#39;</span><span class="p">:</span> <span class="mf">0.001</span><span class="p">},</span>
+        <span class="p">{</span><span class="s1">&#39;params&#39;</span><span class="p">:</span> <span class="n">model</span><span class="o">.</span><span class="n">dendritic_network</span><span class="o">.</span><span class="n">parameters</span><span class="p">(),</span> <span class="s1">&#39;lr&#39;</span><span class="p">:</span> <span class="mf">0.0005</span><span class="p">}</span>
+    <span class="p">])</span>
+
+    <span class="n">trainer</span> <span class="o">=</span> <span class="n">TrainerMLE</span><span class="p">(</span><span class="n">optimizer</span><span class="p">)</span>
+    <span class="n">trainer</span><span class="o">.</span><span class="n">train</span><span class="p">(</span><span class="n">model</span><span class="p">,</span> <span class="n">train_ds</span><span class="p">,</span> <span class="n">valid_ds</span><span class="p">,</span> <span class="n">epochs</span><span class="o">=</span><span class="mi">50</span><span class="p">)</span>
+</pre></div>
+</div>
+</section>
+<section id="independent-head-training">
+<h3>Independent Head Training<a class="headerlink" href="#independent-head-training" title="Link to this heading"></a></h3>
+<p>When the input transformation network has separate heads for excitatory and inhibitory
+pathways, they can be trained with different objectives.</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="c1"># Independent head training</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">train_independent_heads</span><span class="p">(</span><span class="n">model</span><span class="p">,</span> <span class="n">train_ds</span><span class="p">,</span> <span class="n">valid_ds</span><span class="p">):</span>
+    <span class="c1"># Train excitatory head for classification</span>
+    <span class="n">exc_optimizer</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">optim</span><span class="o">.</span><span class="n">Adam</span><span class="p">(</span>
+        <span class="n">model</span><span class="o">.</span><span class="n">excitatory_head</span><span class="o">.</span><span class="n">parameters</span><span class="p">(),</span>
+        <span class="n">lr</span><span class="o">=</span><span class="mf">0.001</span>
+    <span class="p">)</span>
+
+    <span class="k">for</span> <span class="n">epoch</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">head_training_epochs</span><span class="p">):</span>
+        <span class="n">train_excitatory_head</span><span class="p">(</span><span class="n">model</span><span class="p">,</span> <span class="n">train_ds</span><span class="p">,</span> <span class="n">exc_optimizer</span><span class="p">)</span>
+
+    <span class="c1"># Train inhibitory head with diversity objective</span>
+    <span class="n">inh_optimizer</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">optim</span><span class="o">.</span><span class="n">Adam</span><span class="p">(</span>
+        <span class="n">model</span><span class="o">.</span><span class="n">inhibitory_head</span><span class="o">.</span><span class="n">parameters</span><span class="p">(),</span>
+        <span class="n">lr</span><span class="o">=</span><span class="mf">0.001</span>
+    <span class="p">)</span>
+
+    <span class="k">for</span> <span class="n">epoch</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">head_training_epochs</span><span class="p">):</span>
+        <span class="n">train_inhibitory_head_diversity</span><span class="p">(</span><span class="n">model</span><span class="p">,</span> <span class="n">train_ds</span><span class="p">,</span> <span class="n">inh_optimizer</span><span class="p">)</span>
+
+    <span class="c1"># Fine-tune the entire network</span>
+    <span class="n">full_optimizer</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">optim</span><span class="o">.</span><span class="n">Adam</span><span class="p">(</span><span class="n">model</span><span class="o">.</span><span class="n">parameters</span><span class="p">(),</span> <span class="n">lr</span><span class="o">=</span><span class="mf">0.0005</span><span class="p">)</span>
+    <span class="n">trainer</span> <span class="o">=</span> <span class="n">TrainerMLE</span><span class="p">(</span><span class="n">full_optimizer</span><span class="p">)</span>
+    <span class="n">trainer</span><span class="o">.</span><span class="n">train</span><span class="p">(</span><span class="n">model</span><span class="p">,</span> <span class="n">train_ds</span><span class="p">,</span> <span class="n">valid_ds</span><span class="p">,</span> <span class="n">epochs</span><span class="o">=</span><span class="mi">20</span><span class="p">)</span>
+</pre></div>
+</div>
+<p>Available objectives for inhibitory head:</p>
+<ul class="simple">
+<li><p><strong>Classification</strong>: Same objective as excitatory head</p></li>
+<li><p><strong>Diversity</strong>: Maximize difference from excitatory representation</p></li>
+<li><p><strong>Combined</strong>: Weighted sum of classification and diversity</p></li>
+</ul>
+</section>
+<section id="using-pre-trained-input-networks">
+<h3>Using Pre-trained Input Networks<a class="headerlink" href="#using-pre-trained-input-networks" title="Link to this heading"></a></h3>
+<p>Pre-trained networks can be used as feature extractors, particularly for image data.</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="c1"># Using pre-trained weights</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">setup_pretrained_input_network</span><span class="p">(</span><span class="n">model_cfg</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Setup input network with pre-trained weights&quot;&quot;&quot;</span>
+    <span class="n">pretrained_options</span> <span class="o">=</span> <span class="n">model_cfg</span><span class="o">.</span><span class="n">input_net_training</span><span class="o">.</span><span class="n">pretrained_options</span>
+    <span class="n">source</span> <span class="o">=</span> <span class="n">pretrained_options</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;source&#39;</span><span class="p">,</span> <span class="s1">&#39;none&#39;</span><span class="p">)</span>
+
+    <span class="k">if</span> <span class="n">source</span> <span class="o">==</span> <span class="s1">&#39;pytorch&#39;</span><span class="p">:</span>
+        <span class="c1"># Load from torchvision models</span>
+        <span class="n">model_name</span> <span class="o">=</span> <span class="n">pretrained_options</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;pytorch_model&#39;</span><span class="p">,</span> <span class="s1">&#39;resnet18&#39;</span><span class="p">)</span>
+        <span class="n">input_net</span> <span class="o">=</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">torchvision</span><span class="o">.</span><span class="n">models</span><span class="p">,</span> <span class="n">model_name</span><span class="p">)(</span><span class="n">pretrained</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+
+        <span class="c1"># Remove the classifier layer</span>
+        <span class="k">if</span> <span class="nb">hasattr</span><span class="p">(</span><span class="n">input_net</span><span class="p">,</span> <span class="s1">&#39;fc&#39;</span><span class="p">):</span>
+            <span class="n">in_features</span> <span class="o">=</span> <span class="n">input_net</span><span class="o">.</span><span class="n">fc</span><span class="o">.</span><span class="n">in_features</span>
+            <span class="n">input_net</span><span class="o">.</span><span class="n">fc</span> <span class="o">=</span> <span class="n">nn</span><span class="o">.</span><span class="n">Identity</span><span class="p">()</span>
+
+        <span class="k">return</span> <span class="n">input_net</span><span class="p">,</span> <span class="n">in_features</span>
+
+    <span class="k">elif</span> <span class="n">source</span> <span class="o">==</span> <span class="s1">&#39;file&#39;</span><span class="p">:</span>
+        <span class="c1"># Load from saved weights file</span>
+        <span class="n">weights_path</span> <span class="o">=</span> <span class="n">pretrained_options</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;weights_path&#39;</span><span class="p">,</span> <span class="s1">&#39;&#39;</span><span class="p">)</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">weights_path</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;weights_path must be specified when source=&#39;file&#39;&quot;</span><span class="p">)</span>
+
+        <span class="c1"># Create input network and load weights</span>
+        <span class="n">input_net</span> <span class="o">=</span> <span class="n">create_input_network</span><span class="p">(</span><span class="n">model_cfg</span><span class="p">)</span>
+        <span class="n">input_net</span><span class="o">.</span><span class="n">load_state_dict</span><span class="p">(</span><span class="n">torch</span><span class="o">.</span><span class="n">load</span><span class="p">(</span><span class="n">weights_path</span><span class="p">))</span>
+
+        <span class="k">return</span> <span class="n">input_net</span>
+
+    <span class="k">else</span><span class="p">:</span>
+        <span class="c1"># Create new input network</span>
+        <span class="k">return</span> <span class="n">create_input_network</span><span class="p">(</span><span class="n">model_cfg</span><span class="p">)</span>
+</pre></div>
+</div>
+</section>
+<section id="combined-strategies">
+<h3>Combined Strategies<a class="headerlink" href="#combined-strategies" title="Link to this heading"></a></h3>
+<p>For complex tasks, different learning strategies can be combined:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="c1"># Example of combining strategies</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">train_combined_strategy</span><span class="p">(</span><span class="n">model</span><span class="p">,</span> <span class="n">train_ds</span><span class="p">,</span> <span class="n">valid_ds</span><span class="p">):</span>
+    <span class="c1"># 1. Pre-train input network</span>
+    <span class="n">input_net_optimizer</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">optim</span><span class="o">.</span><span class="n">Adam</span><span class="p">(</span>
+        <span class="n">model</span><span class="o">.</span><span class="n">input_transform</span><span class="o">.</span><span class="n">parameters</span><span class="p">(),</span>
+        <span class="n">lr</span><span class="o">=</span><span class="mf">0.001</span>
+    <span class="p">)</span>
+
+    <span class="k">for</span> <span class="n">epoch</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">input_net_epochs</span><span class="p">):</span>
+        <span class="n">train_input_network</span><span class="p">(</span><span class="n">model</span><span class="p">,</span> <span class="n">train_ds</span><span class="p">,</span> <span class="n">input_net_optimizer</span><span class="p">)</span>
+
+    <span class="c1"># 2. Train dendritic network using freeze branches</span>
+    <span class="n">dendritic_optimizer</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">optim</span><span class="o">.</span><span class="n">Adam</span><span class="p">(</span><span class="n">model</span><span class="o">.</span><span class="n">dendritic_network</span><span class="o">.</span><span class="n">parameters</span><span class="p">(),</span> <span class="n">lr</span><span class="o">=</span><span class="mf">0.0005</span><span class="p">)</span>
+    <span class="n">trainer</span> <span class="o">=</span> <span class="n">TrainerMLE</span><span class="p">(</span><span class="n">dendritic_optimizer</span><span class="p">)</span>
+
+    <span class="n">trainer</span><span class="o">.</span><span class="n">train_freeze_branches</span><span class="p">(</span>
+        <span class="n">model</span><span class="p">,</span> <span class="n">train_ds</span><span class="p">,</span> <span class="n">valid_ds</span><span class="p">,</span>
+        <span class="n">epochs_per_branch</span><span class="o">=</span><span class="mi">10</span><span class="p">,</span>
+        <span class="n">final_tune_epochs</span><span class="o">=</span><span class="mi">5</span>  <span class="c1"># Fine-tune branches together after individual training</span>
+    <span class="p">)</span>
+
+    <span class="c1"># 3. Fine-tune everything with MLE</span>
+    <span class="n">full_optimizer</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">optim</span><span class="o">.</span><span class="n">Adam</span><span class="p">(</span><span class="n">model</span><span class="o">.</span><span class="n">parameters</span><span class="p">(),</span> <span class="n">lr</span><span class="o">=</span><span class="mf">0.0001</span><span class="p">)</span>
+    <span class="n">trainer</span> <span class="o">=</span> <span class="n">TrainerMLE</span><span class="p">(</span><span class="n">full_optimizer</span><span class="p">)</span>
+
+    <span class="n">trainer</span><span class="o">.</span><span class="n">train</span><span class="p">(</span><span class="n">model</span><span class="p">,</span> <span class="n">train_ds</span><span class="p">,</span> <span class="n">valid_ds</span><span class="p">,</span> <span class="n">epochs</span><span class="o">=</span><span class="mi">10</span><span class="p">)</span>
+</pre></div>
+</div>
+</section>
+</section>
+<section id="choosing-the-right-strategy">
+<h2>Choosing the Right Strategy<a class="headerlink" href="#choosing-the-right-strategy" title="Link to this heading"></a></h2>
+<p>Guidelines for selecting an appropriate learning strategy:</p>
+<ol class="arabic simple">
+<li><p><strong>For simple networks</strong>: Start with standard MLE</p></li>
+<li><p><strong>For deep networks</strong>: Consider freeze branches or two-step approach</p></li>
+<li><p><strong>For networks with input transformation</strong>: Sequential training often works best</p></li>
+<li><p><strong>For complex tasks</strong>: Consider combining strategies or using KL regularization</p></li>
+<li><p><strong>For biological plausibility</strong>: Local credit assignment provides a more biologically-inspired approach</p></li>
+</ol>
+</section>
+<section id="custom-weight-decay">
+<h2>Custom Weight Decay<a class="headerlink" href="#custom-weight-decay" title="Link to this heading"></a></h2>
+<p>The framework provides a custom weight decay implementation that applies regularization
+differently to different network components:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="c1"># Custom weight decay optimizer</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">dendritic_modeling.learning_strategies</span><span class="w"> </span><span class="kn">import</span> <span class="n">CustomWeightDecayOptimizer</span>
+
+<span class="n">base_optimizer</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">optim</span><span class="o">.</span><span class="n">Adam</span><span class="p">(</span><span class="n">model</span><span class="o">.</span><span class="n">parameters</span><span class="p">(),</span> <span class="n">lr</span><span class="o">=</span><span class="mf">0.001</span><span class="p">)</span>
+<span class="n">optimizer</span> <span class="o">=</span> <span class="n">CustomWeightDecayOptimizer</span><span class="p">(</span><span class="n">model</span><span class="p">,</span> <span class="n">base_optimizer</span><span class="p">,</span> <span class="n">weight_decay</span><span class="o">=</span><span class="mf">0.1</span><span class="p">)</span>
+</pre></div>
+</div>
+</section>
+<section id="implementation-details">
+<h2>Implementation Details<a class="headerlink" href="#implementation-details" title="Link to this heading"></a></h2>
+<p>All learning strategies are implemented as trainer classes that follow a common interface:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="c1"># Generic trainer structure</span>
+<span class="k">class</span><span class="w"> </span><span class="nc">BaseTrainer</span><span class="p">:</span>
+    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">optimizer</span><span class="p">,</span> <span class="n">suppress_prints</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">print_every</span><span class="o">=</span><span class="mi">10</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">optimizer</span> <span class="o">=</span> <span class="n">optimizer</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">suppress_prints</span> <span class="o">=</span> <span class="n">suppress_prints</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">print_every</span> <span class="o">=</span> <span class="n">print_every</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">_eval_dataset</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">model</span><span class="p">,</span> <span class="n">dataset</span><span class="p">,</span> <span class="n">device</span><span class="p">,</span> <span class="n">batch_size</span><span class="o">=</span><span class="mi">256</span><span class="p">):</span>
+        <span class="c1"># Common evaluation logic</span>
+        <span class="o">...</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">train</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">model</span><span class="p">,</span> <span class="n">train_data</span><span class="p">,</span> <span class="n">valid_data</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+        <span class="c1"># Training loop implementation</span>
+        <span class="o">...</span>
+
+<span class="c1"># Select appropriate trainer based on strategy</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">get_trainer</span><span class="p">(</span><span class="n">strategy</span><span class="p">,</span> <span class="n">optimizer</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+    <span class="k">if</span> <span class="n">strategy</span> <span class="o">==</span> <span class="s2">&quot;mle&quot;</span><span class="p">:</span>
+        <span class="k">return</span> <span class="n">TrainerMLE</span><span class="p">(</span><span class="n">optimizer</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
+    <span class="k">elif</span> <span class="n">strategy</span> <span class="o">==</span> <span class="s2">&quot;freeze_branches&quot;</span><span class="p">:</span>
+        <span class="k">return</span> <span class="n">TrainerMLE</span><span class="p">(</span><span class="n">optimizer</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>  <span class="c1"># Uses train_freeze_branches method</span>
+    <span class="k">elif</span> <span class="n">strategy</span> <span class="o">==</span> <span class="s2">&quot;freeze_branches_reversed&quot;</span><span class="p">:</span>
+        <span class="k">return</span> <span class="n">TrainerMLE</span><span class="p">(</span><span class="n">optimizer</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>  <span class="c1"># Uses train_freeze_branches_reversed method</span>
+    <span class="k">elif</span> <span class="n">strategy</span> <span class="o">==</span> <span class="s2">&quot;freeze_branches_with_pretraining&quot;</span><span class="p">:</span>
+        <span class="k">return</span> <span class="n">TrainerMLE</span><span class="p">(</span><span class="n">optimizer</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>  <span class="c1"># Uses train_freeze_branches_with_pretraining method</span>
+    <span class="k">elif</span> <span class="n">strategy</span> <span class="o">==</span> <span class="s2">&quot;freeze_branches_reversed_with_pretraining&quot;</span><span class="p">:</span>
+        <span class="k">return</span> <span class="n">TrainerMLE</span><span class="p">(</span><span class="n">optimizer</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>  <span class="c1"># Uses train_freeze_branches_reversed_with_pretraining method</span>
+    <span class="k">elif</span> <span class="n">strategy</span> <span class="o">==</span> <span class="s2">&quot;local_credit_assignment&quot;</span><span class="p">:</span>
+        <span class="k">return</span> <span class="n">LocalCreditAssignment</span><span class="p">(</span><span class="n">optimizer</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
+    <span class="k">elif</span> <span class="n">strategy</span> <span class="o">==</span> <span class="s2">&quot;two_step&quot;</span><span class="p">:</span>
+        <span class="k">return</span> <span class="n">TwoStepTrainer</span><span class="p">(</span><span class="n">optimizer</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
+    <span class="k">elif</span> <span class="n">strategy</span> <span class="o">==</span> <span class="s2">&quot;two_step_kl&quot;</span><span class="p">:</span>
+        <span class="k">return</span> <span class="n">TwoStepTrainerWithKL</span><span class="p">(</span><span class="n">optimizer</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
+    <span class="k">elif</span> <span class="n">strategy</span> <span class="o">==</span> <span class="s2">&quot;voltage_stabilization&quot;</span><span class="p">:</span>
+        <span class="k">return</span> <span class="n">VoltageStabilizationTrainer</span><span class="p">(</span><span class="n">optimizer</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Unrecognized strategy &#39;</span><span class="si">{</span><span class="n">strategy</span><span class="si">}</span><span class="s2">&#39;, defaulting to &#39;mle&#39;.&quot;</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">TrainerMLE</span><span class="p">(</span><span class="n">optimizer</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
+</pre></div>
+</div>
+</section>
+</section>
+
+
+           </div>
+          </div>
+          <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
+        <a href="index.html" class="btn btn-neutral float-left" title="Learning Strategies" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
+        <a href="topk_linear.html" class="btn btn-neutral float-right" title="TopKLinear Layers and Dendritic Processing" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright 2025, Research and Engineering at Kempner.</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>

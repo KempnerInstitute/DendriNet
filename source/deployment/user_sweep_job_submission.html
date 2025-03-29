@@ -1,0 +1,247 @@
+
+
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" data-content_root="../../">
+<head>
+  <meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Sweep Job Submission (User) &mdash; dendritic_modeling 0.1.0 documentation</title>
+      <link rel="stylesheet" type="text/css" href="../../_static/pygments.css?v=b86133f3" />
+      <link rel="stylesheet" type="text/css" href="../../_static/css/theme.css?v=e59714d7" />
+      <link rel="stylesheet" type="text/css" href="../../_static/copybutton.css?v=76b2166b" />
+
+  
+      <script src="../../_static/jquery.js?v=5d32c60e"></script>
+      <script src="../../_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
+      <script src="../../_static/documentation_options.js?v=01f34227"></script>
+      <script src="../../_static/doctools.js?v=9bcbadda"></script>
+      <script src="../../_static/sphinx_highlight.js?v=dc90522c"></script>
+      <script src="../../_static/clipboard.min.js?v=a7894cd8"></script>
+      <script src="../../_static/copybutton.js?v=f281be69"></script>
+      <script crossorigin="anonymous" integrity="sha256-Ae2Vz/4ePdIu6ZyI/5ZGsYnb+m0JlOmKPjt6XZ9JJkA=" src="https://cdnjs.cloudflare.com/ajax/libs/require.js/2.3.4/require.min.js"></script>
+    <script src="../../_static/js/theme.js"></script>
+    <link rel="author" title="About these documents" href="../../about.html" />
+    <link rel="index" title="Index" href="../../genindex.html" />
+    <link rel="search" title="Search" href="../../search.html" />
+    <link rel="next" title="&lt;no title&gt;" href="../development/index.html" />
+    <link rel="prev" title="Sweep Job Submission" href="sweep_job_submission.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+
+          
+          
+          <a href="../../index.html" class="icon icon-home">
+            dendritic_modeling
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <p class="caption" role="heading"><span class="caption-text">Introduction</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../about.html">About</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Contents</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../getting_started/index.html">Getting Started Guide</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../user_guide/index.html">User Guide</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Contents</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../advanced/network_structures/index.html">Network Structures</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../advanced/learning/index.html">Learning Strategies</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../advanced/visualization/index.html">Visualization Guide</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../advanced/analysis/index.html">Analysis and Evaluation</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Contents</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../api/index.html">API Reference</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Contents</span></p>
+<ul class="current">
+<li class="toctree-l1 current"><a class="reference internal" href="index.html">Deployment Guide</a><ul class="current">
+<li class="toctree-l2"><a class="reference internal" href="sweep_job_submission.html">Sweep Job Submission</a></li>
+<li class="toctree-l2 current"><a class="current reference internal" href="#">Sweep Job Submission (User)</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#step-1-prepare-sweep-configuration-file">Step 1: Prepare sweep configuration file</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="#slurm-configuration">Slurm configuration</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#train-configuration">Train configuration</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#sweep-configuration">Sweep configuration</a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="#step-2-generate-sweep-configureation-files-and-slurm-script">Step 2: Generate sweep configureation files and slurm script</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#step-3-submit-the-sweep-job">Step 3: Submit the sweep job</a></li>
+</ul>
+</li>
+</ul>
+</li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../../index.html">dendritic_modeling</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="../../index.html" class="icon icon-home" aria-label="Home"></a></li>
+          <li class="breadcrumb-item"><a href="index.html">Deployment Guide</a></li>
+      <li class="breadcrumb-item active">Sweep Job Submission (User)</li>
+      <li class="wy-breadcrumbs-aside">
+            <a href="../../_sources/source/deployment/user_sweep_job_submission.rst.txt" rel="nofollow"> View page source</a>
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <section id="sweep-job-submission-user">
+<h1>Sweep Job Submission (User)<a class="headerlink" href="#sweep-job-submission-user" title="Link to this heading"></a></h1>
+<p>Sumbitting a sweep job is as easy of submitting a single job. All you need to do is to create a sweep configuration file and run <cite>scripts/generate_sweep_configs.py</cite> script, to setup the sweep job. In the following sections, we will walk you through the process of setting up a sweep job.</p>
+<section id="step-1-prepare-sweep-configuration-file">
+<h2>Step 1: Prepare sweep configuration file<a class="headerlink" href="#step-1-prepare-sweep-configuration-file" title="Link to this heading"></a></h2>
+<p>This file contains all necessary information to setup the sweep job. Here is an example of a sweep configuration file:</p>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">slurm_config</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">output_dir</span><span class="p">:</span><span class="w">  </span><span class="c1"># &lt;--- Add your output directory path</span>
+<span class="w">  </span><span class="nt">conda_env_path</span><span class="p">:</span><span class="w"> </span><span class="c1"># &lt;--- Add your conda environment path</span>
+<span class="w">  </span><span class="nt">modules_to_load</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="s">&quot;python/3.12.5-fasrc01&quot;</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="s">&quot;cuda/12.4.1-fasrc01&quot;</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="s">&quot;cudnn/8.9.2.26_cuda12-fasrc01&quot;</span><span class="p p-Indicator">]</span><span class="w"> </span><span class="c1"># &lt;--- Modify this based on your requirements</span>
+<span class="w">  </span><span class="nt">max_concurrent_jobs</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">8</span>
+<span class="w">  </span><span class="nt">training_script</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;scripts/train_mnist.py&quot;</span>
+<span class="w">  </span><span class="nt">config_filename_init</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;test_config&quot;</span>
+
+<span class="w">  </span><span class="nt">account</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;kempner_dev&quot;</span>
+<span class="w">  </span><span class="nt">nodes</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">1</span>
+<span class="w">  </span><span class="nt">ntasks_per_node</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">1</span>
+<span class="w">  </span><span class="nt">gpus_per_node</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">1</span>
+<span class="w">  </span><span class="nt">cpus_per_task</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">10</span>
+<span class="w">  </span><span class="nt">mem</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">64GB</span>
+<span class="w">  </span><span class="nt">time</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;1:00:00&quot;</span>
+<span class="w">  </span><span class="nt">partition</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;kempner&quot;</span>
+
+
+<span class="nt">train_config</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">train</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">run_name</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;dendritic_modeling_sweep&quot;</span>
+<span class="w">    </span><span class="nt">seed</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">0</span>
+<span class="w">    </span><span class="nt">epochs</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">10</span>
+<span class="w">    </span><span class="nt">batch_size</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">32</span>
+
+<span class="w">  </span><span class="nt">wandb</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">entity</span><span class="p">:</span><span class="w">  </span><span class="c1"># &lt;---- Add your entity</span>
+<span class="w">    </span><span class="nt">project</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">dendritic_modeling_pr</span>
+<span class="w">    </span><span class="nt">group</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">debug</span>
+<span class="w">    </span><span class="nt">tags</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">mnist_1</span><span class="p p-Indicator">]</span>
+
+<span class="w">  </span><span class="nt">optimizer</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;adam&quot;</span>
+<span class="w">    </span><span class="nt">learning_rate</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">0.001</span>
+
+<span class="w">  </span><span class="nt">scheduler</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;none&quot;</span>
+
+<span class="w">  </span><span class="nt">model</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">input_dim</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">784</span>
+<span class="w">    </span><span class="nt">excitatory_layer_sizes</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">10</span><span class="p p-Indicator">]</span>
+<span class="w">    </span><span class="nt">inhibitory_layer_sizes</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">20</span><span class="p p-Indicator">]</span>
+<span class="w">    </span><span class="nt">excitatory_branch_factors</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">24</span><span class="p p-Indicator">]</span>
+<span class="w">    </span><span class="nt">inhibitory_branch_factors</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[]</span>
+<span class="w">    </span><span class="nt">reactivate</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+<span class="w">    </span><span class="nt">somatic_synapses</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+<span class="w">    </span><span class="nt">ee_synapses_per_branch_per_layer</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">24</span><span class="p p-Indicator">]</span>
+<span class="w">    </span><span class="nt">ei_synapses_per_branch_per_layer</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">100</span><span class="p p-Indicator">]</span>
+<span class="w">    </span><span class="nt">ie_synapses_per_branch_per_layer</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">1</span><span class="p p-Indicator">]</span>
+<span class="w">    </span><span class="nt">ii_synapses_per_branch_per_layer</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[]</span>
+
+<span class="nt">sweep_config</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">optimizer</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">learning_rate</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">0.001</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">0.0001</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">0.1</span><span class="p p-Indicator">]</span>
+<span class="w">  </span><span class="nt">model</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">inhibitory_layer_sizes</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[[</span><span class="nv">10</span><span class="p p-Indicator">],</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">20</span><span class="p p-Indicator">],</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">30</span><span class="p p-Indicator">]]</span>
+<span class="w">    </span><span class="nt">ee_synapses_per_branch_per_layer</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[[</span><span class="nv">24</span><span class="p p-Indicator">],</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">22</span><span class="p p-Indicator">]]</span>
+</pre></div>
+</div>
+<p>The sweep configuration file has three major sections:</p>
+<ul class="simple">
+<li><p><cite>slurm_config</cite>,</p></li>
+<li><p><cite>train_config</cite>,</p></li>
+<li><p>and <cite>sweep_config</cite>.</p></li>
+</ul>
+<section id="slurm-configuration">
+<h3>Slurm configuration<a class="headerlink" href="#slurm-configuration" title="Link to this heading"></a></h3>
+<p>In the slurm configuration section you need to provide all information to create the batch submission script. The parameters’ name are self-explanatory. <code class="docutils literal notranslate"><span class="pre">max_concurrent_jobs</span></code> is the number of jobs that will run concurrently.</p>
+</section>
+<section id="train-configuration">
+<h3>Train configuration<a class="headerlink" href="#train-configuration" title="Link to this heading"></a></h3>
+<p>The <cite>train_config</cite> section defines the training parameters, including the run name, seed, epochs, batch size, optimizer, scheduler, and model architecture.</p>
+</section>
+<section id="sweep-configuration">
+<h3>Sweep configuration<a class="headerlink" href="#sweep-configuration" title="Link to this heading"></a></h3>
+<p>The <cite>sweep_config</cite> section contains the hyperparameters to sweep over, such as the learning rate, layer sizes, and synaptic connections. Note that you need to add extra bracket to the list of lists in the sweep configuration file. For example, <cite>inhibitory_layer_sizes: [[10], [20], [30]]</cite>, which means that the sweep will run with the values <cite>[10]</cite>, <cite>[20]</cite>, and <cite>[30]</cite>. For learning rate, you can sweep over a list of values <cite>[0.001, 0.0001, 0.1]</cite>, which means that the sweep will run with the values <cite>0.001</cite>, <cite>0.0001</cite>, and <cite>0.1</cite>.</p>
+</section>
+</section>
+<section id="step-2-generate-sweep-configureation-files-and-slurm-script">
+<h2>Step 2: Generate sweep configureation files and slurm script<a class="headerlink" href="#step-2-generate-sweep-configureation-files-and-slurm-script" title="Link to this heading"></a></h2>
+<p>After creating the sweep configuration file (let’s say <cite>sweep_params.yaml</cite>), you can generate the sweep configuration files and slurm script using the following command:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span>python<span class="w"> </span>scripts/generate_sweep_configs.py<span class="w"> </span>configs<span class="w"> </span>sweep_params.yaml
+</pre></div>
+</div>
+<p>Running this command will generate a set of configuration files and a slurm script that will run the sweep job. The configuration files will be saved in the <cite>configs</cite> directory, and the slurm script will be saved in the current directory.</p>
+</section>
+<section id="step-3-submit-the-sweep-job">
+<h2>Step 3: Submit the sweep job<a class="headerlink" href="#step-3-submit-the-sweep-job" title="Link to this heading"></a></h2>
+<p>Once you have generated the sweep configuration files and the slurm script, you can submit the sweep job using the following command:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span>sbatch<span class="w"> </span>run.sh
+</pre></div>
+</div>
+<p>Navigate to the output directory (from <cite>slurm_config</cite>) to monitor the progress of the sweep jobs. You can also view the results in the Weights &amp; Biases dashboard by logging in to your W&amp;B account. Inside the output directory, there will be a directory named <cite>[run_name]_[SLURM_ARRAY_JOB_ID]</cite>, which contains subfolders <cite>[SLURM_ARRAY_JOB_ID]_[SLURM_ARRAY_TASK_ID]</cite>. All the results and logs will be saved in these subfolders.</p>
+</section>
+</section>
+
+
+           </div>
+          </div>
+          <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
+        <a href="sweep_job_submission.html" class="btn btn-neutral float-left" title="Sweep Job Submission" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
+        <a href="../development/index.html" class="btn btn-neutral float-right" title="&lt;no title&gt;" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright 2025, Research and Engineering at Kempner.</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>

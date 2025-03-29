@@ -1,0 +1,398 @@
+
+
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" data-content_root="../../../">
+<head>
+  <meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Weight Initialization Methods &mdash; dendritic_modeling 0.1.0 documentation</title>
+      <link rel="stylesheet" type="text/css" href="../../../_static/pygments.css?v=b86133f3" />
+      <link rel="stylesheet" type="text/css" href="../../../_static/css/theme.css?v=e59714d7" />
+      <link rel="stylesheet" type="text/css" href="../../../_static/copybutton.css?v=76b2166b" />
+
+  
+      <script src="../../../_static/jquery.js?v=5d32c60e"></script>
+      <script src="../../../_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
+      <script src="../../../_static/documentation_options.js?v=01f34227"></script>
+      <script src="../../../_static/doctools.js?v=9bcbadda"></script>
+      <script src="../../../_static/sphinx_highlight.js?v=dc90522c"></script>
+      <script src="../../../_static/clipboard.min.js?v=a7894cd8"></script>
+      <script src="../../../_static/copybutton.js?v=f281be69"></script>
+      <script crossorigin="anonymous" integrity="sha256-Ae2Vz/4ePdIu6ZyI/5ZGsYnb+m0JlOmKPjt6XZ9JJkA=" src="https://cdnjs.cloudflare.com/ajax/libs/require.js/2.3.4/require.min.js"></script>
+    <script src="../../../_static/js/theme.js"></script>
+    <link rel="author" title="About these documents" href="../../../about.html" />
+    <link rel="index" title="Index" href="../../../genindex.html" />
+    <link rel="search" title="Search" href="../../../search.html" />
+    <link rel="next" title="Learning Strategies" href="../learning/index.html" />
+    <link rel="prev" title="Network Structures and Architecture" href="network_structures.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+
+          
+          
+          <a href="../../../index.html" class="icon icon-home">
+            dendritic_modeling
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../../../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <p class="caption" role="heading"><span class="caption-text">Introduction</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../about.html">About</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Contents</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../getting_started/index.html">Getting Started Guide</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../user_guide/index.html">User Guide</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Contents</span></p>
+<ul class="current">
+<li class="toctree-l1 current"><a class="reference internal" href="index.html">Network Structures</a><ul class="current">
+<li class="toctree-l2"><a class="reference internal" href="activation_functions.html">Activation Functions</a></li>
+<li class="toctree-l2"><a class="reference internal" href="gradient_scaling.html">Gradient Scaling Techniques</a></li>
+<li class="toctree-l2"><a class="reference internal" href="network_structures.html">Network Structures and Architecture</a></li>
+<li class="toctree-l2 current"><a class="current reference internal" href="#">Weight Initialization Methods</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#overview">Overview</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#topklinear-initialization">TopKLinear Initialization</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#xavier-vs-kaiming-initialization">Xavier vs. Kaiming Initialization</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#the-init-gain-parameter">The init_gain Parameter</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#inhibitory-weight-initialization">Inhibitory Weight Initialization</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#sparse-initialization-for-topk">Sparse Initialization for TopK</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#blocklinear-initialization">BlockLinear Initialization</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#initialization-of-parametrictanh-parameters">Initialization of ParametricTanh Parameters</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#best-practices-for-initialization">Best Practices for Initialization</a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="../learning/index.html">Learning Strategies</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../visualization/index.html">Visualization Guide</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../analysis/index.html">Analysis and Evaluation</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Contents</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../api/index.html">API Reference</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Contents</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../deployment/index.html">Deployment Guide</a></li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../../../index.html">dendritic_modeling</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="../../../index.html" class="icon icon-home" aria-label="Home"></a></li>
+          <li class="breadcrumb-item"><a href="index.html">Network Structures</a></li>
+      <li class="breadcrumb-item active">Weight Initialization Methods</li>
+      <li class="wy-breadcrumbs-aside">
+            <a href="../../../_sources/source/advanced/network_structures/weight_initialization.rst.txt" rel="nofollow"> View page source</a>
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <section id="weight-initialization-methods">
+<span id="weight-initialization"></span><h1>Weight Initialization Methods<a class="headerlink" href="#weight-initialization-methods" title="Link to this heading"></a></h1>
+<p>Proper weight initialization is critical for training dendritic networks successfully. This document explains the initialization methods used in the dendritic modeling framework and their importance for dendritic computation.</p>
+<section id="overview">
+<h2>Overview<a class="headerlink" href="#overview" title="Link to this heading"></a></h2>
+<p>Dendritic networks have unique initialization requirements due to:</p>
+<ol class="arabic simple">
+<li><p><strong>Sparse connectivity</strong>: The top-k selection in TopKLinear layers means only a subset of weights are active</p></li>
+<li><p><strong>Branch-specific processing</strong>: Different branches may require different initialization scales</p></li>
+<li><p><strong>Excitatory-inhibitory balance</strong>: Initial balance between these pathways is crucial for stable training</p></li>
+<li><p><strong>Multiple processing layers</strong>: Deeper networks require careful initialization to maintain signal propagation</p></li>
+</ol>
+<p>The framework provides several initialization methods that address these challenges, with specific consideration for the selective activation patterns in dendritic branches.</p>
+</section>
+<section id="topklinear-initialization">
+<h2>TopKLinear Initialization<a class="headerlink" href="#topklinear-initialization" title="Link to this heading"></a></h2>
+<p>The <code class="docutils literal notranslate"><span class="pre">TopKLinear</span></code> layer, which models selective synaptic activation in dendrites, has specialized initialization options that can be selected through the <code class="docutils literal notranslate"><span class="pre">topk_init_method</span></code> parameter:</p>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">model</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">network</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">parameters</span><span class="p">:</span>
+<span class="w">      </span><span class="nt">topk_init_method</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;xavier_normal&quot;</span>
+<span class="w">      </span><span class="nt">init_gain</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">1.0</span>
+</pre></div>
+</div>
+<p>Available initialization methods include:</p>
+<ol class="arabic simple">
+<li><p><strong>xavier_normal</strong>: Xavier (Glorot) initialization with normal distribution</p></li>
+<li><p><strong>xavier_uniform</strong>: Xavier initialization with uniform distribution</p></li>
+<li><p><strong>kaiming_normal</strong>: Kaiming (He) initialization with normal distribution</p></li>
+<li><p><strong>kaiming_uniform</strong>: Kaiming initialization with uniform distribution</p></li>
+<li><p><strong>sparse_normal</strong>: Sparse initialization with normal distribution, tailored for top-k connections</p></li>
+</ol>
+<p>Implementation details:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="k">def</span><span class="w"> </span><span class="nf">initialize_topk_weights</span><span class="p">(</span><span class="n">weight</span><span class="p">,</span> <span class="n">init_method</span><span class="p">,</span> <span class="n">k</span><span class="p">,</span> <span class="n">gain</span><span class="o">=</span><span class="mf">1.0</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Initialize weights for TopKLinear layers.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    weight : torch.Tensor</span>
+<span class="sd">        Weight tensor to initialize</span>
+<span class="sd">    init_method : str</span>
+<span class="sd">        Initialization method to use</span>
+<span class="sd">    k : int</span>
+<span class="sd">        Number of active connections per output unit</span>
+<span class="sd">    gain : float</span>
+<span class="sd">        Gain factor to scale the initialization</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    torch.Tensor</span>
+<span class="sd">        Initialized weight tensor</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">fan_in</span><span class="p">,</span> <span class="n">fan_out</span> <span class="o">=</span> <span class="n">weight</span><span class="o">.</span><span class="n">shape</span>
+
+    <span class="k">if</span> <span class="n">init_method</span> <span class="o">==</span> <span class="s1">&#39;xavier_normal&#39;</span><span class="p">:</span>
+        <span class="n">std</span> <span class="o">=</span> <span class="n">gain</span> <span class="o">*</span> <span class="n">math</span><span class="o">.</span><span class="n">sqrt</span><span class="p">(</span><span class="mf">2.0</span> <span class="o">/</span> <span class="p">(</span><span class="n">fan_in</span> <span class="o">+</span> <span class="n">fan_out</span><span class="p">))</span>
+        <span class="n">nn</span><span class="o">.</span><span class="n">init</span><span class="o">.</span><span class="n">normal_</span><span class="p">(</span><span class="n">weight</span><span class="p">,</span> <span class="n">mean</span><span class="o">=</span><span class="mf">0.0</span><span class="p">,</span> <span class="n">std</span><span class="o">=</span><span class="n">std</span><span class="p">)</span>
+
+    <span class="k">elif</span> <span class="n">init_method</span> <span class="o">==</span> <span class="s1">&#39;xavier_uniform&#39;</span><span class="p">:</span>
+        <span class="n">bound</span> <span class="o">=</span> <span class="n">gain</span> <span class="o">*</span> <span class="n">math</span><span class="o">.</span><span class="n">sqrt</span><span class="p">(</span><span class="mf">6.0</span> <span class="o">/</span> <span class="p">(</span><span class="n">fan_in</span> <span class="o">+</span> <span class="n">fan_out</span><span class="p">))</span>
+        <span class="n">nn</span><span class="o">.</span><span class="n">init</span><span class="o">.</span><span class="n">uniform_</span><span class="p">(</span><span class="n">weight</span><span class="p">,</span> <span class="o">-</span><span class="n">bound</span><span class="p">,</span> <span class="n">bound</span><span class="p">)</span>
+
+    <span class="k">elif</span> <span class="n">init_method</span> <span class="o">==</span> <span class="s1">&#39;kaiming_normal&#39;</span><span class="p">:</span>
+        <span class="c1"># For ReLU-like activations</span>
+        <span class="n">nn</span><span class="o">.</span><span class="n">init</span><span class="o">.</span><span class="n">kaiming_normal_</span><span class="p">(</span><span class="n">weight</span><span class="p">,</span> <span class="n">a</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span> <span class="n">mode</span><span class="o">=</span><span class="s1">&#39;fan_in&#39;</span><span class="p">,</span> <span class="n">nonlinearity</span><span class="o">=</span><span class="s1">&#39;relu&#39;</span><span class="p">)</span>
+
+    <span class="k">elif</span> <span class="n">init_method</span> <span class="o">==</span> <span class="s1">&#39;kaiming_uniform&#39;</span><span class="p">:</span>
+        <span class="n">nn</span><span class="o">.</span><span class="n">init</span><span class="o">.</span><span class="n">kaiming_uniform_</span><span class="p">(</span><span class="n">weight</span><span class="p">,</span> <span class="n">a</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span> <span class="n">mode</span><span class="o">=</span><span class="s1">&#39;fan_in&#39;</span><span class="p">,</span> <span class="n">nonlinearity</span><span class="o">=</span><span class="s1">&#39;relu&#39;</span><span class="p">)</span>
+
+    <span class="k">elif</span> <span class="n">init_method</span> <span class="o">==</span> <span class="s1">&#39;sparse_normal&#39;</span><span class="p">:</span>
+        <span class="c1"># Specialized for top-k connections</span>
+        <span class="c1"># Scale by sqrt(fan_in/k) to account for sparse activation</span>
+        <span class="n">std</span> <span class="o">=</span> <span class="n">gain</span> <span class="o">*</span> <span class="n">math</span><span class="o">.</span><span class="n">sqrt</span><span class="p">(</span><span class="mf">1.0</span> <span class="o">/</span> <span class="n">k</span><span class="p">)</span>
+        <span class="n">nn</span><span class="o">.</span><span class="n">init</span><span class="o">.</span><span class="n">normal_</span><span class="p">(</span><span class="n">weight</span><span class="p">,</span> <span class="n">mean</span><span class="o">=</span><span class="mf">0.0</span><span class="p">,</span> <span class="n">std</span><span class="o">=</span><span class="n">std</span><span class="p">)</span>
+
+    <span class="k">return</span> <span class="n">weight</span>
+</pre></div>
+</div>
+</section>
+<section id="xavier-vs-kaiming-initialization">
+<h2>Xavier vs. Kaiming Initialization<a class="headerlink" href="#xavier-vs-kaiming-initialization" title="Link to this heading"></a></h2>
+<p>For dendritic networks, the choice between Xavier and Kaiming initialization depends on the activation functions and network depth:</p>
+<ol class="arabic simple">
+<li><p><strong>Xavier initialization</strong> (also called Glorot initialization):
+- Designed for symmetric activations like tanh
+- Maintains variance across layers by considering both fan-in and fan-out
+- Works well with ParametricTanh activations in dendritic networks
+- Better for shallower networks</p></li>
+<li><p><strong>Kaiming initialization</strong> (also called He initialization):
+- Designed for ReLU-like activations with positive skew
+- Focuses on fan-in to maintain variance for forward pass
+- May need adaptation for ParametricTanh (adjusting the ‘a’ parameter)
+- Better for deeper networks</p></li>
+</ol>
+</section>
+<section id="the-init-gain-parameter">
+<h2>The init_gain Parameter<a class="headerlink" href="#the-init-gain-parameter" title="Link to this heading"></a></h2>
+<p>The <code class="docutils literal notranslate"><span class="pre">init_gain</span></code> parameter scales the standard deviation or bounds of the initialization:</p>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">model</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">network</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">parameters</span><span class="p">:</span>
+<span class="w">      </span><span class="nt">init_gain</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">1.0</span><span class="w">  </span><span class="c1"># Default value</span>
+</pre></div>
+</div>
+<p>A higher gain increases the initial magnitude of weights, which can help with vanishing gradients but risks saturation. Values between 0.5 and 2.0 are most common.</p>
+<p>Guidelines for different activation functions:
+- For ParametricTanh with default parameters: gain ≈ 1.0
+- For steeper ParametricTanh (higher m): gain ≈ 0.5-0.8
+- For flatter ParametricTanh (lower m): gain ≈ 1.2-1.5</p>
+</section>
+<section id="inhibitory-weight-initialization">
+<h2>Inhibitory Weight Initialization<a class="headerlink" href="#inhibitory-weight-initialization" title="Link to this heading"></a></h2>
+<p>Inhibitory connections often require different initialization to maintain proper excitation-inhibition balance. The framework provides the <code class="docutils literal notranslate"><span class="pre">init_inhib_offset</span></code> parameter:</p>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">model</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">network</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">parameters</span><span class="p">:</span>
+<span class="w">      </span><span class="nt">init_inhib_offset</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">1.3</span>
+</pre></div>
+</div>
+<p>This parameter affects how inhibitory weights are initialized:</p>
+<ol class="arabic simple">
+<li><p>Values &gt; 1.0 initialize inhibitory weights with larger magnitude</p></li>
+<li><p>Values &lt; 1.0 initialize inhibitory weights with smaller magnitude</p></li>
+<li><p>Value of 1.0 treats inhibitory weights the same as excitatory</p></li>
+</ol>
+<p>Proper initialization of inhibitory weights helps establish the desired excitatory-inhibitory balance from the beginning of training.</p>
+<p>Implementation:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="c1"># For inhibitory pathway initialization</span>
+<span class="k">if</span> <span class="n">pathway</span> <span class="o">==</span> <span class="s1">&#39;inhibitory&#39;</span><span class="p">:</span>
+    <span class="n">std</span> <span class="o">=</span> <span class="n">std</span> <span class="o">*</span> <span class="n">init_inhib_offset</span>  <span class="c1"># Scale the standard deviation</span>
+    <span class="n">nn</span><span class="o">.</span><span class="n">init</span><span class="o">.</span><span class="n">normal_</span><span class="p">(</span><span class="n">weight</span><span class="p">,</span> <span class="n">mean</span><span class="o">=</span><span class="mf">0.0</span><span class="p">,</span> <span class="n">std</span><span class="o">=</span><span class="n">std</span><span class="p">)</span>
+</pre></div>
+</div>
+</section>
+<section id="sparse-initialization-for-topk">
+<h2>Sparse Initialization for TopK<a class="headerlink" href="#sparse-initialization-for-topk" title="Link to this heading"></a></h2>
+<p>For TopKLinear layers, standard initialization methods may not be optimal due to the sparse connectivity pattern. The sparse_normal method adjusts the scale based on the number of active connections:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="k">def</span><span class="w"> </span><span class="nf">sparse_topk_init</span><span class="p">(</span><span class="n">weight</span><span class="p">,</span> <span class="n">k</span><span class="p">,</span> <span class="n">gain</span><span class="o">=</span><span class="mf">1.0</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Initialize weights specifically for TopKLinear with consideration for sparsity.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    weight : torch.Tensor</span>
+<span class="sd">        The weight tensor to initialize</span>
+<span class="sd">    k : int</span>
+<span class="sd">        Number of active connections per output</span>
+<span class="sd">    gain : float</span>
+<span class="sd">        Scaling factor</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    torch.Tensor</span>
+<span class="sd">        Initialized weight tensor</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">fan_in</span> <span class="o">=</span> <span class="n">weight</span><span class="o">.</span><span class="n">size</span><span class="p">(</span><span class="mi">1</span><span class="p">)</span>
+    <span class="c1"># Scale by sqrt(fan_in/k) to account for only k active inputs</span>
+    <span class="n">adjustment</span> <span class="o">=</span> <span class="n">math</span><span class="o">.</span><span class="n">sqrt</span><span class="p">(</span><span class="n">fan_in</span> <span class="o">/</span> <span class="n">k</span><span class="p">)</span>
+    <span class="n">std</span> <span class="o">=</span> <span class="n">gain</span> <span class="o">/</span> <span class="n">adjustment</span>
+
+    <span class="k">return</span> <span class="n">nn</span><span class="o">.</span><span class="n">init</span><span class="o">.</span><span class="n">normal_</span><span class="p">(</span><span class="n">weight</span><span class="p">,</span> <span class="n">mean</span><span class="o">=</span><span class="mf">0.0</span><span class="p">,</span> <span class="n">std</span><span class="o">=</span><span class="n">std</span><span class="p">)</span>
+</pre></div>
+</div>
+<p>This accounts for the fact that during forward propagation, only k out of fan_in inputs will be active for each output.</p>
+</section>
+<section id="blocklinear-initialization">
+<h2>BlockLinear Initialization<a class="headerlink" href="#blocklinear-initialization" title="Link to this heading"></a></h2>
+<p>For BlockLinear layers, which handle information flow between branches, initialization needs to consider the block structure:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="k">def</span><span class="w"> </span><span class="nf">initialize_block_linear</span><span class="p">(</span><span class="n">weight</span><span class="p">,</span> <span class="n">branch_factor</span><span class="p">,</span> <span class="n">init_method</span><span class="o">=</span><span class="s1">&#39;xavier_normal&#39;</span><span class="p">,</span> <span class="n">gain</span><span class="o">=</span><span class="mf">1.0</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Initialize BlockLinear weights with consideration for block structure.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    weight : torch.Tensor</span>
+<span class="sd">        Weight tensor to initialize</span>
+<span class="sd">    branch_factor : int</span>
+<span class="sd">        Branch factor that determines block structure</span>
+<span class="sd">    init_method : str</span>
+<span class="sd">        Initialization method</span>
+<span class="sd">    gain : float</span>
+<span class="sd">        Gain factor</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    torch.Tensor</span>
+<span class="sd">        Initialized weight tensor</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="c1"># Calculate effective fan_in based on branch structure</span>
+    <span class="n">effective_fan_in</span> <span class="o">=</span> <span class="n">weight</span><span class="o">.</span><span class="n">size</span><span class="p">(</span><span class="mi">1</span><span class="p">)</span> <span class="o">//</span> <span class="n">branch_factor</span>
+
+    <span class="k">if</span> <span class="n">init_method</span> <span class="o">==</span> <span class="s1">&#39;xavier_normal&#39;</span><span class="p">:</span>
+        <span class="n">std</span> <span class="o">=</span> <span class="n">gain</span> <span class="o">*</span> <span class="n">math</span><span class="o">.</span><span class="n">sqrt</span><span class="p">(</span><span class="mf">2.0</span> <span class="o">/</span> <span class="p">(</span><span class="n">effective_fan_in</span> <span class="o">+</span> <span class="n">weight</span><span class="o">.</span><span class="n">size</span><span class="p">(</span><span class="mi">0</span><span class="p">)))</span>
+        <span class="n">nn</span><span class="o">.</span><span class="n">init</span><span class="o">.</span><span class="n">normal_</span><span class="p">(</span><span class="n">weight</span><span class="p">,</span> <span class="n">mean</span><span class="o">=</span><span class="mf">0.0</span><span class="p">,</span> <span class="n">std</span><span class="o">=</span><span class="n">std</span><span class="p">)</span>
+
+    <span class="c1"># Create block mask</span>
+    <span class="n">mask</span> <span class="o">=</span> <span class="n">create_block_mask</span><span class="p">(</span><span class="n">weight</span><span class="o">.</span><span class="n">size</span><span class="p">(</span><span class="mi">0</span><span class="p">),</span> <span class="n">weight</span><span class="o">.</span><span class="n">size</span><span class="p">(</span><span class="mi">1</span><span class="p">),</span> <span class="n">branch_factor</span><span class="p">)</span>
+
+    <span class="c1"># Apply mask to zero out non-block connections</span>
+    <span class="k">return</span> <span class="n">weight</span> <span class="o">*</span> <span class="n">mask</span>
+</pre></div>
+</div>
+</section>
+<section id="initialization-of-parametrictanh-parameters">
+<h2>Initialization of ParametricTanh Parameters<a class="headerlink" href="#initialization-of-parametrictanh-parameters" title="Link to this heading"></a></h2>
+<p>The learnable parameters in ParametricTanh activations (m and b) also require careful initialization:</p>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">model</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">network</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">parameters</span><span class="p">:</span>
+<span class="w">      </span><span class="nt">reactivation_initial_m</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">2.0</span><span class="w">  </span><span class="c1"># Initial slope parameter</span>
+<span class="w">      </span><span class="nt">reactivation_initial_b</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">0.5</span><span class="w">  </span><span class="c1"># Initial offset parameter</span>
+</pre></div>
+</div>
+<p>These values strongly influence the initial response properties of dendritic branches:</p>
+<ol class="arabic simple">
+<li><p><strong>reactivation_initial_m</strong>: Controls the initial slope of the tanh function
+- Higher values create steeper curves with stronger saturation
+- Lower values create more gradual, linear-like responses
+- Biological dendrites often exhibit steep nonlinearities, so values ≥ 1.0 are common</p></li>
+<li><p><strong>reactivation_initial_b</strong>: Controls the initial offset of the tanh function
+- Positive values shift the sensitive region toward negative inputs
+- Negative values shift the sensitive region toward positive inputs
+- The optimal value depends on the distribution of pre-activation values</p></li>
+</ol>
+</section>
+<section id="best-practices-for-initialization">
+<h2>Best Practices for Initialization<a class="headerlink" href="#best-practices-for-initialization" title="Link to this heading"></a></h2>
+<p>For optimal performance when training dendritic networks:</p>
+<ol class="arabic simple">
+<li><p><strong>Match initialization to activation</strong>: Use xavier_normal for ParametricTanh, kaiming for ReLU-like functions</p></li>
+<li><p><strong>Adjust for network depth</strong>: Deeper networks may need lower gain values</p></li>
+<li><p><strong>Balance excitation-inhibition</strong>: Adjust init_inhib_offset based on network architecture</p></li>
+<li><p><strong>Monitor initial activations</strong>: Check activation statistics at initialization to verify signal propagation</p></li>
+<li><p><strong>Consider layer-specific initialization</strong>: Different layers may benefit from different initialization parameters</p></li>
+</ol>
+<p>Example complete initialization configuration:</p>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">model</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">network</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">parameters</span><span class="p">:</span>
+<span class="w">      </span><span class="nt">topk_init_method</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;xavier_normal&quot;</span>
+<span class="w">      </span><span class="nt">init_gain</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">1.0</span>
+<span class="w">      </span><span class="nt">init_inhib_offset</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">1.3</span>
+<span class="w">      </span><span class="nt">reactivation_initial_m</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">2.0</span>
+<span class="w">      </span><span class="nt">reactivation_initial_b</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">0.5</span>
+</pre></div>
+</div>
+</section>
+</section>
+
+
+           </div>
+          </div>
+          <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
+        <a href="network_structures.html" class="btn btn-neutral float-left" title="Network Structures and Architecture" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
+        <a href="../learning/index.html" class="btn btn-neutral float-right" title="Learning Strategies" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright 2025, Research and Engineering at Kempner.</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>

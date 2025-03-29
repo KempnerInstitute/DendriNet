@@ -1,0 +1,863 @@
+
+
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" data-content_root="../../../">
+<head>
+  <meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Network Visualization Guide &mdash; dendritic_modeling 0.1.0 documentation</title>
+      <link rel="stylesheet" type="text/css" href="../../../_static/pygments.css?v=b86133f3" />
+      <link rel="stylesheet" type="text/css" href="../../../_static/css/theme.css?v=e59714d7" />
+      <link rel="stylesheet" type="text/css" href="../../../_static/copybutton.css?v=76b2166b" />
+
+  
+      <script src="../../../_static/jquery.js?v=5d32c60e"></script>
+      <script src="../../../_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
+      <script src="../../../_static/documentation_options.js?v=01f34227"></script>
+      <script src="../../../_static/doctools.js?v=9bcbadda"></script>
+      <script src="../../../_static/sphinx_highlight.js?v=dc90522c"></script>
+      <script src="../../../_static/clipboard.min.js?v=a7894cd8"></script>
+      <script src="../../../_static/copybutton.js?v=f281be69"></script>
+      <script crossorigin="anonymous" integrity="sha256-Ae2Vz/4ePdIu6ZyI/5ZGsYnb+m0JlOmKPjt6XZ9JJkA=" src="https://cdnjs.cloudflare.com/ajax/libs/require.js/2.3.4/require.min.js"></script>
+    <script src="../../../_static/js/theme.js"></script>
+    <link rel="author" title="About these documents" href="../../../about.html" />
+    <link rel="index" title="Index" href="../../../genindex.html" />
+    <link rel="search" title="Search" href="../../../search.html" />
+    <link rel="next" title="Evaluation and Visualization" href="evaluation_visualization.html" />
+    <link rel="prev" title="Visualization Guide" href="index.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+
+          
+          
+          <a href="../../../index.html" class="icon icon-home">
+            dendritic_modeling
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../../../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <p class="caption" role="heading"><span class="caption-text">Introduction</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../about.html">About</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Contents</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../getting_started/index.html">Getting Started Guide</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../user_guide/index.html">User Guide</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Contents</span></p>
+<ul class="current">
+<li class="toctree-l1"><a class="reference internal" href="../network_structures/index.html">Network Structures</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../learning/index.html">Learning Strategies</a></li>
+<li class="toctree-l1 current"><a class="reference internal" href="index.html">Visualization Guide</a><ul class="current">
+<li class="toctree-l2 current"><a class="current reference internal" href="#">Network Visualization Guide</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#overview">Overview</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#network-architecture-visualizations">Network Architecture Visualizations</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="#excitation-inhibition-network-einet">Excitation-Inhibition Network (EINet)</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#input-transformation-networks">Input Transformation Networks</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#input-modes-comparison">Input Modes Comparison</a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="#training-strategy-visualizations">Training Strategy Visualizations</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="#sequential-vs-joint-training">Sequential vs. Joint Training</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#independent-head-training">Independent Head Training</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#learning-strategies">Learning Strategies</a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="#computational-mechanism-visualizations">Computational Mechanism Visualizations</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="#dendritic-computation">Dendritic Computation</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#network-pruning-and-ablation">Network Pruning and Ablation</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#dendritic-order-ablation">Dendritic Order Ablation</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#dendritic-information-analysis">Dendritic Information Analysis</a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="#advanced-visualization-topics">Advanced Visualization Topics</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="#animated-visualizations">Animated Visualizations</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#d-visualizations">3D Visualizations</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#interactive-visualizations">Interactive Visualizations</a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="#best-practices-for-visualizations">Best Practices for Visualizations</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#visualization-resources">Visualization Resources</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="evaluation_visualization.html">Evaluation and Visualization</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="../analysis/index.html">Analysis and Evaluation</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Contents</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../api/index.html">API Reference</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Contents</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../deployment/index.html">Deployment Guide</a></li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../../../index.html">dendritic_modeling</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="../../../index.html" class="icon icon-home" aria-label="Home"></a></li>
+          <li class="breadcrumb-item"><a href="index.html">Visualization Guide</a></li>
+      <li class="breadcrumb-item active">Network Visualization Guide</li>
+      <li class="wy-breadcrumbs-aside">
+            <a href="../../../_sources/source/advanced/visualization/visualization_guide.rst.txt" rel="nofollow"> View page source</a>
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <section id="network-visualization-guide">
+<span id="visualization-guide"></span><h1>Network Visualization Guide<a class="headerlink" href="#network-visualization-guide" title="Link to this heading"></a></h1>
+<section id="overview">
+<h2>Overview<a class="headerlink" href="#overview" title="Link to this heading"></a></h2>
+<p>This guide provides detailed information on visualizing dendritic networks, their architectures, and training dynamics.
+The visualization tools in the dendritic modeling framework allow researchers to gain insights into network behavior,
+analyze computational mechanisms, and create publication-quality figures.</p>
+</section>
+<section id="network-architecture-visualizations">
+<h2>Network Architecture Visualizations<a class="headerlink" href="#network-architecture-visualizations" title="Link to this heading"></a></h2>
+<section id="excitation-inhibition-network-einet">
+<h3>Excitation-Inhibition Network (EINet)<a class="headerlink" href="#excitation-inhibition-network-einet" title="Link to this heading"></a></h3>
+<p>The EINet architecture combines excitatory and inhibitory pathways in a biologically-inspired neural network design.
+Key components to visualize include:</p>
+<ul class="simple">
+<li><p><strong>Excitatory pathways</strong>: Forward-propagating activations</p></li>
+<li><p><strong>Inhibitory pathways</strong>: Regulatory connections that modulate excitatory signals</p></li>
+<li><p><strong>Dendritic branches</strong>: Hierarchical processing units within each layer</p></li>
+<li><p><strong>Sparse connectivity</strong>: Visualizing the TopK connection patterns</p></li>
+</ul>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">import</span><span class="w"> </span><span class="nn">matplotlib.pyplot</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">plt</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">dendritic_modeling.plot_utils</span><span class="w"> </span><span class="kn">import</span> <span class="n">plot_einet_params</span>
+
+<span class="c1"># Visualize the network parameters</span>
+<span class="n">plot_einet_params</span><span class="p">(</span>
+    <span class="n">einet</span><span class="o">=</span><span class="n">model</span><span class="o">.</span><span class="n">net</span><span class="p">,</span>
+    <span class="n">save_root</span><span class="o">=</span><span class="s2">&quot;visualization_outputs/architecture&quot;</span><span class="p">,</span>
+    <span class="n">reshape_fn</span><span class="o">=</span><span class="k">lambda</span> <span class="n">x</span><span class="p">:</span> <span class="n">x</span><span class="o">.</span><span class="n">view</span><span class="p">(</span><span class="mi">28</span><span class="p">,</span> <span class="mi">28</span><span class="p">),</span>  <span class="c1"># For MNIST reshape</span>
+    <span class="n">reshape_exc_syn</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+    <span class="n">logspace</span><span class="o">=</span><span class="kc">True</span>
+<span class="p">)</span>
+</pre></div>
+</div>
+</section>
+<section id="input-transformation-networks">
+<h3>Input Transformation Networks<a class="headerlink" href="#input-transformation-networks" title="Link to this heading"></a></h3>
+<p>Input transformation networks preprocess data before it enters the dendritic network.
+Visualizing these components helps understand how information is transformed and separated
+into excitatory and inhibitory pathways.</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="c1"># Visualize the input network architecture with excitatory and inhibitory paths</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">visualize_input_network</span><span class="p">(</span><span class="n">model</span><span class="p">,</span> <span class="n">input_example</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Create visualization of input transformation network structure&quot;&quot;&quot;</span>
+    <span class="n">fig</span><span class="p">,</span> <span class="n">axes</span> <span class="o">=</span> <span class="n">plt</span><span class="o">.</span><span class="n">subplots</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="mi">3</span><span class="p">,</span> <span class="n">figsize</span><span class="o">=</span><span class="p">(</span><span class="mi">15</span><span class="p">,</span> <span class="mi">5</span><span class="p">))</span>
+
+    <span class="c1"># Original input</span>
+    <span class="n">axes</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">imshow</span><span class="p">(</span><span class="n">input_example</span><span class="o">.</span><span class="n">reshape</span><span class="p">(</span><span class="mi">28</span><span class="p">,</span> <span class="mi">28</span><span class="p">),</span> <span class="n">cmap</span><span class="o">=</span><span class="s1">&#39;gray&#39;</span><span class="p">)</span>
+    <span class="n">axes</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">set_title</span><span class="p">(</span><span class="s2">&quot;Original Input&quot;</span><span class="p">)</span>
+
+    <span class="c1"># Get transformed inputs</span>
+    <span class="k">with</span> <span class="n">torch</span><span class="o">.</span><span class="n">no_grad</span><span class="p">():</span>
+        <span class="n">exc_input</span><span class="p">,</span> <span class="n">inh_input</span> <span class="o">=</span> <span class="n">model</span><span class="o">.</span><span class="n">net</span><span class="o">.</span><span class="n">input_transform</span><span class="p">(</span><span class="n">input_example</span><span class="o">.</span><span class="n">unsqueeze</span><span class="p">(</span><span class="mi">0</span><span class="p">))</span>
+
+    <span class="c1"># Excitatory path output</span>
+    <span class="n">exc_img</span> <span class="o">=</span> <span class="n">exc_input</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">cpu</span><span class="p">()</span><span class="o">.</span><span class="n">reshape</span><span class="p">(</span><span class="o">-</span><span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span><span class="o">.</span><span class="n">numpy</span><span class="p">()</span>
+    <span class="n">axes</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span><span class="o">.</span><span class="n">imshow</span><span class="p">(</span><span class="n">exc_img</span><span class="p">,</span> <span class="n">cmap</span><span class="o">=</span><span class="s1">&#39;hot&#39;</span><span class="p">,</span> <span class="n">aspect</span><span class="o">=</span><span class="s1">&#39;auto&#39;</span><span class="p">)</span>
+    <span class="n">axes</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span><span class="o">.</span><span class="n">set_title</span><span class="p">(</span><span class="s2">&quot;Excitatory Path Output&quot;</span><span class="p">)</span>
+
+    <span class="c1"># Inhibitory path output</span>
+    <span class="n">inh_img</span> <span class="o">=</span> <span class="n">inh_input</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">cpu</span><span class="p">()</span><span class="o">.</span><span class="n">reshape</span><span class="p">(</span><span class="o">-</span><span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span><span class="o">.</span><span class="n">numpy</span><span class="p">()</span>
+    <span class="n">axes</span><span class="p">[</span><span class="mi">2</span><span class="p">]</span><span class="o">.</span><span class="n">imshow</span><span class="p">(</span><span class="n">inh_img</span><span class="p">,</span> <span class="n">cmap</span><span class="o">=</span><span class="s1">&#39;cool&#39;</span><span class="p">,</span> <span class="n">aspect</span><span class="o">=</span><span class="s1">&#39;auto&#39;</span><span class="p">)</span>
+    <span class="n">axes</span><span class="p">[</span><span class="mi">2</span><span class="p">]</span><span class="o">.</span><span class="n">set_title</span><span class="p">(</span><span class="s2">&quot;Inhibitory Path Output&quot;</span><span class="p">)</span>
+
+    <span class="n">plt</span><span class="o">.</span><span class="n">tight_layout</span><span class="p">()</span>
+    <span class="k">return</span> <span class="n">fig</span>
+</pre></div>
+</div>
+</section>
+<section id="input-modes-comparison">
+<h3>Input Modes Comparison<a class="headerlink" href="#input-modes-comparison" title="Link to this heading"></a></h3>
+<p>The framework supports different input transformation modes that can be visualized for comparison:</p>
+<ul class="simple">
+<li><p><strong>Mode 0</strong>: Original input directly fed to the network</p></li>
+<li><p><strong>Mode 1</strong>: Same input used for both excitatory and inhibitory pathways</p></li>
+<li><p><strong>Mode 2</strong>: Separate transformation network for excitatory and inhibitory inputs</p></li>
+</ul>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="c1"># Example code to visualize different input modes</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">compare_input_modes</span><span class="p">(</span><span class="n">input_sample</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Compare the different input transformation modes&quot;&quot;&quot;</span>
+    <span class="n">models</span> <span class="o">=</span> <span class="p">[</span>
+        <span class="n">create_model</span><span class="p">(</span><span class="n">input_mode</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span> <span class="n">config</span><span class="o">=</span><span class="n">config</span><span class="p">),</span>
+        <span class="n">create_model</span><span class="p">(</span><span class="n">input_mode</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span> <span class="n">config</span><span class="o">=</span><span class="n">config</span><span class="p">),</span>
+        <span class="n">create_model</span><span class="p">(</span><span class="n">input_mode</span><span class="o">=</span><span class="mi">2</span><span class="p">,</span> <span class="n">config</span><span class="o">=</span><span class="n">config</span><span class="p">)</span>
+    <span class="p">]</span>
+
+    <span class="n">fig</span><span class="p">,</span> <span class="n">axes</span> <span class="o">=</span> <span class="n">plt</span><span class="o">.</span><span class="n">subplots</span><span class="p">(</span><span class="mi">3</span><span class="p">,</span> <span class="mi">3</span><span class="p">,</span> <span class="n">figsize</span><span class="o">=</span><span class="p">(</span><span class="mi">12</span><span class="p">,</span> <span class="mi">12</span><span class="p">))</span>
+
+    <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="n">model</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">models</span><span class="p">):</span>
+        <span class="c1"># Original input visualization</span>
+        <span class="n">axes</span><span class="p">[</span><span class="n">i</span><span class="p">,</span> <span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">imshow</span><span class="p">(</span><span class="n">input_sample</span><span class="o">.</span><span class="n">reshape</span><span class="p">(</span><span class="mi">28</span><span class="p">,</span> <span class="mi">28</span><span class="p">),</span> <span class="n">cmap</span><span class="o">=</span><span class="s1">&#39;gray&#39;</span><span class="p">)</span>
+        <span class="n">axes</span><span class="p">[</span><span class="n">i</span><span class="p">,</span> <span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">set_title</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Mode </span><span class="si">{</span><span class="n">i</span><span class="si">}</span><span class="s2">: Original&quot;</span><span class="p">)</span>
+
+        <span class="c1"># Get transformed inputs</span>
+        <span class="k">with</span> <span class="n">torch</span><span class="o">.</span><span class="n">no_grad</span><span class="p">():</span>
+            <span class="n">exc_input</span><span class="p">,</span> <span class="n">inh_input</span> <span class="o">=</span> <span class="n">get_network_inputs</span><span class="p">(</span><span class="n">model</span><span class="p">,</span> <span class="n">input_sample</span><span class="p">)</span>
+
+        <span class="c1"># Visualize excitatory input</span>
+        <span class="n">exc_vis</span> <span class="o">=</span> <span class="n">visualize_tensor</span><span class="p">(</span><span class="n">exc_input</span><span class="p">)</span>
+        <span class="n">axes</span><span class="p">[</span><span class="n">i</span><span class="p">,</span> <span class="mi">1</span><span class="p">]</span><span class="o">.</span><span class="n">imshow</span><span class="p">(</span><span class="n">exc_vis</span><span class="p">,</span> <span class="n">cmap</span><span class="o">=</span><span class="s1">&#39;hot&#39;</span><span class="p">)</span>
+        <span class="n">axes</span><span class="p">[</span><span class="n">i</span><span class="p">,</span> <span class="mi">1</span><span class="p">]</span><span class="o">.</span><span class="n">set_title</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Mode </span><span class="si">{</span><span class="n">i</span><span class="si">}</span><span class="s2">: Excitatory&quot;</span><span class="p">)</span>
+
+        <span class="c1"># Visualize inhibitory input</span>
+        <span class="n">inh_vis</span> <span class="o">=</span> <span class="n">visualize_tensor</span><span class="p">(</span><span class="n">inh_input</span><span class="p">)</span>
+        <span class="n">axes</span><span class="p">[</span><span class="n">i</span><span class="p">,</span> <span class="mi">2</span><span class="p">]</span><span class="o">.</span><span class="n">imshow</span><span class="p">(</span><span class="n">inh_vis</span><span class="p">,</span> <span class="n">cmap</span><span class="o">=</span><span class="s1">&#39;cool&#39;</span><span class="p">)</span>
+        <span class="n">axes</span><span class="p">[</span><span class="n">i</span><span class="p">,</span> <span class="mi">2</span><span class="p">]</span><span class="o">.</span><span class="n">set_title</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Mode </span><span class="si">{</span><span class="n">i</span><span class="si">}</span><span class="s2">: Inhibitory&quot;</span><span class="p">)</span>
+
+    <span class="n">plt</span><span class="o">.</span><span class="n">tight_layout</span><span class="p">()</span>
+    <span class="k">return</span> <span class="n">fig</span>
+</pre></div>
+</div>
+</section>
+</section>
+<section id="training-strategy-visualizations">
+<h2>Training Strategy Visualizations<a class="headerlink" href="#training-strategy-visualizations" title="Link to this heading"></a></h2>
+<section id="sequential-vs-joint-training">
+<h3>Sequential vs. Joint Training<a class="headerlink" href="#sequential-vs-joint-training" title="Link to this heading"></a></h3>
+<p>When using input transformation networks, you can train the input network and dendritic network sequentially or jointly.
+Visualizing the training process helps understand the tradeoffs.</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="c1"># Visualization code for sequential vs joint training performance</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">plot_training_comparison</span><span class="p">(</span><span class="n">sequential_history</span><span class="p">,</span> <span class="n">joint_history</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Plot comparison of sequential vs joint training strategies&quot;&quot;&quot;</span>
+    <span class="n">fig</span><span class="p">,</span> <span class="n">axes</span> <span class="o">=</span> <span class="n">plt</span><span class="o">.</span><span class="n">subplots</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="mi">2</span><span class="p">,</span> <span class="n">figsize</span><span class="o">=</span><span class="p">(</span><span class="mi">15</span><span class="p">,</span> <span class="mi">6</span><span class="p">))</span>
+
+    <span class="c1"># Accuracy comparison</span>
+    <span class="n">axes</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">plot</span><span class="p">(</span><span class="n">sequential_history</span><span class="p">[</span><span class="s1">&#39;val_acc&#39;</span><span class="p">],</span> <span class="n">label</span><span class="o">=</span><span class="s1">&#39;Sequential&#39;</span><span class="p">)</span>
+    <span class="n">axes</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">plot</span><span class="p">(</span><span class="n">joint_history</span><span class="p">[</span><span class="s1">&#39;val_acc&#39;</span><span class="p">],</span> <span class="n">label</span><span class="o">=</span><span class="s1">&#39;Joint&#39;</span><span class="p">)</span>
+    <span class="n">axes</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">set_xlabel</span><span class="p">(</span><span class="s1">&#39;Epochs&#39;</span><span class="p">)</span>
+    <span class="n">axes</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">set_ylabel</span><span class="p">(</span><span class="s1">&#39;Validation Accuracy&#39;</span><span class="p">)</span>
+    <span class="n">axes</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">legend</span><span class="p">()</span>
+    <span class="n">axes</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">set_title</span><span class="p">(</span><span class="s1">&#39;Accuracy Comparison&#39;</span><span class="p">)</span>
+
+    <span class="c1"># Loss comparison</span>
+    <span class="n">axes</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span><span class="o">.</span><span class="n">plot</span><span class="p">(</span><span class="n">sequential_history</span><span class="p">[</span><span class="s1">&#39;val_loss&#39;</span><span class="p">],</span> <span class="n">label</span><span class="o">=</span><span class="s1">&#39;Sequential&#39;</span><span class="p">)</span>
+    <span class="n">axes</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span><span class="o">.</span><span class="n">plot</span><span class="p">(</span><span class="n">joint_history</span><span class="p">[</span><span class="s1">&#39;val_loss&#39;</span><span class="p">],</span> <span class="n">label</span><span class="o">=</span><span class="s1">&#39;Joint&#39;</span><span class="p">)</span>
+    <span class="n">axes</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span><span class="o">.</span><span class="n">set_xlabel</span><span class="p">(</span><span class="s1">&#39;Epochs&#39;</span><span class="p">)</span>
+    <span class="n">axes</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span><span class="o">.</span><span class="n">set_ylabel</span><span class="p">(</span><span class="s1">&#39;Validation Loss&#39;</span><span class="p">)</span>
+    <span class="n">axes</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span><span class="o">.</span><span class="n">legend</span><span class="p">()</span>
+    <span class="n">axes</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span><span class="o">.</span><span class="n">set_title</span><span class="p">(</span><span class="s1">&#39;Loss Comparison&#39;</span><span class="p">)</span>
+
+    <span class="n">plt</span><span class="o">.</span><span class="n">tight_layout</span><span class="p">()</span>
+    <span class="k">return</span> <span class="n">fig</span>
+</pre></div>
+</div>
+</section>
+<section id="independent-head-training">
+<h3>Independent Head Training<a class="headerlink" href="#independent-head-training" title="Link to this heading"></a></h3>
+<p>Visualize the effects of training excitatory and inhibitory heads independently versus jointly.</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="c1"># Visualization for independent head training</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">visualize_head_training</span><span class="p">(</span><span class="n">exc_features</span><span class="p">,</span> <span class="n">inh_features</span><span class="p">,</span> <span class="n">labels</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Visualize feature space learned by independently trained heads&quot;&quot;&quot;</span>
+    <span class="n">fig</span><span class="p">,</span> <span class="n">axes</span> <span class="o">=</span> <span class="n">plt</span><span class="o">.</span><span class="n">subplots</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="mi">2</span><span class="p">,</span> <span class="n">figsize</span><span class="o">=</span><span class="p">(</span><span class="mi">14</span><span class="p">,</span> <span class="mi">6</span><span class="p">))</span>
+
+    <span class="c1"># Use t-SNE to reduce dimensionality for visualization</span>
+    <span class="kn">from</span><span class="w"> </span><span class="nn">sklearn.manifold</span><span class="w"> </span><span class="kn">import</span> <span class="n">TSNE</span>
+
+    <span class="c1"># Excitatory features</span>
+    <span class="n">tsne_exc</span> <span class="o">=</span> <span class="n">TSNE</span><span class="p">(</span><span class="n">n_components</span><span class="o">=</span><span class="mi">2</span><span class="p">)</span><span class="o">.</span><span class="n">fit_transform</span><span class="p">(</span><span class="n">exc_features</span><span class="p">)</span>
+    <span class="n">scatter_exc</span> <span class="o">=</span> <span class="n">axes</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">scatter</span><span class="p">(</span><span class="n">tsne_exc</span><span class="p">[:,</span> <span class="mi">0</span><span class="p">],</span> <span class="n">tsne_exc</span><span class="p">[:,</span> <span class="mi">1</span><span class="p">],</span> <span class="n">c</span><span class="o">=</span><span class="n">labels</span><span class="p">,</span> <span class="n">cmap</span><span class="o">=</span><span class="s1">&#39;tab10&#39;</span><span class="p">)</span>
+    <span class="n">axes</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">set_title</span><span class="p">(</span><span class="s1">&#39;Excitatory Head Feature Space&#39;</span><span class="p">)</span>
+
+    <span class="c1"># Inhibitory features</span>
+    <span class="n">tsne_inh</span> <span class="o">=</span> <span class="n">TSNE</span><span class="p">(</span><span class="n">n_components</span><span class="o">=</span><span class="mi">2</span><span class="p">)</span><span class="o">.</span><span class="n">fit_transform</span><span class="p">(</span><span class="n">inh_features</span><span class="p">)</span>
+    <span class="n">scatter_inh</span> <span class="o">=</span> <span class="n">axes</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span><span class="o">.</span><span class="n">scatter</span><span class="p">(</span><span class="n">tsne_inh</span><span class="p">[:,</span> <span class="mi">0</span><span class="p">],</span> <span class="n">tsne_inh</span><span class="p">[:,</span> <span class="mi">1</span><span class="p">],</span> <span class="n">c</span><span class="o">=</span><span class="n">labels</span><span class="p">,</span> <span class="n">cmap</span><span class="o">=</span><span class="s1">&#39;tab10&#39;</span><span class="p">)</span>
+    <span class="n">axes</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span><span class="o">.</span><span class="n">set_title</span><span class="p">(</span><span class="s1">&#39;Inhibitory Head Feature Space&#39;</span><span class="p">)</span>
+
+    <span class="c1"># Add color bar</span>
+    <span class="n">fig</span><span class="o">.</span><span class="n">colorbar</span><span class="p">(</span><span class="n">scatter_exc</span><span class="p">,</span> <span class="n">ax</span><span class="o">=</span><span class="n">axes</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">label</span><span class="o">=</span><span class="s1">&#39;Class&#39;</span><span class="p">)</span>
+    <span class="n">fig</span><span class="o">.</span><span class="n">colorbar</span><span class="p">(</span><span class="n">scatter_inh</span><span class="p">,</span> <span class="n">ax</span><span class="o">=</span><span class="n">axes</span><span class="p">[</span><span class="mi">1</span><span class="p">],</span> <span class="n">label</span><span class="o">=</span><span class="s1">&#39;Class&#39;</span><span class="p">)</span>
+
+    <span class="n">plt</span><span class="o">.</span><span class="n">tight_layout</span><span class="p">()</span>
+    <span class="k">return</span> <span class="n">fig</span>
+</pre></div>
+</div>
+</section>
+<section id="learning-strategies">
+<h3>Learning Strategies<a class="headerlink" href="#learning-strategies" title="Link to this heading"></a></h3>
+<p>Visualize and compare different learning strategies available in the framework:</p>
+<ul class="simple">
+<li><p>Maximum Likelihood Estimation (MLE)</p></li>
+<li><p>Freeze Layers</p></li>
+<li><p>Local Credit Assignment</p></li>
+<li><p>Two-Step Training</p></li>
+<li><p>Two-Step Training with KL</p></li>
+</ul>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="c1"># Visualization code for comparing learning strategies</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">compare_learning_strategies</span><span class="p">(</span><span class="n">results_dict</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Compare performance of different learning strategies&quot;&quot;&quot;</span>
+    <span class="n">strategies</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="n">results_dict</span><span class="o">.</span><span class="n">keys</span><span class="p">())</span>
+    <span class="n">accuracies</span> <span class="o">=</span> <span class="p">[</span><span class="n">results_dict</span><span class="p">[</span><span class="n">s</span><span class="p">][</span><span class="s1">&#39;test_accuracy&#39;</span><span class="p">]</span> <span class="k">for</span> <span class="n">s</span> <span class="ow">in</span> <span class="n">strategies</span><span class="p">]</span>
+
+    <span class="n">fig</span><span class="p">,</span> <span class="n">ax</span> <span class="o">=</span> <span class="n">plt</span><span class="o">.</span><span class="n">subplots</span><span class="p">(</span><span class="n">figsize</span><span class="o">=</span><span class="p">(</span><span class="mi">10</span><span class="p">,</span> <span class="mi">6</span><span class="p">))</span>
+    <span class="n">bars</span> <span class="o">=</span> <span class="n">ax</span><span class="o">.</span><span class="n">bar</span><span class="p">(</span><span class="n">strategies</span><span class="p">,</span> <span class="n">accuracies</span><span class="p">)</span>
+
+    <span class="c1"># Add value labels</span>
+    <span class="k">for</span> <span class="n">bar</span> <span class="ow">in</span> <span class="n">bars</span><span class="p">:</span>
+        <span class="n">height</span> <span class="o">=</span> <span class="n">bar</span><span class="o">.</span><span class="n">get_height</span><span class="p">()</span>
+        <span class="n">ax</span><span class="o">.</span><span class="n">text</span><span class="p">(</span><span class="n">bar</span><span class="o">.</span><span class="n">get_x</span><span class="p">()</span> <span class="o">+</span> <span class="n">bar</span><span class="o">.</span><span class="n">get_width</span><span class="p">()</span><span class="o">/</span><span class="mf">2.</span><span class="p">,</span> <span class="n">height</span> <span class="o">+</span> <span class="mf">0.01</span><span class="p">,</span>
+               <span class="sa">f</span><span class="s1">&#39;</span><span class="si">{</span><span class="n">height</span><span class="si">:</span><span class="s1">.3f</span><span class="si">}</span><span class="s1">&#39;</span><span class="p">,</span> <span class="n">ha</span><span class="o">=</span><span class="s1">&#39;center&#39;</span><span class="p">,</span> <span class="n">va</span><span class="o">=</span><span class="s1">&#39;bottom&#39;</span><span class="p">)</span>
+
+    <span class="n">ax</span><span class="o">.</span><span class="n">set_ylim</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="mf">1.0</span><span class="p">)</span>
+    <span class="n">ax</span><span class="o">.</span><span class="n">set_ylabel</span><span class="p">(</span><span class="s1">&#39;Test Accuracy&#39;</span><span class="p">)</span>
+    <span class="n">ax</span><span class="o">.</span><span class="n">set_title</span><span class="p">(</span><span class="s1">&#39;Performance Comparison of Learning Strategies&#39;</span><span class="p">)</span>
+
+    <span class="n">plt</span><span class="o">.</span><span class="n">tight_layout</span><span class="p">()</span>
+    <span class="k">return</span> <span class="n">fig</span>
+</pre></div>
+</div>
+</section>
+</section>
+<section id="computational-mechanism-visualizations">
+<h2>Computational Mechanism Visualizations<a class="headerlink" href="#computational-mechanism-visualizations" title="Link to this heading"></a></h2>
+<section id="dendritic-computation">
+<h3>Dendritic Computation<a class="headerlink" href="#dendritic-computation" title="Link to this heading"></a></h3>
+<p>Visualize the computational mechanisms within dendritic branches to understand how
+they process information differently from traditional neural networks.</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="c1"># Code to visualize dendritic computation mechanisms</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">visualize_dendritic_computation</span><span class="p">(</span><span class="n">model</span><span class="p">,</span> <span class="n">input_sample</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Visualize how dendritic branches compute their outputs&quot;&quot;&quot;</span>
+    <span class="k">with</span> <span class="n">torch</span><span class="o">.</span><span class="n">no_grad</span><span class="p">():</span>
+        <span class="c1"># Forward pass with branch outputs</span>
+        <span class="n">output</span><span class="p">,</span> <span class="n">branch_outputs</span> <span class="o">=</span> <span class="n">model</span><span class="o">.</span><span class="n">forward_with_branch_outputs</span><span class="p">(</span><span class="n">input_sample</span><span class="o">.</span><span class="n">unsqueeze</span><span class="p">(</span><span class="mi">0</span><span class="p">))</span>
+
+        <span class="c1"># Extract key components</span>
+        <span class="n">excitatory_inputs</span> <span class="o">=</span> <span class="n">model</span><span class="o">.</span><span class="n">net</span><span class="o">.</span><span class="n">layers</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">excitatory_input</span>
+        <span class="n">inhibitory_inputs</span> <span class="o">=</span> <span class="n">model</span><span class="o">.</span><span class="n">net</span><span class="o">.</span><span class="n">layers</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">inhibitory_input</span>
+        <span class="n">branch_integrations</span> <span class="o">=</span> <span class="n">model</span><span class="o">.</span><span class="n">net</span><span class="o">.</span><span class="n">layers</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">branch_voltage</span>
+
+        <span class="c1"># Visualize the computation flow</span>
+        <span class="n">fig</span><span class="p">,</span> <span class="n">axes</span> <span class="o">=</span> <span class="n">plt</span><span class="o">.</span><span class="n">subplots</span><span class="p">(</span><span class="mi">2</span><span class="p">,</span> <span class="mi">2</span><span class="p">,</span> <span class="n">figsize</span><span class="o">=</span><span class="p">(</span><span class="mi">12</span><span class="p">,</span> <span class="mi">10</span><span class="p">))</span>
+
+        <span class="c1"># Excitatory inputs</span>
+        <span class="n">im1</span> <span class="o">=</span> <span class="n">axes</span><span class="p">[</span><span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">imshow</span><span class="p">(</span><span class="n">excitatory_inputs</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">cpu</span><span class="p">()</span><span class="o">.</span><span class="n">numpy</span><span class="p">(),</span> <span class="n">cmap</span><span class="o">=</span><span class="s1">&#39;hot&#39;</span><span class="p">)</span>
+        <span class="n">axes</span><span class="p">[</span><span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">set_title</span><span class="p">(</span><span class="s1">&#39;Excitatory Inputs&#39;</span><span class="p">)</span>
+        <span class="n">fig</span><span class="o">.</span><span class="n">colorbar</span><span class="p">(</span><span class="n">im1</span><span class="p">,</span> <span class="n">ax</span><span class="o">=</span><span class="n">axes</span><span class="p">[</span><span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">])</span>
+
+        <span class="c1"># Inhibitory inputs</span>
+        <span class="n">im2</span> <span class="o">=</span> <span class="n">axes</span><span class="p">[</span><span class="mi">0</span><span class="p">,</span> <span class="mi">1</span><span class="p">]</span><span class="o">.</span><span class="n">imshow</span><span class="p">(</span><span class="n">inhibitory_inputs</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">cpu</span><span class="p">()</span><span class="o">.</span><span class="n">numpy</span><span class="p">(),</span> <span class="n">cmap</span><span class="o">=</span><span class="s1">&#39;cool&#39;</span><span class="p">)</span>
+        <span class="n">axes</span><span class="p">[</span><span class="mi">0</span><span class="p">,</span> <span class="mi">1</span><span class="p">]</span><span class="o">.</span><span class="n">set_title</span><span class="p">(</span><span class="s1">&#39;Inhibitory Inputs&#39;</span><span class="p">)</span>
+        <span class="n">fig</span><span class="o">.</span><span class="n">colorbar</span><span class="p">(</span><span class="n">im2</span><span class="p">,</span> <span class="n">ax</span><span class="o">=</span><span class="n">axes</span><span class="p">[</span><span class="mi">0</span><span class="p">,</span> <span class="mi">1</span><span class="p">])</span>
+
+        <span class="c1"># Branch voltage (pre-activation)</span>
+        <span class="n">im3</span> <span class="o">=</span> <span class="n">axes</span><span class="p">[</span><span class="mi">1</span><span class="p">,</span> <span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">imshow</span><span class="p">(</span><span class="n">branch_integrations</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">cpu</span><span class="p">()</span><span class="o">.</span><span class="n">numpy</span><span class="p">(),</span> <span class="n">cmap</span><span class="o">=</span><span class="s1">&#39;viridis&#39;</span><span class="p">)</span>
+        <span class="n">axes</span><span class="p">[</span><span class="mi">1</span><span class="p">,</span> <span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">set_title</span><span class="p">(</span><span class="s1">&#39;Branch Voltage (E/(E+I+1))&#39;</span><span class="p">)</span>
+        <span class="n">fig</span><span class="o">.</span><span class="n">colorbar</span><span class="p">(</span><span class="n">im3</span><span class="p">,</span> <span class="n">ax</span><span class="o">=</span><span class="n">axes</span><span class="p">[</span><span class="mi">1</span><span class="p">,</span> <span class="mi">0</span><span class="p">])</span>
+
+        <span class="c1"># Branch outputs (post-activation)</span>
+        <span class="n">im4</span> <span class="o">=</span> <span class="n">axes</span><span class="p">[</span><span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">]</span><span class="o">.</span><span class="n">imshow</span><span class="p">(</span><span class="n">branch_outputs</span><span class="p">[</span><span class="mi">0</span><span class="p">][</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">cpu</span><span class="p">()</span><span class="o">.</span><span class="n">numpy</span><span class="p">(),</span> <span class="n">cmap</span><span class="o">=</span><span class="s1">&#39;plasma&#39;</span><span class="p">)</span>
+        <span class="n">axes</span><span class="p">[</span><span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">]</span><span class="o">.</span><span class="n">set_title</span><span class="p">(</span><span class="s1">&#39;Branch Outputs (After Activation)&#39;</span><span class="p">)</span>
+        <span class="n">fig</span><span class="o">.</span><span class="n">colorbar</span><span class="p">(</span><span class="n">im4</span><span class="p">,</span> <span class="n">ax</span><span class="o">=</span><span class="n">axes</span><span class="p">[</span><span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">])</span>
+
+        <span class="n">plt</span><span class="o">.</span><span class="n">tight_layout</span><span class="p">()</span>
+        <span class="k">return</span> <span class="n">fig</span>
+</pre></div>
+</div>
+</section>
+<section id="network-pruning-and-ablation">
+<h3>Network Pruning and Ablation<a class="headerlink" href="#network-pruning-and-ablation" title="Link to this heading"></a></h3>
+<p>Visualize the impact of pruning or ablating specific dendritic branches to understand
+their contribution to the network’s overall performance.</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="c1"># Code to visualize ablation results</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">visualize_ablation_impact</span><span class="p">(</span><span class="n">model</span><span class="p">,</span> <span class="n">dataset</span><span class="p">,</span> <span class="n">layer_idx</span><span class="o">=</span><span class="mi">0</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Visualize impact of ablating different branches&quot;&quot;&quot;</span>
+    <span class="kn">from</span><span class="w"> </span><span class="nn">dendritic_modeling.utils</span><span class="w"> </span><span class="kn">import</span> <span class="n">analyze_branch_ablation</span>
+
+    <span class="c1"># Run ablation study</span>
+    <span class="n">baseline_acc</span><span class="p">,</span> <span class="n">results</span> <span class="o">=</span> <span class="n">analyze_branch_ablation</span><span class="p">(</span>
+        <span class="n">model</span><span class="p">,</span> <span class="n">dataset</span><span class="p">,</span> <span class="n">layer_idx</span><span class="o">=</span><span class="n">layer_idx</span><span class="p">,</span>
+        <span class="n">branch_ids</span><span class="o">=</span><span class="nb">list</span><span class="p">(</span><span class="nb">range</span><span class="p">(</span><span class="n">model</span><span class="o">.</span><span class="n">net</span><span class="o">.</span><span class="n">layers</span><span class="p">[</span><span class="n">layer_idx</span><span class="p">]</span><span class="o">.</span><span class="n">n_branches</span><span class="p">)),</span>
+        <span class="n">mode</span><span class="o">=</span><span class="s1">&#39;direct&#39;</span>
+    <span class="p">)</span>
+
+    <span class="c1"># Extract results</span>
+    <span class="n">branch_ids</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="n">results</span><span class="o">.</span><span class="n">keys</span><span class="p">())</span>
+    <span class="n">acc_drops</span> <span class="o">=</span> <span class="p">[</span><span class="n">baseline_acc</span> <span class="o">-</span> <span class="n">results</span><span class="p">[</span><span class="nb">id</span><span class="p">][</span><span class="mi">0</span><span class="p">]</span> <span class="k">for</span> <span class="nb">id</span> <span class="ow">in</span> <span class="n">branch_ids</span><span class="p">]</span>
+
+    <span class="c1"># Create visualization</span>
+    <span class="n">fig</span><span class="p">,</span> <span class="n">ax</span> <span class="o">=</span> <span class="n">plt</span><span class="o">.</span><span class="n">subplots</span><span class="p">(</span><span class="n">figsize</span><span class="o">=</span><span class="p">(</span><span class="mi">12</span><span class="p">,</span> <span class="mi">6</span><span class="p">))</span>
+    <span class="n">bars</span> <span class="o">=</span> <span class="n">ax</span><span class="o">.</span><span class="n">bar</span><span class="p">(</span><span class="n">branch_ids</span><span class="p">,</span> <span class="n">acc_drops</span><span class="p">)</span>
+
+    <span class="c1"># Highlight most important branches</span>
+    <span class="n">threshold</span> <span class="o">=</span> <span class="mf">0.05</span>  <span class="c1"># 5% accuracy drop</span>
+    <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="n">bar</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">bars</span><span class="p">):</span>
+        <span class="k">if</span> <span class="n">acc_drops</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="o">&gt;</span> <span class="n">threshold</span><span class="p">:</span>
+            <span class="n">bar</span><span class="o">.</span><span class="n">set_color</span><span class="p">(</span><span class="s1">&#39;red&#39;</span><span class="p">)</span>
+
+    <span class="n">ax</span><span class="o">.</span><span class="n">axhline</span><span class="p">(</span><span class="n">y</span><span class="o">=</span><span class="mf">0.01</span><span class="p">,</span> <span class="n">color</span><span class="o">=</span><span class="s1">&#39;grey&#39;</span><span class="p">,</span> <span class="n">linestyle</span><span class="o">=</span><span class="s1">&#39;--&#39;</span><span class="p">,</span> <span class="n">alpha</span><span class="o">=</span><span class="mf">0.7</span><span class="p">)</span>
+    <span class="n">ax</span><span class="o">.</span><span class="n">set_xlabel</span><span class="p">(</span><span class="s1">&#39;Branch ID&#39;</span><span class="p">)</span>
+    <span class="n">ax</span><span class="o">.</span><span class="n">set_ylabel</span><span class="p">(</span><span class="s1">&#39;Accuracy Drop When Ablated&#39;</span><span class="p">)</span>
+    <span class="n">ax</span><span class="o">.</span><span class="n">set_title</span><span class="p">(</span><span class="sa">f</span><span class="s1">&#39;Branch Importance in Layer </span><span class="si">{</span><span class="n">layer_idx</span><span class="si">}</span><span class="s1">&#39;</span><span class="p">)</span>
+
+    <span class="n">plt</span><span class="o">.</span><span class="n">tight_layout</span><span class="p">()</span>
+    <span class="k">return</span> <span class="n">fig</span>
+</pre></div>
+</div>
+</section>
+<section id="dendritic-order-ablation">
+<h3>Dendritic Order Ablation<a class="headerlink" href="#dendritic-order-ablation" title="Link to this heading"></a></h3>
+<p>The framework provides a built-in visualization for analyzing the impact of ablating entire dendritic orders (primary, secondary, etc.). This can be enabled in your configuration:</p>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">visualization</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">enabled</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+<span class="w">  </span><span class="nt">plots</span><span class="p">:</span>
+<span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">dendritic_ablation_all</span><span class="w">  </span><span class="c1"># Ablation analysis by dendritic order</span>
+</pre></div>
+</div>
+<p>This visualization systematically ablates the excitatory and inhibitory branches at each dendritic order and measures the resulting performance drop:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span><span class="w"> </span><span class="nn">dendritic_modeling.utils</span><span class="w"> </span><span class="kn">import</span> <span class="n">analyze_branch_ablation</span><span class="p">,</span> <span class="n">measure_performance</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">matplotlib.pyplot</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">plt</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">numpy</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">np</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">pandas</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">pd</span>
+
+<span class="k">def</span><span class="w"> </span><span class="nf">plot_dendritic_ablation_all</span><span class="p">(</span><span class="n">model</span><span class="p">,</span> <span class="n">dataset</span><span class="p">,</span> <span class="n">device</span><span class="o">=</span><span class="s1">&#39;cuda&#39;</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Plot the impact of ablating different dendritic orders&quot;&quot;&quot;</span>
+
+    <span class="c1"># Perform dendritic order ablation</span>
+    <span class="n">results</span> <span class="o">=</span> <span class="n">analyze_branch_ablation</span><span class="p">(</span>
+        <span class="n">model</span><span class="p">,</span> <span class="n">dataset</span><span class="p">,</span> <span class="n">layer_idx</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">branch_ids</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">device</span><span class="o">=</span><span class="n">device</span>
+    <span class="p">)</span>
+
+    <span class="c1"># Calculate baseline accuracy</span>
+    <span class="n">baseline_acc</span> <span class="o">=</span> <span class="n">measure_performance</span><span class="p">(</span><span class="n">model</span><span class="p">,</span> <span class="n">dataset</span><span class="p">,</span> <span class="n">device</span><span class="o">=</span><span class="n">device</span><span class="p">)</span>
+
+    <span class="c1"># Calculate percentage drops</span>
+    <span class="n">exc_pct</span> <span class="o">=</span> <span class="p">[(</span><span class="n">drop</span> <span class="o">/</span> <span class="n">baseline_acc</span><span class="p">)</span> <span class="o">*</span> <span class="mi">100</span> <span class="k">for</span> <span class="n">drop</span> <span class="ow">in</span> <span class="n">results</span><span class="p">[</span><span class="s2">&quot;exc_drop&quot;</span><span class="p">]]</span>
+    <span class="n">inh_pct</span> <span class="o">=</span> <span class="p">[(</span><span class="n">drop</span> <span class="o">/</span> <span class="n">baseline_acc</span><span class="p">)</span> <span class="o">*</span> <span class="mi">100</span> <span class="k">for</span> <span class="n">drop</span> <span class="ow">in</span> <span class="n">results</span><span class="p">[</span><span class="s2">&quot;inh_drop&quot;</span><span class="p">]]</span>
+
+    <span class="c1"># Create DataFame</span>
+    <span class="n">df</span> <span class="o">=</span> <span class="n">pd</span><span class="o">.</span><span class="n">DataFrame</span><span class="p">({</span>
+        <span class="s1">&#39;Order&#39;</span><span class="p">:</span> <span class="n">results</span><span class="p">[</span><span class="s1">&#39;order&#39;</span><span class="p">],</span>
+        <span class="s1">&#39;Excitatory Drop (%)&#39;</span><span class="p">:</span> <span class="n">exc_pct</span><span class="p">,</span>
+        <span class="s1">&#39;Inhibitory Drop (%)&#39;</span><span class="p">:</span> <span class="n">inh_pct</span>
+    <span class="p">})</span>
+
+    <span class="c1"># Create visualization</span>
+    <span class="n">plt</span><span class="o">.</span><span class="n">figure</span><span class="p">(</span><span class="n">figsize</span><span class="o">=</span><span class="p">(</span><span class="mi">10</span><span class="p">,</span> <span class="mi">6</span><span class="p">))</span>
+    <span class="n">plt</span><span class="o">.</span><span class="n">plot</span><span class="p">(</span><span class="n">df</span><span class="p">[</span><span class="s1">&#39;Order&#39;</span><span class="p">],</span> <span class="n">df</span><span class="p">[</span><span class="s1">&#39;Excitatory Drop (%)&#39;</span><span class="p">],</span> <span class="s1">&#39;b-&#39;</span><span class="p">,</span> <span class="n">label</span><span class="o">=</span><span class="s1">&#39;Excitatory&#39;</span><span class="p">)</span>
+    <span class="n">plt</span><span class="o">.</span><span class="n">plot</span><span class="p">(</span><span class="n">df</span><span class="p">[</span><span class="s1">&#39;Order&#39;</span><span class="p">],</span> <span class="n">df</span><span class="p">[</span><span class="s1">&#39;Inhibitory Drop (%)&#39;</span><span class="p">],</span> <span class="s1">&#39;r-&#39;</span><span class="p">,</span> <span class="n">label</span><span class="o">=</span><span class="s1">&#39;Inhibitory&#39;</span><span class="p">)</span>
+
+    <span class="n">plt</span><span class="o">.</span><span class="n">xlabel</span><span class="p">(</span><span class="s1">&#39;Dendritic Order&#39;</span><span class="p">)</span>
+    <span class="n">plt</span><span class="o">.</span><span class="n">ylabel</span><span class="p">(</span><span class="s1">&#39;Performance Drop (%)&#39;</span><span class="p">)</span>
+    <span class="n">plt</span><span class="o">.</span><span class="n">title</span><span class="p">(</span><span class="s1">&#39;Impact of Ablating Dendritic Orders&#39;</span><span class="p">)</span>
+    <span class="n">plt</span><span class="o">.</span><span class="n">legend</span><span class="p">()</span>
+    <span class="n">plt</span><span class="o">.</span><span class="n">grid</span><span class="p">(</span><span class="kc">True</span><span class="p">)</span>
+
+    <span class="k">return</span> <span class="n">plt</span><span class="o">.</span><span class="n">gcf</span><span class="p">(),</span> <span class="n">df</span>
+</pre></div>
+</div>
+<p>The resulting visualization reveals:
+1. The relative importance of each dendritic order
+2. Which orders are most critical for performance
+3. The differential contributions of excitatory vs. inhibitory pathways</p>
+</section>
+<section id="dendritic-information-analysis">
+<h3>Dendritic Information Analysis<a class="headerlink" href="#dendritic-information-analysis" title="Link to this heading"></a></h3>
+<p>Another powerful visualization is the dendritic information analysis, which quantifies how much task-relevant information is contained in each dendritic order:</p>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">visualization</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">enabled</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+<span class="w">  </span><span class="nt">plots</span><span class="p">:</span>
+<span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">dendritic_information_inputs</span><span class="w">    </span><span class="c1"># Information content in raw branch inputs</span>
+<span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">dendritic_information_activations</span><span class="w">  </span><span class="c1"># Information content in processed branch outputs</span>
+</pre></div>
+</div>
+<p>This visualization now comes in two types:</p>
+<ol class="arabic simple">
+<li><p><strong>dendritic_information_inputs</strong>: Analyzes information in the raw inputs to branches (pre-shunting)</p></li>
+<li><p><strong>dendritic_information_activations</strong>: Analyzes information in the processed branch outputs (post-shunting)</p></li>
+</ol>
+<p>Each visualization:
+1. Extracts branch activations at each dendritic order
+2. Trains simple MLP classifiers to predict labels from these activations
+3. Uses classification accuracy as a proxy for information content
+4. Creates visualizations showing information content across dendritic orders</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span><span class="w"> </span><span class="nn">dendritic_modeling.utils</span><span class="w"> </span><span class="kn">import</span> <span class="n">analyze_dendritic_information</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">matplotlib.pyplot</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">plt</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">numpy</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">np</span>
+
+<span class="k">def</span><span class="w"> </span><span class="nf">plot_dendritic_information_inputs</span><span class="p">(</span><span class="n">model</span><span class="p">,</span> <span class="n">dataset</span><span class="p">,</span> <span class="n">device</span><span class="o">=</span><span class="s1">&#39;cuda&#39;</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Visualize information content in raw dendritic inputs&quot;&quot;&quot;</span>
+
+    <span class="c1"># Analyze information content in branch inputs (pre-shunting)</span>
+    <span class="n">results</span> <span class="o">=</span> <span class="n">analyze_dendritic_information</span><span class="p">(</span>
+        <span class="n">model</span><span class="o">=</span><span class="n">model</span><span class="p">,</span>
+        <span class="n">dataset</span><span class="o">=</span><span class="n">dataset</span><span class="p">,</span>
+        <span class="n">device</span><span class="o">=</span><span class="n">device</span><span class="p">,</span>
+        <span class="n">mlp_hidden_dims</span><span class="o">=</span><span class="p">[</span><span class="mi">100</span><span class="p">,</span> <span class="mi">50</span><span class="p">],</span>
+        <span class="n">training_epochs</span><span class="o">=</span><span class="mi">20</span><span class="p">,</span>
+        <span class="n">batch_size</span><span class="o">=</span><span class="mi">64</span><span class="p">,</span>
+        <span class="n">use_post_shunting</span><span class="o">=</span><span class="kc">False</span>  <span class="c1"># Analyze raw inputs</span>
+    <span class="p">)</span>
+
+    <span class="c1"># Extract results</span>
+    <span class="n">depth_names</span> <span class="o">=</span> <span class="n">results</span><span class="p">[</span><span class="s2">&quot;branch_depths&quot;</span><span class="p">]</span>
+    <span class="n">exc_acc</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">([</span><span class="n">acc</span> <span class="k">if</span> <span class="n">acc</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="k">else</span> <span class="n">np</span><span class="o">.</span><span class="n">nan</span> <span class="k">for</span> <span class="n">acc</span> <span class="ow">in</span> <span class="n">results</span><span class="p">[</span><span class="s2">&quot;exc_accuracy&quot;</span><span class="p">]])</span>
+    <span class="n">inh_acc</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">([</span><span class="n">acc</span> <span class="k">if</span> <span class="n">acc</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="k">else</span> <span class="n">np</span><span class="o">.</span><span class="n">nan</span> <span class="k">for</span> <span class="n">acc</span> <span class="ow">in</span> <span class="n">results</span><span class="p">[</span><span class="s2">&quot;inh_accuracy&quot;</span><span class="p">]])</span>
+    <span class="n">combined_acc</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">([</span><span class="n">acc</span> <span class="k">if</span> <span class="n">acc</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="k">else</span> <span class="n">np</span><span class="o">.</span><span class="n">nan</span> <span class="k">for</span> <span class="n">acc</span> <span class="ow">in</span> <span class="n">results</span><span class="p">[</span><span class="s2">&quot;combined_accuracy&quot;</span><span class="p">]])</span>
+
+    <span class="c1"># Create visualization</span>
+    <span class="n">fig</span><span class="p">,</span> <span class="n">ax</span> <span class="o">=</span> <span class="n">plt</span><span class="o">.</span><span class="n">subplots</span><span class="p">(</span><span class="n">figsize</span><span class="o">=</span><span class="p">(</span><span class="mi">10</span><span class="p">,</span> <span class="mi">6</span><span class="p">))</span>
+    <span class="n">x</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">arange</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">depth_names</span><span class="p">))</span>
+    <span class="n">width</span> <span class="o">=</span> <span class="mf">0.25</span>
+
+    <span class="c1"># Plot each type of accuracy (only if data exists)</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">np</span><span class="o">.</span><span class="n">all</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">isnan</span><span class="p">(</span><span class="n">exc_acc</span><span class="p">)):</span>
+        <span class="n">ax</span><span class="o">.</span><span class="n">bar</span><span class="p">(</span><span class="n">x</span> <span class="o">-</span> <span class="n">width</span><span class="p">,</span> <span class="n">exc_acc</span><span class="p">,</span> <span class="n">width</span><span class="p">,</span> <span class="n">label</span><span class="o">=</span><span class="s1">&#39;Excitatory Inputs&#39;</span><span class="p">,</span> <span class="n">color</span><span class="o">=</span><span class="s1">&#39;blue&#39;</span><span class="p">,</span> <span class="n">alpha</span><span class="o">=</span><span class="mf">0.7</span><span class="p">)</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">np</span><span class="o">.</span><span class="n">all</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">isnan</span><span class="p">(</span><span class="n">inh_acc</span><span class="p">)):</span>
+        <span class="n">ax</span><span class="o">.</span><span class="n">bar</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="n">inh_acc</span><span class="p">,</span> <span class="n">width</span><span class="p">,</span> <span class="n">label</span><span class="o">=</span><span class="s1">&#39;Inhibitory Inputs&#39;</span><span class="p">,</span> <span class="n">color</span><span class="o">=</span><span class="s1">&#39;red&#39;</span><span class="p">,</span> <span class="n">alpha</span><span class="o">=</span><span class="mf">0.7</span><span class="p">)</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">np</span><span class="o">.</span><span class="n">all</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">isnan</span><span class="p">(</span><span class="n">combined_acc</span><span class="p">)):</span>
+        <span class="n">ax</span><span class="o">.</span><span class="n">bar</span><span class="p">(</span><span class="n">x</span> <span class="o">+</span> <span class="n">width</span><span class="p">,</span> <span class="n">combined_acc</span><span class="p">,</span> <span class="n">width</span><span class="p">,</span> <span class="n">label</span><span class="o">=</span><span class="s1">&#39;Combined Inputs&#39;</span><span class="p">,</span> <span class="n">color</span><span class="o">=</span><span class="s1">&#39;purple&#39;</span><span class="p">,</span> <span class="n">alpha</span><span class="o">=</span><span class="mf">0.7</span><span class="p">)</span>
+
+    <span class="c1"># Add labels and title</span>
+    <span class="n">ax</span><span class="o">.</span><span class="n">set_xlabel</span><span class="p">(</span><span class="s1">&#39;Branch Depth&#39;</span><span class="p">)</span>
+    <span class="n">ax</span><span class="o">.</span><span class="n">set_ylabel</span><span class="p">(</span><span class="s1">&#39;Classification Accuracy&#39;</span><span class="p">)</span>
+    <span class="n">ax</span><span class="o">.</span><span class="n">set_title</span><span class="p">(</span><span class="s1">&#39;Information Content in Branch Inputs (Pre-Shunting)&#39;</span><span class="p">)</span>
+    <span class="n">ax</span><span class="o">.</span><span class="n">set_xticks</span><span class="p">(</span><span class="n">x</span><span class="p">)</span>
+    <span class="n">ax</span><span class="o">.</span><span class="n">set_xticklabels</span><span class="p">(</span><span class="n">depth_names</span><span class="p">)</span>
+    <span class="n">ax</span><span class="o">.</span><span class="n">legend</span><span class="p">()</span>
+
+    <span class="k">return</span> <span class="n">fig</span><span class="p">,</span> <span class="n">results</span>
+
+<span class="k">def</span><span class="w"> </span><span class="nf">plot_dendritic_information_activations</span><span class="p">(</span><span class="n">model</span><span class="p">,</span> <span class="n">dataset</span><span class="p">,</span> <span class="n">device</span><span class="o">=</span><span class="s1">&#39;cuda&#39;</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Visualize information content in processed dendritic outputs&quot;&quot;&quot;</span>
+
+    <span class="c1"># Analyze information content in branch outputs (post-shunting)</span>
+    <span class="n">results</span> <span class="o">=</span> <span class="n">analyze_dendritic_information</span><span class="p">(</span>
+        <span class="n">model</span><span class="o">=</span><span class="n">model</span><span class="p">,</span>
+        <span class="n">dataset</span><span class="o">=</span><span class="n">dataset</span><span class="p">,</span>
+        <span class="n">device</span><span class="o">=</span><span class="n">device</span><span class="p">,</span>
+        <span class="n">mlp_hidden_dims</span><span class="o">=</span><span class="p">[</span><span class="mi">100</span><span class="p">,</span> <span class="mi">50</span><span class="p">],</span>
+        <span class="n">training_epochs</span><span class="o">=</span><span class="mi">20</span><span class="p">,</span>
+        <span class="n">batch_size</span><span class="o">=</span><span class="mi">64</span><span class="p">,</span>
+        <span class="n">use_post_shunting</span><span class="o">=</span><span class="kc">True</span>  <span class="c1"># Analyze processed outputs</span>
+    <span class="p">)</span>
+
+    <span class="c1"># Extract results</span>
+    <span class="n">depth_names</span> <span class="o">=</span> <span class="n">results</span><span class="p">[</span><span class="s2">&quot;branch_depths&quot;</span><span class="p">]</span>
+    <span class="n">activation_acc</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">([</span><span class="n">acc</span> <span class="k">if</span> <span class="n">acc</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="k">else</span> <span class="n">np</span><span class="o">.</span><span class="n">nan</span> <span class="k">for</span> <span class="n">acc</span> <span class="ow">in</span> <span class="n">results</span><span class="p">[</span><span class="s2">&quot;exc_accuracy&quot;</span><span class="p">]])</span>
+
+    <span class="c1"># Create visualization</span>
+    <span class="n">fig</span><span class="p">,</span> <span class="n">ax</span> <span class="o">=</span> <span class="n">plt</span><span class="o">.</span><span class="n">subplots</span><span class="p">(</span><span class="n">figsize</span><span class="o">=</span><span class="p">(</span><span class="mi">10</span><span class="p">,</span> <span class="mi">6</span><span class="p">))</span>
+    <span class="n">x</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">arange</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">depth_names</span><span class="p">))</span>
+    <span class="n">width</span> <span class="o">=</span> <span class="mf">0.4</span>
+
+    <span class="c1"># Plot activation accuracy (only if data exists)</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">np</span><span class="o">.</span><span class="n">all</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">isnan</span><span class="p">(</span><span class="n">activation_acc</span><span class="p">)):</span>
+        <span class="n">ax</span><span class="o">.</span><span class="n">bar</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="n">activation_acc</span><span class="p">,</span> <span class="n">width</span><span class="p">,</span> <span class="n">label</span><span class="o">=</span><span class="s1">&#39;Branch Activations&#39;</span><span class="p">,</span> <span class="n">color</span><span class="o">=</span><span class="s1">&#39;green&#39;</span><span class="p">,</span> <span class="n">alpha</span><span class="o">=</span><span class="mf">0.7</span><span class="p">)</span>
+
+    <span class="c1"># Add labels and title</span>
+    <span class="n">ax</span><span class="o">.</span><span class="n">set_xlabel</span><span class="p">(</span><span class="s1">&#39;Branch Depth&#39;</span><span class="p">)</span>
+    <span class="n">ax</span><span class="o">.</span><span class="n">set_ylabel</span><span class="p">(</span><span class="s1">&#39;Classification Accuracy&#39;</span><span class="p">)</span>
+    <span class="n">ax</span><span class="o">.</span><span class="n">set_title</span><span class="p">(</span><span class="s1">&#39;Information Content in Branch Outputs (Post-Shunting)&#39;</span><span class="p">)</span>
+    <span class="n">ax</span><span class="o">.</span><span class="n">set_xticks</span><span class="p">(</span><span class="n">x</span><span class="p">)</span>
+    <span class="n">ax</span><span class="o">.</span><span class="n">set_xticklabels</span><span class="p">(</span><span class="n">depth_names</span><span class="p">)</span>
+    <span class="n">ax</span><span class="o">.</span><span class="n">legend</span><span class="p">()</span>
+
+    <span class="k">return</span> <span class="n">fig</span><span class="p">,</span> <span class="n">results</span>
+</pre></div>
+</div>
+</section>
+</section>
+<section id="advanced-visualization-topics">
+<h2>Advanced Visualization Topics<a class="headerlink" href="#advanced-visualization-topics" title="Link to this heading"></a></h2>
+<section id="animated-visualizations">
+<h3>Animated Visualizations<a class="headerlink" href="#animated-visualizations" title="Link to this heading"></a></h3>
+<p>Creating animated visualizations can help understand the training dynamics over time.</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="c1"># Code for animated visualizations</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">create_weight_evolution_animation</span><span class="p">(</span><span class="n">weight_snapshots</span><span class="p">,</span> <span class="n">save_path</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Create an animation of weight evolution during training&quot;&quot;&quot;</span>
+    <span class="kn">import</span><span class="w"> </span><span class="nn">matplotlib.animation</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">animation</span>
+
+    <span class="n">fig</span><span class="p">,</span> <span class="n">ax</span> <span class="o">=</span> <span class="n">plt</span><span class="o">.</span><span class="n">subplots</span><span class="p">(</span><span class="n">figsize</span><span class="o">=</span><span class="p">(</span><span class="mi">8</span><span class="p">,</span> <span class="mi">8</span><span class="p">))</span>
+    <span class="n">ims</span> <span class="o">=</span> <span class="p">[]</span>
+
+    <span class="k">for</span> <span class="n">weights</span> <span class="ow">in</span> <span class="n">weight_snapshots</span><span class="p">:</span>
+        <span class="n">im</span> <span class="o">=</span> <span class="n">ax</span><span class="o">.</span><span class="n">imshow</span><span class="p">(</span><span class="n">weights</span><span class="p">,</span> <span class="n">animated</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">cmap</span><span class="o">=</span><span class="s1">&#39;viridis&#39;</span><span class="p">)</span>
+        <span class="n">title</span> <span class="o">=</span> <span class="n">ax</span><span class="o">.</span><span class="n">text</span><span class="p">(</span><span class="mf">0.5</span><span class="p">,</span> <span class="mf">1.05</span><span class="p">,</span> <span class="sa">f</span><span class="s2">&quot;Epoch </span><span class="si">{</span><span class="n">i</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">,</span> <span class="n">transform</span><span class="o">=</span><span class="n">ax</span><span class="o">.</span><span class="n">transAxes</span><span class="p">,</span>
+                       <span class="n">ha</span><span class="o">=</span><span class="s2">&quot;center&quot;</span><span class="p">,</span> <span class="n">fontsize</span><span class="o">=</span><span class="mi">14</span><span class="p">)</span>
+        <span class="n">ims</span><span class="o">.</span><span class="n">append</span><span class="p">([</span><span class="n">im</span><span class="p">,</span> <span class="n">title</span><span class="p">])</span>
+
+    <span class="n">ani</span> <span class="o">=</span> <span class="n">animation</span><span class="o">.</span><span class="n">ArtistAnimation</span><span class="p">(</span><span class="n">fig</span><span class="p">,</span> <span class="n">ims</span><span class="p">,</span> <span class="n">interval</span><span class="o">=</span><span class="mi">200</span><span class="p">,</span> <span class="n">blit</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+    <span class="n">ani</span><span class="o">.</span><span class="n">save</span><span class="p">(</span><span class="n">save_path</span><span class="p">,</span> <span class="n">writer</span><span class="o">=</span><span class="s1">&#39;pillow&#39;</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">ani</span>
+</pre></div>
+</div>
+</section>
+<section id="d-visualizations">
+<h3>3D Visualizations<a class="headerlink" href="#d-visualizations" title="Link to this heading"></a></h3>
+<p>Three-dimensional visualizations can reveal patterns that might not be apparent in 2D.</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="c1"># Code for 3D visualizations</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">visualize_3d_feature_space</span><span class="p">(</span><span class="n">features</span><span class="p">,</span> <span class="n">labels</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Create a 3D visualization of feature space&quot;&quot;&quot;</span>
+    <span class="kn">from</span><span class="w"> </span><span class="nn">mpl_toolkits.mplot3d</span><span class="w"> </span><span class="kn">import</span> <span class="n">Axes3D</span>
+
+    <span class="c1"># Use PCA to reduce dimension to 3</span>
+    <span class="kn">from</span><span class="w"> </span><span class="nn">sklearn.decomposition</span><span class="w"> </span><span class="kn">import</span> <span class="n">PCA</span>
+    <span class="n">pca</span> <span class="o">=</span> <span class="n">PCA</span><span class="p">(</span><span class="n">n_components</span><span class="o">=</span><span class="mi">3</span><span class="p">)</span>
+    <span class="n">features_3d</span> <span class="o">=</span> <span class="n">pca</span><span class="o">.</span><span class="n">fit_transform</span><span class="p">(</span><span class="n">features</span><span class="p">)</span>
+
+    <span class="n">fig</span> <span class="o">=</span> <span class="n">plt</span><span class="o">.</span><span class="n">figure</span><span class="p">(</span><span class="n">figsize</span><span class="o">=</span><span class="p">(</span><span class="mi">10</span><span class="p">,</span> <span class="mi">8</span><span class="p">))</span>
+    <span class="n">ax</span> <span class="o">=</span> <span class="n">fig</span><span class="o">.</span><span class="n">add_subplot</span><span class="p">(</span><span class="mi">111</span><span class="p">,</span> <span class="n">projection</span><span class="o">=</span><span class="s1">&#39;3d&#39;</span><span class="p">)</span>
+
+    <span class="c1"># Plot each class with different color</span>
+    <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">10</span><span class="p">):</span>  <span class="c1"># Assuming 10 classes</span>
+        <span class="n">mask</span> <span class="o">=</span> <span class="p">(</span><span class="n">labels</span> <span class="o">==</span> <span class="n">i</span><span class="p">)</span>
+        <span class="n">ax</span><span class="o">.</span><span class="n">scatter</span><span class="p">(</span>
+            <span class="n">features_3d</span><span class="p">[</span><span class="n">mask</span><span class="p">,</span> <span class="mi">0</span><span class="p">],</span>
+            <span class="n">features_3d</span><span class="p">[</span><span class="n">mask</span><span class="p">,</span> <span class="mi">1</span><span class="p">],</span>
+            <span class="n">features_3d</span><span class="p">[</span><span class="n">mask</span><span class="p">,</span> <span class="mi">2</span><span class="p">],</span>
+            <span class="n">label</span><span class="o">=</span><span class="sa">f</span><span class="s1">&#39;Class </span><span class="si">{</span><span class="n">i</span><span class="si">}</span><span class="s1">&#39;</span>
+        <span class="p">)</span>
+
+    <span class="n">ax</span><span class="o">.</span><span class="n">set_xlabel</span><span class="p">(</span><span class="s1">&#39;Component 1&#39;</span><span class="p">)</span>
+    <span class="n">ax</span><span class="o">.</span><span class="n">set_ylabel</span><span class="p">(</span><span class="s1">&#39;Component 2&#39;</span><span class="p">)</span>
+    <span class="n">ax</span><span class="o">.</span><span class="n">set_zlabel</span><span class="p">(</span><span class="s1">&#39;Component 3&#39;</span><span class="p">)</span>
+    <span class="n">ax</span><span class="o">.</span><span class="n">set_title</span><span class="p">(</span><span class="s1">&#39;3D Feature Space Visualization&#39;</span><span class="p">)</span>
+    <span class="n">ax</span><span class="o">.</span><span class="n">legend</span><span class="p">()</span>
+
+    <span class="n">plt</span><span class="o">.</span><span class="n">tight_layout</span><span class="p">()</span>
+    <span class="k">return</span> <span class="n">fig</span>
+</pre></div>
+</div>
+</section>
+<section id="interactive-visualizations">
+<h3>Interactive Visualizations<a class="headerlink" href="#interactive-visualizations" title="Link to this heading"></a></h3>
+<p>Interactive visualizations allow exploring the data more dynamically.</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="c1"># Code for interactive visualizations (for Jupyter notebooks)</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">create_interactive_weight_explorer</span><span class="p">(</span><span class="n">model</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Create interactive widget to explore model weights&quot;&quot;&quot;</span>
+    <span class="kn">import</span><span class="w"> </span><span class="nn">ipywidgets</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">widgets</span>
+    <span class="kn">from</span><span class="w"> </span><span class="nn">IPython.display</span><span class="w"> </span><span class="kn">import</span> <span class="n">display</span>
+
+    <span class="c1"># Create figure and axes</span>
+    <span class="n">fig</span><span class="p">,</span> <span class="n">ax</span> <span class="o">=</span> <span class="n">plt</span><span class="o">.</span><span class="n">subplots</span><span class="p">(</span><span class="n">figsize</span><span class="o">=</span><span class="p">(</span><span class="mi">8</span><span class="p">,</span> <span class="mi">8</span><span class="p">))</span>
+
+    <span class="c1"># Create layer selector</span>
+    <span class="n">layer_selector</span> <span class="o">=</span> <span class="n">widgets</span><span class="o">.</span><span class="n">Dropdown</span><span class="p">(</span>
+        <span class="n">options</span><span class="o">=</span><span class="nb">list</span><span class="p">(</span><span class="nb">range</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">model</span><span class="o">.</span><span class="n">net</span><span class="o">.</span><span class="n">layers</span><span class="p">))),</span>
+        <span class="n">description</span><span class="o">=</span><span class="s1">&#39;Layer:&#39;</span><span class="p">,</span>
+    <span class="p">)</span>
+
+    <span class="c1"># Create branch selector</span>
+    <span class="n">branch_selector</span> <span class="o">=</span> <span class="n">widgets</span><span class="o">.</span><span class="n">IntSlider</span><span class="p">(</span>
+        <span class="nb">min</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span>
+        <span class="nb">max</span><span class="o">=</span><span class="n">model</span><span class="o">.</span><span class="n">net</span><span class="o">.</span><span class="n">layers</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">n_branches</span> <span class="o">-</span> <span class="mi">1</span><span class="p">,</span>
+        <span class="n">description</span><span class="o">=</span><span class="s1">&#39;Branch:&#39;</span><span class="p">,</span>
+    <span class="p">)</span>
+
+    <span class="c1"># Update function</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">update_plot</span><span class="p">(</span><span class="n">layer</span><span class="p">,</span> <span class="n">branch</span><span class="p">):</span>
+        <span class="n">ax</span><span class="o">.</span><span class="n">clear</span><span class="p">()</span>
+        <span class="n">weights</span> <span class="o">=</span> <span class="n">model</span><span class="o">.</span><span class="n">net</span><span class="o">.</span><span class="n">layers</span><span class="p">[</span><span class="n">layer</span><span class="p">]</span><span class="o">.</span><span class="n">branch_excitation</span><span class="o">.</span><span class="n">pruned_weight</span><span class="p">()[</span><span class="n">branch</span><span class="p">]</span><span class="o">.</span><span class="n">detach</span><span class="p">()</span><span class="o">.</span><span class="n">cpu</span><span class="p">()</span>
+        <span class="n">im</span> <span class="o">=</span> <span class="n">ax</span><span class="o">.</span><span class="n">imshow</span><span class="p">(</span><span class="n">weights</span><span class="o">.</span><span class="n">reshape</span><span class="p">(</span><span class="mi">28</span><span class="p">,</span> <span class="mi">28</span><span class="p">),</span> <span class="n">cmap</span><span class="o">=</span><span class="s1">&#39;viridis&#39;</span><span class="p">)</span>
+        <span class="n">ax</span><span class="o">.</span><span class="n">set_title</span><span class="p">(</span><span class="sa">f</span><span class="s1">&#39;Layer </span><span class="si">{</span><span class="n">layer</span><span class="si">}</span><span class="s1">, Branch </span><span class="si">{</span><span class="n">branch</span><span class="si">}</span><span class="s1"> Weights&#39;</span><span class="p">)</span>
+        <span class="n">fig</span><span class="o">.</span><span class="n">canvas</span><span class="o">.</span><span class="n">draw_idle</span><span class="p">()</span>
+
+    <span class="c1"># Connect the widgets to the update function</span>
+    <span class="n">widgets</span><span class="o">.</span><span class="n">interactive</span><span class="p">(</span><span class="n">update_plot</span><span class="p">,</span> <span class="n">layer</span><span class="o">=</span><span class="n">layer_selector</span><span class="p">,</span> <span class="n">branch</span><span class="o">=</span><span class="n">branch_selector</span><span class="p">)</span>
+
+    <span class="k">return</span> <span class="n">fig</span><span class="p">,</span> <span class="n">layer_selector</span><span class="p">,</span> <span class="n">branch_selector</span>
+</pre></div>
+</div>
+</section>
+</section>
+<section id="best-practices-for-visualizations">
+<h2>Best Practices for Visualizations<a class="headerlink" href="#best-practices-for-visualizations" title="Link to this heading"></a></h2>
+<p>When creating visualizations for your dendritic network experiments, consider these best practices:</p>
+<ol class="arabic simple">
+<li><p><strong>Consistent color schemes</strong>: Use consistent colormaps across related visualizations
+- Excitatory pathways: Use warm colors (‘hot’, ‘plasma’, ‘YlOrRd’)
+- Inhibitory pathways: Use cool colors (‘cool’, ‘viridis’, ‘PuBu’)</p></li>
+<li><p><strong>Include proper labeling</strong>: Always include clear axes labels, titles, and legends</p></li>
+<li><p><strong>Comparison visualizations</strong>: When comparing models or approaches, use the same scale and metrics</p></li>
+<li><p><strong>Save high-resolution figures</strong>: For publications, save figures at 300+ DPI
+<code class="docutils literal notranslate"><span class="pre">`python</span>
+<span class="pre">plt.savefig('figure.png',</span> <span class="pre">dpi=300,</span> <span class="pre">bbox_inches='tight')</span>
+<span class="pre">`</span></code></p></li>
+<li><p><strong>Create explanatory diagrams</strong>: Combine visualizations with explanatory text and arrows</p></li>
+</ol>
+</section>
+<section id="visualization-resources">
+<h2>Visualization Resources<a class="headerlink" href="#visualization-resources" title="Link to this heading"></a></h2>
+<p>Here are some useful resources for creating effective visualizations:</p>
+<ul class="simple">
+<li><p><strong>Matplotlib documentation</strong>: <a class="reference external" href="https://matplotlib.org/stable/index.html">https://matplotlib.org/stable/index.html</a></p></li>
+<li><p><strong>Seaborn for statistical visualizations</strong>: <a class="reference external" href="https://seaborn.pydata.org/">https://seaborn.pydata.org/</a></p></li>
+<li><p><strong>ColorMaps in Matplotlib</strong>: <a class="reference external" href="https://matplotlib.org/stable/tutorials/colors/colormaps.html">https://matplotlib.org/stable/tutorials/colors/colormaps.html</a></p></li>
+<li><p><strong>NetworkX for graph visualizations</strong>: <a class="reference external" href="https://networkx.org/">https://networkx.org/</a></p></li>
+<li><p><strong>Plotly for interactive visualizations</strong>: <a class="reference external" href="https://plotly.com/python/">https://plotly.com/python/</a></p></li>
+</ul>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">import</span><span class="w"> </span><span class="nn">matplotlib.pyplot</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">plt</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">numpy</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">np</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">matplotlib.patches</span><span class="w"> </span><span class="kn">import</span> <span class="n">Rectangle</span><span class="p">,</span> <span class="n">FancyArrowPatch</span>
+
+<span class="k">def</span><span class="w"> </span><span class="nf">create_input_network_diagram</span><span class="p">(</span><span class="n">save_path</span><span class="o">=</span><span class="s1">&#39;input_network_architecture.png&#39;</span><span class="p">):</span>
+    <span class="n">plt</span><span class="o">.</span><span class="n">figure</span><span class="p">(</span><span class="n">figsize</span><span class="o">=</span><span class="p">(</span><span class="mi">10</span><span class="p">,</span> <span class="mi">6</span><span class="p">))</span>
+    <span class="n">plt</span><span class="o">.</span><span class="n">rcParams</span><span class="o">.</span><span class="n">update</span><span class="p">({</span><span class="s1">&#39;font.size&#39;</span><span class="p">:</span> <span class="mi">12</span><span class="p">})</span>
+
+    <span class="c1"># Set up the figure</span>
+    <span class="n">fig</span><span class="p">,</span> <span class="n">ax</span> <span class="o">=</span> <span class="n">plt</span><span class="o">.</span><span class="n">subplots</span><span class="p">(</span><span class="n">figsize</span><span class="o">=</span><span class="p">(</span><span class="mi">12</span><span class="p">,</span> <span class="mi">7</span><span class="p">))</span>
+
+    <span class="c1"># Colors</span>
+    <span class="n">input_color</span> <span class="o">=</span> <span class="s1">&#39;#D3D3D3&#39;</span>  <span class="c1"># light gray</span>
+    <span class="n">hidden_color</span> <span class="o">=</span> <span class="s1">&#39;#AED6F1&#39;</span>  <span class="c1"># light blue</span>
+    <span class="n">excit_color</span> <span class="o">=</span> <span class="s1">&#39;#F5B7B1&#39;</span>   <span class="c1"># light red</span>
+    <span class="n">inhib_color</span> <span class="o">=</span> <span class="s1">&#39;#ABEBC6&#39;</span>   <span class="c1"># light green</span>
+    <span class="n">dendritic_color</span> <span class="o">=</span> <span class="s1">&#39;#FAD7A0&#39;</span>  <span class="c1"># light orange</span>
+
+    <span class="c1"># Layer dimensions</span>
+    <span class="n">layer_width</span> <span class="o">=</span> <span class="mf">1.0</span>
+    <span class="n">layer_height</span> <span class="o">=</span> <span class="mf">0.8</span>
+    <span class="n">layer_spacing</span> <span class="o">=</span> <span class="mf">2.0</span>
+
+    <span class="c1"># Draw input layer</span>
+    <span class="n">ax</span><span class="o">.</span><span class="n">add_patch</span><span class="p">(</span><span class="n">Rectangle</span><span class="p">((</span><span class="mi">0</span><span class="p">,</span> <span class="mi">1</span><span class="p">),</span> <span class="n">layer_width</span><span class="p">,</span> <span class="n">layer_height</span><span class="p">,</span>
+                        <span class="n">fc</span><span class="o">=</span><span class="n">input_color</span><span class="p">,</span> <span class="n">ec</span><span class="o">=</span><span class="s1">&#39;black&#39;</span><span class="p">,</span> <span class="n">lw</span><span class="o">=</span><span class="mi">2</span><span class="p">))</span>
+    <span class="n">ax</span><span class="o">.</span><span class="n">text</span><span class="p">(</span><span class="mf">0.5</span><span class="p">,</span> <span class="mf">1.4</span><span class="p">,</span> <span class="s1">&#39;Input&#39;</span><span class="p">,</span> <span class="n">ha</span><span class="o">=</span><span class="s1">&#39;center&#39;</span><span class="p">,</span> <span class="n">va</span><span class="o">=</span><span class="s1">&#39;center&#39;</span><span class="p">,</span> <span class="n">fontweight</span><span class="o">=</span><span class="s1">&#39;bold&#39;</span><span class="p">)</span>
+
+    <span class="c1"># Draw hidden layers</span>
+    <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="p">(</span><span class="n">size</span><span class="p">,</span> <span class="n">name</span><span class="p">)</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="nb">zip</span><span class="p">([</span><span class="mi">256</span><span class="p">,</span> <span class="mi">128</span><span class="p">],</span> <span class="p">[</span><span class="s1">&#39;Hidden Layer 1&#39;</span><span class="p">,</span> <span class="s1">&#39;Hidden Layer 2&#39;</span><span class="p">])):</span>
+        <span class="n">x_pos</span> <span class="o">=</span> <span class="p">(</span><span class="n">i</span><span class="o">+</span><span class="mi">1</span><span class="p">)</span> <span class="o">*</span> <span class="n">layer_spacing</span>
+        <span class="n">height</span> <span class="o">=</span> <span class="n">layer_height</span> <span class="o">*</span> <span class="p">(</span><span class="n">size</span><span class="o">/</span><span class="mi">256</span><span class="p">)</span>
+        <span class="n">y_pos</span> <span class="o">=</span> <span class="mi">1</span> <span class="o">+</span> <span class="p">(</span><span class="n">layer_height</span> <span class="o">-</span> <span class="n">height</span><span class="p">)</span><span class="o">/</span><span class="mi">2</span>
+
+        <span class="n">ax</span><span class="o">.</span><span class="n">add_patch</span><span class="p">(</span><span class="n">Rectangle</span><span class="p">((</span><span class="n">x_pos</span><span class="p">,</span> <span class="n">y_pos</span><span class="p">),</span> <span class="n">layer_width</span><span class="p">,</span> <span class="n">height</span><span class="p">,</span>
+                            <span class="n">fc</span><span class="o">=</span><span class="n">hidden_color</span><span class="p">,</span> <span class="n">ec</span><span class="o">=</span><span class="s1">&#39;black&#39;</span><span class="p">,</span> <span class="n">lw</span><span class="o">=</span><span class="mi">2</span><span class="p">))</span>
+        <span class="n">ax</span><span class="o">.</span><span class="n">text</span><span class="p">(</span><span class="n">x_pos</span> <span class="o">+</span> <span class="mf">0.5</span><span class="p">,</span> <span class="mf">0.7</span><span class="p">,</span> <span class="n">name</span><span class="p">,</span> <span class="n">ha</span><span class="o">=</span><span class="s1">&#39;center&#39;</span><span class="p">,</span> <span class="n">va</span><span class="o">=</span><span class="s1">&#39;center&#39;</span><span class="p">)</span>
+
+        <span class="c1"># Connect to previous layer</span>
+        <span class="n">ax</span><span class="o">.</span><span class="n">add_patch</span><span class="p">(</span><span class="n">FancyArrowPatch</span><span class="p">((</span><span class="n">i</span><span class="o">*</span><span class="n">layer_spacing</span> <span class="o">+</span> <span class="n">layer_width</span><span class="p">,</span> <span class="mf">1.4</span><span class="p">),</span>
+                                <span class="p">(</span><span class="n">x_pos</span><span class="p">,</span> <span class="mf">1.4</span><span class="p">),</span>
+                                <span class="n">arrowstyle</span><span class="o">=</span><span class="s1">&#39;-&gt;&#39;</span><span class="p">,</span> <span class="n">lw</span><span class="o">=</span><span class="mi">2</span><span class="p">,</span>
+                                <span class="n">connectionstyle</span><span class="o">=</span><span class="s1">&#39;arc3,rad=0.0&#39;</span><span class="p">))</span>
+
+    <span class="c1"># Draw output heads</span>
+    <span class="n">head_x</span> <span class="o">=</span> <span class="mi">3</span> <span class="o">*</span> <span class="n">layer_spacing</span>
+
+    <span class="c1"># Excitatory head</span>
+    <span class="n">ax</span><span class="o">.</span><span class="n">add_patch</span><span class="p">(</span><span class="n">Rectangle</span><span class="p">((</span><span class="n">head_x</span><span class="p">,</span> <span class="mf">2.2</span><span class="p">),</span> <span class="n">layer_width</span><span class="p">,</span> <span class="n">layer_height</span><span class="p">,</span>
+                        <span class="n">fc</span><span class="o">=</span><span class="n">excit_color</span><span class="p">,</span> <span class="n">ec</span><span class="o">=</span><span class="s1">&#39;black&#39;</span><span class="p">,</span> <span class="n">lw</span><span class="o">=</span><span class="mi">2</span><span class="p">))</span>
+    <span class="n">ax</span><span class="o">.</span><span class="n">text</span><span class="p">(</span><span class="n">head_x</span> <span class="o">+</span> <span class="mf">0.5</span><span class="p">,</span> <span class="mf">2.6</span><span class="p">,</span> <span class="s1">&#39;Excitatory Head&#39;</span><span class="p">,</span> <span class="n">ha</span><span class="o">=</span><span class="s1">&#39;center&#39;</span><span class="p">,</span> <span class="n">va</span><span class="o">=</span><span class="s1">&#39;center&#39;</span><span class="p">,</span> <span class="n">fontweight</span><span class="o">=</span><span class="s1">&#39;bold&#39;</span><span class="p">)</span>
+
+    <span class="c1"># Inhibitory head</span>
+    <span class="n">ax</span><span class="o">.</span><span class="n">add_patch</span><span class="p">(</span><span class="n">Rectangle</span><span class="p">((</span><span class="n">head_x</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">),</span> <span class="n">layer_width</span><span class="p">,</span> <span class="n">layer_height</span><span class="p">,</span>
+                        <span class="n">fc</span><span class="o">=</span><span class="n">inhib_color</span><span class="p">,</span> <span class="n">ec</span><span class="o">=</span><span class="s1">&#39;black&#39;</span><span class="p">,</span> <span class="n">lw</span><span class="o">=</span><span class="mi">2</span><span class="p">))</span>
+    <span class="n">ax</span><span class="o">.</span><span class="n">text</span><span class="p">(</span><span class="n">head_x</span> <span class="o">+</span> <span class="mf">0.5</span><span class="p">,</span> <span class="mf">0.4</span><span class="p">,</span> <span class="s1">&#39;Inhibitory Head&#39;</span><span class="p">,</span> <span class="n">ha</span><span class="o">=</span><span class="s1">&#39;center&#39;</span><span class="p">,</span> <span class="n">va</span><span class="o">=</span><span class="s1">&#39;center&#39;</span><span class="p">,</span> <span class="n">fontweight</span><span class="o">=</span><span class="s1">&#39;bold&#39;</span><span class="p">)</span>
+
+    <span class="c1"># Connect feature extraction to heads</span>
+    <span class="n">ax</span><span class="o">.</span><span class="n">add_patch</span><span class="p">(</span><span class="n">FancyArrowPatch</span><span class="p">((</span><span class="mi">2</span><span class="o">*</span><span class="n">layer_spacing</span> <span class="o">+</span> <span class="n">layer_width</span><span class="p">,</span> <span class="mf">1.4</span><span class="p">),</span>
+                            <span class="p">(</span><span class="n">head_x</span><span class="p">,</span> <span class="mf">2.6</span><span class="p">),</span>
+                            <span class="n">arrowstyle</span><span class="o">=</span><span class="s1">&#39;-&gt;&#39;</span><span class="p">,</span> <span class="n">lw</span><span class="o">=</span><span class="mi">2</span><span class="p">,</span> <span class="n">color</span><span class="o">=</span><span class="s1">&#39;#E74C3C&#39;</span><span class="p">,</span>
+                            <span class="n">connectionstyle</span><span class="o">=</span><span class="s1">&#39;arc3,rad=0.2&#39;</span><span class="p">))</span>
+
+    <span class="n">ax</span><span class="o">.</span><span class="n">add_patch</span><span class="p">(</span><span class="n">FancyArrowPatch</span><span class="p">((</span><span class="mi">2</span><span class="o">*</span><span class="n">layer_spacing</span> <span class="o">+</span> <span class="n">layer_width</span><span class="p">,</span> <span class="mf">1.4</span><span class="p">),</span>
+                            <span class="p">(</span><span class="n">head_x</span><span class="p">,</span> <span class="mf">0.4</span><span class="p">),</span>
+                            <span class="n">arrowstyle</span><span class="o">=</span><span class="s1">&#39;-&gt;&#39;</span><span class="p">,</span> <span class="n">lw</span><span class="o">=</span><span class="mi">2</span><span class="p">,</span> <span class="n">color</span><span class="o">=</span><span class="s1">&#39;#229954&#39;</span><span class="p">,</span>
+                            <span class="n">connectionstyle</span><span class="o">=</span><span class="s1">&#39;arc3,rad=-0.2&#39;</span><span class="p">))</span>
+
+    <span class="c1"># Dendritic network</span>
+    <span class="n">ax</span><span class="o">.</span><span class="n">add_patch</span><span class="p">(</span><span class="n">Rectangle</span><span class="p">((</span><span class="n">head_x</span> <span class="o">+</span> <span class="mi">2</span><span class="o">*</span><span class="n">layer_spacing</span><span class="p">,</span> <span class="mi">1</span><span class="p">),</span> <span class="n">layer_width</span><span class="o">*</span><span class="mf">1.5</span><span class="p">,</span> <span class="n">layer_height</span><span class="p">,</span>
+                        <span class="n">fc</span><span class="o">=</span><span class="n">dendritic_color</span><span class="p">,</span> <span class="n">ec</span><span class="o">=</span><span class="s1">&#39;black&#39;</span><span class="p">,</span> <span class="n">lw</span><span class="o">=</span><span class="mi">2</span><span class="p">))</span>
+    <span class="n">ax</span><span class="o">.</span><span class="n">text</span><span class="p">(</span><span class="n">head_x</span> <span class="o">+</span> <span class="mi">2</span><span class="o">*</span><span class="n">layer_spacing</span> <span class="o">+</span> <span class="mf">0.75</span><span class="p">,</span> <span class="mf">1.4</span><span class="p">,</span> <span class="s1">&#39;Dendritic Network&#39;</span><span class="p">,</span>
+        <span class="n">ha</span><span class="o">=</span><span class="s1">&#39;center&#39;</span><span class="p">,</span> <span class="n">va</span><span class="o">=</span><span class="s1">&#39;center&#39;</span><span class="p">,</span> <span class="n">fontweight</span><span class="o">=</span><span class="s1">&#39;bold&#39;</span><span class="p">)</span>
+
+    <span class="c1"># Connect heads to dendritic network</span>
+    <span class="n">ax</span><span class="o">.</span><span class="n">add_patch</span><span class="p">(</span><span class="n">FancyArrowPatch</span><span class="p">((</span><span class="n">head_x</span> <span class="o">+</span> <span class="n">layer_width</span><span class="p">,</span> <span class="mf">2.6</span><span class="p">),</span>
+                            <span class="p">(</span><span class="n">head_x</span> <span class="o">+</span> <span class="mi">2</span><span class="o">*</span><span class="n">layer_spacing</span><span class="p">,</span> <span class="mf">1.4</span><span class="p">),</span>
+                            <span class="n">arrowstyle</span><span class="o">=</span><span class="s1">&#39;-&gt;&#39;</span><span class="p">,</span> <span class="n">lw</span><span class="o">=</span><span class="mi">2</span><span class="p">,</span> <span class="n">color</span><span class="o">=</span><span class="s1">&#39;#E74C3C&#39;</span><span class="p">,</span>
+                            <span class="n">connectionstyle</span><span class="o">=</span><span class="s1">&#39;arc3,rad=-0.2&#39;</span><span class="p">))</span>
+
+    <span class="n">ax</span><span class="o">.</span><span class="n">add_patch</span><span class="p">(</span><span class="n">FancyArrowPatch</span><span class="p">((</span><span class="n">head_x</span> <span class="o">+</span> <span class="n">layer_width</span><span class="p">,</span> <span class="mf">0.4</span><span class="p">),</span>
+                            <span class="p">(</span><span class="n">head_x</span> <span class="o">+</span> <span class="mi">2</span><span class="o">*</span><span class="n">layer_spacing</span><span class="p">,</span> <span class="mf">1.4</span><span class="p">),</span>
+                            <span class="n">arrowstyle</span><span class="o">=</span><span class="s1">&#39;-&gt;&#39;</span><span class="p">,</span> <span class="n">lw</span><span class="o">=</span><span class="mi">2</span><span class="p">,</span> <span class="n">color</span><span class="o">=</span><span class="s1">&#39;#229954&#39;</span><span class="p">,</span>
+                            <span class="n">connectionstyle</span><span class="o">=</span><span class="s1">&#39;arc3,rad=0.2&#39;</span><span class="p">))</span>
+
+    <span class="c1"># Labels for excitatory and inhibitory paths</span>
+    <span class="n">ax</span><span class="o">.</span><span class="n">text</span><span class="p">(</span><span class="n">head_x</span> <span class="o">+</span> <span class="n">layer_spacing</span><span class="p">,</span> <span class="mf">2.2</span><span class="p">,</span> <span class="s1">&#39;Excitatory Path&#39;</span><span class="p">,</span>
+        <span class="n">ha</span><span class="o">=</span><span class="s1">&#39;center&#39;</span><span class="p">,</span> <span class="n">va</span><span class="o">=</span><span class="s1">&#39;center&#39;</span><span class="p">,</span> <span class="n">color</span><span class="o">=</span><span class="s1">&#39;#E74C3C&#39;</span><span class="p">,</span> <span class="n">fontweight</span><span class="o">=</span><span class="s1">&#39;bold&#39;</span><span class="p">)</span>
+    <span class="n">ax</span><span class="o">.</span><span class="n">text</span><span class="p">(</span><span class="n">head_x</span> <span class="o">+</span> <span class="n">layer_spacing</span><span class="p">,</span> <span class="mf">0.7</span><span class="p">,</span> <span class="s1">&#39;Inhibitory Path&#39;</span><span class="p">,</span>
+        <span class="n">ha</span><span class="o">=</span><span class="s1">&#39;center&#39;</span><span class="p">,</span> <span class="n">va</span><span class="o">=</span><span class="s1">&#39;center&#39;</span><span class="p">,</span> <span class="n">color</span><span class="o">=</span><span class="s1">&#39;#229954&#39;</span><span class="p">,</span> <span class="n">fontweight</span><span class="o">=</span><span class="s1">&#39;bold&#39;</span><span class="p">)</span>
+
+    <span class="c1"># Feature extraction label</span>
+    <span class="n">ax</span><span class="o">.</span><span class="n">text</span><span class="p">(</span><span class="n">layer_spacing</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">,</span> <span class="s1">&#39;Feature Extraction&#39;</span><span class="p">,</span> <span class="n">ha</span><span class="o">=</span><span class="s1">&#39;center&#39;</span><span class="p">,</span> <span class="n">va</span><span class="o">=</span><span class="s1">&#39;center&#39;</span><span class="p">,</span> <span class="n">fontweight</span><span class="o">=</span><span class="s1">&#39;bold&#39;</span><span class="p">)</span>
+
+    <span class="c1"># Set axis properties</span>
+    <span class="n">ax</span><span class="o">.</span><span class="n">set_xlim</span><span class="p">(</span><span class="o">-</span><span class="mf">0.5</span><span class="p">,</span> <span class="n">head_x</span> <span class="o">+</span> <span class="mi">3</span><span class="o">*</span><span class="n">layer_spacing</span><span class="p">)</span>
+    <span class="n">ax</span><span class="o">.</span><span class="n">set_ylim</span><span class="p">(</span><span class="o">-</span><span class="mf">0.5</span><span class="p">,</span> <span class="mf">3.5</span><span class="p">)</span>
+    <span class="n">ax</span><span class="o">.</span><span class="n">axis</span><span class="p">(</span><span class="s1">&#39;off&#39;</span><span class="p">)</span>
+
+    <span class="n">plt</span><span class="o">.</span><span class="n">title</span><span class="p">(</span><span class="s1">&#39;Input Transformation Network Architecture&#39;</span><span class="p">,</span> <span class="n">fontsize</span><span class="o">=</span><span class="mi">16</span><span class="p">,</span> <span class="n">pad</span><span class="o">=</span><span class="mi">20</span><span class="p">)</span>
+    <span class="n">plt</span><span class="o">.</span><span class="n">tight_layout</span><span class="p">()</span>
+    <span class="n">plt</span><span class="o">.</span><span class="n">savefig</span><span class="p">(</span><span class="n">save_path</span><span class="p">,</span> <span class="n">dpi</span><span class="o">=</span><span class="mi">300</span><span class="p">,</span> <span class="n">bbox_inches</span><span class="o">=</span><span class="s1">&#39;tight&#39;</span><span class="p">)</span>
+    <span class="n">plt</span><span class="o">.</span><span class="n">close</span><span class="p">()</span>
+
+    <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Input network architecture diagram saved to </span><span class="si">{</span><span class="n">save_path</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+
+<span class="n">create_input_network_diagram</span><span class="p">()</span>
+</pre></div>
+</div>
+</section>
+</section>
+
+
+           </div>
+          </div>
+          <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
+        <a href="index.html" class="btn btn-neutral float-left" title="Visualization Guide" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
+        <a href="evaluation_visualization.html" class="btn btn-neutral float-right" title="Evaluation and Visualization" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright 2025, Research and Engineering at Kempner.</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>
