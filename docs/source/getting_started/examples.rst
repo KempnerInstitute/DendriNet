@@ -26,14 +26,19 @@ A simple example of training a dendritic network on MNIST:
     # Create model
     model = ExcitationInhibitionNetwork(
         input_dim=784,
-        excitatory_layer_sizes=[10],
-        inhibitory_layer_sizes=[20],
-        excitatory_branch_factors=[2, 2],
-        inhibitory_branch_factors=[],
-        ee_synapses_per_branch_per_layer=[24],
-        ei_synapses_per_branch_per_layer=[100],
-        ie_synapses_per_branch_per_layer=[2],
-        ii_synapses_per_branch_per_layer=[]
+        excitatory_layer_sizes=[512, 256],
+        inhibitory_layer_sizes=[200, 100],
+        excitatory_branch_factors=[64, 32],
+        inhibitory_branch_factors=[32, 16],
+        reactivate=True,
+        somatic_synapses=True,
+        topk_init_method="xavier_normal",
+        reactivation_type="param_tanh",
+        reactivation_strategy="inverse",
+        blocklinear_strategy="block_conductance_dynamic",
+        enable_branch_outputs=True,
+        output_layer=False,
+        output_dim=10
     )
     
     # Create classifier
@@ -81,14 +86,19 @@ Training a dendritic network on a synthetic dataset designed to test specific co
     # Create a model with suitable architecture for XOR tasks
     model = ExcitationInhibitionNetwork(
         input_dim=8,  # 8 input bits
-        excitatory_layer_sizes=[2],  # 2 output classes (0 or 1)
-        inhibitory_layer_sizes=[4],
-        excitatory_branch_factors=[2, 2],  # 4 branches per cell
-        inhibitory_branch_factors=[],
-        ee_synapses_per_branch_per_layer=[4],  # Each branch connects to 4 inputs
-        ei_synapses_per_branch_per_layer=[6],
-        ie_synapses_per_branch_per_layer=[2],
-        ii_synapses_per_branch_per_layer=[]
+        excitatory_layer_sizes=[16, 8],
+        inhibitory_layer_sizes=[12, 6],
+        excitatory_branch_factors=[4, 2],
+        inhibitory_branch_factors=[3, 2],
+        reactivate=True,
+        somatic_synapses=True,
+        topk_init_method="xavier_normal",
+        reactivation_type="param_tanh",
+        reactivation_strategy="inverse",
+        blocklinear_strategy="block_conductance_dynamic",
+        enable_branch_outputs=True,
+        output_layer=False,
+        output_dim=2  # 2 output classes (0 or 1)
     )
     
     # Continue with training as in the MNIST example...
@@ -132,20 +142,25 @@ Using an input transformation network for better feature extraction:
     # Create an EINet with input transformation
     model = ExcitationInhibitionNetwork(
         input_dim=784,
-        excitatory_layer_sizes=[10],
-        inhibitory_layer_sizes=[20],
-        excitatory_branch_factors=[2, 2],
-        inhibitory_branch_factors=[],
-        ee_synapses_per_branch_per_layer=[24],
-        ei_synapses_per_branch_per_layer=[100],
-        ie_synapses_per_branch_per_layer=[2],
-        ii_synapses_per_branch_per_layer=[],
+        excitatory_layer_sizes=[512, 256],
+        inhibitory_layer_sizes=[200, 100],
+        excitatory_branch_factors=[64, 32],
+        inhibitory_branch_factors=[32, 16],
+        reactivate=True,
+        somatic_synapses=True,
+        topk_init_method="xavier_normal",
+        reactivation_type="param_tanh",
+        reactivation_strategy="inverse",
+        blocklinear_strategy="block_conductance_dynamic",
         input_mode=2,  # Use input transformation network
         input_net_dict={
             "type": "MLPInputTransform",
             "hidden_dims": [512, 256],
             "output_dim": 128
-        }
+        },
+        enable_branch_outputs=True,
+        output_layer=False,
+        output_dim=10
     )
     
     # Train the model with appropriate learning strategy
@@ -167,27 +182,32 @@ Analyzing information content in dendritic branches:
 
 .. code-block:: python
 
-    from dendritic_modeling.utils import analyze_branch_information
+    from dendritic_modeling.utils import compute_branch_info, record_branch_activations
     
     # Create and train a model (as in previous examples)
     model = ExcitationInhibitionNetwork(...)
     # ... train the model ...
     
-    # Analyze branch information
-    branch_info = analyze_branch_information(
+    # Record branch activations
+    activations, labels = record_branch_activations(
         model=model,
         dataset=test_ds,
-        batch_size=64,
-        device='cuda' if torch.cuda.is_available() else 'cpu',
-        n_bins=10  # Number of bins for mutual information calculation
+        device='cuda' if torch.cuda.is_available() else 'cpu'
+    )
+    
+    # Compute branch information
+    branch_info = compute_branch_info(
+        activations=activations,
+        labels=labels,
+        n_bins=10  # Number of bins for information calculation
     )
     
     # Plot branch information
     import matplotlib.pyplot as plt
     
     plt.figure(figsize=(10, 6))
-    plt.bar(range(len(branch_info)), branch_info)
-    plt.xlabel('Branch Layer')
+    plt.bar(range(len(branch_info['mi'])), branch_info['mi'])
+    plt.xlabel('Branch Index')
     plt.ylabel('Mutual Information with Label')
     plt.title('Information Content in Dendritic Branches')
     plt.show()
@@ -206,18 +226,28 @@ Performing ablation studies to understand branch importance:
     # ... train the model ...
     
     # Analyze branch ablation
-    baseline_acc, results = analyze_branch_ablation(
+    results = analyze_branch_ablation(
         model=model,
         dataset=test_ds,
-        layer_idx=0,  # First branch layer
-        branch_ids=[0, 1, 2, 3],  # Analyze each branch separately
-        mode='direct',  # Ablation mode: 'direct' or 'indirect'
+        ablation_mode='direct',  # Ablation mode: 'direct' or 'indirect'
         device='cuda' if torch.cuda.is_available() else 'cpu'
     )
     
+    # Extract results
+    baseline_acc = results['baseline_acc']
+    branch_importances = results['branch_importances']
+    
     print(f"Baseline accuracy: {baseline_acc:.4f}")
-    for branch_id, (acc, delta) in results.items():
-        print(f"Branch {branch_id}: Accuracy drop = {delta:.4f}")
+    
+    # Visualize branch importances
+    import matplotlib.pyplot as plt
+    plt.figure(figsize=(10, 6))
+    plt.imshow(branch_importances, cmap='RdBu_r', aspect='auto')
+    plt.colorbar(label='Accuracy Drop')
+    plt.xlabel('Branch Index')
+    plt.ylabel('Layer Index')
+    plt.title('Branch Importance (Accuracy Drop)')
+    plt.show()
 
 Running Experiments with train_experiments.py
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -235,7 +265,6 @@ The framework provides a flexible experiment runner through train_experiments.py
     # config_exp.yaml
     model:
       task: "classification"
-      probabilistic: true
       network:
         type: "EINet"
         parameters:
@@ -244,14 +273,9 @@ The framework provides a flexible experiment runner through train_experiments.py
           inhibitory_layer_sizes: [200, 100]
           excitatory_branch_factors: [64, 32]
           inhibitory_branch_factors: [32, 16]
-          ee_synapses_per_branch_per_layer: [24, 24]
-          ei_synapses_per_branch_per_layer: [100, 100]
-          ie_synapses_per_branch_per_layer: [2, 2]
-          ii_synapses_per_branch_per_layer: []
           reactivate: true
           somatic_synapses: true
           topk_init_method: "xavier_normal"
-          use_shunting: true
           reactivation_type: "param_tanh"
           reactivation_strategy: "inverse"
           blocklinear_strategy: "block_conductance_dynamic"
@@ -282,7 +306,9 @@ The framework provides a flexible experiment runner through train_experiments.py
       enabled: false
       visualize_epochs: []
       plots: ["branch_info", "ablation"]
-      parameters: {}
+      parameters:
+        save_figures: true
+        figure_format: "png"
     
     wandb:
       entity: ""
@@ -297,9 +323,10 @@ The framework provides a flexible experiment runner through train_experiments.py
 3. **Available Learning Strategies**:
 - mle: Standard Maximum Likelihood Estimation (default)
 - freeze_branches: Train branches sequentially
+- freeze_branches_reversed: Train branches in reverse order
+- freeze_branches_with_pretraining: Pretrain then train branches sequentially
+- freeze_branches_reversed_with_pretraining: Pretrain then train branches in reverse order
 - two_step: Two-phase training with pretraining and main training
-- mlp_only: Train only the MLP component, then train the full model
-- dendrinet_from_mlp: Train MLP first, then use it to initialize and train the dendrinet
 - voltage_stabilization: Add voltage stabilization phase
 
 4. **Command Line Arguments**:
@@ -309,7 +336,7 @@ The framework provides a flexible experiment runner through train_experiments.py
     python src/dendritic_modeling/train_experiments.py config_exp.yaml
     
     # Override learning strategy
-    python src/dendritic_modeling/train_experiments.py config_exp.yaml --learning_strategy dendrinet_from_mlp
+    python src/dendritic_modeling/train_experiments.py config_exp.yaml --train.learning_strategy freeze_branches
     
     # Enable visualization
     python src/dendritic_modeling/train_experiments.py config_exp.yaml --visualization.enabled true
