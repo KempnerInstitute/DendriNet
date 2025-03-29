@@ -23,10 +23,11 @@ Visualization settings are configured in the ``visualization`` section of the co
       plots:
         - weights                         # Plot dendritic or EI-net weights
         - activations                     # Plot per-digit activation distribution
-        - gradients                       # Plot synapse or branch gradients
-        - profiles                       # Plot dendritic compartment profiles
-        - branch_info                    # Plot mutual information
-        - ablation                       # Plot ablation results
+        - branch_info                     # Plot branch information
+        - ablation                        # Plot ablation results
+      parameters:
+        save_figures: true
+        figure_format: "png"
 
 Performance Evaluation
 ----------------------
@@ -122,28 +123,6 @@ The ``plot_einet_params`` function visualizes the weights of ExcitationInhibitio
 
 This function creates visualizations of the network's weight matrices, which is especially useful for understanding what patterns the dendritic branches have learned to recognize.
 
-Excitation-Inhibition Weight Visualization
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-
-For more detailed visualization of excitatory and inhibitory weights:
-
-.. code-block:: python
-
-    def plot_excitation_inhibition_weights(soma_branch, save_path, 
-                                        excitatory_synapse_weight, 
-                                        excitatory_synapse_pruned,
-                                        excitatory_synapse_mask=None,
-                                        inhibitory_synapse_weight=None, 
-                                        inhibitory_synapse_pruned=None,
-                                        inhibitory_synapse_mask=None,
-                                        reshape_fn=None, reshape_exc_syn=False, 
-                                        reshape_inh_syn=False, logspace=False,
-                                        reactivation_curve=None, linspace=None,
-                                        save_in_dir=False, filename='image'):
-        """
-        Detailed visualization of excitatory and inhibitory weights.
-        """
-
 Activation Visualization
 ------------------------
 
@@ -176,62 +155,6 @@ The ``plot_einet_activations`` function visualizes activations in the network:
 
 This function helps understand how the network processes different inputs, showing which branches activate for each class.
 
-Activation Component Visualization
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-
-For more detailed analysis of activation components:
-
-.. code-block:: python
-
-    def einet_activations_to_csv(einet, input_list, save_root, filename='activation_components'):
-        """
-        Save activation components to CSV for detailed analysis.
-        """
-
-Additional activation visualization functions include:
-
-- ``plot_activation_tuning``: Visualize the tuning of branches to different inputs
-- ``plot_voltage_before_activation``: Visualize membrane potentials before activation
-
-Gradient Visualization
-----------------------
-
-The framework provides tools for visualizing gradients in the network.
-
-EINet Gradient Visualization
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-
-The ``plot_einet_gradients`` function visualizes gradients:
-
-.. code-block:: python
-
-    def plot_einet_gradients(model, inputs, labels, save_root, reshape_fn=None, 
-                           reshape_exc_syn=False, save_in_dir=False, filename='image'):
-        """
-        Plot gradients in the EINet.
-        
-        Parameters
-        ----------
-        model : torch.nn.Module
-            The model to analyze
-        inputs : torch.Tensor
-            Input tensor to compute gradients
-        labels : torch.Tensor
-            Label tensor to compute gradients
-        save_root : str
-            Directory to save visualizations
-        reshape_fn : callable or None
-            Function to reshape gradients for visualization
-        reshape_exc_syn : bool
-            Whether to reshape excitatory synaptic gradients
-        save_in_dir : bool
-            Whether to save in a subdirectory
-        filename : str
-            Base filename for saving
-        """
-
-This function helps understand how the network learns by visualizing the flow of gradients through the dendritic branches.
-
 Branch Information Analysis
 ---------------------------
 
@@ -240,13 +163,13 @@ The framework includes tools for information-theoretic analysis of branch behavi
 Branch Mutual Information
 ^^^^^^^^^^^^^^^^^^^^^^^^^
 
-The ``compute_MI`` function calculates mutual information between branch activations and labels:
+The ``compute_branch_info`` function calculates various information metrics for branch activations:
 
 .. code-block:: python
 
-    def compute_MI(activations, labels, n_bins=10):
+    def compute_branch_info(activations, labels, n_bins=10):
         """
-        Estimate mutual information between activations and labels.
+        Estimate information metrics between branch activations and labels.
         
         Parameters
         ----------
@@ -259,40 +182,11 @@ The ``compute_MI`` function calculates mutual information between branch activat
             
         Returns
         -------
-        float
-            Mutual information value
+        dict
+            Dictionary containing information metrics
         """
 
 This function helps quantify how much information about the class labels is present in each branch's activation.
-
-A comprehensive branch information analysis function is also available:
-
-.. code-block:: python
-
-    def analyze_branch_information(model, dataset, batch_size=64, device='cpu', n_bins=10):
-        """
-        Analyze information content in each branch layer.
-        
-        Parameters
-        ----------
-        model : torch.nn.Module
-            The model to analyze (must support forward_with_branch_outputs)
-        dataset : torch.utils.data.Dataset
-            Dataset to analyze
-        batch_size : int
-            Batch size for processing
-        device : str
-            Device to use for computation
-        n_bins : int
-            Number of bins for MI estimation
-            
-        Returns
-        -------
-        dict
-            Dictionary mapping layer indices to MI values
-        """
-
-This function helps understand how information flows through the layers of the dendritic network.
 
 Ablation Studies
 ----------------
@@ -302,36 +196,13 @@ The framework provides tools for ablation studies to understand the contribution
 Branch Ablation
 ^^^^^^^^^^^^^^^
 
-The ``ablate_branch`` function allows ablating specific branches:
+The ``analyze_branch_ablation`` function performs comprehensive ablation analysis:
 
 .. code-block:: python
 
-    def ablate_branch(model, layer_idx, branch_ids=None, mode='direct'):
+    def analyze_branch_ablation(model, dataset, ablation_mode='direct', device='cpu'):
         """
-        Zero out weights for branch(es) at the specified layer.
-        
-        Parameters
-        ----------
-        model : torch.nn.Module
-            The model to ablate
-        layer_idx : int
-            Index of the layer to ablate
-        branch_ids : list or None
-            IDs of branches to ablate, or None for all branches
-        mode : str
-            Ablation mode: 'direct' or 'full'
-        """
-
-This function helps understand the role of specific branches by measuring performance changes after ablation.
-
-A comprehensive ablation analysis function is also available:
-
-.. code-block:: python
-
-    def analyze_branch_ablation(model, dataset, layer_idx, branch_ids, 
-                               mode='direct', device='cpu'):
-        """
-        Perform ablation analysis for specific branches.
+        Perform ablation analysis for all branches in the model.
         
         Parameters
         ----------
@@ -339,92 +210,76 @@ A comprehensive ablation analysis function is also available:
             The model to analyze
         dataset : torch.utils.data.Dataset
             Dataset to evaluate on
-        layer_idx : int
-            Index of the layer to ablate
-        branch_ids : list or None
-            IDs of branches to ablate, or None for all branches
-        mode : str
-            Ablation mode: 'direct' or 'full'
+        ablation_mode : str
+            Ablation mode: 'direct' or 'indirect'
         device : str
             Device to use for computation
             
         Returns
         -------
-        tuple
-            (baseline_accuracy, results_dict)
+        dict
+            Dictionary containing ablation results including:
+            - baseline_acc: Accuracy before ablation
+            - branch_importances: Importance matrix for each branch
         """
 
-This function helps quantify the importance of each branch for the network's performance.
+This function helps quantify the importance of each branch for the network's performance by systematically ablating branches and measuring the change in accuracy.
 
-Dendritic Tree Visualization
-----------------------------
+Layer-wise Ablation
+^^^^^^^^^^^^^^^^^^
 
-The framework includes tools for visualizing the structure of dendritic trees.
-
-Tree Graph Visualization
-^^^^^^^^^^^^^^^^^^^^^^^^
-
-The ``build_dendritic_tree_graph`` and ``visualize_dendritic_tree`` functions create visualizations of the dendritic tree structure:
+The ``analyze_layerwise_ablation`` function performs ablation at the layer level:
 
 .. code-block:: python
 
-    def build_dendritic_tree_graph(model, branch_info=None, ablation_info=None):
+    def analyze_layerwise_ablation(model, dataset, ablation_mode='direct', device='cpu'):
         """
-        Build a graph representation of the dendritic tree.
+        Perform ablation analysis for each layer in the model.
         
         Parameters
         ----------
         model : torch.nn.Module
-            The model to visualize
-        branch_info : dict or None
-            Branch information from analyze_branch_information
-        ablation_info : dict or None
-            Ablation results from analyze_branch_ablation
+            The model to analyze
+        dataset : torch.utils.data.Dataset
+            Dataset to evaluate on
+        ablation_mode : str
+            Ablation mode: 'direct' or 'indirect'
+        device : str
+            Device to use for computation
             
         Returns
         -------
-        networkx.Graph
-            Graph representation of the dendritic tree
+        dict
+            Dictionary containing ablation results including:
+            - baseline_acc: Accuracy before ablation
+            - accuracy_drops: List of accuracy drops per layer
         """
 
-These visualizations help understand the hierarchical structure of the dendritic network and the information flow through it.
+This function helps understand the importance of each layer in the dendritic network.
 
-Comprehensive Visualization Script
-----------------------------------
+Using the Visualization Manager
+------------------------------
 
-The ``visualize.py`` script provides a comprehensive visualization pipeline:
+The framework provides a PlotManager class that can automate many of these visualizations:
 
 .. code-block:: python
 
-    def get_and_save_performance_and_visuals(clf, data, n_tasks, input_list, 
-                                           reshape_fn, reshape_exc_syn, logspace,
-                                           save_path, filename):
-        """
-        Generate and save comprehensive visualizations for a model.
-        
-        Parameters
-        ----------
-        clf : torch.nn.Module
-            The classifier model
-        data : dict
-            Dictionary with 'train', 'valid', and 'test' datasets
-        n_tasks : int
-            Number of tasks
-        input_list : list
-            List of input tensors
-        reshape_fn : callable
-            Function to reshape weights for visualization
-        reshape_exc_syn : bool
-            Whether to reshape excitatory synaptic weights
-        logspace : bool
-            Whether weights are in log space
-        save_path : str
-            Directory to save visualizations
-        filename : str
-            Base filename for saving
-        """
-
-This function generates a complete set of visualizations for a trained model, including performance metrics, parameter visualizations, gradient visualizations, and activation visualizations.
+    from dendritic_modeling.visualization_manager import PlotManager
+    
+    # Create a plot manager
+    plot_manager = PlotManager(
+        model=model,
+        data={'train': train_data, 'valid': valid_data, 'test': test_data},
+        save_path="visualization_outputs",
+        device='cuda',
+        plots=['weights', 'activations', 'branch_info', 'ablation']
+    )
+    
+    # Generate all plots
+    plot_manager.generate_plots()
+    
+    # Generate plots for specific epoch
+    plot_manager.generate_plots(epoch=10)
 
 Best Practices for Evaluation and Visualization
 -----------------------------------------------
