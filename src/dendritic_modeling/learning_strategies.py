@@ -8,6 +8,7 @@ Houses multiple learning/training strategies:
   - LocalCreditAssignment (advanced local learning using feedback alignment)
   - TwoStepTrainer        (pretrain each layer with local supervision using cross-entropy loss, then full end-to-end training)
   - TwoStepTrainerWithKL  (pretrain each layer with local supervision using a combined loss (cross-entropy + KL divergence), then full end-to-end training)
+  - VoltageStabilizationTrainer (add a warm-up phase that stabilizes voltages to a target)
 
 A factory function get_trainer(...) returns the chosen strategy based on a string.
 """
@@ -23,6 +24,7 @@ import torch.nn.functional as F
 from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score
 from dendritic_modeling import logger
 from dendritic_modeling.plot_utils import plot_NLL_loss_curves
+import matplotlib.pyplot as plt
 
 
 def compute_metrics_classification(preds, labels):
@@ -84,7 +86,8 @@ class BaseTrainer:
 
 class TrainerMLE(BaseTrainer):
     def train(self, model, train_data, valid_data=None, grad_clip_value=5, epochs=100,
-              batch_size=256, shuffle=True, load_best_state_dict=True, best_loss = float('inf'),
+              batch_size=256, shuffle=True, load_best_state_dict=True, best_loss=float('inf'),
+              early_stopping=False, patience=10,
               plot_losses=False, save_path=None):
         device = 'cuda' if torch.cuda.is_available() else 'cpu'
         model = model.to(device)
@@ -94,11 +97,14 @@ class TrainerMLE(BaseTrainer):
         best_epoch = 1
         best_state = deepcopy(model.state_dict())
         start_time = time.time()
+        # Early stopping setup
+        patience_counter = 0
         for epoch in range(1, epochs + 1):
             model.train()
             epoch_train_loss = 0.0
             preds_list = []
             labels_list = []
+            
             for xb, yb in train_loader:
                 xb = xb.to(device)
                 yb = yb.to(device)
@@ -111,6 +117,7 @@ class TrainerMLE(BaseTrainer):
                 p = model.predict(xb)
                 preds_list.append(p.cpu())
                 labels_list.append(yb.cpu())
+                
             epoch_train_loss /= len(train_loader)
             preds_cat = torch.cat(preds_list, dim=0)
             labels_cat = torch.cat(labels_list, dim=0)
@@ -118,26 +125,43 @@ class TrainerMLE(BaseTrainer):
             train_losses.append(epoch_train_loss)
             val_loss, val_acc = self._eval_dataset(model, valid_data, device, batch_size)
             valid_losses.append(val_loss)
+            
             if val_loss < best_loss:
                 best_loss = val_loss
                 best_epoch = epoch
                 best_state = deepcopy(model.state_dict())
+                patience_counter = 0  # Reset counter on improvement
                 if save_path and os.path.exists(save_path):
                     torch.save(best_state, os.path.join(save_path, "best_model.pt"))
+            else:
+                patience_counter += 1
+
+            # Early stopping check
+            if early_stopping and patience_counter >= patience:
+                if not self.suppress:
+                    logger.info(f"Early stopping triggered after {epoch} epochs")
+                break
+            
             if (not self.suppress) and (epoch % self.print_every == 0):
                 elapsed = time.time() - start_time
                 logger.info(f"[Epoch {epoch}/{epochs}] train_loss={epoch_train_loss:.4f}, train_acc={train_acc:.3f}, "
                             f"valid_loss={val_loss:.4f}, valid_acc={val_acc:.3f}, elapsed={elapsed:.1f}s")
+                
             if wandb.run is not None:
                 wandb.log({
                     "epoch": epoch,
                     "train_loss": epoch_train_loss,
                     "train_acc": train_acc,
                     "valid_loss": val_loss,
-                    "valid_acc": val_acc
+                    "valid_acc": val_acc,
+                    "best_epoch": best_epoch
                 })
+                
+        logger.info(f"Best epoch: {best_epoch}, Best loss: {best_loss:.4f}")
         if load_best_state_dict:
             model.load_state_dict(best_state)
+            logger.info("Final model loaded from best checkpoint")
+            
         results = {
             "best epoch": best_epoch,
             "best loss": best_loss,
@@ -145,47 +169,70 @@ class TrainerMLE(BaseTrainer):
             "train losses": train_losses,
             "valid losses": valid_losses,
         }
+        
         if plot_losses and len(train_losses) > 1:
             if save_path and os.path.exists(save_path):
-                plot_NLL_loss_curves(train_losses, valid_losses, epochs, save_path)
+                plot_NLL_loss_curves(train_losses, valid_losses, epoch, save_path)
             else:
-                results['loss curves'] = plot_NLL_loss_curves(train_losses, valid_losses, epochs)
+                results['loss curves'] = plot_NLL_loss_curves(train_losses, valid_losses, epoch)
+                
         return results
-
-    def train_freeze_layers(self, model, train_data, valid_data=None, epochs_per_layer=5,
+        
+    
+    def train_freeze_branches(self, model, train_data, valid_data=None, epochs_per_branch=5,
                             batch_size=256, shuffle=True, grad_clip_value=5,
                             plot_losses=False, save_path=None, final_tune_epochs=10):
+        """Train individual dendritic branches sequentially from soma to input (distal).
+        This method trains each branch in the dendritic tree separately, starting from the branches
+        closest to the soma and moving outward."""
         device = 'cuda' if torch.cuda.is_available() else 'cpu'
         model = model.to(device)
-        if not hasattr(model, 'net') or not hasattr(model.net, 'layers'):
-            logger.info("Model has no 'net.layers'. Falling back to normal train.")
+        
+        # Check if model has the right structure
+        if (not hasattr(model, 'net') or not hasattr(model.net, 'layers') or 
+            not hasattr(model.net.layers[0], 'excitatory_cells') or 
+            not hasattr(model.net.layers[0].excitatory_cells, 'branch_layers')):
+            logger.info("Model structure not compatible with branch-wise training. Falling back to normal train.")
             return self.train(model, train_data, valid_data, grad_clip_value=grad_clip_value,
-                              epochs=epochs_per_layer, batch_size=batch_size, shuffle=shuffle,
+                              epochs=epochs_per_branch, batch_size=batch_size, shuffle=shuffle,
                               plot_losses=plot_losses, save_path=save_path)
-        n_layers = len(model.net.layers)
-        logger.info(f"train_freeze_layers: found {n_layers} layers. Training them sequentially.")
+        
+        # Get the branch layers from the model
+        branch_layers = model.net.layers[0].excitatory_cells.branch_layers
+        n_branches = len(branch_layers)
+        
+        logger.info(f"train_freeze_branches: found {n_branches} branch layers. Training them sequentially from soma to input.")
+        
         train_losses = []
         valid_losses = []
         best_loss = float('inf')
         best_state = deepcopy(model.state_dict())
-        total_epochs = n_layers * epochs_per_layer
+        total_epochs = n_branches * epochs_per_branch
         epoch_counter = 0
         start_time = time.time()
-        for layer_idx in range(n_layers):
+        
+        # Train branches from soma (near) to distal (far) - typically index 0 is closest to soma
+        for branch_idx in range(n_branches):
+            # Freeze all parameters
             for name, param in model.named_parameters():
                 param.requires_grad = False
-            target_str = f"layers.{layer_idx}."
+                
+            # Unfreeze only parameters for the current branch
+            target_str = f"excitatory_cells.branch_layers.{branch_idx}."
             for name, param in model.named_parameters():
                 if target_str in name:
                     param.requires_grad = True
-            logger.info(f"Training only layer {layer_idx} for {epochs_per_layer} epochs.")
+                    
+            logger.info(f"Training only branch {branch_idx} for {epochs_per_branch} epochs.")
             train_loader = DataLoader(train_data, batch_size=batch_size, shuffle=shuffle)
-            for e in range(1, epochs_per_layer + 1):
+            
+            for e in range(1, epochs_per_branch + 1):
                 epoch_counter += 1
                 model.train()
                 epoch_train_loss = 0.0
                 preds_list = []
                 labels_list = []
+                
                 for xb, yb in train_loader:
                     xb = xb.to(device)
                     yb = yb.to(device)
@@ -198,6 +245,7 @@ class TrainerMLE(BaseTrainer):
                     p = model.predict(xb)
                     preds_list.append(p.cpu())
                     labels_list.append(yb.cpu())
+                    
                 epoch_train_loss /= len(train_loader)
                 preds_cat = torch.cat(preds_list, dim=0)
                 labels_cat = torch.cat(labels_list, dim=0)
@@ -205,31 +253,430 @@ class TrainerMLE(BaseTrainer):
                 train_losses.append(epoch_train_loss)
                 val_loss, val_acc = self._eval_dataset(model, valid_data, device, batch_size)
                 valid_losses.append(val_loss)
+                
                 if val_loss < best_loss:
                     best_loss = val_loss
                     best_state = deepcopy(model.state_dict())
+                    
                 if (not self.suppress) and (epoch_counter % self.print_every == 0):
                     elapsed = time.time() - start_time
-                    logger.info(f"[Freeze-layers] layer={layer_idx}, epoch={epoch_counter}/{total_epochs}, "
+                    logger.info(f"[Freeze-branches] branch={branch_idx}, epoch={epoch_counter}/{total_epochs}, "
                                 f"train_loss={epoch_train_loss:.4f}, train_acc={train_acc:.3f}, "
                                 f"valid_loss={val_loss:.4f}, valid_acc={val_acc:.3f}, elapsed={elapsed:.1f}s")
+                    
                 if wandb.run is not None:
                     wandb.log({
                         "epoch": epoch_counter,
-                        "freeze_layer": layer_idx,
+                        "freeze_branch": branch_idx,
                         "train_loss": epoch_train_loss,
                         "train_acc": train_acc,
                         "valid_loss": val_loss,
                         "valid_acc": val_acc
                     })
-        logger.info("Done freeze-layers. Unfreezing all layers and loading best state.")
+        
+        logger.info("Done freeze-branches. Unfreezing all parameters and loading best state.")
         for name, param in model.named_parameters():
             param.requires_grad = True
         model.load_state_dict(best_state)
+        
         logger.info(f"Starting final full-network tuning for {final_tune_epochs} epochs.")
         final_results = self.train(model, train_data, valid_data, grad_clip_value=grad_clip_value,
                                    epochs=final_tune_epochs, batch_size=batch_size, shuffle=shuffle,
-                                   load_best_state_dict=load_best_state_dict, plot_losses=plot_losses, save_path=save_path)
+                                   load_best_state_dict=True, plot_losses=plot_losses, save_path=save_path)
+        
+        return final_results
+        
+    def train_freeze_branches_reversed(self, model, train_data, valid_data=None, epochs_per_branch=5,
+                                     batch_size=256, shuffle=True, grad_clip_value=5,
+                                     plot_losses=False, save_path=None, final_tune_epochs=10):
+        """Train individual dendritic branches sequentially from input (distal) to soma.
+        This method trains each branch in the dendritic tree separately, starting from the branches
+        farthest from the soma and moving inward."""
+        device = 'cuda' if torch.cuda.is_available() else 'cpu'
+        model = model.to(device)
+        
+        # Check if model has the right structure
+        if (not hasattr(model, 'net') or not hasattr(model.net, 'layers') or 
+            not hasattr(model.net.layers[0], 'excitatory_cells') or 
+            not hasattr(model.net.layers[0].excitatory_cells, 'branch_layers')):
+            logger.info("Model structure not compatible with branch-wise training. Falling back to normal train.")
+            return self.train(model, train_data, valid_data, grad_clip_value=grad_clip_value,
+                              epochs=epochs_per_branch, batch_size=batch_size, shuffle=shuffle,
+                              plot_losses=plot_losses, save_path=save_path)
+        
+        # Get the branch layers from the model
+        branch_layers = model.net.layers[0].excitatory_cells.branch_layers
+        n_branches = len(branch_layers)
+        
+        logger.info(f"train_freeze_branches_reversed: found {n_branches} branch layers. Training them sequentially from input to soma.")
+        
+        train_losses = []
+        valid_losses = []
+        best_loss = float('inf')
+        best_state = deepcopy(model.state_dict())
+        total_epochs = n_branches * epochs_per_branch
+        epoch_counter = 0
+        start_time = time.time()
+        
+        # Train branches from distal (far) to soma (near) - reverse order
+        for branch_idx in range(n_branches - 1, -1, -1):
+            # Freeze all parameters
+            for name, param in model.named_parameters():
+                param.requires_grad = False
+                
+            # Unfreeze only parameters for the current branch
+            target_str = f"excitatory_cells.branch_layers.{branch_idx}."
+            for name, param in model.named_parameters():
+                if target_str in name:
+                    param.requires_grad = True
+                    
+            logger.info(f"Training only branch {branch_idx} for {epochs_per_branch} epochs.")
+            train_loader = DataLoader(train_data, batch_size=batch_size, shuffle=shuffle)
+            
+            for e in range(1, epochs_per_branch + 1):
+                epoch_counter += 1
+                model.train()
+                epoch_train_loss = 0.0
+                preds_list = []
+                labels_list = []
+                
+                for xb, yb in train_loader:
+                    xb = xb.to(device)
+                    yb = yb.to(device)
+                    nll = model.compute_loss(xb, yb)
+                    self.optimizer.zero_grad()
+                    nll.backward()
+                    clip_grad_value_(model.parameters(), grad_clip_value)
+                    self.optimizer.step()
+                    epoch_train_loss += nll.item()
+                    p = model.predict(xb)
+                    preds_list.append(p.cpu())
+                    labels_list.append(yb.cpu())
+                    
+                epoch_train_loss /= len(train_loader)
+                preds_cat = torch.cat(preds_list, dim=0)
+                labels_cat = torch.cat(labels_list, dim=0)
+                train_acc = compute_metrics_classification(preds_cat, labels_cat)['accuracy']
+                train_losses.append(epoch_train_loss)
+                val_loss, val_acc = self._eval_dataset(model, valid_data, device, batch_size)
+                valid_losses.append(val_loss)
+                
+                if val_loss < best_loss:
+                    best_loss = val_loss
+                    best_state = deepcopy(model.state_dict())
+                    
+                if (not self.suppress) and (epoch_counter % self.print_every == 0):
+                    elapsed = time.time() - start_time
+                    logger.info(f"[Freeze-branches-reversed] branch={branch_idx}, epoch={epoch_counter}/{total_epochs}, "
+                                f"train_loss={epoch_train_loss:.4f}, train_acc={train_acc:.3f}, "
+                                f"valid_loss={val_loss:.4f}, valid_acc={val_acc:.3f}, elapsed={elapsed:.1f}s")
+                    
+                if wandb.run is not None:
+                    wandb.log({
+                        "epoch": epoch_counter,
+                        "freeze_branch_reversed": branch_idx,
+                        "train_loss": epoch_train_loss,
+                        "train_acc": train_acc,
+                        "valid_loss": val_loss,
+                        "valid_acc": val_acc
+                    })
+        
+        logger.info("Done freeze-branches-reversed. Unfreezing all parameters and loading best state.")
+        for name, param in model.named_parameters():
+            param.requires_grad = True
+        model.load_state_dict(best_state)
+        
+        logger.info(f"Starting final full-network tuning for {final_tune_epochs} epochs.")
+        final_results = self.train(model, train_data, valid_data, grad_clip_value=grad_clip_value,
+                                   epochs=final_tune_epochs, batch_size=batch_size, shuffle=shuffle,
+                                   load_best_state_dict=True, plot_losses=plot_losses, save_path=save_path)
+        
+        return final_results
+    
+    def train_freeze_branches_with_pretraining(self, model, train_data, valid_data=None, pretrain_epochs=10,
+                                             epochs_per_branch=5, batch_size=256, shuffle=True, grad_clip_value=5,
+                                             plot_losses=False, save_path=None, final_tune_epochs=10):
+        """Train with a three-phase approach:
+        1. Initial full network training (all parameters unfrozen) for pretrain_epochs
+        2. Branch-by-branch training from soma to input (freezing all branches except the current one)
+        3. Final full network fine-tuning
+        """
+        device = 'cuda' if torch.cuda.is_available() else 'cpu'
+        model = model.to(device)
+        
+        # Check if model has the right structure
+        if (not hasattr(model, 'net') or not hasattr(model.net, 'layers') or 
+            not hasattr(model.net.layers[0], 'excitatory_cells') or 
+            not hasattr(model.net.layers[0].excitatory_cells, 'branch_layers')):
+            logger.info("Model structure not compatible with branch-wise training. Falling back to normal train.")
+            return self.train(model, train_data, valid_data, grad_clip_value=grad_clip_value,
+                             epochs=pretrain_epochs + epochs_per_branch, batch_size=batch_size, shuffle=shuffle,
+                             plot_losses=plot_losses, save_path=save_path)
+        
+        # Phase 1: Initial full network training
+        logger.info(f"Starting initial full network training for {pretrain_epochs} epochs")
+        initial_results = self.train(
+            model=model, 
+            train_data=train_data, 
+            valid_data=valid_data, 
+            grad_clip_value=grad_clip_value,
+            epochs=pretrain_epochs, 
+            batch_size=batch_size, 
+            shuffle=shuffle,
+            load_best_state_dict=True, 
+            plot_losses=False
+        )
+        
+        # Save the pretrained model
+        if save_path:
+            os.makedirs(save_path, exist_ok=True)
+            pretrain_path = os.path.join(save_path, "pretrained_model.pt")
+            torch.save(model.state_dict(), pretrain_path)
+            logger.info(f"Saved pretrained model to {pretrain_path}")
+        
+        # Phase 2: Branch-by-branch training
+        branch_layers = model.net.layers[0].excitatory_cells.branch_layers
+        n_branches = len(branch_layers)
+        
+        logger.info(f"Starting branch-by-branch training (soma to input): found {n_branches} branches.")
+        train_losses = initial_results.get('train_losses', [])
+        valid_losses = initial_results.get('valid_losses', [])
+        best_loss = float('inf')
+        best_state = deepcopy(model.state_dict())
+        total_epochs = pretrain_epochs + (n_branches * epochs_per_branch) + final_tune_epochs
+        epoch_counter = pretrain_epochs
+        start_time = time.time()
+        
+        # Train branches from soma (near) to distal (far)
+        for branch_idx in range(n_branches):
+            # Freeze all parameters
+            for name, param in model.named_parameters():
+                param.requires_grad = False
+                
+            # Unfreeze only parameters for the current branch
+            target_str = f"excitatory_cells.branch_layers.{branch_idx}."
+            for name, param in model.named_parameters():
+                if target_str in name:
+                    param.requires_grad = True
+                    
+            logger.info(f"Training only branch {branch_idx} for {epochs_per_branch} epochs.")
+            train_loader = DataLoader(train_data, batch_size=batch_size, shuffle=shuffle)
+            
+            for e in range(1, epochs_per_branch + 1):
+                epoch_counter += 1
+                model.train()
+                epoch_train_loss = 0.0
+                preds_list = []
+                labels_list = []
+                
+                for xb, yb in train_loader:
+                    xb = xb.to(device)
+                    yb = yb.to(device)
+                    nll = model.compute_loss(xb, yb)
+                    self.optimizer.zero_grad()
+                    nll.backward()
+                    clip_grad_value_(model.parameters(), grad_clip_value)
+                    self.optimizer.step()
+                    epoch_train_loss += nll.item()
+                    p = model.predict(xb)
+                    preds_list.append(p.cpu())
+                    labels_list.append(yb.cpu())
+                    
+                epoch_train_loss /= len(train_loader)
+                preds_cat = torch.cat(preds_list, dim=0)
+                labels_cat = torch.cat(labels_list, dim=0)
+                train_acc = compute_metrics_classification(preds_cat, labels_cat)['accuracy']
+                train_losses.append(epoch_train_loss)
+                val_loss, val_acc = self._eval_dataset(model, valid_data, device, batch_size)
+                valid_losses.append(val_loss)
+                
+                if val_loss < best_loss:
+                    best_loss = val_loss
+                    best_state = deepcopy(model.state_dict())
+                    
+                if (not self.suppress) and (epoch_counter % self.print_every == 0):
+                    elapsed = time.time() - start_time
+                    logger.info(f"[Freeze-branches-with-pretraining] branch={branch_idx}, epoch={epoch_counter}/{total_epochs}, "
+                               f"train_loss={epoch_train_loss:.4f}, train_acc={train_acc:.3f}, "
+                               f"valid_loss={val_loss:.4f}, valid_acc={val_acc:.3f}, elapsed={elapsed:.1f}s")
+                    
+                if wandb.run is not None:
+                    wandb.log({
+                        "epoch": epoch_counter,
+                        "freeze_branch_with_pretraining": branch_idx,
+                        "train_loss": epoch_train_loss,
+                        "train_acc": train_acc,
+                        "valid_loss": val_loss,
+                        "valid_acc": val_acc
+                    })
+        
+        # Phase 3: Final full-network fine-tuning
+        logger.info("Done branch-by-branch training. Unfreezing all parameters and loading best state.")
+        for name, param in model.named_parameters():
+            param.requires_grad = True
+        model.load_state_dict(best_state)
+        
+        logger.info(f"Starting final full-network tuning for {final_tune_epochs} epochs.")
+        final_results = self.train(
+            model=model, 
+            train_data=train_data, 
+            valid_data=valid_data, 
+            grad_clip_value=grad_clip_value,
+            epochs=final_tune_epochs, 
+            batch_size=batch_size, 
+            shuffle=shuffle,
+            load_best_state_dict=True, 
+            plot_losses=plot_losses, 
+            save_path=save_path
+        )
+        
+        # Combine all results
+        final_results['train_losses'] = train_losses + final_results.get('train_losses', [])
+        final_results['valid_losses'] = valid_losses + final_results.get('valid_losses', [])
+        
+        return final_results
+    
+    def train_freeze_branches_reversed_with_pretraining(self, model, train_data, valid_data=None, pretrain_epochs=10,
+                                                      epochs_per_branch=5, batch_size=256, shuffle=True, grad_clip_value=5,
+                                                      plot_losses=False, save_path=None, final_tune_epochs=10):
+        """Train with a three-phase approach:
+        1. Initial full network training (all parameters unfrozen) for pretrain_epochs
+        2. Branch-by-branch training from input to soma (freezing all branches except the current one)
+        3. Final full network fine-tuning
+        """
+        device = 'cuda' if torch.cuda.is_available() else 'cpu'
+        model = model.to(device)
+        
+        # Check if model has the right structure
+        if (not hasattr(model, 'net') or not hasattr(model.net, 'layers') or 
+            not hasattr(model.net.layers[0], 'excitatory_cells') or 
+            not hasattr(model.net.layers[0].excitatory_cells, 'branch_layers')):
+            logger.info("Model structure not compatible with branch-wise training. Falling back to normal train.")
+            return self.train(model, train_data, valid_data, grad_clip_value=grad_clip_value,
+                             epochs=pretrain_epochs + epochs_per_branch, batch_size=batch_size, shuffle=shuffle,
+                             plot_losses=plot_losses, save_path=save_path)
+        
+        # Phase 1: Initial full network training
+        logger.info(f"Starting initial full network training for {pretrain_epochs} epochs")
+        initial_results = self.train(
+            model=model, 
+            train_data=train_data, 
+            valid_data=valid_data, 
+            grad_clip_value=grad_clip_value,
+            epochs=pretrain_epochs, 
+            batch_size=batch_size, 
+            shuffle=shuffle,
+            load_best_state_dict=True, 
+            plot_losses=False
+        )
+        
+        # Save the pretrained model
+        if save_path:
+            os.makedirs(save_path, exist_ok=True)
+            pretrain_path = os.path.join(save_path, "pretrained_model.pt")
+            torch.save(model.state_dict(), pretrain_path)
+            logger.info(f"Saved pretrained model to {pretrain_path}")
+        
+        # Phase 2: Branch-by-branch training from input to soma
+        branch_layers = model.net.layers[0].excitatory_cells.branch_layers
+        n_branches = len(branch_layers)
+        
+        logger.info(f"Starting branch-by-branch training (input to soma): found {n_branches} branches.")
+        train_losses = initial_results.get('train_losses', [])
+        valid_losses = initial_results.get('valid_losses', [])
+        best_loss = float('inf')
+        best_state = deepcopy(model.state_dict())
+        total_epochs = pretrain_epochs + (n_branches * epochs_per_branch) + final_tune_epochs
+        epoch_counter = pretrain_epochs
+        start_time = time.time()
+        
+        # Train branches from distal (far) to soma (near) - reverse order
+        for branch_idx in range(n_branches - 1, -1, -1):
+            # Freeze all parameters
+            for name, param in model.named_parameters():
+                param.requires_grad = False
+                
+            # Unfreeze only parameters for the current branch
+            target_str = f"excitatory_cells.branch_layers.{branch_idx}."
+            for name, param in model.named_parameters():
+                if target_str in name:
+                    param.requires_grad = True
+                    
+            logger.info(f"Training only branch {branch_idx} for {epochs_per_branch} epochs.")
+            train_loader = DataLoader(train_data, batch_size=batch_size, shuffle=shuffle)
+            
+            for e in range(1, epochs_per_branch + 1):
+                epoch_counter += 1
+                model.train()
+                epoch_train_loss = 0.0
+                preds_list = []
+                labels_list = []
+                
+                for xb, yb in train_loader:
+                    xb = xb.to(device)
+                    yb = yb.to(device)
+                    nll = model.compute_loss(xb, yb)
+                    self.optimizer.zero_grad()
+                    nll.backward()
+                    clip_grad_value_(model.parameters(), grad_clip_value)
+                    self.optimizer.step()
+                    epoch_train_loss += nll.item()
+                    p = model.predict(xb)
+                    preds_list.append(p.cpu())
+                    labels_list.append(yb.cpu())
+                    
+                epoch_train_loss /= len(train_loader)
+                preds_cat = torch.cat(preds_list, dim=0)
+                labels_cat = torch.cat(labels_list, dim=0)
+                train_acc = compute_metrics_classification(preds_cat, labels_cat)['accuracy']
+                train_losses.append(epoch_train_loss)
+                val_loss, val_acc = self._eval_dataset(model, valid_data, device, batch_size)
+                valid_losses.append(val_loss)
+                
+                if val_loss < best_loss:
+                    best_loss = val_loss
+                    best_state = deepcopy(model.state_dict())
+                    
+                if (not self.suppress) and (epoch_counter % self.print_every == 0):
+                    elapsed = time.time() - start_time
+                    logger.info(f"[Freeze-branches-reversed-with-pretraining] branch={branch_idx}, epoch={epoch_counter}/{total_epochs}, "
+                               f"train_loss={epoch_train_loss:.4f}, train_acc={train_acc:.3f}, "
+                               f"valid_loss={val_loss:.4f}, valid_acc={val_acc:.3f}, elapsed={elapsed:.1f}s")
+                    
+                if wandb.run is not None:
+                    wandb.log({
+                        "epoch": epoch_counter,
+                        "freeze_branch_reversed_with_pretraining": branch_idx,
+                        "train_loss": epoch_train_loss,
+                        "train_acc": train_acc,
+                        "valid_loss": val_loss,
+                        "valid_acc": val_acc
+                    })
+        
+        # Phase 3: Final full-network fine-tuning
+        logger.info("Done branch-by-branch training. Unfreezing all parameters and loading best state.")
+        for name, param in model.named_parameters():
+            param.requires_grad = True
+        model.load_state_dict(best_state)
+        
+        logger.info(f"Starting final full-network tuning for {final_tune_epochs} epochs.")
+        final_results = self.train(
+            model=model, 
+            train_data=train_data, 
+            valid_data=valid_data, 
+            grad_clip_value=grad_clip_value,
+            epochs=final_tune_epochs, 
+            batch_size=batch_size, 
+            shuffle=shuffle,
+            load_best_state_dict=True, 
+            plot_losses=plot_losses, 
+            save_path=save_path
+        )
+        
+        # Combine all results
+        final_results['train_losses'] = train_losses + final_results.get('train_losses', [])
+        final_results['valid_losses'] = valid_losses + final_results.get('valid_losses', [])
+        
         return final_results
 
 
@@ -326,11 +773,6 @@ class LocalCreditAssignment(BaseTrainer):
 class TrainOnlyMReactivation(BaseTrainer):
     def train(self, model, train_data, valid_data=None, grad_clip_value=5, epochs=100,
               batch_size=256, shuffle=True, load_best_state_dict=True, plot_losses=False, save_path=None):
-        """
-        TrainOnlyMReactivation: Freeze only the log_b parameters in the activation modules,
-        so that only the slope (m) is updated. This allows the reactivation to behave like a sigmoid
-        (with a fixed midpoint), while still learning a proper slope.
-        """
         device = 'cuda' if torch.cuda.is_available() else 'cpu'
         model = model.to(device)
         logger.info("TrainOnlyMReactivation: Freezing log_b and training all other parameters.")
@@ -406,10 +848,6 @@ class TwoStepTrainer(BaseTrainer):
     def train(self, model, train_data, valid_data=None, pretrain_epochs=5, maintrain_epochs=45,
               batch_size=256, grad_clip_value=5, shuffle=True, load_best_state_dict=True,
               plot_losses=False, save_path=None):
-        """
-        TwoStepTrainer: Stage 1 uses only cross-entropy loss for local pretraining;
-        Stage 2 is full end-to-end training.
-        """
         device = 'cuda' if torch.cuda.is_available() else 'cpu'
         model = model.to(device)
         if hasattr(model, 'net'):
@@ -489,10 +927,10 @@ class TwoStepTrainer(BaseTrainer):
                     if grad_clip_value is not None:
                         params_to_clip = list(filter(lambda p: p.requires_grad, model.parameters()))
                         if params_to_clip:
-                            torch.nn.utils.clip_grad_value_(params_to_clip, grad_clip_value)
+                            clip_grad_value_(params_to_clip, grad_clip_value)
                         params_local = list(local_head.parameters())
                         if params_local:
-                            torch.nn.utils.clip_grad_value_(params_local, grad_clip_value)
+                            clip_grad_value_(params_local, grad_clip_value)
                     self.optimizer.step()
                     epoch_loss_accum += loss_val.item()
                     ct_batches += 1
@@ -531,7 +969,7 @@ class TwoStepTrainer(BaseTrainer):
                 self.optimizer.zero_grad()
                 nll.backward()
                 if grad_clip_value is not None:
-                    torch.nn.utils.clip_grad_value_(model.parameters(), grad_clip_value)
+                    clip_grad_value_(model.parameters(), grad_clip_value)
                 self.optimizer.step()
                 epoch_train_loss += nll.item()
                 p = model.predict(xb)
@@ -579,11 +1017,6 @@ class TwoStepTrainerWithKL(BaseTrainer):
     def train(self, model, train_data, valid_data=None, pretrain_epochs=5, maintrain_epochs=45,
               batch_size=256, grad_clip_value=5, shuffle=True, load_best_state_dict=True,
               plot_losses=False, save_path=None, **kwargs):
-        """
-        TwoStepTrainerWithKL uses a combined loss during Stage 1 (local pretraining):
-        a weighted sum of cross-entropy and KL divergence between the local head's output and the full model's output.
-        Extra keyword arguments (e.g. 'epochs') are ignored.
-        """
         device = 'cuda' if torch.cuda.is_available() else 'cpu'
         model = model.to(device)
         if hasattr(model, 'net'):
@@ -663,8 +1096,8 @@ class TwoStepTrainerWithKL(BaseTrainer):
                     with torch.no_grad():
                         final_logits = model(xb).detach()
                     kl_loss = F.kl_div(torch.log_softmax(local_logits, dim=-1),
-                                         torch.softmax(final_logits, dim=-1),
-                                         reduction='batchmean')
+                                       torch.softmax(final_logits, dim=-1),
+                                       reduction='batchmean')
                     weight_alpha = (layer_idx + 1) / n_layers
                     weight_beta = 1.0 - weight_alpha
                     loss_val = weight_alpha * ce_loss + weight_beta * kl_loss
@@ -673,10 +1106,10 @@ class TwoStepTrainerWithKL(BaseTrainer):
                     if grad_clip_value is not None:
                         params_to_clip = list(filter(lambda p: p.requires_grad, model.parameters()))
                         if params_to_clip:
-                            torch.nn.utils.clip_grad_value_(params_to_clip, grad_clip_value)
+                            clip_grad_value_(params_to_clip, grad_clip_value)
                         params_local = list(local_head.parameters())
                         if params_local:
-                            torch.nn.utils.clip_grad_value_(params_local, grad_clip_value)
+                            clip_grad_value_(params_local, grad_clip_value)
                     self.optimizer.step()
                     epoch_loss_accum += loss_val.item()
                     ct_batches += 1
@@ -715,7 +1148,7 @@ class TwoStepTrainerWithKL(BaseTrainer):
                 self.optimizer.zero_grad()
                 nll.backward()
                 if grad_clip_value is not None:
-                    torch.nn.utils.clip_grad_value_(model.parameters(), grad_clip_value)
+                    clip_grad_value_(model.parameters(), grad_clip_value)
                 self.optimizer.step()
                 epoch_train_loss += nll.item()
                 p = model.predict(xb)
@@ -759,11 +1192,378 @@ class TwoStepTrainerWithKL(BaseTrainer):
         return results
 
 
+def voltage_warmup_loss(model, x, target_val=0.5):
+    outputs = model(x)
+    if hasattr(model, 'net'):
+        if hasattr(model.net, 'branch_layers'):
+            vs = []
+            for b in model.net.branch_layers:
+                if hasattr(b, 'branch_excitation') and b.branch_excitation is not None:
+                    pass
+                if hasattr(b, 'branch_inhibition') and b.branch_inhibition is not None:
+                    pass
+            # for demonstration, we just do a single approach:
+    # the simplest approach is to treat 'outputs' as "voltage" if possible
+    return torch.mean((outputs - target_val)**2)
+
+
+def generate_warmup_report(model, data_loader, pre_state, post_state, device, save_path):
+    """Generate a report on the differences before and after voltage warm-up.
+    
+    Args:
+        model: The model being trained
+        data_loader: DataLoader with a batch of data to test
+        pre_state: Model state dict before warm-up
+        post_state: Model state dict after warm-up
+        device: Device to run model on
+        save_path: Directory to save report files
+    
+    Returns:
+        report_data: Dictionary with report metrics
+    """
+    import os
+    import torch
+    import numpy as np
+    import matplotlib.pyplot as plt
+    from copy import deepcopy
+    
+    report_data = {}
+    
+    # Create report directory
+    warmup_report_dir = os.path.join(save_path, "warmup_report")
+    os.makedirs(warmup_report_dir, exist_ok=True)
+    
+    # Get a batch of data for visualization
+    x_batch, _ = next(iter(data_loader))
+    x_batch = x_batch.to(device)
+    
+    # Save current model state
+    current_state = deepcopy(model.state_dict())
+    
+    # Function to collect outputs and activations
+    def collect_model_stats(state_dict):
+        model.load_state_dict(state_dict)
+        model.eval()
+        with torch.no_grad():
+            outputs = model(x_batch)
+            output_stats = {
+                "mean": outputs.mean().item(),
+                "std": outputs.std().item(),
+                "min": outputs.min().item(),
+                "max": outputs.max().item(),
+                "histogram": outputs.detach().cpu().numpy().flatten()
+            }
+            
+            # Collect activations from each layer if they're available
+            layer_activations = {}
+            if hasattr(model, 'net'):
+                if hasattr(model.net, 'branch_layers'):
+                    # Store the original state of activation tracking
+                    activation_tracking_state = {}
+                    
+                    # Try to enable activation tracking if it exists
+                    for i, layer in enumerate(model.net.branch_layers):
+                        if hasattr(layer, 'enable_branch_outputs'):
+                            activation_tracking_state[i] = layer.enable_branch_outputs
+                            layer.enable_branch_outputs = True
+                    
+                    # Forward pass to collect activations
+                    _ = model(x_batch)
+                    
+                    # Collect branch activations if they exist
+                    for i, layer in enumerate(model.net.branch_layers):
+                        if hasattr(layer, 'branch_activations'):
+                            layer_activations[f"layer_{i}"] = {
+                                "mean": layer.branch_activations.mean().item(),
+                                "std": layer.branch_activations.std().item(),
+                                "min": layer.branch_activations.min().item(),
+                                "max": layer.branch_activations.max().item(),
+                                "histogram": layer.branch_activations.detach().cpu().numpy().flatten()
+                            }
+                    
+                    # Restore original state
+                    for i, state in activation_tracking_state.items():
+                        model.net.branch_layers[i].enable_branch_outputs = state
+        
+        return output_stats, layer_activations
+    
+    # Collect statistics before and after warm-up
+    pre_output_stats, pre_activations = collect_model_stats(pre_state)
+    post_output_stats, post_activations = collect_model_stats(post_state)
+    
+    # Calculate differences
+    output_diff = {
+        "mean_diff": post_output_stats["mean"] - pre_output_stats["mean"],
+        "std_diff": post_output_stats["std"] - pre_output_stats["std"],
+        "min_diff": post_output_stats["min"] - pre_output_stats["min"],
+        "max_diff": post_output_stats["max"] - pre_output_stats["max"]
+    }
+    
+    # Store report data
+    report_data["pre_warmup"] = {"outputs": pre_output_stats, "activations": pre_activations}
+    report_data["post_warmup"] = {"outputs": post_output_stats, "activations": post_activations}
+    report_data["diff"] = {"outputs": output_diff}
+    
+    # Generate output distribution plots
+    plt.figure(figsize=(12, 8))
+    
+    plt.subplot(2, 1, 1)
+    plt.hist(pre_output_stats["histogram"], bins=50, alpha=0.5, label='Pre-warmup')
+    plt.hist(post_output_stats["histogram"], bins=50, alpha=0.5, label='Post-warmup')
+    plt.axvline(x=0.5, color='r', linestyle='--', label='Target voltage (0.5)')
+    plt.title("Output Distribution Before and After Warm-up")
+    plt.xlabel("Output Value")
+    plt.ylabel("Frequency")
+    plt.legend()
+    
+    plt.subplot(2, 1, 2)
+    for key in ["mean", "std", "min", "max"]:
+        x = [0, 1]
+        y = [pre_output_stats[key], post_output_stats[key]]
+        plt.plot(x, y, marker='o', label=key)
+    plt.axhline(y=0.5, color='r', linestyle='--', label='Target voltage (0.5)')
+    plt.xticks([0, 1], ['Pre-Warmup', 'Post-Warmup'])
+    plt.title("Output Statistics Before and After Warm-up")
+    plt.ylabel("Value")
+    plt.legend()
+    
+    plt.tight_layout()
+    plt.savefig(os.path.join(warmup_report_dir, "output_distribution.png"))
+    plt.close()
+    
+    # Generate activation comparison plots for each layer
+    common_layers = set(pre_activations.keys()) & set(post_activations.keys())
+    for layer in common_layers:
+        plt.figure(figsize=(12, 8))
+        
+        plt.subplot(2, 1, 1)
+        plt.hist(pre_activations[layer]["histogram"], bins=50, alpha=0.5, label='Pre-warmup')
+        plt.hist(post_activations[layer]["histogram"], bins=50, alpha=0.5, label='Post-warmup')
+        plt.title(f"{layer} Activation Distribution Before and After Warm-up")
+        plt.xlabel("Activation Value")
+        plt.ylabel("Frequency")
+        plt.legend()
+        
+        plt.subplot(2, 1, 2)
+        for key in ["mean", "std", "min", "max"]:
+            x = [0, 1]
+            y = [pre_activations[layer][key], post_activations[layer][key]]
+            plt.plot(x, y, marker='o', label=key)
+        plt.xticks([0, 1], ['Pre-Warmup', 'Post-Warmup'])
+        plt.title(f"{layer} Activation Statistics Before and After Warm-up")
+        plt.ylabel("Value")
+        plt.legend()
+        
+        plt.tight_layout()
+        plt.savefig(os.path.join(warmup_report_dir, f"{layer}_activation.png"))
+        plt.close()
+    
+    # Save report summary as text file
+    with open(os.path.join(warmup_report_dir, "warmup_report_summary.txt"), "w") as f:
+        f.write("Voltage Warm-up Report Summary\n")
+        f.write("==============================\n\n")
+        f.write("Output Statistics:\n")
+        f.write(f"  Before warm-up: mean={pre_output_stats['mean']:.4f}, std={pre_output_stats['std']:.4f}, min={pre_output_stats['min']:.4f}, max={pre_output_stats['max']:.4f}\n")
+        f.write(f"  After warm-up: mean={post_output_stats['mean']:.4f}, std={post_output_stats['std']:.4f}, min={post_output_stats['min']:.4f}, max={post_output_stats['max']:.4f}\n")
+        f.write(f"  Change: mean_diff={output_diff['mean_diff']:.4f}, std_diff={output_diff['std_diff']:.4f}, min_diff={output_diff['min_diff']:.4f}, max_diff={output_diff['max_diff']:.4f}\n\n")
+        
+        if common_layers:
+            f.write("Layer Activation Statistics:\n")
+            for layer in common_layers:
+                pre = pre_activations[layer]
+                post = post_activations[layer]
+                f.write(f"  {layer}:\n")
+                f.write(f"    Before warm-up: mean={pre['mean']:.4f}, std={pre['std']:.4f}, min={pre['min']:.4f}, max={pre['max']:.4f}\n")
+                f.write(f"    After warm-up: mean={post['mean']:.4f}, std={post['std']:.4f}, min={post['min']:.4f}, max={post['max']:.4f}\n")
+                f.write(f"    Change: mean_diff={post['mean']-pre['mean']:.4f}, std_diff={post['std']-pre['std']:.4f}, min_diff={post['min']-pre['min']:.4f}, max_diff={post['max']-pre['max']:.4f}\n\n")
+    
+    # Save numeric data as JSON for later analysis
+    json_data = {
+        "pre_warmup": {
+            "outputs": {k: v for k, v in pre_output_stats.items() if k != "histogram"},
+            "activations": {layer: {k: v for k, v in stats.items() if k != "histogram"} 
+                            for layer, stats in pre_activations.items()}
+        },
+        "post_warmup": {
+            "outputs": {k: v for k, v in post_output_stats.items() if k != "histogram"},
+            "activations": {layer: {k: v for k, v in stats.items() if k != "histogram"} 
+                            for layer, stats in post_activations.items()}
+        },
+        "diff": {"outputs": output_diff}
+    }
+    
+    with open(os.path.join(warmup_report_dir, "warmup_data.json"), "w") as f:
+        import json
+        json.dump(json_data, f, indent=2)
+    
+    # Restore original model state
+    model.load_state_dict(current_state)
+    
+    return report_data
+
+
+class VoltageStabilizationTrainer(BaseTrainer):
+    def __init__(self, optimizer, suppress_prints=False, print_every=10, warmup_epochs=1, stability_target_voltage=0.5):
+        super().__init__(optimizer, suppress_prints, print_every)
+        self.warmup_epochs = warmup_epochs
+        self.stability_target_voltage = stability_target_voltage
+
+    def train(self, model, train_data, valid_data=None, grad_clip_value=5, epochs=100,
+              batch_size=256, shuffle=True, plot_losses=False, save_path=None):
+        device = 'cuda' if torch.cuda.is_available() else 'cpu'
+        model = model.to(device)
+        train_loader = DataLoader(train_data, batch_size=batch_size, shuffle=shuffle)
+
+        train_losses = []
+        valid_losses = []
+        best_loss = float('inf')
+        
+        # Store the model state before warm-up
+        pre_warmup_state = deepcopy(model.state_dict())
+        
+        start_time = time.time()
+
+        logger.info("=== Starting warm-up phase ===")
+        for epoch in range(1, self.warmup_epochs + 1):
+            model.train()
+            epoch_train_loss = 0.0
+            for xb, yb in train_loader:
+                xb = xb.to(device)
+                self.optimizer.zero_grad()
+                loss_val = voltage_warmup_loss(model, xb, target_val=self.stability_target_voltage)
+                loss_val.backward()
+                clip_grad_value_(model.parameters(), grad_clip_value)
+                self.optimizer.step()
+                epoch_train_loss += loss_val.item()
+            epoch_train_loss /= len(train_loader)
+            train_losses.append(epoch_train_loss)
+            val_loss, _ = self._eval_dataset(model, valid_data, device, batch_size)
+            valid_losses.append(val_loss)
+            if val_loss < best_loss:
+                best_loss = val_loss
+                best_state = deepcopy(model.state_dict())
+            if (not self.suppress) and (epoch % self.print_every == 0):
+                elapsed = time.time() - start_time
+                logger.info(f"[VoltageWarmup] epoch={epoch}/{self.warmup_epochs}, warmup_loss={epoch_train_loss:.4f}, valid_loss={val_loss:.4f}, elapsed={elapsed:.1f}s")
+            if wandb.run is not None:
+                wandb.log({
+                    "epoch": epoch,
+                    "warmup_loss": epoch_train_loss,
+                    "valid_loss": val_loss
+                })
+
+        logger.info("=== Warm-up phase ended ===")
+        
+        # Store the model state after warm-up
+        post_warmup_state = deepcopy(model.state_dict())
+        
+        # Print brief warmup statistics instead of generating a full report
+        with torch.no_grad():
+            model.eval()
+            # Get a small batch of data for quick statistics
+            sample_loader = DataLoader(train_data, batch_size=min(32, len(train_data)), shuffle=True)
+            x_sample, _ = next(iter(sample_loader))
+            x_sample = x_sample.to(device)
+            
+            # Get pre-warmup stats
+            model.load_state_dict(pre_warmup_state)
+            pre_outputs = model(x_sample)
+            pre_mean = pre_outputs.mean().item()
+            pre_std = pre_outputs.std().item()
+            
+            # Get post-warmup stats
+            model.load_state_dict(post_warmup_state)
+            post_outputs = model(x_sample)
+            post_mean = post_outputs.mean().item()
+            post_std = post_outputs.std().item()
+            
+            # Calculate changes
+            mean_change = post_mean - pre_mean
+            mean_pct_change = (mean_change / (abs(pre_mean) + 1e-8)) * 100
+            std_change = post_std - pre_std
+            std_pct_change = (std_change / (abs(pre_std) + 1e-8)) * 100
+            
+            # Print summary
+            logger.info("=== Warm-up Effect Summary ===")
+            logger.info(f"Target voltage: {self.stability_target_voltage:.4f}")
+            logger.info(f"Output mean: {pre_mean:.4f} → {post_mean:.4f} (Δ: {mean_change:.4f}, {mean_pct_change:+.1f}%)")
+            logger.info(f"Output std: {pre_std:.4f} → {post_std:.4f} (Δ: {std_change:.4f}, {std_pct_change:+.1f}%)")
+            
+            # Calculate distance to target
+            pre_dist = abs(pre_mean - self.stability_target_voltage)
+            post_dist = abs(post_mean - self.stability_target_voltage)
+            dist_change = pre_dist - post_dist
+            logger.info(f"Distance to target: {pre_dist:.4f} → {post_dist:.4f} (Improved by: {dist_change:.4f})")
+            logger.info("=============================")
+            
+            # Restore the state after warmup
+            model.load_state_dict(post_warmup_state)
+
+        remaining_epochs = epochs - self.warmup_epochs
+        start_main_phase = time.time()
+        for epoch in range(1, remaining_epochs + 1):
+            model.train()
+            epoch_train_loss = 0.0
+            preds_list = []
+            labels_list = []
+            for xb, yb in train_loader:
+                xb = xb.to(device)
+                yb = yb.to(device)
+                loss_val = model.compute_loss(xb, yb)
+                self.optimizer.zero_grad()
+                loss_val.backward()
+                clip_grad_value_(model.parameters(), grad_clip_value)
+                self.optimizer.step()
+                epoch_train_loss += loss_val.item()
+                p = model.predict(xb)
+                preds_list.append(p.cpu())
+                labels_list.append(yb.cpu())
+            epoch_train_loss /= len(train_loader)
+            preds_cat = torch.cat(preds_list, dim=0)
+            labels_cat = torch.cat(labels_list, dim=0)
+            train_acc = compute_metrics_classification(preds_cat, labels_cat)['accuracy']
+            val_loss, val_acc = self._eval_dataset(model, valid_data, device, batch_size)
+            train_losses.append(epoch_train_loss)
+            valid_losses.append(val_loss)
+            if val_loss < best_loss:
+                best_loss = val_loss
+                best_state = deepcopy(model.state_dict())
+            if (not self.suppress) and (epoch % self.print_every == 0):
+                elapsed = time.time() - start_main_phase
+                logger.info(f"[VoltageStab Main] epoch={epoch}/{remaining_epochs}, train_loss={epoch_train_loss:.4f}, "
+                            f"train_acc={train_acc:.3f}, valid_loss={val_loss:.4f}, valid_acc={val_acc:.3f}, elapsed={elapsed:.1f}s")
+            if wandb.run is not None:
+                wandb.log({
+                    "epoch": self.warmup_epochs + epoch,
+                    "train_loss": epoch_train_loss,
+                    "train_acc": train_acc,
+                    "valid_loss": val_loss,
+                    "valid_acc": val_acc
+                })
+
+        model.load_state_dict(best_state)
+        results = {
+            "train_losses": train_losses,
+            "valid_losses": valid_losses
+        }
+        if plot_losses and len(train_losses) > 1:
+            if save_path and os.path.exists(save_path):
+                plot_NLL_loss_curves(train_losses, valid_losses, epochs, save_path)
+            else:
+                plot_NLL_loss_curves(train_losses, valid_losses, epochs)
+        return results
+
 def get_trainer(strategy, optimizer, suppress_prints=False, print_every=10):
     strategy = strategy.lower()
     if strategy == "mle":
         return TrainerMLE(optimizer, suppress_prints, print_every)
-    elif strategy == "freeze_layers":
+    elif strategy == "freeze_branches":
+        return TrainerMLE(optimizer, suppress_prints, print_every)
+    elif strategy == "freeze_branches_reversed":
+        return TrainerMLE(optimizer, suppress_prints, print_every)
+    elif strategy == "freeze_branches_with_pretraining":
+        return TrainerMLE(optimizer, suppress_prints, print_every)
+    elif strategy == "freeze_branches_reversed_with_pretraining":
         return TrainerMLE(optimizer, suppress_prints, print_every)
     elif strategy == "local_credit_assignment":
         return LocalCreditAssignment(optimizer, suppress_prints, print_every)
@@ -771,10 +1571,15 @@ def get_trainer(strategy, optimizer, suppress_prints=False, print_every=10):
         return TwoStepTrainer(optimizer, suppress_prints, print_every)
     elif strategy == "two_step_kl":
         return TwoStepTrainerWithKL(optimizer, suppress_prints, print_every)
+    elif strategy == "voltage_stabilization":
+        return VoltageStabilizationTrainer(optimizer, suppress_prints, print_every)
     else:
         logger.info(f"Unrecognized strategy '{strategy}', defaulting to 'mle'.")
         return TrainerMLE(optimizer, suppress_prints, print_every)
-
+    
+    
+    
+    
 
 # Add a function to train the simple MLP
 def train_simple_mlp(input_dim, hidden_dims, output_dim, train_ds, valid_ds, test_ds, 
@@ -1323,7 +2128,7 @@ def extract_weights_from_simple_mlp(simple_mlp, input_net_transform):
         else:
             source_layer = mlp_linear_modules[0]
         
-        # Transfer to excitatory head
+        # Transfer to excitatory headß
         exc_head_modules[0].weight.data = source_layer.weight.data[:exc_head_modules[0].weight.shape[0], :].clone()
         exc_head_modules[0].bias.data = source_layer.bias.data[:exc_head_modules[0].bias.shape[0]].clone()
         logger.info("Transferred weights to excitatory head")
@@ -1334,3 +2139,672 @@ def extract_weights_from_simple_mlp(simple_mlp, input_net_transform):
         logger.info("Transferred weights to inhibitory head")
     
     logger.info("Weight transfer from SimpleMLP to InputNetTransform completed")
+
+    def train_freeze_layers_by_layer(self, model, train_data, valid_data=None, epochs_per_layer=5,
+                            batch_size=256, shuffle=True, grad_clip_value=5,
+                            plot_losses=False, save_path=None, final_tune_epochs=10):
+        """Train layers sequentially from soma to input (previously named train_freeze_layers)"""
+        device = 'cuda' if torch.cuda.is_available() else 'cpu'
+        model = model.to(device)
+        if not hasattr(model, 'net') or not hasattr(model.net, 'layers'):
+            logger.info("Model has no 'net.layers'. Falling back to normal train.")
+            return self.train(model, train_data, valid_data, grad_clip_value=grad_clip_value,
+                              epochs=epochs_per_layer, batch_size=batch_size, shuffle=shuffle,
+                              plot_losses=plot_losses, save_path=save_path)
+        n_layers = len(model.net.layers)
+        logger.info(f"train_freeze_layers_by_layer: found {n_layers} layers. Training them sequentially.")
+        train_losses = []
+        valid_losses = []
+        best_loss = float('inf')
+        best_state = deepcopy(model.state_dict())
+        total_epochs = n_layers * epochs_per_layer
+        epoch_counter = 0
+        start_time = time.time()
+        for layer_idx in range(n_layers):
+            for name, param in model.named_parameters():
+                param.requires_grad = False
+            target_str = f"layers.{layer_idx}."
+            for name, param in model.named_parameters():
+                if target_str in name:
+                    param.requires_grad = True
+            logger.info(f"Training only layer {layer_idx} for {epochs_per_layer} epochs.")
+            train_loader = DataLoader(train_data, batch_size=batch_size, shuffle=shuffle)
+            for e in range(1, epochs_per_layer + 1):
+                epoch_counter += 1
+                model.train()
+                epoch_train_loss = 0.0
+                preds_list = []
+                labels_list = []
+                for xb, yb in train_loader:
+                    xb = xb.to(device)
+                    yb = yb.to(device)
+                    nll = model.compute_loss(xb, yb)
+                    self.optimizer.zero_grad()
+                    nll.backward()
+                    clip_grad_value_(model.parameters(), grad_clip_value)
+                    self.optimizer.step()
+                    epoch_train_loss += nll.item()
+                    p = model.predict(xb)
+                    preds_list.append(p.cpu())
+                    labels_list.append(yb.cpu())
+                epoch_train_loss /= len(train_loader)
+                preds_cat = torch.cat(preds_list, dim=0)
+                labels_cat = torch.cat(labels_list, dim=0)
+                train_acc = compute_metrics_classification(preds_cat, labels_cat)['accuracy']
+                train_losses.append(epoch_train_loss)
+                val_loss, val_acc = self._eval_dataset(model, valid_data, device, batch_size)
+                valid_losses.append(val_loss)
+                if val_loss < best_loss:
+                    best_loss = val_loss
+                    best_state = deepcopy(model.state_dict())
+                if (not self.suppress) and (epoch_counter % self.print_every == 0):
+                    elapsed = time.time() - start_time
+                    logger.info(f"[Freeze-layers-by-layer] layer={layer_idx}, epoch={epoch_counter}/{total_epochs}, "
+                                f"train_loss={epoch_train_loss:.4f}, train_acc={train_acc:.3f}, "
+                                f"valid_loss={val_loss:.4f}, valid_acc={val_acc:.3f}, elapsed={elapsed:.1f}s")
+                if wandb.run is not None:
+                    wandb.log({
+                        "epoch": epoch_counter,
+                        "freeze_layer": layer_idx,
+                        "train_loss": epoch_train_loss,
+                        "train_acc": train_acc,
+                        "valid_loss": val_loss,
+                        "valid_acc": val_acc
+                    })
+        logger.info("Done freeze-layers-by-layer. Unfreezing all layers and loading best state.")
+        for name, param in model.named_parameters():
+            param.requires_grad = True
+        model.load_state_dict(best_state)
+        logger.info(f"Starting final full-network tuning for {final_tune_epochs} epochs.")
+        final_results = self.train(model, train_data, valid_data, grad_clip_value=grad_clip_value,
+                                   epochs=final_tune_epochs, batch_size=batch_size, shuffle=shuffle,
+                                   load_best_state_dict=True, plot_losses=plot_losses, save_path=save_path)
+        return final_results
+    
+    # Alias for backward compatibility
+    train_freeze_layers = train_freeze_layers_by_layer
+
+    def train_freeze_layers_reversed_by_layer(self, model, train_data, valid_data=None, epochs_per_layer=5,
+                                     batch_size=256, shuffle=True, grad_clip_value=5,
+                                     plot_losses=False, save_path=None, final_tune_epochs=10):
+        """Train layers sequentially from input to soma (previously named train_freeze_layers_reversed)"""
+        device = 'cuda' if torch.cuda.is_available() else 'cpu'
+        model = model.to(device)
+        if not hasattr(model, 'net') or not hasattr(model.net, 'layers'):
+            logger.info("Model has no 'net.layers'. Falling back to normal train.")
+            return self.train(model, train_data, valid_data, grad_clip_value=grad_clip_value,
+                              epochs=epochs_per_layer, batch_size=batch_size, shuffle=shuffle,
+                              plot_losses=plot_losses, save_path=save_path)
+        n_layers = len(model.net.layers)
+        logger.info(f"train_freeze_layers_reversed_by_layer: found {n_layers} layers. Training them sequentially from input to soma.")
+        train_losses = []
+        valid_losses = []
+        best_loss = float('inf')
+        best_state = deepcopy(model.state_dict())
+        total_epochs = n_layers * epochs_per_layer
+        epoch_counter = 0
+        start_time = time.time()
+        # Iterate in reverse order (n_layers-1 to 0), training from input towards soma
+        for layer_idx in range(n_layers-1, -1, -1):
+            for name, param in model.named_parameters():
+                param.requires_grad = False
+            target_str = f"layers.{layer_idx}."
+            for name, param in model.named_parameters():
+                if target_str in name:
+                    param.requires_grad = True
+            logger.info(f"Training only layer {layer_idx} (farther from soma) for {epochs_per_layer} epochs.")
+            train_loader = DataLoader(train_data, batch_size=batch_size, shuffle=shuffle)
+            for e in range(1, epochs_per_layer + 1):
+                epoch_counter += 1
+                model.train()
+                epoch_train_loss = 0.0
+                preds_list = []
+                labels_list = []
+                for xb, yb in train_loader:
+                    xb = xb.to(device)
+                    yb = yb.to(device)
+                    nll = model.compute_loss(xb, yb)
+                    self.optimizer.zero_grad()
+                    nll.backward()
+                    clip_grad_value_(model.parameters(), grad_clip_value)
+                    self.optimizer.step()
+                    epoch_train_loss += nll.item()
+                    p = model.predict(xb)
+                    preds_list.append(p.cpu())
+                    labels_list.append(yb.cpu())
+                epoch_train_loss /= len(train_loader)
+                preds_cat = torch.cat(preds_list, dim=0)
+                labels_cat = torch.cat(labels_list, dim=0)
+                train_acc = compute_metrics_classification(preds_cat, labels_cat)['accuracy']
+                train_losses.append(epoch_train_loss)
+                val_loss, val_acc = self._eval_dataset(model, valid_data, device, batch_size)
+                valid_losses.append(val_loss)
+                if val_loss < best_loss:
+                    best_loss = val_loss
+                    best_state = deepcopy(model.state_dict())
+                if (not self.suppress) and (epoch_counter % self.print_every == 0):
+                    elapsed = time.time() - start_time
+                    logger.info(f"[Freeze-layers-reversed-by-layer] layer={layer_idx}, epoch={epoch_counter}/{total_epochs}, "
+                                f"train_loss={epoch_train_loss:.4f}, train_acc={train_acc:.3f}, "
+                                f"valid_loss={val_loss:.4f}, valid_acc={val_acc:.3f}, elapsed={elapsed:.1f}s")
+                if wandb.run is not None:
+                    wandb.log({
+                        "epoch": epoch_counter,
+                        "freeze_layer_reversed": layer_idx,
+                        "train_loss": epoch_train_loss,
+                        "train_acc": train_acc,
+                        "valid_loss": val_loss,
+                        "valid_acc": val_acc
+                    })
+        logger.info("Done freeze-layers-reversed-by-layer. Unfreezing all layers and loading best state.")
+        for name, param in model.named_parameters():
+            param.requires_grad = True
+        model.load_state_dict(best_state)
+        logger.info(f"Starting final full-network tuning for {final_tune_epochs} epochs.")
+        final_results = self.train(model, train_data, valid_data, grad_clip_value=grad_clip_value,
+                                   epochs=final_tune_epochs, batch_size=batch_size, shuffle=shuffle,
+                                   load_best_state_dict=True, plot_losses=plot_losses, save_path=save_path)
+        return final_results
+    
+    # Alias for backward compatibility
+    train_freeze_layers_reversed = train_freeze_layers_reversed_by_layer
+    
+    def train_freeze_branches(self, model, train_data, valid_data=None, epochs_per_branch=5,
+                            batch_size=256, shuffle=True, grad_clip_value=5,
+                            plot_losses=False, save_path=None, final_tune_epochs=10):
+        """Train individual dendritic branches sequentially from soma to input (distal).
+        This method trains each branch in the dendritic tree separately, starting from the branches
+        closest to the soma and moving outward."""
+        device = 'cuda' if torch.cuda.is_available() else 'cpu'
+        model = model.to(device)
+        
+        # Check if model has the right structure
+        if (not hasattr(model, 'net') or not hasattr(model.net, 'layers') or 
+            not hasattr(model.net.layers[0], 'excitatory_cells') or 
+            not hasattr(model.net.layers[0].excitatory_cells, 'branch_layers')):
+            logger.info("Model structure not compatible with branch-wise training. Falling back to normal train.")
+            return self.train(model, train_data, valid_data, grad_clip_value=grad_clip_value,
+                              epochs=epochs_per_branch, batch_size=batch_size, shuffle=shuffle,
+                              plot_losses=plot_losses, save_path=save_path)
+        
+        # Get the branch layers from the model
+        branch_layers = model.net.layers[0].excitatory_cells.branch_layers
+        n_branches = len(branch_layers)
+        
+        logger.info(f"train_freeze_branches: found {n_branches} branch layers. Training them sequentially from soma to input.")
+        
+        train_losses = []
+        valid_losses = []
+        best_loss = float('inf')
+        best_state = deepcopy(model.state_dict())
+        total_epochs = n_branches * epochs_per_branch
+        epoch_counter = 0
+        start_time = time.time()
+        
+        # Train branches from soma (near) to distal (far) - typically index 0 is closest to soma
+        for branch_idx in range(n_branches):
+            # Freeze all parameters
+            for name, param in model.named_parameters():
+                param.requires_grad = False
+                
+            # Unfreeze only parameters for the current branch
+            target_str = f"excitatory_cells.branch_layers.{branch_idx}."
+            for name, param in model.named_parameters():
+                if target_str in name:
+                    param.requires_grad = True
+                    
+            logger.info(f"Training only branch {branch_idx} for {epochs_per_branch} epochs.")
+            train_loader = DataLoader(train_data, batch_size=batch_size, shuffle=shuffle)
+            
+            for e in range(1, epochs_per_branch + 1):
+                epoch_counter += 1
+                model.train()
+                epoch_train_loss = 0.0
+                preds_list = []
+                labels_list = []
+                
+                for xb, yb in train_loader:
+                    xb = xb.to(device)
+                    yb = yb.to(device)
+                    nll = model.compute_loss(xb, yb)
+                    self.optimizer.zero_grad()
+                    nll.backward()
+                    clip_grad_value_(model.parameters(), grad_clip_value)
+                    self.optimizer.step()
+                    epoch_train_loss += nll.item()
+                    p = model.predict(xb)
+                    preds_list.append(p.cpu())
+                    labels_list.append(yb.cpu())
+                    
+                epoch_train_loss /= len(train_loader)
+                preds_cat = torch.cat(preds_list, dim=0)
+                labels_cat = torch.cat(labels_list, dim=0)
+                train_acc = compute_metrics_classification(preds_cat, labels_cat)['accuracy']
+                train_losses.append(epoch_train_loss)
+                val_loss, val_acc = self._eval_dataset(model, valid_data, device, batch_size)
+                valid_losses.append(val_loss)
+                
+                if val_loss < best_loss:
+                    best_loss = val_loss
+                    best_state = deepcopy(model.state_dict())
+                    
+                if (not self.suppress) and (epoch_counter % self.print_every == 0):
+                    elapsed = time.time() - start_time
+                    logger.info(f"[Freeze-branches] branch={branch_idx}, epoch={epoch_counter}/{total_epochs}, "
+                                f"train_loss={epoch_train_loss:.4f}, train_acc={train_acc:.3f}, "
+                                f"valid_loss={val_loss:.4f}, valid_acc={val_acc:.3f}, elapsed={elapsed:.1f}s")
+                    
+                if wandb.run is not None:
+                    wandb.log({
+                        "epoch": epoch_counter,
+                        "freeze_branch": branch_idx,
+                        "train_loss": epoch_train_loss,
+                        "train_acc": train_acc,
+                        "valid_loss": val_loss,
+                        "valid_acc": val_acc
+                    })
+        
+        logger.info("Done freeze-branches. Unfreezing all parameters and loading best state.")
+        for name, param in model.named_parameters():
+            param.requires_grad = True
+        model.load_state_dict(best_state)
+        
+        logger.info(f"Starting final full-network tuning for {final_tune_epochs} epochs.")
+        final_results = self.train(model, train_data, valid_data, grad_clip_value=grad_clip_value,
+                                   epochs=final_tune_epochs, batch_size=batch_size, shuffle=shuffle,
+                                   load_best_state_dict=True, plot_losses=plot_losses, save_path=save_path)
+        
+        return final_results
+        
+    def train_freeze_branches_reversed(self, model, train_data, valid_data=None, epochs_per_branch=5,
+                                     batch_size=256, shuffle=True, grad_clip_value=5,
+                                     plot_losses=False, save_path=None, final_tune_epochs=10):
+        """Train individual dendritic branches sequentially from input (distal) to soma.
+        This method trains each branch in the dendritic tree separately, starting from the branches
+        farthest from the soma and moving inward."""
+        device = 'cuda' if torch.cuda.is_available() else 'cpu'
+        model = model.to(device)
+        
+        # Check if model has the right structure
+        if (not hasattr(model, 'net') or not hasattr(model.net, 'layers') or 
+            not hasattr(model.net.layers[0], 'excitatory_cells') or 
+            not hasattr(model.net.layers[0].excitatory_cells, 'branch_layers')):
+            logger.info("Model structure not compatible with branch-wise training. Falling back to normal train.")
+            return self.train(model, train_data, valid_data, grad_clip_value=grad_clip_value,
+                              epochs=epochs_per_branch, batch_size=batch_size, shuffle=shuffle,
+                              plot_losses=plot_losses, save_path=save_path)
+        
+        # Get the branch layers from the model
+        branch_layers = model.net.layers[0].excitatory_cells.branch_layers
+        n_branches = len(branch_layers)
+        
+        logger.info(f"train_freeze_branches_reversed: found {n_branches} branch layers. Training them sequentially from input to soma.")
+        
+        train_losses = []
+        valid_losses = []
+        best_loss = float('inf')
+        best_state = deepcopy(model.state_dict())
+        total_epochs = n_branches * epochs_per_branch
+        epoch_counter = 0
+        start_time = time.time()
+        
+        # Train branches from distal (far) to soma (near) - reverse order
+        for branch_idx in range(n_branches - 1, -1, -1):
+            # Freeze all parameters
+            for name, param in model.named_parameters():
+                param.requires_grad = False
+                
+            # Unfreeze only parameters for the current branch
+            target_str = f"excitatory_cells.branch_layers.{branch_idx}."
+            for name, param in model.named_parameters():
+                if target_str in name:
+                    param.requires_grad = True
+                    
+            logger.info(f"Training only branch {branch_idx} for {epochs_per_branch} epochs.")
+            train_loader = DataLoader(train_data, batch_size=batch_size, shuffle=shuffle)
+            
+            for e in range(1, epochs_per_branch + 1):
+                epoch_counter += 1
+                model.train()
+                epoch_train_loss = 0.0
+                preds_list = []
+                labels_list = []
+                
+                for xb, yb in train_loader:
+                    xb = xb.to(device)
+                    yb = yb.to(device)
+                    nll = model.compute_loss(xb, yb)
+                    self.optimizer.zero_grad()
+                    nll.backward()
+                    clip_grad_value_(model.parameters(), grad_clip_value)
+                    self.optimizer.step()
+                    epoch_train_loss += nll.item()
+                    p = model.predict(xb)
+                    preds_list.append(p.cpu())
+                    labels_list.append(yb.cpu())
+                    
+                epoch_train_loss /= len(train_loader)
+                preds_cat = torch.cat(preds_list, dim=0)
+                labels_cat = torch.cat(labels_list, dim=0)
+                train_acc = compute_metrics_classification(preds_cat, labels_cat)['accuracy']
+                train_losses.append(epoch_train_loss)
+                val_loss, val_acc = self._eval_dataset(model, valid_data, device, batch_size)
+                valid_losses.append(val_loss)
+                
+                if val_loss < best_loss:
+                    best_loss = val_loss
+                    best_state = deepcopy(model.state_dict())
+                    
+                if (not self.suppress) and (epoch_counter % self.print_every == 0):
+                    elapsed = time.time() - start_time
+                    logger.info(f"[Freeze-branches-reversed] branch={branch_idx}, epoch={epoch_counter}/{total_epochs}, "
+                                f"train_loss={epoch_train_loss:.4f}, train_acc={train_acc:.3f}, "
+                                f"valid_loss={val_loss:.4f}, valid_acc={val_acc:.3f}, elapsed={elapsed:.1f}s")
+                    
+                if wandb.run is not None:
+                    wandb.log({
+                        "epoch": epoch_counter,
+                        "freeze_branch_reversed": branch_idx,
+                        "train_loss": epoch_train_loss,
+                        "train_acc": train_acc,
+                        "valid_loss": val_loss,
+                        "valid_acc": val_acc
+                    })
+        
+        logger.info("Done freeze-branches-reversed. Unfreezing all parameters and loading best state.")
+        for name, param in model.named_parameters():
+            param.requires_grad = True
+        model.load_state_dict(best_state)
+        
+        logger.info(f"Starting final full-network tuning for {final_tune_epochs} epochs.")
+        final_results = self.train(model, train_data, valid_data, grad_clip_value=grad_clip_value,
+                                   epochs=final_tune_epochs, batch_size=batch_size, shuffle=shuffle,
+                                   load_best_state_dict=True, plot_losses=plot_losses, save_path=save_path)
+        
+        return final_results
+    
+    def train_freeze_branches_with_pretraining(self, model, train_data, valid_data=None, pretrain_epochs=10,
+                                             epochs_per_branch=5, batch_size=256, shuffle=True, grad_clip_value=5,
+                                             plot_losses=False, save_path=None, final_tune_epochs=10):
+        """Train with a three-phase approach:
+        1. Initial full network training (all parameters unfrozen) for pretrain_epochs
+        2. Branch-by-branch training from soma to input (freezing all branches except the current one)
+        3. Final full network fine-tuning
+        """
+        device = 'cuda' if torch.cuda.is_available() else 'cpu'
+        model = model.to(device)
+        
+        # Check if model has the right structure
+        if (not hasattr(model, 'net') or not hasattr(model.net, 'layers') or 
+            not hasattr(model.net.layers[0], 'excitatory_cells') or 
+            not hasattr(model.net.layers[0].excitatory_cells, 'branch_layers')):
+            logger.info("Model structure not compatible with branch-wise training. Falling back to normal train.")
+            return self.train(model, train_data, valid_data, grad_clip_value=grad_clip_value,
+                             epochs=pretrain_epochs + epochs_per_branch, batch_size=batch_size, shuffle=shuffle,
+                             plot_losses=plot_losses, save_path=save_path)
+        
+        # Phase 1: Initial full network training
+        logger.info(f"Starting initial full network training for {pretrain_epochs} epochs")
+        initial_results = self.train(
+            model=model, 
+            train_data=train_data, 
+            valid_data=valid_data, 
+            grad_clip_value=grad_clip_value,
+            epochs=pretrain_epochs, 
+            batch_size=batch_size, 
+            shuffle=shuffle,
+            load_best_state_dict=True, 
+            plot_losses=False
+        )
+        
+        # Save the pretrained model
+        if save_path:
+            os.makedirs(save_path, exist_ok=True)
+            pretrain_path = os.path.join(save_path, "pretrained_model.pt")
+            torch.save(model.state_dict(), pretrain_path)
+            logger.info(f"Saved pretrained model to {pretrain_path}")
+        
+        # Phase 2: Branch-by-branch training
+        branch_layers = model.net.layers[0].excitatory_cells.branch_layers
+        n_branches = len(branch_layers)
+        
+        logger.info(f"Starting branch-by-branch training (soma to input): found {n_branches} branches.")
+        train_losses = initial_results.get('train_losses', [])
+        valid_losses = initial_results.get('valid_losses', [])
+        best_loss = float('inf')
+        best_state = deepcopy(model.state_dict())
+        total_epochs = pretrain_epochs + (n_branches * epochs_per_branch) + final_tune_epochs
+        epoch_counter = pretrain_epochs
+        start_time = time.time()
+        
+        # Train branches from soma (near) to distal (far)
+        for branch_idx in range(n_branches):
+            # Freeze all parameters
+            for name, param in model.named_parameters():
+                param.requires_grad = False
+                
+            # Unfreeze only parameters for the current branch
+            target_str = f"excitatory_cells.branch_layers.{branch_idx}."
+            for name, param in model.named_parameters():
+                if target_str in name:
+                    param.requires_grad = True
+                    
+            logger.info(f"Training only branch {branch_idx} for {epochs_per_branch} epochs.")
+            train_loader = DataLoader(train_data, batch_size=batch_size, shuffle=shuffle)
+            
+            for e in range(1, epochs_per_branch + 1):
+                epoch_counter += 1
+                model.train()
+                epoch_train_loss = 0.0
+                preds_list = []
+                labels_list = []
+                
+                for xb, yb in train_loader:
+                    xb = xb.to(device)
+                    yb = yb.to(device)
+                    nll = model.compute_loss(xb, yb)
+                    self.optimizer.zero_grad()
+                    nll.backward()
+                    clip_grad_value_(model.parameters(), grad_clip_value)
+                    self.optimizer.step()
+                    epoch_train_loss += nll.item()
+                    p = model.predict(xb)
+                    preds_list.append(p.cpu())
+                    labels_list.append(yb.cpu())
+                    
+                epoch_train_loss /= len(train_loader)
+                preds_cat = torch.cat(preds_list, dim=0)
+                labels_cat = torch.cat(labels_list, dim=0)
+                train_acc = compute_metrics_classification(preds_cat, labels_cat)['accuracy']
+                train_losses.append(epoch_train_loss)
+                val_loss, val_acc = self._eval_dataset(model, valid_data, device, batch_size)
+                valid_losses.append(val_loss)
+                
+                if val_loss < best_loss:
+                    best_loss = val_loss
+                    best_state = deepcopy(model.state_dict())
+                    
+                if (not self.suppress) and (epoch_counter % self.print_every == 0):
+                    elapsed = time.time() - start_time
+                    logger.info(f"[Freeze-branches-with-pretraining] branch={branch_idx}, epoch={epoch_counter}/{total_epochs}, "
+                               f"train_loss={epoch_train_loss:.4f}, train_acc={train_acc:.3f}, "
+                               f"valid_loss={val_loss:.4f}, valid_acc={val_acc:.3f}, elapsed={elapsed:.1f}s")
+                    
+                if wandb.run is not None:
+                    wandb.log({
+                        "epoch": epoch_counter,
+                        "freeze_branch_with_pretraining": branch_idx,
+                        "train_loss": epoch_train_loss,
+                        "train_acc": train_acc,
+                        "valid_loss": val_loss,
+                        "valid_acc": val_acc
+                    })
+        
+        # Phase 3: Final full-network fine-tuning
+        logger.info("Done branch-by-branch training. Unfreezing all parameters and loading best state.")
+        for name, param in model.named_parameters():
+            param.requires_grad = True
+        model.load_state_dict(best_state)
+        
+        logger.info(f"Starting final full-network tuning for {final_tune_epochs} epochs.")
+        final_results = self.train(
+            model=model, 
+            train_data=train_data, 
+            valid_data=valid_data, 
+            grad_clip_value=grad_clip_value,
+            epochs=final_tune_epochs, 
+            batch_size=batch_size, 
+            shuffle=shuffle,
+            load_best_state_dict=True, 
+            plot_losses=plot_losses, 
+            save_path=save_path
+        )
+        
+        # Combine all results
+        final_results['train_losses'] = train_losses + final_results.get('train_losses', [])
+        final_results['valid_losses'] = valid_losses + final_results.get('valid_losses', [])
+        
+        return final_results
+    
+    def train_freeze_branches_reversed_with_pretraining(self, model, train_data, valid_data=None, pretrain_epochs=10,
+                                                      epochs_per_branch=5, batch_size=256, shuffle=True, grad_clip_value=5,
+                                                      plot_losses=False, save_path=None, final_tune_epochs=10):
+        """Train with a three-phase approach:
+        1. Initial full network training (all parameters unfrozen) for pretrain_epochs
+        2. Branch-by-branch training from input to soma (freezing all branches except the current one)
+        3. Final full network fine-tuning
+        """
+        device = 'cuda' if torch.cuda.is_available() else 'cpu'
+        model = model.to(device)
+        
+        # Check if model has the right structure
+        if (not hasattr(model, 'net') or not hasattr(model.net, 'layers') or 
+            not hasattr(model.net.layers[0], 'excitatory_cells') or 
+            not hasattr(model.net.layers[0].excitatory_cells, 'branch_layers')):
+            logger.info("Model structure not compatible with branch-wise training. Falling back to normal train.")
+            return self.train(model, train_data, valid_data, grad_clip_value=grad_clip_value,
+                             epochs=pretrain_epochs + epochs_per_branch, batch_size=batch_size, shuffle=shuffle,
+                             plot_losses=plot_losses, save_path=save_path)
+        
+        # Phase 1: Initial full network training
+        logger.info(f"Starting initial full network training for {pretrain_epochs} epochs")
+        initial_results = self.train(
+            model=model, 
+            train_data=train_data, 
+            valid_data=valid_data, 
+            grad_clip_value=grad_clip_value,
+            epochs=pretrain_epochs, 
+            batch_size=batch_size, 
+            shuffle=shuffle,
+            load_best_state_dict=True, 
+            plot_losses=False
+        )
+        
+        # Save the pretrained model
+        if save_path:
+            os.makedirs(save_path, exist_ok=True)
+            pretrain_path = os.path.join(save_path, "pretrained_model.pt")
+            torch.save(model.state_dict(), pretrain_path)
+            logger.info(f"Saved pretrained model to {pretrain_path}")
+        
+        # Phase 2: Branch-by-branch training from input to soma
+        branch_layers = model.net.layers[0].excitatory_cells.branch_layers
+        n_branches = len(branch_layers)
+        
+        logger.info(f"Starting branch-by-branch training (input to soma): found {n_branches} branches.")
+        train_losses = initial_results.get('train_losses', [])
+        valid_losses = initial_results.get('valid_losses', [])
+        best_loss = float('inf')
+        best_state = deepcopy(model.state_dict())
+        total_epochs = pretrain_epochs + (n_branches * epochs_per_branch) + final_tune_epochs
+        epoch_counter = pretrain_epochs
+        start_time = time.time()
+        
+        # Train branches from distal (far) to soma (near) - reverse order
+        for branch_idx in range(n_branches - 1, -1, -1):
+            # Freeze all parameters
+            for name, param in model.named_parameters():
+                param.requires_grad = False
+                
+            # Unfreeze only parameters for the current branch
+            target_str = f"excitatory_cells.branch_layers.{branch_idx}."
+            for name, param in model.named_parameters():
+                if target_str in name:
+                    param.requires_grad = True
+                    
+            logger.info(f"Training only branch {branch_idx} for {epochs_per_branch} epochs.")
+            train_loader = DataLoader(train_data, batch_size=batch_size, shuffle=shuffle)
+            
+            for e in range(1, epochs_per_branch + 1):
+                epoch_counter += 1
+                model.train()
+                epoch_train_loss = 0.0
+                preds_list = []
+                labels_list = []
+                
+                for xb, yb in train_loader:
+                    xb = xb.to(device)
+                    yb = yb.to(device)
+                    nll = model.compute_loss(xb, yb)
+                    self.optimizer.zero_grad()
+                    nll.backward()
+                    clip_grad_value_(model.parameters(), grad_clip_value)
+                    self.optimizer.step()
+                    epoch_train_loss += nll.item()
+                    p = model.predict(xb)
+                    preds_list.append(p.cpu())
+                    labels_list.append(yb.cpu())
+                    
+                epoch_train_loss /= len(train_loader)
+                preds_cat = torch.cat(preds_list, dim=0)
+                labels_cat = torch.cat(labels_list, dim=0)
+                train_acc = compute_metrics_classification(preds_cat, labels_cat)['accuracy']
+                train_losses.append(epoch_train_loss)
+                val_loss, val_acc = self._eval_dataset(model, valid_data, device, batch_size)
+                valid_losses.append(val_loss)
+                
+                if val_loss < best_loss:
+                    best_loss = val_loss
+                    best_state = deepcopy(model.state_dict())
+                    
+                if (not self.suppress) and (epoch_counter % self.print_every == 0):
+                    elapsed = time.time() - start_time
+                    logger.info(f"[Freeze-branches-reversed-with-pretraining] branch={branch_idx}, epoch={epoch_counter}/{total_epochs}, "
+                               f"train_loss={epoch_train_loss:.4f}, train_acc={train_acc:.3f}, "
+                               f"valid_loss={val_loss:.4f}, valid_acc={val_acc:.3f}, elapsed={elapsed:.1f}s")
+                    
+                if wandb.run is not None:
+                    wandb.log({
+                        "epoch": epoch_counter,
+                        "freeze_branch_reversed_with_pretraining": branch_idx,
+                        "train_loss": epoch_train_loss,
+                        "train_acc": train_acc,
+                        "valid_loss": val_loss,
+                        "valid_acc": val_acc
+                    })
+        
+        # Phase 3: Final full-network fine-tuning
+        logger.info("Done branch-by-branch training. Unfreezing all parameters and loading best state.")
+        for name, param in model.named_parameters():
+            param.requires_grad = True
+        model.load_state_dict(best_state)
+        
+        logger.info(f"Starting final full-network tuning for {final_tune_epochs} epochs.")
+        final_results = self.train(
+            model=model, 
+            train_data=train_data, 
+            valid_data=valid_data, 
+            grad_clip_value=grad_clip_value,
+            epochs=final_tune_epochs, 
+            batch_size=batch_size, 
+            shuffle=shuffle,
+            load_best_state_dict=True, 
+            plot_losses=plot_losses, 
+            save_path=save_path
+        )
+        
+        # Combine all results
+        final_results['train_losses'] = train_losses + final_results.get('train_losses', [])
+        final_results['valid_losses'] = valid_losses + final_results.get('valid_losses', [])
+        
+        return final_results
