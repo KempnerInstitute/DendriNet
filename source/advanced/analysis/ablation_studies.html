@@ -67,7 +67,6 @@
 <li class="toctree-l3"><a class="reference internal" href="#branch-ablation">Branch Ablation</a><ul>
 <li class="toctree-l4"><a class="reference internal" href="#branch-ablation-functions">Branch Ablation Functions</a></li>
 <li class="toctree-l4"><a class="reference internal" href="#example-branch-ablation">Example: Branch Ablation</a></li>
-<li class="toctree-l4"><a class="reference internal" href="#example-dendritic-order-ablation">Example: Dendritic Order Ablation</a></li>
 </ul>
 </li>
 <li class="toctree-l3"><a class="reference internal" href="#layer-ablation">Layer Ablation</a><ul>
@@ -75,20 +74,14 @@
 <li class="toctree-l4"><a class="reference internal" href="#example-layer-ablation">Example: Layer Ablation</a></li>
 </ul>
 </li>
-<li class="toctree-l3"><a class="reference internal" href="#feature-ablation">Feature Ablation</a><ul>
-<li class="toctree-l4"><a class="reference internal" href="#feature-ablation-functions">Feature Ablation Functions</a></li>
-<li class="toctree-l4"><a class="reference internal" href="#example-feature-ablation">Example: Feature Ablation</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#visualizing-ablation-results">Visualizing Ablation Results</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="#branch-importance-visualization">Branch Importance Visualization</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#branch-activation-patterns">Branch Activation Patterns</a></li>
 </ul>
 </li>
-<li class="toctree-l3"><a class="reference internal" href="#mechanism-ablation">Mechanism Ablation</a><ul>
-<li class="toctree-l4"><a class="reference internal" href="#mechanism-ablation-functions">Mechanism Ablation Functions</a></li>
-<li class="toctree-l4"><a class="reference internal" href="#example-shunting-inhibition-ablation">Example: Shunting Inhibition Ablation</a></li>
-</ul>
-</li>
-<li class="toctree-l3"><a class="reference internal" href="#visualizing-ablation-results">Visualizing Ablation Results</a></li>
-<li class="toctree-l3"><a class="reference internal" href="#comprehensive-ablation-analysis">Comprehensive Ablation Analysis</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#combined-analysis">Combined Analysis</a></li>
 <li class="toctree-l3"><a class="reference internal" href="#best-practices-for-ablation-studies">Best Practices for Ablation Studies</a></li>
-<li class="toctree-l3"><a class="reference internal" href="#ablation-in-research">Ablation in Research</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#conclusion">Conclusion</a></li>
 </ul>
 </li>
 <li class="toctree-l2"><a class="reference internal" href="ablation_information_analysis.html">Ablation Studies and Information Analysis</a></li>
@@ -143,7 +136,6 @@
 <li><p><strong>Branch ablation</strong>: Removing individual dendritic branches</p></li>
 <li><p><strong>Layer ablation</strong>: Removing entire layers of branches</p></li>
 <li><p><strong>Feature ablation</strong>: Removing specific input features</p></li>
-<li><p><strong>Mechanism ablation</strong>: Disabling computational mechanisms (e.g., shunting inhibition)</p></li>
 </ol>
 <p>These studies help identify which components are essential for performance and which components are specialized for specific inputs or tasks.</p>
 </section>
@@ -167,7 +159,7 @@
 <span class="sd">        IDs of branches to ablate, or None for all branches</span>
 <span class="sd">    mode : str</span>
 <span class="sd">        Ablation mode: &#39;direct&#39; (zero out specific branches) or</span>
-<span class="sd">        &#39;full&#39; (zero out all except specified branches)</span>
+<span class="sd">        &#39;indirect&#39; (zero out all except specified branches)</span>
 <span class="sd">    &quot;&quot;&quot;</span>
 </pre></div>
 </div>
@@ -176,7 +168,7 @@
 <div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="k">def</span><span class="w"> </span><span class="nf">analyze_branch_ablation</span><span class="p">(</span><span class="n">model</span><span class="p">,</span> <span class="n">dataset</span><span class="p">,</span> <span class="n">layer_idx</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">branch_ids</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
                             <span class="n">mode</span><span class="o">=</span><span class="s1">&#39;direct&#39;</span><span class="p">,</span> <span class="n">device</span><span class="o">=</span><span class="s1">&#39;cpu&#39;</span><span class="p">):</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
-<span class="sd">    Perform ablation analysis for specific branches or dendritic orders.</span>
+<span class="sd">    Perform ablation analysis for specific branches.</span>
 
 <span class="sd">    Parameters</span>
 <span class="sd">    ----------</span>
@@ -185,28 +177,22 @@
 <span class="sd">    dataset : torch.utils.data.Dataset</span>
 <span class="sd">        Dataset to evaluate on</span>
 <span class="sd">    layer_idx : int or None</span>
-<span class="sd">        Index of the layer to ablate. If None and branch_ids is None,</span>
-<span class="sd">        perform dendritic order analysis.</span>
+<span class="sd">        Index of the layer to ablate</span>
 <span class="sd">    branch_ids : list or None</span>
 <span class="sd">        IDs of branches to ablate, or None for all branches</span>
 <span class="sd">    mode : str</span>
-<span class="sd">        Ablation mode: &#39;direct&#39; or &#39;full&#39;</span>
+<span class="sd">        Ablation mode: &#39;direct&#39; or &#39;indirect&#39;</span>
 <span class="sd">    device : str</span>
 <span class="sd">        Device to use for computation</span>
 
 <span class="sd">    Returns</span>
 <span class="sd">    -------</span>
-<span class="sd">    When layer_idx is None and branch_ids is None:</span>
-<span class="sd">        Dict with dendritic order analysis results</span>
-<span class="sd">    Otherwise:</span>
-<span class="sd">        Tuple (baseline_accuracy, results_dict)</span>
+<span class="sd">    tuple</span>
+<span class="sd">        (baseline_accuracy, results_dict)</span>
 <span class="sd">    &quot;&quot;&quot;</span>
 </pre></div>
 </div>
-<p>This function has two modes of operation:
-1. <strong>Branch-specific ablation</strong>: When <cite>layer_idx</cite> is specified, it ablates specific branches and measures the change in performance
-2. <strong>Dendritic order ablation</strong>: When both <cite>layer_idx</cite> and <cite>branch_ids</cite> are None, it performs ablation analysis by dendritic order</p>
-<p>The dendritic order analysis is especially useful for understanding how different levels of the dendritic hierarchy contribute to network performance.</p>
+<p>This function ablates specific branches and measures the change in performance, helping identify which branches are most important for the task.</p>
 </section>
 <section id="example-branch-ablation">
 <h3>Example: Branch Ablation<a class="headerlink" href="#example-branch-ablation" title="Link to this heading"></a></h3>
@@ -228,7 +214,7 @@
     <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Branch </span><span class="si">{</span><span class="n">branch_id</span><span class="si">}</span><span class="s2"> ablated: </span><span class="si">{</span><span class="n">acc</span><span class="si">:</span><span class="s2">.4f</span><span class="si">}</span><span class="s2"> (Δ = </span><span class="si">{</span><span class="n">delta</span><span class="si">:</span><span class="s2">.4f</span><span class="si">}</span><span class="s2">)&quot;</span><span class="p">)</span>
 
 <span class="c1"># Identify most important branches</span>
-<span class="n">importance</span> <span class="o">=</span> <span class="p">{</span><span class="n">branch_id</span><span class="p">:</span> <span class="n">results</span><span class="p">[</span><span class="n">branch_id</span><span class="p">][</span><span class="mi">1</span><span class="p">]</span> <span class="k">for</span> <span class="n">branch_id</span> <span class="ow">in</span> <span class="n">branch_results</span><span class="p">}</span>
+<span class="n">importance</span> <span class="o">=</span> <span class="p">{</span><span class="n">branch_id</span><span class="p">:</span> <span class="n">delta</span> <span class="k">for</span> <span class="n">branch_id</span><span class="p">,</span> <span class="p">(</span><span class="n">acc</span><span class="p">,</span> <span class="n">delta</span><span class="p">)</span> <span class="ow">in</span> <span class="n">branch_results</span><span class="o">.</span><span class="n">items</span><span class="p">()}</span>
 <span class="n">most_important</span> <span class="o">=</span> <span class="nb">sorted</span><span class="p">(</span><span class="n">importance</span><span class="o">.</span><span class="n">items</span><span class="p">(),</span> <span class="n">key</span><span class="o">=</span><span class="k">lambda</span> <span class="n">x</span><span class="p">:</span> <span class="n">x</span><span class="p">[</span><span class="mi">1</span><span class="p">],</span> <span class="n">reverse</span><span class="o">=</span><span class="kc">True</span><span class="p">)[:</span><span class="mi">5</span><span class="p">]</span>
 <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;Most important branches:&quot;</span><span class="p">)</span>
 <span class="k">for</span> <span class="n">branch_id</span><span class="p">,</span> <span class="n">imp</span> <span class="ow">in</span> <span class="n">most_important</span><span class="p">:</span>
@@ -236,73 +222,15 @@
 </pre></div>
 </div>
 </section>
-<section id="example-dendritic-order-ablation">
-<h3>Example: Dendritic Order Ablation<a class="headerlink" href="#example-dendritic-order-ablation" title="Link to this heading"></a></h3>
-<p>Here’s an example of how to conduct a dendritic order ablation study:</p>
-<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span><span class="w"> </span><span class="nn">dendritic_modeling.utils</span><span class="w"> </span><span class="kn">import</span> <span class="n">analyze_branch_ablation</span>
-
-<span class="c1"># Load model and dataset</span>
-<span class="n">model</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">load</span><span class="p">(</span><span class="s2">&quot;path/to/model.pt&quot;</span><span class="p">)</span>
-
-<span class="c1"># Perform dendritic order ablation analysis</span>
-<span class="n">results</span> <span class="o">=</span> <span class="n">analyze_branch_ablation</span><span class="p">(</span>
-    <span class="n">model</span><span class="p">,</span> <span class="n">dataset</span><span class="p">,</span> <span class="n">layer_idx</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">branch_ids</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">device</span><span class="o">=</span><span class="s1">&#39;cuda&#39;</span>
-<span class="p">)</span>
-
-<span class="c1"># Print results</span>
-<span class="nb">print</span><span class="p">(</span><span class="s2">&quot;Dendritic Order Ablation Results:&quot;</span><span class="p">)</span>
-<span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="n">order</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">results</span><span class="p">[</span><span class="s2">&quot;order&quot;</span><span class="p">]):</span>
-    <span class="n">exc_drop</span> <span class="o">=</span> <span class="n">results</span><span class="p">[</span><span class="s2">&quot;exc_drop&quot;</span><span class="p">][</span><span class="n">i</span><span class="p">]</span>
-    <span class="n">inh_drop</span> <span class="o">=</span> <span class="n">results</span><span class="p">[</span><span class="s2">&quot;inh_drop&quot;</span><span class="p">][</span><span class="n">i</span><span class="p">]</span>
-    <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Order </span><span class="si">{</span><span class="n">order</span><span class="si">}</span><span class="s2">:&quot;</span><span class="p">)</span>
-    <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;  Excitatory ablation: </span><span class="si">{</span><span class="n">exc_drop</span><span class="si">:</span><span class="s2">.4f</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
-    <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;  Inhibitory ablation: </span><span class="si">{</span><span class="n">inh_drop</span><span class="si">:</span><span class="s2">.4f</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
-
-<span class="c1"># Calculate percentage drops</span>
-<span class="n">baseline_acc</span> <span class="o">=</span> <span class="n">measure_performance</span><span class="p">(</span><span class="n">model</span><span class="p">,</span> <span class="n">dataset</span><span class="p">,</span> <span class="n">device</span><span class="o">=</span><span class="s1">&#39;cuda&#39;</span><span class="p">)</span>
-<span class="n">exc_pct</span> <span class="o">=</span> <span class="p">[(</span><span class="n">drop</span> <span class="o">/</span> <span class="n">baseline_acc</span><span class="p">)</span> <span class="o">*</span> <span class="mi">100</span> <span class="k">for</span> <span class="n">drop</span> <span class="ow">in</span> <span class="n">results</span><span class="p">[</span><span class="s2">&quot;exc_drop&quot;</span><span class="p">]]</span>
-<span class="n">inh_pct</span> <span class="o">=</span> <span class="p">[(</span><span class="n">drop</span> <span class="o">/</span> <span class="n">baseline_acc</span><span class="p">)</span> <span class="o">*</span> <span class="mi">100</span> <span class="k">for</span> <span class="n">drop</span> <span class="ow">in</span> <span class="n">results</span><span class="p">[</span><span class="s2">&quot;inh_drop&quot;</span><span class="p">]]</span>
-
-<span class="c1"># Create visualization</span>
-<span class="kn">import</span><span class="w"> </span><span class="nn">matplotlib.pyplot</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">plt</span>
-
-<span class="n">plt</span><span class="o">.</span><span class="n">figure</span><span class="p">(</span><span class="n">figsize</span><span class="o">=</span><span class="p">(</span><span class="mi">10</span><span class="p">,</span> <span class="mi">6</span><span class="p">))</span>
-<span class="n">plt</span><span class="o">.</span><span class="n">plot</span><span class="p">(</span><span class="n">results</span><span class="p">[</span><span class="s2">&quot;order&quot;</span><span class="p">],</span> <span class="n">exc_pct</span><span class="p">,</span> <span class="s1">&#39;b-&#39;</span><span class="p">,</span> <span class="n">label</span><span class="o">=</span><span class="s1">&#39;Excitatory&#39;</span><span class="p">)</span>
-<span class="n">plt</span><span class="o">.</span><span class="n">plot</span><span class="p">(</span><span class="n">results</span><span class="p">[</span><span class="s2">&quot;order&quot;</span><span class="p">],</span> <span class="n">inh_pct</span><span class="p">,</span> <span class="s1">&#39;r-&#39;</span><span class="p">,</span> <span class="n">label</span><span class="o">=</span><span class="s1">&#39;Inhibitory&#39;</span><span class="p">)</span>
-<span class="n">plt</span><span class="o">.</span><span class="n">xlabel</span><span class="p">(</span><span class="s1">&#39;Dendritic Order&#39;</span><span class="p">)</span>
-<span class="n">plt</span><span class="o">.</span><span class="n">ylabel</span><span class="p">(</span><span class="s1">&#39;Performance Drop (%)&#39;</span><span class="p">)</span>
-<span class="n">plt</span><span class="o">.</span><span class="n">title</span><span class="p">(</span><span class="s1">&#39;Dendritic Order Ablation Results&#39;</span><span class="p">)</span>
-<span class="n">plt</span><span class="o">.</span><span class="n">legend</span><span class="p">()</span>
-<span class="n">plt</span><span class="o">.</span><span class="n">grid</span><span class="p">(</span><span class="kc">True</span><span class="p">)</span>
-<span class="n">plt</span><span class="o">.</span><span class="n">savefig</span><span class="p">(</span><span class="s1">&#39;dendritic_order_ablation.png&#39;</span><span class="p">)</span>
-<span class="n">plt</span><span class="o">.</span><span class="n">close</span><span class="p">()</span>
-</pre></div>
-</div>
-<p>This code performs ablation for each dendritic order and visualizes the impact on performance.</p>
-</section>
 </section>
 <section id="layer-ablation">
 <h2>Layer Ablation<a class="headerlink" href="#layer-ablation" title="Link to this heading"></a></h2>
-<p>Layer ablation involves removing entire layers of branches to understand the contribution of each layer to performance.</p>
+<p>Layer ablation involves analyzing entire layers of branches to understand the contribution of each layer to performance.</p>
 <section id="layer-ablation-functions">
 <h3>Layer Ablation Functions<a class="headerlink" href="#layer-ablation-functions" title="Link to this heading"></a></h3>
-<p>The framework provides functions for layer ablation:</p>
-<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="k">def</span><span class="w"> </span><span class="nf">ablate_layer</span><span class="p">(</span><span class="n">model</span><span class="p">,</span> <span class="n">layer_idx</span><span class="p">):</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
-<span class="sd">    Zero out weights for an entire layer.</span>
-
-<span class="sd">    Parameters</span>
-<span class="sd">    ----------</span>
-<span class="sd">    model : torch.nn.Module</span>
-<span class="sd">        The model to ablate</span>
-<span class="sd">    layer_idx : int</span>
-<span class="sd">        Index of the layer to ablate</span>
-<span class="sd">    &quot;&quot;&quot;</span>
-</pre></div>
-</div>
-<p>This function zeros out all weights in a specified layer, effectively removing it from the network.</p>
-<p>A comprehensive layer ablation analysis function is also available:</p>
-<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="k">def</span><span class="w"> </span><span class="nf">analyze_layer_ablation</span><span class="p">(</span><span class="n">model</span><span class="p">,</span> <span class="n">dataset</span><span class="p">,</span> <span class="n">device</span><span class="o">=</span><span class="s1">&#39;cpu&#39;</span><span class="p">):</span>
+<p>The framework provides a layer-wise ablation analysis function:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="k">def</span><span class="w"> </span><span class="nf">analyze_layerwise_ablation</span><span class="p">(</span><span class="n">model</span><span class="p">,</span> <span class="n">dataset</span><span class="p">,</span> <span class="n">train_data</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">valid_data</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+                               <span class="n">test_data</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">save_path</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">device</span><span class="o">=</span><span class="s1">&#39;cuda&#39;</span><span class="p">):</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Perform ablation analysis for each layer.</span>
 
@@ -312,274 +240,178 @@
 <span class="sd">        The model to analyze</span>
 <span class="sd">    dataset : torch.utils.data.Dataset</span>
 <span class="sd">        Dataset to evaluate on</span>
+<span class="sd">    train_data : torch.utils.data.Dataset, optional</span>
+<span class="sd">        Training dataset</span>
+<span class="sd">    valid_data : torch.utils.data.Dataset, optional</span>
+<span class="sd">        Validation dataset</span>
+<span class="sd">    test_data : torch.utils.data.Dataset, optional</span>
+<span class="sd">        Test dataset</span>
+<span class="sd">    save_path : str, optional</span>
+<span class="sd">        Path to save results</span>
 <span class="sd">    device : str</span>
 <span class="sd">        Device to use for computation</span>
-
-<span class="sd">    Returns</span>
-<span class="sd">    -------</span>
-<span class="sd">    tuple</span>
-<span class="sd">        (baseline_accuracy, results_dict)</span>
 <span class="sd">    &quot;&quot;&quot;</span>
 </pre></div>
 </div>
-<p>This function ablates each layer in the network and measures the change in performance, helping identify the layers that are most important for the task.</p>
+<p>This function analyzes each layer in the network and measures performance, helping identify the layers that are most important for the task.</p>
 </section>
 <section id="example-layer-ablation">
 <h3>Example: Layer Ablation<a class="headerlink" href="#example-layer-ablation" title="Link to this heading"></a></h3>
 <p>Here’s an example of how to conduct a layer ablation study:</p>
-<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span><span class="w"> </span><span class="nn">dendritic_modeling.plot_utils</span><span class="w"> </span><span class="kn">import</span> <span class="n">analyze_layer_ablation</span>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span><span class="w"> </span><span class="nn">dendritic_modeling.utils</span><span class="w"> </span><span class="kn">import</span> <span class="n">analyze_layerwise_ablation</span>
 
 <span class="c1"># Load model and dataset</span>
 <span class="n">model</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">load</span><span class="p">(</span><span class="s2">&quot;path/to/model.pt&quot;</span><span class="p">)</span>
 
 <span class="c1"># Perform layer ablation analysis</span>
-<span class="n">baseline_acc</span><span class="p">,</span> <span class="n">layer_results</span> <span class="o">=</span> <span class="n">analyze_layer_ablation</span><span class="p">(</span><span class="n">model</span><span class="p">,</span> <span class="n">dataset</span><span class="p">)</span>
+<span class="n">analyze_layerwise_ablation</span><span class="p">(</span>
+    <span class="n">model</span><span class="p">,</span>
+    <span class="n">dataset</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+    <span class="n">train_data</span><span class="o">=</span><span class="n">train_ds</span><span class="p">,</span>
+    <span class="n">valid_data</span><span class="o">=</span><span class="n">valid_ds</span><span class="p">,</span>
+    <span class="n">test_data</span><span class="o">=</span><span class="n">test_ds</span><span class="p">,</span>
+    <span class="n">save_path</span><span class="o">=</span><span class="s2">&quot;./ablation_results&quot;</span><span class="p">,</span>
+    <span class="n">device</span><span class="o">=</span><span class="s1">&#39;cuda&#39;</span>
+<span class="p">)</span>
 
-<span class="c1"># Print results</span>
-<span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Baseline accuracy: </span><span class="si">{</span><span class="n">baseline_acc</span><span class="si">:</span><span class="s2">.4f</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
-<span class="k">for</span> <span class="n">layer_idx</span><span class="p">,</span> <span class="n">acc</span> <span class="ow">in</span> <span class="n">layer_results</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
-    <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Layer </span><span class="si">{</span><span class="n">layer_idx</span><span class="si">}</span><span class="s2"> ablated: </span><span class="si">{</span><span class="n">acc</span><span class="si">:</span><span class="s2">.4f</span><span class="si">}</span><span class="s2"> (Δ = </span><span class="si">{</span><span class="n">acc</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="n">baseline_acc</span><span class="si">:</span><span class="s2">.4f</span><span class="si">}</span><span class="s2">)&quot;</span><span class="p">)</span>
-
-<span class="c1"># Identify most important layers</span>
-<span class="n">importance</span> <span class="o">=</span> <span class="p">{</span><span class="n">layer_idx</span><span class="p">:</span> <span class="n">baseline_acc</span> <span class="o">-</span> <span class="n">acc</span> <span class="k">for</span> <span class="n">layer_idx</span><span class="p">,</span> <span class="n">acc</span> <span class="ow">in</span> <span class="n">layer_results</span><span class="o">.</span><span class="n">items</span><span class="p">()}</span>
-<span class="n">most_important</span> <span class="o">=</span> <span class="nb">sorted</span><span class="p">(</span><span class="n">importance</span><span class="o">.</span><span class="n">items</span><span class="p">(),</span> <span class="n">key</span><span class="o">=</span><span class="k">lambda</span> <span class="n">x</span><span class="p">:</span> <span class="n">x</span><span class="p">[</span><span class="mi">1</span><span class="p">],</span> <span class="n">reverse</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
-<span class="nb">print</span><span class="p">(</span><span class="s2">&quot;Layer importance (descending):&quot;</span><span class="p">)</span>
-<span class="k">for</span> <span class="n">layer_idx</span><span class="p">,</span> <span class="n">imp</span> <span class="ow">in</span> <span class="n">most_important</span><span class="p">:</span>
-    <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Layer </span><span class="si">{</span><span class="n">layer_idx</span><span class="si">}</span><span class="s2">: Importance = </span><span class="si">{</span><span class="n">imp</span><span class="si">:</span><span class="s2">.4f</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+<span class="c1"># Results are saved to the specified save_path</span>
 </pre></div>
 </div>
-<p>This code performs ablation for each layer in the network and ranks the layers by importance.</p>
-</section>
-</section>
-<section id="feature-ablation">
-<h2>Feature Ablation<a class="headerlink" href="#feature-ablation" title="Link to this heading"></a></h2>
-<p>Feature ablation involves removing specific input features to understand their importance for the network’s decision-making.</p>
-<section id="feature-ablation-functions">
-<h3>Feature Ablation Functions<a class="headerlink" href="#feature-ablation-functions" title="Link to this heading"></a></h3>
-<p>The framework provides functions for feature ablation:</p>
-<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="k">def</span><span class="w"> </span><span class="nf">ablate_features</span><span class="p">(</span><span class="n">model</span><span class="p">,</span> <span class="n">inputs</span><span class="p">,</span> <span class="n">feature_indices</span><span class="p">):</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
-<span class="sd">    Zero out specific input features.</span>
-
-<span class="sd">    Parameters</span>
-<span class="sd">    ----------</span>
-<span class="sd">    model : torch.nn.Module</span>
-<span class="sd">        The model to analyze</span>
-<span class="sd">    inputs : torch.Tensor</span>
-<span class="sd">        Input tensor</span>
-<span class="sd">    feature_indices : list</span>
-<span class="sd">        Indices of features to ablate</span>
-
-<span class="sd">    Returns</span>
-<span class="sd">    -------</span>
-<span class="sd">    torch.Tensor</span>
-<span class="sd">        Model output with ablated features</span>
-<span class="sd">    &quot;&quot;&quot;</span>
-</pre></div>
-</div>
-<p>This function zeros out specific input features and computes the network’s output, helping understand which features are most important for the task.</p>
-</section>
-<section id="example-feature-ablation">
-<h3>Example: Feature Ablation<a class="headerlink" href="#example-feature-ablation" title="Link to this heading"></a></h3>
-<p>Here’s an example of how to conduct a feature ablation study:</p>
-<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">import</span><span class="w"> </span><span class="nn">torch</span>
-<span class="kn">import</span><span class="w"> </span><span class="nn">numpy</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">np</span>
-<span class="kn">from</span><span class="w"> </span><span class="nn">dendritic_modeling.plot_utils</span><span class="w"> </span><span class="kn">import</span> <span class="n">ablate_features</span>
-
-<span class="c1"># Load model and dataset</span>
-<span class="n">model</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">load</span><span class="p">(</span><span class="s2">&quot;path/to/model.pt&quot;</span><span class="p">)</span>
-
-<span class="c1"># Get a batch of inputs</span>
-<span class="n">inputs</span><span class="p">,</span> <span class="n">labels</span> <span class="o">=</span> <span class="nb">next</span><span class="p">(</span><span class="nb">iter</span><span class="p">(</span><span class="n">dataloader</span><span class="p">))</span>
-
-<span class="c1"># Baseline performance</span>
-<span class="n">baseline_output</span> <span class="o">=</span> <span class="n">model</span><span class="p">(</span><span class="n">inputs</span><span class="p">)</span>
-<span class="n">baseline_acc</span> <span class="o">=</span> <span class="p">(</span><span class="n">baseline_output</span><span class="o">.</span><span class="n">argmax</span><span class="p">(</span><span class="n">dim</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span> <span class="o">==</span> <span class="n">labels</span><span class="p">)</span><span class="o">.</span><span class="n">float</span><span class="p">()</span><span class="o">.</span><span class="n">mean</span><span class="p">()</span><span class="o">.</span><span class="n">item</span><span class="p">()</span>
-
-<span class="c1"># Perform feature ablation</span>
-<span class="n">feature_importance</span> <span class="o">=</span> <span class="p">{}</span>
-<span class="k">for</span> <span class="n">feature_idx</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">inputs</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">1</span><span class="p">]):</span>
-    <span class="c1"># Ablate feature</span>
-    <span class="n">ablated_output</span> <span class="o">=</span> <span class="n">ablate_features</span><span class="p">(</span><span class="n">model</span><span class="p">,</span> <span class="n">inputs</span><span class="p">,</span> <span class="p">[</span><span class="n">feature_idx</span><span class="p">])</span>
-    <span class="n">ablated_acc</span> <span class="o">=</span> <span class="p">(</span><span class="n">ablated_output</span><span class="o">.</span><span class="n">argmax</span><span class="p">(</span><span class="n">dim</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span> <span class="o">==</span> <span class="n">labels</span><span class="p">)</span><span class="o">.</span><span class="n">float</span><span class="p">()</span><span class="o">.</span><span class="n">mean</span><span class="p">()</span><span class="o">.</span><span class="n">item</span><span class="p">()</span>
-
-    <span class="c1"># Calculate importance</span>
-    <span class="n">importance</span> <span class="o">=</span> <span class="n">baseline_acc</span> <span class="o">-</span> <span class="n">ablated_acc</span>
-    <span class="n">feature_importance</span><span class="p">[</span><span class="n">feature_idx</span><span class="p">]</span> <span class="o">=</span> <span class="n">importance</span>
-
-<span class="c1"># Identify most important features</span>
-<span class="n">most_important</span> <span class="o">=</span> <span class="nb">sorted</span><span class="p">(</span><span class="n">feature_importance</span><span class="o">.</span><span class="n">items</span><span class="p">(),</span> <span class="n">key</span><span class="o">=</span><span class="k">lambda</span> <span class="n">x</span><span class="p">:</span> <span class="n">x</span><span class="p">[</span><span class="mi">1</span><span class="p">],</span> <span class="n">reverse</span><span class="o">=</span><span class="kc">True</span><span class="p">)[:</span><span class="mi">10</span><span class="p">]</span>
-<span class="nb">print</span><span class="p">(</span><span class="s2">&quot;Most important features:&quot;</span><span class="p">)</span>
-<span class="k">for</span> <span class="n">feature_idx</span><span class="p">,</span> <span class="n">imp</span> <span class="ow">in</span> <span class="n">most_important</span><span class="p">:</span>
-    <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Feature </span><span class="si">{</span><span class="n">feature_idx</span><span class="si">}</span><span class="s2">: Importance = </span><span class="si">{</span><span class="n">imp</span><span class="si">:</span><span class="s2">.4f</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
-</pre></div>
-</div>
-<p>This code performs ablation for each input feature and identifies the features with the largest impact on performance.</p>
-</section>
-</section>
-<section id="mechanism-ablation">
-<h2>Mechanism Ablation<a class="headerlink" href="#mechanism-ablation" title="Link to this heading"></a></h2>
-<p>Mechanism ablation involves disabling specific computational mechanisms to understand their contribution to performance.</p>
-<section id="mechanism-ablation-functions">
-<h3>Mechanism Ablation Functions<a class="headerlink" href="#mechanism-ablation-functions" title="Link to this heading"></a></h3>
-<p>The framework provides functions for mechanism ablation:</p>
-<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="k">def</span><span class="w"> </span><span class="nf">disable_mechanism</span><span class="p">(</span><span class="n">model</span><span class="p">,</span> <span class="n">mechanism_name</span><span class="p">):</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
-<span class="sd">    Disable a specific computational mechanism.</span>
-
-<span class="sd">    Parameters</span>
-<span class="sd">    ----------</span>
-<span class="sd">    model : torch.nn.Module</span>
-<span class="sd">        The model to modify</span>
-<span class="sd">    mechanism_name : str</span>
-<span class="sd">        Name of mechanism to disable (&#39;shunting&#39;, &#39;reactivation&#39;, etc.)</span>
-<span class="sd">    &quot;&quot;&quot;</span>
-</pre></div>
-</div>
-<p>This function disables specific computational mechanisms, helping understand their contribution to performance.</p>
-</section>
-<section id="example-shunting-inhibition-ablation">
-<h3>Example: Shunting Inhibition Ablation<a class="headerlink" href="#example-shunting-inhibition-ablation" title="Link to this heading"></a></h3>
-<p>Here’s an example of how to ablate shunting inhibition:</p>
-<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="c1"># Load model and dataset</span>
-<span class="n">model</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">load</span><span class="p">(</span><span class="s2">&quot;path/to/model.pt&quot;</span><span class="p">)</span>
-
-<span class="c1"># Get baseline performance</span>
-<span class="n">baseline_acc</span> <span class="o">=</span> <span class="n">evaluate_accuracy</span><span class="p">(</span><span class="n">model</span><span class="p">,</span> <span class="n">test_dataset</span><span class="p">)</span>
-
-<span class="c1"># Disable shunting inhibition</span>
-<span class="k">for</span> <span class="n">layer</span> <span class="ow">in</span> <span class="n">model</span><span class="o">.</span><span class="n">ei_layers</span><span class="p">:</span>
-    <span class="n">layer</span><span class="o">.</span><span class="n">use_shunting</span> <span class="o">=</span> <span class="kc">False</span>
-
-<span class="c1"># Evaluate performance without shunting inhibition</span>
-<span class="n">ablated_acc</span> <span class="o">=</span> <span class="n">evaluate_accuracy</span><span class="p">(</span><span class="n">model</span><span class="p">,</span> <span class="n">test_dataset</span><span class="p">)</span>
-
-<span class="c1"># Calculate importance</span>
-<span class="n">importance</span> <span class="o">=</span> <span class="n">baseline_acc</span> <span class="o">-</span> <span class="n">ablated_acc</span>
-<span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Shunting inhibition importance: </span><span class="si">{</span><span class="n">importance</span><span class="si">:</span><span class="s2">.4f</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
-</pre></div>
-</div>
-<p>This code disables shunting inhibition and measures the change in performance.</p>
+<p>This code performs analysis for each layer in the network and saves the results to the specified directory.</p>
 </section>
 </section>
 <section id="visualizing-ablation-results">
 <h2>Visualizing Ablation Results<a class="headerlink" href="#visualizing-ablation-results" title="Link to this heading"></a></h2>
-<p>The framework provides functions for visualizing ablation results:</p>
-<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="k">def</span><span class="w"> </span><span class="nf">plot_branch_ablation</span><span class="p">(</span><span class="n">baseline_acc</span><span class="p">,</span> <span class="n">branch_results</span><span class="p">,</span> <span class="n">save_path</span><span class="p">):</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
-<span class="sd">    Plot the results of branch ablation.</span>
+<p>The dendritic modeling framework provides visualization tools for ablation studies.</p>
+<section id="branch-importance-visualization">
+<h3>Branch Importance Visualization<a class="headerlink" href="#branch-importance-visualization" title="Link to this heading"></a></h3>
+<p>After performing branch ablation, you can visualize the importance of each branch:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">import</span><span class="w"> </span><span class="nn">matplotlib.pyplot</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">plt</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">numpy</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">np</span>
 
-<span class="sd">    Parameters</span>
-<span class="sd">    ----------</span>
-<span class="sd">    baseline_acc : float</span>
-<span class="sd">        Baseline accuracy</span>
-<span class="sd">    branch_results : dict</span>
-<span class="sd">        Results of branch ablation</span>
-<span class="sd">    save_path : str</span>
-<span class="sd">        Path to save the plot</span>
-<span class="sd">    &quot;&quot;&quot;</span>
+<span class="c1"># Assuming branch_results is the result of analyze_branch_ablation</span>
+
+<span class="c1"># Extract branch IDs and importance values</span>
+<span class="n">branch_ids</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="nb">list</span><span class="p">(</span><span class="n">branch_results</span><span class="o">.</span><span class="n">keys</span><span class="p">()))</span>
+<span class="n">importance</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">([</span><span class="n">delta</span> <span class="k">for</span> <span class="n">_</span><span class="p">,</span> <span class="n">delta</span> <span class="ow">in</span> <span class="n">branch_results</span><span class="o">.</span><span class="n">values</span><span class="p">()])</span>
+
+<span class="c1"># Sort by importance</span>
+<span class="n">sort_idx</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">argsort</span><span class="p">(</span><span class="n">importance</span><span class="p">)[::</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span>
+<span class="n">branch_ids</span> <span class="o">=</span> <span class="n">branch_ids</span><span class="p">[</span><span class="n">sort_idx</span><span class="p">]</span>
+<span class="n">importance</span> <span class="o">=</span> <span class="n">importance</span><span class="p">[</span><span class="n">sort_idx</span><span class="p">]</span>
+
+<span class="c1"># Plot branch importance</span>
+<span class="n">plt</span><span class="o">.</span><span class="n">figure</span><span class="p">(</span><span class="n">figsize</span><span class="o">=</span><span class="p">(</span><span class="mi">12</span><span class="p">,</span> <span class="mi">6</span><span class="p">))</span>
+<span class="n">plt</span><span class="o">.</span><span class="n">bar</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">arange</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">branch_ids</span><span class="p">)),</span> <span class="n">importance</span><span class="p">)</span>
+<span class="n">plt</span><span class="o">.</span><span class="n">xticks</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">arange</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">branch_ids</span><span class="p">)),</span> <span class="n">branch_ids</span><span class="p">)</span>
+<span class="n">plt</span><span class="o">.</span><span class="n">xlabel</span><span class="p">(</span><span class="s1">&#39;Branch ID&#39;</span><span class="p">)</span>
+<span class="n">plt</span><span class="o">.</span><span class="n">ylabel</span><span class="p">(</span><span class="s1">&#39;Importance (Accuracy Drop)&#39;</span><span class="p">)</span>
+<span class="n">plt</span><span class="o">.</span><span class="n">title</span><span class="p">(</span><span class="s1">&#39;Branch Importance Analysis&#39;</span><span class="p">)</span>
+<span class="n">plt</span><span class="o">.</span><span class="n">tight_layout</span><span class="p">()</span>
+<span class="n">plt</span><span class="o">.</span><span class="n">savefig</span><span class="p">(</span><span class="s1">&#39;branch_importance.png&#39;</span><span class="p">)</span>
+<span class="n">plt</span><span class="o">.</span><span class="n">close</span><span class="p">()</span>
 </pre></div>
 </div>
-<p>This function creates a bar chart showing the impact of ablating each branch.</p>
-<figure class="align-center" id="id2">
-<a class="reference internal image-reference" href="source/advanced/analysis/figures/pdf/place_holder.pdf"><img alt="Branch Ablation Results" src="source/advanced/analysis/figures/pdf/place_holder.pdf" style="width: 600px;" />
-</a>
-<figcaption>
-<p><span class="caption-number">Figure 5 </span><span class="caption-text">Example visualization of branch ablation results, showing the importance of each branch. [PLACEHOLDER FOR DIAGRAM]</span><a class="headerlink" href="#id2" title="Link to this image"></a></p>
-</figcaption>
-</figure>
+<p>This code creates a bar chart showing the importance of each branch based on the accuracy drop when the branch is ablated.</p>
 </section>
-<section id="comprehensive-ablation-analysis">
-<h2>Comprehensive Ablation Analysis<a class="headerlink" href="#comprehensive-ablation-analysis" title="Link to this heading"></a></h2>
-<p>For a comprehensive understanding of network behavior, you can combine different types of ablation studies:</p>
-<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="k">def</span><span class="w"> </span><span class="nf">comprehensive_ablation_analysis</span><span class="p">(</span><span class="n">model</span><span class="p">,</span> <span class="n">dataset</span><span class="p">):</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
-<span class="sd">    Perform comprehensive ablation analysis.</span>
+<section id="branch-activation-patterns">
+<h3>Branch Activation Patterns<a class="headerlink" href="#branch-activation-patterns" title="Link to this heading"></a></h3>
+<p>You can also visualize the activation patterns of different branches to understand their function:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span><span class="w"> </span><span class="nn">dendritic_modeling.utils</span><span class="w"> </span><span class="kn">import</span> <span class="n">record_branch_activations</span>
 
-<span class="sd">    Parameters</span>
-<span class="sd">    ----------</span>
-<span class="sd">    model : torch.nn.Module</span>
-<span class="sd">        The model to analyze</span>
-<span class="sd">    dataset : torch.utils.data.Dataset</span>
-<span class="sd">        Dataset to evaluate on</span>
+<span class="c1"># Record branch activations for a subset of the dataset</span>
+<span class="n">activations</span> <span class="o">=</span> <span class="n">record_branch_activations</span><span class="p">(</span>
+    <span class="n">model</span><span class="p">,</span>
+    <span class="n">dataset</span><span class="p">,</span>
+    <span class="n">batch_size</span><span class="o">=</span><span class="mi">32</span><span class="p">,</span>
+    <span class="n">device</span><span class="o">=</span><span class="s1">&#39;cuda&#39;</span>
+<span class="p">)</span>
 
-<span class="sd">    Returns</span>
-<span class="sd">    -------</span>
-<span class="sd">    dict</span>
-<span class="sd">        Dictionary with ablation results</span>
-<span class="sd">    &quot;&quot;&quot;</span>
-    <span class="n">results</span> <span class="o">=</span> <span class="p">{}</span>
+<span class="c1"># Plot activation patterns for the first layer</span>
+<span class="n">plt</span><span class="o">.</span><span class="n">figure</span><span class="p">(</span><span class="n">figsize</span><span class="o">=</span><span class="p">(</span><span class="mi">15</span><span class="p">,</span> <span class="mi">10</span><span class="p">))</span>
+<span class="n">layer_activations</span> <span class="o">=</span> <span class="n">activations</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>  <span class="c1"># First layer</span>
 
-    <span class="c1"># Baseline performance</span>
-    <span class="n">baseline_acc</span> <span class="o">=</span> <span class="n">evaluate_accuracy</span><span class="p">(</span><span class="n">model</span><span class="p">,</span> <span class="n">dataset</span><span class="p">)</span>
-    <span class="n">results</span><span class="p">[</span><span class="s1">&#39;baseline&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">baseline_acc</span>
+<span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="nb">min</span><span class="p">(</span><span class="mi">10</span><span class="p">,</span> <span class="n">layer_activations</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">])):</span>
+    <span class="n">plt</span><span class="o">.</span><span class="n">subplot</span><span class="p">(</span><span class="mi">2</span><span class="p">,</span> <span class="mi">5</span><span class="p">,</span> <span class="n">i</span><span class="o">+</span><span class="mi">1</span><span class="p">)</span>
+    <span class="n">plt</span><span class="o">.</span><span class="n">imshow</span><span class="p">(</span><span class="n">layer_activations</span><span class="p">[</span><span class="n">i</span><span class="p">]</span><span class="o">.</span><span class="n">mean</span><span class="p">(</span><span class="n">dim</span><span class="o">=</span><span class="mi">0</span><span class="p">)</span><span class="o">.</span><span class="n">reshape</span><span class="p">(</span><span class="mi">28</span><span class="p">,</span> <span class="mi">28</span><span class="p">),</span> <span class="n">cmap</span><span class="o">=</span><span class="s1">&#39;viridis&#39;</span><span class="p">)</span>
+    <span class="n">plt</span><span class="o">.</span><span class="n">title</span><span class="p">(</span><span class="sa">f</span><span class="s1">&#39;Branch </span><span class="si">{</span><span class="n">i</span><span class="si">}</span><span class="s1">&#39;</span><span class="p">)</span>
+    <span class="n">plt</span><span class="o">.</span><span class="n">axis</span><span class="p">(</span><span class="s1">&#39;off&#39;</span><span class="p">)</span>
 
-    <span class="c1"># Layer ablation</span>
-    <span class="n">_</span><span class="p">,</span> <span class="n">layer_results</span> <span class="o">=</span> <span class="n">analyze_layer_ablation</span><span class="p">(</span><span class="n">model</span><span class="p">,</span> <span class="n">dataset</span><span class="p">)</span>
-    <span class="n">results</span><span class="p">[</span><span class="s1">&#39;layer_ablation&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">layer_results</span>
-
-    <span class="c1"># Branch ablation for each layer</span>
-    <span class="n">branch_results</span> <span class="o">=</span> <span class="p">{}</span>
-    <span class="k">for</span> <span class="n">layer_idx</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">model</span><span class="o">.</span><span class="n">ei_layers</span><span class="p">)):</span>
-        <span class="n">_</span><span class="p">,</span> <span class="n">layer_branch_results</span> <span class="o">=</span> <span class="n">analyze_branch_ablation</span><span class="p">(</span>
-            <span class="n">model</span><span class="p">,</span> <span class="n">dataset</span><span class="p">,</span> <span class="n">layer_idx</span><span class="p">,</span> <span class="kc">None</span><span class="p">,</span> <span class="s1">&#39;direct&#39;</span>
-        <span class="p">)</span>
-        <span class="n">branch_results</span><span class="p">[</span><span class="n">layer_idx</span><span class="p">]</span> <span class="o">=</span> <span class="n">layer_branch_results</span>
-    <span class="n">results</span><span class="p">[</span><span class="s1">&#39;branch_ablation&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">branch_results</span>
-
-    <span class="c1"># Mechanism ablation</span>
-    <span class="n">mechanism_results</span> <span class="o">=</span> <span class="p">{}</span>
-
-    <span class="c1"># Shunting inhibition</span>
-    <span class="n">model_copy</span> <span class="o">=</span> <span class="n">deepcopy</span><span class="p">(</span><span class="n">model</span><span class="p">)</span>
-    <span class="k">for</span> <span class="n">layer</span> <span class="ow">in</span> <span class="n">model_copy</span><span class="o">.</span><span class="n">ei_layers</span><span class="p">:</span>
-        <span class="n">layer</span><span class="o">.</span><span class="n">use_shunting</span> <span class="o">=</span> <span class="kc">False</span>
-    <span class="n">mechanism_results</span><span class="p">[</span><span class="s1">&#39;shunting&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">evaluate_accuracy</span><span class="p">(</span><span class="n">model_copy</span><span class="p">,</span> <span class="n">dataset</span><span class="p">)</span>
-
-    <span class="c1"># Reactivation</span>
-    <span class="n">model_copy</span> <span class="o">=</span> <span class="n">deepcopy</span><span class="p">(</span><span class="n">model</span><span class="p">)</span>
-    <span class="k">for</span> <span class="n">layer</span> <span class="ow">in</span> <span class="n">model_copy</span><span class="o">.</span><span class="n">ei_layers</span><span class="p">:</span>
-        <span class="n">layer</span><span class="o">.</span><span class="n">reactivate</span> <span class="o">=</span> <span class="kc">False</span>
-    <span class="n">mechanism_results</span><span class="p">[</span><span class="s1">&#39;reactivation&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">evaluate_accuracy</span><span class="p">(</span><span class="n">model_copy</span><span class="p">,</span> <span class="n">dataset</span><span class="p">)</span>
-
-    <span class="n">results</span><span class="p">[</span><span class="s1">&#39;mechanism_ablation&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">mechanism_results</span>
-
-    <span class="k">return</span> <span class="n">results</span>
+<span class="n">plt</span><span class="o">.</span><span class="n">suptitle</span><span class="p">(</span><span class="s1">&#39;Branch Activation Patterns (Layer 0)&#39;</span><span class="p">)</span>
+<span class="n">plt</span><span class="o">.</span><span class="n">tight_layout</span><span class="p">()</span>
+<span class="n">plt</span><span class="o">.</span><span class="n">savefig</span><span class="p">(</span><span class="s1">&#39;branch_activation_patterns.png&#39;</span><span class="p">)</span>
+<span class="n">plt</span><span class="o">.</span><span class="n">close</span><span class="p">()</span>
 </pre></div>
 </div>
-<p>This function performs a comprehensive ablation analysis, including layer ablation, branch ablation, and mechanism ablation.</p>
+<p>This code visualizes the mean activation pattern for each branch in the first layer, helping understand what features each branch responds to.</p>
+</section>
+</section>
+<section id="combined-analysis">
+<h2>Combined Analysis<a class="headerlink" href="#combined-analysis" title="Link to this heading"></a></h2>
+<p>For a comprehensive understanding of branch function, you can combine branch ablation with other analyses:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">import</span><span class="w"> </span><span class="nn">torch</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">dendritic_modeling.utils</span><span class="w"> </span><span class="kn">import</span> <span class="n">analyze_branch_ablation</span><span class="p">,</span> <span class="n">record_branch_activations</span>
+
+<span class="c1"># Load model and dataset</span>
+<span class="n">model</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">load</span><span class="p">(</span><span class="s2">&quot;path/to/model.pt&quot;</span><span class="p">)</span>
+
+<span class="c1"># Get branch activations</span>
+<span class="n">activations</span> <span class="o">=</span> <span class="n">record_branch_activations</span><span class="p">(</span><span class="n">model</span><span class="p">,</span> <span class="n">dataset</span><span class="p">,</span> <span class="n">device</span><span class="o">=</span><span class="s1">&#39;cuda&#39;</span><span class="p">)</span>
+
+<span class="c1"># Perform branch ablation</span>
+<span class="n">baseline_acc</span><span class="p">,</span> <span class="n">branch_results</span> <span class="o">=</span> <span class="n">analyze_branch_ablation</span><span class="p">(</span>
+    <span class="n">model</span><span class="p">,</span> <span class="n">dataset</span><span class="p">,</span> <span class="n">layer_idx</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span> <span class="n">device</span><span class="o">=</span><span class="s1">&#39;cuda&#39;</span>
+<span class="p">)</span>
+
+<span class="c1"># Combine results</span>
+<span class="n">results</span> <span class="o">=</span> <span class="p">{}</span>
+<span class="k">for</span> <span class="n">branch_id</span><span class="p">,</span> <span class="p">(</span><span class="n">acc</span><span class="p">,</span> <span class="n">delta</span><span class="p">)</span> <span class="ow">in</span> <span class="n">branch_results</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+    <span class="c1"># Get mean activation for this branch</span>
+    <span class="n">mean_activation</span> <span class="o">=</span> <span class="n">activations</span><span class="p">[</span><span class="mi">0</span><span class="p">][</span><span class="n">branch_id</span><span class="p">]</span><span class="o">.</span><span class="n">mean</span><span class="p">()</span><span class="o">.</span><span class="n">item</span><span class="p">()</span>
+
+    <span class="c1"># Store combined results</span>
+    <span class="n">results</span><span class="p">[</span><span class="n">branch_id</span><span class="p">]</span> <span class="o">=</span> <span class="p">{</span>
+        <span class="s1">&#39;importance&#39;</span><span class="p">:</span> <span class="n">delta</span><span class="p">,</span>
+        <span class="s1">&#39;mean_activation&#39;</span><span class="p">:</span> <span class="n">mean_activation</span>
+    <span class="p">}</span>
+
+<span class="c1"># Analyze correlation between activation and importance</span>
+<span class="n">importance_values</span> <span class="o">=</span> <span class="p">[</span><span class="n">r</span><span class="p">[</span><span class="s1">&#39;importance&#39;</span><span class="p">]</span> <span class="k">for</span> <span class="n">r</span> <span class="ow">in</span> <span class="n">results</span><span class="o">.</span><span class="n">values</span><span class="p">()]</span>
+<span class="n">activation_values</span> <span class="o">=</span> <span class="p">[</span><span class="n">r</span><span class="p">[</span><span class="s1">&#39;mean_activation&#39;</span><span class="p">]</span> <span class="k">for</span> <span class="n">r</span> <span class="ow">in</span> <span class="n">results</span><span class="o">.</span><span class="n">values</span><span class="p">()]</span>
+
+<span class="n">correlation</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">corrcoef</span><span class="p">(</span><span class="n">importance_values</span><span class="p">,</span> <span class="n">activation_values</span><span class="p">)[</span><span class="mi">0</span><span class="p">,</span> <span class="mi">1</span><span class="p">]</span>
+<span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Correlation between importance and activation: </span><span class="si">{</span><span class="n">correlation</span><span class="si">:</span><span class="s2">.4f</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+
+<span class="c1"># Create scatter plot</span>
+<span class="n">plt</span><span class="o">.</span><span class="n">figure</span><span class="p">(</span><span class="n">figsize</span><span class="o">=</span><span class="p">(</span><span class="mi">8</span><span class="p">,</span> <span class="mi">6</span><span class="p">))</span>
+<span class="n">plt</span><span class="o">.</span><span class="n">scatter</span><span class="p">(</span><span class="n">activation_values</span><span class="p">,</span> <span class="n">importance_values</span><span class="p">)</span>
+<span class="n">plt</span><span class="o">.</span><span class="n">xlabel</span><span class="p">(</span><span class="s1">&#39;Mean Activation&#39;</span><span class="p">)</span>
+<span class="n">plt</span><span class="o">.</span><span class="n">ylabel</span><span class="p">(</span><span class="s1">&#39;Importance (Accuracy Drop)&#39;</span><span class="p">)</span>
+<span class="n">plt</span><span class="o">.</span><span class="n">title</span><span class="p">(</span><span class="sa">f</span><span class="s1">&#39;Activation vs. Importance (r = </span><span class="si">{</span><span class="n">correlation</span><span class="si">:</span><span class="s1">.4f</span><span class="si">}</span><span class="s1">)&#39;</span><span class="p">)</span>
+<span class="n">plt</span><span class="o">.</span><span class="n">grid</span><span class="p">(</span><span class="kc">True</span><span class="p">)</span>
+<span class="n">plt</span><span class="o">.</span><span class="n">savefig</span><span class="p">(</span><span class="s1">&#39;activation_vs_importance.png&#39;</span><span class="p">)</span>
+<span class="n">plt</span><span class="o">.</span><span class="n">close</span><span class="p">()</span>
+</pre></div>
+</div>
+<p>This code analyzes the relationship between branch activation and importance, helping understand whether the most active branches are also the most important.</p>
 </section>
 <section id="best-practices-for-ablation-studies">
 <h2>Best Practices for Ablation Studies<a class="headerlink" href="#best-practices-for-ablation-studies" title="Link to this heading"></a></h2>
+<p>Here are some best practices for conducting ablation studies with dendritic networks:</p>
 <ol class="arabic simple">
-<li><p><strong>Start with trained models</strong>: Conduct ablation studies on well-trained models that have reached good performance</p></li>
-<li><p><strong>Ablate systematically</strong>: Systematically ablate each component to ensure comprehensive understanding</p></li>
-<li><p><strong>Compare across models</strong>: Compare ablation results across different models to identify consistent patterns</p></li>
-<li><p><strong>Control for variability</strong>: Run multiple trials to account for variability in results</p></li>
-<li><p><strong>Correlate with branch specialization</strong>: Correlate ablation results with branch specialization metrics</p></li>
-<li><p><strong>Use multiple datasets</strong>: Test ablation on multiple datasets to ensure generalizable insights</p></li>
-<li><p><strong>Combine with visualization</strong>: Combine ablation studies with visualizations of weights and activations</p></li>
+<li><p><strong>Use a separate test set</strong>: Always evaluate ablation on a separate test set, not the training set, to avoid biased results.</p></li>
+<li><p><strong>Multiple random seeds</strong>: Run ablation studies with multiple random seeds and average the results to ensure robustness.</p></li>
+<li><p><strong>Control for branch size</strong>: Consider the size or capacity of branches when interpreting importance, as larger branches might naturally show higher importance.</p></li>
+<li><p><strong>Consider different ablation modes</strong>: Use both ‘direct’ and ‘indirect’ ablation modes to get a more complete picture of branch function.</p></li>
+<li><p><strong>Combine with other analyses</strong>: Integrate ablation results with other analyses like activation visualization or information analysis.</p></li>
+<li><p><strong>Analyze by dendritic order</strong>: Group branches by their dendritic order (distance from soma) to understand the hierarchical structure of computation.</p></li>
+<li><p><strong>Compare across models</strong>: Compare ablation results across different models or training runs to identify consistent patterns.</p></li>
 </ol>
 </section>
-<section id="ablation-in-research">
-<h2>Ablation in Research<a class="headerlink" href="#ablation-in-research" title="Link to this heading"></a></h2>
-<p>Ablation studies are a powerful tool for understanding dendritic networks in research:</p>
-<ol class="arabic simple">
-<li><p><strong>Hypothesis testing</strong>: Test hypotheses about the computational role of different components</p></li>
-<li><p><strong>Model comparison</strong>: Compare the robustness of different model architectures</p></li>
-<li><p><strong>Feature importance</strong>: Identify which input features are most important for performance</p></li>
-<li><p><strong>Mechanism validation</strong>: Validate the importance of biologically-inspired mechanisms</p></li>
-<li><p><strong>Network pruning</strong>: Identify branches that can be pruned without significant performance loss</p></li>
-<li><p><strong>Transfer learning</strong>: Understand which components are specialized for specific tasks</p></li>
-</ol>
-<p>By conducting systematic ablation studies, researchers can gain insights into the inner workings of dendritic networks and identify the key computational principles that drive their performance.</p>
-<figure class="align-center" id="id3">
-<a class="reference internal image-reference" href="source/advanced/analysis/figures/pdf/place_holder.pdf"><img alt="Ablation Study Workflow" src="source/advanced/analysis/figures/pdf/place_holder.pdf" style="width: 600px;" />
-</a>
-<figcaption>
-<p><span class="caption-number">Figure 6 </span><span class="caption-text">Workflow for conducting comprehensive ablation studies with dendritic networks. [PLACEHOLDER FOR DIAGRAM]</span><a class="headerlink" href="#id3" title="Link to this image"></a></p>
-</figcaption>
-</figure>
+<section id="conclusion">
+<h2>Conclusion<a class="headerlink" href="#conclusion" title="Link to this heading"></a></h2>
+<p>Ablation studies are a powerful tool for understanding the function of dendritic networks. By systematically removing branches or layers and measuring the impact on performance, you can identify which components are critical for different aspects of computation.</p>
+<p>The dendritic modeling framework provides specialized tools for conducting these studies, enabling researchers to gain insights into the computational principles of dendritic networks.</p>
 </section>
 </section>
 

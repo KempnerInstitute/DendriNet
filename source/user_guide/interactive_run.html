@@ -57,6 +57,8 @@
 <li class="toctree-l1 current"><a class="reference internal" href="index.html">User Guide</a><ul class="current">
 <li class="toctree-l2"><a class="reference internal" href="concepts.html">Key Concepts and Overview</a></li>
 <li class="toctree-l2"><a class="reference internal" href="configuration.html">Configuration System</a></li>
+<li class="toctree-l2"><a class="reference internal" href="config_yaml_guide.html">Understanding the Config YAML File</a></li>
+<li class="toctree-l2"><a class="reference internal" href="train_experiments_guide.html">Using train_experiments.py</a></li>
 <li class="toctree-l2"><a class="reference internal" href="experiment_tracking.html">Experiment Tracking</a></li>
 <li class="toctree-l2 current"><a class="current reference internal" href="#">Running an interactive session</a><ul>
 <li class="toctree-l3"><a class="reference internal" href="#step-1-prepare-your-run-environment">Step 1: Prepare your run environment</a></li>
@@ -138,26 +140,20 @@
 <span class="w">      </span><span class="nt">inhibitory_layer_sizes</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">200</span><span class="p p-Indicator">]</span>
 <span class="w">      </span><span class="nt">excitatory_branch_factors</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">64</span><span class="p p-Indicator">]</span>
 <span class="w">      </span><span class="nt">inhibitory_branch_factors</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[]</span>
-<span class="w">      </span><span class="nt">reactivate</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
-<span class="w">      </span><span class="nt">somatic_synapses</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
 <span class="w">      </span><span class="nt">ee_synapses_per_branch_per_layer</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">24</span><span class="p p-Indicator">]</span>
 <span class="w">      </span><span class="nt">ei_synapses_per_branch_per_layer</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">200</span><span class="p p-Indicator">]</span>
 <span class="w">      </span><span class="nt">ie_synapses_per_branch_per_layer</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">1</span><span class="p p-Indicator">]</span>
 <span class="w">      </span><span class="nt">ii_synapses_per_branch_per_layer</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[]</span>
+<span class="w">      </span><span class="nt">reactivate</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+<span class="w">      </span><span class="nt">somatic_synapses</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
 <span class="w">      </span><span class="nt">topk_init_method</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">xavier_normal</span>
 <span class="w">      </span><span class="nt">use_shunting</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
-<span class="w">      </span><span class="nt">init_gain</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">1.0</span>
-<span class="w">      </span><span class="nt">init_inhib_offset</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">1.3</span>
-<span class="w">      </span><span class="nt">reactivation_initial_m</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">2</span>
-<span class="w">      </span><span class="nt">reactivation_initial_b</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">0.5</span>
 <span class="w">      </span><span class="nt">reactivation_type</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">param_tanh</span>
-<span class="w">      </span><span class="nt">train_reactivation_b_only</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">false</span>
-<span class="w">      </span><span class="nt">gradient_strategy</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">block_conductance_dynamic</span>
-<span class="w">      </span><span class="nt">gradient_scale_factor</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">2</span>
-<span class="w">      </span><span class="nt">weight_decay_rate</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">0.1</span>
+<span class="w">      </span><span class="nt">reactivation_strategy</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">inverse</span>
+<span class="w">      </span><span class="nt">blocklinear_strategy</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">block_conductance_dynamic</span>
 <span class="w">      </span><span class="nt">enable_branch_outputs</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
-<span class="w">      </span><span class="nt">output_layer</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">bool = true</span>
-<span class="w">      </span><span class="nt">output_dim</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">int = 10</span>
+<span class="w">      </span><span class="nt">output_layer</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">false</span>
+<span class="w">      </span><span class="nt">output_dim</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">10</span>
 
 <span class="nt">train</span><span class="p">:</span>
 <span class="w">  </span><span class="nt">learning_strategy</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;mle&quot;</span>
@@ -165,42 +161,44 @@
 <span class="w">  </span><span class="nt">seed</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">0</span>
 <span class="w">  </span><span class="nt">train_valid_split</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">0.8</span>
 <span class="w">  </span><span class="nt">lr</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">0.01</span>
+<span class="w">  </span><span class="nt">weight_decay_rate</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">0.1</span>
 <span class="w">  </span><span class="nt">epochs</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">50</span>
 <span class="w">  </span><span class="nt">batch_size</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">128</span>
-<span class="w">  </span><span class="nt">grad_clip_value</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">5</span>
-<span class="w">  </span><span class="nt">epochs_per_layer</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">50</span>
+<span class="w">  </span><span class="nt">grad_clip_value</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">5.0</span>
+<span class="w">  </span><span class="nt">epochs_per_layer</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">20</span>
+<span class="w">  </span><span class="nt">final_tune_epochs</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">10</span>
 <span class="w">  </span><span class="nt">pretrain_epochs</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">10</span>
-<span class="w">  </span><span class="nt">maintrain_epochs</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">50</span>
-<span class="w">  </span><span class="nt">visualize_epochs</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">1</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">10</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">50</span><span class="p p-Indicator">]</span>
 
 <span class="nt">task</span><span class="p">:</span>
 <span class="w">  </span><span class="nt">dataset</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;mnist&quot;</span>
+<span class="w">  </span><span class="nt">data_path</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;&quot;</span>
 <span class="w">  </span><span class="nt">parameters</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">{}</span>
 
 <span class="nt">wandb</span><span class="p">:</span>
-<span class="w">  </span><span class="nt">entity</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">your_wandb_entity</span>
-<span class="w">  </span><span class="nt">project</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;dendritic_mnist_test&quot;</span>
-<span class="w">  </span><span class="nt">group</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;debug&quot;</span>
-<span class="w">  </span><span class="nt">tags</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">mnist_1</span><span class="p p-Indicator">]</span>
+<span class="w">  </span><span class="nt">entity</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;&quot;</span>
+<span class="w">  </span><span class="nt">project</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;dendritic_modeling&quot;</span>
+<span class="w">  </span><span class="nt">group</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;mnist_experiments&quot;</span>
+<span class="w">  </span><span class="nt">tags</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="s">&quot;einet&quot;</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="s">&quot;mnist&quot;</span><span class="p p-Indicator">]</span>
 <span class="w">  </span><span class="nt">use_wandb</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
 
 <span class="nt">visualization</span><span class="p">:</span>
 <span class="w">  </span><span class="nt">enabled</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
-<span class="w">  </span><span class="nt">save_path</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">/path/to/results</span>
-<span class="w">  </span><span class="nt">plots</span><span class="p">:</span>
-<span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="s">&quot;weights&quot;</span>
-<span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="s">&quot;activations&quot;</span>
-<span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="s">&quot;gradients&quot;</span>
-<span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="s">&quot;branch_info&quot;</span>
-<span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="s">&quot;ablation&quot;</span>
+<span class="w">  </span><span class="nt">visualize_epochs</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">1</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">10</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">50</span><span class="p p-Indicator">]</span>
+<span class="w">  </span><span class="nt">plots</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="s">&quot;branch_info&quot;</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="s">&quot;ablation&quot;</span><span class="p p-Indicator">]</span>
+<span class="w">  </span><span class="nt">parameters</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">{}</span>
+
+<span class="nt">outputs</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">dir</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;outputs&quot;</span>
 </pre></div>
 </div>
 <dl class="simple">
-<dt>The configuration file defines three main sections:</dt><dd><ul class="simple">
-<li><p><strong>model</strong>: Specifies the network architecture, including the type of network (e.g., EINet), layer sizes, branch factors, synaptic connections, and reactivation settings. Notice the new options for reactivation (e.g. using either a full parametric <cite>tanh</cite> or a version with only m trainable via <em>param_tanh_only_m</em>).</p></li>
-<li><p><strong>train</strong>: Defines the training parameters, such as the learning strategy (e.g., “mle”, “freeze_layers”, “two_step”, etc.), total number of epochs, batch size, and an additional list called <em>visualize_epochs</em> that determines at which epochs the visualization routines should run.</p></li>
+<dt>The configuration file defines several main sections:</dt><dd><ul class="simple">
+<li><p><strong>model</strong>: Specifies the network architecture, including the type of network (e.g., EINet), layer sizes, branch factors, synaptic connections, and reactivation settings.</p></li>
+<li><p><strong>train</strong>: Defines the training parameters, such as the learning strategy (e.g., “mle”, “freeze_branches”, “two_step”, etc.), learning rate, number of epochs, batch size, etc.</p></li>
+<li><p><strong>task</strong>: Specifies the dataset to use and any dataset-specific parameters.</p></li>
 <li><p><strong>wandb</strong>: Contains settings for logging the experiment to Weights &amp; Biases (W&amp;B).</p></li>
-<li><p><strong>visualization</strong>: Contains settings for saving the generated plots and the list of plot types.</p></li>
+<li><p><strong>visualization</strong>: Contains settings for visualization, including which epochs to generate visualizations for and which types of plots to create.</p></li>
+<li><p><strong>outputs</strong>: Specifies the directory where outputs will be saved.</p></li>
 </ul>
 </dd>
 </dl>
@@ -209,23 +207,28 @@
 <section id="step-3-run-the-interactive-session">
 <h2>Step 3: Run the interactive session<a class="headerlink" href="#step-3-run-the-interactive-session" title="Link to this heading"></a></h2>
 <p>Once you have set up your environment and created the configuration file, you can run the interactive session using the following command:</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span>python<span class="w"> </span>src/dendritic_modeling/train_experiments.py<span class="w"> </span>configs/config_exp.yaml<span class="w"> </span>--output_dir<span class="w"> </span>results<span class="w"> </span>--experiment_name<span class="w"> </span>mnist_einet
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span>python<span class="w"> </span>src/dendritic_modeling/train_experiments.py<span class="w"> </span>configs/config_exp.yaml
 </pre></div>
 </div>
-<p>The <cite>output_dir</cite> and <cite>experiment_name</cite> arguments specify the output directory and the name of the experiment, respectively. The <cite>train_experiments.py</cite> script will load the configuration file <cite>config_exp.yaml</cite> and start the training process. You can monitor the training progress and visualize the results using the W&amp;B dashboard.</p>
+<p>You can also override specific configuration values at runtime:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span>python<span class="w"> </span>src/dendritic_modeling/train_experiments.py<span class="w"> </span>configs/config_exp.yaml<span class="w"> </span>--train.learning_strategy<span class="w"> </span>freeze_branches<span class="w"> </span>--train.lr<span class="w"> </span><span class="m">0</span>.005
+</pre></div>
+</div>
+<p>The <cite>train_experiments.py</cite> script will load the configuration file <cite>config_exp.yaml</cite> and start the training process. You can monitor the training progress in the terminal output and visualize the results using the W&amp;B dashboard if you’ve enabled it.</p>
 </section>
 <section id="step-4-monitor-outputs-and-visualizations">
 <h2>Step 4: Monitor outputs and visualizations<a class="headerlink" href="#step-4-monitor-outputs-and-visualizations" title="Link to this heading"></a></h2>
 <dl class="simple">
 <dt>During training, the log messages will indicate:</dt><dd><ul class="simple">
-<li><p>The completion of each epoch.</p></li>
-<li><p>When an intermediate visualization is generated (including the epoch number and the type of plot, such as weights, activations, gradients, branch_info, or ablation).</p></li>
-<li><p>The final performance metrics (train, validation, and test accuracy) will be logged.</p></li>
+<li><p>The completion of each epoch with training and validation metrics</p></li>
+<li><p>The learning strategy being used</p></li>
+<li><p>Saving of checkpoint models</p></li>
+<li><p>Final performance metrics (train, validation, and test accuracy)</p></li>
 </ul>
 </dd>
 </dl>
-<p>Additionally, if <em>W&amp;B</em> is enabled, you can monitor the training progress and visualizations on the W&amp;B dashboard.</p>
-<p>For further analysis, the generated plots (including loss curves, weight maps, activation distributions, gradient maps, branch information, and ablation results) are saved in the directory specified under the visualization section of the config file.</p>
+<p>If W&amp;B is enabled, you can monitor the training progress and visualizations on the W&amp;B dashboard. The experiment results, including model weights and performance metrics, will be saved in the directory specified in the <cite>outputs.dir</cite> parameter of your configuration file.</p>
+<p>The visualizations, if enabled, will be generated at the epochs specified in the <cite>visualization.visualize_epochs</cite> list and will include the plot types specified in the <cite>visualization.plots</cite> list.</p>
 </section>
 </section>
 

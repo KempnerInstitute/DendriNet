@@ -152,10 +152,28 @@ For more complex experiments, you can use YAML configuration files:
     # Get datasets based on configuration
     datasets = get_unified_datasets(config.task, config.train)
     
-    # Create model from configuration
-    from dendritic_modeling.networks import create_model_from_config
-    
-    model = create_model_from_config(config.model)
+    # Create model using configuration parameters
+    model = ExcitationInhibitionNetwork(
+        input_dim=datasets['train'][0][0].shape[1],
+        excitatory_layer_sizes=config.model.network.parameters.excitatory_layer_sizes,
+        inhibitory_layer_sizes=config.model.network.parameters.inhibitory_layer_sizes,
+        excitatory_branch_factors=config.model.network.parameters.excitatory_branch_factors,
+        inhibitory_branch_factors=config.model.network.parameters.inhibitory_branch_factors,
+        ee_synapses_per_branch_per_layer=config.model.network.parameters.ee_synapses_per_branch_per_layer,
+        ei_synapses_per_branch_per_layer=config.model.network.parameters.ei_synapses_per_branch_per_layer,
+        ie_synapses_per_branch_per_layer=config.model.network.parameters.ie_synapses_per_branch_per_layer,
+        ii_synapses_per_branch_per_layer=config.model.network.parameters.ii_synapses_per_branch_per_layer,
+        reactivate=config.model.network.parameters.reactivate,
+        somatic_synapses=config.model.network.parameters.somatic_synapses,
+        topk_init_method=config.model.network.parameters.topk_init_method,
+        use_shunting=config.model.network.parameters.use_shunting,
+        reactivation_type=config.model.network.parameters.reactivation_type,
+        reactivation_strategy=config.model.network.parameters.reactivation_strategy,
+        blocklinear_strategy=config.model.network.parameters.blocklinear_strategy,
+        enable_branch_outputs=config.model.network.parameters.enable_branch_outputs,
+        output_layer=config.model.network.parameters.output_layer,
+        output_dim=config.model.network.parameters.output_dim
+    )
     
     # Train using configuration parameters
     trainer = TrainerMLE(optimizer=torch.optim.Adam(model.parameters(), lr=config.train.lr))

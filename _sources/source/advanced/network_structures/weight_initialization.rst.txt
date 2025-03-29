@@ -36,56 +36,37 @@ Available initialization methods include:
 2. **xavier_uniform**: Xavier initialization with uniform distribution
 3. **kaiming_normal**: Kaiming (He) initialization with normal distribution
 4. **kaiming_uniform**: Kaiming initialization with uniform distribution
-5. **sparse_normal**: Sparse initialization with normal distribution, tailored for top-k connections
+5. **orthogonal**: Orthogonal initialization
+6. **normal**: Standard normal distribution initialization
+7. **uniform**: Uniform distribution initialization
+8. **eye**: Identity matrix initialization
 
 Implementation details:
 
+The initialization is handled internally by the TopKLinear layer:
+
 .. code-block:: python
 
-    def initialize_topk_weights(weight, init_method, k, gain=1.0):
-        """
-        Initialize weights for TopKLinear layers.
-        
-        Parameters
-        ----------
-        weight : torch.Tensor
-            Weight tensor to initialize
-        init_method : str
-            Initialization method to use
-        k : int
-            Number of active connections per output unit
-        gain : float
-            Gain factor to scale the initialization
-            
-        Returns
-        -------
-        torch.Tensor
-            Initialized weight tensor
-        """
-        fan_in, fan_out = weight.shape
-        
-        if init_method == 'xavier_normal':
-            std = gain * math.sqrt(2.0 / (fan_in + fan_out))
-            nn.init.normal_(weight, mean=0.0, std=std)
-            
-        elif init_method == 'xavier_uniform':
-            bound = gain * math.sqrt(6.0 / (fan_in + fan_out))
-            nn.init.uniform_(weight, -bound, bound)
-            
-        elif init_method == 'kaiming_normal':
-            # For ReLU-like activations
-            nn.init.kaiming_normal_(weight, a=0, mode='fan_in', nonlinearity='relu')
-            
-        elif init_method == 'kaiming_uniform':
-            nn.init.kaiming_uniform_(weight, a=0, mode='fan_in', nonlinearity='relu')
-            
-        elif init_method == 'sparse_normal':
-            # Specialized for top-k connections
-            # Scale by sqrt(fan_in/k) to account for sparse activation
-            std = gain * math.sqrt(1.0 / k)
-            nn.init.normal_(weight, mean=0.0, std=std)
-            
-        return weight
+    TOPK_INIT_METHODS = {
+        'xavier_normal': nn.init.xavier_normal_,
+        'xavier_uniform': nn.init.xavier_uniform_,
+        'kaiming_normal': nn.init.kaiming_normal_,
+        'kaiming_uniform': nn.init.kaiming_uniform_,
+        'orthogonal': nn.init.orthogonal_,
+        'normal': nn.init.normal_,
+        'uniform': nn.init.uniform_,
+        'eye': nn.init.eye_,
+    }
+
+    def initialize(self):
+        if self.init_method in TOPK_INIT_METHODS:
+            init_func = TOPK_INIT_METHODS[self.init_method]
+            init_func(self.pre_w)
+            self.pre_w.data.mul_(self.init_gain)  # scale
+        else:
+            raise ValueError(
+                f'Invalid initialization method: {self.init_method}. ',
+                f'Choose from {list(TOPK_INIT_METHODS.keys())}')
 
 Xavier vs. Kaiming Initialization
 ---------------------------------
@@ -123,108 +104,10 @@ Guidelines for different activation functions:
 - For steeper ParametricTanh (higher m): gain ≈ 0.5-0.8
 - For flatter ParametricTanh (lower m): gain ≈ 1.2-1.5
 
-Inhibitory Weight Initialization
---------------------------------
-
-Inhibitory connections often require different initialization to maintain proper excitation-inhibition balance. The framework provides the ``init_inhib_offset`` parameter:
-
-.. code-block:: yaml
-
-    model:
-      network:
-        parameters:
-          init_inhib_offset: 1.3
-
-This parameter affects how inhibitory weights are initialized:
-
-1. Values > 1.0 initialize inhibitory weights with larger magnitude
-2. Values < 1.0 initialize inhibitory weights with smaller magnitude
-3. Value of 1.0 treats inhibitory weights the same as excitatory
-
-Proper initialization of inhibitory weights helps establish the desired excitatory-inhibitory balance from the beginning of training.
-
-Implementation:
-
-.. code-block:: python
-
-    # For inhibitory pathway initialization
-    if pathway == 'inhibitory':
-        std = std * init_inhib_offset  # Scale the standard deviation
-        nn.init.normal_(weight, mean=0.0, std=std)
-
-Sparse Initialization for TopK
-------------------------------
-
-For TopKLinear layers, standard initialization methods may not be optimal due to the sparse connectivity pattern. The sparse_normal method adjusts the scale based on the number of active connections:
-
-.. code-block:: python
-
-    def sparse_topk_init(weight, k, gain=1.0):
-        """
-        Initialize weights specifically for TopKLinear with consideration for sparsity.
-        
-        Parameters
-        ----------
-        weight : torch.Tensor
-            The weight tensor to initialize
-        k : int
-            Number of active connections per output
-        gain : float
-            Scaling factor
-            
-        Returns
-        -------
-        torch.Tensor
-            Initialized weight tensor
-        """
-        fan_in = weight.size(1)
-        # Scale by sqrt(fan_in/k) to account for only k active inputs
-        adjustment = math.sqrt(fan_in / k)
-        std = gain / adjustment
-        
-        return nn.init.normal_(weight, mean=0.0, std=std)
-
-This accounts for the fact that during forward propagation, only k out of fan_in inputs will be active for each output.
-
 BlockLinear Initialization
 --------------------------
 
-For BlockLinear layers, which handle information flow between branches, initialization needs to consider the block structure:
-
-.. code-block:: python
-
-    def initialize_block_linear(weight, branch_factor, init_method='xavier_normal', gain=1.0):
-        """
-        Initialize BlockLinear weights with consideration for block structure.
-        
-        Parameters
-        ----------
-        weight : torch.Tensor
-            Weight tensor to initialize
-        branch_factor : int
-            Branch factor that determines block structure
-        init_method : str
-            Initialization method
-        gain : float
-            Gain factor
-            
-        Returns
-        -------
-        torch.Tensor
-            Initialized weight tensor
-        """
-        # Calculate effective fan_in based on branch structure
-        effective_fan_in = weight.size(1) // branch_factor
-        
-        if init_method == 'xavier_normal':
-            std = gain * math.sqrt(2.0 / (effective_fan_in + weight.size(0)))
-            nn.init.normal_(weight, mean=0.0, std=std)
-        
-        # Create block mask
-        mask = create_block_mask(weight.size(0), weight.size(1), branch_factor)
-        
-        # Apply mask to zero out non-block connections
-        return weight * mask
+For BlockLinear layers, which handle information flow between branches, initialization is handled internally by the layer. The layer ensures that the input features are divisible by the output features to maintain proper block structure.
 
 Initialization of ParametricTanh Parameters
 -------------------------------------------
@@ -236,8 +119,8 @@ The learnable parameters in ParametricTanh activations (m and b) also require ca
     model:
       network:
         parameters:
-          reactivation_initial_m: 2.0  # Initial slope parameter
-          reactivation_initial_b: 0.5  # Initial offset parameter
+          reactivation_initial_m: 1.5  # Initial slope parameter (default)
+          reactivation_initial_b: 1.0  # Initial offset parameter (default)
 
 These values strongly influence the initial response properties of dendritic branches:
 
@@ -258,9 +141,8 @@ For optimal performance when training dendritic networks:
 
 1. **Match initialization to activation**: Use xavier_normal for ParametricTanh, kaiming for ReLU-like functions
 2. **Adjust for network depth**: Deeper networks may need lower gain values
-3. **Balance excitation-inhibition**: Adjust init_inhib_offset based on network architecture
-4. **Monitor initial activations**: Check activation statistics at initialization to verify signal propagation
-5. **Consider layer-specific initialization**: Different layers may benefit from different initialization parameters
+3. **Monitor initial activations**: Check activation statistics at initialization to verify signal propagation
+4. **Consider layer-specific initialization**: Different layers may benefit from different initialization parameters
 
 Example complete initialization configuration:
 
@@ -271,6 +153,5 @@ Example complete initialization configuration:
         parameters:
           topk_init_method: "xavier_normal"
           init_gain: 1.0
-          init_inhib_offset: 1.3
-          reactivation_initial_m: 2.0
-          reactivation_initial_b: 0.5 
+          reactivation_initial_m: 1.5
+          reactivation_initial_b: 1.0 
