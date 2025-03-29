@@ -67,7 +67,7 @@
 <li class="toctree-l4"><a class="reference internal" href="#input-transformation-network">Input Transformation Network</a></li>
 <li class="toctree-l4"><a class="reference internal" href="#branch-information-analysis">Branch Information Analysis</a></li>
 <li class="toctree-l4"><a class="reference internal" href="#ablation-studies">Ablation Studies</a></li>
-<li class="toctree-l4"><a class="reference internal" href="#configuration-based-experiment">Configuration-Based Experiment</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#running-experiments-with-train-experiments-py">Running Experiments with train_experiments.py</a></li>
 </ul>
 </li>
 <li class="toctree-l3"><a class="reference internal" href="#notebook-examples">Notebook Examples</a></li>
@@ -253,20 +253,17 @@
     <span class="p">}</span>
 <span class="p">)</span>
 
-<span class="c1"># Configure input network training</span>
-<span class="kn">from</span><span class="w"> </span><span class="nn">dendritic_modeling.config</span><span class="w"> </span><span class="kn">import</span> <span class="n">Config</span><span class="p">,</span> <span class="n">TrainConfig</span>
+<span class="c1"># Train the model with appropriate learning strategy</span>
+<span class="n">optimizer</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">optim</span><span class="o">.</span><span class="n">Adam</span><span class="p">(</span><span class="n">model</span><span class="o">.</span><span class="n">parameters</span><span class="p">(),</span> <span class="n">lr</span><span class="o">=</span><span class="mf">0.001</span><span class="p">)</span>
+<span class="n">trainer</span> <span class="o">=</span> <span class="n">TrainerMLE</span><span class="p">(</span><span class="n">optimizer</span><span class="o">=</span><span class="n">optimizer</span><span class="p">)</span>
 
-<span class="n">train_config</span> <span class="o">=</span> <span class="n">TrainConfig</span><span class="p">(</span>
-    <span class="n">input_net_training</span><span class="o">=</span><span class="p">{</span>
-        <span class="s2">&quot;training_mode&quot;</span><span class="p">:</span> <span class="s2">&quot;sequential&quot;</span><span class="p">,</span>
-        <span class="s2">&quot;train_input_net&quot;</span><span class="p">:</span> <span class="kc">True</span><span class="p">,</span>
-        <span class="s2">&quot;input_net_epochs&quot;</span><span class="p">:</span> <span class="mi">10</span><span class="p">,</span>
-        <span class="s2">&quot;train_heads_independently&quot;</span><span class="p">:</span> <span class="kc">True</span><span class="p">,</span>
-        <span class="s2">&quot;inhibitory_head_objective&quot;</span><span class="p">:</span> <span class="s2">&quot;diversity&quot;</span>
-    <span class="p">}</span>
+<span class="n">results</span> <span class="o">=</span> <span class="n">trainer</span><span class="o">.</span><span class="n">train</span><span class="p">(</span>
+    <span class="n">model</span><span class="o">=</span><span class="n">model</span><span class="p">,</span>
+    <span class="n">train_data</span><span class="o">=</span><span class="n">train_ds</span><span class="p">,</span>
+    <span class="n">valid_data</span><span class="o">=</span><span class="n">valid_ds</span><span class="p">,</span>
+    <span class="n">epochs</span><span class="o">=</span><span class="mi">20</span><span class="p">,</span>
+    <span class="n">batch_size</span><span class="o">=</span><span class="mi">64</span>
 <span class="p">)</span>
-
-<span class="c1"># Use appropriate trainer for this configuration...</span>
 </pre></div>
 </div>
 </section>
@@ -283,14 +280,16 @@
 <span class="n">branch_info</span> <span class="o">=</span> <span class="n">analyze_branch_information</span><span class="p">(</span>
     <span class="n">model</span><span class="o">=</span><span class="n">model</span><span class="p">,</span>
     <span class="n">dataset</span><span class="o">=</span><span class="n">test_ds</span><span class="p">,</span>
-    <span class="n">batch_size</span><span class="o">=</span><span class="mi">64</span>
+    <span class="n">batch_size</span><span class="o">=</span><span class="mi">64</span><span class="p">,</span>
+    <span class="n">device</span><span class="o">=</span><span class="s1">&#39;cuda&#39;</span> <span class="k">if</span> <span class="n">torch</span><span class="o">.</span><span class="n">cuda</span><span class="o">.</span><span class="n">is_available</span><span class="p">()</span> <span class="k">else</span> <span class="s1">&#39;cpu&#39;</span><span class="p">,</span>
+    <span class="n">n_bins</span><span class="o">=</span><span class="mi">10</span>  <span class="c1"># Number of bins for mutual information calculation</span>
 <span class="p">)</span>
 
 <span class="c1"># Plot branch information</span>
 <span class="kn">import</span><span class="w"> </span><span class="nn">matplotlib.pyplot</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">plt</span>
 
 <span class="n">plt</span><span class="o">.</span><span class="n">figure</span><span class="p">(</span><span class="n">figsize</span><span class="o">=</span><span class="p">(</span><span class="mi">10</span><span class="p">,</span> <span class="mi">6</span><span class="p">))</span>
-<span class="n">plt</span><span class="o">.</span><span class="n">bar</span><span class="p">(</span><span class="n">branch_info</span><span class="o">.</span><span class="n">keys</span><span class="p">(),</span> <span class="n">branch_info</span><span class="o">.</span><span class="n">values</span><span class="p">())</span>
+<span class="n">plt</span><span class="o">.</span><span class="n">bar</span><span class="p">(</span><span class="nb">range</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">branch_info</span><span class="p">)),</span> <span class="n">branch_info</span><span class="p">)</span>
 <span class="n">plt</span><span class="o">.</span><span class="n">xlabel</span><span class="p">(</span><span class="s1">&#39;Branch Layer&#39;</span><span class="p">)</span>
 <span class="n">plt</span><span class="o">.</span><span class="n">ylabel</span><span class="p">(</span><span class="s1">&#39;Mutual Information with Label&#39;</span><span class="p">)</span>
 <span class="n">plt</span><span class="o">.</span><span class="n">title</span><span class="p">(</span><span class="s1">&#39;Information Content in Dendritic Branches&#39;</span><span class="p">)</span>
@@ -312,7 +311,9 @@
     <span class="n">model</span><span class="o">=</span><span class="n">model</span><span class="p">,</span>
     <span class="n">dataset</span><span class="o">=</span><span class="n">test_ds</span><span class="p">,</span>
     <span class="n">layer_idx</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span>  <span class="c1"># First branch layer</span>
-    <span class="n">branch_ids</span><span class="o">=</span><span class="p">[</span><span class="mi">0</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">2</span><span class="p">,</span> <span class="mi">3</span><span class="p">]</span>  <span class="c1"># Analyze each branch separately</span>
+    <span class="n">branch_ids</span><span class="o">=</span><span class="p">[</span><span class="mi">0</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">2</span><span class="p">,</span> <span class="mi">3</span><span class="p">],</span>  <span class="c1"># Analyze each branch separately</span>
+    <span class="n">mode</span><span class="o">=</span><span class="s1">&#39;direct&#39;</span><span class="p">,</span>  <span class="c1"># Ablation mode: &#39;direct&#39; or &#39;indirect&#39;</span>
+    <span class="n">device</span><span class="o">=</span><span class="s1">&#39;cuda&#39;</span> <span class="k">if</span> <span class="n">torch</span><span class="o">.</span><span class="n">cuda</span><span class="o">.</span><span class="n">is_available</span><span class="p">()</span> <span class="k">else</span> <span class="s1">&#39;cpu&#39;</span>
 <span class="p">)</span>
 
 <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Baseline accuracy: </span><span class="si">{</span><span class="n">baseline_acc</span><span class="si">:</span><span class="s2">.4f</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
@@ -321,70 +322,100 @@
 </pre></div>
 </div>
 </section>
-<section id="configuration-based-experiment">
-<h3>Configuration-Based Experiment<a class="headerlink" href="#configuration-based-experiment" title="Link to this heading"></a></h3>
-<p>Running an experiment with YAML configuration:</p>
-<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span><span class="w"> </span><span class="nn">dendritic_modeling.config</span><span class="w"> </span><span class="kn">import</span> <span class="n">load_config</span>
-<span class="kn">from</span><span class="w"> </span><span class="nn">dendritic_modeling.utils</span><span class="w"> </span><span class="kn">import</span> <span class="n">get_unified_datasets</span>
-
-<span class="c1"># Load configuration</span>
-<span class="n">config</span> <span class="o">=</span> <span class="n">load_config</span><span class="p">(</span><span class="s2">&quot;configs/experiment_config.yaml&quot;</span><span class="p">)</span>
-
-<span class="c1"># Get datasets</span>
-<span class="n">datasets</span> <span class="o">=</span> <span class="n">get_unified_datasets</span><span class="p">(</span><span class="n">config</span><span class="o">.</span><span class="n">task</span><span class="p">,</span> <span class="n">config</span><span class="o">.</span><span class="n">train</span><span class="p">)</span>
-
-<span class="c1"># Initialize model from config</span>
-<span class="kn">from</span><span class="w"> </span><span class="nn">dendritic_modeling.networks</span><span class="w"> </span><span class="kn">import</span> <span class="n">ExcitationInhibitionNetwork</span>
-
-<span class="n">net_params</span> <span class="o">=</span> <span class="n">config</span><span class="o">.</span><span class="n">model</span><span class="o">.</span><span class="n">network</span><span class="o">.</span><span class="n">parameters</span>
-<span class="n">model</span> <span class="o">=</span> <span class="n">ExcitationInhibitionNetwork</span><span class="p">(</span>
-    <span class="n">input_dim</span><span class="o">=</span><span class="n">datasets</span><span class="p">[</span><span class="s1">&#39;train&#39;</span><span class="p">][</span><span class="mi">0</span><span class="p">][</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">1</span><span class="p">],</span>
-    <span class="n">excitatory_layer_sizes</span><span class="o">=</span><span class="n">net_params</span><span class="o">.</span><span class="n">excitatory_layer_sizes</span><span class="p">,</span>
-    <span class="n">inhibitory_layer_sizes</span><span class="o">=</span><span class="n">net_params</span><span class="o">.</span><span class="n">inhibitory_layer_sizes</span><span class="p">,</span>
-    <span class="n">excitatory_branch_factors</span><span class="o">=</span><span class="n">net_params</span><span class="o">.</span><span class="n">excitatory_branch_factors</span><span class="p">,</span>
-    <span class="n">inhibitory_branch_factors</span><span class="o">=</span><span class="n">net_params</span><span class="o">.</span><span class="n">inhibitory_branch_factors</span><span class="p">,</span>
-    <span class="n">ee_synapses_per_branch_per_layer</span><span class="o">=</span><span class="n">net_params</span><span class="o">.</span><span class="n">ee_synapses_per_branch_per_layer</span><span class="p">,</span>
-    <span class="n">ei_synapses_per_branch_per_layer</span><span class="o">=</span><span class="n">net_params</span><span class="o">.</span><span class="n">ei_synapses_per_branch_per_layer</span><span class="p">,</span>
-    <span class="n">ie_synapses_per_branch_per_layer</span><span class="o">=</span><span class="n">net_params</span><span class="o">.</span><span class="n">ie_synapses_per_branch_per_layer</span><span class="p">,</span>
-    <span class="n">ii_synapses_per_branch_per_layer</span><span class="o">=</span><span class="n">net_params</span><span class="o">.</span><span class="n">ii_synapses_per_branch_per_layer</span><span class="p">,</span>
-    <span class="n">reactivate</span><span class="o">=</span><span class="n">net_params</span><span class="o">.</span><span class="n">reactivate</span><span class="p">,</span>
-    <span class="n">somatic_synapses</span><span class="o">=</span><span class="n">net_params</span><span class="o">.</span><span class="n">somatic_synapses</span><span class="p">,</span>
-    <span class="n">input_mode</span><span class="o">=</span><span class="n">net_params</span><span class="o">.</span><span class="n">input_mode</span><span class="p">,</span>
-    <span class="n">input_net_dict</span><span class="o">=</span><span class="n">net_params</span><span class="o">.</span><span class="n">input_net_dict</span>
-<span class="p">)</span>
-
-<span class="c1"># Get appropriate trainer from config</span>
-<span class="kn">from</span><span class="w"> </span><span class="nn">dendritic_modeling.learning_strategies</span><span class="w"> </span><span class="kn">import</span> <span class="n">get_trainer</span>
-
-<span class="n">optimizer</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">optim</span><span class="o">.</span><span class="n">Adam</span><span class="p">(</span><span class="n">model</span><span class="o">.</span><span class="n">parameters</span><span class="p">(),</span> <span class="n">lr</span><span class="o">=</span><span class="n">config</span><span class="o">.</span><span class="n">train</span><span class="o">.</span><span class="n">lr</span><span class="p">)</span>
-<span class="n">trainer</span> <span class="o">=</span> <span class="n">get_trainer</span><span class="p">(</span>
-    <span class="n">strategy</span><span class="o">=</span><span class="n">config</span><span class="o">.</span><span class="n">train</span><span class="o">.</span><span class="n">learning_strategy</span><span class="p">,</span>
-    <span class="n">optimizer</span><span class="o">=</span><span class="n">optimizer</span>
-<span class="p">)</span>
-
-<span class="c1"># Train</span>
-<span class="n">results</span> <span class="o">=</span> <span class="n">trainer</span><span class="o">.</span><span class="n">train</span><span class="p">(</span>
-    <span class="n">model</span><span class="o">=</span><span class="n">model</span><span class="p">,</span>
-    <span class="n">train_data</span><span class="o">=</span><span class="n">datasets</span><span class="p">[</span><span class="s1">&#39;train&#39;</span><span class="p">],</span>
-    <span class="n">valid_data</span><span class="o">=</span><span class="n">datasets</span><span class="p">[</span><span class="s1">&#39;valid&#39;</span><span class="p">],</span>
-    <span class="n">epochs</span><span class="o">=</span><span class="n">config</span><span class="o">.</span><span class="n">train</span><span class="o">.</span><span class="n">epochs</span><span class="p">,</span>
-    <span class="n">batch_size</span><span class="o">=</span><span class="n">config</span><span class="o">.</span><span class="n">train</span><span class="o">.</span><span class="n">batch_size</span><span class="p">,</span>
-    <span class="n">grad_clip_value</span><span class="o">=</span><span class="n">config</span><span class="o">.</span><span class="n">train</span><span class="o">.</span><span class="n">grad_clip_value</span>
-<span class="p">)</span>
-
-<span class="c1"># Save results</span>
-<span class="kn">import</span><span class="w"> </span><span class="nn">os</span>
-<span class="kn">import</span><span class="w"> </span><span class="nn">json</span>
-
-<span class="n">os</span><span class="o">.</span><span class="n">makedirs</span><span class="p">(</span><span class="n">config</span><span class="o">.</span><span class="n">outputs</span><span class="o">.</span><span class="n">dir</span><span class="p">,</span> <span class="n">exist_ok</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
-<span class="k">with</span> <span class="nb">open</span><span class="p">(</span><span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">config</span><span class="o">.</span><span class="n">outputs</span><span class="o">.</span><span class="n">dir</span><span class="p">,</span> <span class="s2">&quot;results.json&quot;</span><span class="p">),</span> <span class="s2">&quot;w&quot;</span><span class="p">)</span> <span class="k">as</span> <span class="n">f</span><span class="p">:</span>
-    <span class="n">json</span><span class="o">.</span><span class="n">dump</span><span class="p">({</span>
-        <span class="s2">&quot;test_accuracy&quot;</span><span class="p">:</span> <span class="n">accuracy_score</span><span class="p">(</span><span class="n">model</span><span class="p">,</span> <span class="o">*</span><span class="n">datasets</span><span class="p">[</span><span class="s1">&#39;test&#39;</span><span class="p">][:]),</span>
-        <span class="s2">&quot;train_losses&quot;</span><span class="p">:</span> <span class="p">[</span><span class="nb">float</span><span class="p">(</span><span class="n">loss</span><span class="p">)</span> <span class="k">for</span> <span class="n">loss</span> <span class="ow">in</span> <span class="n">results</span><span class="p">[</span><span class="s2">&quot;train losses&quot;</span><span class="p">]],</span>
-        <span class="s2">&quot;valid_losses&quot;</span><span class="p">:</span> <span class="p">[</span><span class="nb">float</span><span class="p">(</span><span class="n">loss</span><span class="p">)</span> <span class="k">for</span> <span class="n">loss</span> <span class="ow">in</span> <span class="n">results</span><span class="p">[</span><span class="s2">&quot;valid losses&quot;</span><span class="p">]]</span>
-    <span class="p">},</span> <span class="n">f</span><span class="p">)</span>
-</pre></div>
-</div>
+<section id="running-experiments-with-train-experiments-py">
+<h3>Running Experiments with train_experiments.py<a class="headerlink" href="#running-experiments-with-train-experiments-py" title="Link to this heading"></a></h3>
+<p>The framework provides a flexible experiment runner through train_experiments.py. Here’s how to use it:</p>
+<p>1. <strong>Basic Usage</strong>:
+.. code-block:: python</p>
+<blockquote>
+<div><p>python src/dendritic_modeling/train_experiments.py config_exp.yaml</p>
+</div></blockquote>
+<p>2. <strong>Configuration File Structure</strong>:
+.. code-block:: yaml</p>
+<blockquote>
+<div><p># config_exp.yaml
+model:</p>
+<blockquote>
+<div><p>task: “classification”
+probabilistic: true
+network:</p>
+<blockquote>
+<div><p>type: “EINet”
+parameters:</p>
+<blockquote>
+<div><p>input_dim: 784
+excitatory_layer_sizes: [512, 256]
+inhibitory_layer_sizes: [200, 100]
+excitatory_branch_factors: [64, 32]
+inhibitory_branch_factors: [32, 16]
+ee_synapses_per_branch_per_layer: [24, 24]
+ei_synapses_per_branch_per_layer: [100, 100]
+ie_synapses_per_branch_per_layer: [2, 2]
+ii_synapses_per_branch_per_layer: []
+reactivate: true
+somatic_synapses: true
+topk_init_method: “xavier_normal”
+use_shunting: true
+reactivation_type: “param_tanh”
+reactivation_strategy: “inverse”
+blocklinear_strategy: “block_conductance_dynamic”
+enable_branch_outputs: true
+output_layer: false
+output_dim: 10</p>
+</div></blockquote>
+</div></blockquote>
+</div></blockquote>
+<dl class="simple">
+<dt>train:</dt><dd><p>learning_strategy: “mle”
+run_name: “mnist_einet”
+seed: 0
+train_valid_split: 0.8
+lr: 0.01
+weight_decay_rate: 0.1
+epochs: 50
+batch_size: 128
+grad_clip_value: 5.0
+epochs_per_layer: 50
+final_tune_epochs: 10
+pretrain_epochs: 50</p>
+</dd>
+<dt>task:</dt><dd><p>dataset: “mnist”
+data_path: “”
+parameters: {}</p>
+</dd>
+<dt>visualization:</dt><dd><p>enabled: false
+visualize_epochs: []
+plots: [“branch_info”, “ablation”]
+parameters: {}</p>
+</dd>
+<dt>wandb:</dt><dd><p>entity: “”
+project: “”
+group: “”
+tags: []
+use_wandb: false</p>
+</dd>
+<dt>outputs:</dt><dd><p>dir: “outputs”</p>
+</dd>
+</dl>
+</div></blockquote>
+<p>3. <strong>Available Learning Strategies</strong>:
+- mle: Standard Maximum Likelihood Estimation (default)
+- freeze_layers: Train one layer at a time, freezing others
+- two_step: Two-phase training with pretraining and main training
+- mlp_only: Train only the MLP component, then train the full model
+- dendrinet_from_mlp: Train MLP first, then use it to initialize and train the dendrinet
+- voltage_stabilization: Add a warm-up phase that stabilizes voltages to a target</p>
+<p>4. <strong>Command Line Arguments</strong>:
+.. code-block:: bash</p>
+<blockquote>
+<div><p># Basic usage
+python src/dendritic_modeling/train_experiments.py config_exp.yaml</p>
+<p># Override learning strategy
+python src/dendritic_modeling/train_experiments.py config_exp.yaml –learning_strategy dendrinet_from_mlp</p>
+<p># Enable visualization
+python src/dendritic_modeling/train_experiments.py config_exp.yaml –visualization.enabled true</p>
+</div></blockquote>
+<p>For more information about specific configuration options, see the <a class="reference internal" href="../advanced/network_structures/index.html"><span class="doc">Network Structures</span></a> and <a class="reference internal" href="../advanced/learning/index.html"><span class="doc">Learning Strategies</span></a> sections.</p>
 </section>
 </section>
 <section id="notebook-examples">
