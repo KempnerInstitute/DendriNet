@@ -5,8 +5,8 @@ Configuration file for dendritic_modeling.
 This module defines the configuration dataclasses for the model, training, task, etc.
 It loads and saves configurations using OmegaConf.
 """
-from typing import List, Dict
-from dataclasses import dataclass, field, asdict
+from dataclasses import asdict, dataclass, field
+from typing import Dict, List
 
 from omegaconf import OmegaConf as om
 
@@ -81,7 +81,9 @@ class TrainConfig(BaseConfig):
     batch_size: int = 128
     grad_clip_value: float = 5.0
     epochs_per_layer: int = 50
-    final_tune_epochs: int = 10  # Number of epochs for final fine-tuning after layer-by-layer training
+    final_tune_epochs: int = (
+        10  # Number of epochs for final fine-tuning after layer-by-layer training
+    )
     pretrain_epochs: int = 50
     input_net_training: dict = field(default_factory=dict)
 

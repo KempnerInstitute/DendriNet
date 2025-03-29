@@ -1,9 +1,10 @@
 import unittest
-from unittest.mock import patch, MagicMock
+from unittest.mock import MagicMock, patch
+
 from dendritic_modeling import LoggerManager
 
-class TestLoggerManager(unittest.TestCase):
 
+class TestLoggerManager(unittest.TestCase):
     def setUp(self):
         # Reset singleton instance before each test
         LoggerManager._instance = None
@@ -14,7 +15,6 @@ class TestLoggerManager(unittest.TestCase):
         instance2 = LoggerManager().get_logger()
         self.assertIs(instance1, instance2, "LoggerManager should be a singleton")
 
-   
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     unittest.main()

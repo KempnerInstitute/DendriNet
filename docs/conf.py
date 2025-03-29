@@ -1,8 +1,8 @@
 import os
 import sys
-sys.path.insert(0, os.path.abspath('../src'))
-release = '0.1.0'
 
+sys.path.insert(0, os.path.abspath("../src"))
+release = "0.1.0"
 
 
 # Configuration file for the Sphinx documentation builder.
@@ -13,27 +13,27 @@ release = '0.1.0'
 # -- Project information -----------------------------------------------------
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#project-information
 
-project = 'dendritic_modeling'
-copyright = '2025, Research and Engineering at Kempner'
-author = 'Research and Engineering at Kempner'
+project = "dendritic_modeling"
+copyright = "2025, Research and Engineering at Kempner"
+author = "Research and Engineering at Kempner"
 
 # -- General configuration ---------------------------------------------------
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#general-configuration
 
 extensions = [
     "sphinx.ext.intersphinx",
-    'sphinx.ext.autodoc',     # Automatically document from docstrings
-    'sphinx.ext.napoleon',    # Support for Google and NumPy style docstrings
-    'sphinx.ext.viewcode',    # Add links to highlighted source code
-    'sphinx.ext.autosummary', # Generate summary tables for modules/classes
+    "sphinx.ext.autodoc",  # Automatically document from docstrings
+    "sphinx.ext.napoleon",  # Support for Google and NumPy style docstrings
+    "sphinx.ext.viewcode",  # Add links to highlighted source code
+    "sphinx.ext.autosummary",  # Generate summary tables for modules/classes
     "sphinx.ext.doctest",
     "sphinx.ext.mathjax",
     "nbsphinx",
-    'myst_parser',            # Support for Markdown files (if using Markdown)  
-    'sphinx.ext.autosectionlabel',
-    'sphinx.ext.githubpages', 
-    'sphinx_copybutton',
-    'sphinxcontrib.bibtex'
+    "myst_parser",  # Support for Markdown files (if using Markdown)
+    "sphinx.ext.autosectionlabel",
+    "sphinx.ext.githubpages",
+    "sphinx_copybutton",
+    "sphinxcontrib.bibtex",
 ]
 
 myst_enable_extensions = [
@@ -60,30 +60,29 @@ napoleon_type_aliases = None
 autosectionlabel_prefix_document = True
 
 
-bibtex_bibfiles = ['refs.bib']
+bibtex_bibfiles = ["refs.bib"]
 
 
 # Enable syntax highlighting
-pygments_style = 'default'  # You can also use 'default' or other pygments styles
+pygments_style = "default"  # You can also use 'default' or other pygments styles
 
 
 # Figure numbers
 numfig = True
 
 numfig_format = {
-    'figure': 'Figure %s',
-    'table': 'Table %s',
-    'code-block': 'Listing %s',
-    'section': 'Section %s',
+    "figure": "Figure %s",
+    "table": "Table %s",
+    "code-block": "Listing %s",
+    "section": "Section %s",
 }
 
-templates_path = ['_templates']
-exclude_patterns = ['_build', 'Thumbs.db', '.DS_Store']
-
+templates_path = ["_templates"]
+exclude_patterns = ["_build", "Thumbs.db", ".DS_Store"]
 
 
 # -- Options for HTML output -------------------------------------------------
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#options-for-html-output
 
-html_theme = 'sphinx_rtd_theme' 
-html_static_path = ['_static']
+html_theme = "sphinx_rtd_theme"
+html_static_path = ["_static"]
