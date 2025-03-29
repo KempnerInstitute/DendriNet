@@ -28,7 +28,7 @@ Create a file named ``my_mnist_config.yaml`` with the following content:
           input_dim: 784  # For MNIST (28x28 pixels)
           excitatory_layer_sizes: [512, 256]
           inhibitory_layer_sizes: [200, 100]
-          excitatory_branch_factors: [4, 4] 
+          excitatory_branch_factors: [4, 4]
           inhibitory_branch_factors: [2, 2]
           reactivate: true
           somatic_synapses: true
@@ -39,7 +39,7 @@ Create a file named ``my_mnist_config.yaml`` with the following content:
           enable_branch_outputs: true
           output_layer: false
           output_dim: 10
-          
+
     train:
       learning_strategy: mle
       seed: 42
@@ -48,22 +48,22 @@ Create a file named ``my_mnist_config.yaml`` with the following content:
       epochs: 20
       batch_size: 64
       grad_clip_value: 5.0
-      
+
     task:
       dataset: mnist
       data_path: ""  # Default location
       parameters: {}
-      
+
     visualization:
       enabled: true
       plots:
         - weights
         - activations
         - branch_ablation
-      
+
     wandb:
       use_wandb: false
-      
+
     outputs:
       dir: "./outputs"
 
@@ -108,11 +108,11 @@ Let's start by creating a simple dendritic network model for MNIST classificatio
 
     import torch
     from dendritic_modeling.networks import ExcitationInhibitionNetwork
-    
+
     # Define a simple EINet for MNIST
     model = ExcitationInhibitionNetwork(
         input_dim=784,  # 28x28 images flattened
-        excitatory_layer_sizes=[512, 256], 
+        excitatory_layer_sizes=[512, 256],
         inhibitory_layer_sizes=[200, 100],
         excitatory_branch_factors=[4, 4],  # 16 branches per cell
         inhibitory_branch_factors=[2, 2],  # 4 branches per inhibitory cell
@@ -125,7 +125,7 @@ Let's start by creating a simple dendritic network model for MNIST classificatio
         enable_branch_outputs=True,
         output_dim=10
     )
-    
+
     # Apply a softmax for classification
     classifier = torch.nn.Sequential(
         model,
@@ -140,10 +140,10 @@ Now, let's load the MNIST dataset:
 .. code-block:: python
 
     from dendritic_modeling.utils import load_mnist_as_datasets
-    
+
     # Load MNIST and split into train/validation/test sets
     train_ds, valid_ds, test_ds = load_mnist_as_datasets(train_valid_split=0.8)
-    
+
     # Peek at the data
     x_sample, y_sample = train_ds[0]
     print(f"Input shape: {x_sample.shape}, Label: {y_sample}")
@@ -156,13 +156,13 @@ Now, let's train our model using a standard learning strategy:
 .. code-block:: python
 
     from dendritic_modeling.learning_strategies import TrainerMLE
-    
+
     # Set up optimizer with Adam
     optimizer = torch.optim.Adam(classifier.parameters(), lr=0.001)
-    
+
     # Initialize the MLE (Maximum Likelihood Estimation) trainer
     trainer = TrainerMLE(optimizer=optimizer)
-    
+
     # Train the model
     results = trainer.train(
         model=classifier,
@@ -173,10 +173,10 @@ Now, let's train our model using a standard learning strategy:
         batch_size=64,
         shuffle=True
     )
-    
+
     # Plot training curves
     import matplotlib.pyplot as plt
-    
+
     plt.figure(figsize=(10, 5))
     plt.plot(results['train losses'], label='Train Loss')
     plt.plot(results['valid losses'], label='Validation Loss')
@@ -193,7 +193,7 @@ Let's evaluate our trained model:
 .. code-block:: python
 
     from dendritic_modeling.utils import accuracy_score
-    
+
     # Evaluate on test set
     test_accuracy = accuracy_score(classifier, *test_ds[:])
     print(f"Test accuracy: {test_accuracy:.4f}")
@@ -229,4 +229,4 @@ Now that you've learned the basics of the Dendritic Modeling framework, you can:
 - Visualize your models with tools in :doc:`../advanced/visualization/visualization_guide`
 - Experiment with synthetic datasets designed to test specific dendritic computational capabilities
 
-Refer to the detailed documentation for each component for more information. 
+Refer to the detailed documentation for each component for more information.

@@ -21,7 +21,7 @@ Create a configuration file named ``config_cifar10.yaml`` with the following con
 .. code-block:: yaml
 
     model:
-      task: classification         
+      task: classification
       probabilistic: True
       network:
         type: "EINet"
@@ -47,7 +47,7 @@ Create a configuration file named ``config_cifar10.yaml`` with the following con
           output_dim: 10
 
     train:
-      learning_strategy: "mle"           
+      learning_strategy: "mle"
       run_name: "cifar10_einet"
       seed: 0
       train_valid_split: 0.8
@@ -190,4 +190,4 @@ Common issues when training on CIFAR10:
 3. **Dimension errors**: Ensure input_dim is correctly set to 3072
 4. **Data path issues**: If data loading fails, check that data is being saved to the correct path (outputs/data/cifar)
 
-For more detailed information on troubleshooting, refer to the general documentation. 
+For more detailed information on troubleshooting, refer to the general documentation.

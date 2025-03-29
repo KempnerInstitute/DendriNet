@@ -42,18 +42,18 @@ For a quick installation using Mamba:
 
     # Install Mamba if you don't have it
     conda install mamba -n base -c conda-forge
-    
+
     # Create a new environment
     mamba create -n dendritic python=3.10
     mamba activate dendritic
-    
+
     # Install PyTorch with CUDA (modify cudatoolkit version if needed)
     mamba install pytorch torchvision torchaudio pytorch-cuda=11.8 -c pytorch -c nvidia
-    
+
     # Clone the repository
     git clone https://github.com/KempnerInstitute/dendritic-modeling.git
     cd dendritic-modeling
-    
+
     # Install the package
     pip install .
 
@@ -67,17 +67,17 @@ For development or the latest features, install from source with development dep
     # Create a new Mamba environment
     mamba create -n dendritic python=3.10
     mamba activate dendritic
-    
+
     # Install PyTorch with CUDA
     mamba install pytorch torchvision torchaudio pytorch-cuda=11.8 -c pytorch -c nvidia
-    
+
     # Clone the repository
     git clone https://github.com/KempnerInstitute/dendritic-modeling.git
     cd dendritic-modeling
-    
+
     # Install in development mode with dev dependencies
     pip install -e '.[dev]'
-    
+
     # Install documentation dependencies (optional)
     pip install -e '.[docs]'
 
@@ -95,7 +95,7 @@ Using Mamba:
 
     # Install Mamba if you don't have it
     conda install mamba -n base -c conda-forge
-    
+
     # Create and activate a new environment
     mamba create -n dendritic python=3.10
     mamba activate dendritic
@@ -110,7 +110,7 @@ Install PyTorch with GPU support:
 
     # For CUDA 11.8
     mamba install pytorch torchvision torchaudio pytorch-cuda=11.8 -c pytorch -c nvidia
-    
+
     # For CPU only
     mamba install pytorch torchvision torchaudio cpuonly -c pytorch
 
@@ -140,13 +140,13 @@ Install the package and its dependencies:
 
     # Install the basic package (for users)
     pip install .
-    
+
     # OR install in development mode (for developers)
     pip install -e .
-    
+
     # Optional: Install with development dependencies
     pip install -e '.[dev]'
-    
+
     # Optional: Install with documentation dependencies
     pip install -e '.[docs]'
 
@@ -164,7 +164,7 @@ The project's dependencies are defined in the pyproject.toml file and include:
     pandas
     omegaconf>=2.3.0
     scikit-learn
-    
+
     # Development dependencies (optional)
     ruff
     mypy
@@ -183,7 +183,7 @@ Ensure that the installation was successful:
 
     # Run a simple test
     python -c "from dendritic_modeling.networks import ExcitationInhibitionNetwork; print('Installation successful!')"
-    
+
     # Run the test suite (if development dependencies were installed)
     pytest tests/
 
@@ -199,7 +199,7 @@ For systems without a GPU:
 
     # Set this environment variable to disable CUDA
     export CUDA_VISIBLE_DEVICES=""
-    
+
     # Install PyTorch for CPU only
     mamba install pytorch torchvision torchaudio cpuonly -c pytorch
 
@@ -212,10 +212,10 @@ For systems with multiple GPUs:
 
     # Set visible devices (e.g., use only GPUs 0 and 1)
     export CUDA_VISIBLE_DEVICES="0,1"
-    
+
     # Check available GPUs
     python -c "import torch; print(f'Number of GPUs: {torch.cuda.device_count()}'); [print(f'GPU {i}: {torch.cuda.get_device_name(i)}') for i in range(torch.cuda.device_count())]"
-    
+
     # In your Python code
     model = model.to('cuda')  # Uses GPU 0
     # Or for multi-GPU training
@@ -232,14 +232,14 @@ For running on a SLURM-managed cluster, such as the Kempner Institute cluster:
     module load python/3.12.5-fasrc01
     module load cuda/12.4.1-fasrc01
     module load cudnn/8.9.2.26_cuda12-fasrc01
-    
+
     # Clone the repository and enter directory
     git clone https://github.com/KempnerInstitute/dendritic-modeling.git
     cd dendritic-modeling
-    
+
     # Install the package
     pip install -e .
-    
+
     # Create a SLURM job submission script (example.sh)
     cat > example.sh << 'EOL'
     #!/bin/bash
@@ -250,19 +250,19 @@ For running on a SLURM-managed cluster, such as the Kempner Institute cluster:
     #SBATCH --gres=gpu:1
     #SBATCH --mem=16G
     #SBATCH --cpus-per-task=4
-    
+
     # Load modules
     module load python/3.12.5-fasrc01
     module load cuda/12.4.1-fasrc01
     module load cudnn/8.9.2.26_cuda12-fasrc01
-    
+
     # Activate environment if needed
     # source /path/to/your/env/bin/activate
-    
+
     # Run the experiment with specified config
     python src/dendritic_modeling/train_experiments.py configs/config_exp.yaml
     EOL
-    
+
     # Submit the job
     sbatch example.sh
 
@@ -275,20 +275,20 @@ If you prefer using venv instead of Conda/Mamba:
 
     # Create a virtual environment
     python -m venv dendritic-env
-    
+
     # Activate the environment
     # On Linux/Mac:
     source dendritic-env/bin/activate
     # On Windows:
     # dendritic-env\Scripts\activate
-    
+
     # Install PyTorch with appropriate CUDA version
     pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu118
-    
+
     # Clone the repository
     git clone https://github.com/KempnerInstitute/dendritic-modeling.git
     cd dendritic-modeling
-    
+
     # Install the package
     pip install -e .
 
@@ -304,10 +304,10 @@ If you encounter CUDA compatibility issues:
 
     # Check CUDA version
     nvcc --version
-    
+
     # Check PyTorch CUDA compatibility
     python -c "import torch; print(torch.version.cuda)"
-    
+
     # If versions mismatch, reinstall PyTorch with the matching CUDA version
     pip uninstall torch torchvision torchaudio
     pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu[version]
@@ -322,13 +322,13 @@ If you encounter import errors:
 
     # Ensure the package is installed
     pip show dendritic_modeling
-    
+
     # If not installed or in development mode:
     pip install -e .
-    
+
     # Check your PYTHONPATH
     echo $PYTHONPATH
-    
+
     # Add the repository to your PYTHONPATH if needed
     export PYTHONPATH=$PYTHONPATH:/path/to/dendritic-modeling
 
@@ -343,11 +343,11 @@ If you encounter out-of-memory errors during training:
     # config.yaml:
     train:
       batch_size: 32  # Try smaller batch size
-    
+
     # Use gradient accumulation
     # In your code or config:
     gradient_accumulation_steps: 2  # Accumulate gradients before updating
-    
+
     # Clean up GPU memory
     python -c "import torch; torch.cuda.empty_cache()"
 
@@ -360,13 +360,13 @@ To get started with your first experiment:
 
     # Create a configuration file (or use an example)
     cp configs/config_exp.yaml configs/my_experiment.yaml
-    
+
     # Edit the configuration
     nano configs/my_experiment.yaml
-    
+
     # Run the experiment
     python scripts/train_experiments.py --config configs/my_experiment.yaml
-    
+
     # For interactive exploration, use a notebook
     jupyter notebook examples/quickstart.ipynb
 
@@ -378,4 +378,4 @@ Now that you have installed the framework, you can:
 - Explore the [Quickstart Guide](./quickstart.rst)
 - Run through the [Examples](./examples.rst)
 - Learn about the main [Concepts](./concepts.rst)
-- Configure your [Experiments](./configuration.rst) 
+- Configure your [Experiments](./configuration.rst)

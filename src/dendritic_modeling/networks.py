@@ -9,18 +9,20 @@ Requests:
 1) input_mode=0:
 
    - The *first-layer* inhibitory net does get built with input=x,
-   - Then the inhibitory net's output is used by the excitatory net's inhibitory synapses 
+   - Then the inhibitory net's output is used by the excitatory net's inhibitory synapses
      in *that same layer* (the original behavior).
 
 2) input_mode=1 and 2:
 
    - Skip making the inhibitory sub-network ONLY in the *first layer*,
-     but do allow the inhibitory sub-network for subsequent layers 
+     but do allow the inhibitory sub-network for subsequent layers
      (if inhibitory_layer_sizes > 0 for those layers).
 
 3) We still have an MLP transform if input_mode=2 (for the first layer).
 """
 
+import logging
+import math
 from copy import deepcopy
 from typing import Any, Dict, List, Optional, Tuple
 
@@ -619,21 +621,18 @@ class ExcitationInhibitionNetwork(nn.Module):
             )
         return self.branch_activations
 
-    def forward_with_branch_outputs(self, x):
-        """Forward pass that extracts activations from all layers.
-
-        Args:
-            x: Input tensor
-
-        Returns:
-            tuple: (output, per_layer_activations)
-                Where per_layer_activations is a list of activation tensors or lists
-                from each layer in the network.
+    def forward_with_activations(self, x):
         """
+        Forward pass that returns final output and activations
+        from each layer in the network.
+        """
+        all_acts = []
+        excitatory_output = None  # Initialize excitatory_output
+
         # Apply input transformations and create appropriate pathways
         if self.input_mode == 0:
             excitatory_input = x
-            inhibitory_input = None
+            inhibitory_input = None  # Initialize inhibitory_input for mode 0
         elif self.input_mode == 1:
             excitatory_input = x
             inhibitory_input = x
@@ -641,71 +640,41 @@ class ExcitationInhibitionNetwork(nn.Module):
             if self.input_net is not None:
                 excitatory_input, inhibitory_input = self.input_net(x)
             else:
-                # Fallback if input_net is not initialized
+                # Fallback if input_net is not initialized correctly for mode 2
+                logger.warning(
+                    "input_mode is 2 but input_net is not initialized. Falling back to mode 0."
+                )
                 excitatory_input = x
                 inhibitory_input = None
         else:
             raise ValueError(f"Unknown input_mode={self.input_mode}")
 
-        # Use forward_with_branch_outputs for each layer
-        excitatory_output, inhibitory_output, inh_acts, exc_acts = self.layers[
-            0
-        ].forward_with_branch_outputs(excitatory_input, inhibitory_input)
-
-        # Process the enhanced activations to create a list of activation tensors or lists
-        # that contain information about both excitatory and inhibitory components
-        all_acts = []
-        for act in exc_acts:
-            if isinstance(act, list) and len(act) > 1:
-                # This is already an enhanced activation with [exc, inh, output] format
-                all_acts.append(act)
-            else:
-                # Just use the excitatory activation as is
-                all_acts.append(act)
+        # Forward through each layer
+        # Now inhibitory_input is guaranteed to be initialized
+        excitatory_output, inhibitory_output = self.layers[0](
+            excitatory_input, inhibitory_input
+        )
 
         for i in range(1, len(self.layers)):
-            (
-                excitatory_output,
-                inhibitory_output,
-                layer_inh_acts,
-                layer_exc_acts,
-            ) = self.layers[i].forward_with_branch_outputs(
+            # Each layer receives the previous layer's outputs
+            excitatory_output, inhibitory_output = self.layers[i](
                 excitatory_output, inhibitory_output
             )
 
-            # Process this layer's activations similarly
-            for act in layer_exc_acts:
-                if isinstance(act, list) and len(act) > 1:
-                    # Enhanced activation
-                    all_acts.append(act)
-                else:
-                    # Just excitatory
-                    all_acts.append(act)
+        # Apply output layer if enabled
+        if self.output_layer and hasattr(self, "output_classifier"):
+            output = self.output_classifier(excitatory_output)
+        else:
+            output = excitatory_output
 
-        # Apply output layer if enabled - check if it's actually a callable object not a boolean
-        output = excitatory_output
-        if hasattr(self, "output_layer") and self.output_layer is not None:
-            if isinstance(self.output_layer, bool):
-                # If output_layer is just a boolean flag, don't try to call it
-                pass  # Just use excitatory_output as is
-            elif callable(self.output_layer):
-                # If it's a callable module, use it
-                if hasattr(self.output_layer, "forward_with_activations"):
-                    output, out_acts = self.output_layer.forward_with_activations(
-                        excitatory_output
-                    )
-                    all_acts.extend(out_acts)
-                else:
-                    try:
-                        output = self.output_layer(excitatory_output)
-                    except Exception as e:
-                        logging.warning(
-                            f"Could not call output_layer (type: {type(self.output_layer)}): {e}"
-                        )
-            else:
-                logging.warning(
-                    f"output_layer is type {type(self.output_layer)}, not callable or boolean"
-                )
+        # Store branch activations if enabled
+        if self.enable_branch_outputs:
+            self.branch_activations = {
+                "excitatory": [excitatory_output],
+                "inhibitory": [inhibitory_output]
+                if inhibitory_output is not None
+                else [],
+            }
 
         return output, all_acts
 
@@ -741,9 +710,13 @@ class ExcitationInhibitionNetwork(nn.Module):
         if hasattr(input_net_weights, "state_dict"):
             state_dict = input_net_weights.state_dict()
         else:
-            output = excitatory_output
+            state_dict = input_net_weights  # Assume it's already a state dict
 
-        return output, all_acts
+        try:
+            self.input_net.load_state_dict(state_dict)
+            logger.info("Successfully loaded input network weights.")
+        except Exception as e:
+            logger.error(f"Failed to load input network weights: {e}")
 
 
 ############################################################
@@ -831,18 +804,8 @@ class MLPExcInhNetwork(nn.Module):
         self.layers = nn.Sequential(*layers)
 
     def forward(self, x):
-        for i, layer in enumerate(self.layers):
-            in_excit = layer.in_excit
-            in_inhib = layer.in_inhib
-            if x.size(1) < in_excit + in_inhib:
-                pad_size = (in_excit + in_inhib) - x.size(1)
-                x = torch.cat(
-                    [x, torch.zeros(x.size(0), pad_size, device=x.device)], dim=1
-                )
-            x = layer(x)
-        if self.classifier is not None:
-            x = self.classifier(x)
-        return x
+        # Correct MLP forward pass
+        return self.layers(x)
 
 
 class MatchedParamMLP(nn.Module):

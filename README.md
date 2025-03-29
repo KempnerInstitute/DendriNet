@@ -7,8 +7,8 @@
   <a href="https://github.com/KempnerInstitute/dendritic_modeling/actions/workflows/python-package.yml">
     <img src="https://github.com/KempnerInstitute/dendritic_modeling/actions/workflows/python-package.yml/badge.svg" alt="tests">
   </a>
-  <a href="https://codecov.io/gh/KempnerInstitute/dendritic-modeling" > 
- <img src="https://codecov.io/gh/KempnerInstitute/dendritic-modeling/graph/badge.svg?token=HUJRFX92DF"/> 
+  <a href="https://codecov.io/gh/KempnerInstitute/dendritic-modeling" >
+ <img src="https://codecov.io/gh/KempnerInstitute/dendritic-modeling/graph/badge.svg?token=HUJRFX92DF"/>
  </a>
 </p>
 
@@ -57,12 +57,12 @@ model:
       input_dim: 784
       excitatory_layer_sizes: [512, 256]
       # ... other parameters
-      
+
 train:
   learning_strategy: mle
   epochs: 20
   batch_size: 64
-  
+
 task:
   dataset: mnist
 ```
@@ -87,8 +87,8 @@ Create a new Mamba environment with the desired Python version:
 ```
 ### Activate the Environment
 Activate the newly created environment:
-    
-```sh    
+
+```sh
     mamba activate <myvenv>
 ```
 
@@ -141,4 +141,3 @@ module load python/3.12.5-fasrc01
 module load cuda/12.4.1-fasrc01
 module load cudnn/8.9.2.26_cuda12-fasrc01
 ```
-

@@ -1,7 +1,7 @@
 """
 gradient_scaling.py
 ===================
-Provides a GradientScaler class that registers backward hooks to implement 
+Provides a GradientScaler class that registers backward hooks to implement
 various gradient-scaling strategies for BlockLinear or other modules.
 """
 

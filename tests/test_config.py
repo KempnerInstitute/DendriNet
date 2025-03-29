@@ -1,15 +1,14 @@
 import os
-import shutil
 import tempfile
 import unittest
 from pathlib import Path
 
 import yaml
 
-from dendritic_modeling.config import (build_dataset_from_config,
-                                       build_model_from_config, load_config,
-                                       save_config,
-                                       setup_experiment_from_config)
+from dendritic_modeling.config import (Config, ModelConfig, OutputsConfig,
+                                       TaskConfig, TrainConfig,
+                                       VisualizationConfig, WandbConfig,
+                                       load_config)
 
 
 class TestConfig(unittest.TestCase):
@@ -19,36 +18,40 @@ class TestConfig(unittest.TestCase):
 
         # Define a sample configuration
         self.sample_config = {
-            "experiment": {
-                "name": "test_experiment",
-                "seed": 42,
-                "save_path": self.temp_dir,
-            },
             "model": {
-                "type": "ExcitationInhibitionNetwork",
-                "params": {
-                    "input_dim": 4,
-                    "hidden_layer_sizes": [16, 16],
-                    "branch_factors": [2, 2],
-                    "output_dim": 2,
-                    "use_simple_branches": False,
-                    "activation": "relu",
-                    "dropout": 0.0,
+                "task": "classification",
+                "probabilistic": True,
+                "network": {
+                    "type": "EINet",
+                    "parameters": {
+                        "input_dim": 784,
+                        "excitatory_layer_sizes": [128, 64],
+                        "inhibitory_layer_sizes": [64, 32],
+                        "excitatory_branch_factors": [2, 2],
+                        "inhibitory_branch_factors": [2, 2],
+                        "output_dim": 10,
+                    },
                 },
             },
-            "dataset": {
-                "type": "MultiXORDataset",
-                "params": {"n_samples": 100, "n_bits": 4, "seed": 42},
-            },
-            "training": {
-                "batch_size": 16,
-                "learning_rate": 0.001,
+            "train": {
+                "learning_strategy": "mle",
+                "run_name": "test_run",
+                "seed": 42,
+                "lr": 0.001,
                 "epochs": 10,
-                "optimizer": "adam",
-                "scheduler": None,
-                "train_split": 0.8,
-                "device": "cpu",
+                "batch_size": 64,
             },
+            "task": {
+                "dataset": "mnist",
+                "data_path": "/tmp/data",
+                "parameters": {"train_valid_split": 0.8},
+            },
+            "wandb": {
+                "entity": "test_entity",
+                "project": "test_project",
+                "use_wandb": False,
+            },
+            "outputs": {"dir": "test_outputs"},
         }
 
         # Save the config to a temp file
@@ -58,128 +61,98 @@ class TestConfig(unittest.TestCase):
 
     def tearDown(self):
         # Remove the temporary directory
-        shutil.rmtree(self.temp_dir)
+        if os.path.exists(self.temp_dir):
+            import shutil
+
+            shutil.rmtree(self.temp_dir)
 
     def test_load_config(self):
         """Test loading a configuration from a file."""
         # Load the config
         config = load_config(self.config_path)
 
-        # Check that the config matches the original
-        self.assertEqual(config["experiment"]["name"], "test_experiment")
-        self.assertEqual(config["model"]["type"], "ExcitationInhibitionNetwork")
-        self.assertEqual(config["dataset"]["type"], "MultiXORDataset")
-        self.assertEqual(config["training"]["batch_size"], 16)
+        # Check that config is a Config object
+        self.assertIsInstance(config, Config)
 
-    def test_save_config(self):
-        """Test saving a configuration to a file."""
-        # Modify the config
-        modified_config = self.sample_config.copy()
-        modified_config["experiment"]["name"] = "modified_experiment"
+        # Check model config
+        self.assertEqual(config.model.task, "classification")
+        self.assertEqual(config.model.network.type, "EINet")
+        self.assertEqual(config.model.network.parameters.input_dim, 784)
+        self.assertEqual(config.model.network.parameters.output_dim, 10)
 
-        # Save the modified config
-        modified_path = os.path.join(self.temp_dir, "modified_config.yaml")
-        save_config(modified_config, modified_path)
+        # Check train config
+        self.assertEqual(config.train.run_name, "test_run")
+        self.assertEqual(config.train.seed, 42)
+        self.assertEqual(config.train.batch_size, 64)
 
-        # Load it back
-        loaded_config = load_config(modified_path)
+        # Check task config
+        self.assertEqual(config.task.dataset, "mnist")
 
-        # Check that the modifications were saved
-        self.assertEqual(loaded_config["experiment"]["name"], "modified_experiment")
+        # Check wandb config
+        self.assertEqual(config.wandb.entity, "test_entity")
+        self.assertEqual(config.wandb.project, "test_project")
+        self.assertFalse(config.wandb.use_wandb)
 
-    def test_build_model_from_config(self):
-        """Test building a model from configuration."""
-        # Build the model
-        model = build_model_from_config(self.sample_config)
+        # Check outputs config
+        self.assertEqual(config.outputs.dir, "test_outputs")
 
-        # Check that the model has the expected class and parameters
-        self.assertEqual(model.__class__.__name__, "ExcitationInhibitionNetwork")
-        self.assertEqual(model.input_dim, 4)
-        self.assertEqual(model.output_dim, 2)
-        self.assertEqual(
-            len(model.excitatory_layers), 2
-        )  # 2 hidden layers as specified
+    def test_default_config(self):
+        """Test loading default config when no file is provided."""
+        # Load default config
+        config = load_config()
 
-    def test_build_dataset_from_config(self):
-        """Test building a dataset from configuration."""
-        # Build the dataset
-        dataset = build_dataset_from_config(self.sample_config)
+        # Check that config is a Config object with default values
+        self.assertIsInstance(config, Config)
+        self.assertEqual(config.model.task, "classification")
+        self.assertEqual(config.model.network.type, "EINet")
+        self.assertEqual(config.train.run_name, "mnist_einet")
+        self.assertEqual(config.task.dataset, "mnist")
 
-        # Check that the dataset has the expected class and parameters
-        self.assertEqual(dataset.__class__.__name__, "MultiXORDataset")
-        self.assertEqual(len(dataset), 100)  # n_samples = 100
-        self.assertEqual(dataset[0][0].shape[0], 4)  # n_bits = 4
-
-    def test_setup_experiment_from_config(self):
-        """Test setting up a complete experiment from configuration."""
-        # Set up the experiment
-        result = setup_experiment_from_config(self.config_path)
-
-        # Check that all expected components are returned
-        self.assertIn("model", result)
-        self.assertIn("dataset", result)
-        self.assertIn("trainer", result)
-        self.assertIn("config", result)
-
-        # Check that components have expected types
-        self.assertEqual(
-            result["model"].__class__.__name__, "ExcitationInhibitionNetwork"
-        )
-        self.assertEqual(result["dataset"].__class__.__name__, "MultiXORDataset")
-        self.assertEqual(result["trainer"].__class__.__name__, "ClassificationTrainer")
-
-    def test_config_with_missing_fields(self):
-        """Test handling of configs with missing fields."""
-        # Create a config with missing fields
-        incomplete_config = {
-            "model": self.sample_config["model"],
-            "dataset": self.sample_config["dataset"]
-            # Missing 'experiment' and 'training' sections
+    def test_load_partial_config(self):
+        """Test loading a configuration with only some sections."""
+        # Create a partial config
+        partial_config = {
+            "model": {"task": "segmentation", "probabilistic": False},
+            "train": {"lr": 0.005},
         }
 
-        # Save the incomplete config
-        incomplete_path = os.path.join(self.temp_dir, "incomplete_config.yaml")
-        save_config(incomplete_config, incomplete_path)
+        # Save the partial config
+        partial_path = os.path.join(self.temp_dir, "partial_config.yaml")
+        with open(partial_path, "w") as f:
+            yaml.dump(partial_config, f)
 
-        # Build model (should work with defaults)
-        model = build_model_from_config(incomplete_config)
-        self.assertIsNotNone(model)
+        # Load the partial config
+        config = load_config(partial_path)
 
-        # Build dataset (should work)
-        dataset = build_dataset_from_config(incomplete_config)
-        self.assertIsNotNone(dataset)
+        # Check that the specified values are loaded
+        self.assertEqual(config.model.task, "segmentation")
+        self.assertFalse(config.model.probabilistic)
+        self.assertEqual(config.train.lr, 0.005)
 
-        # Full setup should raise an error for missing required fields
-        with self.assertRaises(KeyError):
-            setup_experiment_from_config(incomplete_path)
+        # Check that unspecified values use defaults
+        self.assertEqual(config.train.run_name, "mnist_einet")  # Default value
+        self.assertEqual(config.task.dataset, "mnist")  # Default value
 
-    def test_config_with_unknown_model(self):
-        """Test handling of configs with unknown model types."""
-        # Create a config with an unknown model type
-        invalid_config = self.sample_config.copy()
-        invalid_config["model"]["type"] = "NonExistentModel"
+    def test_config_dataclasses(self):
+        """Test that config dataclasses work as expected."""
+        # Create config objects
+        model_config = ModelConfig(task="regression", probabilistic=False)
+        train_config = TrainConfig(lr=0.01, batch_size=32)
+        task_config = TaskConfig(dataset="cifar10")
 
-        # Save the invalid config
-        invalid_path = os.path.join(self.temp_dir, "invalid_config.yaml")
-        save_config(invalid_config, invalid_path)
+        # Create a full config
+        config = Config(model=model_config, train=train_config, task=task_config)
 
-        # Building the model should raise an error
-        with self.assertRaises(ValueError):
-            build_model_from_config(invalid_config)
+        # Check values
+        self.assertEqual(config.model.task, "regression")
+        self.assertFalse(config.model.probabilistic)
+        self.assertEqual(config.train.lr, 0.01)
+        self.assertEqual(config.train.batch_size, 32)
+        self.assertEqual(config.task.dataset, "cifar10")
 
-    def test_config_with_unknown_dataset(self):
-        """Test handling of configs with unknown dataset types."""
-        # Create a config with an unknown dataset type
-        invalid_config = self.sample_config.copy()
-        invalid_config["dataset"]["type"] = "NonExistentDataset"
-
-        # Save the invalid config
-        invalid_path = os.path.join(self.temp_dir, "invalid_config.yaml")
-        save_config(invalid_config, invalid_path)
-
-        # Building the dataset should raise an error
-        with self.assertRaises(ValueError):
-            build_dataset_from_config(invalid_config)
+        # Check that unspecified configs use defaults
+        self.assertEqual(config.wandb.use_wandb, False)
+        self.assertEqual(config.outputs.dir, "outputs")
 
 
 if __name__ == "__main__":

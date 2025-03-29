@@ -1,7 +1,7 @@
 """
 logging_config.py
 =================
-This module contains the logging configuration for the dendritic_modeling 
+This module contains the logging configuration for the dendritic_modeling
 package.
 """
 

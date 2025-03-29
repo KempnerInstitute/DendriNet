@@ -17,19 +17,19 @@ Configuration files are organized into several sections:
 
     model:
       # Model architecture and parameters
-      
+
     train:
       # Training parameters
-      
+
     task:
       # Dataset and task parameters
-      
+
     wandb:
       # Experiment tracking settings
-      
+
     visualization:
       # Visualization parameters
-      
+
     outputs:
       # Output directory settings
 
@@ -66,7 +66,7 @@ The `model` section defines the network architecture and parameters:
           enable_branch_outputs: true
           output_layer: false
           output_dim: 10
-          
+
           # Input mode (0=original, 1=exc=x+inh=x, 2=input_net)
           input_mode: 2
           input_net_dict:
@@ -99,18 +99,18 @@ The `train` section defines the training process and hyperparameters:
       epochs: 50
       batch_size: 64
       grad_clip_value: 1.0
-      
+
       # For branch-wise learning strategies
       epochs_per_layer: 10   # Number of epochs to train each branch
       final_tune_epochs: 5   # Number of epochs for final fine-tuning
-      
+
       # For strategies with pretraining
       pretrain_epochs: 10    # Number of epochs for initial full network training
-      
+
       # For voltage stabilization strategy
       warmup_epochs: 1       # Number of epochs for activation stabilization
       stability_target_voltage: 0.5  # Target activation value
-      
+
       # Input network training configuration
       input_net_training:
         training_mode: "sequential"  # "joint" or "sequential"
@@ -132,55 +132,55 @@ Available Learning Strategies
 The framework provides several learning strategies that can be specified in the configuration:
 
 1. **MLE (Maximum Likelihood Estimation)** - `learning_strategy: mle`
-   
+
    Standard end-to-end training where all parameters are updated simultaneously.
 
 2. **Freeze Branches** - `learning_strategy: freeze_branches`
-   
+
    Trains the network one branch at a time, from the soma (output) to the input, focusing on:
-   
+
    - Training soma-proximal branches first, then progressively moving to distal branches
    - Using `epochs_per_layer` epochs for each branch (parameter name remains the same despite operating on branches)
    - Performing final tuning of all branches for `final_tune_epochs` epochs
-   
+
    Example configuration:
-   
+
    .. code-block:: yaml
-   
+
        train:
          learning_strategy: freeze_branches
          epochs_per_layer: 20    # Each branch is trained for 20 epochs
          final_tune_epochs: 10   # 10 epochs of full-network fine-tuning
 
 3. **Freeze Branches Reversed** - `learning_strategy: freeze_branches_reversed`
-   
+
    Similar to freeze_branches, but trains the network in the opposite direction:
-   
+
    - Starting from distal branches (input) and moving toward the soma (output)
    - Following the natural flow of information in neural dendrites
    - More biologically plausible than standard freeze_branches
-   
+
    Example configuration:
-   
+
    .. code-block:: yaml
-   
+
        train:
          learning_strategy: freeze_branches_reversed
          epochs_per_layer: 20    # Each branch is trained for 20 epochs
          final_tune_epochs: 10   # 10 epochs of full-network fine-tuning
 
 4. **Freeze Branches with Pretraining** - `learning_strategy: freeze_branches_with_pretraining`
-   
+
    Three-phase training approach:
-   
+
    - Initial full-network training for `pretrain_epochs` epochs
    - Branch-by-branch training from soma to input for `epochs_per_layer` epochs per branch
    - Final full-network fine-tuning for `final_tune_epochs` epochs
-   
+
    Example configuration:
-   
+
    .. code-block:: yaml
-   
+
        train:
          learning_strategy: freeze_branches_with_pretraining
          pretrain_epochs: 10     # Initial full-network training
@@ -188,17 +188,17 @@ The framework provides several learning strategies that can be specified in the 
          final_tune_epochs: 10   # 10 epochs of full-network fine-tuning
 
 5. **Freeze Branches Reversed with Pretraining** - `learning_strategy: freeze_branches_reversed_with_pretraining`
-   
+
    Combines pretraining with the reversed branch training approach:
-   
+
    - Initial full-network training for `pretrain_epochs` epochs
    - Branch-by-branch training from input to soma for `epochs_per_layer` epochs per branch
    - Final full-network fine-tuning for `final_tune_epochs` epochs
-   
+
    Example configuration:
-   
+
    .. code-block:: yaml
-   
+
        train:
          learning_strategy: freeze_branches_reversed_with_pretraining
          pretrain_epochs: 10     # Initial full-network training
@@ -206,32 +206,32 @@ The framework provides several learning strategies that can be specified in the 
          final_tune_epochs: 10   # 10 epochs of full-network fine-tuning
 
 6. **Two-Step Training** - `learning_strategy: two_step`
-   
+
    Two-phase training approach:
-   
+
    - Pretraining phase for `pretrain_epochs` epochs
    - Main training phase for remaining epochs
-   
+
    Example configuration:
-   
+
    .. code-block:: yaml
-   
+
        train:
          learning_strategy: two_step
          pretrain_epochs: 10     # Pretraining phase
          epochs: 50              # Total epochs (including pretraining)
 
 7. **Voltage Stabilization** - `learning_strategy: voltage_stabilization`
-   
+
    Includes a warm-up phase to stabilize activations:
-   
+
    - Initial warm-up phase for `warmup_epochs` epochs to stabilize branch voltages
    - Main training phase for remaining epochs
-   
+
    Example configuration:
-   
+
    .. code-block:: yaml
-   
+
        train:
          learning_strategy: voltage_stabilization
          warmup_epochs: 5        # Activation stabilization phase
@@ -336,4 +336,4 @@ This flexible configuration system allows you to:
 3. Easily iterate on hyperparameters
 4. Share experiment setups with colleagues
 
-The configuration is fully typed and validated, with detailed error messages if parameters are invalid. 
+The configuration is fully typed and validated, with detailed error messages if parameters are invalid.

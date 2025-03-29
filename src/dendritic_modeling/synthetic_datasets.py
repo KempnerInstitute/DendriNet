@@ -735,28 +735,6 @@ def get_unified_datasets(task_cfg, train_cfg):
             valid_ds = data["test"]
         test_ds = data["test"]
         return train_ds, valid_ds, test_ds
-    elif dataset_name == "mnist_switch2":
-        data = load_MNIST_task_switch(
-            train_valid_split=train_valid_split, cache_dir=data_path
-        )
-        train_ds = data["train"]
-        if "valid" in data:
-            valid_ds = data["valid"]
-        else:
-            valid_ds = data["test"]
-        test_ds = data["test"]
-        return train_ds, valid_ds, test_ds
-    elif dataset_name == "mnist_switch10":
-        data = load_MNIST_task_switch0(
-            train_valid_split=train_valid_split, cache_dir=data_path
-        )
-        train_ds = data["train"]
-        if "valid" in data:
-            valid_ds = data["valid"]
-        else:
-            valid_ds = data["test"]
-        test_ds = data["test"]
-        return train_ds, valid_ds, test_ds
     elif dataset_name == "info_shunting":
         full_ds = InfoShuntingDataset(n_samples=total, input_dim=10)
         return random_split(full_ds, [train_size, valid_size, test_size])

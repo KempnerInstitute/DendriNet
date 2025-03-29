@@ -2,8 +2,8 @@
 visualization_manager.py
 ========================
 Contains a PlotManager class that holds references to all visualization
-and analysis functions to produce actual visualizations for "gradients", 
-"branch_info", and "ablation" using plot_utils.py functions 
+and analysis functions to produce actual visualizations for "gradients",
+"branch_info", and "ablation" using plot_utils.py functions
 """
 
 import logging

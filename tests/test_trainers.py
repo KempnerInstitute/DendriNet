@@ -1,212 +1,186 @@
+import logging
 import os
-import shutil
 import tempfile
 import unittest
-from pathlib import Path
 
+import numpy as np
 import torch
+from torch.optim import Adam
+from torch.utils.data import TensorDataset
 
-from dendritic_modeling.networks import ExcitationInhibitionNetwork
-from dendritic_modeling.synthetic_datasets import MultiXORDataset
-from dendritic_modeling.trainers import (ClassificationTrainer, PruningTrainer,
-                                         get_dataloaders)
+from dendritic_modeling import logger
+from dendritic_modeling.learning_strategies import (
+    BaseTrainer, LocalCreditAssignment, TrainerMLE, TrainOnlyMReactivation,
+    TwoStepTrainer, TwoStepTrainerWithKL, VoltageStabilizationTrainer,
+    get_trainer)
+from dendritic_modeling.models import (Classifier, ProbabilisticClassifier,
+                                       SimpleClassifier)
+from dendritic_modeling.networks import (ExcitationInhibitionNetwork,
+                                         MLPExcInhNetwork)
 
 
 class TestTrainers(unittest.TestCase):
     def setUp(self):
-        # Create a small dataset for testing
-        self.dataset = MultiXORDataset(n_samples=100, n_bits=4)
+        # Create a simple dataset for testing
+        self.n_samples = 100
+        self.input_dim = 10
+        self.output_dim = 5
 
-        # Create a small model for testing
-        self.model = ExcitationInhibitionNetwork(
-            input_dim=4, hidden_layer_sizes=[8, 8], branch_factors=[2, 2], output_dim=2
+        # Generate random data
+        X = torch.randn(self.n_samples, self.input_dim)
+        y = torch.randint(0, self.output_dim, (self.n_samples,))
+        self.dataset = TensorDataset(X, y)
+
+        # Split into train/valid
+        train_size = int(0.8 * self.n_samples)
+        valid_size = self.n_samples - train_size
+        self.train_data, self.valid_data = torch.utils.data.random_split(
+            self.dataset, [train_size, valid_size]
         )
 
-        # Create a temporary directory for saving outputs
+        # Create a simple model
+        self.net = MLPExcInhNetwork(
+            input_dim=self.input_dim,
+            hidden_dims=[20],
+            output_dim=self.output_dim,
+        )
+        self.model = Classifier(self.net)
+
+        # Create optimizer
+        self.optimizer = Adam(self.model.parameters(), lr=0.01)
+
+        # Create a dendritic model for warmup tests
+        self.dendritic_net = ExcitationInhibitionNetwork(
+            input_dim=self.input_dim,
+            excitatory_layer_sizes=[20],
+            inhibitory_layer_sizes=[10],
+            excitatory_branch_factors=[3],
+            inhibitory_branch_factors=[],
+            output_dim=self.output_dim,
+            enable_branch_outputs=True,
+        )
+        self.dendritic_model = Classifier(self.dendritic_net)
+        self.dendritic_optimizer = Adam(self.dendritic_model.parameters(), lr=0.01)
+
+        # Create a temporary directory for saving models
         self.temp_dir = tempfile.mkdtemp()
 
     def tearDown(self):
-        # Remove the temporary directory
-        shutil.rmtree(self.temp_dir)
+        # Clean up temporary directory
+        import shutil
 
-    def test_get_dataloaders(self):
-        """Test the get_dataloaders function."""
-        # Split the dataset
-        train_loader, valid_loader = get_dataloaders(
-            self.dataset, batch_size=16, train_split=0.8, shuffle=True
-        )
+        shutil.rmtree(self.temp_dir, ignore_errors=True)
 
-        # Check that the loaders have the expected number of samples
-        self.assertEqual(len(train_loader.dataset), 80)
-        self.assertEqual(len(valid_loader.dataset), 20)
+    def test_trainer_mle_init(self):
+        """Test TrainerMLE initialization"""
+        trainer = TrainerMLE(self.optimizer)
+        self.assertIsInstance(trainer, TrainerMLE)
+        self.assertIsInstance(trainer, BaseTrainer)
+        self.assertEqual(trainer.optimizer, self.optimizer)
 
-        # Check that the batches have the expected shapes
-        x, y = next(iter(train_loader))
-        self.assertEqual(x.shape, (16, 4))  # Batch size x input dim
-        self.assertEqual(y.shape, (16,))  # Batch size
+    def test_trainer_mle_train(self):
+        """Test TrainerMLE training for a few epochs"""
+        trainer = TrainerMLE(self.optimizer, suppress_prints=True)
 
-        # Test with no validation split
-        train_loader_only = get_dataloaders(
-            self.dataset, batch_size=16, train_split=1.0, shuffle=True
-        )
-
-        # Should only return a single loader
-        self.assertIsInstance(train_loader_only, torch.utils.data.DataLoader)
-        self.assertEqual(len(train_loader_only.dataset), 100)  # All samples
-
-    def test_classification_trainer_init(self):
-        """Test ClassificationTrainer initialization."""
-        trainer = ClassificationTrainer(
+        # Train for just a few epochs to test functionality
+        results = trainer.train(
             model=self.model,
-            dataset=self.dataset,
-            batch_size=16,
-            lr=0.001,
+            train_data=self.train_data,
+            valid_data=self.valid_data,
             epochs=2,
-            device="cpu",
+            batch_size=32,
+            grad_clip_value=1.0,
+            plot_losses=False,
             save_path=self.temp_dir,
         )
 
-        # Check that the trainer has the expected attributes
-        self.assertEqual(trainer.batch_size, 16)
-        self.assertEqual(trainer.lr, 0.001)
-        self.assertEqual(trainer.epochs, 2)
-        self.assertEqual(trainer.device, "cpu")
-        self.assertEqual(trainer.save_path, self.temp_dir)
+        # Check results structure
+        self.assertIn("best epoch", results)
+        self.assertIn("best loss", results)
+        self.assertIn("best state dict", results)
+        self.assertIn("train losses", results)
+        self.assertIn("valid losses", results)
 
-        # Check that the model was moved to the correct device
-        self.assertEqual(next(self.model.parameters()).device.type, "cpu")
+        # Check that losses were recorded
+        self.assertEqual(len(results["train losses"]), 2)
+        self.assertEqual(len(results["valid losses"]), 2)
+        self.assertTrue(os.path.exists(os.path.join(self.temp_dir, "best_model.pt")))
 
-        # Check that the dataloaders were created
-        self.assertIsNotNone(trainer.train_loader)
-        self.assertIsNotNone(trainer.valid_loader)
+    def test_eval_dataset(self):
+        """Test the _eval_dataset method"""
+        trainer = TrainerMLE(self.optimizer)
 
-    def test_classification_trainer_train_step(self):
-        """Test a single training step of ClassificationTrainer."""
-        trainer = ClassificationTrainer(
-            model=self.model,
-            dataset=self.dataset,
-            batch_size=16,
-            lr=0.001,
-            epochs=1,
-            device="cpu",
-            save_path=self.temp_dir,
+        # Test evaluation
+        device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        self.model = self.model.to(device)
+
+        loss, acc = trainer._eval_dataset(
+            model=self.model, dataset=self.valid_data, device=device, batch_size=32
         )
 
-        # Get a batch from the data loader
-        inputs, targets = next(iter(trainer.train_loader))
-
-        # Run a single training step
-        loss = trainer._train_step(inputs, targets)
-
-        # Check that loss is a scalar and not NaN
+        # Check that loss and accuracy are valid values
         self.assertIsInstance(loss, float)
-        self.assertFalse(torch.isnan(torch.tensor(loss)))
+        self.assertIsInstance(acc, float)
+        self.assertGreaterEqual(acc, 0.0)
+        self.assertLessEqual(acc, 1.0)
 
-    def test_classification_trainer_train_epoch(self):
-        """Test a single training epoch of ClassificationTrainer."""
-        trainer = ClassificationTrainer(
-            model=self.model,
-            dataset=self.dataset,
-            batch_size=16,
-            lr=0.001,
-            epochs=1,
-            device="cpu",
-            save_path=self.temp_dir,
+    def test_voltage_stabilization_trainer(self):
+        """Test VoltageStabilizationTrainer initialization and training"""
+        trainer = VoltageStabilizationTrainer(
+            optimizer=self.dendritic_optimizer,
+            suppress_prints=True,
         )
 
-        # Run a single training epoch
-        train_loss = trainer._train_epoch()
+        self.assertIsInstance(trainer, VoltageStabilizationTrainer)
+        self.assertIsInstance(trainer, BaseTrainer)
 
-        # Check that loss is a scalar and not NaN
-        self.assertIsInstance(train_loss, float)
-        self.assertFalse(torch.isnan(torch.tensor(train_loss)))
-
-    def test_classification_trainer_evaluate(self):
-        """Test evaluation with ClassificationTrainer."""
-        trainer = ClassificationTrainer(
-            model=self.model,
-            dataset=self.dataset,
-            batch_size=16,
-            lr=0.001,
-            epochs=1,
-            device="cpu",
-            save_path=self.temp_dir,
-        )
-
-        # Set model to eval mode
-        self.model.eval()
-
-        # Evaluate on the validation set
-        val_loss, val_acc = trainer.evaluate(trainer.valid_loader)
-
-        # Check that metrics are scalars and not NaN
-        self.assertIsInstance(val_loss, float)
-        self.assertIsInstance(val_acc, float)
-        self.assertFalse(torch.isnan(torch.tensor(val_loss)))
-        self.assertFalse(torch.isnan(torch.tensor(val_acc)))
-
-        # Accuracy should be between 0 and 1
-        self.assertGreaterEqual(val_acc, 0.0)
-        self.assertLessEqual(val_acc, 1.0)
-
-    def test_classification_trainer_train(self):
-        """Test the full training loop of ClassificationTrainer."""
-        trainer = ClassificationTrainer(
-            model=self.model,
-            dataset=self.dataset,
-            batch_size=16,
-            lr=0.001,
-            epochs=2,  # Use a small number of epochs for testing
-            device="cpu",
-            save_path=self.temp_dir,
-        )
-
-        # Train the model (only 2 epochs)
-        history = trainer.train()
-
-        # Check that history has the expected metrics
-        self.assertIn("train_loss", history)
-        self.assertIn("valid_loss", history)
-        self.assertIn("valid_acc", history)
-
-        # Check that metrics are lists with the expected length
-        self.assertEqual(len(history["train_loss"]), 2)
-        self.assertEqual(len(history["valid_loss"]), 2)
-        self.assertEqual(len(history["valid_acc"]), 2)
-
-        # Check that a checkpoint was saved
-        checkpoint_path = os.path.join(self.temp_dir, "best_model.pt")
-        self.assertTrue(os.path.exists(checkpoint_path))
-
-    def test_pruning_trainer(self):
-        """Basic test for PruningTrainer initialization and methods."""
-        trainer = PruningTrainer(
-            model=self.model,
-            dataset=self.dataset,
-            batch_size=16,
-            lr=0.001,
+        train_losses, valid_losses = trainer.train(
+            model=self.dendritic_model,
+            train_data=self.train_data,
+            valid_data=self.valid_data,
             epochs=2,
-            device="cpu",
-            save_path=self.temp_dir,
-            prune_rate=0.3,
-            prune_interval=1,
+            batch_size=32,
+            plot_losses=False,
+            save_path=os.path.join(self.temp_dir, "vs_best_model.pt"),
         )
 
-        # Check pruning-specific attributes
-        self.assertEqual(trainer.prune_rate, 0.3)
-        self.assertEqual(trainer.prune_interval, 1)
+        self.assertIsInstance(train_losses, list)
+        self.assertIsInstance(valid_losses, list)
 
-        # Train for a single epoch to trigger pruning
-        history = trainer.train(verbose=False)
+        self.assertEqual(len(train_losses), 2)
+        self.assertEqual(len(valid_losses), 2)
+        self.assertTrue(os.path.exists(os.path.join(self.temp_dir, "vs_best_model.pt")))
 
-        # Check that history has pruning-related metrics
-        self.assertIn("train_loss", history)
-        self.assertIn("valid_loss", history)
-        self.assertIn("valid_acc", history)
+    def test_get_trainer(self):
+        """Test the get_trainer factory function for all strategies"""
+        strategies = {
+            "mle": TrainerMLE,
+            "standard": TrainerMLE,
+            "freeze_layers": TrainerMLE,
+            "local_credit_assignment": LocalCreditAssignment,
+            "train_only_m_reactivation": TrainOnlyMReactivation,
+            "two_step": TwoStepTrainer,
+            "two_step_kl": TwoStepTrainerWithKL,
+            "voltage_stabilization": VoltageStabilizationTrainer,
+        }
 
-        # Check that a pruned checkpoint was saved
-        pruned_checkpoint_path = os.path.join(self.temp_dir, "pruned_model.pt")
-        self.assertTrue(os.path.exists(pruned_checkpoint_path))
+        for name, expected_type in strategies.items():
+            trainer = get_trainer(strategy=name, optimizer=self.optimizer)
+            self.assertIsInstance(
+                trainer, expected_type, f"Failed for strategy '{name}'"
+            )
+
+        with self.assertLogs(logger, level="WARNING") as log:
+            fallback_trainer = get_trainer(
+                strategy="invalid_strategy", optimizer=self.optimizer
+            )
+            self.assertIsInstance(fallback_trainer, TrainerMLE)
+            self.assertTrue(
+                any(
+                    "Unknown strategy 'invalid_strategy'" in message
+                    for message in log.output
+                )
+            )
 
 
 if __name__ == "__main__":

@@ -178,10 +178,10 @@ class TestAblationFunctions(unittest.TestCase):
 
         # Create a temporary directory for saving results
         with tempfile.TemporaryDirectory() as tmpdirname:
-            # Test with the signature from combined_dendritic_modeling.py
+            # Update the parameter order to match the function signature
             results = analyze_layerwise_ablation(
                 model=model,
-                dataset=self.dataset,
+                dataset=self.dataset,  # Added dataset parameter
                 train_data=self.dataset,
                 valid_data=self.dataset,
                 test_data=self.dataset,

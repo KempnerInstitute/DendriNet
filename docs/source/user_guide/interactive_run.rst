@@ -7,7 +7,7 @@ To run a job with the `dendritic_modeling` package, we need the following compon
 
 - A Python environment with the required dependencies installed
 - A configuration file
-- A run script 
+- A run script
 
 In the following sections, we will walk you through the process of setting up an interactive session with the `dendritic_modeling` package.
 
@@ -25,7 +25,7 @@ Each compute job requires a configuration file that specifies the network archit
 .. code-block:: yaml
 
     model:
-      task: classification         
+      task: classification
       probabilistic: True
       network:
         type: "EINet"
@@ -51,7 +51,7 @@ Each compute job requires a configuration file that specifies the network archit
           output_dim: 10
 
     train:
-      learning_strategy: "mle"           
+      learning_strategy: "mle"
       run_name: "mnist_einet"
       seed: 0
       train_valid_split: 0.8
@@ -60,7 +60,7 @@ Each compute job requires a configuration file that specifies the network archit
       epochs: 50
       batch_size: 128
       grad_clip_value: 5.0
-      epochs_per_layer: 20            
+      epochs_per_layer: 20
       final_tune_epochs: 10
       pretrain_epochs: 10
 
@@ -81,7 +81,7 @@ Each compute job requires a configuration file that specifies the network archit
       visualize_epochs: [1, 10, 50]
       plots: ["branch_info", "ablation"]
       parameters: {}
-      
+
     outputs:
       dir: "outputs"
 

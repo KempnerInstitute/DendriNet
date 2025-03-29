@@ -22,10 +22,10 @@ A simple example of training a dendritic network on MNIST:
     from dendritic_modeling.networks import ExcitationInhibitionNetwork
     from dendritic_modeling.learning_strategies import TrainerMLE
     from dendritic_modeling.utils import load_mnist_as_datasets, accuracy_score
-    
+
     # Load MNIST dataset
     train_ds, valid_ds, test_ds = load_mnist_as_datasets(train_valid_split=0.8)
-    
+
     # Create model
     model = ExcitationInhibitionNetwork(
         input_dim=784,
@@ -43,17 +43,17 @@ A simple example of training a dendritic network on MNIST:
         output_layer=False,
         output_dim=10
     )
-    
+
     # Create classifier
     classifier = torch.nn.Sequential(
         model,
         torch.nn.LogSoftmax(dim=-1)
     )
-    
+
     # Train model
     optimizer = torch.optim.Adam(classifier.parameters(), lr=0.001)
     trainer = TrainerMLE(optimizer=optimizer)
-    
+
     results = trainer.train(
         model=classifier,
         train_data=train_ds,
@@ -61,7 +61,7 @@ A simple example of training a dendritic network on MNIST:
         epochs=20,
         batch_size=64
     )
-    
+
     # Evaluate on test set
     test_accuracy = accuracy_score(classifier, *test_ds[:])
     print(f"Test accuracy: {test_accuracy:.4f}")
@@ -91,16 +91,16 @@ The above code could be expressed in a configuration file (``mnist_config.yaml``
           enable_branch_outputs: true
           output_layer: false
           output_dim: 10
-          
+
     train:
       learning_strategy: mle
       lr: 0.001
       epochs: 20
       batch_size: 64
-      
+
     task:
       dataset: mnist
-      
+
     outputs:
       dir: "./outputs"
 
@@ -119,17 +119,17 @@ Training a dendritic network on a synthetic dataset designed to test specific co
 
     from dendritic_modeling.synthetic_datasets import MultiXORDataset
     from torch.utils.data import random_split
-    
+
     # Create a Multi-XOR dataset
     dataset = MultiXORDataset(n_samples=10000, n_bits=8)
-    
+
     # Split into train/valid/test
     train_size = int(0.7 * len(dataset))
     valid_size = int(0.15 * len(dataset))
     test_size = len(dataset) - train_size - valid_size
-    
+
     train_ds, valid_ds, test_ds = random_split(dataset, [train_size, valid_size, test_size])
-    
+
     # Create a model with suitable architecture for XOR tasks
     model = ExcitationInhibitionNetwork(
         input_dim=8,  # 8 input bits
@@ -147,7 +147,7 @@ Training a dendritic network on a synthetic dataset designed to test specific co
         output_layer=False,
         output_dim=2  # 2 output classes (0 or 1)
     )
-    
+
     # Continue with training as in the MNIST example...
 
 **Equivalent Configuration Approach:**
@@ -167,7 +167,7 @@ Training a dendritic network on a synthetic dataset designed to test specific co
           reactivate: true
           somatic_synapses: true
           # ... other parameters as above
-          
+
     task:
       dataset: multi_xor
       parameters:
@@ -185,14 +185,14 @@ Using the two-step training strategy for more complex networks:
 .. code-block:: python
 
     from dendritic_modeling.learning_strategies import TwoStepTrainer
-    
+
     # Create model (as in previous examples)
     model = ExcitationInhibitionNetwork(...)
-    
+
     # Initialize two-step trainer
     optimizer = torch.optim.Adam(model.parameters(), lr=0.001)
     trainer = TwoStepTrainer(optimizer=optimizer)
-    
+
     # Train with two-step approach
     results = trainer.train(
         model=model,
@@ -246,11 +246,11 @@ Using an input transformation network for better feature extraction:
         output_layer=False,
         output_dim=10
     )
-    
+
     # Train the model with appropriate learning strategy
     optimizer = torch.optim.Adam(model.parameters(), lr=0.001)
     trainer = TrainerMLE(optimizer=optimizer)
-    
+
     results = trainer.train(
         model=model,
         train_data=train_ds,
@@ -283,21 +283,21 @@ Analyzing information content in dendritic branches:
 .. code-block:: python
 
     from dendritic_modeling.utils import analyze_dendritic_information
-    
+
     # Create and train a model (as in previous examples)
     model = ExcitationInhibitionNetwork(...)
     # ... train the model ...
-    
+
     # Analyze branch information
     branch_info = analyze_dendritic_information(
         model=model,
         dataset=test_ds,
         device='cuda' if torch.cuda.is_available() else 'cpu'
     )
-    
+
     # Plot branch information (example: mutual information)
     import matplotlib.pyplot as plt
-    
+
     # Check if results are available and have the expected structure
     if "mutual_information" in branch_info and branch_info["mutual_information"] is not None:
         mi_values = branch_info["mutual_information"] # Assuming MI is a flat list or array
@@ -331,11 +331,11 @@ Performing ablation studies to understand branch importance:
 .. code-block:: python
 
     from dendritic_modeling.utils import analyze_branch_ablation
-    
+
     # Create and train a model (as in previous examples)
     model = ExcitationInhibitionNetwork(...)
     # ... train the model ...
-    
+
     # Analyze branch ablation
     results = analyze_branch_ablation(
         model=model,
@@ -343,17 +343,17 @@ Performing ablation studies to understand branch importance:
         mode='direct',  # Ablation mode: 'direct' or 'indirect'
         device='cuda' if torch.cuda.is_available() else 'cpu'
     )
-    
+
     # Extract results
     baseline_acc, branch_results = results
-    
+
     print(f"Baseline accuracy: {baseline_acc:.4f}")
-    
+
     # Calculate branch importance from results
     branch_importances = {}
     for branch_id, (acc, delta) in branch_results.items():
         branch_importances[branch_id] = delta
-    
+
     # Visualize branch importances
     import matplotlib.pyplot as plt
     plt.figure(figsize=(10, 6))
@@ -486,7 +486,7 @@ The framework provides a flexible experiment runner through ``train_experiments.
 
     # Override learning strategy
     python src/dendritic_modeling/train_experiments.py config_exp.yaml --train.learning_strategy freeze_branches
-    
+
     # Enable visualization
     python src/dendritic_modeling/train_experiments.py config_exp.yaml --visualization.enabled true
 
@@ -508,4 +508,4 @@ For additional examples, explore the Jupyter notebooks in the `examples` directo
 5. `05_comparison_with_mlp.ipynb` - Comparing dendritic networks with standard MLPs
 6. `06_advanced_training_strategies.ipynb` - Using specialized learning strategies
 
-These notebooks provide executable examples with detailed explanations and visualizations. 
+These notebooks provide executable examples with detailed explanations and visualizations.

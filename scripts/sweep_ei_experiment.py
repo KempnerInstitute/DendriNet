@@ -1,7 +1,7 @@
 """
 sweep_ei_experiment.py
 ---------------------
-Script that performs parameter sweeps over excitatory-excitatory and 
+Script that performs parameter sweeps over excitatory-excitatory and
 inhibitory-excitatory synaptic connections while keeping other parameters constant.
 Supports multiple random seeds per configuration and shunting/non-shunting variants.
 """

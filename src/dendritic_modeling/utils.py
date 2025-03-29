@@ -1,7 +1,7 @@
 """
 utils.py
 ========
-This module contains utility functions for data loading, data splitting, 
+This module contains utility functions for data loading, data splitting,
 and model evaluation.
 """
 

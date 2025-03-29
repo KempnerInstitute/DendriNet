@@ -4,9 +4,9 @@ model:
   network:
     type: EINet #"EINet", "MLP"
     parameters:
-      excitatory_layer_sizes: [10] 
+      excitatory_layer_sizes: [10]
       inhibitory_layer_sizes: [40]
-      excitatory_branch_factors: [6,6] 
+      excitatory_branch_factors: [6,6]
       inhibitory_branch_factors: []
       reactivate: false
       somatic_synapses: true
@@ -17,15 +17,15 @@ model:
       topk_init_method: xavier_normal
 
       use_shunting: true
-      
+
       reactivation_type: param_tanh # "none", "param_tanh", "param_tanh_only_m", "relu", "sigmoid", "tanh"
       reactivation_strategy: inverse # "none", "inverse"
       blocklinear_strategy: block_conductance_dynamic # "none", "distal_upweight_by_idx", "block_conductance_dynamic"
-      
+
       enable_branch_outputs: false   ### alows DendriNetWithOutputs to keep activations etc
       output_layer: false  ### adding an output classifier layer FC to final dendrinet layer
       output_dim: 10
-      
+
       # input mode (0=original, 1=exc=x+inh=x, 2=input_net)
       input_mode: 0
       # If we set input_mode=2, the following get used for input network:
@@ -33,10 +33,10 @@ model:
         type: "MLPInputTransform"  # Type of input network: "MLPInputTransform", "AlexNetTransform", etc.
         hidden_dims: [] #[512, 256, 128]     # Hidden layer dimensions for better capacity
         output_dim: 128             # Output dimension for both excitatory and inhibitory pathways
-        
+
 train:
   learning_strategy: mle # Options: "mle", "freeze_layers", "local_credit_assignment", "two_step", "two_step_kl", "voltage_stabilization"
-  seed: 0 
+  seed: 0
   train_valid_split: 0.8
   lr: 0.01  # Standard learning rate for Adam
   epochs: 50
@@ -44,7 +44,7 @@ train:
   grad_clip_value: 5  # Reasonable gradient clipping
   epochs_per_layer: 50  ## this is only for "freeze_layers" and any other method which has sequential single layer training
   final_tune_epochs: 10  ## Number of epochs for final fine-tuning after layer-by-layer training
-  
+
   # Parameters for two_step and voltage_stabilization strategies
   warmup_epochs: 1  # or however many you want
   stability_target_voltage: 0.5  # the target "voltage"
@@ -56,10 +56,10 @@ train:
     # Options for sequential training mode
     train_input_net: true    # Whether to train the input network or use pre-trained weights
     input_net_epochs: 20     # Fewer epochs needed with better training
-    
+
     # Independent head training options
     train_heads_independently: false  # Whether to train excitatory and inhibitory heads independently
-    
+
     # Inhibitory head training objective
     inhibitory_head_objective: "classification"  # Options: "classification", "diversity", "combined"
     diversity_weight: 0.5              # Weight for diversity loss (alpha)
@@ -69,10 +69,10 @@ train:
       source: "file"           # "file", "pytorch", "none"
       weights_path: ""         # Path to weights file if source is "file"
       pytorch_model: ""        # Name of PyTorch model if source is "pytorch"
-      
+
 task:
   dataset: random_flip_mnist #mnist, cifar10, mnist_modulo10, random_flip_mnist
-  data_path: 
+  data_path:
   parameters: {}
   # dataset: "line", "center_surround", "orientation_bars", "multi_xor", "mnist", "mnist_modulo10", "mnist_switch2",
             #"mnist_switch10", "info_shunting", "noise_resilience", "feature_selectivity", "context_gating",
@@ -83,14 +83,14 @@ task:
   #   test_size:  1000
   #   image_size: 16   # relevant for orientation_bars
   #   n_orient_classes: 8
-    
+
 wandb:
-  entity: 
+  entity:
   project: "dendritic_cifar10"
   group: "debug"
   tags: [cifar10]
   use_wandb: false
-  
+
 visualization:
   enabled: false
   visualize_epochs: [10, 30]  # list of epochs at which to produce intermediate visualizations
@@ -98,10 +98,10 @@ visualization:
     - weights      # Plot dendritic or EI-net weights
     - activations  # Plot per-digit activation distribution
     - gradients    # Plot synapse or branch gradients
-    - branch_ablation  # Enable branch-level ablation analysis 
+    - branch_ablation  # Enable branch-level ablation analysis
     - layer_ablation   # Enable layer-level ablation analysis
     #- profiles     # Plot dendritic compartment profiles
     #- branch_info  # mutual information
-    
+
 outputs:
-  dir: 
+  dir:

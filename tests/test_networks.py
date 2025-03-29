@@ -2,7 +2,8 @@ import unittest
 
 import torch
 
-from dendritic_modeling.networks import ExcitationInhibitionNetwork
+from dendritic_modeling.networks import (ExcitationInhibitionNetwork,
+                                         MLPExcInhNetwork)
 
 
 class TestExcitationInhibitionNetwork(unittest.TestCase):
@@ -170,6 +171,76 @@ class TestExcitationInhibitionNetwork(unittest.TestCase):
             excitatory_branch_factors=[2],
             inhibitory_branch_factors=[2],
             reactivate=True,
+            output_dim=5,
+        )
+
+        # Create dummy input and target
+        x = torch.randn(3, 100, requires_grad=True)
+
+        # Forward pass
+        output = model(x)
+
+        # Create a dummy loss
+        loss = output.sum()
+
+        # Backward pass
+        loss.backward()
+
+        # Check that gradients are computed for model parameters
+        for name, param in model.named_parameters():
+            self.assertIsNotNone(param.grad, f"No gradient for {name}")
+            self.assertFalse(torch.all(param.grad == 0), f"Zero gradient for {name}")
+
+        # Check that gradients are computed for the input
+        self.assertIsNotNone(x.grad)
+        self.assertFalse(torch.all(x.grad == 0))
+
+
+class TestMLPExcInhNetwork(unittest.TestCase):
+    def test_initialization(self):
+        """Test that the MLPExcInhNetwork initializes correctly."""
+        model = MLPExcInhNetwork(
+            input_dim=100,
+            hidden_dims=[64, 32],
+            output_dim=10,
+        )
+
+        # Check attributes
+        self.assertEqual(model.input_dim, 100)
+        self.assertEqual(model.hidden_dims, [64, 32])
+        self.assertEqual(model.output_dim, 10)
+
+        # Check layer structure (input layer + 2 hidden layers + output layer)
+        # Linear + ReLU for each hidden dim, plus final Linear
+        expected_layers = 1 + len(model.hidden_dims) * 2
+        self.assertEqual(len(model.layers), expected_layers)
+
+    def test_forward_pass(self):
+        """Test the forward pass."""
+        model = MLPExcInhNetwork(
+            input_dim=100,
+            hidden_dims=[64, 32],
+            output_dim=10,
+        )
+
+        # Create dummy input
+        x = torch.randn(5, 100)
+
+        # Check forward pass
+        output = model(x)
+
+        # Check output shape
+        self.assertEqual(output.shape, (5, 10))
+
+        # Check that output is not all zeros or NaNs
+        self.assertFalse(torch.all(output == 0))
+        self.assertFalse(torch.isnan(output).any())
+
+    def test_gradient_flow(self):
+        """Test that gradients flow correctly through the MLP network."""
+        model = MLPExcInhNetwork(
+            input_dim=100,
+            hidden_dims=[32],
             output_dim=5,
         )
 

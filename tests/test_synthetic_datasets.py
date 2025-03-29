@@ -22,75 +22,107 @@ class TestSyntheticDatasets(unittest.TestCase):
         # Check item format
         x, y = dataset[0]
         self.assertEqual(x.shape, (n_bits,))  # n_bits input bits
-        self.assertIn(y.item(), [0, 1])  # Binary target
+        self.assertIn(
+            y.item(), [0, 1, 2, 3]
+        )  # Binary target (2 bits = 4 possibilities)
 
         # Check a few samples manually to verify XOR logic
         for i in range(min(10, n_samples)):
             x, y = dataset[i]
             x_np = x.numpy()
-            # Verify that XOR logic is applied: odd number of 1s should result in y=1
-            num_ones = np.sum(x_np == 1)
-            expected_y = 1 if num_ones % 2 == 1 else 0
+            # Verify that XOR logic is applied correctly:
+            # y1 = bits[0] ^ bits[1]
+            # y2 = bits[2] ^ bits[3] ^ bits[4]
+            # label = (y1 << 1) + y2
+            y1 = int(x_np[0]) ^ int(x_np[1])
+            y2 = int(x_np[2]) ^ int(x_np[3]) ^ int(x_np[4])
+            expected_y = (y1 << 1) + y2
             self.assertEqual(y.item(), expected_y, f"XOR logic failed for sample {i}")
 
     def test_line_dataset(self):
         """Test LineDataset generation and properties."""
         n_samples = 100
         image_size = 16
-        n_classes = 2
-        dataset = LineDataset(
-            n_samples=n_samples, image_size=image_size, n_classes=n_classes
-        )
+        dataset = LineDataset(n_samples=n_samples, image_size=image_size)
 
         # Check dataset size
         self.assertEqual(len(dataset), n_samples)
 
         # Check item format
         x, y = dataset[0]
-        self.assertEqual(
-            x.shape, (1, image_size, image_size)
-        )  # 1-channel image of specified size
-        self.assertLess(y.item(), n_classes)  # Class index should be within range
+        self.assertEqual(x.shape, (image_size * image_size,))  # Flattened image
+        self.assertIn(y.item(), [0, 1, 2])  # Class index should be 0, 1, or 2
 
-        # Check that images are binary (contain only 0s and 1s)
+        # Check that images have expected format (zeros and ones)
         for i in range(min(10, n_samples)):
-            x, _ = dataset[i]
-            unique_vals = torch.unique(x)
-            self.assertTrue(
-                torch.all(torch.isin(unique_vals, torch.tensor([0.0, 1.0])))
-            )
+            x, y = dataset[i]
+            x_reshaped = x.reshape(image_size, image_size)
+
+            # For class 1, there should be a horizontal line (a row of ones)
+            if y.item() == 1:
+                # Find the row with sum == image_size (all ones)
+                row_sums = x_reshaped.sum(dim=1)
+                self.assertTrue(
+                    any(row_sums == image_size),
+                    f"No horizontal line found for class 1 sample {i}",
+                )
+
+            # For class 2, there should be a vertical line (a column of ones)
+            if y.item() == 2:
+                # Find the column with sum == image_size (all ones)
+                col_sums = x_reshaped.sum(dim=0)
+                self.assertTrue(
+                    any(col_sums == image_size),
+                    f"No vertical line found for class 2 sample {i}",
+                )
 
     def test_center_surround_dataset(self):
         """Test CenterSurroundDataset generation and properties."""
         n_samples = 100
         image_size = 16
-        n_classes = 4
-        dataset = CenterSurroundDataset(
-            n_samples=n_samples, image_size=image_size, n_classes=n_classes
-        )
+        dataset = CenterSurroundDataset(n_samples=n_samples, image_size=image_size)
 
         # Check dataset size
         self.assertEqual(len(dataset), n_samples)
 
         # Check item format
         x, y = dataset[0]
-        self.assertEqual(
-            x.shape, (1, image_size, image_size)
-        )  # 1-channel image of specified size
-        self.assertLess(y.item(), n_classes)  # Class index should be within range
+        self.assertEqual(x.shape, (image_size * image_size,))  # Flattened image
+        self.assertIn(y.item(), [0, 1, 2])  # Class index should be 0, 1, or 2
 
-        # Verify that images have the center-surround pattern
-        # (should have some values that are not 0 or 1, since it creates a gradient)
-        has_gradient = False
+        # Check class-specific properties
         for i in range(min(10, n_samples)):
-            x, _ = dataset[i]
-            if len(torch.unique(x)) > 2:
-                has_gradient = True
-                break
+            x, y = dataset[i]
+            x_reshaped = x.reshape(image_size, image_size)
 
-        self.assertTrue(
-            has_gradient, "CenterSurroundDataset should create gradient images"
-        )
+            if y.item() == 0:
+                # Class 0 should have similar values throughout (uniform)
+                std = x_reshaped.std().item()
+                self.assertLess(
+                    std, 0.1, f"Class 0 should have uniform values, sample {i}"
+                )
+
+            elif y.item() == 1:
+                # Class 1 should have higher values in the center
+                center = image_size // 2
+                center_val = x_reshaped[center, center].item()
+                edge_val = x_reshaped[0, 0].item()
+                self.assertGreater(
+                    center_val,
+                    edge_val,
+                    f"Center should be higher than edge for class 1, sample {i}",
+                )
+
+            elif y.item() == 2:
+                # Class 2 should have lower values in the center
+                center = image_size // 2
+                center_val = x_reshaped[center, center].item()
+                edge_val = x_reshaped[0, 0].item()
+                self.assertGreater(
+                    edge_val,
+                    center_val,
+                    f"Edge should be higher than center for class 2, sample {i}",
+                )
 
     def test_orientation_bars_dataset(self):
         """Test OrientationBarsDataset generation and properties."""
@@ -108,9 +140,7 @@ class TestSyntheticDatasets(unittest.TestCase):
 
         # Check item format
         x, y = dataset[0]
-        self.assertEqual(
-            x.shape, (1, image_size, image_size)
-        )  # 1-channel image of specified size
+        self.assertEqual(x.shape, (image_size * image_size,))  # Flattened image
         self.assertLess(
             y.item(), n_orient_classes
         )  # Class index should be within range
@@ -135,9 +165,9 @@ class TestSyntheticDatasets(unittest.TestCase):
         ds1 = LineDataset(n_samples=10, image_size=16)
         ds2 = LineDataset(n_samples=10, image_size=32)
 
-        # Images should have different sizes
-        self.assertEqual(ds1[0][0].shape, (1, 16, 16))
-        self.assertEqual(ds2[0][0].shape, (1, 32, 32))
+        # Images should have different shapes
+        self.assertEqual(ds1[0][0].shape, (16 * 16,))
+        self.assertEqual(ds2[0][0].shape, (32 * 32,))
 
         # Test that changing the number of classes changes the output range
         ds1 = OrientationBarsDataset(n_samples=20, n_orient_classes=4)
@@ -156,11 +186,14 @@ class TestSyntheticDatasets(unittest.TestCase):
 
     def test_deterministic_with_seed(self):
         """Test that datasets are deterministic with a fixed seed."""
+        # Since the current implementation doesn't accept a seed parameter,
+        # we'll set the numpy random seed manually
         seed = 42
+        np.random.seed(seed)
+        ds1 = MultiXORDataset(n_samples=10, n_bits=8)
 
-        # Create datasets with the same seed
-        ds1 = MultiXORDataset(n_samples=10, n_bits=8, seed=seed)
-        ds2 = MultiXORDataset(n_samples=10, n_bits=8, seed=seed)
+        np.random.seed(seed)
+        ds2 = MultiXORDataset(n_samples=10, n_bits=8)
 
         # Datasets with the same seed should have identical data
         for i in range(10):
@@ -174,7 +207,8 @@ class TestSyntheticDatasets(unittest.TestCase):
             )
 
         # Create a dataset with a different seed
-        ds3 = MultiXORDataset(n_samples=10, n_bits=8, seed=seed + 1)
+        np.random.seed(seed + 1)
+        ds3 = MultiXORDataset(n_samples=10, n_bits=8)
 
         # At least some samples should differ
         any_different = False
