@@ -90,7 +90,11 @@
 <li class="toctree-l3"><a class="reference internal" href="#input-network">Input Network</a></li>
 </ul>
 </li>
-<li class="toctree-l2"><a class="reference internal" href="#training-configuration">Training Configuration</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#training-configuration">Training Configuration</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#available-learning-strategies">Available Learning Strategies</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#strategy-examples">Strategy Examples</a></li>
+</ul>
+</li>
 <li class="toctree-l2"><a class="reference internal" href="#task-configuration">Task Configuration</a></li>
 <li class="toctree-l2"><a class="reference internal" href="#visualization-configuration">Visualization Configuration</a></li>
 <li class="toctree-l2"><a class="reference internal" href="#wandb-configuration">WandB Configuration</a></li>
@@ -310,7 +314,7 @@
 <h2>Training Configuration<a class="headerlink" href="#training-configuration" title="Link to this heading"></a></h2>
 <p>The <code class="docutils literal notranslate"><span class="pre">train</span></code> section defines the training procedure and hyperparameters:</p>
 <div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">train</span><span class="p">:</span>
-<span class="w">  </span><span class="nt">learning_strategy</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">mle</span><span class="w">  </span><span class="c1"># Learning strategy: &quot;mle&quot;, &quot;freeze_layers&quot;, &quot;local_credit_assignment&quot;, &quot;two_step&quot;, &quot;two_step_kl&quot;</span>
+<span class="w">  </span><span class="nt">learning_strategy</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">mle</span><span class="w">  </span><span class="c1"># Learning strategy (see options below)</span>
 <span class="w">  </span><span class="nt">run_name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">mnist_einet</span><span class="w">  </span><span class="c1"># Name for the experiment run</span>
 <span class="w">  </span><span class="nt">seed</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">42</span><span class="w">  </span><span class="c1"># Random seed for reproducibility</span>
 <span class="w">  </span><span class="nt">train_valid_split</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">0.8</span><span class="w">  </span><span class="c1"># Train/validation split ratio</span>
@@ -319,8 +323,18 @@
 <span class="w">  </span><span class="nt">epochs</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">50</span><span class="w">  </span><span class="c1"># Number of training epochs</span>
 <span class="w">  </span><span class="nt">batch_size</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">64</span><span class="w">  </span><span class="c1"># Batch size</span>
 <span class="w">  </span><span class="nt">grad_clip_value</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">1.0</span><span class="w">  </span><span class="c1"># Gradient clipping value</span>
-<span class="w">  </span><span class="nt">epochs_per_layer</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">50</span><span class="w">  </span><span class="c1"># Epochs per layer for layer-wise training</span>
-<span class="w">  </span><span class="nt">pretrain_epochs</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">10</span><span class="w">  </span><span class="c1"># Pretraining epochs for two-step strategies</span>
+
+<span class="w">  </span><span class="c1"># Layer-wise and branch-wise training parameters</span>
+<span class="w">  </span><span class="nt">epochs_per_layer</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">20</span><span class="w">  </span><span class="c1"># Epochs per layer/branch for layer/branch-wise training</span>
+<span class="w">  </span><span class="nt">final_tune_epochs</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">10</span><span class="w">  </span><span class="c1"># Final fine-tuning epochs after layer/branch-wise training</span>
+
+<span class="w">  </span><span class="c1"># Pretraining parameters</span>
+<span class="w">  </span><span class="nt">pretrain_epochs</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">10</span><span class="w">  </span><span class="c1"># Pretraining epochs for strategies with pretraining</span>
+
+<span class="w">  </span><span class="c1"># Voltage stabilization parameters</span>
+<span class="w">  </span><span class="nt">warmup_epochs</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">1</span><span class="w">  </span><span class="c1"># Warm-up epochs for voltage stabilization</span>
+<span class="w">  </span><span class="nt">stability_target_voltage</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">0.5</span><span class="w">  </span><span class="c1"># Target activation value for stabilization</span>
+
 <span class="w">  </span><span class="c1"># Input network training options</span>
 <span class="w">  </span><span class="nt">input_net_training</span><span class="p">:</span>
 <span class="w">    </span><span class="nt">training_mode</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;sequential&quot;</span><span class="w">  </span><span class="c1"># &quot;joint&quot; or &quot;sequential&quot;</span>
@@ -331,6 +345,54 @@
 <span class="w">    </span><span class="nt">diversity_weight</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">0.5</span><span class="w">  </span><span class="c1"># Weight for diversity loss</span>
 </pre></div>
 </div>
+<section id="available-learning-strategies">
+<h3>Available Learning Strategies<a class="headerlink" href="#available-learning-strategies" title="Link to this heading"></a></h3>
+<p>The framework supports several learning strategies, specified by the <code class="docutils literal notranslate"><span class="pre">learning_strategy</span></code> parameter:</p>
+<ol class="arabic simple">
+<li><p><strong>MLE</strong> (<code class="docutils literal notranslate"><span class="pre">mle</span></code>): Standard end-to-end training</p></li>
+<li><p><strong>Freeze Layers</strong> (<code class="docutils literal notranslate"><span class="pre">freeze_layers</span></code>): Train layers sequentially from soma to input</p></li>
+<li><p><strong>Freeze Layers Reversed</strong> (<code class="docutils literal notranslate"><span class="pre">freeze_layers_reversed</span></code>): Train layers sequentially from input to soma</p></li>
+<li><p><strong>Freeze Layers with Pretraining</strong> (<code class="docutils literal notranslate"><span class="pre">freeze_layers_with_pretraining</span></code>): Pretrain full network, then train layers from soma to input</p></li>
+<li><p><strong>Freeze Layers Reversed with Pretraining</strong> (<code class="docutils literal notranslate"><span class="pre">freeze_layers_reversed_with_pretraining</span></code>): Pretrain full network, then train layers from input to soma</p></li>
+<li><p><strong>Freeze Branches</strong> (<code class="docutils literal notranslate"><span class="pre">freeze_branches</span></code>): Train branches sequentially from soma to input</p></li>
+<li><p><strong>Freeze Branches Reversed</strong> (<code class="docutils literal notranslate"><span class="pre">freeze_branches_reversed</span></code>): Train branches sequentially from input to soma</p></li>
+<li><p><strong>Freeze Branches with Pretraining</strong> (<code class="docutils literal notranslate"><span class="pre">freeze_branches_with_pretraining</span></code>): Pretrain full network, then train branches from soma to input</p></li>
+<li><p><strong>Freeze Branches Reversed with Pretraining</strong> (<code class="docutils literal notranslate"><span class="pre">freeze_branches_reversed_with_pretraining</span></code>): Pretrain full network, then train branches from input to soma</p></li>
+<li><p><strong>Local Credit Assignment</strong> (<code class="docutils literal notranslate"><span class="pre">local_credit_assignment</span></code>): Train with locally-computed gradients</p></li>
+<li><p><strong>Two-Step</strong> (<code class="docutils literal notranslate"><span class="pre">two_step</span></code>): Train auxiliary network before full model</p></li>
+<li><p><strong>Two-Step with KL</strong> (<code class="docutils literal notranslate"><span class="pre">two_step_kl</span></code>): Train auxiliary network with KL regularization</p></li>
+<li><p><strong>Voltage Stabilization</strong> (<code class="docutils literal notranslate"><span class="pre">voltage_stabilization</span></code>): Include warm-up phase to stabilize activations</p></li>
+</ol>
+</section>
+<section id="strategy-examples">
+<h3>Strategy Examples<a class="headerlink" href="#strategy-examples" title="Link to this heading"></a></h3>
+<p>Here are examples of configuration sections for different learning strategies:</p>
+<p><strong>Freeze Layers with Pretraining</strong>:</p>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">train</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">learning_strategy</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">freeze_layers_with_pretraining</span>
+<span class="w">  </span><span class="nt">epochs</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">60</span><span class="w">  </span><span class="c1"># Total epochs</span>
+<span class="w">  </span><span class="nt">pretrain_epochs</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">10</span><span class="w">  </span><span class="c1"># Phase 1: Full network training</span>
+<span class="w">  </span><span class="nt">epochs_per_layer</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">20</span><span class="w">  </span><span class="c1"># Phase 2: Per-layer training</span>
+<span class="w">  </span><span class="nt">final_tune_epochs</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">10</span><span class="w">  </span><span class="c1"># Phase 3: Final fine-tuning</span>
+</pre></div>
+</div>
+<p><strong>Freeze Branches Reversed</strong>:</p>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">train</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">learning_strategy</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">freeze_branches_reversed</span>
+<span class="w">  </span><span class="nt">epochs</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">50</span><span class="w">  </span><span class="c1"># Total epochs</span>
+<span class="w">  </span><span class="nt">epochs_per_layer</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">20</span><span class="w">  </span><span class="c1"># Per-branch training (parameter name is reused)</span>
+<span class="w">  </span><span class="nt">final_tune_epochs</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">10</span><span class="w">  </span><span class="c1"># Final fine-tuning</span>
+</pre></div>
+</div>
+<p><strong>Voltage Stabilization</strong>:</p>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">train</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">learning_strategy</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">voltage_stabilization</span>
+<span class="w">  </span><span class="nt">epochs</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">50</span><span class="w">  </span><span class="c1"># Total epochs</span>
+<span class="w">  </span><span class="nt">warmup_epochs</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">5</span><span class="w">  </span><span class="c1"># Initial warmup phase</span>
+<span class="w">  </span><span class="nt">stability_target_voltage</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">0.5</span><span class="w">  </span><span class="c1"># Target activation value</span>
+</pre></div>
+</div>
+</section>
 </section>
 <section id="task-configuration">
 <h2>Task Configuration<a class="headerlink" href="#task-configuration" title="Link to this heading"></a></h2>

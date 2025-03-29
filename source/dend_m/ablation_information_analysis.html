@@ -20,6 +20,8 @@
       <script src="../../_static/clipboard.min.js?v=a7894cd8"></script>
       <script src="../../_static/copybutton.js?v=f281be69"></script>
       <script crossorigin="anonymous" integrity="sha256-Ae2Vz/4ePdIu6ZyI/5ZGsYnb+m0JlOmKPjt6XZ9JJkA=" src="https://cdnjs.cloudflare.com/ajax/libs/require.js/2.3.4/require.min.js"></script>
+      <script>window.MathJax = {"tex": {"inlineMath": [["$", "$"], ["\\(", "\\)"]], "processEscapes": true}, "options": {"ignoreHtmlClass": "tex2jax_ignore|mathjax_ignore|document", "processHtmlClass": "tex2jax_process|mathjax_process|math|output_area"}}</script>
+      <script defer="defer" src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
     <script src="../../_static/js/theme.js"></script>
     <link rel="author" title="About these documents" href="../../about.html" />
     <link rel="index" title="Index" href="../../genindex.html" />
@@ -103,6 +105,13 @@
 <li class="toctree-l3"><a class="reference internal" href="#basic-information-analysis-configuration">Basic Information Analysis Configuration</a></li>
 <li class="toctree-l3"><a class="reference internal" href="#layer-based-information-analysis">Layer-Based Information Analysis</a></li>
 <li class="toctree-l3"><a class="reference internal" href="#branch-based-information-analysis">Branch-Based Information Analysis</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#dendritic-information-analysis-implementation">Dendritic Information Analysis Implementation</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="#information-analysis-implementation">Information Analysis Implementation</a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="#analyzing-pre-shunting-branch-inputs">Analyzing Pre-Shunting Branch Inputs</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#analyzing-post-shunting-branch-activations">Analyzing Post-Shunting Branch Activations</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#comparing-pre-shunting-vs-post-shunting-information">Comparing Pre-Shunting vs. Post-Shunting Information</a></li>
 <li class="toctree-l3"><a class="reference internal" href="#synaptic-weight-information-analysis">Synaptic Weight Information Analysis</a></li>
 <li class="toctree-l3"><a class="reference internal" href="#receptive-field-analysis">Receptive Field Analysis</a></li>
 <li class="toctree-l3"><a class="reference internal" href="#information-bottleneck-analysis">Information Bottleneck Analysis</a></li>
@@ -406,6 +415,167 @@
 2. Whether branches extract complementary or redundant information
 3. How selective branches are to specific input patterns
 4. How branch outputs combine to form layer outputs</p>
+</section>
+<section id="dendritic-information-analysis-implementation">
+<h3>Dendritic Information Analysis Implementation<a class="headerlink" href="#dendritic-information-analysis-implementation" title="Link to this heading"></a></h3>
+<p>The framework provides a specialized visualization for performing ablation analysis by dendritic order (primary, secondary, etc.) called <code class="docutils literal notranslate"><span class="pre">dendritic_ablation_all</span></code>. This can be enabled in your configuration file:</p>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">visualization</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">enabled</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+<span class="w">  </span><span class="nt">plots</span><span class="p">:</span>
+<span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">dendritic_ablation_all</span><span class="w">  </span><span class="c1"># Activates the dendritic order ablation analysis</span>
+</pre></div>
+</div>
+<p>The implementation consists of the following steps:</p>
+<ol class="arabic simple">
+<li><p><strong>Baseline Performance Measurement</strong>: The model’s baseline performance is measured on the specified dataset.</p></li>
+<li><p><strong>Order-wise Ablation</strong>: The model is systematically ablated at each dendritic order:
+- Combined Ablation: Both excitatory and inhibitory branches at a specific dendritic order are ablated simultaneously.
+- Excitatory Ablation: All excitatory branches at a specific dendritic order are ablated.
+- Inhibitory Ablation: All inhibitory branches at a specific dendritic order are ablated.</p></li>
+<li><p><strong>Result Analysis</strong>: The performance drop for each ablation is calculated.
+- Both absolute performance drops and percentage drops relative to baseline are computed.
+- If the results contain lists instead of single values (e.g., from multiple runs), they are appropriately processed.</p></li>
+<li><p><strong>Visualization</strong>: The results are visualized as bar plots showing the performance drop as a function of dendritic order, with separate bars for excitatory, inhibitory, and combined ablation.</p></li>
+</ol>
+<p>The implementation handles potential edge cases:
+- Results may contain lists of values for each order (e.g., when aggregating multiple runs)
+- Some dendritic orders might not have both excitatory and inhibitory branches
+- When only one pathway exists, the combined ablation result reflects that pathway’s ablation
+- Results are normalized relative to baseline performance for more interpretable comparisons</p>
+<p>Example configuration:</p>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">visualization</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">enabled</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+<span class="w">  </span><span class="nt">plots</span><span class="p">:</span>
+<span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">dendritic_ablation_all</span>
+<span class="w">  </span><span class="nt">parameters</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">dendritic_ablation_all</span><span class="p">:</span>
+<span class="w">      </span><span class="nt">save_data</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span><span class="w">  </span><span class="c1"># Optionally save raw data for further analysis</span>
+<span class="w">      </span><span class="nt">figsize</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">10</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">6</span><span class="p p-Indicator">]</span><span class="w">  </span><span class="c1"># Customize figure size</span>
+<span class="w">      </span><span class="nt">colors</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="s">&#39;blue&#39;</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="s">&#39;red&#39;</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="s">&#39;purple&#39;</span><span class="p p-Indicator">]</span><span class="w">  </span><span class="c1"># Colors for excitatory, inhibitory, and combined lines</span>
+</pre></div>
+</div>
+<p>The analysis provides insights into:
+- How information is distributed across dendritic orders
+- The relative importance of proximal versus distal dendritic segments
+- The complementary roles of excitatory and inhibitory pathways at different hierarchical levels
+- Whether ablating both pathways has a superadditive or subadditive effect compared to ablating individual pathways</p>
+<section id="information-analysis-implementation">
+<h4>Information Analysis Implementation<a class="headerlink" href="#information-analysis-implementation" title="Link to this heading"></a></h4>
+<p>To enable the branch information analysis visualization:</p>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">visualization</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">enabled</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+<span class="w">  </span><span class="nt">plots</span><span class="p">:</span>
+<span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">dendritic_information_inputs</span><span class="w">    </span><span class="c1"># Analyze information in branch inputs (pre-shunting)</span>
+<span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">dendritic_information_activations</span><span class="w">  </span><span class="c1"># Analyze information in branch outputs (post-shunting)</span>
+<span class="w">  </span><span class="nt">parameters</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">dendritic_information_inputs</span><span class="p">:</span>
+<span class="w">      </span><span class="nt">mlp_hidden_dims</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">100</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">50</span><span class="p p-Indicator">]</span><span class="w">  </span><span class="c1"># Hidden layer dimensions for the MLP classifier</span>
+<span class="w">      </span><span class="nt">training_epochs</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">20</span><span class="w">  </span><span class="c1"># Number of epochs for MLP training</span>
+<span class="w">      </span><span class="nt">batch_size</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">64</span><span class="w">  </span><span class="c1"># Batch size for MLP training</span>
+<span class="w">    </span><span class="nt">dendritic_information_activations</span><span class="p">:</span>
+<span class="w">      </span><span class="nt">mlp_hidden_dims</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">100</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">50</span><span class="p p-Indicator">]</span><span class="w">  </span><span class="c1"># Hidden layer dimensions for the MLP classifier</span>
+<span class="w">      </span><span class="nt">training_epochs</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">20</span><span class="w">  </span><span class="c1"># Number of epochs for MLP training</span>
+<span class="w">      </span><span class="nt">batch_size</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">64</span><span class="w">  </span><span class="c1"># Batch size for MLP training</span>
+</pre></div>
+</div>
+<p>The implementation follows these steps:</p>
+<ol class="arabic simple">
+<li><p><strong>Activation Extraction</strong>: The model is run on the dataset, and activations from branches at each dendritic order are extracted.
+- Branches are categorized by type (excitatory, inhibitory) and by dendritic order.
+- Activations are collected in appropriate tensors, handling potential device issues.</p></li>
+<li><p><strong>Branch Categorization</strong>: Branches are grouped by their dendritic depth and type.
+- The model’s architecture is traversed to identify branches at each depth.
+- Each branch is classified as excitatory or inhibitory.</p></li>
+<li><p><strong>MLP Classifier Training</strong>: For each branch category (excitatory, inhibitory, combined at each depth):
+- A simple MLP classifier is trained to predict labels from branch activations.
+- Performance metrics (accuracy) are recorded.
+- Training follows a standard procedure with specified hyperparameters.</p></li>
+<li><p><strong>Information Measurement</strong>: The classification accuracy serves as a proxy for the amount of task-relevant information contained in each branch type/depth.
+- Higher accuracy indicates more discriminative information.
+- Results are also normalized relative to chance performance.</p></li>
+<li><p><strong>Result Visualization</strong>: Two types of visualizations are generated:
+- Raw accuracy plot: Shows the classification accuracy for each branch category.
+- Normalized information plot: Shows the percentage above random chance.</p></li>
+</ol>
+</section>
+</section>
+<section id="analyzing-pre-shunting-branch-inputs">
+<h3>Analyzing Pre-Shunting Branch Inputs<a class="headerlink" href="#analyzing-pre-shunting-branch-inputs" title="Link to this heading"></a></h3>
+<p>The <cite>dendritic_information_inputs</cite> visualization analyzes the raw inputs to each branch before nonlinear processing:</p>
+<ul class="simple">
+<li><p>Excitatory inputs: <span class="math notranslate nohighlight">\(w_i^{exc} \cdot x_i\)</span></p></li>
+<li><p>Inhibitory inputs: <span class="math notranslate nohighlight">\(w_i^{inh} \cdot x_i\)</span></p></li>
+<li><p>Combined inputs: concatenation of excitatory and inhibitory inputs</p></li>
+</ul>
+<p>This analysis reveals:
+- Information content in the raw synaptic inputs
+- How information is distributed across different branch depths
+- The relative information content in excitatory vs. inhibitory input channels
+- How combining excitatory and inhibitory inputs affects classification performance</p>
+<p>To enable this analysis:</p>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">visualization</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">enabled</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+<span class="w">  </span><span class="nt">plots</span><span class="p">:</span>
+<span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">dendritic_information_inputs</span>
+<span class="w">  </span><span class="nt">parameters</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">dendritic_information_inputs</span><span class="p">:</span>
+<span class="w">      </span><span class="nt">mlp_hidden_dims</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">100</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">50</span><span class="p p-Indicator">]</span><span class="w">  </span><span class="c1"># Hidden layer dimensions for the MLP classifier</span>
+<span class="w">      </span><span class="nt">training_epochs</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">20</span><span class="w">  </span><span class="c1"># Number of epochs for MLP training</span>
+<span class="w">      </span><span class="nt">batch_size</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">64</span><span class="w">  </span><span class="c1"># Batch size for MLP training</span>
+</pre></div>
+</div>
+</section>
+<section id="analyzing-post-shunting-branch-activations">
+<h3>Analyzing Post-Shunting Branch Activations<a class="headerlink" href="#analyzing-post-shunting-branch-activations" title="Link to this heading"></a></h3>
+<p>The <cite>dendritic_information_activations</cite> visualization analyzes the outputs after nonlinear processing:</p>
+<ul class="simple">
+<li><p>With shunting: <span class="math notranslate nohighlight">\(\frac{w_i^{exc} \cdot x_i}{w_i^{exc} \cdot x_i + w_i^{inh} \cdot x_i + 1}\)</span></p></li>
+<li><p>Without shunting: <span class="math notranslate nohighlight">\(w_i^{exc} \cdot x_i - w_i^{inh} \cdot x_i\)</span></p></li>
+</ul>
+<p>This analysis reveals:
+- Information content after nonlinear mixing operations
+- How shunting inhibition transforms information
+- How nonlinear operations enhance or suppress certain types of information</p>
+<p>To enable this analysis:</p>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">visualization</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">enabled</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+<span class="w">  </span><span class="nt">plots</span><span class="p">:</span>
+<span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">dendritic_information_activations</span>
+<span class="w">  </span><span class="nt">parameters</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">dendritic_information_activations</span><span class="p">:</span>
+<span class="w">      </span><span class="nt">mlp_hidden_dims</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">100</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">50</span><span class="p p-Indicator">]</span><span class="w">  </span><span class="c1"># Hidden layer dimensions for the MLP classifier</span>
+<span class="w">      </span><span class="nt">training_epochs</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">20</span><span class="w">  </span><span class="c1"># Number of epochs for MLP training</span>
+<span class="w">      </span><span class="nt">batch_size</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">64</span><span class="w">  </span><span class="c1"># Batch size for MLP training</span>
+</pre></div>
+</div>
+</section>
+<section id="comparing-pre-shunting-vs-post-shunting-information">
+<h3>Comparing Pre-Shunting vs. Post-Shunting Information<a class="headerlink" href="#comparing-pre-shunting-vs-post-shunting-information" title="Link to this heading"></a></h3>
+<p>Using both visualization methods together provides a comprehensive view of information flow through dendritic branches:</p>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">visualization</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">enabled</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+<span class="w">  </span><span class="nt">plots</span><span class="p">:</span>
+<span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">dendritic_information_inputs</span><span class="w">     </span><span class="c1"># Pre-shunting analysis</span>
+<span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">dendritic_information_activations</span><span class="w">  </span><span class="c1"># Post-shunting analysis</span>
+<span class="w">  </span><span class="nt">parameters</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">dendritic_information_inputs</span><span class="p">:</span>
+<span class="w">      </span><span class="nt">mlp_hidden_dims</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">100</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">50</span><span class="p p-Indicator">]</span>
+<span class="w">      </span><span class="nt">training_epochs</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">20</span>
+<span class="w">      </span><span class="nt">batch_size</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">64</span>
+<span class="w">    </span><span class="nt">dendritic_information_activations</span><span class="p">:</span>
+<span class="w">      </span><span class="nt">mlp_hidden_dims</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">100</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">50</span><span class="p p-Indicator">]</span>
+<span class="w">      </span><span class="nt">training_epochs</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">20</span>
+<span class="w">      </span><span class="nt">batch_size</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">64</span>
+</pre></div>
+</div>
+<p>Comparing the results from both analyses reveals:
+- How much information is preserved or lost during nonlinear processing
+- Whether shunting enhances or diminishes specific types of information
+- At which dendritic orders nonlinear processing has the greatest impact</p>
+<p>The implementation handles several edge cases:
+- Some dendritic orders might not have both excitatory and inhibitory branches
+- NaN values are used for missing branch types
+- Device management ensures tensors are on appropriate devices</p>
 </section>
 <section id="synaptic-weight-information-analysis">
 <h3>Synaptic Weight Information Analysis<a class="headerlink" href="#synaptic-weight-information-analysis" title="Link to this heading"></a></h3>

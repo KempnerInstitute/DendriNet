@@ -72,7 +72,6 @@
 <li class="toctree-l2"><a class="reference internal" href="#installation-methods">Installation Methods</a><ul>
 <li class="toctree-l3"><a class="reference internal" href="#method-1-using-pip">Method 1: Using pip</a></li>
 <li class="toctree-l3"><a class="reference internal" href="#method-2-installing-from-source">Method 2: Installing from source</a></li>
-<li class="toctree-l3"><a class="reference internal" href="#method-3-using-docker">Method 3: Using Docker</a></li>
 </ul>
 </li>
 <li class="toctree-l2"><a class="reference internal" href="#detailed-installation-steps">Detailed Installation Steps</a><ul>
@@ -185,11 +184,10 @@
 </section>
 <section id="installation-methods">
 <h2>Installation Methods<a class="headerlink" href="#installation-methods" title="Link to this heading"></a></h2>
-<p>There are three main methods to install the framework:</p>
+<p>There are two main methods to install the framework:</p>
 <ol class="arabic simple">
 <li><p>Using pip (recommended for most users)</p></li>
 <li><p>Installing from source (recommended for developers)</p></li>
-<li><p>Using a Docker container (recommended for reproducibility)</p></li>
 </ol>
 <section id="method-1-using-pip">
 <h3>Method 1: Using pip<a class="headerlink" href="#method-1-using-pip" title="Link to this heading"></a></h3>
@@ -222,17 +220,6 @@ git<span class="w"> </span>clone<span class="w"> </span>https://github.com/youru
 
 <span class="c1"># Install in development mode</span>
 pip<span class="w"> </span>install<span class="w"> </span>-e<span class="w"> </span>.
-</pre></div>
-</div>
-</section>
-<section id="method-3-using-docker">
-<h3>Method 3: Using Docker<a class="headerlink" href="#method-3-using-docker" title="Link to this heading"></a></h3>
-<p>For a consistent environment across different systems:</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># Build the Docker image</span>
-docker<span class="w"> </span>build<span class="w"> </span>-t<span class="w"> </span>dendritic-modeling<span class="w"> </span>.
-
-<span class="c1"># Run a container with GPU support</span>
-docker<span class="w"> </span>run<span class="w"> </span>--gpus<span class="w"> </span>all<span class="w"> </span>-it<span class="w"> </span>dendritic-modeling<span class="w"> </span>bash
 </pre></div>
 </div>
 </section>

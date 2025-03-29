@@ -58,7 +58,6 @@
 <li class="toctree-l2"><a class="reference internal" href="#installation-methods">Installation Methods</a><ul>
 <li class="toctree-l3"><a class="reference internal" href="#quick-installation">Quick Installation</a></li>
 <li class="toctree-l3"><a class="reference internal" href="#development-installation">Development Installation</a></li>
-<li class="toctree-l3"><a class="reference internal" href="#docker-installation">Docker Installation</a></li>
 </ul>
 </li>
 <li class="toctree-l2"><a class="reference internal" href="#detailed-installation-steps">Detailed Installation Steps</a><ul>
@@ -187,17 +186,6 @@ git<span class="w"> </span>clone<span class="w"> </span>https://github.com/Kempn
 
 <span class="c1"># Install in development mode</span>
 pip<span class="w"> </span>install<span class="w"> </span>-e<span class="w"> </span>.
-</pre></div>
-</div>
-</section>
-<section id="docker-installation">
-<h3>Docker Installation<a class="headerlink" href="#docker-installation" title="Link to this heading"></a></h3>
-<p>For an isolated environment with all dependencies:</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># Build the Docker image</span>
-docker<span class="w"> </span>build<span class="w"> </span>-t<span class="w"> </span>dendritic-modeling<span class="w"> </span>.
-
-<span class="c1"># Run a container with GPU support</span>
-docker<span class="w"> </span>run<span class="w"> </span>--gpus<span class="w"> </span>all<span class="w"> </span>-it<span class="w"> </span>dendritic-modeling
 </pre></div>
 </div>
 </section>

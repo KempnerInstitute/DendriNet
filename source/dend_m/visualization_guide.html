@@ -87,6 +87,8 @@
 <li class="toctree-l2"><a class="reference internal" href="#computational-mechanism-visualizations">Computational Mechanism Visualizations</a><ul>
 <li class="toctree-l3"><a class="reference internal" href="#dendritic-computation">Dendritic Computation</a></li>
 <li class="toctree-l3"><a class="reference internal" href="#network-pruning-and-ablation">Network Pruning and Ablation</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#dendritic-order-ablation">Dendritic Order Ablation</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#dendritic-information-analysis">Dendritic Information Analysis</a></li>
 </ul>
 </li>
 <li class="toctree-l2"><a class="reference internal" href="#advanced-visualization-topics">Advanced Visualization Topics</a><ul>
@@ -441,6 +443,168 @@ their contribution to the network’s overall performance.</p>
 
     <span class="n">plt</span><span class="o">.</span><span class="n">tight_layout</span><span class="p">()</span>
     <span class="k">return</span> <span class="n">fig</span>
+</pre></div>
+</div>
+</section>
+<section id="dendritic-order-ablation">
+<h3>Dendritic Order Ablation<a class="headerlink" href="#dendritic-order-ablation" title="Link to this heading"></a></h3>
+<p>The framework provides a built-in visualization for analyzing the impact of ablating entire dendritic orders (primary, secondary, etc.). This can be enabled in your configuration:</p>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">visualization</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">enabled</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+<span class="w">  </span><span class="nt">plots</span><span class="p">:</span>
+<span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">dendritic_ablation_all</span><span class="w">  </span><span class="c1"># Ablation analysis by dendritic order</span>
+</pre></div>
+</div>
+<p>This visualization systematically ablates the excitatory and inhibitory branches at each dendritic order and measures the resulting performance drop:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span><span class="w"> </span><span class="nn">dendritic_modeling.utils</span><span class="w"> </span><span class="kn">import</span> <span class="n">analyze_branch_ablation</span><span class="p">,</span> <span class="n">measure_performance</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">matplotlib.pyplot</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">plt</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">numpy</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">np</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">pandas</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">pd</span>
+
+<span class="k">def</span><span class="w"> </span><span class="nf">plot_dendritic_ablation_all</span><span class="p">(</span><span class="n">model</span><span class="p">,</span> <span class="n">dataset</span><span class="p">,</span> <span class="n">device</span><span class="o">=</span><span class="s1">&#39;cuda&#39;</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Plot the impact of ablating different dendritic orders&quot;&quot;&quot;</span>
+
+    <span class="c1"># Perform dendritic order ablation</span>
+    <span class="n">results</span> <span class="o">=</span> <span class="n">analyze_branch_ablation</span><span class="p">(</span>
+        <span class="n">model</span><span class="p">,</span> <span class="n">dataset</span><span class="p">,</span> <span class="n">layer_idx</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">branch_ids</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">device</span><span class="o">=</span><span class="n">device</span>
+    <span class="p">)</span>
+
+    <span class="c1"># Calculate baseline accuracy</span>
+    <span class="n">baseline_acc</span> <span class="o">=</span> <span class="n">measure_performance</span><span class="p">(</span><span class="n">model</span><span class="p">,</span> <span class="n">dataset</span><span class="p">,</span> <span class="n">device</span><span class="o">=</span><span class="n">device</span><span class="p">)</span>
+
+    <span class="c1"># Calculate percentage drops</span>
+    <span class="n">exc_pct</span> <span class="o">=</span> <span class="p">[(</span><span class="n">drop</span> <span class="o">/</span> <span class="n">baseline_acc</span><span class="p">)</span> <span class="o">*</span> <span class="mi">100</span> <span class="k">for</span> <span class="n">drop</span> <span class="ow">in</span> <span class="n">results</span><span class="p">[</span><span class="s2">&quot;exc_drop&quot;</span><span class="p">]]</span>
+    <span class="n">inh_pct</span> <span class="o">=</span> <span class="p">[(</span><span class="n">drop</span> <span class="o">/</span> <span class="n">baseline_acc</span><span class="p">)</span> <span class="o">*</span> <span class="mi">100</span> <span class="k">for</span> <span class="n">drop</span> <span class="ow">in</span> <span class="n">results</span><span class="p">[</span><span class="s2">&quot;inh_drop&quot;</span><span class="p">]]</span>
+
+    <span class="c1"># Create DataFame</span>
+    <span class="n">df</span> <span class="o">=</span> <span class="n">pd</span><span class="o">.</span><span class="n">DataFrame</span><span class="p">({</span>
+        <span class="s1">&#39;Order&#39;</span><span class="p">:</span> <span class="n">results</span><span class="p">[</span><span class="s1">&#39;order&#39;</span><span class="p">],</span>
+        <span class="s1">&#39;Excitatory Drop (%)&#39;</span><span class="p">:</span> <span class="n">exc_pct</span><span class="p">,</span>
+        <span class="s1">&#39;Inhibitory Drop (%)&#39;</span><span class="p">:</span> <span class="n">inh_pct</span>
+    <span class="p">})</span>
+
+    <span class="c1"># Create visualization</span>
+    <span class="n">plt</span><span class="o">.</span><span class="n">figure</span><span class="p">(</span><span class="n">figsize</span><span class="o">=</span><span class="p">(</span><span class="mi">10</span><span class="p">,</span> <span class="mi">6</span><span class="p">))</span>
+    <span class="n">plt</span><span class="o">.</span><span class="n">plot</span><span class="p">(</span><span class="n">df</span><span class="p">[</span><span class="s1">&#39;Order&#39;</span><span class="p">],</span> <span class="n">df</span><span class="p">[</span><span class="s1">&#39;Excitatory Drop (%)&#39;</span><span class="p">],</span> <span class="s1">&#39;b-&#39;</span><span class="p">,</span> <span class="n">label</span><span class="o">=</span><span class="s1">&#39;Excitatory&#39;</span><span class="p">)</span>
+    <span class="n">plt</span><span class="o">.</span><span class="n">plot</span><span class="p">(</span><span class="n">df</span><span class="p">[</span><span class="s1">&#39;Order&#39;</span><span class="p">],</span> <span class="n">df</span><span class="p">[</span><span class="s1">&#39;Inhibitory Drop (%)&#39;</span><span class="p">],</span> <span class="s1">&#39;r-&#39;</span><span class="p">,</span> <span class="n">label</span><span class="o">=</span><span class="s1">&#39;Inhibitory&#39;</span><span class="p">)</span>
+
+    <span class="n">plt</span><span class="o">.</span><span class="n">xlabel</span><span class="p">(</span><span class="s1">&#39;Dendritic Order&#39;</span><span class="p">)</span>
+    <span class="n">plt</span><span class="o">.</span><span class="n">ylabel</span><span class="p">(</span><span class="s1">&#39;Performance Drop (%)&#39;</span><span class="p">)</span>
+    <span class="n">plt</span><span class="o">.</span><span class="n">title</span><span class="p">(</span><span class="s1">&#39;Impact of Ablating Dendritic Orders&#39;</span><span class="p">)</span>
+    <span class="n">plt</span><span class="o">.</span><span class="n">legend</span><span class="p">()</span>
+    <span class="n">plt</span><span class="o">.</span><span class="n">grid</span><span class="p">(</span><span class="kc">True</span><span class="p">)</span>
+
+    <span class="k">return</span> <span class="n">plt</span><span class="o">.</span><span class="n">gcf</span><span class="p">(),</span> <span class="n">df</span>
+</pre></div>
+</div>
+<p>The resulting visualization reveals:
+1. The relative importance of each dendritic order
+2. Which orders are most critical for performance
+3. The differential contributions of excitatory vs. inhibitory pathways</p>
+</section>
+<section id="dendritic-information-analysis">
+<h3>Dendritic Information Analysis<a class="headerlink" href="#dendritic-information-analysis" title="Link to this heading"></a></h3>
+<p>Another powerful visualization is the dendritic information analysis, which quantifies how much task-relevant information is contained in each dendritic order:</p>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">visualization</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">enabled</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+<span class="w">  </span><span class="nt">plots</span><span class="p">:</span>
+<span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">dendritic_information_inputs</span><span class="w">    </span><span class="c1"># Information content in raw branch inputs</span>
+<span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">dendritic_information_activations</span><span class="w">  </span><span class="c1"># Information content in processed branch outputs</span>
+</pre></div>
+</div>
+<p>This visualization now comes in two types:</p>
+<ol class="arabic simple">
+<li><p><strong>dendritic_information_inputs</strong>: Analyzes information in the raw inputs to branches (pre-shunting)</p></li>
+<li><p><strong>dendritic_information_activations</strong>: Analyzes information in the processed branch outputs (post-shunting)</p></li>
+</ol>
+<p>Each visualization:
+1. Extracts branch activations at each dendritic order
+2. Trains simple MLP classifiers to predict labels from these activations
+3. Uses classification accuracy as a proxy for information content
+4. Creates visualizations showing information content across dendritic orders</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span><span class="w"> </span><span class="nn">dendritic_modeling.utils</span><span class="w"> </span><span class="kn">import</span> <span class="n">analyze_dendritic_information</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">matplotlib.pyplot</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">plt</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">numpy</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">np</span>
+
+<span class="k">def</span><span class="w"> </span><span class="nf">plot_dendritic_information_inputs</span><span class="p">(</span><span class="n">model</span><span class="p">,</span> <span class="n">dataset</span><span class="p">,</span> <span class="n">device</span><span class="o">=</span><span class="s1">&#39;cuda&#39;</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Visualize information content in raw dendritic inputs&quot;&quot;&quot;</span>
+
+    <span class="c1"># Analyze information content in branch inputs (pre-shunting)</span>
+    <span class="n">results</span> <span class="o">=</span> <span class="n">analyze_dendritic_information</span><span class="p">(</span>
+        <span class="n">model</span><span class="o">=</span><span class="n">model</span><span class="p">,</span>
+        <span class="n">dataset</span><span class="o">=</span><span class="n">dataset</span><span class="p">,</span>
+        <span class="n">device</span><span class="o">=</span><span class="n">device</span><span class="p">,</span>
+        <span class="n">mlp_hidden_dims</span><span class="o">=</span><span class="p">[</span><span class="mi">100</span><span class="p">,</span> <span class="mi">50</span><span class="p">],</span>
+        <span class="n">training_epochs</span><span class="o">=</span><span class="mi">20</span><span class="p">,</span>
+        <span class="n">batch_size</span><span class="o">=</span><span class="mi">64</span><span class="p">,</span>
+        <span class="n">use_post_shunting</span><span class="o">=</span><span class="kc">False</span>  <span class="c1"># Analyze raw inputs</span>
+    <span class="p">)</span>
+
+    <span class="c1"># Extract results</span>
+    <span class="n">depth_names</span> <span class="o">=</span> <span class="n">results</span><span class="p">[</span><span class="s2">&quot;branch_depths&quot;</span><span class="p">]</span>
+    <span class="n">exc_acc</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">([</span><span class="n">acc</span> <span class="k">if</span> <span class="n">acc</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="k">else</span> <span class="n">np</span><span class="o">.</span><span class="n">nan</span> <span class="k">for</span> <span class="n">acc</span> <span class="ow">in</span> <span class="n">results</span><span class="p">[</span><span class="s2">&quot;exc_accuracy&quot;</span><span class="p">]])</span>
+    <span class="n">inh_acc</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">([</span><span class="n">acc</span> <span class="k">if</span> <span class="n">acc</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="k">else</span> <span class="n">np</span><span class="o">.</span><span class="n">nan</span> <span class="k">for</span> <span class="n">acc</span> <span class="ow">in</span> <span class="n">results</span><span class="p">[</span><span class="s2">&quot;inh_accuracy&quot;</span><span class="p">]])</span>
+    <span class="n">combined_acc</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">([</span><span class="n">acc</span> <span class="k">if</span> <span class="n">acc</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="k">else</span> <span class="n">np</span><span class="o">.</span><span class="n">nan</span> <span class="k">for</span> <span class="n">acc</span> <span class="ow">in</span> <span class="n">results</span><span class="p">[</span><span class="s2">&quot;combined_accuracy&quot;</span><span class="p">]])</span>
+
+    <span class="c1"># Create visualization</span>
+    <span class="n">fig</span><span class="p">,</span> <span class="n">ax</span> <span class="o">=</span> <span class="n">plt</span><span class="o">.</span><span class="n">subplots</span><span class="p">(</span><span class="n">figsize</span><span class="o">=</span><span class="p">(</span><span class="mi">10</span><span class="p">,</span> <span class="mi">6</span><span class="p">))</span>
+    <span class="n">x</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">arange</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">depth_names</span><span class="p">))</span>
+    <span class="n">width</span> <span class="o">=</span> <span class="mf">0.25</span>
+
+    <span class="c1"># Plot each type of accuracy (only if data exists)</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">np</span><span class="o">.</span><span class="n">all</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">isnan</span><span class="p">(</span><span class="n">exc_acc</span><span class="p">)):</span>
+        <span class="n">ax</span><span class="o">.</span><span class="n">bar</span><span class="p">(</span><span class="n">x</span> <span class="o">-</span> <span class="n">width</span><span class="p">,</span> <span class="n">exc_acc</span><span class="p">,</span> <span class="n">width</span><span class="p">,</span> <span class="n">label</span><span class="o">=</span><span class="s1">&#39;Excitatory Inputs&#39;</span><span class="p">,</span> <span class="n">color</span><span class="o">=</span><span class="s1">&#39;blue&#39;</span><span class="p">,</span> <span class="n">alpha</span><span class="o">=</span><span class="mf">0.7</span><span class="p">)</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">np</span><span class="o">.</span><span class="n">all</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">isnan</span><span class="p">(</span><span class="n">inh_acc</span><span class="p">)):</span>
+        <span class="n">ax</span><span class="o">.</span><span class="n">bar</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="n">inh_acc</span><span class="p">,</span> <span class="n">width</span><span class="p">,</span> <span class="n">label</span><span class="o">=</span><span class="s1">&#39;Inhibitory Inputs&#39;</span><span class="p">,</span> <span class="n">color</span><span class="o">=</span><span class="s1">&#39;red&#39;</span><span class="p">,</span> <span class="n">alpha</span><span class="o">=</span><span class="mf">0.7</span><span class="p">)</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">np</span><span class="o">.</span><span class="n">all</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">isnan</span><span class="p">(</span><span class="n">combined_acc</span><span class="p">)):</span>
+        <span class="n">ax</span><span class="o">.</span><span class="n">bar</span><span class="p">(</span><span class="n">x</span> <span class="o">+</span> <span class="n">width</span><span class="p">,</span> <span class="n">combined_acc</span><span class="p">,</span> <span class="n">width</span><span class="p">,</span> <span class="n">label</span><span class="o">=</span><span class="s1">&#39;Combined Inputs&#39;</span><span class="p">,</span> <span class="n">color</span><span class="o">=</span><span class="s1">&#39;purple&#39;</span><span class="p">,</span> <span class="n">alpha</span><span class="o">=</span><span class="mf">0.7</span><span class="p">)</span>
+
+    <span class="c1"># Add labels and title</span>
+    <span class="n">ax</span><span class="o">.</span><span class="n">set_xlabel</span><span class="p">(</span><span class="s1">&#39;Branch Depth&#39;</span><span class="p">)</span>
+    <span class="n">ax</span><span class="o">.</span><span class="n">set_ylabel</span><span class="p">(</span><span class="s1">&#39;Classification Accuracy&#39;</span><span class="p">)</span>
+    <span class="n">ax</span><span class="o">.</span><span class="n">set_title</span><span class="p">(</span><span class="s1">&#39;Information Content in Branch Inputs (Pre-Shunting)&#39;</span><span class="p">)</span>
+    <span class="n">ax</span><span class="o">.</span><span class="n">set_xticks</span><span class="p">(</span><span class="n">x</span><span class="p">)</span>
+    <span class="n">ax</span><span class="o">.</span><span class="n">set_xticklabels</span><span class="p">(</span><span class="n">depth_names</span><span class="p">)</span>
+    <span class="n">ax</span><span class="o">.</span><span class="n">legend</span><span class="p">()</span>
+
+    <span class="k">return</span> <span class="n">fig</span><span class="p">,</span> <span class="n">results</span>
+
+<span class="k">def</span><span class="w"> </span><span class="nf">plot_dendritic_information_activations</span><span class="p">(</span><span class="n">model</span><span class="p">,</span> <span class="n">dataset</span><span class="p">,</span> <span class="n">device</span><span class="o">=</span><span class="s1">&#39;cuda&#39;</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Visualize information content in processed dendritic outputs&quot;&quot;&quot;</span>
+
+    <span class="c1"># Analyze information content in branch outputs (post-shunting)</span>
+    <span class="n">results</span> <span class="o">=</span> <span class="n">analyze_dendritic_information</span><span class="p">(</span>
+        <span class="n">model</span><span class="o">=</span><span class="n">model</span><span class="p">,</span>
+        <span class="n">dataset</span><span class="o">=</span><span class="n">dataset</span><span class="p">,</span>
+        <span class="n">device</span><span class="o">=</span><span class="n">device</span><span class="p">,</span>
+        <span class="n">mlp_hidden_dims</span><span class="o">=</span><span class="p">[</span><span class="mi">100</span><span class="p">,</span> <span class="mi">50</span><span class="p">],</span>
+        <span class="n">training_epochs</span><span class="o">=</span><span class="mi">20</span><span class="p">,</span>
+        <span class="n">batch_size</span><span class="o">=</span><span class="mi">64</span><span class="p">,</span>
+        <span class="n">use_post_shunting</span><span class="o">=</span><span class="kc">True</span>  <span class="c1"># Analyze processed outputs</span>
+    <span class="p">)</span>
+
+    <span class="c1"># Extract results</span>
+    <span class="n">depth_names</span> <span class="o">=</span> <span class="n">results</span><span class="p">[</span><span class="s2">&quot;branch_depths&quot;</span><span class="p">]</span>
+    <span class="n">activation_acc</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">([</span><span class="n">acc</span> <span class="k">if</span> <span class="n">acc</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="k">else</span> <span class="n">np</span><span class="o">.</span><span class="n">nan</span> <span class="k">for</span> <span class="n">acc</span> <span class="ow">in</span> <span class="n">results</span><span class="p">[</span><span class="s2">&quot;exc_accuracy&quot;</span><span class="p">]])</span>
+
+    <span class="c1"># Create visualization</span>
+    <span class="n">fig</span><span class="p">,</span> <span class="n">ax</span> <span class="o">=</span> <span class="n">plt</span><span class="o">.</span><span class="n">subplots</span><span class="p">(</span><span class="n">figsize</span><span class="o">=</span><span class="p">(</span><span class="mi">10</span><span class="p">,</span> <span class="mi">6</span><span class="p">))</span>
+    <span class="n">x</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">arange</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">depth_names</span><span class="p">))</span>
+    <span class="n">width</span> <span class="o">=</span> <span class="mf">0.4</span>
+
+    <span class="c1"># Plot activation accuracy (only if data exists)</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">np</span><span class="o">.</span><span class="n">all</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">isnan</span><span class="p">(</span><span class="n">activation_acc</span><span class="p">)):</span>
+        <span class="n">ax</span><span class="o">.</span><span class="n">bar</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="n">activation_acc</span><span class="p">,</span> <span class="n">width</span><span class="p">,</span> <span class="n">label</span><span class="o">=</span><span class="s1">&#39;Branch Activations&#39;</span><span class="p">,</span> <span class="n">color</span><span class="o">=</span><span class="s1">&#39;green&#39;</span><span class="p">,</span> <span class="n">alpha</span><span class="o">=</span><span class="mf">0.7</span><span class="p">)</span>
+
+    <span class="c1"># Add labels and title</span>
+    <span class="n">ax</span><span class="o">.</span><span class="n">set_xlabel</span><span class="p">(</span><span class="s1">&#39;Branch Depth&#39;</span><span class="p">)</span>
+    <span class="n">ax</span><span class="o">.</span><span class="n">set_ylabel</span><span class="p">(</span><span class="s1">&#39;Classification Accuracy&#39;</span><span class="p">)</span>
+    <span class="n">ax</span><span class="o">.</span><span class="n">set_title</span><span class="p">(</span><span class="s1">&#39;Information Content in Branch Outputs (Post-Shunting)&#39;</span><span class="p">)</span>
+    <span class="n">ax</span><span class="o">.</span><span class="n">set_xticks</span><span class="p">(</span><span class="n">x</span><span class="p">)</span>
+    <span class="n">ax</span><span class="o">.</span><span class="n">set_xticklabels</span><span class="p">(</span><span class="n">depth_names</span><span class="p">)</span>
+    <span class="n">ax</span><span class="o">.</span><span class="n">legend</span><span class="p">()</span>
+
+    <span class="k">return</span> <span class="n">fig</span><span class="p">,</span> <span class="n">results</span>
 </pre></div>
 </div>
 </section>

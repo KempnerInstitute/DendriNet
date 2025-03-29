@@ -87,7 +87,7 @@ The `train` section defines the training process and hyperparameters:
 .. code-block:: yaml
 
     train:
-      learning_strategy: mle  # "mle", "freeze_layers", "local_credit_assignment", "two_step", "two_step_kl"
+      learning_strategy: mle  # Multiple strategies available (see below)
       run_name: mnist_einet
       seed: 42
       train_valid_split: 0.8
@@ -97,9 +97,16 @@ The `train` section defines the training process and hyperparameters:
       batch_size: 64
       grad_clip_value: 1.0
       
-      # For specialized learning strategies
-      epochs_per_layer: 10  # For "freeze_layers"
-      pretrain_epochs: 5    # For "two_step"
+      # For layer-wise learning strategies
+      epochs_per_layer: 10   # Number of epochs to train each layer/branch
+      final_tune_epochs: 5   # Number of epochs for final fine-tuning
+      
+      # For strategies with pretraining
+      pretrain_epochs: 10    # Number of epochs for initial full network training
+      
+      # For voltage stabilization strategy
+      warmup_epochs: 1       # Number of epochs for activation stabilization
+      stability_target_voltage: 0.5  # Target activation value
       
       # Input network training configuration
       input_net_training:
@@ -118,7 +125,139 @@ Key parameters include:
 
 - **learning_strategy**: Algorithm for training the network
 - **lr**, **batch_size**, **epochs**: Standard training hyperparameters
+- **epochs_per_layer**, **final_tune_epochs**: Parameters for layer-wise training strategies
+- **pretrain_epochs**: Parameter for strategies with initial full-network training
 - **input_net_training**: Configuration for input transformation networks
+
+Available Learning Strategies
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+The framework provides several learning strategies that can be specified in the configuration:
+
+1. **MLE (Maximum Likelihood Estimation)** - `learning_strategy: mle`
+   
+   Standard end-to-end training where all parameters are updated simultaneously.
+
+2. **Freeze Layers** - `learning_strategy: freeze_layers`
+   
+   Trains the network one layer at a time, from the soma (output) to the input, focusing on:
+   
+   - Training soma-proximal layers first, then progressively moving to distal layers
+   - Using `epochs_per_layer` epochs for each layer
+   - Performing final tuning of all layers for `final_tune_epochs` epochs
+   
+   Example configuration:
+   
+   .. code-block:: yaml
+   
+       train:
+         learning_strategy: freeze_layers
+         epochs_per_layer: 20    # Each layer is trained for 20 epochs
+         final_tune_epochs: 10   # 10 epochs of full-network fine-tuning
+
+3. **Freeze Layers Reversed** - `learning_strategy: freeze_layers_reversed`
+   
+   Similar to freeze_layers, but trains the network in the opposite direction:
+   
+   - Starting from distal dendrites (input) and moving toward the soma (output)
+   - Following the natural flow of information in neural dendrites
+   - More biologically plausible than standard freeze_layers
+   
+   Example configuration:
+   
+   .. code-block:: yaml
+   
+       train:
+         learning_strategy: freeze_layers_reversed
+         epochs_per_layer: 20    # Each layer is trained for 20 epochs
+         final_tune_epochs: 10   # 10 epochs of full-network fine-tuning
+
+4. **Freeze Layers with Pretraining** - `learning_strategy: freeze_layers_with_pretraining`
+   
+   Three-phase training approach:
+   
+   - Initial full-network training for `pretrain_epochs` epochs
+   - Layer-by-layer training from soma to input for `epochs_per_layer` epochs per layer
+   - Final full-network fine-tuning for `final_tune_epochs` epochs
+   
+   Example configuration:
+   
+   .. code-block:: yaml
+   
+       train:
+         learning_strategy: freeze_layers_with_pretraining
+         pretrain_epochs: 10     # Initial full-network training
+         epochs_per_layer: 20    # Each layer is trained for 20 epochs
+         final_tune_epochs: 10   # 10 epochs of full-network fine-tuning
+
+5. **Freeze Layers Reversed with Pretraining** - `learning_strategy: freeze_layers_reversed_with_pretraining`
+   
+   Combines pretraining with the reversed layer training approach:
+   
+   - Initial full-network training for `pretrain_epochs` epochs
+   - Layer-by-layer training from input to soma for `epochs_per_layer` epochs per layer
+   - Final full-network fine-tuning for `final_tune_epochs` epochs
+   
+   Example configuration:
+   
+   .. code-block:: yaml
+   
+       train:
+         learning_strategy: freeze_layers_reversed_with_pretraining
+         pretrain_epochs: 10     # Initial full-network training
+         epochs_per_layer: 20    # Each layer is trained for 20 epochs
+         final_tune_epochs: 10   # 10 epochs of full-network fine-tuning
+
+6. **Freeze Branches** - `learning_strategy: freeze_branches`
+   
+   Similar to freeze_layers, but operates at the branch level rather than layer level:
+   
+   - Trains one dendrite branch at a time, starting from branches closest to the soma
+   - Uses `epochs_per_branch` epochs for each branch (equivalent to `epochs_per_layer`)
+   - Performs final tuning with all branches
+   
+   Example configuration:
+   
+   .. code-block:: yaml
+   
+       train:
+         learning_strategy: freeze_branches
+         epochs_per_layer: 20    # Each branch is trained for 20 epochs (parameter name remains the same)
+         final_tune_epochs: 10   # 10 epochs of full-network fine-tuning
+
+7. **Other strategies**:
+   
+   - `local_credit_assignment`: Trains with locally-computed gradients
+   - `two_step`: Trains an auxiliary network before the full model
+   - `two_step_kl`: Similar to two_step but with KL regularization
+   - `voltage_stabilization`: Includes a warm-up phase to stabilize activations
+
+Complete Example
+~~~~~~~~~~~~~~~
+
+A complete example of a configuration using the freeze_layers_reversed_with_pretraining strategy:
+
+.. code-block:: yaml
+
+    train:
+      learning_strategy: freeze_layers_reversed_with_pretraining
+      run_name: mnist_einet_freeze_reversed_pretrain
+      seed: 42
+      train_valid_split: 0.8
+      lr: 0.005
+      weight_decay_rate: 0.01
+      epochs: 60             # Total epochs across all phases
+      batch_size: 128
+      grad_clip_value: 1.0
+      pretrain_epochs: 10    # Phase 1: Initial full network training
+      epochs_per_layer: 20   # Phase 2: Per-layer training (input → soma)
+      final_tune_epochs: 10  # Phase 3: Final fine-tuning
+      
+      # Input network training configuration
+      input_net_training:
+        training_mode: "sequential"
+        train_input_net: true
+        input_net_epochs: 15
 
 Task Configuration
 ------------------

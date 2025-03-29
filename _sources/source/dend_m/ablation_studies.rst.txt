@@ -27,7 +27,7 @@ The most common type of ablation study in dendritic networks is branch ablation,
 Branch Ablation Functions
 ~~~~~~~~~~~~~~~~~~~~~~~~~
 
-The framework provides functions for branch ablation in ``plot_utils.py``:
+The framework provides functions for branch ablation in ``utils.py``:
 
 .. code-block:: python
 
@@ -54,10 +54,10 @@ A comprehensive branch ablation analysis function is also available:
 
 .. code-block:: python
 
-    def analyze_branch_ablation(model, dataset, layer_idx, branch_ids, 
-                               mode='direct', device='cpu'):
+    def analyze_branch_ablation(model, dataset, layer_idx=None, branch_ids=None,
+                                mode='direct', device='cpu'):
         """
-        Perform ablation analysis for specific branches.
+        Perform ablation analysis for specific branches or dendritic orders.
         
         Parameters
         ----------
@@ -65,8 +65,9 @@ A comprehensive branch ablation analysis function is also available:
             The model to analyze
         dataset : torch.utils.data.Dataset
             Dataset to evaluate on
-        layer_idx : int
-            Index of the layer to ablate
+        layer_idx : int or None
+            Index of the layer to ablate. If None and branch_ids is None,
+            perform dendritic order analysis.
         branch_ids : list or None
             IDs of branches to ablate, or None for all branches
         mode : str
@@ -76,11 +77,17 @@ A comprehensive branch ablation analysis function is also available:
             
         Returns
         -------
-        tuple
-            (baseline_accuracy, results_dict)
+        When layer_idx is None and branch_ids is None:
+            Dict with dendritic order analysis results
+        Otherwise:
+            Tuple (baseline_accuracy, results_dict)
         """
 
-This function ablates specific branches and measures the change in performance, helping identify the branches that are most important for specific tasks.
+This function has two modes of operation:
+1. **Branch-specific ablation**: When `layer_idx` is specified, it ablates specific branches and measures the change in performance
+2. **Dendritic order ablation**: When both `layer_idx` and `branch_ids` are None, it performs ablation analysis by dendritic order
+
+The dendritic order analysis is especially useful for understanding how different levels of the dendritic hierarchy contribute to network performance.
 
 Example: Branch Ablation
 ~~~~~~~~~~~~~~~~~~~~~~~~
@@ -90,7 +97,7 @@ Here's an example of how to conduct a branch ablation study:
 .. code-block:: python
 
     import torch
-    from dendritic_modeling.plot_utils import analyze_branch_ablation
+    from dendritic_modeling.utils import analyze_branch_ablation
     
     # Load model and dataset
     model = torch.load("path/to/model.pt")
@@ -102,17 +109,62 @@ Here's an example of how to conduct a branch ablation study:
     
     # Print results
     print(f"Baseline accuracy: {baseline_acc:.4f}")
-    for branch_id, acc in branch_results.items():
-        print(f"Branch {branch_id} ablated: {acc:.4f} (Δ = {acc - baseline_acc:.4f})")
+    for branch_id, (acc, delta) in branch_results.items():
+        print(f"Branch {branch_id} ablated: {acc:.4f} (Δ = {delta:.4f})")
     
     # Identify most important branches
-    importance = {branch_id: baseline_acc - acc for branch_id, acc in branch_results.items()}
+    importance = {branch_id: results[branch_id][1] for branch_id in branch_results}
     most_important = sorted(importance.items(), key=lambda x: x[1], reverse=True)[:5]
     print("Most important branches:")
     for branch_id, imp in most_important:
         print(f"Branch {branch_id}: Importance = {imp:.4f}")
 
-This code performs ablation for each branch in layer 0 and identifies the branches with the largest impact on performance.
+Example: Dendritic Order Ablation
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Here's an example of how to conduct a dendritic order ablation study:
+
+.. code-block:: python
+
+    from dendritic_modeling.utils import analyze_branch_ablation
+    
+    # Load model and dataset
+    model = torch.load("path/to/model.pt")
+    
+    # Perform dendritic order ablation analysis
+    results = analyze_branch_ablation(
+        model, dataset, layer_idx=None, branch_ids=None, device='cuda'
+    )
+    
+    # Print results
+    print("Dendritic Order Ablation Results:")
+    for i, order in enumerate(results["order"]):
+        exc_drop = results["exc_drop"][i]
+        inh_drop = results["inh_drop"][i]
+        print(f"Order {order}:")
+        print(f"  Excitatory ablation: {exc_drop:.4f}")
+        print(f"  Inhibitory ablation: {inh_drop:.4f}")
+    
+    # Calculate percentage drops
+    baseline_acc = measure_performance(model, dataset, device='cuda')
+    exc_pct = [(drop / baseline_acc) * 100 for drop in results["exc_drop"]]
+    inh_pct = [(drop / baseline_acc) * 100 for drop in results["inh_drop"]]
+    
+    # Create visualization
+    import matplotlib.pyplot as plt
+    
+    plt.figure(figsize=(10, 6))
+    plt.plot(results["order"], exc_pct, 'b-', label='Excitatory')
+    plt.plot(results["order"], inh_pct, 'r-', label='Inhibitory')
+    plt.xlabel('Dendritic Order')
+    plt.ylabel('Performance Drop (%)')
+    plt.title('Dendritic Order Ablation Results')
+    plt.legend()
+    plt.grid(True)
+    plt.savefig('dendritic_order_ablation.png')
+    plt.close()
+
+This code performs ablation for each dendritic order and visualizes the impact on performance.
 
 Layer Ablation
 --------------

@@ -145,6 +145,7 @@
     <span class="k">def</span><span class="w"> </span><span class="nf">asdict</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
         <span class="k">return</span> <span class="n">asdict</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span>
 
+
 <div class="viewcode-block" id="EINetParameters">
 <a class="viewcode-back" href="../../source/dendritic_modeling.html#dendritic_modeling.config.EINetParameters">[docs]</a>
 <span class="nd">@dataclass</span>
@@ -170,6 +171,7 @@
     <span class="n">output_dim</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">10</span></div>
 
 
+
 <div class="viewcode-block" id="FeedForwardParameters">
 <a class="viewcode-back" href="../../source/dendritic_modeling.html#dendritic_modeling.config.FeedForwardParameters">[docs]</a>
 <span class="nd">@dataclass</span>
@@ -181,12 +183,14 @@
     <span class="n">output_dim</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">10</span></div>
 
 
+
 <div class="viewcode-block" id="ModelNetworkConfig">
 <a class="viewcode-back" href="../../source/dendritic_modeling.html#dendritic_modeling.config.ModelNetworkConfig">[docs]</a>
 <span class="nd">@dataclass</span>
 <span class="k">class</span><span class="w"> </span><span class="nc">ModelNetworkConfig</span><span class="p">(</span><span class="n">BaseConfig</span><span class="p">):</span>
     <span class="nb">type</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;EINet&quot;</span>
     <span class="n">parameters</span><span class="p">:</span> <span class="n">EINetParameters</span> <span class="o">=</span> <span class="n">field</span><span class="p">(</span><span class="n">default_factory</span><span class="o">=</span><span class="n">EINetParameters</span><span class="p">)</span></div>
+
 
 
 <div class="viewcode-block" id="ModelConfig">
@@ -196,6 +200,7 @@
     <span class="n">task</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;classification&quot;</span>
     <span class="n">probabilistic</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">True</span>
     <span class="n">network</span><span class="p">:</span> <span class="n">ModelNetworkConfig</span> <span class="o">=</span> <span class="n">field</span><span class="p">(</span><span class="n">default_factory</span><span class="o">=</span><span class="n">ModelNetworkConfig</span><span class="p">)</span></div>
+
 
 
 <div class="viewcode-block" id="TrainConfig">
@@ -212,8 +217,14 @@
     <span class="n">batch_size</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">128</span>
     <span class="n">grad_clip_value</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">5.0</span>
     <span class="n">epochs_per_layer</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">50</span>
+    <span class="n">final_tune_epochs</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">10</span>  <span class="c1"># Number of epochs for final fine-tuning after layer-by-layer training</span>
     <span class="n">pretrain_epochs</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">50</span>
-    <span class="n">input_net_training</span><span class="p">:</span> <span class="nb">dict</span> <span class="o">=</span> <span class="n">field</span><span class="p">(</span><span class="n">default_factory</span><span class="o">=</span><span class="nb">dict</span><span class="p">)</span></div>
+    <span class="n">input_net_training</span><span class="p">:</span> <span class="nb">dict</span> <span class="o">=</span> <span class="n">field</span><span class="p">(</span><span class="n">default_factory</span><span class="o">=</span><span class="nb">dict</span><span class="p">)</span>
+
+    <span class="c1"># Newly added fields for &quot;voltage_stabilization&quot; strategy:</span>
+    <span class="n">warmup_epochs</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">5</span>  <span class="c1"># how many epochs to do MSE warmup</span>
+    <span class="n">stability_target_voltage</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">0.5</span>  <span class="c1"># the target &quot;voltage&quot; used in warmup</span></div>
+
 
 
 <div class="viewcode-block" id="VisualizationConfig">
@@ -222,7 +233,9 @@
 <span class="k">class</span><span class="w"> </span><span class="nc">VisualizationConfig</span><span class="p">(</span><span class="n">BaseConfig</span><span class="p">):</span>
     <span class="n">enabled</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span>
     <span class="n">visualize_epochs</span><span class="p">:</span> <span class="n">List</span><span class="p">[</span><span class="nb">int</span><span class="p">]</span> <span class="o">=</span> <span class="n">field</span><span class="p">(</span><span class="n">default_factory</span><span class="o">=</span><span class="k">lambda</span><span class="p">:</span> <span class="p">[])</span>
-    <span class="n">plots</span><span class="p">:</span> <span class="n">List</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="n">field</span><span class="p">(</span><span class="n">default_factory</span><span class="o">=</span><span class="k">lambda</span><span class="p">:</span> <span class="p">[</span><span class="s2">&quot;branch_info&quot;</span><span class="p">,</span> <span class="s2">&quot;ablation&quot;</span><span class="p">])</span></div>
+    <span class="n">plots</span><span class="p">:</span> <span class="n">List</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="n">field</span><span class="p">(</span><span class="n">default_factory</span><span class="o">=</span><span class="k">lambda</span><span class="p">:</span> <span class="p">[</span><span class="s2">&quot;branch_info&quot;</span><span class="p">,</span> <span class="s2">&quot;ablation&quot;</span><span class="p">])</span>
+    <span class="n">parameters</span><span class="p">:</span> <span class="n">Dict</span> <span class="o">=</span> <span class="n">field</span><span class="p">(</span><span class="n">default_factory</span><span class="o">=</span><span class="nb">dict</span><span class="p">)</span></div>
+
 
 
 <div class="viewcode-block" id="WandbConfig">
@@ -236,6 +249,7 @@
     <span class="n">use_wandb</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span></div>
 
 
+
 <div class="viewcode-block" id="TaskConfig">
 <a class="viewcode-back" href="../../source/dendritic_modeling.html#dendritic_modeling.config.TaskConfig">[docs]</a>
 <span class="nd">@dataclass</span>
@@ -245,11 +259,13 @@
     <span class="n">parameters</span><span class="p">:</span> <span class="n">Dict</span> <span class="o">=</span> <span class="n">field</span><span class="p">(</span><span class="n">default_factory</span><span class="o">=</span><span class="nb">dict</span><span class="p">)</span></div>
 
 
+
 <div class="viewcode-block" id="OutputsConfig">
 <a class="viewcode-back" href="../../source/dendritic_modeling.html#dendritic_modeling.config.OutputsConfig">[docs]</a>
 <span class="nd">@dataclass</span>
 <span class="k">class</span><span class="w"> </span><span class="nc">OutputsConfig</span><span class="p">(</span><span class="n">BaseConfig</span><span class="p">):</span>
     <span class="nb">dir</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;outputs&quot;</span></div>
+
 
 
 <div class="viewcode-block" id="Config">
@@ -262,6 +278,7 @@
     <span class="n">visualization</span><span class="p">:</span> <span class="n">VisualizationConfig</span> <span class="o">=</span> <span class="n">field</span><span class="p">(</span><span class="n">default_factory</span><span class="o">=</span><span class="n">VisualizationConfig</span><span class="p">)</span>
     <span class="n">task</span><span class="p">:</span> <span class="n">TaskConfig</span> <span class="o">=</span> <span class="n">field</span><span class="p">(</span><span class="n">default_factory</span><span class="o">=</span><span class="n">TaskConfig</span><span class="p">)</span>
     <span class="n">outputs</span><span class="p">:</span> <span class="n">OutputsConfig</span> <span class="o">=</span> <span class="n">field</span><span class="p">(</span><span class="n">default_factory</span><span class="o">=</span><span class="n">OutputsConfig</span><span class="p">)</span></div>
+
 
 
 <div class="viewcode-block" id="load_config">

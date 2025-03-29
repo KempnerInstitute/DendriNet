@@ -283,9 +283,9 @@
         <span class="k">if</span> <span class="n">x</span><span class="o">.</span><span class="n">dim</span><span class="p">()</span> <span class="o">!=</span> <span class="mi">2</span><span class="p">:</span>
             <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Expected input to be a 2D tensor, got shape </span><span class="si">{</span><span class="n">x</span><span class="o">.</span><span class="n">shape</span><span class="si">}</span><span class="s2"> with </span><span class="si">{</span><span class="n">x</span><span class="o">.</span><span class="n">dim</span><span class="p">()</span><span class="si">}</span><span class="s2"> dimensions&quot;</span><span class="p">)</span>
             
-        <span class="k">return</span> <span class="n">torch</span><span class="o">.</span><span class="n">mm</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="n">pruned_weight</span><span class="o">.</span><span class="n">t</span><span class="p">())</span></div>
+        <span class="k">return</span> <span class="n">torch</span><span class="o">.</span><span class="n">matmul</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="n">pruned_weight</span><span class="o">.</span><span class="n">t</span><span class="p">())</span></div>
 
-    
+        
 <div class="viewcode-block" id="TopKLinear.weight">
 <a class="viewcode-back" href="../../source/dendritic_modeling.html#dendritic_modeling.dendrinet.TopKLinear.weight">[docs]</a>
     <span class="k">def</span><span class="w"> </span><span class="nf">weight</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
@@ -455,9 +455,9 @@
         <span class="k">if</span> <span class="n">x</span><span class="o">.</span><span class="n">dim</span><span class="p">()</span> <span class="o">!=</span> <span class="mi">2</span><span class="p">:</span>
             <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Expected input to be a 2D tensor, got shape </span><span class="si">{</span><span class="n">x</span><span class="o">.</span><span class="n">shape</span><span class="si">}</span><span class="s2"> with </span><span class="si">{</span><span class="n">x</span><span class="o">.</span><span class="n">dim</span><span class="p">()</span><span class="si">}</span><span class="s2"> dimensions&quot;</span><span class="p">)</span>
             
-        <span class="k">return</span> <span class="n">torch</span><span class="o">.</span><span class="n">mm</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">block</span><span class="p">()</span><span class="o">.</span><span class="n">t</span><span class="p">())</span></div>
+        <span class="k">return</span> <span class="n">torch</span><span class="o">.</span><span class="n">matmul</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">block</span><span class="p">()</span><span class="o">.</span><span class="n">t</span><span class="p">())</span></div>
 
-    
+        
 <div class="viewcode-block" id="BlockLinear.sum_conductances">
 <a class="viewcode-back" href="../../source/dendritic_modeling.html#dendritic_modeling.dendrinet.BlockLinear.sum_conductances">[docs]</a>
     <span class="k">def</span><span class="w"> </span><span class="nf">sum_conductances</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
@@ -521,7 +521,7 @@
         <span class="bp">self</span><span class="o">.</span><span class="n">blocklinear_strategy</span> <span class="o">=</span> <span class="n">blocklinear_strategy</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">use_shunting</span> <span class="o">=</span> <span class="n">use_shunting</span>
         
-        <span class="bp">self</span><span class="o">.</span><span class="n">input_excitatory</span> <span class="o">=</span> <span class="n">excitatory_input_dim</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">input_excitatory</span> <span class="o">=</span> <span class="p">(</span><span class="n">excitatory_input_dim</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">)</span>
         <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">input_excitatory</span><span class="p">:</span>
             <span class="bp">self</span><span class="o">.</span><span class="n">branch_excitation</span> <span class="o">=</span> <span class="n">TopKLinear</span><span class="p">(</span>
                 <span class="n">in_features</span><span class="o">=</span><span class="n">excitatory_input_dim</span><span class="p">,</span>
@@ -530,8 +530,10 @@
                 <span class="n">init_method</span><span class="o">=</span><span class="n">topk_init_method</span><span class="p">,</span>
             <span class="p">)</span>
             <span class="bp">self</span><span class="o">.</span><span class="n">excitatory_input_dim</span> <span class="o">=</span> <span class="n">excitatory_input_dim</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">branch_excitation</span> <span class="o">=</span> <span class="kc">None</span>
 
-        <span class="bp">self</span><span class="o">.</span><span class="n">input_inhibitory</span> <span class="o">=</span> <span class="n">inhibitory_input_dim</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">input_inhibitory</span> <span class="o">=</span> <span class="p">(</span><span class="n">inhibitory_input_dim</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">)</span>
         <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">input_inhibitory</span><span class="p">:</span>
             <span class="bp">self</span><span class="o">.</span><span class="n">branch_inhibition</span> <span class="o">=</span> <span class="n">TopKLinear</span><span class="p">(</span>
                 <span class="n">in_features</span><span class="o">=</span><span class="n">inhibitory_input_dim</span><span class="p">,</span>
@@ -540,6 +542,8 @@
                 <span class="n">init_method</span><span class="o">=</span><span class="n">topk_init_method</span><span class="p">,</span>
             <span class="p">)</span>
             <span class="bp">self</span><span class="o">.</span><span class="n">inhibitory_input_dim</span> <span class="o">=</span> <span class="n">inhibitory_input_dim</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">branch_inhibition</span> <span class="o">=</span> <span class="kc">None</span>
 
         <span class="n">gradient_scaler</span> <span class="o">=</span> <span class="n">GradientScaler</span><span class="p">(</span>
             <span class="n">reactivation_strategy</span><span class="o">=</span><span class="n">reactivation_strategy</span><span class="p">,</span>
@@ -564,93 +568,115 @@
             <span class="bp">self</span><span class="o">.</span><span class="n">reactivation</span> <span class="o">=</span> <span class="n">ActivationFactory</span><span class="o">.</span><span class="n">create</span><span class="p">(</span>
                 <span class="n">act_type</span><span class="o">=</span><span class="n">reactivation_type</span><span class="p">,</span>
                 <span class="n">output_dim</span><span class="o">=</span><span class="n">output_dim</span><span class="p">,</span>
-                <span class="n">init_m</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span>
-                <span class="n">init_b</span><span class="o">=</span><span class="mf">0.5</span><span class="p">,</span>
-            <span class="p">)</span>
+                <span class="n">init_m</span><span class="o">=</span><span class="mi">1</span> <span class="k">if</span> <span class="n">use_shunting</span> <span class="k">else</span> <span class="mf">0.1</span><span class="p">,</span>
+                <span class="n">init_b</span><span class="o">=</span><span class="mf">0.5</span> <span class="k">if</span> <span class="n">use_shunting</span> <span class="k">else</span> <span class="mf">0.1</span><span class="p">,</span>
+                <span class="p">)</span>
             <span class="n">gradient_scaler</span><span class="o">.</span><span class="n">register_reactivation_inverse</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">reactivation</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">reactivation</span> <span class="o">=</span> <span class="n">nn</span><span class="o">.</span><span class="n">Identity</span><span class="p">()</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">reactivate</span> <span class="o">=</span> <span class="n">reactivate</span>
 
         <span class="bp">self</span><span class="o">.</span><span class="n">initialize</span><span class="p">()</span>
     
     <span class="k">def</span><span class="w"> </span><span class="nf">initialize</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
         <span class="k">with</span> <span class="n">torch</span><span class="o">.</span><span class="n">no_grad</span><span class="p">():</span>
-            <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">input_excitatory</span><span class="p">:</span>
+            <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">input_excitatory</span> <span class="ow">and</span> <span class="bp">self</span><span class="o">.</span><span class="n">branch_excitation</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
                 <span class="bp">self</span><span class="o">.</span><span class="n">branch_excitation</span><span class="o">.</span><span class="n">initialize</span><span class="p">()</span>
-            
-            <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">input_inhibitory</span><span class="p">:</span>
+            <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">input_inhibitory</span> <span class="ow">and</span> <span class="bp">self</span><span class="o">.</span><span class="n">branch_inhibition</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
                 <span class="bp">self</span><span class="o">.</span><span class="n">branch_inhibition</span><span class="o">.</span><span class="n">initialize</span><span class="p">()</span>
 
             <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">input_branches</span><span class="p">:</span>
                 <span class="k">if</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">input_excitatory</span> <span class="ow">or</span> <span class="bp">self</span><span class="o">.</span><span class="n">input_inhibitory</span><span class="p">)</span> <span class="ow">and</span> <span class="bp">self</span><span class="o">.</span><span class="n">use_shunting</span><span class="p">:</span>
                     <span class="n">sum_synapse_conductances</span> <span class="o">=</span> <span class="mi">0</span>
-                    <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">input_excitatory</span><span class="p">:</span>
+                    <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">input_excitatory</span> <span class="ow">and</span> <span class="bp">self</span><span class="o">.</span><span class="n">branch_excitation</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
                         <span class="n">sum_synapse_conductances</span> <span class="o">+=</span> <span class="bp">self</span><span class="o">.</span><span class="n">branch_excitation</span><span class="o">.</span><span class="n">weight</span><span class="p">()</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="n">dim</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span>
-                    <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">input_inhibitory</span><span class="p">:</span>
+                    <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">input_inhibitory</span> <span class="ow">and</span> <span class="bp">self</span><span class="o">.</span><span class="n">branch_inhibition</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
                         <span class="n">sum_synapse_conductances</span> <span class="o">+=</span> <span class="bp">self</span><span class="o">.</span><span class="n">branch_inhibition</span><span class="o">.</span><span class="n">weight</span><span class="p">()</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="n">dim</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span>
                 <span class="k">else</span><span class="p">:</span>
                     <span class="n">sum_synapse_conductances</span> <span class="o">=</span> <span class="kc">None</span>
                 <span class="bp">self</span><span class="o">.</span><span class="n">branches_to_output</span><span class="o">.</span><span class="n">initialize</span><span class="p">(</span><span class="n">sum_synapse_conductances</span><span class="p">)</span>
     
     <span class="k">def</span><span class="w"> </span><span class="nf">decay_weights</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">weight_decay</span><span class="p">):</span>
-        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">input_excitatory</span><span class="p">:</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">input_excitatory</span> <span class="ow">and</span> <span class="bp">self</span><span class="o">.</span><span class="n">branch_excitation</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
             <span class="bp">self</span><span class="o">.</span><span class="n">branch_excitation</span><span class="o">.</span><span class="n">decay_weights</span><span class="p">(</span><span class="n">weight_decay</span><span class="p">)</span>
-        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">input_inhibitory</span><span class="p">:</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">input_inhibitory</span> <span class="ow">and</span> <span class="bp">self</span><span class="o">.</span><span class="n">branch_inhibition</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
             <span class="bp">self</span><span class="o">.</span><span class="n">branch_inhibition</span><span class="o">.</span><span class="n">decay_weights</span><span class="p">(</span><span class="n">weight_decay</span><span class="p">)</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">input_branches</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">branches_to_output</span><span class="o">.</span><span class="n">decay_weights</span><span class="p">(</span><span class="n">weight_decay</span><span class="p">)</span>
 
     <span class="k">def</span><span class="w"> </span><span class="nf">forward</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">x</span><span class="p">,</span> <span class="n">inhibitory_input</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span> <span class="n">branch_input</span> <span class="o">=</span> <span class="kc">None</span><span class="p">):</span>
-        <span class="c1"># compute excitation along each branch in layer</span>
-        <span class="n">excitation</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">branch_excitation</span><span class="p">(</span><span class="n">x</span><span class="p">)</span>
-        <span class="c1"># initialize numerator and denominator variables</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">input_excitatory</span> <span class="ow">and</span> <span class="bp">self</span><span class="o">.</span><span class="n">branch_excitation</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">excitation</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">branch_excitation</span><span class="p">(</span><span class="n">x</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">excitation</span> <span class="o">=</span> <span class="mi">0</span>
+
         <span class="n">numerator</span> <span class="o">=</span> <span class="n">excitation</span>
         <span class="n">denominator</span> <span class="o">=</span> <span class="n">excitation</span> <span class="o">+</span> <span class="mi">1</span>
-        <span class="c1"># if receiving inputs from upstream branches</span>
-        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">input_branches</span><span class="p">:</span>
-            <span class="c1"># compute current contribution from upstream branches and add to numerator</span>
+
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">input_branches</span> <span class="ow">and</span> <span class="n">branch_input</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
             <span class="n">current</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">branches_to_output</span><span class="p">(</span><span class="n">branch_input</span><span class="p">)</span>
             <span class="n">numerator</span> <span class="o">=</span> <span class="n">numerator</span> <span class="o">+</span> <span class="n">current</span>
-            <span class="c1"># compute total conductance of upstream branches and add to denominator</span>
             <span class="n">conductance</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">branches_to_output</span><span class="o">.</span><span class="n">sum_conductances</span><span class="p">()</span>
             <span class="n">denominator</span> <span class="o">=</span> <span class="n">denominator</span> <span class="o">+</span> <span class="n">conductance</span>
-        <span class="c1"># if receiving inhibitory inputs</span>
-        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">input_inhibitory</span> <span class="ow">and</span> <span class="n">inhibitory_input</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
-            <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">inhibitory_input</span><span class="p">,</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">)</span> <span class="ow">and</span> <span class="n">inhibitory_input</span><span class="o">.</span><span class="n">dim</span><span class="p">()</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">:</span>
-                <span class="n">denominator</span> <span class="o">=</span> <span class="n">denominator</span> <span class="o">+</span> <span class="bp">self</span><span class="o">.</span><span class="n">branch_inhibition</span><span class="p">(</span><span class="n">inhibitory_input</span><span class="p">)</span>
-        <span class="c1"># current divided by conductance is voltage</span>
+        
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">input_inhibitory</span> <span class="ow">and</span> <span class="bp">self</span><span class="o">.</span><span class="n">branch_inhibition</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="ow">and</span> <span class="n">inhibitory_input</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">denominator</span> <span class="o">=</span> <span class="n">denominator</span> <span class="o">+</span> <span class="bp">self</span><span class="o">.</span><span class="n">branch_inhibition</span><span class="p">(</span><span class="n">inhibitory_input</span><span class="p">)</span>
+        
         <span class="n">voltage</span> <span class="o">=</span> <span class="n">numerator</span> <span class="o">/</span> <span class="n">denominator</span>
-        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">reactivation</span><span class="p">(</span><span class="n">voltage</span><span class="p">)</span> <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">reactivate</span> <span class="k">else</span> <span class="n">voltage</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">reactivation</span><span class="p">(</span><span class="n">voltage</span><span class="p">)</span>
 
     <span class="k">def</span><span class="w"> </span><span class="nf">get_weights</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
-        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">input_inhibitory</span><span class="p">:</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">input_inhibitory</span> <span class="ow">and</span> <span class="bp">self</span><span class="o">.</span><span class="n">input_excitatory</span><span class="p">:</span>
             <span class="k">return</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">branch_excitation</span><span class="o">.</span><span class="n">weight</span><span class="p">(),</span> <span class="bp">self</span><span class="o">.</span><span class="n">branch_inhibition</span><span class="o">.</span><span class="n">weight</span><span class="p">())</span>
-        <span class="k">else</span><span class="p">:</span>
+        <span class="k">elif</span> <span class="bp">self</span><span class="o">.</span><span class="n">input_excitatory</span><span class="p">:</span>
             <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">branch_excitation</span><span class="o">.</span><span class="n">weight</span><span class="p">()</span>
+        <span class="k">elif</span> <span class="bp">self</span><span class="o">.</span><span class="n">input_inhibitory</span><span class="p">:</span>
+            <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">branch_inhibition</span><span class="o">.</span><span class="n">weight</span><span class="p">()</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">return</span> <span class="kc">None</span>
     
     <span class="k">def</span><span class="w"> </span><span class="nf">get_log_weights</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
-        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">input_inhibitory</span><span class="p">:</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">input_inhibitory</span> <span class="ow">and</span> <span class="bp">self</span><span class="o">.</span><span class="n">input_excitatory</span><span class="p">:</span>
             <span class="k">return</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">branch_excitation</span><span class="o">.</span><span class="n">log_weight</span><span class="p">(),</span> <span class="bp">self</span><span class="o">.</span><span class="n">branch_inhibition</span><span class="o">.</span><span class="n">log_weight</span><span class="p">())</span>
-        <span class="k">else</span><span class="p">:</span>
+        <span class="k">elif</span> <span class="bp">self</span><span class="o">.</span><span class="n">input_excitatory</span><span class="p">:</span>
             <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">branch_excitation</span><span class="o">.</span><span class="n">log_weight</span><span class="p">()</span>
+        <span class="k">elif</span> <span class="bp">self</span><span class="o">.</span><span class="n">input_inhibitory</span><span class="p">:</span>
+            <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">branch_inhibition</span><span class="o">.</span><span class="n">log_weight</span><span class="p">()</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">return</span> <span class="kc">None</span>
 
     <span class="k">def</span><span class="w"> </span><span class="nf">get_mask</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
-        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">input_inhibitory</span><span class="p">:</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">input_inhibitory</span> <span class="ow">and</span> <span class="bp">self</span><span class="o">.</span><span class="n">input_excitatory</span><span class="p">:</span>
             <span class="k">return</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">branch_excitation</span><span class="o">.</span><span class="n">weight_mask</span><span class="p">(),</span> <span class="bp">self</span><span class="o">.</span><span class="n">branch_inhibition</span><span class="o">.</span><span class="n">weight_mask</span><span class="p">())</span>
-        <span class="k">else</span><span class="p">:</span>
+        <span class="k">elif</span> <span class="bp">self</span><span class="o">.</span><span class="n">input_excitatory</span><span class="p">:</span>
             <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">branch_excitation</span><span class="o">.</span><span class="n">weight_mask</span><span class="p">()</span>
+        <span class="k">elif</span> <span class="bp">self</span><span class="o">.</span><span class="n">input_inhibitory</span><span class="p">:</span>
+            <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">branch_inhibition</span><span class="o">.</span><span class="n">weight_mask</span><span class="p">()</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">return</span> <span class="kc">None</span>
 
     <span class="k">def</span><span class="w"> </span><span class="nf">get_pruned_weights</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
-        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">input_inhibitory</span><span class="p">:</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">input_inhibitory</span> <span class="ow">and</span> <span class="bp">self</span><span class="o">.</span><span class="n">input_excitatory</span><span class="p">:</span>
             <span class="k">return</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">branch_excitation</span><span class="o">.</span><span class="n">pruned_weight</span><span class="p">(),</span> <span class="bp">self</span><span class="o">.</span><span class="n">branch_inhibition</span><span class="o">.</span><span class="n">pruned_weight</span><span class="p">())</span>
-        <span class="k">else</span><span class="p">:</span>
+        <span class="k">elif</span> <span class="bp">self</span><span class="o">.</span><span class="n">input_excitatory</span><span class="p">:</span>
             <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">branch_excitation</span><span class="o">.</span><span class="n">pruned_weight</span><span class="p">()</span>
+        <span class="k">elif</span> <span class="bp">self</span><span class="o">.</span><span class="n">input_inhibitory</span><span class="p">:</span>
+            <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">branch_inhibition</span><span class="o">.</span><span class="n">pruned_weight</span><span class="p">()</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">return</span> <span class="kc">None</span>
     
     <span class="k">def</span><span class="w"> </span><span class="nf">get_log_pruned_weights</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
-        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">input_inhibitory</span><span class="p">:</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">input_inhibitory</span> <span class="ow">and</span> <span class="bp">self</span><span class="o">.</span><span class="n">input_excitatory</span><span class="p">:</span>
             <span class="k">return</span> <span class="p">(</span>
                 <span class="bp">self</span><span class="o">.</span><span class="n">branch_excitation</span><span class="o">.</span><span class="n">log_pruned_weight</span><span class="p">(),</span>
                 <span class="bp">self</span><span class="o">.</span><span class="n">branch_inhibition</span><span class="o">.</span><span class="n">log_pruned_weight</span><span class="p">()</span>
             <span class="p">)</span>
+        <span class="k">elif</span> <span class="bp">self</span><span class="o">.</span><span class="n">input_excitatory</span><span class="p">:</span>
+            <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">branch_excitation</span><span class="o">.</span><span class="n">log_pruned_weight</span><span class="p">()</span>
+        <span class="k">elif</span> <span class="bp">self</span><span class="o">.</span><span class="n">input_inhibitory</span><span class="p">:</span>
+            <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">branch_inhibition</span><span class="o">.</span><span class="n">log_pruned_weight</span><span class="p">()</span>
         <span class="k">else</span><span class="p">:</span>
-            <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">branch_excitation</span><span class="o">.</span><span class="n">log_pruned_weight</span><span class="p">()</span></div>
+            <span class="k">return</span> <span class="kc">None</span></div>
 
 
 <div class="viewcode-block" id="DendriNet">
@@ -829,6 +855,7 @@
             <span class="k">return</span> <span class="p">(</span><span class="n">exc_total</span> <span class="o">+</span> <span class="mf">1e-8</span><span class="p">)</span><span class="o">.</span><span class="n">log</span><span class="p">()</span></div>
 
 
+
 <div class="viewcode-block" id="DendriNetWithOutputs">
 <a class="viewcode-back" href="../../source/dendritic_modeling.html#dendritic_modeling.dendrinet.DendriNetWithOutputs">[docs]</a>
 <span class="k">class</span><span class="w"> </span><span class="nc">DendriNetWithOutputs</span><span class="p">(</span><span class="n">DendriNet</span><span class="p">):</span>
@@ -836,51 +863,166 @@
 <span class="sd">    Extends the existing DendriNet to provide a method that returns</span>
 <span class="sd">    (final_soma_output, list_of_layer_activations).</span>
 <span class="sd">    &quot;&quot;&quot;</span>
+
+<div class="viewcode-block" id="DendriNetWithOutputs.forward_with_branch_outputs">
+<a class="viewcode-back" href="../../source/dendritic_modeling.html#dendritic_modeling.dendrinet.DendriNetWithOutputs.forward_with_branch_outputs">[docs]</a>
     <span class="k">def</span><span class="w"> </span><span class="nf">forward_with_branch_outputs</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">x</span><span class="p">,</span> <span class="n">inhibitory_input</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Forward pass that returns branch activations for each layer.</span>
+<span class="sd">        Important: For visualization and information analysis.</span>
+<span class="sd">        Properly handles somatic_synapses=False configuration.</span>
+
+<span class="sd">        Returns:</span>
+<span class="sd">            final_soma: Tensor of final output</span>
+<span class="sd">            per_layer_acts: List of processed activations per layer</span>
+<span class="sd">                Each element is a list with format [excitatory, inhibitory, combined]</span>
+<span class="sd">                Elements may be None if not available for that layer</span>
+<span class="sd">        &quot;&quot;&quot;</span>
         <span class="n">per_layer_acts</span> <span class="o">=</span> <span class="p">[]</span>
-        <span class="n">output</span> <span class="o">=</span> <span class="kc">None</span>
+        <span class="n">branch_input</span> <span class="o">=</span> <span class="kc">None</span>
+
         <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">n_branch_layers</span><span class="p">):</span>
-            <span class="c1"># Store excitatory and inhibitory inputs for visualization if needed</span>
-            <span class="k">if</span> <span class="nb">hasattr</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">branch_layers</span><span class="p">[</span><span class="n">i</span><span class="p">],</span> <span class="s1">&#39;excitatory_input&#39;</span><span class="p">):</span>
-                <span class="bp">self</span><span class="o">.</span><span class="n">branch_layers</span><span class="p">[</span><span class="n">i</span><span class="p">]</span><span class="o">.</span><span class="n">excitatory_input</span> <span class="o">=</span> <span class="n">x</span>
-            
-            <span class="k">if</span> <span class="nb">hasattr</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">branch_layers</span><span class="p">[</span><span class="n">i</span><span class="p">],</span> <span class="s1">&#39;inhibitory_input&#39;</span><span class="p">):</span>
-                <span class="bp">self</span><span class="o">.</span><span class="n">branch_layers</span><span class="p">[</span><span class="n">i</span><span class="p">]</span><span class="o">.</span><span class="n">inhibitory_input</span> <span class="o">=</span> <span class="n">inhibitory_input</span>
-                
-            <span class="n">output</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">branch_layers</span><span class="p">[</span><span class="n">i</span><span class="p">](</span><span class="n">x</span><span class="p">,</span> <span class="n">inhibitory_input</span><span class="p">,</span> <span class="n">output</span><span class="p">)</span>
-            <span class="n">per_layer_acts</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">output</span><span class="p">)</span>
-            
-        <span class="c1"># Store inputs for the final layer</span>
-        <span class="k">if</span> <span class="nb">hasattr</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">branch_layers</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">],</span> <span class="s1">&#39;excitatory_input&#39;</span><span class="p">):</span>
-            <span class="bp">self</span><span class="o">.</span><span class="n">branch_layers</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span><span class="o">.</span><span class="n">excitatory_input</span> <span class="o">=</span> <span class="n">x</span>
-        
-        <span class="k">if</span> <span class="nb">hasattr</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">branch_layers</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">],</span> <span class="s1">&#39;inhibitory_input&#39;</span><span class="p">):</span>
-            <span class="bp">self</span><span class="o">.</span><span class="n">branch_layers</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span><span class="o">.</span><span class="n">inhibitory_input</span> <span class="o">=</span> <span class="n">inhibitory_input</span>
-            
-        <span class="n">final_soma</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">branch_layers</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">](</span><span class="n">x</span><span class="p">,</span> <span class="n">inhibitory_input</span><span class="p">,</span> <span class="n">output</span><span class="p">)</span>
-        <span class="n">per_layer_acts</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">final_soma</span><span class="p">)</span>
-        <span class="k">return</span> <span class="n">final_soma</span><span class="p">,</span> <span class="n">per_layer_acts</span>
+            <span class="n">current_layer</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">branch_layers</span><span class="p">[</span><span class="n">i</span><span class="p">]</span>
+
+            <span class="c1"># --- Compute excitatory &amp; inhibitory partial transforms ---</span>
+            <span class="n">excitatory_input</span> <span class="o">=</span> <span class="kc">None</span>
+            <span class="n">inhibitory_input_processed</span> <span class="o">=</span> <span class="kc">None</span>
+
+            <span class="k">if</span> <span class="nb">hasattr</span><span class="p">(</span><span class="n">current_layer</span><span class="p">,</span> <span class="s1">&#39;branch_excitation&#39;</span><span class="p">)</span> <span class="ow">and</span> <span class="n">current_layer</span><span class="o">.</span><span class="n">branch_excitation</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+                <span class="k">try</span><span class="p">:</span>
+                    <span class="n">excitatory_input</span> <span class="o">=</span> <span class="n">current_layer</span><span class="o">.</span><span class="n">branch_excitation</span><span class="p">(</span><span class="n">x</span><span class="p">)</span>
+                <span class="k">except</span> <span class="ne">Exception</span><span class="p">:</span>
+                    <span class="k">pass</span>
+
+            <span class="k">if</span> <span class="p">(</span>
+                <span class="n">inhibitory_input</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span>
+                <span class="ow">and</span> <span class="nb">hasattr</span><span class="p">(</span><span class="n">current_layer</span><span class="p">,</span> <span class="s1">&#39;branch_inhibition&#39;</span><span class="p">)</span>
+                <span class="ow">and</span> <span class="n">current_layer</span><span class="o">.</span><span class="n">branch_inhibition</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span>
+            <span class="p">):</span>
+                <span class="k">try</span><span class="p">:</span>
+                    <span class="n">inhibitory_input_processed</span> <span class="o">=</span> <span class="n">current_layer</span><span class="o">.</span><span class="n">branch_inhibition</span><span class="p">(</span><span class="n">inhibitory_input</span><span class="p">)</span>
+                <span class="k">except</span> <span class="ne">Exception</span><span class="p">:</span>
+                    <span class="k">pass</span>
+
+            <span class="k">if</span> <span class="nb">hasattr</span><span class="p">(</span><span class="n">current_layer</span><span class="p">,</span> <span class="s1">&#39;excitatory_input&#39;</span><span class="p">):</span>
+                <span class="n">current_layer</span><span class="o">.</span><span class="n">excitatory_input</span> <span class="o">=</span> <span class="n">excitatory_input</span>  <span class="c1"># was &#39;x&#39; before</span>
+
+            <span class="k">if</span> <span class="nb">hasattr</span><span class="p">(</span><span class="n">current_layer</span><span class="p">,</span> <span class="s1">&#39;inhibitory_input&#39;</span><span class="p">):</span>
+                <span class="n">current_layer</span><span class="o">.</span><span class="n">inhibitory_input</span> <span class="o">=</span> <span class="n">inhibitory_input_processed</span>  <span class="c1"># was &#39;inhibitory_input&#39; before</span>
+
+            <span class="n">output</span> <span class="o">=</span> <span class="n">current_layer</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="n">inhibitory_input</span><span class="p">,</span> <span class="n">branch_input</span><span class="p">)</span>
+
+            <span class="n">layer_info</span> <span class="o">=</span> <span class="p">[</span><span class="n">excitatory_input</span><span class="p">,</span> <span class="n">inhibitory_input_processed</span><span class="p">,</span> <span class="n">output</span><span class="p">]</span>
+            <span class="n">per_layer_acts</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">layer_info</span><span class="p">)</span>
+
+            <span class="n">branch_input</span> <span class="o">=</span> <span class="n">output</span>
+
+        <span class="c1"># -----------------------------</span>
+        <span class="c1"># Final soma layer processing</span>
+        <span class="n">final_layer</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">branch_layers</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span>
+
+        <span class="c1"># Compute final excit/inhib partial transforms for the final layer</span>
+        <span class="n">final_excitatory</span> <span class="o">=</span> <span class="kc">None</span>
+        <span class="n">final_inhibitory</span> <span class="o">=</span> <span class="kc">None</span>
+
+        <span class="k">if</span> <span class="nb">hasattr</span><span class="p">(</span><span class="n">final_layer</span><span class="p">,</span> <span class="s1">&#39;branch_excitation&#39;</span><span class="p">)</span> <span class="ow">and</span> <span class="n">final_layer</span><span class="o">.</span><span class="n">branch_excitation</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="k">try</span><span class="p">:</span>
+                <span class="n">final_excitatory</span> <span class="o">=</span> <span class="n">final_layer</span><span class="o">.</span><span class="n">branch_excitation</span><span class="p">(</span><span class="n">x</span><span class="p">)</span>
+            <span class="k">except</span> <span class="ne">Exception</span><span class="p">:</span>
+                <span class="k">pass</span>
+
+        <span class="k">if</span> <span class="p">(</span>
+            <span class="n">inhibitory_input</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span>
+            <span class="ow">and</span> <span class="nb">hasattr</span><span class="p">(</span><span class="n">final_layer</span><span class="p">,</span> <span class="s1">&#39;branch_inhibition&#39;</span><span class="p">)</span>
+            <span class="ow">and</span> <span class="n">final_layer</span><span class="o">.</span><span class="n">branch_inhibition</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span>
+        <span class="p">):</span>
+            <span class="k">try</span><span class="p">:</span>
+                <span class="n">final_inhibitory</span> <span class="o">=</span> <span class="n">final_layer</span><span class="o">.</span><span class="n">branch_inhibition</span><span class="p">(</span><span class="n">inhibitory_input</span><span class="p">)</span>
+            <span class="k">except</span> <span class="ne">Exception</span><span class="p">:</span>
+                <span class="k">pass</span>
+
+        <span class="k">if</span> <span class="nb">hasattr</span><span class="p">(</span><span class="n">final_layer</span><span class="p">,</span> <span class="s1">&#39;excitatory_input&#39;</span><span class="p">):</span>
+            <span class="n">final_layer</span><span class="o">.</span><span class="n">excitatory_input</span> <span class="o">=</span> <span class="n">final_excitatory</span>
+
+        <span class="k">if</span> <span class="nb">hasattr</span><span class="p">(</span><span class="n">final_layer</span><span class="p">,</span> <span class="s1">&#39;inhibitory_input&#39;</span><span class="p">):</span>
+            <span class="n">final_layer</span><span class="o">.</span><span class="n">inhibitory_input</span> <span class="o">=</span> <span class="n">final_inhibitory</span>
+
+        <span class="c1"># Now get final soma output:</span>
+        <span class="n">final_soma</span> <span class="o">=</span> <span class="n">final_layer</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="n">inhibitory_input</span><span class="p">,</span> <span class="n">branch_input</span><span class="p">)</span>
+
+        <span class="c1"># Add the final layer&#39;s info to the per_layer_acts</span>
+        <span class="n">per_layer_acts</span><span class="o">.</span><span class="n">append</span><span class="p">([</span><span class="n">final_excitatory</span><span class="p">,</span> <span class="n">final_inhibitory</span><span class="p">,</span> <span class="n">final_soma</span><span class="p">])</span>
+
+        <span class="k">return</span> <span class="n">final_soma</span><span class="p">,</span> <span class="n">per_layer_acts</span></div>
+
 
     <span class="k">def</span><span class="w"> </span><span class="nf">forward</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">x</span><span class="p">,</span> <span class="n">inhibitory_input</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        The simpler forward pass, typically used during training.</span>
+<span class="sd">        We still assign excitatory_input / inhibitory_input to the partial transforms</span>
+<span class="sd">        so that any visualization or ablation code sees them.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
         <span class="n">output</span> <span class="o">=</span> <span class="kc">None</span>
         <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">n_branch_layers</span><span class="p">):</span>
-            <span class="c1"># Store excitatory and inhibitory inputs for visualization if needed</span>
-            <span class="k">if</span> <span class="nb">hasattr</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">branch_layers</span><span class="p">[</span><span class="n">i</span><span class="p">],</span> <span class="s1">&#39;excitatory_input&#39;</span><span class="p">):</span>
-                <span class="bp">self</span><span class="o">.</span><span class="n">branch_layers</span><span class="p">[</span><span class="n">i</span><span class="p">]</span><span class="o">.</span><span class="n">excitatory_input</span> <span class="o">=</span> <span class="n">x</span>
-            
-            <span class="k">if</span> <span class="nb">hasattr</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">branch_layers</span><span class="p">[</span><span class="n">i</span><span class="p">],</span> <span class="s1">&#39;inhibitory_input&#39;</span><span class="p">):</span>
-                <span class="bp">self</span><span class="o">.</span><span class="n">branch_layers</span><span class="p">[</span><span class="n">i</span><span class="p">]</span><span class="o">.</span><span class="n">inhibitory_input</span> <span class="o">=</span> <span class="n">inhibitory_input</span>
-                
-            <span class="n">output</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">branch_layers</span><span class="p">[</span><span class="n">i</span><span class="p">](</span><span class="n">x</span><span class="p">,</span> <span class="n">inhibitory_input</span><span class="p">,</span> <span class="n">output</span><span class="p">)</span>
-            
-        <span class="c1"># Store inputs for the final layer</span>
-        <span class="k">if</span> <span class="nb">hasattr</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">branch_layers</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">],</span> <span class="s1">&#39;excitatory_input&#39;</span><span class="p">):</span>
-            <span class="bp">self</span><span class="o">.</span><span class="n">branch_layers</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span><span class="o">.</span><span class="n">excitatory_input</span> <span class="o">=</span> <span class="n">x</span>
-        
-        <span class="k">if</span> <span class="nb">hasattr</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">branch_layers</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">],</span> <span class="s1">&#39;inhibitory_input&#39;</span><span class="p">):</span>
-            <span class="bp">self</span><span class="o">.</span><span class="n">branch_layers</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span><span class="o">.</span><span class="n">inhibitory_input</span> <span class="o">=</span> <span class="n">inhibitory_input</span>
-            
-        <span class="n">final_soma</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">branch_layers</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">](</span><span class="n">x</span><span class="p">,</span> <span class="n">inhibitory_input</span><span class="p">,</span> <span class="n">output</span><span class="p">)</span>
+            <span class="n">layer_i</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">branch_layers</span><span class="p">[</span><span class="n">i</span><span class="p">]</span>
+
+            <span class="n">excitatory_in</span> <span class="o">=</span> <span class="kc">None</span>
+            <span class="n">inhibitory_in</span> <span class="o">=</span> <span class="kc">None</span>
+
+            <span class="k">if</span> <span class="nb">hasattr</span><span class="p">(</span><span class="n">layer_i</span><span class="p">,</span> <span class="s1">&#39;branch_excitation&#39;</span><span class="p">)</span> <span class="ow">and</span> <span class="n">layer_i</span><span class="o">.</span><span class="n">branch_excitation</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+                <span class="k">try</span><span class="p">:</span>
+                    <span class="n">excitatory_in</span> <span class="o">=</span> <span class="n">layer_i</span><span class="o">.</span><span class="n">branch_excitation</span><span class="p">(</span><span class="n">x</span><span class="p">)</span>
+                <span class="k">except</span> <span class="ne">Exception</span><span class="p">:</span>
+                    <span class="k">pass</span>
+
+            <span class="k">if</span> <span class="p">(</span>
+                <span class="n">inhibitory_input</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span>
+                <span class="ow">and</span> <span class="nb">hasattr</span><span class="p">(</span><span class="n">layer_i</span><span class="p">,</span> <span class="s1">&#39;branch_inhibition&#39;</span><span class="p">)</span>
+                <span class="ow">and</span> <span class="n">layer_i</span><span class="o">.</span><span class="n">branch_inhibition</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span>
+            <span class="p">):</span>
+                <span class="k">try</span><span class="p">:</span>
+                    <span class="n">inhibitory_in</span> <span class="o">=</span> <span class="n">layer_i</span><span class="o">.</span><span class="n">branch_inhibition</span><span class="p">(</span><span class="n">inhibitory_input</span><span class="p">)</span>
+                <span class="k">except</span> <span class="ne">Exception</span><span class="p">:</span>
+                    <span class="k">pass</span>
+
+            <span class="k">if</span> <span class="nb">hasattr</span><span class="p">(</span><span class="n">layer_i</span><span class="p">,</span> <span class="s1">&#39;excitatory_input&#39;</span><span class="p">):</span>
+                <span class="n">layer_i</span><span class="o">.</span><span class="n">excitatory_input</span> <span class="o">=</span> <span class="n">excitatory_in</span>  <span class="c1"># was &#39;x&#39;</span>
+
+            <span class="k">if</span> <span class="nb">hasattr</span><span class="p">(</span><span class="n">layer_i</span><span class="p">,</span> <span class="s1">&#39;inhibitory_input&#39;</span><span class="p">):</span>
+                <span class="n">layer_i</span><span class="o">.</span><span class="n">inhibitory_input</span> <span class="o">=</span> <span class="n">inhibitory_in</span>  <span class="c1"># was &#39;inhibitory_input&#39;</span>
+
+            <span class="c1"># Actually run the layer</span>
+            <span class="n">output</span> <span class="o">=</span> <span class="n">layer_i</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="n">inhibitory_input</span><span class="p">,</span> <span class="n">output</span><span class="p">)</span>
+
+        <span class="c1"># For the final layer:</span>
+        <span class="n">final_layer</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">branch_layers</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span>
+
+        <span class="n">final_excit</span> <span class="o">=</span> <span class="kc">None</span>
+        <span class="n">final_inhib</span> <span class="o">=</span> <span class="kc">None</span>
+
+        <span class="k">if</span> <span class="nb">hasattr</span><span class="p">(</span><span class="n">final_layer</span><span class="p">,</span> <span class="s1">&#39;branch_excitation&#39;</span><span class="p">)</span> <span class="ow">and</span> <span class="n">final_layer</span><span class="o">.</span><span class="n">branch_excitation</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="k">try</span><span class="p">:</span>
+                <span class="n">final_excit</span> <span class="o">=</span> <span class="n">final_layer</span><span class="o">.</span><span class="n">branch_excitation</span><span class="p">(</span><span class="n">x</span><span class="p">)</span>
+            <span class="k">except</span> <span class="ne">Exception</span><span class="p">:</span>
+                <span class="k">pass</span>
+
+        <span class="k">if</span> <span class="p">(</span>
+            <span class="n">inhibitory_input</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span>
+            <span class="ow">and</span> <span class="nb">hasattr</span><span class="p">(</span><span class="n">final_layer</span><span class="p">,</span> <span class="s1">&#39;branch_inhibition&#39;</span><span class="p">)</span>
+            <span class="ow">and</span> <span class="n">final_layer</span><span class="o">.</span><span class="n">branch_inhibition</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span>
+        <span class="p">):</span>
+            <span class="k">try</span><span class="p">:</span>
+                <span class="n">final_inhib</span> <span class="o">=</span> <span class="n">final_layer</span><span class="o">.</span><span class="n">branch_inhibition</span><span class="p">(</span><span class="n">inhibitory_input</span><span class="p">)</span>
+            <span class="k">except</span> <span class="ne">Exception</span><span class="p">:</span>
+                <span class="k">pass</span>
+
+        <span class="k">if</span> <span class="nb">hasattr</span><span class="p">(</span><span class="n">final_layer</span><span class="p">,</span> <span class="s1">&#39;excitatory_input&#39;</span><span class="p">):</span>
+            <span class="n">final_layer</span><span class="o">.</span><span class="n">excitatory_input</span> <span class="o">=</span> <span class="n">final_excit</span>
+
+        <span class="k">if</span> <span class="nb">hasattr</span><span class="p">(</span><span class="n">final_layer</span><span class="p">,</span> <span class="s1">&#39;inhibitory_input&#39;</span><span class="p">):</span>
+            <span class="n">final_layer</span><span class="o">.</span><span class="n">inhibitory_input</span> <span class="o">=</span> <span class="n">final_inhib</span>
+
+        <span class="n">final_soma</span> <span class="o">=</span> <span class="n">final_layer</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="n">inhibitory_input</span><span class="p">,</span> <span class="n">output</span><span class="p">)</span>
         <span class="k">return</span> <span class="n">final_soma</span></div>
 
 </pre></div>

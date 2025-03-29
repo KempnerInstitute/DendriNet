@@ -20,6 +20,8 @@
       <script src="_static/clipboard.min.js?v=a7894cd8"></script>
       <script src="_static/copybutton.js?v=f281be69"></script>
       <script crossorigin="anonymous" integrity="sha256-Ae2Vz/4ePdIu6ZyI/5ZGsYnb+m0JlOmKPjt6XZ9JJkA=" src="https://cdnjs.cloudflare.com/ajax/libs/require.js/2.3.4/require.min.js"></script>
+      <script>window.MathJax = {"tex": {"inlineMath": [["$", "$"], ["\\(", "\\)"]], "processEscapes": true}, "options": {"ignoreHtmlClass": "tex2jax_ignore|mathjax_ignore|document", "processHtmlClass": "tex2jax_process|mathjax_process|math|output_area"}}</script>
+      <script defer="defer" src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
     <script src="_static/js/theme.js"></script>
     <link rel="author" title="About these documents" href="about.html" />
     <link rel="index" title="Index" href="genindex.html" />
@@ -266,9 +268,17 @@
 <li class="toctree-l2"><a class="reference internal" href="source/dend_m/learning_strategies.html#overview">Overview</a></li>
 <li class="toctree-l2"><a class="reference internal" href="source/dend_m/learning_strategies.html#available-learning-strategies">Available Learning Strategies</a></li>
 <li class="toctree-l2"><a class="reference internal" href="source/dend_m/learning_strategies.html#maximum-likelihood-estimation-mle">Maximum Likelihood Estimation (MLE)</a></li>
-<li class="toctree-l2"><a class="reference internal" href="source/dend_m/learning_strategies.html#freeze-layers-strategy">Freeze Layers Strategy</a></li>
+<li class="toctree-l2"><a class="reference internal" href="source/dend_m/learning_strategies.html#freeze-branches-strategy">Freeze Branches Strategy</a></li>
+<li class="toctree-l2"><a class="reference internal" href="source/dend_m/learning_strategies.html#freeze-branches-with-pretraining-strategy">Freeze Branches with Pretraining Strategy</a></li>
+<li class="toctree-l2"><a class="reference internal" href="source/dend_m/learning_strategies.html#freeze-branches-reversed-strategy">Freeze Branches Reversed Strategy</a></li>
+<li class="toctree-l2"><a class="reference internal" href="source/dend_m/learning_strategies.html#freeze-branches-reversed-with-pretraining-strategy">Freeze Branches Reversed with Pretraining Strategy</a></li>
 <li class="toctree-l2"><a class="reference internal" href="source/dend_m/learning_strategies.html#local-credit-assignment">Local Credit Assignment</a></li>
+<li class="toctree-l2"><a class="reference internal" href="source/dend_m/learning_strategies.html#freeze-layers-strategy">Freeze Layers Strategy</a></li>
+<li class="toctree-l2"><a class="reference internal" href="source/dend_m/learning_strategies.html#freeze-layers-with-pretraining-strategy">Freeze Layers with Pretraining Strategy</a></li>
+<li class="toctree-l2"><a class="reference internal" href="source/dend_m/learning_strategies.html#freeze-layers-reversed-strategy">Freeze Layers Reversed Strategy</a></li>
+<li class="toctree-l2"><a class="reference internal" href="source/dend_m/learning_strategies.html#freeze-layers-reversed-with-pretraining-strategy">Freeze Layers Reversed with Pretraining Strategy</a></li>
 <li class="toctree-l2"><a class="reference internal" href="source/dend_m/learning_strategies.html#two-step-training">Two-Step Training</a></li>
+<li class="toctree-l2"><a class="reference internal" href="source/dend_m/learning_strategies.html#voltage-stabilization-training">Voltage Stabilization Training</a></li>
 <li class="toctree-l2"><a class="reference internal" href="source/dend_m/learning_strategies.html#two-step-training-with-kl-divergence">Two-Step Training with KL Divergence</a></li>
 <li class="toctree-l2"><a class="reference internal" href="source/dend_m/learning_strategies.html#input-network-training-strategies">Input Network Training Strategies</a></li>
 <li class="toctree-l2"><a class="reference internal" href="source/dend_m/learning_strategies.html#choosing-the-right-strategy">Choosing the Right Strategy</a></li>
@@ -545,9 +555,12 @@
 <li class="toctree-l2"><a class="reference internal" href="source/dendritic_modeling.html#dendritic_modeling.synthetic_datasets.MultiXORDataset"><code class="docutils literal notranslate"><span class="pre">MultiXORDataset</span></code></a></li>
 <li class="toctree-l2"><a class="reference internal" href="source/dendritic_modeling.html#dendritic_modeling.synthetic_datasets.NoisyLineDataset"><code class="docutils literal notranslate"><span class="pre">NoisyLineDataset</span></code></a></li>
 <li class="toctree-l2"><a class="reference internal" href="source/dendritic_modeling.html#dendritic_modeling.synthetic_datasets.OrientationBarsDataset"><code class="docutils literal notranslate"><span class="pre">OrientationBarsDataset</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="source/dendritic_modeling.html#dendritic_modeling.synthetic_datasets.RandomFlipMNISTDataset"><code class="docutils literal notranslate"><span class="pre">RandomFlipMNISTDataset</span></code></a></li>
 <li class="toctree-l2"><a class="reference internal" href="source/dendritic_modeling.html#dendritic_modeling.synthetic_datasets.SparseMNISTDataset"><code class="docutils literal notranslate"><span class="pre">SparseMNISTDataset</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="source/dendritic_modeling.html#dendritic_modeling.synthetic_datasets.applyRandomFlip"><code class="docutils literal notranslate"><span class="pre">applyRandomFlip()</span></code></a></li>
 <li class="toctree-l2"><a class="reference internal" href="source/dendritic_modeling.html#dendritic_modeling.synthetic_datasets.get_data_directory"><code class="docutils literal notranslate"><span class="pre">get_data_directory()</span></code></a></li>
 <li class="toctree-l2"><a class="reference internal" href="source/dendritic_modeling.html#dendritic_modeling.synthetic_datasets.get_unified_datasets"><code class="docutils literal notranslate"><span class="pre">get_unified_datasets()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="source/dendritic_modeling.html#dendritic_modeling.synthetic_datasets.load_MNIST_modulo10"><code class="docutils literal notranslate"><span class="pre">load_MNIST_modulo10()</span></code></a></li>
 <li class="toctree-l2"><a class="reference internal" href="source/dendritic_modeling.html#dendritic_modeling.synthetic_datasets.load_cifar10_as_datasets"><code class="docutils literal notranslate"><span class="pre">load_cifar10_as_datasets()</span></code></a></li>
 <li class="toctree-l2"><a class="reference internal" href="source/dendritic_modeling.html#dendritic_modeling.synthetic_datasets.load_mnist_as_datasets"><code class="docutils literal notranslate"><span class="pre">load_mnist_as_datasets()</span></code></a></li>
 <li class="toctree-l2"><a class="reference internal" href="source/dendritic_modeling.html#dendritic_modeling.synthetic_datasets.split_MNIST_inputs"><code class="docutils literal notranslate"><span class="pre">split_MNIST_inputs()</span></code></a></li>
@@ -556,8 +569,13 @@
 <li class="toctree-l2"><a class="reference internal" href="source/dendritic_modeling.html#dendritic_modeling.utils.SafeHookModule"><code class="docutils literal notranslate"><span class="pre">SafeHookModule</span></code></a></li>
 <li class="toctree-l2"><a class="reference internal" href="source/dendritic_modeling.html#dendritic_modeling.utils.Shaper"><code class="docutils literal notranslate"><span class="pre">Shaper</span></code></a></li>
 <li class="toctree-l2"><a class="reference internal" href="source/dendritic_modeling.html#dendritic_modeling.utils.ablate_branch"><code class="docutils literal notranslate"><span class="pre">ablate_branch()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="source/dendritic_modeling.html#dendritic_modeling.utils.add_frequency_noise"><code class="docutils literal notranslate"><span class="pre">add_frequency_noise()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="source/dendritic_modeling.html#dendritic_modeling.utils.add_gaussian_noise"><code class="docutils literal notranslate"><span class="pre">add_gaussian_noise()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="source/dendritic_modeling.html#dendritic_modeling.utils.add_poisson_noise"><code class="docutils literal notranslate"><span class="pre">add_poisson_noise()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="source/dendritic_modeling.html#dendritic_modeling.utils.add_uniform_noise"><code class="docutils literal notranslate"><span class="pre">add_uniform_noise()</span></code></a></li>
 <li class="toctree-l2"><a class="reference internal" href="source/dendritic_modeling.html#dendritic_modeling.utils.analyze_branch_ablation"><code class="docutils literal notranslate"><span class="pre">analyze_branch_ablation()</span></code></a></li>
 <li class="toctree-l2"><a class="reference internal" href="source/dendritic_modeling.html#dendritic_modeling.utils.analyze_branch_information"><code class="docutils literal notranslate"><span class="pre">analyze_branch_information()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="source/dendritic_modeling.html#dendritic_modeling.utils.analyze_dendritic_information"><code class="docutils literal notranslate"><span class="pre">analyze_dendritic_information()</span></code></a></li>
 <li class="toctree-l2"><a class="reference internal" href="source/dendritic_modeling.html#dendritic_modeling.utils.analyze_layerwise_ablation"><code class="docutils literal notranslate"><span class="pre">analyze_layerwise_ablation()</span></code></a></li>
 <li class="toctree-l2"><a class="reference internal" href="source/dendritic_modeling.html#dendritic_modeling.utils.compute_MI"><code class="docutils literal notranslate"><span class="pre">compute_MI()</span></code></a></li>
 <li class="toctree-l2"><a class="reference internal" href="source/dendritic_modeling.html#dendritic_modeling.utils.compute_entropy"><code class="docutils literal notranslate"><span class="pre">compute_entropy()</span></code></a></li>
@@ -574,6 +592,7 @@
 <li class="toctree-l2"><a class="reference internal" href="source/dendritic_modeling.html#dendritic_modeling.utils.safe_hook_fn"><code class="docutils literal notranslate"><span class="pre">safe_hook_fn()</span></code></a></li>
 <li class="toctree-l2"><a class="reference internal" href="source/dendritic_modeling.html#dendritic_modeling.utils.safe_register_hooks"><code class="docutils literal notranslate"><span class="pre">safe_register_hooks()</span></code></a></li>
 <li class="toctree-l2"><a class="reference internal" href="source/dendritic_modeling.html#dendritic_modeling.utils.set_seed"><code class="docutils literal notranslate"><span class="pre">set_seed()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="source/dendritic_modeling.html#dendritic_modeling.utils.train_and_evaluate_classifier"><code class="docutils literal notranslate"><span class="pre">train_and_evaluate_classifier()</span></code></a></li>
 <li class="toctree-l2"><a class="reference internal" href="source/dendritic_modeling.html#dendritic_modeling.utils.train_classifier"><code class="docutils literal notranslate"><span class="pre">train_classifier()</span></code></a></li>
 </ul>
 </li>
