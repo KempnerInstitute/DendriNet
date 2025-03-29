@@ -643,12 +643,12 @@ class ExcitationInhibitionNetwork(nn.Module):
                     try:
                         output = self.output_layer(excitatory_output)
                     except Exception as e:
-                        print(f"Warning: Could not call output_layer (type: {type(self.output_layer)}): {e}")
+                        logging.warning(f"Could not call output_layer (type: {type(self.output_layer)}): {e}")
             else:
-                print(f"Warning: output_layer is type {type(self.output_layer)}, not callable or boolean")
-        
+                logging.warning(f"output_layer is type {type(self.output_layer)}, not callable or boolean")
+    
         return output, all_acts
-
+    
     def compute_local_loss(self, x, y=None):
         return 0.0
 
