@@ -5,6 +5,9 @@ Examples
 
 This page contains a collection of example scripts and use cases for the Dendritic Modeling framework. These examples demonstrate the framework's capabilities and provide templates for your own experiments.
 
+.. note::
+   While these examples show how to use the low-level API directly, we recommend using the configuration-based approach with ``train_experiments.py`` for most experiments. See the :doc:`quickstart` guide for a step-by-step tutorial on using configurations.
+
 Basic Examples
 --------------
 
@@ -63,6 +66,50 @@ A simple example of training a dendritic network on MNIST:
     test_accuracy = accuracy_score(classifier, *test_ds[:])
     print(f"Test accuracy: {test_accuracy:.4f}")
 
+**Equivalent Configuration Approach:**
+
+The above code could be expressed in a configuration file (``mnist_config.yaml``) like this:
+
+.. code-block:: yaml
+
+    model:
+      task: classification
+      network:
+        type: EINet
+        parameters:
+          input_dim: 784
+          excitatory_layer_sizes: [512, 256]
+          inhibitory_layer_sizes: [200, 100]
+          excitatory_branch_factors: [64, 32]
+          inhibitory_branch_factors: [32, 16]
+          reactivate: true
+          somatic_synapses: true
+          topk_init_method: xavier_normal
+          reactivation_type: param_tanh
+          reactivation_strategy: inverse
+          blocklinear_strategy: block_conductance_dynamic
+          enable_branch_outputs: true
+          output_layer: false
+          output_dim: 10
+          
+    train:
+      learning_strategy: mle
+      lr: 0.001
+      epochs: 20
+      batch_size: 64
+      
+    task:
+      dataset: mnist
+      
+    outputs:
+      dir: "./outputs"
+
+Then run with:
+
+.. code-block:: bash
+
+    python src/dendritic_modeling/train_experiments.py mnist_config.yaml
+
 Synthetic Dataset Example
 ~~~~~~~~~~~~~~~~~~~~~~~~~
 
@@ -103,6 +150,30 @@ Training a dendritic network on a synthetic dataset designed to test specific co
     
     # Continue with training as in the MNIST example...
 
+**Equivalent Configuration Approach:**
+
+.. code-block:: yaml
+
+    model:
+      task: classification
+      network:
+        type: EINet
+        parameters:
+          input_dim: 8
+          excitatory_layer_sizes: [16, 8]
+          inhibitory_layer_sizes: [12, 6]
+          excitatory_branch_factors: [4, 2]
+          inhibitory_branch_factors: [3, 2]
+          reactivate: true
+          somatic_synapses: true
+          # ... other parameters as above
+          
+    task:
+      dataset: multi_xor
+      parameters:
+        n_bits: 8
+        n_samples: 10000
+
 Advanced Examples
 -----------------
 
@@ -131,6 +202,19 @@ Using the two-step training strategy for more complex networks:
         maintrain_epochs=15,  # Second phase with full learning
         batch_size=64
     )
+
+**Equivalent Configuration Approach:**
+
+.. code-block:: yaml
+
+    train:
+      learning_strategy: two_step
+      lr: 0.001
+      epochs: 15  # maintrain_epochs
+      pretrain_epochs: 5
+      batch_size: 64
+
+For more details on training strategies, see :doc:`../advanced/learning/index`.
 
 Input Transformation Network
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -175,6 +259,22 @@ Using an input transformation network for better feature extraction:
         batch_size=64
     )
 
+**Equivalent Configuration Approach:**
+
+.. code-block:: yaml
+
+    model:
+      network:
+        parameters:
+          # ... other parameters
+          input_mode: 2
+          input_net_dict:
+            type: "MLPInputTransform"
+            hidden_dims: [512, 256]
+            output_dim: 128
+
+For more details on network architectures and input transformations, see :doc:`../advanced/network_structures/index`.
+
 Branch Information Analysis
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
@@ -182,35 +282,46 @@ Analyzing information content in dendritic branches:
 
 .. code-block:: python
 
-    from dendritic_modeling.utils import compute_branch_info, record_branch_activations
+    from dendritic_modeling.utils import analyze_dendritic_information
     
     # Create and train a model (as in previous examples)
     model = ExcitationInhibitionNetwork(...)
     # ... train the model ...
     
-    # Record branch activations
-    activations, labels = record_branch_activations(
+    # Analyze branch information
+    branch_info = analyze_dendritic_information(
         model=model,
         dataset=test_ds,
         device='cuda' if torch.cuda.is_available() else 'cpu'
     )
     
-    # Compute branch information
-    branch_info = compute_branch_info(
-        activations=activations,
-        labels=labels,
-        n_bins=10  # Number of bins for information calculation
-    )
-    
-    # Plot branch information
+    # Plot branch information (example: mutual information)
     import matplotlib.pyplot as plt
     
-    plt.figure(figsize=(10, 6))
-    plt.bar(range(len(branch_info['mi'])), branch_info['mi'])
-    plt.xlabel('Branch Index')
-    plt.ylabel('Mutual Information with Label')
-    plt.title('Information Content in Dendritic Branches')
-    plt.show()
+    # Check if results are available and have the expected structure
+    if "mutual_information" in branch_info and branch_info["mutual_information"] is not None:
+        mi_values = branch_info["mutual_information"] # Assuming MI is a flat list or array
+        plt.figure(figsize=(10, 6))
+        plt.bar(range(len(mi_values)), mi_values)
+        plt.xlabel('Branch Index (across all layers)')
+        plt.ylabel('Mutual Information with Label')
+        plt.title('Information Content in Dendritic Branches')
+        plt.show()
+    else:
+        print("Mutual information data not found in analysis results.")
+
+**Equivalent Configuration Approach:**
+
+To enable information analysis in the configuration:
+
+.. code-block:: yaml
+
+    visualization:
+      enabled: true
+      plots:
+        - branch_info
+
+For more details on information analysis, see :doc:`../advanced/analysis/branch_information`.
 
 Ablation Studies
 ~~~~~~~~~~~~~~~~
@@ -229,119 +340,161 @@ Performing ablation studies to understand branch importance:
     results = analyze_branch_ablation(
         model=model,
         dataset=test_ds,
-        ablation_mode='direct',  # Ablation mode: 'direct' or 'indirect'
+        mode='direct',  # Ablation mode: 'direct' or 'indirect'
         device='cuda' if torch.cuda.is_available() else 'cpu'
     )
     
     # Extract results
-    baseline_acc = results['baseline_acc']
-    branch_importances = results['branch_importances']
+    baseline_acc, branch_results = results
     
     print(f"Baseline accuracy: {baseline_acc:.4f}")
+    
+    # Calculate branch importance from results
+    branch_importances = {}
+    for branch_id, (acc, delta) in branch_results.items():
+        branch_importances[branch_id] = delta
     
     # Visualize branch importances
     import matplotlib.pyplot as plt
     plt.figure(figsize=(10, 6))
-    plt.imshow(branch_importances, cmap='RdBu_r', aspect='auto')
-    plt.colorbar(label='Accuracy Drop')
+    branches = list(branch_importances.keys())
+    importance_values = list(branch_importances.values())
+    plt.bar(branches, importance_values)
     plt.xlabel('Branch Index')
-    plt.ylabel('Layer Index')
+    plt.ylabel('Accuracy Drop')
     plt.title('Branch Importance (Accuracy Drop)')
     plt.show()
+
+**Equivalent Configuration Approach:**
+
+To enable ablation studies in the configuration:
+
+.. code-block:: yaml
+
+    visualization:
+      enabled: true
+      plots:
+        - branch_ablation
+        - layer_ablation
+
+For more details on ablation studies, see :doc:`../advanced/analysis/ablation_studies`.
+
+Configuration File Structure
+---------------------------
+
+The configuration file used with ``train_experiments.py`` has several top-level sections:
+
+``model``
+~~~~~~~~~
+
+Defines the model architecture and parameters:
+
+.. code-block:: yaml
+
+    model:
+      task: classification  # Type of task: classification, regression, etc.
+      network:
+        type: EINet  # Network type: EINet, MLP, etc.
+        parameters:
+          # Network-specific parameters
+          excitatory_layer_sizes: [512, 256]
+          inhibitory_layer_sizes: [200, 100]
+          # ... other architecture parameters
+
+``train``
+~~~~~~~~~
+
+Defines the training strategy and hyperparameters:
+
+.. code-block:: yaml
+
+    train:
+      learning_strategy: mle  # mle, freeze_layers, two_step, etc.
+      seed: 42  # Random seed for reproducibility
+      lr: 0.001  # Learning rate
+      epochs: 20  # Training epochs
+      batch_size: 64  # Batch size
+      # ... other training parameters
+
+``task``
+~~~~~~~~
+
+Defines the dataset and task-specific parameters:
+
+.. code-block:: yaml
+
+    task:
+      dataset: mnist  # mnist, cifar10, multi_xor, etc.
+      data_path: ""  # Path to data (if needed)
+      parameters:
+        # Dataset-specific parameters
+        train_size: 8000  # For synthetic datasets
+
+``visualization``
+~~~~~~~~~~~~~~~~
+
+Controls visualization and analysis:
+
+.. code-block:: yaml
+
+    visualization:
+      enabled: true  # Enable visualization
+      visualize_epochs: [10, 20]  # Epochs to visualize
+      plots:
+        - weights  # Plot weight visualizations
+        - activations  # Plot activation distributions
+        - branch_ablation  # Run branch ablation studies
+        # ... other visualization options
+
+``wandb``
+~~~~~~~~~
+
+Configuration for Weights & Biases integration:
+
+.. code-block:: yaml
+
+    wandb:
+      use_wandb: true  # Enable W&B logging
+      entity: your_username  # W&B username
+      project: dendritic_modeling  # W&B project name
+      tags: [experiment1, mnist]  # Tags for this run
+
+``outputs``
+~~~~~~~~~~
+
+Controls output saving:
+
+.. code-block:: yaml
+
+    outputs:
+      dir: "./outputs"  # Directory to save outputs
 
 Running Experiments with train_experiments.py
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-The framework provides a flexible experiment runner through train_experiments.py. Here's how to use it:
+The framework provides a flexible experiment runner through ``train_experiments.py``. Here's how to use it:
 
-1. **Basic Usage**:
-.. code-block:: python
+**Basic Usage**:
 
-    python src/dendritic_modeling/train_experiments.py config_exp.yaml
-
-2. **Configuration File Structure**:
-.. code-block:: yaml
-
-    # config_exp.yaml
-    model:
-      task: "classification"
-      network:
-        type: "EINet"
-        parameters:
-          input_dim: 784
-          excitatory_layer_sizes: [512, 256]
-          inhibitory_layer_sizes: [200, 100]
-          excitatory_branch_factors: [64, 32]
-          inhibitory_branch_factors: [32, 16]
-          reactivate: true
-          somatic_synapses: true
-          topk_init_method: "xavier_normal"
-          reactivation_type: "param_tanh"
-          reactivation_strategy: "inverse"
-          blocklinear_strategy: "block_conductance_dynamic"
-          enable_branch_outputs: true
-          output_layer: false
-          output_dim: 10
-    
-    train:
-      learning_strategy: "mle"
-      run_name: "mnist_einet"
-      seed: 0
-      train_valid_split: 0.8
-      lr: 0.01
-      weight_decay_rate: 0.1
-      epochs: 50
-      batch_size: 128
-      grad_clip_value: 5.0
-      epochs_per_layer: 50
-      final_tune_epochs: 10
-      pretrain_epochs: 50
-    
-    task:
-      dataset: "mnist"
-      data_path: ""
-      parameters: {}
-    
-    visualization:
-      enabled: false
-      visualize_epochs: []
-      plots: ["branch_info", "ablation"]
-      parameters:
-        save_figures: true
-        figure_format: "png"
-    
-    wandb:
-      entity: ""
-      project: ""
-      group: ""
-      tags: []
-      use_wandb: false
-    
-    outputs:
-      dir: "outputs"
-
-3. **Available Learning Strategies**:
-- mle: Standard Maximum Likelihood Estimation (default)
-- freeze_branches: Train branches sequentially
-- freeze_branches_reversed: Train branches in reverse order
-- freeze_branches_with_pretraining: Pretrain then train branches sequentially
-- freeze_branches_reversed_with_pretraining: Pretrain then train branches in reverse order
-- two_step: Two-phase training with pretraining and main training
-- voltage_stabilization: Add voltage stabilization phase
-
-4. **Command Line Arguments**:
 .. code-block:: bash
 
-    # Basic usage
     python src/dendritic_modeling/train_experiments.py config_exp.yaml
-    
+
+**Overriding Configuration Values**:
+
+.. code-block:: bash
+
     # Override learning strategy
     python src/dendritic_modeling/train_experiments.py config_exp.yaml --train.learning_strategy freeze_branches
     
     # Enable visualization
     python src/dendritic_modeling/train_experiments.py config_exp.yaml --visualization.enabled true
 
-For more information about specific configuration options, see the :doc:`../advanced/network_structures/index` and :doc:`../advanced/learning/index` sections.
+For more information about specific configuration options, see:
+- :doc:`../advanced/network_structures/index` for network architecture options
+- :doc:`../advanced/learning/index` for learning strategies
+- :doc:`../advanced/analysis/index` for analysis tools
+- :doc:`../advanced/visualization/visualization_guide` for visualization options
 
 Notebook Examples
 -----------------

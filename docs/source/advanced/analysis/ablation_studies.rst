@@ -117,34 +117,31 @@ The framework provides a layerwise ablation analysis function:
 
 .. code-block:: python
 
-    def analyze_layerwise_ablation(model, dataset, train_data=None, valid_data=None,
-                                 ablation_mode='direct', device='cpu'):
+    def analyze_layerwise_ablation(model, dataset, train_data=None, valid_data=None, test_data=None, save_path=None, device='cuda'):
         """
         Analyze the impact of ablating each layer on the model's performance.
         
         Parameters
         ----------
-        model : nn.Module
+        model : torch.nn.Module
             A trained model to analyze.
         dataset : torch.utils.data.Dataset
-            Test dataset for evaluation.
+            Main dataset for evaluation.
         train_data : torch.utils.data.Dataset, optional
-            Training dataset, used only if retraining is needed.
+            Training dataset (used for retraining mode if applicable).
         valid_data : torch.utils.data.Dataset, optional
-            Validation dataset, used only if retraining is needed.
-        ablation_mode : str
-            The ablation mode to use. Options: 'direct', 'indirect', 'retrain'.
-            'direct': Simply zero out the layer's outputs.
-            'indirect': Replace the layer with a pass-through.
-            'retrain': Retrain the network with the layer fixed at initialization.
-        device : str
-            Device to use for computation.
+            Validation dataset (used for retraining mode if applicable).
+        test_data : torch.utils.data.Dataset, optional
+            Test dataset for evaluation.
+        save_path : str, optional
+            Path to save ablation results.
+        device : str, default='cuda'
+            Device to use for computation ('cuda' or 'cpu').
             
         Returns
         -------
         dict
-            Dictionary with ablation results, including baseline accuracy and 
-            accuracy drop for each layer.
+            Dictionary with ablation results, detailing accuracy impact per layer.
         """
         ...
 
@@ -157,35 +154,54 @@ To use this function in your analysis:
     # Run layerwise ablation analysis
     results = analyze_layerwise_ablation(
         model=trained_model, 
-        dataset=test_dataset,
-        ablation_mode='direct',
+        dataset=test_dataset, # Provide if retraining is part of analysis
+        train_data=train_dataset, # Provide if retraining is part of analysis
+        valid_data=valid_dataset, # Provide if retraining is part of analysis
+        test_data=test_dataset,
+        save_path="./layer_ablation_results",
         device='cuda'
     )
     
-    # Print results
-    print(f"Baseline accuracy: {results['baseline_acc']:.4f}")
-    for i, acc_drop in enumerate(results['accuracy_drops']):
-        print(f"Layer {i} ablation: accuracy drop = {acc_drop:.4f}")
+    # Analyze the saved results (e.g., load from save_path)
+    # The specific structure of `results` depends on the implementation details
+    print(f"Layerwise ablation results saved to {results['save_path']}") 
 
 This can help identify which layers are most critical to model performance, providing insights into the hierarchical processing structure of the network.
 
-Example for visualizing layerwise ablation results:
+Example for visualizing layerwise ablation results (assuming results are loaded from file):
 
 .. code-block:: python
 
     import matplotlib.pyplot as plt
     import numpy as np
-    
-    # Plot results
-    plt.figure(figsize=(10, 6))
-    plt.bar(range(len(results['accuracy_drops'])), results['accuracy_drops'])
-    plt.xlabel('Layer Index')
-    plt.ylabel('Accuracy Drop')
-    plt.title('Impact of Layer Ablation on Performance')
-    plt.xticks(range(len(results['accuracy_drops'])))
-    plt.grid(axis='y', linestyle='--', alpha=0.7)
-    plt.tight_layout()
-    plt.show()
+    import json
+
+    # Load results from the saved file
+    results_path = "./layer_ablation_results/layerwise_ablation_results.json" # Adjust filename as needed
+    try:
+        with open(results_path, 'r') as f:
+            results = json.load(f)
+    except FileNotFoundError:
+        print(f"Error: Results file not found at {results_path}")
+        exit()
+
+    # Assuming 'accuracy_drops' or similar key exists in the loaded results
+    if 'accuracy_drops' in results:
+        accuracy_drops = np.array(results['accuracy_drops'])
+        num_layers = len(accuracy_drops)
+        
+        # Plot results
+        plt.figure(figsize=(10, 6))
+        plt.bar(range(num_layers), accuracy_drops)
+        plt.xlabel('Layer Index')
+        plt.ylabel('Accuracy Drop')
+        plt.title('Impact of Layer Ablation on Performance')
+        plt.xticks(range(num_layers))
+        plt.grid(axis='y', linestyle='--', alpha=0.7)
+        plt.tight_layout()
+        plt.show()
+    else:
+        print("Key 'accuracy_drops' not found in the results file.")
 
 Visualizing Ablation Results
 ----------------------------
