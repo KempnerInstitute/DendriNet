@@ -99,7 +99,6 @@ The TopKLinear layer is configured through several parameters:
           excitatory_branch_factors: [64, 32]  # k values for excitatory layers
           inhibitory_branch_factors: [32, 16]  # k values for inhibitory layers
           topk_init_method: "xavier_normal"    # Weight initialization method
-          branch_probabilistic: true           # Whether branches activate probabilistically
 
 The ``branch_factors`` parameters define the k value for each layer, which determines how many inputs are selected by each dendritic branch.
 
@@ -199,71 +198,24 @@ Implementation details:
         else:
             return selected.sum(dim=1)
 
-Variations of TopKLinear
-------------------------
+Reactivation Strategies
+-----------------------
 
-The framework includes several variations of the TopKLinear layer:
+The framework supports reactivation strategies that modify the behavior of TopKLinear layers:
 
-1. **ProbTopKLinear**: Probabilistic version of TopKLinear
-   - Selects inputs based on a probability distribution rather than a hard cutoff
-   - More biologically plausible and easier to optimize
+1. **None**: Standard top-k selection without any modification
+2. **Inverse**: Scales the activations by the inverse of the sum, encouraging more balanced activation
+3. **Param_tanh**: Uses a parametric tanh activation after selection for smoother activation profiles
 
-2. **BlockTopKLinear**: Block-structured version for hierarchical processing
-   - Inputs are divided into blocks, and top-k selection happens within each block
-   - Models the compartmentalized structure of dendritic trees
-
-3. **LayerNormTopKLinear**: TopKLinear with layer normalization
-   - Applies layer normalization before or after the top-k selection
-   - Helps stabilize training, especially in deeper networks
-
-Probabilistic Activation
-------------------------
-
-When ``branch_probabilistic`` is set to ``true``, the network uses probabilistic branch activation:
+These can be configured in the YAML configuration:
 
 .. code-block:: yaml
 
     model:
       network:
         parameters:
-          branch_probabilistic: true
-          probabilistic_temperature: 1.0
-
-With probabilistic activation:
-1. Instead of selecting exactly k inputs, each input is selected with a probability
-2. The probability is determined by the input's potential and a temperature parameter
-3. Higher potential inputs have higher probability of being selected
-4. The temperature controls how deterministic the selection is (lower = more deterministic)
-
-Implementation:
-
-.. code-block:: python
-
-    def forward(self, input, temperature=1.0):
-        # Compute all potential contributions
-        potential = F.linear(input, self.weight, None)
-        
-        # Calculate selection probabilities using softmax
-        probabilities = F.softmax(potential / temperature, dim=1)
-        
-        # Sample from the probability distribution
-        distribution = torch.distributions.Bernoulli(probabilities)
-        mask = distribution.sample()
-        
-        # Apply the mask and scale by probabilities
-        selected = potential * mask * probabilities
-        
-        # Sum the selected inputs and add bias if present
-        if self.bias is not None:
-            return selected.sum(dim=1) + self.bias
-        else:
-            return selected.sum(dim=1)
-
-Probabilistic activation has several advantages:
-1. More biologically plausible (biological neurons have probabilistic activation)
-2. Allows gradient-based optimization through the entire network
-3. Can explore different activation patterns during training
-4. Often leads to better generalization
+          reactivation_strategy: "inverse"  # Options: "none", "inverse"
+          reactivation_type: "param_tanh"   # Options: "none", "param_tanh", "relu", "sigmoid", "tanh"
 
 Gradient Flow in TopKLinear
 ---------------------------
@@ -274,88 +226,7 @@ The top-k selection creates a sparse computational graph that affects gradient f
 2. During backpropagation, gradients flow only through the selected inputs
 3. This creates sparse gradients that can lead to unstable training
 
-To address this, the framework provides several mechanisms:
-
-1. **Gradient scaling**: Scale gradients to compensate for sparsity (see :ref:`gradient_scaling`)
-2. **STE (Straight-Through Estimator)**: Pass gradients through the selection operation
-3. **Probabilistic activation**: Replace hard selection with soft probabilistic selection
-
-Block-Structured TopKLinear
----------------------------
-
-For hierarchical processing, the framework provides block-structured TopKLinear layers:
-
-.. code-block:: python
-
-    class BlockTopKLinear(nn.Module):
-        """
-        Block-structured TopKLinear layer.
-        
-        Divides inputs into blocks and performs top-k selection within each block.
-        This models the compartmentalized structure of dendritic trees.
-        
-        Parameters
-        ----------
-        in_features : int
-            Number of input features
-        out_features : int
-            Number of output features
-        block_size : int
-            Size of each input block
-        k_per_block : int
-            Number of inputs to select from each block
-        """
-        
-        def __init__(self, in_features, out_features, block_size, k_per_block):
-            super().__init__()
-            self.in_features = in_features
-            self.out_features = out_features
-            self.block_size = block_size
-            self.k_per_block = k_per_block
-            
-            # Calculate number of blocks
-            self.num_blocks = in_features // block_size
-            if in_features % block_size != 0:
-                self.num_blocks += 1
-                
-            # Initialize weights and bias
-            self.weight = nn.Parameter(torch.Tensor(out_features, in_features))
-            self.bias = nn.Parameter(torch.Tensor(out_features))
-            
-            # Initialize parameters
-            self.reset_parameters()
-            
-        def forward(self, input):
-            # Reshape input into blocks
-            # Original shape: [batch_size, in_features]
-            # Reshaped: [batch_size, num_blocks, block_size]
-            batch_size = input.size(0)
-            reshaped_input = input.view(batch_size, self.num_blocks, self.block_size)
-            
-            # Compute potential for each block
-            # Shape: [batch_size, num_blocks, block_size]
-            reshaped_weight = self.weight.view(self.out_features, self.num_blocks, self.block_size)
-            potential = torch.matmul(reshaped_input.unsqueeze(1), reshaped_weight.transpose(1, 2))
-            
-            # Select top-k within each block
-            # Shape of indices: [batch_size, out_features, num_blocks, k_per_block]
-            _, indices = torch.topk(potential, self.k_per_block, dim=3)
-            
-            # Create mask and apply
-            mask = torch.zeros_like(potential)
-            mask.scatter_(3, indices, 1)
-            selected = potential * mask
-            
-            # Sum selected inputs
-            output = selected.sum(dim=[2, 3])
-            
-            # Add bias
-            return output + self.bias
-
-Block-structured TopKLinear is beneficial when:
-1. Inputs have a natural block structure (e.g., features from different modalities)
-2. You want to ensure representation from all parts of the input
-3. You're modeling specific dendritic branch structures
+To address this, the framework uses gradient clipping and appropriate initialization strategies to stabilize training.
 
 Comparison with Standard Linear Layers
 --------------------------------------
@@ -378,6 +249,24 @@ Compared to standard linear layers, TopKLinear has several key differences:
    - Naturally sparse activations (only k connections are active)
    - Sparse gradient flow during training
 
+BlockLinear Strategies
+---------------------
+
+The framework implements different blocklinear strategies that affect how inputs are processed:
+
+1. **None**: No special processing
+2. **Distal upweight by idx**: Upweights inputs based on their distance
+3. **Block conductance dynamic**: Uses a dynamic conductance mechanism
+
+Configure these strategies in the YAML configuration:
+
+.. code-block:: yaml
+
+    model:
+      network:
+        parameters:
+          blocklinear_strategy: "block_conductance_dynamic"  # Options: "none", "distal_upweight_by_idx", "block_conductance_dynamic"
+
 Best Practices
 --------------
 
@@ -387,21 +276,21 @@ For optimal performance with TopKLinear layers:
    - For initial experimentation, set k to 10-20% of the input dimension
    - Adjust based on performance and desired properties
 
-2. **Use probabilistic activation**:
-   - Set `branch_probabilistic: true` for more stable training
-   - Start with temperature = 1.0 and adjust as needed
+2. **Use appropriate reactivation strategies**:
+   - The "inverse" reactivation strategy often works well with dendritic networks
+   - Param_tanh reactivation type provides smooth activation profiles
 
 3. **Combine with appropriate activation functions**:
-   - ParametricTanh works well with TopKLinear layers
+   - Use reactivation_type param_tanh for better performance
    - Consider the interaction between selectivity and nonlinearity
 
 4. **Monitor branch activation**:
    - Track which branches are active during training
    - Ensure branches aren't "dying" (never being selected)
 
-5. **Adjust gradient scaling**:
-   - Use gradient scaling to stabilize training
-   - Higher branch factors may require less aggressive scaling
+5. **Adjust learning rates carefully**:
+   - Use gradient clipping to stabilize training
+   - Start with conservative learning rates (0.001) and adjust as needed
 
 Example Configuration
 ---------------------
@@ -419,8 +308,10 @@ Here's a complete configuration example for a network using TopKLinear layers:
           inhibitory_layer_sizes: [200, 100]
           excitatory_branch_factors: [64, 32]
           inhibitory_branch_factors: [32, 16]
-          branch_probabilistic: true
-          probabilistic_temperature: 1.0
+          reactivate: true
+          somatic_synapses: true
           topk_init_method: "xavier_normal"
-          init_gain: 1.0
+          reactivation_type: "param_tanh"
+          reactivation_strategy: "inverse"
+          blocklinear_strategy: "block_conductance_dynamic"
           output_dim: 10 
