@@ -457,8 +457,8 @@ class DendriticBranchLayer(nn.Module):
         if self.input_excitatory and self.branch_excitation is not None:
             excitation = self.branch_excitation(x)
         else:
-            excitation = 0.0
-        
+            excitation = 0
+
         numerator = excitation
         denominator = excitation + 1
 
