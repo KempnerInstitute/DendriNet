@@ -11,8 +11,8 @@ Key Features
 
 * **Biologically-Inspired Architecture**: Models that capture dendritic branching, excitation-inhibition balance, and shunting inhibition
 * **Flexible Network Configurations**: Customizable branch factors, synapse counts, and layer topologies
-* **Multiple Learning Strategies**: Including maximum likelihood estimation, layer-wise training, local credit assignment, and two-step learning approaches
-* **Visualization Tools**: Comprehensive tools for visualizing dendritic weights, activations, and gradients
+* **Multiple Learning Strategies**: Including maximum likelihood estimation, branch-wise training (freeze branches), and two-step learning approaches
+* **Visualization Tools**: Comprehensive tools for visualizing dendritic weights, activations, and branch analysis
 * **Experiment Framework**: Structured environment for running, tracking, and analyzing experiments across various datasets and model configurations
 
 Research Applications

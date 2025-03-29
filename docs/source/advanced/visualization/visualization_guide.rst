@@ -116,37 +116,37 @@ The framework supports different input transformation modes that can be visualiz
         plt.tight_layout()
         return fig
 
-Training Strategy Visualizations
---------------------------------
+Training Visualizations
+-----------------------
 
-Sequential vs. Joint Training
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+Accuracy and Loss Curves
+~~~~~~~~~~~~~~~~~~~~~~~~
 
-When using input transformation networks, you can train the input network and dendritic network sequentially or jointly.
-Visualizing the training process helps understand the tradeoffs.
+The most basic visualization for training is plotting accuracy and loss curves over epochs.
 
 .. code-block:: python
 
-    # Visualization code for sequential vs joint training performance
-    def plot_training_comparison(sequential_history, joint_history):
-        """Plot comparison of sequential vs joint training strategies"""
-        fig, axes = plt.subplots(1, 2, figsize=(15, 6))
+    # Plot accuracy and loss curves
+    import matplotlib.pyplot as plt
+    
+    def plot_training_metrics(train_losses, val_losses, train_accs, val_accs):
+        fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(15, 5))
         
-        # Accuracy comparison
-        axes[0].plot(sequential_history['val_acc'], label='Sequential')
-        axes[0].plot(joint_history['val_acc'], label='Joint')
-        axes[0].set_xlabel('Epochs')
-        axes[0].set_ylabel('Validation Accuracy')
-        axes[0].legend()
-        axes[0].set_title('Accuracy Comparison')
+        # Plot losses
+        ax1.plot(train_losses, label='Train Loss')
+        ax1.plot(val_losses, label='Validation Loss')
+        ax1.set_xlabel('Epochs')
+        ax1.set_ylabel('Loss')
+        ax1.legend()
+        ax1.set_title('Training and Validation Loss')
         
-        # Loss comparison
-        axes[1].plot(sequential_history['val_loss'], label='Sequential')
-        axes[1].plot(joint_history['val_loss'], label='Joint')
-        axes[1].set_xlabel('Epochs')
-        axes[1].set_ylabel('Validation Loss')
-        axes[1].legend()
-        axes[1].set_title('Loss Comparison')
+        # Plot accuracies
+        ax2.plot(train_accs, label='Train Accuracy')
+        ax2.plot(val_accs, label='Validation Accuracy')
+        ax2.set_xlabel('Epochs')
+        ax2.set_ylabel('Accuracy')
+        ax2.legend()
+        ax2.set_title('Training and Validation Accuracy')
         
         plt.tight_layout()
         return fig
@@ -183,27 +183,99 @@ Visualize the effects of training excitatory and inhibitory heads independently 
         plt.tight_layout()
         return fig
 
-Learning Strategies
-~~~~~~~~~~~~~~~~~~~
+Computational Mechanism Visualizations
+--------------------------------------
 
-Visualize and compare different learning strategies available in the framework:
+Branch Activation Patterns
+~~~~~~~~~~~~~~~~~~~~~~~~~
 
-* Maximum Likelihood Estimation (MLE)
-* Freeze Layers
-* Local Credit Assignment
-* Two-Step Training
-* Two-Step Training with KL
+Visualize how branches activate for different inputs to understand their specialization.
 
 .. code-block:: python
 
-    # Visualization code for comparing learning strategies
-    def compare_learning_strategies(results_dict):
-        """Compare performance of different learning strategies"""
-        strategies = list(results_dict.keys())
-        accuracies = [results_dict[s]['test_accuracy'] for s in strategies]
+    # Visualizing branch activation patterns
+    from dendritic_modeling.utils import record_branch_activations
+    import numpy as np
+    
+    def visualize_branch_activations(model, dataset, device='cpu'):
+        # Record branch activations for the dataset
+        activations, labels = record_branch_activations(model, dataset, device=device)
         
+        # Create average activation maps per class
+        n_classes = len(set(labels.tolist()))
+        fig, axes = plt.subplots(2, 5, figsize=(15, 6))
+        axes = axes.flatten()
+        
+        for class_idx in range(n_classes):
+            # Get activations for this class
+            class_mask = labels == class_idx
+            class_activations = activations[class_mask]
+            mean_activations = class_activations.mean(dim=0).cpu().numpy()
+            
+            # Create heatmap
+            im = axes[class_idx].imshow(mean_activations, cmap='viridis')
+            axes[class_idx].set_title(f'Class {class_idx}')
+            axes[class_idx].set_xlabel('Branches')
+            axes[class_idx].set_ylabel('Layers')
+            
+        plt.colorbar(im, ax=axes)
+        plt.tight_layout()
+        return fig
+
+Branch Ablation Analysis
+~~~~~~~~~~~~~~~~~~~~~~~
+
+Visualize the impact of ablating individual branches on network performance.
+
+.. code-block:: python
+
+    # Visualizing branch ablation effects
+    from dendritic_modeling.utils import analyze_branch_ablation
+    
+    def visualize_branch_ablation(model, dataset, device='cpu'):
+        # Run branch ablation analysis
+        results = analyze_branch_ablation(model, dataset, device=device)
+        
+        # Extract results
+        branch_importances = results['branch_importances']
+        baseline_acc = results['baseline_acc']
+        
+        # Visualize branch importances
         fig, ax = plt.subplots(figsize=(10, 6))
-        bars = ax.bar(strategies, accuracies)
+        im = ax.imshow(branch_importances, cmap='RdBu_r', aspect='auto')
+        ax.set_title('Branch Importance (Accuracy Drop)')
+        ax.set_xlabel('Branch Index')
+        ax.set_ylabel('Layer Index')
+        plt.colorbar(im, ax=ax)
+        
+        plt.tight_layout()
+        return fig
+
+Layer Ablation Analysis
+~~~~~~~~~~~~~~~~~~~~~
+
+Visualize the impact of ablating entire layers on network performance.
+
+.. code-block:: python
+
+    # Visualizing layer ablation effects
+    from dendritic_modeling.utils import analyze_layerwise_ablation
+    
+    def visualize_layer_ablation(model, dataset, device='cpu'):
+        # Run layer ablation analysis
+        results = analyze_layerwise_ablation(model, dataset, ablation_mode='direct', device=device)
+        
+        # Extract results
+        layer_importances = np.array(results['accuracy_drops'])
+        baseline_acc = results['baseline_acc']
+        
+        # Visualize layer importances
+        fig, ax = plt.subplots(figsize=(10, 6))
+        bars = ax.bar(range(len(layer_importances)), layer_importances)
+        ax.set_title('Layer Importance (Accuracy Drop)')
+        ax.set_xlabel('Layer Index')
+        ax.set_ylabel('Accuracy Drop')
+        ax.set_ylim(0, max(layer_importances) * 1.2)
         
         # Add value labels
         for bar in bars:
@@ -211,522 +283,95 @@ Visualize and compare different learning strategies available in the framework:
             ax.text(bar.get_x() + bar.get_width()/2., height + 0.01,
                    f'{height:.3f}', ha='center', va='bottom')
         
-        ax.set_ylim(0, 1.0)
-        ax.set_ylabel('Test Accuracy')
-        ax.set_title('Performance Comparison of Learning Strategies')
-        
         plt.tight_layout()
         return fig
 
-Computational Mechanism Visualizations
---------------------------------------
+Model Weights Visualization
+--------------------------
 
-Dendritic Computation
-~~~~~~~~~~~~~~~~~~~~~
-
-Visualize the computational mechanisms within dendritic branches to understand how
-they process information differently from traditional neural networks.
+Visualizing model weights helps understand what features different parts of the network have learned.
 
 .. code-block:: python
 
-    # Code to visualize dendritic computation mechanisms
-    def visualize_dendritic_computation(model, input_sample):
-        """Visualize how dendritic branches compute their outputs"""
-        with torch.no_grad():
-            # Forward pass with branch outputs
-            output, branch_outputs = model.forward_with_branch_outputs(input_sample.unsqueeze(0))
-            
-            # Extract key components
-            excitatory_inputs = model.net.layers[0].excitatory_input
-            inhibitory_inputs = model.net.layers[0].inhibitory_input
-            branch_integrations = model.net.layers[0].branch_voltage
-            
-            # Visualize the computation flow
-            fig, axes = plt.subplots(2, 2, figsize=(12, 10))
-            
-            # Excitatory inputs
-            im1 = axes[0, 0].imshow(excitatory_inputs[0].cpu().numpy(), cmap='hot')
-            axes[0, 0].set_title('Excitatory Inputs')
-            fig.colorbar(im1, ax=axes[0, 0])
-            
-            # Inhibitory inputs
-            im2 = axes[0, 1].imshow(inhibitory_inputs[0].cpu().numpy(), cmap='cool')
-            axes[0, 1].set_title('Inhibitory Inputs')
-            fig.colorbar(im2, ax=axes[0, 1])
-            
-            # Branch voltage (pre-activation)
-            im3 = axes[1, 0].imshow(branch_integrations[0].cpu().numpy(), cmap='viridis')
-            axes[1, 0].set_title('Branch Voltage (E/(E+I+1))')
-            fig.colorbar(im3, ax=axes[1, 0])
-            
-            # Branch outputs (post-activation)
-            im4 = axes[1, 1].imshow(branch_outputs[0][0].cpu().numpy(), cmap='plasma')
-            axes[1, 1].set_title('Branch Outputs (After Activation)')
-            fig.colorbar(im4, ax=axes[1, 1])
-            
-            plt.tight_layout()
-            return fig
+    from dendritic_modeling.plot_utils import plot_einet_params
+    
+    # Visualize weights of the network
+    plot_einet_params(
+        einet=model.net,
+        save_root="visualization_outputs/weights",
+        reshape_fn=lambda x: x.view(28, 28),  # For MNIST reshape
+        reshape_exc_syn=True,
+        logspace=True
+    )
 
-Network Pruning and Ablation
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+Network Activations Visualization
+--------------------------------
 
-Visualize the impact of pruning or ablating specific dendritic branches to understand
-their contribution to the network's overall performance.
+Visualizing activations helps understand how the network processes different inputs.
 
 .. code-block:: python
 
-    # Code to visualize ablation results
-    def visualize_ablation_impact(model, dataset, layer_idx=0):
-        """Visualize impact of ablating different branches"""
-        from dendritic_modeling.utils import analyze_branch_ablation
-        
-        # Run ablation study
-        baseline_acc, results = analyze_branch_ablation(
-            model, dataset, layer_idx=layer_idx, 
-            branch_ids=list(range(model.net.layers[layer_idx].n_branches)),
-            mode='direct'
-        )
-        
-        # Extract results
-        branch_ids = list(results.keys())
-        acc_drops = [baseline_acc - results[id][0] for id in branch_ids]
-        
-        # Create visualization
-        fig, ax = plt.subplots(figsize=(12, 6))
-        bars = ax.bar(branch_ids, acc_drops)
-        
-        # Highlight most important branches
-        threshold = 0.05  # 5% accuracy drop
-        for i, bar in enumerate(bars):
-            if acc_drops[i] > threshold:
-                bar.set_color('red')
-        
-        ax.axhline(y=0.01, color='grey', linestyle='--', alpha=0.7)
-        ax.set_xlabel('Branch ID')
-        ax.set_ylabel('Accuracy Drop When Ablated')
-        ax.set_title(f'Branch Importance in Layer {layer_idx}')
-        
-        plt.tight_layout()
-        return fig
+    from dendritic_modeling.plot_utils import plot_einet_activations
+    
+    # Visualize activations for a batch of inputs
+    plot_einet_activations(
+        einet=model.net, 
+        input_list=test_data[:10][0],
+        save_root="visualization_outputs/activations",
+        save_in_dir=True,
+        filename='digit_activations'
+    )
 
-Dendritic Order Ablation
-~~~~~~~~~~~~~~~~~~~~~~~~
+Using the Visualization Manager
+------------------------------
 
-The framework provides a built-in visualization for analyzing the impact of ablating entire dendritic orders (primary, secondary, etc.). This can be enabled in your configuration:
+The framework provides a PlotManager class that can automate many of these visualizations:
+
+.. code-block:: python
+
+    from dendritic_modeling.visualization_manager import PlotManager
+    
+    # Create a plot manager
+    plot_manager = PlotManager(
+        model=model,
+        data={'train': train_data, 'valid': valid_data, 'test': test_data},
+        save_path="visualization_outputs",
+        device='cuda',
+        plots=['weights', 'activations', 'branch_info', 'branch_ablation']
+    )
+    
+    # Generate all plots
+    plot_manager.generate_plots()
+    
+    # Generate plots for specific epoch
+    plot_manager.generate_plots(epoch=10)
+
+Configuration-Based Visualization
+--------------------------------
+
+You can also enable visualizations through the configuration system:
 
 .. code-block:: yaml
 
     visualization:
       enabled: true
+      visualize_epochs: [1, 10, 50]  # Epochs at which to visualize
       plots:
-        - dendritic_ablation_all  # Ablation analysis by dendritic order
+        - weights
+        - activations
+        - branch_info
+        - branch_ablation
+      parameters:
+        save_figures: true
+        figure_format: "png"
 
-This visualization systematically ablates the excitatory and inhibitory branches at each dendritic order and measures the resulting performance drop:
+Recommended Visualization Practices
+----------------------------------
 
-.. code-block:: python
+1. **Start Simple**: Begin with weights and activation visualizations
+2. **Track Progress**: Generate visualizations at multiple epochs to track learning progress
+3. **Compare Strategies**: Use the same visualization approach to compare different learning strategies
+4. **Interactive Exploration**: Use interactive plots when possible for deeper analysis
+5. **Combine with Analysis**: Pair visualizations with quantitative analysis for deeper insights
 
-    from dendritic_modeling.utils import analyze_branch_ablation, measure_performance
-    import matplotlib.pyplot as plt
-    import numpy as np
-    import pandas as pd
-    
-    def plot_dendritic_ablation_all(model, dataset, device='cuda'):
-        """Plot the impact of ablating different dendritic orders"""
-        
-        # Perform dendritic order ablation
-        results = analyze_branch_ablation(
-            model, dataset, layer_idx=None, branch_ids=None, device=device
-        )
-        
-        # Calculate baseline accuracy
-        baseline_acc = measure_performance(model, dataset, device=device)
-        
-        # Calculate percentage drops
-        exc_pct = [(drop / baseline_acc) * 100 for drop in results["exc_drop"]]
-        inh_pct = [(drop / baseline_acc) * 100 for drop in results["inh_drop"]]
-        
-        # Create DataFame
-        df = pd.DataFrame({
-            'Order': results['order'],
-            'Excitatory Drop (%)': exc_pct,
-            'Inhibitory Drop (%)': inh_pct
-        })
-        
-        # Create visualization
-        plt.figure(figsize=(10, 6))
-        plt.plot(df['Order'], df['Excitatory Drop (%)'], 'b-', label='Excitatory')
-        plt.plot(df['Order'], df['Inhibitory Drop (%)'], 'r-', label='Inhibitory')
-        
-        plt.xlabel('Dendritic Order')
-        plt.ylabel('Performance Drop (%)')
-        plt.title('Impact of Ablating Dendritic Orders')
-        plt.legend()
-        plt.grid(True)
-        
-        return plt.gcf(), df
-
-The resulting visualization reveals:
-1. The relative importance of each dendritic order
-2. Which orders are most critical for performance
-3. The differential contributions of excitatory vs. inhibitory pathways
-
-Dendritic Information Analysis
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-Another powerful visualization is the dendritic information analysis, which quantifies how much task-relevant information is contained in each dendritic order:
-
-.. code-block:: yaml
-
-    visualization:
-      enabled: true
-      plots:
-        - dendritic_information_inputs    # Information content in raw branch inputs
-        - dendritic_information_activations  # Information content in processed branch outputs
-
-This visualization now comes in two types:
-
-1. **dendritic_information_inputs**: Analyzes information in the raw inputs to branches (pre-shunting)
-2. **dendritic_information_activations**: Analyzes information in the processed branch outputs (post-shunting)
-
-Each visualization:
-1. Extracts branch activations at each dendritic order
-2. Trains simple MLP classifiers to predict labels from these activations
-3. Uses classification accuracy as a proxy for information content
-4. Creates visualizations showing information content across dendritic orders
-
-.. code-block:: python
-
-    from dendritic_modeling.utils import analyze_dendritic_information
-    import matplotlib.pyplot as plt
-    import numpy as np
-    
-    def plot_dendritic_information_inputs(model, dataset, device='cuda'):
-        """Visualize information content in raw dendritic inputs"""
-        
-        # Analyze information content in branch inputs (pre-shunting)
-        results = analyze_dendritic_information(
-            model=model,
-            dataset=dataset,
-            device=device,
-            mlp_hidden_dims=[100, 50],
-            training_epochs=20,
-            batch_size=64,
-            use_post_shunting=False  # Analyze raw inputs
-        )
-        
-        # Extract results
-        depth_names = results["branch_depths"]
-        exc_acc = np.array([acc if acc is not None else np.nan for acc in results["exc_accuracy"]])
-        inh_acc = np.array([acc if acc is not None else np.nan for acc in results["inh_accuracy"]])
-        combined_acc = np.array([acc if acc is not None else np.nan for acc in results["combined_accuracy"]])
-        
-        # Create visualization
-        fig, ax = plt.subplots(figsize=(10, 6))
-        x = np.arange(len(depth_names))
-        width = 0.25
-        
-        # Plot each type of accuracy (only if data exists)
-        if not np.all(np.isnan(exc_acc)):
-            ax.bar(x - width, exc_acc, width, label='Excitatory Inputs', color='blue', alpha=0.7)
-        if not np.all(np.isnan(inh_acc)):
-            ax.bar(x, inh_acc, width, label='Inhibitory Inputs', color='red', alpha=0.7)
-        if not np.all(np.isnan(combined_acc)):
-            ax.bar(x + width, combined_acc, width, label='Combined Inputs', color='purple', alpha=0.7)
-        
-        # Add labels and title
-        ax.set_xlabel('Branch Depth')
-        ax.set_ylabel('Classification Accuracy')
-        ax.set_title('Information Content in Branch Inputs (Pre-Shunting)')
-        ax.set_xticks(x)
-        ax.set_xticklabels(depth_names)
-        ax.legend()
-        
-        return fig, results
-        
-    def plot_dendritic_information_activations(model, dataset, device='cuda'):
-        """Visualize information content in processed dendritic outputs"""
-        
-        # Analyze information content in branch outputs (post-shunting)
-        results = analyze_dendritic_information(
-            model=model,
-            dataset=dataset,
-            device=device,
-            mlp_hidden_dims=[100, 50],
-            training_epochs=20,
-            batch_size=64,
-            use_post_shunting=True  # Analyze processed outputs
-        )
-        
-        # Extract results
-        depth_names = results["branch_depths"]
-        activation_acc = np.array([acc if acc is not None else np.nan for acc in results["exc_accuracy"]])
-        
-        # Create visualization
-        fig, ax = plt.subplots(figsize=(10, 6))
-        x = np.arange(len(depth_names))
-        width = 0.4
-        
-        # Plot activation accuracy (only if data exists)
-        if not np.all(np.isnan(activation_acc)):
-            ax.bar(x, activation_acc, width, label='Branch Activations', color='green', alpha=0.7)
-        
-        # Add labels and title
-        ax.set_xlabel('Branch Depth')
-        ax.set_ylabel('Classification Accuracy')
-        ax.set_title('Information Content in Branch Outputs (Post-Shunting)')
-        ax.set_xticks(x)
-        ax.set_xticklabels(depth_names)
-        ax.legend()
-        
-        return fig, results
-
-Advanced Visualization Topics
------------------------------
-
-Animated Visualizations
-~~~~~~~~~~~~~~~~~~~~~~~
-
-Creating animated visualizations can help understand the training dynamics over time.
-
-.. code-block:: python
-
-    # Code for animated visualizations
-    def create_weight_evolution_animation(weight_snapshots, save_path):
-        """Create an animation of weight evolution during training"""
-        import matplotlib.animation as animation
-        
-        fig, ax = plt.subplots(figsize=(8, 8))
-        ims = []
-        
-        for weights in weight_snapshots:
-            im = ax.imshow(weights, animated=True, cmap='viridis')
-            title = ax.text(0.5, 1.05, f"Epoch {i}", transform=ax.transAxes, 
-                           ha="center", fontsize=14)
-            ims.append([im, title])
-        
-        ani = animation.ArtistAnimation(fig, ims, interval=200, blit=True)
-        ani.save(save_path, writer='pillow')
-        return ani
-
-3D Visualizations
-~~~~~~~~~~~~~~~~~
-
-Three-dimensional visualizations can reveal patterns that might not be apparent in 2D.
-
-.. code-block:: python
-
-    # Code for 3D visualizations
-    def visualize_3d_feature_space(features, labels):
-        """Create a 3D visualization of feature space"""
-        from mpl_toolkits.mplot3d import Axes3D
-        
-        # Use PCA to reduce dimension to 3
-        from sklearn.decomposition import PCA
-        pca = PCA(n_components=3)
-        features_3d = pca.fit_transform(features)
-        
-        fig = plt.figure(figsize=(10, 8))
-        ax = fig.add_subplot(111, projection='3d')
-        
-        # Plot each class with different color
-        for i in range(10):  # Assuming 10 classes
-            mask = (labels == i)
-            ax.scatter(
-                features_3d[mask, 0], 
-                features_3d[mask, 1], 
-                features_3d[mask, 2],
-                label=f'Class {i}'
-            )
-        
-        ax.set_xlabel('Component 1')
-        ax.set_ylabel('Component 2')
-        ax.set_zlabel('Component 3')
-        ax.set_title('3D Feature Space Visualization')
-        ax.legend()
-        
-        plt.tight_layout()
-        return fig
-
-Interactive Visualizations
-~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-Interactive visualizations allow exploring the data more dynamically.
-
-.. code-block:: python
-
-    # Code for interactive visualizations (for Jupyter notebooks)
-    def create_interactive_weight_explorer(model):
-        """Create interactive widget to explore model weights"""
-        import ipywidgets as widgets
-        from IPython.display import display
-        
-        # Create figure and axes
-        fig, ax = plt.subplots(figsize=(8, 8))
-        
-        # Create layer selector
-        layer_selector = widgets.Dropdown(
-            options=list(range(len(model.net.layers))),
-            description='Layer:',
-        )
-        
-        # Create branch selector
-        branch_selector = widgets.IntSlider(
-            min=0,
-            max=model.net.layers[0].n_branches - 1,
-            description='Branch:',
-        )
-        
-        # Update function
-        def update_plot(layer, branch):
-            ax.clear()
-            weights = model.net.layers[layer].branch_excitation.pruned_weight()[branch].detach().cpu()
-            im = ax.imshow(weights.reshape(28, 28), cmap='viridis')
-            ax.set_title(f'Layer {layer}, Branch {branch} Weights')
-            fig.canvas.draw_idle()
-        
-        # Connect the widgets to the update function
-        widgets.interactive(update_plot, layer=layer_selector, branch=branch_selector)
-        
-        return fig, layer_selector, branch_selector
-
-Best Practices for Visualizations
----------------------------------
-
-When creating visualizations for your dendritic network experiments, consider these best practices:
-
-1. **Consistent color schemes**: Use consistent colormaps across related visualizations
-   - Excitatory pathways: Use warm colors ('hot', 'plasma', 'YlOrRd')
-   - Inhibitory pathways: Use cool colors ('cool', 'viridis', 'PuBu')
-
-2. **Include proper labeling**: Always include clear axes labels, titles, and legends
-
-3. **Comparison visualizations**: When comparing models or approaches, use the same scale and metrics
-
-4. **Save high-resolution figures**: For publications, save figures at 300+ DPI
-   ```python
-   plt.savefig('figure.png', dpi=300, bbox_inches='tight')
-   ```
-
-5. **Create explanatory diagrams**: Combine visualizations with explanatory text and arrows
-
-Visualization Resources
------------------------
-
-Here are some useful resources for creating effective visualizations:
-
-- **Matplotlib documentation**: https://matplotlib.org/stable/index.html
-- **Seaborn for statistical visualizations**: https://seaborn.pydata.org/
-- **ColorMaps in Matplotlib**: https://matplotlib.org/stable/tutorials/colors/colormaps.html
-- **NetworkX for graph visualizations**: https://networkx.org/
-- **Plotly for interactive visualizations**: https://plotly.com/python/
-
-
-.. code-block:: python
-
-    import matplotlib.pyplot as plt
-    import numpy as np
-    from matplotlib.patches import Rectangle, FancyArrowPatch
-
-    def create_input_network_diagram(save_path='input_network_architecture.png'):
-        plt.figure(figsize=(10, 6))
-        plt.rcParams.update({'font.size': 12})
-        
-        # Set up the figure
-        fig, ax = plt.subplots(figsize=(12, 7))
-        
-        # Colors
-        input_color = '#D3D3D3'  # light gray
-        hidden_color = '#AED6F1'  # light blue
-        excit_color = '#F5B7B1'   # light red
-        inhib_color = '#ABEBC6'   # light green
-        dendritic_color = '#FAD7A0'  # light orange
-        
-        # Layer dimensions
-        layer_width = 1.0
-        layer_height = 0.8
-        layer_spacing = 2.0
-        
-        # Draw input layer
-        ax.add_patch(Rectangle((0, 1), layer_width, layer_height, 
-                            fc=input_color, ec='black', lw=2))
-        ax.text(0.5, 1.4, 'Input', ha='center', va='center', fontweight='bold')
-        
-        # Draw hidden layers
-        for i, (size, name) in enumerate(zip([256, 128], ['Hidden Layer 1', 'Hidden Layer 2'])):
-            x_pos = (i+1) * layer_spacing
-            height = layer_height * (size/256)
-            y_pos = 1 + (layer_height - height)/2
-            
-            ax.add_patch(Rectangle((x_pos, y_pos), layer_width, height, 
-                                fc=hidden_color, ec='black', lw=2))
-            ax.text(x_pos + 0.5, 0.7, name, ha='center', va='center')
-            
-            # Connect to previous layer
-            ax.add_patch(FancyArrowPatch((i*layer_spacing + layer_width, 1.4), 
-                                    (x_pos, 1.4),
-                                    arrowstyle='->', lw=2,
-                                    connectionstyle='arc3,rad=0.0'))
-        
-        # Draw output heads
-        head_x = 3 * layer_spacing
-        
-        # Excitatory head
-        ax.add_patch(Rectangle((head_x, 2.2), layer_width, layer_height, 
-                            fc=excit_color, ec='black', lw=2))
-        ax.text(head_x + 0.5, 2.6, 'Excitatory Head', ha='center', va='center', fontweight='bold')
-        
-        # Inhibitory head
-        ax.add_patch(Rectangle((head_x, 0.0), layer_width, layer_height, 
-                            fc=inhib_color, ec='black', lw=2))
-        ax.text(head_x + 0.5, 0.4, 'Inhibitory Head', ha='center', va='center', fontweight='bold')
-        
-        # Connect feature extraction to heads
-        ax.add_patch(FancyArrowPatch((2*layer_spacing + layer_width, 1.4), 
-                                (head_x, 2.6),
-                                arrowstyle='->', lw=2, color='#E74C3C',
-                                connectionstyle='arc3,rad=0.2'))
-        
-        ax.add_patch(FancyArrowPatch((2*layer_spacing + layer_width, 1.4), 
-                                (head_x, 0.4),
-                                arrowstyle='->', lw=2, color='#229954',
-                                connectionstyle='arc3,rad=-0.2'))
-        
-        # Dendritic network
-        ax.add_patch(Rectangle((head_x + 2*layer_spacing, 1), layer_width*1.5, layer_height, 
-                            fc=dendritic_color, ec='black', lw=2))
-        ax.text(head_x + 2*layer_spacing + 0.75, 1.4, 'Dendritic Network', 
-            ha='center', va='center', fontweight='bold')
-        
-        # Connect heads to dendritic network
-        ax.add_patch(FancyArrowPatch((head_x + layer_width, 2.6), 
-                                (head_x + 2*layer_spacing, 1.4),
-                                arrowstyle='->', lw=2, color='#E74C3C',
-                                connectionstyle='arc3,rad=-0.2'))
-        
-        ax.add_patch(FancyArrowPatch((head_x + layer_width, 0.4), 
-                                (head_x + 2*layer_spacing, 1.4),
-                                arrowstyle='->', lw=2, color='#229954',
-                                connectionstyle='arc3,rad=0.2'))
-        
-        # Labels for excitatory and inhibitory paths
-        ax.text(head_x + layer_spacing, 2.2, 'Excitatory Path', 
-            ha='center', va='center', color='#E74C3C', fontweight='bold')
-        ax.text(head_x + layer_spacing, 0.7, 'Inhibitory Path', 
-            ha='center', va='center', color='#229954', fontweight='bold')
-        
-        # Feature extraction label
-        ax.text(layer_spacing, 0.0, 'Feature Extraction', ha='center', va='center', fontweight='bold')
-        
-        # Set axis properties
-        ax.set_xlim(-0.5, head_x + 3*layer_spacing)
-        ax.set_ylim(-0.5, 3.5)
-        ax.axis('off')
-        
-        plt.title('Input Transformation Network Architecture', fontsize=16, pad=20)
-        plt.tight_layout()
-        plt.savefig(save_path, dpi=300, bbox_inches='tight')
-        plt.close()
-        
-        print(f"Input network architecture diagram saved to {save_path}")
-
-    create_input_network_diagram() 
+The visualizations described in this guide help gain insights into how dendritic networks learn and process information differently from traditional neural networks. 
