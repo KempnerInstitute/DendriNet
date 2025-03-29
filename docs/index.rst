@@ -8,6 +8,8 @@ Dendritic Modeling Framework
 
 This documentation provides comprehensive information about the dendritic modeling framework, its theoretical foundations, implementation details, and practical usage guides.
 
+The framework allows you to define and run experiments using a flexible YAML-based configuration system, making it easy to reproduce experiments and iterate quickly.
+
 .. toctree::
    :maxdepth: 2
    :caption: Introduction
@@ -35,6 +37,7 @@ Advanced Topics
    source/advanced/learning/index
    source/advanced/visualization/index
    source/advanced/analysis/index
+   source/advanced/configuration/index
 
 API Reference
 ------------
