@@ -58,7 +58,7 @@
 <li class="toctree-l3"><a class="reference internal" href="#overview">Overview</a></li>
 <li class="toctree-l3"><a class="reference internal" href="#system-requirements">System Requirements</a></li>
 <li class="toctree-l3"><a class="reference internal" href="#installation-methods">Installation Methods</a><ul>
-<li class="toctree-l4"><a class="reference internal" href="#quick-installation-recommended">Quick Installation (Recommended)</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#quick-installation-recommended-for-mamba-conda-users">Quick Installation (Recommended for Mamba/Conda Users)</a></li>
 <li class="toctree-l4"><a class="reference internal" href="#development-installation">Development Installation</a></li>
 </ul>
 </li>
@@ -66,7 +66,7 @@
 <li class="toctree-l4"><a class="reference internal" href="#step-1-set-up-the-python-environment">Step 1: Set up the Python environment</a></li>
 <li class="toctree-l4"><a class="reference internal" href="#step-2-install-pytorch">Step 2: Install PyTorch</a></li>
 <li class="toctree-l4"><a class="reference internal" href="#step-3-clone-the-repository">Step 3: Clone the repository</a></li>
-<li class="toctree-l4"><a class="reference internal" href="#step-4-install-dependencies">Step 4: Install dependencies</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#step-4-install-the-package">Step 4: Install the package</a></li>
 <li class="toctree-l4"><a class="reference internal" href="#step-5-verify-installation">Step 5: Verify installation</a></li>
 </ul>
 </li>
@@ -74,17 +74,15 @@
 <li class="toctree-l4"><a class="reference internal" href="#cpu-only-configuration">CPU-only configuration</a></li>
 <li class="toctree-l4"><a class="reference internal" href="#multi-gpu-configuration">Multi-GPU configuration</a></li>
 <li class="toctree-l4"><a class="reference internal" href="#cluster-configuration-slurm">Cluster configuration (SLURM)</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#virtual-environment-configuration">Virtual Environment Configuration</a></li>
 </ul>
 </li>
-<li class="toctree-l3"><a class="reference internal" href="#directory-structure">Directory Structure</a></li>
-<li class="toctree-l3"><a class="reference internal" href="#common-issues-and-solutions">Common Issues and Solutions</a><ul>
-<li class="toctree-l4"><a class="reference internal" href="#cuda-version-mismatch">CUDA version mismatch</a></li>
-<li class="toctree-l4"><a class="reference internal" href="#out-of-memory-errors">Out of memory errors</a></li>
-<li class="toctree-l4"><a class="reference internal" href="#module-not-found-errors">Module not found errors</a></li>
-<li class="toctree-l4"><a class="reference internal" href="#slow-training">Slow training</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#troubleshooting">Troubleshooting</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="#cuda-compatibility-issues">CUDA Compatibility Issues</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#importerror-issues">ImportError Issues</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#memory-issues">Memory Issues</a></li>
 </ul>
 </li>
-<li class="toctree-l3"><a class="reference internal" href="#development-setup">Development Setup</a></li>
 <li class="toctree-l3"><a class="reference internal" href="#starting-your-first-experiment">Starting Your First Experiment</a></li>
 <li class="toctree-l3"><a class="reference internal" href="#next-steps">Next Steps</a></li>
 </ul>
@@ -166,37 +164,47 @@
 <section id="installation-methods">
 <h2>Installation Methods<a class="headerlink" href="#installation-methods" title="Link to this heading"></a></h2>
 <p>There are two main methods to install the framework:</p>
-<section id="quick-installation-recommended">
-<h3>Quick Installation (Recommended)<a class="headerlink" href="#quick-installation-recommended" title="Link to this heading"></a></h3>
-<p>For a quick installation using pip:</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># Create a new conda environment</span>
-conda<span class="w"> </span>create<span class="w"> </span>-n<span class="w"> </span>dendritic<span class="w"> </span><span class="nv">python</span><span class="o">=</span><span class="m">3</span>.8
-conda<span class="w"> </span>activate<span class="w"> </span>dendritic
+<section id="quick-installation-recommended-for-mamba-conda-users">
+<h3>Quick Installation (Recommended for Mamba/Conda Users)<a class="headerlink" href="#quick-installation-recommended-for-mamba-conda-users" title="Link to this heading"></a></h3>
+<p>For a quick installation using Mamba:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># Install Mamba if you don&#39;t have it</span>
+conda<span class="w"> </span>install<span class="w"> </span>mamba<span class="w"> </span>-n<span class="w"> </span>base<span class="w"> </span>-c<span class="w"> </span>conda-forge
+
+<span class="c1"># Create a new environment</span>
+mamba<span class="w"> </span>create<span class="w"> </span>-n<span class="w"> </span>dendritic<span class="w"> </span><span class="nv">python</span><span class="o">=</span><span class="m">3</span>.10
+mamba<span class="w"> </span>activate<span class="w"> </span>dendritic
 
 <span class="c1"># Install PyTorch with CUDA (modify cudatoolkit version if needed)</span>
-conda<span class="w"> </span>install<span class="w"> </span>pytorch<span class="w"> </span>torchvision<span class="w"> </span>torchaudio<span class="w"> </span><span class="nv">cudatoolkit</span><span class="o">=</span><span class="m">11</span>.3<span class="w"> </span>-c<span class="w"> </span>pytorch
-
-<span class="c1"># Install the dendritic modeling framework</span>
-pip<span class="w"> </span>install<span class="w"> </span>dendritic-modeling
-</pre></div>
-</div>
-</section>
-<section id="development-installation">
-<h3>Development Installation<a class="headerlink" href="#development-installation" title="Link to this heading"></a></h3>
-<p>For development or the latest features, install from source:</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># Create a new conda environment</span>
-conda<span class="w"> </span>create<span class="w"> </span>-n<span class="w"> </span>dendritic<span class="w"> </span><span class="nv">python</span><span class="o">=</span><span class="m">3</span>.8
-conda<span class="w"> </span>activate<span class="w"> </span>dendritic
-
-<span class="c1"># Install PyTorch with CUDA</span>
-conda<span class="w"> </span>install<span class="w"> </span>pytorch<span class="w"> </span>torchvision<span class="w"> </span>torchaudio<span class="w"> </span><span class="nv">cudatoolkit</span><span class="o">=</span><span class="m">11</span>.3<span class="w"> </span>-c<span class="w"> </span>pytorch
+mamba<span class="w"> </span>install<span class="w"> </span>pytorch<span class="w"> </span>torchvision<span class="w"> </span>torchaudio<span class="w"> </span>pytorch-cuda<span class="o">=</span><span class="m">11</span>.8<span class="w"> </span>-c<span class="w"> </span>pytorch<span class="w"> </span>-c<span class="w"> </span>nvidia
 
 <span class="c1"># Clone the repository</span>
 git<span class="w"> </span>clone<span class="w"> </span>https://github.com/KempnerInstitute/dendritic-modeling.git
 <span class="nb">cd</span><span class="w"> </span>dendritic-modeling
 
-<span class="c1"># Install in development mode</span>
-pip<span class="w"> </span>install<span class="w"> </span>-e<span class="w"> </span>.
+<span class="c1"># Install the package</span>
+pip<span class="w"> </span>install<span class="w"> </span>.
+</pre></div>
+</div>
+</section>
+<section id="development-installation">
+<h3>Development Installation<a class="headerlink" href="#development-installation" title="Link to this heading"></a></h3>
+<p>For development or the latest features, install from source with development dependencies:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># Create a new Mamba environment</span>
+mamba<span class="w"> </span>create<span class="w"> </span>-n<span class="w"> </span>dendritic<span class="w"> </span><span class="nv">python</span><span class="o">=</span><span class="m">3</span>.10
+mamba<span class="w"> </span>activate<span class="w"> </span>dendritic
+
+<span class="c1"># Install PyTorch with CUDA</span>
+mamba<span class="w"> </span>install<span class="w"> </span>pytorch<span class="w"> </span>torchvision<span class="w"> </span>torchaudio<span class="w"> </span>pytorch-cuda<span class="o">=</span><span class="m">11</span>.8<span class="w"> </span>-c<span class="w"> </span>pytorch<span class="w"> </span>-c<span class="w"> </span>nvidia
+
+<span class="c1"># Clone the repository</span>
+git<span class="w"> </span>clone<span class="w"> </span>https://github.com/KempnerInstitute/dendritic-modeling.git
+<span class="nb">cd</span><span class="w"> </span>dendritic-modeling
+
+<span class="c1"># Install in development mode with dev dependencies</span>
+pip<span class="w"> </span>install<span class="w"> </span>-e<span class="w"> </span><span class="s1">&#39;.[dev]&#39;</span>
+
+<span class="c1"># Install documentation dependencies (optional)</span>
+pip<span class="w"> </span>install<span class="w"> </span>-e<span class="w"> </span><span class="s1">&#39;.[docs]&#39;</span>
 </pre></div>
 </div>
 </section>
@@ -206,34 +214,24 @@ pip<span class="w"> </span>install<span class="w"> </span>-e<span class="w"> </s
 <p>Here’s a more detailed guide to installing the framework from source:</p>
 <section id="step-1-set-up-the-python-environment">
 <h3>Step 1: Set up the Python environment<a class="headerlink" href="#step-1-set-up-the-python-environment" title="Link to this heading"></a></h3>
-<p>Using conda (recommended):</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># Install Miniconda if you don&#39;t have it</span>
-wget<span class="w"> </span>https://repo.anaconda.com/miniconda/Miniconda3-latest-Linux-x86_64.sh
-bash<span class="w"> </span>Miniconda3-latest-Linux-x86_64.sh
+<p>Using Mamba:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># Install Mamba if you don&#39;t have it</span>
+conda<span class="w"> </span>install<span class="w"> </span>mamba<span class="w"> </span>-n<span class="w"> </span>base<span class="w"> </span>-c<span class="w"> </span>conda-forge
 
 <span class="c1"># Create and activate a new environment</span>
-conda<span class="w"> </span>create<span class="w"> </span>-n<span class="w"> </span>dendritic<span class="w"> </span><span class="nv">python</span><span class="o">=</span><span class="m">3</span>.8
-conda<span class="w"> </span>activate<span class="w"> </span>dendritic
-</pre></div>
-</div>
-<p>Using virtualenv (alternative):</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># Install virtualenv if you don&#39;t have it</span>
-pip<span class="w"> </span>install<span class="w"> </span>virtualenv
-
-<span class="c1"># Create and activate a new environment</span>
-virtualenv<span class="w"> </span>dendritic-env
-<span class="nb">source</span><span class="w"> </span>dendritic-env/bin/activate<span class="w">  </span><span class="c1"># On Windows: dendritic-env\Scripts\activate</span>
+mamba<span class="w"> </span>create<span class="w"> </span>-n<span class="w"> </span>dendritic<span class="w"> </span><span class="nv">python</span><span class="o">=</span><span class="m">3</span>.10
+mamba<span class="w"> </span>activate<span class="w"> </span>dendritic
 </pre></div>
 </div>
 </section>
 <section id="step-2-install-pytorch">
 <h3>Step 2: Install PyTorch<a class="headerlink" href="#step-2-install-pytorch" title="Link to this heading"></a></h3>
 <p>Install PyTorch with GPU support:</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># For CUDA 11.7</span>
-pip<span class="w"> </span>install<span class="w"> </span><span class="nv">torch</span><span class="o">==</span><span class="m">2</span>.0.0+cu117<span class="w"> </span><span class="nv">torchvision</span><span class="o">==</span><span class="m">0</span>.15.1+cu117<span class="w"> </span>-f<span class="w"> </span>https://download.pytorch.org/whl/torch_stable.html
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># For CUDA 11.8</span>
+mamba<span class="w"> </span>install<span class="w"> </span>pytorch<span class="w"> </span>torchvision<span class="w"> </span>torchaudio<span class="w"> </span>pytorch-cuda<span class="o">=</span><span class="m">11</span>.8<span class="w"> </span>-c<span class="w"> </span>pytorch<span class="w"> </span>-c<span class="w"> </span>nvidia
 
 <span class="c1"># For CPU only</span>
-pip<span class="w"> </span>install<span class="w"> </span><span class="nv">torch</span><span class="o">==</span><span class="m">2</span>.0.0<span class="w"> </span><span class="nv">torchvision</span><span class="o">==</span><span class="m">0</span>.15.1
+mamba<span class="w"> </span>install<span class="w"> </span>pytorch<span class="w"> </span>torchvision<span class="w"> </span>torchaudio<span class="w"> </span>cpuonly<span class="w"> </span>-c<span class="w"> </span>pytorch
 </pre></div>
 </div>
 <p>Verify PyTorch installation:</p>
@@ -250,31 +248,42 @@ python<span class="w"> </span>-c<span class="w"> </span><span class="s2">&quot;i
 </pre></div>
 </div>
 </section>
-<section id="step-4-install-dependencies">
-<h3>Step 4: Install dependencies<a class="headerlink" href="#step-4-install-dependencies" title="Link to this heading"></a></h3>
+<section id="step-4-install-the-package">
+<h3>Step 4: Install the package<a class="headerlink" href="#step-4-install-the-package" title="Link to this heading"></a></h3>
 <p>Install the package and its dependencies:</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># Install required packages</span>
-pip<span class="w"> </span>install<span class="w"> </span>-r<span class="w"> </span>requirements.txt
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># Install the basic package (for users)</span>
+pip<span class="w"> </span>install<span class="w"> </span>.
 
-<span class="c1"># Install the package in development mode</span>
+<span class="c1"># OR install in development mode (for developers)</span>
 pip<span class="w"> </span>install<span class="w"> </span>-e<span class="w"> </span>.
 
-<span class="c1"># Install additional development dependencies (optional)</span>
-pip<span class="w"> </span>install<span class="w"> </span>-r<span class="w"> </span>requirements-dev.txt
+<span class="c1"># Optional: Install with development dependencies</span>
+pip<span class="w"> </span>install<span class="w"> </span>-e<span class="w"> </span><span class="s1">&#39;.[dev]&#39;</span>
+
+<span class="c1"># Optional: Install with documentation dependencies</span>
+pip<span class="w"> </span>install<span class="w"> </span>-e<span class="w"> </span><span class="s1">&#39;.[docs]&#39;</span>
 </pre></div>
 </div>
-<p>The <code class="docutils literal notranslate"><span class="pre">requirements.txt</span></code> file includes all the necessary dependencies:</p>
-<div class="highlight-text notranslate"><div class="highlight"><pre><span></span>numpy&gt;=1.20.0
-pandas&gt;=1.3.0
-matplotlib&gt;=3.4.0
-seaborn&gt;=0.11.0
-scikit-learn&gt;=0.24.0
-tqdm&gt;=4.60.0
-wandb&gt;=0.12.0
-omegaconf&gt;=2.1.0
-pytest&gt;=6.2.0
-jupyter&gt;=1.0.0
-networkx&gt;=2.6.0
+<p>The project’s dependencies are defined in the pyproject.toml file and include:</p>
+<div class="highlight-text notranslate"><div class="highlight"><pre><span></span># Core dependencies
+torch
+numpy
+torchvision
+torchinfo
+matplotlib
+wandb
+pandas
+omegaconf&gt;=2.3.0
+scikit-learn
+
+# Development dependencies (optional)
+ruff
+mypy
+black
+isort
+pytest
+pytest-cov
+etc.
 </pre></div>
 </div>
 </section>
@@ -284,7 +293,7 @@ networkx&gt;=2.6.0
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># Run a simple test</span>
 python<span class="w"> </span>-c<span class="w"> </span><span class="s2">&quot;from dendritic_modeling.networks import ExcitationInhibitionNetwork; print(&#39;Installation successful!&#39;)&quot;</span>
 
-<span class="c1"># Run the test suite</span>
+<span class="c1"># Run the test suite (if development dependencies were installed)</span>
 pytest<span class="w"> </span>tests/
 </pre></div>
 </div>
@@ -299,7 +308,7 @@ pytest<span class="w"> </span>tests/
 <span class="nb">export</span><span class="w"> </span><span class="nv">CUDA_VISIBLE_DEVICES</span><span class="o">=</span><span class="s2">&quot;&quot;</span>
 
 <span class="c1"># Install PyTorch for CPU only</span>
-conda<span class="w"> </span>install<span class="w"> </span>pytorch<span class="w"> </span>torchvision<span class="w"> </span>torchaudio<span class="w"> </span>cpuonly<span class="w"> </span>-c<span class="w"> </span>pytorch
+mamba<span class="w"> </span>install<span class="w"> </span>pytorch<span class="w"> </span>torchvision<span class="w"> </span>torchaudio<span class="w"> </span>cpuonly<span class="w"> </span>-c<span class="w"> </span>pytorch
 </pre></div>
 </div>
 </section>
@@ -321,154 +330,124 @@ python<span class="w"> </span>-c<span class="w"> </span><span class="s2">&quot;i
 </section>
 <section id="cluster-configuration-slurm">
 <h3>Cluster configuration (SLURM)<a class="headerlink" href="#cluster-configuration-slurm" title="Link to this heading"></a></h3>
-<p>For HPC clusters with SLURM:</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="ch">#!/bin/bash</span>
-<span class="c1">#SBATCH --job-name=dendritic</span>
-<span class="c1">#SBATCH --gres=gpu:1</span>
-<span class="c1">#SBATCH --mem=32G</span>
-<span class="c1">#SBATCH --time=24:00:00</span>
+<p>For running on a SLURM-managed cluster, such as the Kempner Institute cluster:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># Load necessary modules (adjust versions as needed)</span>
+module<span class="w"> </span>load<span class="w"> </span>python/3.12.5-fasrc01
+module<span class="w"> </span>load<span class="w"> </span>cuda/12.4.1-fasrc01
+module<span class="w"> </span>load<span class="w"> </span>cudnn/8.9.2.26_cuda12-fasrc01
 
-module<span class="w"> </span>load<span class="w"> </span>python/3.8<span class="w"> </span>cuda/11.7
-<span class="nb">source</span><span class="w"> </span>activate<span class="w"> </span>dendritic
+<span class="c1"># Clone the repository and enter directory</span>
+git<span class="w"> </span>clone<span class="w"> </span>https://github.com/KempnerInstitute/dendritic-modeling.git
+<span class="nb">cd</span><span class="w"> </span>dendritic-modeling
 
-python<span class="w"> </span>train_experiments.py<span class="w"> </span>--config<span class="w"> </span>configs/config_exp.yaml
+<span class="c1"># Install the package</span>
+pip<span class="w"> </span>install<span class="w"> </span>-e<span class="w"> </span>.
+
+<span class="c1"># Create a SLURM job submission script (example.sh)</span>
+cat<span class="w"> </span>&gt;<span class="w"> </span>example.sh<span class="w"> </span><span class="s">&lt;&lt; &#39;EOL&#39;</span>
+<span class="s">#!/bin/bash</span>
+<span class="s">#SBATCH --job-name=dendritic_job</span>
+<span class="s">#SBATCH --output=dendritic_%j.out</span>
+<span class="s">#SBATCH --error=dendritic_%j.err</span>
+<span class="s">#SBATCH --time=04:00:00</span>
+<span class="s">#SBATCH --gres=gpu:1</span>
+<span class="s">#SBATCH --mem=16G</span>
+<span class="s">#SBATCH --cpus-per-task=4</span>
+
+<span class="s"># Load modules</span>
+<span class="s">module load python/3.12.5-fasrc01</span>
+<span class="s">module load cuda/12.4.1-fasrc01</span>
+<span class="s">module load cudnn/8.9.2.26_cuda12-fasrc01</span>
+
+<span class="s"># Activate environment if needed</span>
+<span class="s"># source /path/to/your/env/bin/activate</span>
+
+<span class="s"># Run the experiment with specified config</span>
+<span class="s">python src/dendritic_modeling/train_experiments.py configs/config_exp.yaml</span>
+<span class="s">EOL</span>
+
+<span class="c1"># Submit the job</span>
+sbatch<span class="w"> </span>example.sh
 </pre></div>
 </div>
 </section>
-</section>
-<section id="directory-structure">
-<h2>Directory Structure<a class="headerlink" href="#directory-structure" title="Link to this heading"></a></h2>
-<p>After installation, the framework has the following directory structure:</p>
-<div class="highlight-text notranslate"><div class="highlight"><pre><span></span>dendritic-modeling/
-├── src/                     # Source code
-│   └── dendritic_modeling/  # Main package
-│       ├── activation_functions.py
-│       ├── config.py
-│       ├── dendrinet.py
-│       └── ...              # Other modules
-├── configs/                 # Configuration files
-├── scripts/                 # Utility scripts
-├── tests/                   # Test suite
-├── docs/                    # Documentation
-└── notebooks/              # Example notebooks
-</pre></div>
-</div>
-</section>
-<section id="common-issues-and-solutions">
-<h2>Common Issues and Solutions<a class="headerlink" href="#common-issues-and-solutions" title="Link to this heading"></a></h2>
-<section id="cuda-version-mismatch">
-<h3>CUDA version mismatch<a class="headerlink" href="#cuda-version-mismatch" title="Link to this heading"></a></h3>
-<p>If you encounter CUDA version errors:</p>
-<div class="highlight-text notranslate"><div class="highlight"><pre><span></span>RuntimeError: CUDA error: no kernel image is available for execution on the device
-</pre></div>
-</div>
-<p>Solution:</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># Check CUDA version</span>
-nvidia-smi
+<section id="virtual-environment-configuration">
+<h3>Virtual Environment Configuration<a class="headerlink" href="#virtual-environment-configuration" title="Link to this heading"></a></h3>
+<p>If you prefer using venv instead of Conda/Mamba:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># Create a virtual environment</span>
+python<span class="w"> </span>-m<span class="w"> </span>venv<span class="w"> </span>dendritic-env
 
-<span class="c1"># Install PyTorch for your specific CUDA version</span>
-pip<span class="w"> </span>install<span class="w"> </span><span class="nv">torch</span><span class="o">==</span><span class="m">2</span>.0.0+cu117<span class="w"> </span>-f<span class="w"> </span>https://download.pytorch.org/whl/torch_stable.html
-</pre></div>
-</div>
-</section>
-<section id="out-of-memory-errors">
-<h3>Out of memory errors<a class="headerlink" href="#out-of-memory-errors" title="Link to this heading"></a></h3>
-<p>If you encounter GPU memory issues:</p>
-<div class="highlight-text notranslate"><div class="highlight"><pre><span></span>RuntimeError: CUDA out of memory
-</pre></div>
-</div>
-<p>Solution:</p>
-<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="c1"># Reduce batch size</span>
-<span class="n">batch_size</span> <span class="o">=</span> <span class="mi">32</span>  <span class="c1"># Try smaller values</span>
+<span class="c1"># Activate the environment</span>
+<span class="c1"># On Linux/Mac:</span>
+<span class="nb">source</span><span class="w"> </span>dendritic-env/bin/activate
+<span class="c1"># On Windows:</span>
+<span class="c1"># dendritic-env\Scripts\activate</span>
 
-<span class="c1"># Use gradient accumulation</span>
-<span class="n">optimizer</span><span class="o">.</span><span class="n">zero_grad</span><span class="p">()</span>
-<span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="p">(</span><span class="n">inputs</span><span class="p">,</span> <span class="n">targets</span><span class="p">)</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">data_loader</span><span class="p">):</span>
-    <span class="n">outputs</span> <span class="o">=</span> <span class="n">model</span><span class="p">(</span><span class="n">inputs</span><span class="p">)</span>
-    <span class="n">loss</span> <span class="o">=</span> <span class="n">criterion</span><span class="p">(</span><span class="n">outputs</span><span class="p">,</span> <span class="n">targets</span><span class="p">)</span>
-    <span class="n">loss</span> <span class="o">=</span> <span class="n">loss</span> <span class="o">/</span> <span class="n">accumulation_steps</span>
-    <span class="n">loss</span><span class="o">.</span><span class="n">backward</span><span class="p">()</span>
-    <span class="k">if</span> <span class="p">(</span><span class="n">i</span><span class="o">+</span><span class="mi">1</span><span class="p">)</span> <span class="o">%</span> <span class="n">accumulation_steps</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
-        <span class="n">optimizer</span><span class="o">.</span><span class="n">step</span><span class="p">()</span>
-        <span class="n">optimizer</span><span class="o">.</span><span class="n">zero_grad</span><span class="p">()</span>
-</pre></div>
-</div>
-</section>
-<section id="module-not-found-errors">
-<h3>Module not found errors<a class="headerlink" href="#module-not-found-errors" title="Link to this heading"></a></h3>
-<p>If the package cannot be found:</p>
-<div class="highlight-text notranslate"><div class="highlight"><pre><span></span>ModuleNotFoundError: No module named &#39;dendritic_modeling&#39;
-</pre></div>
-</div>
-<p>Solution:</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># Make sure you&#39;re in the correct environment</span>
-conda<span class="w"> </span>activate<span class="w"> </span>dendritic
+<span class="c1"># Install PyTorch with appropriate CUDA version</span>
+pip<span class="w"> </span>install<span class="w"> </span>torch<span class="w"> </span>torchvision<span class="w"> </span>torchaudio<span class="w"> </span>--index-url<span class="w"> </span>https://download.pytorch.org/whl/cu118
 
-<span class="c1"># Install the package in development mode</span>
-<span class="nb">cd</span><span class="w"> </span>/path/to/dendritic-modeling
+<span class="c1"># Clone the repository</span>
+git<span class="w"> </span>clone<span class="w"> </span>https://github.com/KempnerInstitute/dendritic-modeling.git
+<span class="nb">cd</span><span class="w"> </span>dendritic-modeling
+
+<span class="c1"># Install the package</span>
 pip<span class="w"> </span>install<span class="w"> </span>-e<span class="w"> </span>.
 </pre></div>
 </div>
 </section>
-<section id="slow-training">
-<h3>Slow training<a class="headerlink" href="#slow-training" title="Link to this heading"></a></h3>
-<p>If training is unusually slow:</p>
-<p>Solutions:</p>
-<ol class="arabic simple">
-<li><p>Enable mixed precision training:</p></li>
-</ol>
-<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="c1"># Use PyTorch&#39;s automatic mixed precision</span>
-<span class="kn">from</span><span class="w"> </span><span class="nn">torch.cuda.amp</span><span class="w"> </span><span class="kn">import</span> <span class="n">autocast</span><span class="p">,</span> <span class="n">GradScaler</span>
+</section>
+<section id="troubleshooting">
+<h2>Troubleshooting<a class="headerlink" href="#troubleshooting" title="Link to this heading"></a></h2>
+<section id="cuda-compatibility-issues">
+<h3>CUDA Compatibility Issues<a class="headerlink" href="#cuda-compatibility-issues" title="Link to this heading"></a></h3>
+<p>If you encounter CUDA compatibility issues:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># Check CUDA version</span>
+nvcc<span class="w"> </span>--version
 
-<span class="n">scaler</span> <span class="o">=</span> <span class="n">GradScaler</span><span class="p">()</span>
-<span class="k">for</span> <span class="n">inputs</span><span class="p">,</span> <span class="n">targets</span> <span class="ow">in</span> <span class="n">data_loader</span><span class="p">:</span>
-    <span class="k">with</span> <span class="n">autocast</span><span class="p">():</span>
-        <span class="n">outputs</span> <span class="o">=</span> <span class="n">model</span><span class="p">(</span><span class="n">inputs</span><span class="p">)</span>
-        <span class="n">loss</span> <span class="o">=</span> <span class="n">criterion</span><span class="p">(</span><span class="n">outputs</span><span class="p">,</span> <span class="n">targets</span><span class="p">)</span>
+<span class="c1"># Check PyTorch CUDA compatibility</span>
+python<span class="w"> </span>-c<span class="w"> </span><span class="s2">&quot;import torch; print(torch.version.cuda)&quot;</span>
 
-    <span class="n">scaler</span><span class="o">.</span><span class="n">scale</span><span class="p">(</span><span class="n">loss</span><span class="p">)</span><span class="o">.</span><span class="n">backward</span><span class="p">()</span>
-    <span class="n">scaler</span><span class="o">.</span><span class="n">step</span><span class="p">(</span><span class="n">optimizer</span><span class="p">)</span>
-    <span class="n">scaler</span><span class="o">.</span><span class="n">update</span><span class="p">()</span>
-</pre></div>
-</div>
-<ol class="arabic simple" start="2">
-<li><p>Check for bottlenecks with profiling:</p></li>
-</ol>
-<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="c1"># Profile your training loop</span>
-<span class="k">with</span> <span class="n">torch</span><span class="o">.</span><span class="n">profiler</span><span class="o">.</span><span class="n">profile</span><span class="p">(</span>
-    <span class="n">activities</span><span class="o">=</span><span class="p">[</span><span class="n">torch</span><span class="o">.</span><span class="n">profiler</span><span class="o">.</span><span class="n">ProfilerActivity</span><span class="o">.</span><span class="n">CPU</span><span class="p">,</span> <span class="n">torch</span><span class="o">.</span><span class="n">profiler</span><span class="o">.</span><span class="n">ProfilerActivity</span><span class="o">.</span><span class="n">CUDA</span><span class="p">],</span>
-<span class="p">)</span> <span class="k">as</span> <span class="n">prof</span><span class="p">:</span>
-    <span class="n">outputs</span> <span class="o">=</span> <span class="n">model</span><span class="p">(</span><span class="n">inputs</span><span class="p">)</span>
-    <span class="n">loss</span> <span class="o">=</span> <span class="n">criterion</span><span class="p">(</span><span class="n">outputs</span><span class="p">,</span> <span class="n">targets</span><span class="p">)</span>
-    <span class="n">loss</span><span class="o">.</span><span class="n">backward</span><span class="p">()</span>
-    <span class="n">optimizer</span><span class="o">.</span><span class="n">step</span><span class="p">()</span>
-
-<span class="nb">print</span><span class="p">(</span><span class="n">prof</span><span class="o">.</span><span class="n">key_averages</span><span class="p">()</span><span class="o">.</span><span class="n">table</span><span class="p">(</span><span class="n">sort_by</span><span class="o">=</span><span class="s2">&quot;cuda_time_total&quot;</span><span class="p">))</span>
+<span class="c1"># If versions mismatch, reinstall PyTorch with the matching CUDA version</span>
+pip<span class="w"> </span>uninstall<span class="w"> </span>torch<span class="w"> </span>torchvision<span class="w"> </span>torchaudio
+pip<span class="w"> </span>install<span class="w"> </span>torch<span class="w"> </span>torchvision<span class="w"> </span>torchaudio<span class="w"> </span>--index-url<span class="w"> </span>https://download.pytorch.org/whl/cu<span class="o">[</span>version<span class="o">]</span>
+<span class="c1"># Replace [version] with your CUDA version (e.g., cu118 for CUDA 11.8)</span>
 </pre></div>
 </div>
 </section>
-</section>
-<section id="development-setup">
-<h2>Development Setup<a class="headerlink" href="#development-setup" title="Link to this heading"></a></h2>
-<p>For developers contributing to the project:</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># Install development dependencies</span>
-pip<span class="w"> </span>install<span class="w"> </span>-r<span class="w"> </span>requirements-dev.txt
+<section id="importerror-issues">
+<h3>ImportError Issues<a class="headerlink" href="#importerror-issues" title="Link to this heading"></a></h3>
+<p>If you encounter import errors:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># Ensure the package is installed</span>
+pip<span class="w"> </span>show<span class="w"> </span>dendritic_modeling
 
-<span class="c1"># Set up pre-commit hooks</span>
-pip<span class="w"> </span>install<span class="w"> </span>pre-commit
-pre-commit<span class="w"> </span>install
+<span class="c1"># If not installed or in development mode:</span>
+pip<span class="w"> </span>install<span class="w"> </span>-e<span class="w"> </span>.
 
-<span class="c1"># Create a new branch for your feature</span>
-git<span class="w"> </span>checkout<span class="w"> </span>-b<span class="w"> </span>feature/your-feature-name
+<span class="c1"># Check your PYTHONPATH</span>
+<span class="nb">echo</span><span class="w"> </span><span class="nv">$PYTHONPATH</span>
 
-<span class="c1"># Make your changes, then test</span>
-pytest
-
-<span class="c1"># Format and lint code</span>
-black<span class="w"> </span>src/<span class="w"> </span>tests/
-flake8<span class="w"> </span>src/<span class="w"> </span>tests/
+<span class="c1"># Add the repository to your PYTHONPATH if needed</span>
+<span class="nb">export</span><span class="w"> </span><span class="nv">PYTHONPATH</span><span class="o">=</span><span class="nv">$PYTHONPATH</span>:/path/to/dendritic-modeling
 </pre></div>
 </div>
+</section>
+<section id="memory-issues">
+<h3>Memory Issues<a class="headerlink" href="#memory-issues" title="Link to this heading"></a></h3>
+<p>If you encounter out-of-memory errors during training:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># Reduce batch size in your configuration file or training parameters</span>
+<span class="c1"># config.yaml:</span>
+train:
+<span class="w">  </span>batch_size:<span class="w"> </span><span class="m">32</span><span class="w">  </span><span class="c1"># Try smaller batch size</span>
+
+<span class="c1"># Use gradient accumulation</span>
+<span class="c1"># In your code or config:</span>
+gradient_accumulation_steps:<span class="w"> </span><span class="m">2</span><span class="w">  </span><span class="c1"># Accumulate gradients before updating</span>
+
+<span class="c1"># Clean up GPU memory</span>
+python<span class="w"> </span>-c<span class="w"> </span><span class="s2">&quot;import torch; torch.cuda.empty_cache()&quot;</span>
+</pre></div>
+</div>
+</section>
 </section>
 <section id="starting-your-first-experiment">
 <h2>Starting Your First Experiment<a class="headerlink" href="#starting-your-first-experiment" title="Link to this heading"></a></h2>
