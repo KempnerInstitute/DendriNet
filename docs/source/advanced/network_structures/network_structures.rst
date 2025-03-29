@@ -1,16 +1,16 @@
 .. _network_structures:
 
-Network Structures
-==================
+Network Structures and Architecture
+=================================
 
 Overview
 --------
 
 This document describes the neural network architectures available in the dendritic modeling framework,
-their configurations, and how to customize them for specific tasks.
+their configurations, input processing modes, and how to customize them for specific tasks.
 
 Available Network Types
------------------------
+----------------------
 
 The framework provides several network types with different architectures:
 
@@ -21,8 +21,35 @@ The framework provides several network types with different architectures:
 
 3. **Sparse MLP**: An MLP with sparse connectivity patterns.
 
+Core Network Architecture
+------------------------
+
+The core network architecture is defined by the following parameters:
+
+.. code-block:: yaml
+
+    model:
+      network:
+        type: "EINet"  # ExcitationInhibitionNetwork
+        parameters:
+          input_dim: 784
+          excitatory_layer_sizes: [512, 256]
+          inhibitory_layer_sizes: [200, 100]
+          excitatory_branch_factors: [64, 32]
+          inhibitory_branch_factors: [32, 16]
+          output_dim: 10
+
+These parameters define:
+
+1. **input_dim**: Dimension of the input data
+2. **excitatory_layer_sizes**: Sizes of the excitatory layers
+3. **inhibitory_layer_sizes**: Sizes of the inhibitory layers
+4. **excitatory_branch_factors**: Branch factors for excitatory dendrites in each layer
+5. **inhibitory_branch_factors**: Branch factors for inhibitory dendrites in each layer
+6. **output_dim**: Dimension of the output (e.g., number of classes for classification)
+
 Excitation-Inhibition Network (EINet)
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+-----------------------------------
 
 The EINet is the primary architecture of the framework, implementing a biologically-inspired neural network
 with dendritic branches, excitatory-inhibitory balance, and sparse connectivity.
@@ -32,7 +59,7 @@ with dendritic branches, excitatory-inhibitory balance, and sparse connectivity.
    excitatory and inhibitory inputs are processed differently and integrated in dendritic branches.
 
 Implementation
-~~~~~~~~~~~~~~
+~~~~~~~~~~~~~
 
 The EINet is implemented through several core classes:
 
@@ -41,8 +68,24 @@ The EINet is implemented through several core classes:
 - `TopKLinear`: Sparse connectivity implementation
 - `BlockLinear`: Layer for integrating branch outputs
 
+.. code-block:: python
+
+    class ExcitationInhibitionNetwork(nn.Module):
+        """
+        A network with multiple excitatory-inhibitory layers.
+        """
+        
+        def __init__(self, input_dim, excitatory_layer_sizes, inhibitory_layer_sizes, 
+                     excitatory_branch_factors, inhibitory_branch_factors, 
+                     input_mode=0, input_net_dict=None, ...):
+            # Initialize the network with the specified parameters
+            
+        def forward(self, x):
+            # Process input through the network
+            # Return output
+
 Excitation-Inhibition Layer
-~~~~~~~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~~~~~
 
 Each layer in an EINet contains both excitatory and inhibitory cells. The excitatory cells
 receive inputs and produce outputs that propagate to the next layer, while inhibitory cells
@@ -66,7 +109,7 @@ modulate the activity of excitatory cells through inhibitory connections.
     )
 
 Dendritic Branch Processing
-~~~~~~~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~~~~~
 
 Dendritic branches implement a form of nonlinear integration of inputs, inspired by the
 computation performed in biological dendrites.
@@ -88,7 +131,7 @@ computation performed in biological dendrites.
         return output
 
 Branch Parameters
-~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~
 
 The EINet architecture is highly configurable through various parameters:
 
@@ -102,86 +145,77 @@ The EINet architecture is highly configurable through various parameters:
 - **Reactivation parameters**: Controls the nonlinear activation in branches
 - **Somatic synapses**: Whether to include direct synapses to the soma
 
-Standard MLP
-------------
+Input Processing Modes
+--------------------
 
-For baseline comparisons, the framework includes a standard multilayer perceptron implementation.
+The framework supports three input modes for processing data before it enters the dendritic layers:
 
-.. code-block:: python
+.. code-block:: yaml
 
-    # Example of configuring an MLP
-    mlp_params = {
-        'input_dim': 784,
-        'hidden_dims': [128, 64],
-        'output_dim': 10,
-        'activation': 'relu',
-        'dropout': 0.2
-    }
-    
-    model = SimpleMLP(**mlp_params)
+    model:
+      network:
+        parameters:
+          input_mode: 0  # Raw input mode (default)
+          # Alternative modes: 1 (linear transform) or 2 (network transform)
 
-Sparse MLP
-----------
+1. **Mode 0: Raw Input (Direct)**
+   - Raw inputs are fed directly to the dendritic layers
+   - No input transformation is applied
+   - Suitable for simple tasks or pre-processed inputs
 
-The Sparse MLP implements a traditional MLP architecture but with sparse connectivity
-patterns similar to those in the EINet.
+2. **Mode 1: Linear Transform**
+   - Inputs are transformed through a linear layer
+   - Allows for basic dimensionality reduction or expansion
+   - Faster than network transform, less powerful but more stable
 
-.. code-block:: python
-
-    # Example of configuring a sparse MLP
-    sparse_mlp_params = {
-        'input_dim': 784,
-        'hidden_dims': [128, 64],
-        'output_dim': 10,
-        'sparsity': 0.1  # Only 10% of connections are active
-    }
-    
-    model = SparseMLP(**sparse_mlp_params)
-
-Input Transformation Networks
------------------------------
-
-Basic Configuration
-~~~~~~~~~~~~~~~~~~~
-
-Input transformation networks preprocess inputs before they reach the dendritic network.
-This can help in separating information into excitatory and inhibitory pathways.
-
-.. code-block:: python
-
-    # Basic configuration for input transformation
-    input_transform_config = {
-        'type': 'MLPInputTransform',
-        'hidden_dims': [256, 128],
-        'output_dim': 64
-    }
+3. **Mode 2: Network Transform**
+   - Inputs are transformed through a multi-layer network
+   - More expressive than linear transform
+   - Can learn complex feature representations
+   - Requires more careful training
 
 Input Network Types
-~~~~~~~~~~~~~~~~~~~
+-----------------
 
 The framework supports several types of input transformation networks:
 
-1. **MLPInputTransform**: Simple multi-layer perceptron for transforming inputs
-2. **CNNInputTransform**: Convolutional network for image data
+1. **MLPInputTransform**: Multi-layer perceptron with configurable hidden layers
+   - Simple but effective for many tasks
+   - Fully connected architecture
+
+2. **ConvInputTransform**: Convolutional network for image data
+   - Better suited for spatial data like images
+   - Preserves spatial relationships
+
 3. **AlexNetTransform**: Based on AlexNet architecture (for transfer learning)
+
 4. **ResNetTransform**: Based on ResNet architecture (for complex feature extraction)
 
-Input Network Architecture
-~~~~~~~~~~~~~~~~~~~~~~~~~~
+Input Network Configuration
+-------------------------
 
-A typical input network architecture includes:
+When using input mode 2, you can configure the input network through the ``input_net_dict`` parameter:
 
-1. Feature extraction layers (CNN or MLP)
-2. Shared feature processing
-3. Separate heads for excitatory and inhibitory pathways
+.. code-block:: yaml
+
+    model:
+      network:
+        parameters:
+          input_mode: 2
+          input_net_dict:
+            type: "MLPInputTransform"
+            hidden_dims: [512, 256]
+            output_dim: 128
+            activation: "relu"
+            dropout: 0.2
 
 Training Strategies
-~~~~~~~~~~~~~~~~~~~
+-----------------
 
 Several strategies are available for training input transformation networks:
 
 Sequential vs. Joint Training
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 Input networks can be trained either sequentially (before the dendritic network)
 or jointly (simultaneously with the dendritic network).
@@ -201,7 +235,7 @@ or jointly (simultaneously with the dendritic network).
     }
 
 Independent Head Training
-^^^^^^^^^^^^^^^^^^^^^^^^^
+~~~~~~~~~~~~~~~~~~~~~~
 
 The excitatory and inhibitory heads can be trained independently with different objectives.
 
@@ -215,7 +249,7 @@ The excitatory and inhibitory heads can be trained independently with different 
     }
 
 Pre-trained Input Networks
-~~~~~~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~~~
 
 For complex tasks, pre-trained networks can be used to extract features.
 
@@ -231,7 +265,7 @@ For complex tasks, pre-trained networks can be used to extract features.
     }
 
 Transfer Learning Options
-~~~~~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~~
 
 When using pre-trained networks, several transfer learning approaches are available:
 
@@ -240,7 +274,7 @@ When using pre-trained networks, several transfer learning approaches are availa
 3. **Progressive unfreezing**: Gradually unfreeze deeper layers during training
 
 Example Configurations
-~~~~~~~~~~~~~~~~~~~~~~
+-------------------
 
 Here are some example configurations for different network types:
 
@@ -248,32 +282,40 @@ Here are some example configurations for different network types:
 
     # EINet with input transformation
     model:
-      task: classification
-      probabilistic: true
       network:
-        type: EINet
+        type: "EINet"
         parameters:
-          excitatory_layer_sizes: [10]
-          inhibitory_layer_sizes: [20]
-          excitatory_branch_factors: [2, 2]
-          inhibitory_branch_factors: []
-          reactivate: true
-          somatic_synapses: true
-          ee_synapses_per_branch_per_layer: [24]
-          ei_synapses_per_branch_per_layer: [100]
-          ie_synapses_per_branch_per_layer: [2]
-          ii_synapses_per_branch_per_layer: [0]
-          use_shunting: true
-          reactivation_type: param_tanh
-          reactivation_strategy: inverse
-          blocklinear_strategy: block_conductance_dynamic
-          enable_branch_outputs: false
-          output_dim: 10
           input_mode: 2
           input_net_dict:
-            type: MLPInputTransform
-            hidden_dims: [256, 128]
-            output_dim: 64
+            type: "MLPInputTransform"
+            hidden_dims: [512, 256]
+            output_dim: 128
+          excitatory_layer_sizes: [256, 128]
+          inhibitory_layer_sizes: [128, 64]
+          excitatory_branch_factors: [32, 16]
+          inhibitory_branch_factors: [16, 8]
+          output_dim: 10
+          
+    # Sparse MLP configuration
+    model:
+      network:
+        type: "SparseMLP"
+        parameters:
+          input_dim: 784
+          hidden_dims: [512, 256]
+          output_dim: 10
+          sparsity: 0.1  # Only 10% of connections are active
+          
+    # Standard MLP with dropout
+    model:
+      network:
+        type: "SimpleMLP"
+        parameters:
+          input_dim: 784
+          hidden_dims: [512, 256]
+          output_dim: 10
+          activation: "relu"
+          dropout: 0.2
 
 Implementation Details (Overview)
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
