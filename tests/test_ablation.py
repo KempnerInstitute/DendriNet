@@ -2,6 +2,7 @@ import unittest
 import torch
 import os
 import tempfile
+import re
 from torch.utils.data import TensorDataset
 
 from dendritic_modeling.utils import analyze_branch_ablation, analyze_layerwise_ablation, ablate_branch
@@ -39,15 +40,23 @@ class TestAblationFunctions(unittest.TestCase):
         # Test ablating a specific branch in layer 0
         ablate_branch(model, layer_idx=0, branch_ids=[0], mode='direct')
         
-        # Verify that the branch's weights are zeroed out
-        # This depends on the exact structure of your model
+        # Verify that the branch's weights are zeroed out using a more flexible approach
         found_ablated_weights = False
         for name, param in model.named_parameters():
-            if 'branch_layers.0.branch_excitation.pre_w' in name:
-                # Check if the first branch (index 0) has been zeroed
-                if torch.all(param[0, :] == 0).item():
-                    found_ablated_weights = True
-                    break
+            # Use regex to extract layer and branch indices
+            layer_match = re.search(r'branch_layers\.(\d+)', name)
+            branch_match = re.search(r'branch_excitation.*?(\d+)', name)
+            
+            if (layer_match and branch_match and 'pre_w' in name):
+                layer_idx = int(layer_match.group(1))
+                branch_idx = int(branch_match.group(1))
+                
+                # Check if this is the branch we ablated (layer 0, branch 0)
+                if layer_idx == 0 and branch_idx == 0:
+                    # Check if the weights have been zeroed
+                    if torch.all(param[0, :] == 0).item():
+                        found_ablated_weights = True
+                        break
         
         self.assertTrue(found_ablated_weights, "Branch weights were not properly ablated")
         
