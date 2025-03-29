@@ -1,0 +1,173 @@
+
+
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" data-content_root="../../">
+<head>
+  <meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Advanced Topics &mdash; dendritic_modeling 0.1.0 documentation</title>
+      <link rel="stylesheet" type="text/css" href="../../_static/pygments.css?v=b86133f3" />
+      <link rel="stylesheet" type="text/css" href="../../_static/css/theme.css?v=e59714d7" />
+      <link rel="stylesheet" type="text/css" href="../../_static/copybutton.css?v=76b2166b" />
+
+  
+      <script src="../../_static/jquery.js?v=5d32c60e"></script>
+      <script src="../../_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
+      <script src="../../_static/documentation_options.js?v=01f34227"></script>
+      <script src="../../_static/doctools.js?v=9bcbadda"></script>
+      <script src="../../_static/sphinx_highlight.js?v=dc90522c"></script>
+      <script src="../../_static/clipboard.min.js?v=a7894cd8"></script>
+      <script src="../../_static/copybutton.js?v=f281be69"></script>
+      <script crossorigin="anonymous" integrity="sha256-Ae2Vz/4ePdIu6ZyI/5ZGsYnb+m0JlOmKPjt6XZ9JJkA=" src="https://cdnjs.cloudflare.com/ajax/libs/require.js/2.3.4/require.min.js"></script>
+      <script>window.MathJax = {"tex": {"inlineMath": [["$", "$"], ["\\(", "\\)"]], "processEscapes": true}, "options": {"ignoreHtmlClass": "tex2jax_ignore|mathjax_ignore|document", "processHtmlClass": "tex2jax_process|mathjax_process|math|output_area"}}</script>
+      <script defer="defer" src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+    <script src="../../_static/js/theme.js"></script>
+    <link rel="author" title="About these documents" href="../../about.html" />
+    <link rel="index" title="Index" href="../../genindex.html" />
+    <link rel="search" title="Search" href="../../search.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+
+          
+          
+          <a href="../../index.html" class="icon icon-home">
+            dendritic_modeling
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <p class="caption" role="heading"><span class="caption-text">Introduction</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../about.html">About</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Contents</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../getting_started/index.html">Getting Started Guide</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../user_guide/index.html">User Guide</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Contents</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="network_structures/index.html">Network Structures</a></li>
+<li class="toctree-l1"><a class="reference internal" href="learning/index.html">Learning Strategies</a></li>
+<li class="toctree-l1"><a class="reference internal" href="visualization/index.html">Visualization Tools</a></li>
+<li class="toctree-l1"><a class="reference internal" href="analysis/index.html">Analysis Tools</a></li>
+<li class="toctree-l1"><a class="reference internal" href="configuration/index.html">Configuration System</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Contents</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../api/index.html">API Reference</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Contents</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../deployment/index.html">Deployment Guide</a></li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../../index.html">dendritic_modeling</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="../../index.html" class="icon icon-home" aria-label="Home"></a></li>
+      <li class="breadcrumb-item active">Advanced Topics</li>
+      <li class="wy-breadcrumbs-aside">
+            <a href="../../_sources/source/advanced/index.rst.txt" rel="nofollow"> View page source</a>
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <section id="advanced-topics">
+<span id="advanced"></span><h1>Advanced Topics<a class="headerlink" href="#advanced-topics" title="Link to this heading"></a></h1>
+<p>This section covers advanced topics in the Dendritic Modeling framework, including detailed documentation on network architectures, learning strategies, analysis tools, and visualization.</p>
+<div class="toctree-wrapper compound">
+<p class="caption" role="heading"><span class="caption-text">Contents:</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="network_structures/index.html">Network Structures</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="network_structures/network_structures.html">Network Structures and Architecture</a></li>
+<li class="toctree-l2"><a class="reference internal" href="network_structures/activation_functions.html">Activation Functions</a></li>
+<li class="toctree-l2"><a class="reference internal" href="network_structures/weight_initialization.html">Weight Initialization Methods</a></li>
+<li class="toctree-l2"><a class="reference internal" href="network_structures/gradient_scaling.html">Gradient Scaling Techniques</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="learning/index.html">Learning Strategies</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="learning/learning_strategies.html">Learning Strategies</a></li>
+<li class="toctree-l2"><a class="reference internal" href="learning/topk_linear.html">TopKLinear Layers and Dendritic Processing</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="analysis/index.html">Analysis Tools</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="analysis/ablation_studies.html">Ablation Studies</a></li>
+<li class="toctree-l2"><a class="reference internal" href="analysis/branch_information.html">Branch Information Analysis</a></li>
+<li class="toctree-l2"><a class="reference internal" href="analysis/ablation_information_analysis.html">Ablation Studies and Information Analysis</a></li>
+<li class="toctree-l2"><a class="reference internal" href="analysis/synthetic_datasets.html">Datasets and Data Utilities</a></li>
+<li class="toctree-l2"><a class="reference internal" href="analysis/experiment_tracking.html">Experiment Tracking and Logging</a></li>
+<li class="toctree-l2"><a class="reference internal" href="analysis/output_handling.html">Output Handling and Loss Functions</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="visualization/index.html">Visualization Tools</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="visualization/visualization_guide.html">Network Visualization Guide</a></li>
+<li class="toctree-l2"><a class="reference internal" href="visualization/evaluation_visualization.html">Evaluation and Visualization</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="configuration/index.html">Configuration System</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="configuration/index.html#overview">Overview</a></li>
+<li class="toctree-l2"><a class="reference internal" href="configuration/index.html#configuration-file-structure">Configuration File Structure</a></li>
+<li class="toctree-l2"><a class="reference internal" href="configuration/index.html#running-experiments">Running Experiments</a></li>
+<li class="toctree-l2"><a class="reference internal" href="configuration/index.html#configuration-templates">Configuration Templates</a></li>
+<li class="toctree-l2"><a class="reference internal" href="configuration/index.html#best-practices">Best Practices</a></li>
+<li class="toctree-l2"><a class="reference internal" href="configuration/index.html#advanced-configuration-options">Advanced Configuration Options</a></li>
+</ul>
+</li>
+</ul>
+</div>
+</section>
+
+
+           </div>
+          </div>
+          <footer>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright 2025, Research and Engineering at Kempner.</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>

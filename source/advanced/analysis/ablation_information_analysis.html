@@ -25,7 +25,9 @@
     <script src="../../../_static/js/theme.js"></script>
     <link rel="author" title="About these documents" href="../../../about.html" />
     <link rel="index" title="Index" href="../../../genindex.html" />
-    <link rel="search" title="Search" href="../../../search.html" /> 
+    <link rel="search" title="Search" href="../../../search.html" />
+    <link rel="next" title="Datasets and Data Utilities" href="synthetic_datasets.html" />
+    <link rel="prev" title="Branch Information Analysis" href="branch_information.html" /> 
 </head>
 
 <body class="wy-body-for-nav"> 
@@ -57,11 +59,53 @@
 <li class="toctree-l1"><a class="reference internal" href="../../user_guide/index.html">User Guide</a></li>
 </ul>
 <p class="caption" role="heading"><span class="caption-text">Contents</span></p>
-<ul>
+<ul class="current">
 <li class="toctree-l1"><a class="reference internal" href="../network_structures/index.html">Network Structures</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../learning/index.html">Learning Strategies</a></li>
-<li class="toctree-l1"><a class="reference internal" href="../visualization/index.html">Visualization Guide</a></li>
-<li class="toctree-l1"><a class="reference internal" href="index.html">Analysis Tools</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../visualization/index.html">Visualization Tools</a></li>
+<li class="toctree-l1 current"><a class="reference internal" href="index.html">Analysis Tools</a><ul class="current">
+<li class="toctree-l2"><a class="reference internal" href="ablation_studies.html">Ablation Studies</a></li>
+<li class="toctree-l2"><a class="reference internal" href="branch_information.html">Branch Information Analysis</a></li>
+<li class="toctree-l2 current"><a class="current reference internal" href="#">Ablation Studies and Information Analysis</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#overview">Overview</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#ablation-studies">Ablation Studies</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="#types-of-ablation">Types of Ablation</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#basic-ablation-configuration">Basic Ablation Configuration</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#pathway-ablation">Pathway Ablation</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#layer-ablation">Layer Ablation</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#branch-ablation">Branch Ablation</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#mechanism-ablation">Mechanism Ablation</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#progressive-ablation">Progressive Ablation</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#synaptic-weight-ablation">Synaptic Weight Ablation</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#ablation-analysis">Ablation Analysis</a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="#information-analysis">Information Analysis</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="#information-measures">Information Measures</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#basic-information-analysis-configuration">Basic Information Analysis Configuration</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#layer-based-information-analysis">Layer-Based Information Analysis</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#branch-based-information-analysis">Branch-Based Information Analysis</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#dendritic-information-analysis-implementation">Dendritic Information Analysis Implementation</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#analyzing-pre-shunting-branch-inputs">Analyzing Pre-Shunting Branch Inputs</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#analyzing-post-shunting-branch-activations">Analyzing Post-Shunting Branch Activations</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#comparing-pre-shunting-vs-post-shunting-information">Comparing Pre-Shunting vs. Post-Shunting Information</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#synaptic-weight-information-analysis">Synaptic Weight Information Analysis</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#receptive-field-analysis">Receptive Field Analysis</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#information-bottleneck-analysis">Information Bottleneck Analysis</a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="#combining-ablation-and-information-analysis">Combining Ablation and Information Analysis</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#visualizing-information-analysis-results">Visualizing Information Analysis Results</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#best-practices-for-ablation-and-information-analysis">Best Practices for Ablation and Information Analysis</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#complete-analysis-example">Complete Analysis Example</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="synthetic_datasets.html">Datasets and Data Utilities</a></li>
+<li class="toctree-l2"><a class="reference internal" href="experiment_tracking.html">Experiment Tracking and Logging</a></li>
+<li class="toctree-l2"><a class="reference internal" href="output_handling.html">Output Handling and Loss Functions</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="../configuration/index.html">Configuration System</a></li>
 </ul>
 <p class="caption" role="heading"><span class="caption-text">Contents</span></p>
 <ul>
@@ -86,6 +130,7 @@
           <div role="navigation" aria-label="Page navigation">
   <ul class="wy-breadcrumbs">
       <li><a href="../../../index.html" class="icon icon-home" aria-label="Home"></a></li>
+          <li class="breadcrumb-item"><a href="index.html">Analysis Tools</a></li>
       <li class="breadcrumb-item active">Ablation Studies and Information Analysis</li>
       <li class="wy-breadcrumbs-aside">
             <a href="../../../_sources/source/advanced/analysis/ablation_information_analysis.rst.txt" rel="nofollow"> View page source</a>
@@ -760,7 +805,10 @@
 
            </div>
           </div>
-          <footer>
+          <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
+        <a href="branch_information.html" class="btn btn-neutral float-left" title="Branch Information Analysis" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
+        <a href="synthetic_datasets.html" class="btn btn-neutral float-right" title="Datasets and Data Utilities" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
+    </div>
 
   <hr/>
 

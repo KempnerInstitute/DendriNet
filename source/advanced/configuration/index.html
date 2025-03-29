@@ -1,0 +1,306 @@
+
+
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" data-content_root="../../../">
+<head>
+  <meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Configuration System &mdash; dendritic_modeling 0.1.0 documentation</title>
+      <link rel="stylesheet" type="text/css" href="../../../_static/pygments.css?v=b86133f3" />
+      <link rel="stylesheet" type="text/css" href="../../../_static/css/theme.css?v=e59714d7" />
+      <link rel="stylesheet" type="text/css" href="../../../_static/copybutton.css?v=76b2166b" />
+
+  
+      <script src="../../../_static/jquery.js?v=5d32c60e"></script>
+      <script src="../../../_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
+      <script src="../../../_static/documentation_options.js?v=01f34227"></script>
+      <script src="../../../_static/doctools.js?v=9bcbadda"></script>
+      <script src="../../../_static/sphinx_highlight.js?v=dc90522c"></script>
+      <script src="../../../_static/clipboard.min.js?v=a7894cd8"></script>
+      <script src="../../../_static/copybutton.js?v=f281be69"></script>
+      <script crossorigin="anonymous" integrity="sha256-Ae2Vz/4ePdIu6ZyI/5ZGsYnb+m0JlOmKPjt6XZ9JJkA=" src="https://cdnjs.cloudflare.com/ajax/libs/require.js/2.3.4/require.min.js"></script>
+    <script src="../../../_static/js/theme.js"></script>
+    <link rel="author" title="About these documents" href="../../../about.html" />
+    <link rel="index" title="Index" href="../../../genindex.html" />
+    <link rel="search" title="Search" href="../../../search.html" />
+    <link rel="next" title="API Reference" href="../../api/index.html" />
+    <link rel="prev" title="Output Handling and Loss Functions" href="../analysis/output_handling.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+
+          
+          
+          <a href="../../../index.html" class="icon icon-home">
+            dendritic_modeling
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../../../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <p class="caption" role="heading"><span class="caption-text">Introduction</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../about.html">About</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Contents</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../getting_started/index.html">Getting Started Guide</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../user_guide/index.html">User Guide</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Contents</span></p>
+<ul class="current">
+<li class="toctree-l1"><a class="reference internal" href="../network_structures/index.html">Network Structures</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../learning/index.html">Learning Strategies</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../visualization/index.html">Visualization Tools</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../analysis/index.html">Analysis Tools</a></li>
+<li class="toctree-l1 current"><a class="current reference internal" href="#">Configuration System</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="#overview">Overview</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#configuration-file-structure">Configuration File Structure</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#model"><code class="docutils literal notranslate"><span class="pre">model</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#train"><code class="docutils literal notranslate"><span class="pre">train</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#task"><code class="docutils literal notranslate"><span class="pre">task</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#visualization"><code class="docutils literal notranslate"><span class="pre">visualization</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#wandb"><code class="docutils literal notranslate"><span class="pre">wandb</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#outputs"><code class="docutils literal notranslate"><span class="pre">outputs</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="#running-experiments">Running Experiments</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#configuration-templates">Configuration Templates</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#best-practices">Best Practices</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#advanced-configuration-options">Advanced Configuration Options</a></li>
+</ul>
+</li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Contents</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../api/index.html">API Reference</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Contents</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../deployment/index.html">Deployment Guide</a></li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../../../index.html">dendritic_modeling</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="../../../index.html" class="icon icon-home" aria-label="Home"></a></li>
+      <li class="breadcrumb-item active">Configuration System</li>
+      <li class="wy-breadcrumbs-aside">
+            <a href="../../../_sources/source/advanced/configuration/index.rst.txt" rel="nofollow"> View page source</a>
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <section id="configuration-system">
+<span id="configuration"></span><h1>Configuration System<a class="headerlink" href="#configuration-system" title="Link to this heading"></a></h1>
+<p>The Dendritic Modeling framework uses a flexible YAML-based configuration system to define experiments. This approach makes it easy to reproduce experiments, track different configurations, and modify parameters without changing code.</p>
+<section id="overview">
+<h2>Overview<a class="headerlink" href="#overview" title="Link to this heading"></a></h2>
+<p>The configuration system is built around the <code class="docutils literal notranslate"><span class="pre">train_experiments.py</span></code> script, which takes a YAML configuration file as input and handles:</p>
+<ol class="arabic simple">
+<li><p>Setting up the specified dataset</p></li>
+<li><p>Creating the model architecture</p></li>
+<li><p>Applying the chosen learning strategy</p></li>
+<li><p>Running training and evaluation</p></li>
+<li><p>Generating visualizations and analysis</p></li>
+</ol>
+</section>
+<section id="configuration-file-structure">
+<h2>Configuration File Structure<a class="headerlink" href="#configuration-file-structure" title="Link to this heading"></a></h2>
+<p>A typical configuration file has the following top-level sections:</p>
+<section id="model">
+<h3><code class="docutils literal notranslate"><span class="pre">model</span></code><a class="headerlink" href="#model" title="Link to this heading"></a></h3>
+<p>Defines the model architecture and parameters:</p>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">model</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">task</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">classification</span><span class="w">  </span><span class="c1"># Type of task: classification, regression, etc.</span>
+<span class="w">  </span><span class="nt">network</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">type</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">EINet</span><span class="w">  </span><span class="c1"># Network type: EINet, MLP, etc.</span>
+<span class="w">    </span><span class="nt">parameters</span><span class="p">:</span>
+<span class="w">      </span><span class="nt">input_dim</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">784</span>
+<span class="w">      </span><span class="nt">excitatory_layer_sizes</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">512</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">256</span><span class="p p-Indicator">]</span>
+<span class="w">      </span><span class="nt">inhibitory_layer_sizes</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">200</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">100</span><span class="p p-Indicator">]</span>
+<span class="w">      </span><span class="nt">excitatory_branch_factors</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">64</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">32</span><span class="p p-Indicator">]</span>
+<span class="w">      </span><span class="nt">inhibitory_branch_factors</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">32</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">16</span><span class="p p-Indicator">]</span>
+<span class="w">      </span><span class="nt">reactivate</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+<span class="w">      </span><span class="nt">somatic_synapses</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+<span class="w">      </span><span class="c1"># ... other architecture parameters</span>
+</pre></div>
+</div>
+<p>See <a class="reference internal" href="../network_structures/index.html"><span class="doc">Network Structures</span></a> for details on all available model parameters.</p>
+</section>
+<section id="train">
+<h3><code class="docutils literal notranslate"><span class="pre">train</span></code><a class="headerlink" href="#train" title="Link to this heading"></a></h3>
+<p>Defines the training strategy and hyperparameters:</p>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">train</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">learning_strategy</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">mle</span><span class="w">  </span><span class="c1"># mle, freeze_layers, two_step, etc.</span>
+<span class="w">  </span><span class="nt">seed</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">42</span><span class="w">  </span><span class="c1"># Random seed for reproducibility</span>
+<span class="w">  </span><span class="nt">lr</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">0.001</span><span class="w">  </span><span class="c1"># Learning rate</span>
+<span class="w">  </span><span class="nt">epochs</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">20</span><span class="w">  </span><span class="c1"># Training epochs</span>
+<span class="w">  </span><span class="nt">batch_size</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">64</span><span class="w">  </span><span class="c1"># Batch size</span>
+<span class="w">  </span><span class="nt">grad_clip_value</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">5.0</span><span class="w">  </span><span class="c1"># Gradient clipping</span>
+<span class="w">  </span><span class="c1"># Optional parameters for specific strategies:</span>
+<span class="w">  </span><span class="nt">pretrain_epochs</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">5</span><span class="w">  </span><span class="c1"># For two_step strategy</span>
+<span class="w">  </span><span class="nt">warmup_epochs</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">2</span><span class="w">  </span><span class="c1"># For voltage_stabilization</span>
+</pre></div>
+</div>
+<p>See <a class="reference internal" href="../learning/index.html"><span class="doc">Learning Strategies</span></a> for details on all available learning strategies and parameters.</p>
+</section>
+<section id="task">
+<h3><code class="docutils literal notranslate"><span class="pre">task</span></code><a class="headerlink" href="#task" title="Link to this heading"></a></h3>
+<p>Defines the dataset and task-specific parameters:</p>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">task</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">dataset</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">mnist</span><span class="w">  </span><span class="c1"># mnist, cifar10, multi_xor, etc.</span>
+<span class="w">  </span><span class="nt">data_path</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;&quot;</span><span class="w">  </span><span class="c1"># Path to data (if needed)</span>
+<span class="w">  </span><span class="nt">parameters</span><span class="p">:</span>
+<span class="w">    </span><span class="c1"># Dataset-specific parameters</span>
+<span class="w">    </span><span class="nt">train_size</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">8000</span><span class="w">  </span><span class="c1"># For synthetic datasets</span>
+</pre></div>
+</div>
+<p>Available datasets include:
+- Standard datasets: <code class="docutils literal notranslate"><span class="pre">mnist</span></code>, <code class="docutils literal notranslate"><span class="pre">fashion_mnist</span></code>, <code class="docutils literal notranslate"><span class="pre">cifar10</span></code>, <code class="docutils literal notranslate"><span class="pre">cifar100</span></code>
+- Synthetic datasets: <code class="docutils literal notranslate"><span class="pre">multi_xor</span></code>, <code class="docutils literal notranslate"><span class="pre">line</span></code>, <code class="docutils literal notranslate"><span class="pre">center_surround</span></code>, <code class="docutils literal notranslate"><span class="pre">orientation_bars</span></code>
+- Modified datasets: <code class="docutils literal notranslate"><span class="pre">mnist_modulo10</span></code>, <code class="docutils literal notranslate"><span class="pre">random_flip_mnist</span></code></p>
+<p>See <a class="reference internal" href="../analysis/synthetic_datasets.html"><span class="doc">Datasets and Data Utilities</span></a> for more information on synthetic datasets.</p>
+</section>
+<section id="visualization">
+<h3><code class="docutils literal notranslate"><span class="pre">visualization</span></code><a class="headerlink" href="#visualization" title="Link to this heading"></a></h3>
+<p>Controls visualization and analysis:</p>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">visualization</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">enabled</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span><span class="w">  </span><span class="c1"># Enable visualization</span>
+<span class="w">  </span><span class="nt">visualize_epochs</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">10</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">20</span><span class="p p-Indicator">]</span><span class="w">  </span><span class="c1"># Epochs to visualize</span>
+<span class="w">  </span><span class="nt">plots</span><span class="p">:</span>
+<span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">weights</span><span class="w">  </span><span class="c1"># Plot weight visualizations</span>
+<span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">activations</span><span class="w">  </span><span class="c1"># Plot activation distributions</span>
+<span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">branch_ablation</span><span class="w">  </span><span class="c1"># Run branch ablation studies</span>
+<span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">layer_ablation</span><span class="w">  </span><span class="c1"># Run layer ablation studies</span>
+<span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">branch_info</span><span class="w">  </span><span class="c1"># Analyze branch information content</span>
+<span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">gradients</span><span class="w">  </span><span class="c1"># Plot gradient distributions</span>
+<span class="w">    </span><span class="c1"># ... other visualization options</span>
+</pre></div>
+</div>
+<p>See <a class="reference internal" href="../visualization/index.html"><span class="doc">Visualization Tools</span></a> for details on available visualization options.</p>
+</section>
+<section id="wandb">
+<h3><code class="docutils literal notranslate"><span class="pre">wandb</span></code><a class="headerlink" href="#wandb" title="Link to this heading"></a></h3>
+<p>Configuration for Weights &amp; Biases integration:</p>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">wandb</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">use_wandb</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span><span class="w">  </span><span class="c1"># Enable W&amp;B logging</span>
+<span class="w">  </span><span class="nt">entity</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">your_username</span><span class="w">  </span><span class="c1"># W&amp;B username</span>
+<span class="w">  </span><span class="nt">project</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">dendritic_modeling</span><span class="w">  </span><span class="c1"># W&amp;B project name</span>
+<span class="w">  </span><span class="nt">tags</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">experiment1</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">mnist</span><span class="p p-Indicator">]</span><span class="w">  </span><span class="c1"># Tags for this run</span>
+</pre></div>
+</div>
+<p>See <a class="reference internal" href="../analysis/experiment_tracking.html"><span class="doc">Experiment Tracking and Logging</span></a> for more details on experiment tracking.</p>
+</section>
+<section id="outputs">
+<h3><code class="docutils literal notranslate"><span class="pre">outputs</span></code><a class="headerlink" href="#outputs" title="Link to this heading"></a></h3>
+<p>Controls output saving:</p>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">outputs</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">dir</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;./outputs&quot;</span><span class="w">  </span><span class="c1"># Directory to save outputs</span>
+</pre></div>
+</div>
+</section>
+</section>
+<section id="running-experiments">
+<h2>Running Experiments<a class="headerlink" href="#running-experiments" title="Link to this heading"></a></h2>
+<p>To run an experiment using a configuration file:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>python<span class="w"> </span>src/dendritic_modeling/train_experiments.py<span class="w"> </span>path/to/config.yaml
+</pre></div>
+</div>
+<p>You can override configuration values from the command line:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># Override learning rate</span>
+python<span class="w"> </span>src/dendritic_modeling/train_experiments.py<span class="w"> </span>config.yaml<span class="w"> </span>--train.lr<span class="w"> </span><span class="m">0</span>.0001
+
+<span class="c1"># Change dataset</span>
+python<span class="w"> </span>src/dendritic_modeling/train_experiments.py<span class="w"> </span>config.yaml<span class="w"> </span>--task.dataset<span class="w"> </span>cifar10
+
+<span class="c1"># Enable visualization</span>
+python<span class="w"> </span>src/dendritic_modeling/train_experiments.py<span class="w"> </span>config.yaml<span class="w"> </span>--visualization.enabled<span class="w"> </span><span class="nb">true</span>
+</pre></div>
+</div>
+</section>
+<section id="configuration-templates">
+<h2>Configuration Templates<a class="headerlink" href="#configuration-templates" title="Link to this heading"></a></h2>
+<p>Several example configuration templates are provided in the <code class="docutils literal notranslate"><span class="pre">configs/</span></code> directory:</p>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">config_exp.yaml</span></code>: Basic configuration for standard classification tasks</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">sweep_params.yaml</span></code>: Example configuration for parameter sweeps</p></li>
+</ul>
+</section>
+<section id="best-practices">
+<h2>Best Practices<a class="headerlink" href="#best-practices" title="Link to this heading"></a></h2>
+<ol class="arabic simple">
+<li><p><strong>Version Control</strong>: Keep your configuration files in version control alongside your code</p></li>
+<li><p><strong>Documentation</strong>: Add comments to your configuration files to explain parameter choices</p></li>
+<li><p><strong>Parameter Sweeps</strong>: Use parameter sweeps with Weights &amp; Biases to find optimal parameters</p></li>
+<li><p><strong>Reproducibility</strong>: Set a fixed random seed for reproducible experiments</p></li>
+<li><p><strong>Modularization</strong>: Create base configuration files and extend them for specific experiments</p></li>
+</ol>
+</section>
+<section id="advanced-configuration-options">
+<h2>Advanced Configuration Options<a class="headerlink" href="#advanced-configuration-options" title="Link to this heading"></a></h2>
+<p>For advanced users, the configuration system supports:</p>
+<ul class="simple">
+<li><p><strong>Parameter Sweeps</strong>: Running multiple experiments with different parameter values</p></li>
+<li><p><strong>Multi-GPU Training</strong>: Configuring distributed training across multiple GPUs</p></li>
+<li><p><strong>Custom Datasets</strong>: Defining and using custom datasets</p></li>
+<li><p><strong>Experiment Tracking</strong>: Integration with experiment tracking tools</p></li>
+</ul>
+<p>See the example configurations and the API documentation for more details on these advanced options.</p>
+</section>
+</section>
+
+
+           </div>
+          </div>
+          <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
+        <a href="../analysis/output_handling.html" class="btn btn-neutral float-left" title="Output Handling and Loss Functions" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
+        <a href="../../api/index.html" class="btn btn-neutral float-right" title="API Reference" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright 2025, Research and Engineering at Kempner.</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>

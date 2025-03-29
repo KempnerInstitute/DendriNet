@@ -24,7 +24,7 @@
     <link rel="author" title="About these documents" href="../../../about.html" />
     <link rel="index" title="Index" href="../../../genindex.html" />
     <link rel="search" title="Search" href="../../../search.html" />
-    <link rel="next" title="Visualization Guide" href="../visualization/index.html" />
+    <link rel="next" title="Visualization Tools" href="../visualization/index.html" />
     <link rel="prev" title="Learning Strategies" href="learning_strategies.html" /> 
 </head>
 
@@ -78,8 +78,9 @@
 </li>
 </ul>
 </li>
-<li class="toctree-l1"><a class="reference internal" href="../visualization/index.html">Visualization Guide</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../visualization/index.html">Visualization Tools</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../analysis/index.html">Analysis Tools</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../configuration/index.html">Configuration System</a></li>
 </ul>
 <p class="caption" role="heading"><span class="caption-text">Contents</span></p>
 <ul>
@@ -227,27 +228,6 @@
 - May require fewer branches overall</p></li>
 </ol>
 <p>The optimal branch factor depends on the input dimensionality and the desired properties of the network. A common rule of thumb is to set k to approximately 10-20% of the input dimensionality for each branch.</p>
-<p>Branch factor calculation:</p>
-<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="k">def</span><span class="w"> </span><span class="nf">calculate_branch_factor</span><span class="p">(</span><span class="n">input_dim</span><span class="p">,</span> <span class="n">desired_selectivity</span><span class="o">=</span><span class="mf">0.15</span><span class="p">):</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
-<span class="sd">    Calculate a reasonable branch factor based on input dimensionality.</span>
-
-<span class="sd">    Parameters</span>
-<span class="sd">    ----------</span>
-<span class="sd">    input_dim : int</span>
-<span class="sd">        Dimension of the input</span>
-<span class="sd">    desired_selectivity : float</span>
-<span class="sd">        Desired proportion of inputs to select (0.0-1.0)</span>
-
-<span class="sd">    Returns</span>
-<span class="sd">    -------</span>
-<span class="sd">    int</span>
-<span class="sd">        Recommended branch factor (k)</span>
-<span class="sd">    &quot;&quot;&quot;</span>
-    <span class="n">k</span> <span class="o">=</span> <span class="nb">max</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="nb">int</span><span class="p">(</span><span class="n">input_dim</span> <span class="o">*</span> <span class="n">desired_selectivity</span><span class="p">))</span>
-    <span class="k">return</span> <span class="n">k</span>
-</pre></div>
-</div>
 </section>
 <section id="biological-intuition">
 <h2>Biological Intuition<a class="headerlink" href="#biological-intuition" title="Link to this heading"></a></h2>
@@ -408,7 +388,7 @@
           </div>
           <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
         <a href="learning_strategies.html" class="btn btn-neutral float-left" title="Learning Strategies" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
-        <a href="../visualization/index.html" class="btn btn-neutral float-right" title="Visualization Guide" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
+        <a href="../visualization/index.html" class="btn btn-neutral float-right" title="Visualization Tools" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
     </div>
 
   <hr/>

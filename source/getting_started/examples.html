@@ -67,6 +67,15 @@
 <li class="toctree-l4"><a class="reference internal" href="#input-transformation-network">Input Transformation Network</a></li>
 <li class="toctree-l4"><a class="reference internal" href="#branch-information-analysis">Branch Information Analysis</a></li>
 <li class="toctree-l4"><a class="reference internal" href="#ablation-studies">Ablation Studies</a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="#configuration-file-structure">Configuration File Structure</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="#model"><code class="docutils literal notranslate"><span class="pre">model</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#train"><code class="docutils literal notranslate"><span class="pre">train</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#task"><code class="docutils literal notranslate"><span class="pre">task</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#visualization"><code class="docutils literal notranslate"><span class="pre">visualization</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#wandb"><code class="docutils literal notranslate"><span class="pre">wandb</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#outputs"><code class="docutils literal notranslate"><span class="pre">outputs</span></code></a></li>
 <li class="toctree-l4"><a class="reference internal" href="#running-experiments-with-train-experiments-py">Running Experiments with train_experiments.py</a></li>
 </ul>
 </li>
@@ -81,8 +90,9 @@
 <ul>
 <li class="toctree-l1"><a class="reference internal" href="../advanced/network_structures/index.html">Network Structures</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../advanced/learning/index.html">Learning Strategies</a></li>
-<li class="toctree-l1"><a class="reference internal" href="../advanced/visualization/index.html">Visualization Guide</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../advanced/visualization/index.html">Visualization Tools</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../advanced/analysis/index.html">Analysis Tools</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../advanced/configuration/index.html">Configuration System</a></li>
 </ul>
 <p class="caption" role="heading"><span class="caption-text">Contents</span></p>
 <ul>
@@ -121,6 +131,10 @@
   <section id="examples">
 <span id="id1"></span><h1>Examples<a class="headerlink" href="#examples" title="Link to this heading"></a></h1>
 <p>This page contains a collection of example scripts and use cases for the Dendritic Modeling framework. These examples demonstrate the framework’s capabilities and provide templates for your own experiments.</p>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>While these examples show how to use the low-level API directly, we recommend using the configuration-based approach with <code class="docutils literal notranslate"><span class="pre">train_experiments.py</span></code> for most experiments. See the <a class="reference internal" href="quickstart.html"><span class="doc">Quickstart</span></a> guide for a step-by-step tutorial on using configurations.</p>
+</div>
 <section id="basic-examples">
 <h2>Basic Examples<a class="headerlink" href="#basic-examples" title="Link to this heading"></a></h2>
 <section id="mnist-classification">
@@ -175,6 +189,45 @@
 <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Test accuracy: </span><span class="si">{</span><span class="n">test_accuracy</span><span class="si">:</span><span class="s2">.4f</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
 </pre></div>
 </div>
+<p><strong>Equivalent Configuration Approach:</strong></p>
+<p>The above code could be expressed in a configuration file (<code class="docutils literal notranslate"><span class="pre">mnist_config.yaml</span></code>) like this:</p>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">model</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">task</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">classification</span>
+<span class="w">  </span><span class="nt">network</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">type</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">EINet</span>
+<span class="w">    </span><span class="nt">parameters</span><span class="p">:</span>
+<span class="w">      </span><span class="nt">input_dim</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">784</span>
+<span class="w">      </span><span class="nt">excitatory_layer_sizes</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">512</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">256</span><span class="p p-Indicator">]</span>
+<span class="w">      </span><span class="nt">inhibitory_layer_sizes</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">200</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">100</span><span class="p p-Indicator">]</span>
+<span class="w">      </span><span class="nt">excitatory_branch_factors</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">64</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">32</span><span class="p p-Indicator">]</span>
+<span class="w">      </span><span class="nt">inhibitory_branch_factors</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">32</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">16</span><span class="p p-Indicator">]</span>
+<span class="w">      </span><span class="nt">reactivate</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+<span class="w">      </span><span class="nt">somatic_synapses</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+<span class="w">      </span><span class="nt">topk_init_method</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">xavier_normal</span>
+<span class="w">      </span><span class="nt">reactivation_type</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">param_tanh</span>
+<span class="w">      </span><span class="nt">reactivation_strategy</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">inverse</span>
+<span class="w">      </span><span class="nt">blocklinear_strategy</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">block_conductance_dynamic</span>
+<span class="w">      </span><span class="nt">enable_branch_outputs</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+<span class="w">      </span><span class="nt">output_layer</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">false</span>
+<span class="w">      </span><span class="nt">output_dim</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">10</span>
+
+<span class="nt">train</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">learning_strategy</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">mle</span>
+<span class="w">  </span><span class="nt">lr</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">0.001</span>
+<span class="w">  </span><span class="nt">epochs</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">20</span>
+<span class="w">  </span><span class="nt">batch_size</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">64</span>
+
+<span class="nt">task</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">dataset</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">mnist</span>
+
+<span class="nt">outputs</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">dir</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;./outputs&quot;</span>
+</pre></div>
+</div>
+<p>Then run with:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>python<span class="w"> </span>src/dendritic_modeling/train_experiments.py<span class="w"> </span>mnist_config.yaml
+</pre></div>
+</div>
 </section>
 <section id="synthetic-dataset-example">
 <h3>Synthetic Dataset Example<a class="headerlink" href="#synthetic-dataset-example" title="Link to this heading"></a></h3>
@@ -213,6 +266,28 @@
 <span class="c1"># Continue with training as in the MNIST example...</span>
 </pre></div>
 </div>
+<p><strong>Equivalent Configuration Approach:</strong></p>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">model</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">task</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">classification</span>
+<span class="w">  </span><span class="nt">network</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">type</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">EINet</span>
+<span class="w">    </span><span class="nt">parameters</span><span class="p">:</span>
+<span class="w">      </span><span class="nt">input_dim</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">8</span>
+<span class="w">      </span><span class="nt">excitatory_layer_sizes</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">16</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">8</span><span class="p p-Indicator">]</span>
+<span class="w">      </span><span class="nt">inhibitory_layer_sizes</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">12</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">6</span><span class="p p-Indicator">]</span>
+<span class="w">      </span><span class="nt">excitatory_branch_factors</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">4</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">2</span><span class="p p-Indicator">]</span>
+<span class="w">      </span><span class="nt">inhibitory_branch_factors</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">3</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">2</span><span class="p p-Indicator">]</span>
+<span class="w">      </span><span class="nt">reactivate</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+<span class="w">      </span><span class="nt">somatic_synapses</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+<span class="w">      </span><span class="c1"># ... other parameters as above</span>
+
+<span class="nt">task</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">dataset</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">multi_xor</span>
+<span class="w">  </span><span class="nt">parameters</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">n_bits</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">8</span>
+<span class="w">    </span><span class="nt">n_samples</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">10000</span>
+</pre></div>
+</div>
 </section>
 </section>
 <section id="advanced-examples">
@@ -240,6 +315,16 @@
 <span class="p">)</span>
 </pre></div>
 </div>
+<p><strong>Equivalent Configuration Approach:</strong></p>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">train</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">learning_strategy</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">two_step</span>
+<span class="w">  </span><span class="nt">lr</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">0.001</span>
+<span class="w">  </span><span class="nt">epochs</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">15</span><span class="w">  </span><span class="c1"># maintrain_epochs</span>
+<span class="w">  </span><span class="nt">pretrain_epochs</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">5</span>
+<span class="w">  </span><span class="nt">batch_size</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">64</span>
+</pre></div>
+</div>
+<p>For more details on training strategies, see <a class="reference internal" href="../advanced/learning/index.html"><span class="doc">Learning Strategies</span></a>.</p>
 </section>
 <section id="input-transformation-network">
 <h3>Input Transformation Network<a class="headerlink" href="#input-transformation-network" title="Link to this heading"></a></h3>
@@ -281,41 +366,61 @@
 <span class="p">)</span>
 </pre></div>
 </div>
+<p><strong>Equivalent Configuration Approach:</strong></p>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">model</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">network</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">parameters</span><span class="p">:</span>
+<span class="w">      </span><span class="c1"># ... other parameters</span>
+<span class="w">      </span><span class="nt">input_mode</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">2</span>
+<span class="w">      </span><span class="nt">input_net_dict</span><span class="p">:</span>
+<span class="w">        </span><span class="nt">type</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;MLPInputTransform&quot;</span>
+<span class="w">        </span><span class="nt">hidden_dims</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">512</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">256</span><span class="p p-Indicator">]</span>
+<span class="w">        </span><span class="nt">output_dim</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">128</span>
+</pre></div>
+</div>
+<p>For more details on network architectures and input transformations, see <a class="reference internal" href="../advanced/network_structures/index.html"><span class="doc">Network Structures</span></a>.</p>
 </section>
 <section id="branch-information-analysis">
 <h3>Branch Information Analysis<a class="headerlink" href="#branch-information-analysis" title="Link to this heading"></a></h3>
 <p>Analyzing information content in dendritic branches:</p>
-<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span><span class="w"> </span><span class="nn">dendritic_modeling.utils</span><span class="w"> </span><span class="kn">import</span> <span class="n">compute_branch_info</span><span class="p">,</span> <span class="n">record_branch_activations</span>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span><span class="w"> </span><span class="nn">dendritic_modeling.utils</span><span class="w"> </span><span class="kn">import</span> <span class="n">analyze_dendritic_information</span>
 
 <span class="c1"># Create and train a model (as in previous examples)</span>
 <span class="n">model</span> <span class="o">=</span> <span class="n">ExcitationInhibitionNetwork</span><span class="p">(</span><span class="o">...</span><span class="p">)</span>
 <span class="c1"># ... train the model ...</span>
 
-<span class="c1"># Record branch activations</span>
-<span class="n">activations</span><span class="p">,</span> <span class="n">labels</span> <span class="o">=</span> <span class="n">record_branch_activations</span><span class="p">(</span>
+<span class="c1"># Analyze branch information</span>
+<span class="n">branch_info</span> <span class="o">=</span> <span class="n">analyze_dendritic_information</span><span class="p">(</span>
     <span class="n">model</span><span class="o">=</span><span class="n">model</span><span class="p">,</span>
     <span class="n">dataset</span><span class="o">=</span><span class="n">test_ds</span><span class="p">,</span>
     <span class="n">device</span><span class="o">=</span><span class="s1">&#39;cuda&#39;</span> <span class="k">if</span> <span class="n">torch</span><span class="o">.</span><span class="n">cuda</span><span class="o">.</span><span class="n">is_available</span><span class="p">()</span> <span class="k">else</span> <span class="s1">&#39;cpu&#39;</span>
 <span class="p">)</span>
 
-<span class="c1"># Compute branch information</span>
-<span class="n">branch_info</span> <span class="o">=</span> <span class="n">compute_branch_info</span><span class="p">(</span>
-    <span class="n">activations</span><span class="o">=</span><span class="n">activations</span><span class="p">,</span>
-    <span class="n">labels</span><span class="o">=</span><span class="n">labels</span><span class="p">,</span>
-    <span class="n">n_bins</span><span class="o">=</span><span class="mi">10</span>  <span class="c1"># Number of bins for information calculation</span>
-<span class="p">)</span>
-
-<span class="c1"># Plot branch information</span>
+<span class="c1"># Plot branch information (example: mutual information)</span>
 <span class="kn">import</span><span class="w"> </span><span class="nn">matplotlib.pyplot</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">plt</span>
 
-<span class="n">plt</span><span class="o">.</span><span class="n">figure</span><span class="p">(</span><span class="n">figsize</span><span class="o">=</span><span class="p">(</span><span class="mi">10</span><span class="p">,</span> <span class="mi">6</span><span class="p">))</span>
-<span class="n">plt</span><span class="o">.</span><span class="n">bar</span><span class="p">(</span><span class="nb">range</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">branch_info</span><span class="p">[</span><span class="s1">&#39;mi&#39;</span><span class="p">])),</span> <span class="n">branch_info</span><span class="p">[</span><span class="s1">&#39;mi&#39;</span><span class="p">])</span>
-<span class="n">plt</span><span class="o">.</span><span class="n">xlabel</span><span class="p">(</span><span class="s1">&#39;Branch Index&#39;</span><span class="p">)</span>
-<span class="n">plt</span><span class="o">.</span><span class="n">ylabel</span><span class="p">(</span><span class="s1">&#39;Mutual Information with Label&#39;</span><span class="p">)</span>
-<span class="n">plt</span><span class="o">.</span><span class="n">title</span><span class="p">(</span><span class="s1">&#39;Information Content in Dendritic Branches&#39;</span><span class="p">)</span>
-<span class="n">plt</span><span class="o">.</span><span class="n">show</span><span class="p">()</span>
+<span class="c1"># Check if results are available and have the expected structure</span>
+<span class="k">if</span> <span class="s2">&quot;mutual_information&quot;</span> <span class="ow">in</span> <span class="n">branch_info</span> <span class="ow">and</span> <span class="n">branch_info</span><span class="p">[</span><span class="s2">&quot;mutual_information&quot;</span><span class="p">]</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+    <span class="n">mi_values</span> <span class="o">=</span> <span class="n">branch_info</span><span class="p">[</span><span class="s2">&quot;mutual_information&quot;</span><span class="p">]</span> <span class="c1"># Assuming MI is a flat list or array</span>
+    <span class="n">plt</span><span class="o">.</span><span class="n">figure</span><span class="p">(</span><span class="n">figsize</span><span class="o">=</span><span class="p">(</span><span class="mi">10</span><span class="p">,</span> <span class="mi">6</span><span class="p">))</span>
+    <span class="n">plt</span><span class="o">.</span><span class="n">bar</span><span class="p">(</span><span class="nb">range</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">mi_values</span><span class="p">)),</span> <span class="n">mi_values</span><span class="p">)</span>
+    <span class="n">plt</span><span class="o">.</span><span class="n">xlabel</span><span class="p">(</span><span class="s1">&#39;Branch Index (across all layers)&#39;</span><span class="p">)</span>
+    <span class="n">plt</span><span class="o">.</span><span class="n">ylabel</span><span class="p">(</span><span class="s1">&#39;Mutual Information with Label&#39;</span><span class="p">)</span>
+    <span class="n">plt</span><span class="o">.</span><span class="n">title</span><span class="p">(</span><span class="s1">&#39;Information Content in Dendritic Branches&#39;</span><span class="p">)</span>
+    <span class="n">plt</span><span class="o">.</span><span class="n">show</span><span class="p">()</span>
+<span class="k">else</span><span class="p">:</span>
+    <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;Mutual information data not found in analysis results.&quot;</span><span class="p">)</span>
 </pre></div>
 </div>
+<p><strong>Equivalent Configuration Approach:</strong></p>
+<p>To enable information analysis in the configuration:</p>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">visualization</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">enabled</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+<span class="w">  </span><span class="nt">plots</span><span class="p">:</span>
+<span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">branch_info</span>
+</pre></div>
+</div>
+<p>For more details on information analysis, see <a class="reference internal" href="../advanced/analysis/branch_information.html"><span class="doc">Branch Information Analysis</span></a>.</p>
 </section>
 <section id="ablation-studies">
 <h3>Ablation Studies<a class="headerlink" href="#ablation-studies" title="Link to this heading"></a></h3>
@@ -330,121 +435,140 @@
 <span class="n">results</span> <span class="o">=</span> <span class="n">analyze_branch_ablation</span><span class="p">(</span>
     <span class="n">model</span><span class="o">=</span><span class="n">model</span><span class="p">,</span>
     <span class="n">dataset</span><span class="o">=</span><span class="n">test_ds</span><span class="p">,</span>
-    <span class="n">ablation_mode</span><span class="o">=</span><span class="s1">&#39;direct&#39;</span><span class="p">,</span>  <span class="c1"># Ablation mode: &#39;direct&#39; or &#39;indirect&#39;</span>
+    <span class="n">mode</span><span class="o">=</span><span class="s1">&#39;direct&#39;</span><span class="p">,</span>  <span class="c1"># Ablation mode: &#39;direct&#39; or &#39;indirect&#39;</span>
     <span class="n">device</span><span class="o">=</span><span class="s1">&#39;cuda&#39;</span> <span class="k">if</span> <span class="n">torch</span><span class="o">.</span><span class="n">cuda</span><span class="o">.</span><span class="n">is_available</span><span class="p">()</span> <span class="k">else</span> <span class="s1">&#39;cpu&#39;</span>
 <span class="p">)</span>
 
 <span class="c1"># Extract results</span>
-<span class="n">baseline_acc</span> <span class="o">=</span> <span class="n">results</span><span class="p">[</span><span class="s1">&#39;baseline_acc&#39;</span><span class="p">]</span>
-<span class="n">branch_importances</span> <span class="o">=</span> <span class="n">results</span><span class="p">[</span><span class="s1">&#39;branch_importances&#39;</span><span class="p">]</span>
+<span class="n">baseline_acc</span><span class="p">,</span> <span class="n">branch_results</span> <span class="o">=</span> <span class="n">results</span>
 
 <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Baseline accuracy: </span><span class="si">{</span><span class="n">baseline_acc</span><span class="si">:</span><span class="s2">.4f</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+
+<span class="c1"># Calculate branch importance from results</span>
+<span class="n">branch_importances</span> <span class="o">=</span> <span class="p">{}</span>
+<span class="k">for</span> <span class="n">branch_id</span><span class="p">,</span> <span class="p">(</span><span class="n">acc</span><span class="p">,</span> <span class="n">delta</span><span class="p">)</span> <span class="ow">in</span> <span class="n">branch_results</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+    <span class="n">branch_importances</span><span class="p">[</span><span class="n">branch_id</span><span class="p">]</span> <span class="o">=</span> <span class="n">delta</span>
 
 <span class="c1"># Visualize branch importances</span>
 <span class="kn">import</span><span class="w"> </span><span class="nn">matplotlib.pyplot</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">plt</span>
 <span class="n">plt</span><span class="o">.</span><span class="n">figure</span><span class="p">(</span><span class="n">figsize</span><span class="o">=</span><span class="p">(</span><span class="mi">10</span><span class="p">,</span> <span class="mi">6</span><span class="p">))</span>
-<span class="n">plt</span><span class="o">.</span><span class="n">imshow</span><span class="p">(</span><span class="n">branch_importances</span><span class="p">,</span> <span class="n">cmap</span><span class="o">=</span><span class="s1">&#39;RdBu_r&#39;</span><span class="p">,</span> <span class="n">aspect</span><span class="o">=</span><span class="s1">&#39;auto&#39;</span><span class="p">)</span>
-<span class="n">plt</span><span class="o">.</span><span class="n">colorbar</span><span class="p">(</span><span class="n">label</span><span class="o">=</span><span class="s1">&#39;Accuracy Drop&#39;</span><span class="p">)</span>
+<span class="n">branches</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="n">branch_importances</span><span class="o">.</span><span class="n">keys</span><span class="p">())</span>
+<span class="n">importance_values</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="n">branch_importances</span><span class="o">.</span><span class="n">values</span><span class="p">())</span>
+<span class="n">plt</span><span class="o">.</span><span class="n">bar</span><span class="p">(</span><span class="n">branches</span><span class="p">,</span> <span class="n">importance_values</span><span class="p">)</span>
 <span class="n">plt</span><span class="o">.</span><span class="n">xlabel</span><span class="p">(</span><span class="s1">&#39;Branch Index&#39;</span><span class="p">)</span>
-<span class="n">plt</span><span class="o">.</span><span class="n">ylabel</span><span class="p">(</span><span class="s1">&#39;Layer Index&#39;</span><span class="p">)</span>
+<span class="n">plt</span><span class="o">.</span><span class="n">ylabel</span><span class="p">(</span><span class="s1">&#39;Accuracy Drop&#39;</span><span class="p">)</span>
 <span class="n">plt</span><span class="o">.</span><span class="n">title</span><span class="p">(</span><span class="s1">&#39;Branch Importance (Accuracy Drop)&#39;</span><span class="p">)</span>
 <span class="n">plt</span><span class="o">.</span><span class="n">show</span><span class="p">()</span>
+</pre></div>
+</div>
+<p><strong>Equivalent Configuration Approach:</strong></p>
+<p>To enable ablation studies in the configuration:</p>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">visualization</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">enabled</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+<span class="w">  </span><span class="nt">plots</span><span class="p">:</span>
+<span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">branch_ablation</span>
+<span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">layer_ablation</span>
+</pre></div>
+</div>
+<p>For more details on ablation studies, see <a class="reference internal" href="../advanced/analysis/ablation_studies.html"><span class="doc">Ablation Studies</span></a>.</p>
+</section>
+</section>
+<section id="configuration-file-structure">
+<h2>Configuration File Structure<a class="headerlink" href="#configuration-file-structure" title="Link to this heading"></a></h2>
+<p>The configuration file used with <code class="docutils literal notranslate"><span class="pre">train_experiments.py</span></code> has several top-level sections:</p>
+<section id="model">
+<h3><code class="docutils literal notranslate"><span class="pre">model</span></code><a class="headerlink" href="#model" title="Link to this heading"></a></h3>
+<p>Defines the model architecture and parameters:</p>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">model</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">task</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">classification</span><span class="w">  </span><span class="c1"># Type of task: classification, regression, etc.</span>
+<span class="w">  </span><span class="nt">network</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">type</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">EINet</span><span class="w">  </span><span class="c1"># Network type: EINet, MLP, etc.</span>
+<span class="w">    </span><span class="nt">parameters</span><span class="p">:</span>
+<span class="w">      </span><span class="c1"># Network-specific parameters</span>
+<span class="w">      </span><span class="nt">excitatory_layer_sizes</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">512</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">256</span><span class="p p-Indicator">]</span>
+<span class="w">      </span><span class="nt">inhibitory_layer_sizes</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">200</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">100</span><span class="p p-Indicator">]</span>
+<span class="w">      </span><span class="c1"># ... other architecture parameters</span>
+</pre></div>
+</div>
+</section>
+<section id="train">
+<h3><code class="docutils literal notranslate"><span class="pre">train</span></code><a class="headerlink" href="#train" title="Link to this heading"></a></h3>
+<p>Defines the training strategy and hyperparameters:</p>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">train</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">learning_strategy</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">mle</span><span class="w">  </span><span class="c1"># mle, freeze_layers, two_step, etc.</span>
+<span class="w">  </span><span class="nt">seed</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">42</span><span class="w">  </span><span class="c1"># Random seed for reproducibility</span>
+<span class="w">  </span><span class="nt">lr</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">0.001</span><span class="w">  </span><span class="c1"># Learning rate</span>
+<span class="w">  </span><span class="nt">epochs</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">20</span><span class="w">  </span><span class="c1"># Training epochs</span>
+<span class="w">  </span><span class="nt">batch_size</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">64</span><span class="w">  </span><span class="c1"># Batch size</span>
+<span class="w">  </span><span class="c1"># ... other training parameters</span>
+</pre></div>
+</div>
+</section>
+<section id="task">
+<h3><code class="docutils literal notranslate"><span class="pre">task</span></code><a class="headerlink" href="#task" title="Link to this heading"></a></h3>
+<p>Defines the dataset and task-specific parameters:</p>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">task</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">dataset</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">mnist</span><span class="w">  </span><span class="c1"># mnist, cifar10, multi_xor, etc.</span>
+<span class="w">  </span><span class="nt">data_path</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;&quot;</span><span class="w">  </span><span class="c1"># Path to data (if needed)</span>
+<span class="w">  </span><span class="nt">parameters</span><span class="p">:</span>
+<span class="w">    </span><span class="c1"># Dataset-specific parameters</span>
+<span class="w">    </span><span class="nt">train_size</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">8000</span><span class="w">  </span><span class="c1"># For synthetic datasets</span>
+</pre></div>
+</div>
+</section>
+<section id="visualization">
+<h3><code class="docutils literal notranslate"><span class="pre">visualization</span></code><a class="headerlink" href="#visualization" title="Link to this heading"></a></h3>
+<p>Controls visualization and analysis:</p>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">visualization</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">enabled</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span><span class="w">  </span><span class="c1"># Enable visualization</span>
+<span class="w">  </span><span class="nt">visualize_epochs</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">10</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">20</span><span class="p p-Indicator">]</span><span class="w">  </span><span class="c1"># Epochs to visualize</span>
+<span class="w">  </span><span class="nt">plots</span><span class="p">:</span>
+<span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">weights</span><span class="w">  </span><span class="c1"># Plot weight visualizations</span>
+<span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">activations</span><span class="w">  </span><span class="c1"># Plot activation distributions</span>
+<span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">branch_ablation</span><span class="w">  </span><span class="c1"># Run branch ablation studies</span>
+<span class="w">    </span><span class="c1"># ... other visualization options</span>
+</pre></div>
+</div>
+</section>
+<section id="wandb">
+<h3><code class="docutils literal notranslate"><span class="pre">wandb</span></code><a class="headerlink" href="#wandb" title="Link to this heading"></a></h3>
+<p>Configuration for Weights &amp; Biases integration:</p>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">wandb</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">use_wandb</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span><span class="w">  </span><span class="c1"># Enable W&amp;B logging</span>
+<span class="w">  </span><span class="nt">entity</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">your_username</span><span class="w">  </span><span class="c1"># W&amp;B username</span>
+<span class="w">  </span><span class="nt">project</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">dendritic_modeling</span><span class="w">  </span><span class="c1"># W&amp;B project name</span>
+<span class="w">  </span><span class="nt">tags</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">experiment1</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">mnist</span><span class="p p-Indicator">]</span><span class="w">  </span><span class="c1"># Tags for this run</span>
+</pre></div>
+</div>
+</section>
+<section id="outputs">
+<h3><code class="docutils literal notranslate"><span class="pre">outputs</span></code><a class="headerlink" href="#outputs" title="Link to this heading"></a></h3>
+<p>Controls output saving:</p>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">outputs</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">dir</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;./outputs&quot;</span><span class="w">  </span><span class="c1"># Directory to save outputs</span>
 </pre></div>
 </div>
 </section>
 <section id="running-experiments-with-train-experiments-py">
 <h3>Running Experiments with train_experiments.py<a class="headerlink" href="#running-experiments-with-train-experiments-py" title="Link to this heading"></a></h3>
-<p>The framework provides a flexible experiment runner through train_experiments.py. Here’s how to use it:</p>
-<p>1. <strong>Basic Usage</strong>:
-.. code-block:: python</p>
-<blockquote>
-<div><p>python src/dendritic_modeling/train_experiments.py config_exp.yaml</p>
-</div></blockquote>
-<p>2. <strong>Configuration File Structure</strong>:
-.. code-block:: yaml</p>
-<blockquote>
-<div><p># config_exp.yaml
-model:</p>
-<blockquote>
-<div><p>task: “classification”
-network:</p>
-<blockquote>
-<div><p>type: “EINet”
-parameters:</p>
-<blockquote>
-<div><p>input_dim: 784
-excitatory_layer_sizes: [512, 256]
-inhibitory_layer_sizes: [200, 100]
-excitatory_branch_factors: [64, 32]
-inhibitory_branch_factors: [32, 16]
-reactivate: true
-somatic_synapses: true
-topk_init_method: “xavier_normal”
-reactivation_type: “param_tanh”
-reactivation_strategy: “inverse”
-blocklinear_strategy: “block_conductance_dynamic”
-enable_branch_outputs: true
-output_layer: false
-output_dim: 10</p>
-</div></blockquote>
-</div></blockquote>
-</div></blockquote>
-<dl>
-<dt>train:</dt><dd><p>learning_strategy: “mle”
-run_name: “mnist_einet”
-seed: 0
-train_valid_split: 0.8
-lr: 0.01
-weight_decay_rate: 0.1
-epochs: 50
-batch_size: 128
-grad_clip_value: 5.0
-epochs_per_layer: 50
-final_tune_epochs: 10
-pretrain_epochs: 50</p>
-</dd>
-<dt>task:</dt><dd><p>dataset: “mnist”
-data_path: “”
-parameters: {}</p>
-</dd>
-<dt>visualization:</dt><dd><p>enabled: false
-visualize_epochs: []
-plots: [“branch_info”, “ablation”]
-parameters:</p>
-<blockquote>
-<div><p>save_figures: true
-figure_format: “png”</p>
-</div></blockquote>
-</dd>
-<dt>wandb:</dt><dd><p>entity: “”
-project: “”
-group: “”
-tags: []
-use_wandb: false</p>
-</dd>
-<dt>outputs:</dt><dd><p>dir: “outputs”</p>
-</dd>
-</dl>
-</div></blockquote>
-<p>3. <strong>Available Learning Strategies</strong>:
-- mle: Standard Maximum Likelihood Estimation (default)
-- freeze_branches: Train branches sequentially
-- freeze_branches_reversed: Train branches in reverse order
-- freeze_branches_with_pretraining: Pretrain then train branches sequentially
-- freeze_branches_reversed_with_pretraining: Pretrain then train branches in reverse order
-- two_step: Two-phase training with pretraining and main training
-- voltage_stabilization: Add voltage stabilization phase</p>
-<p>4. <strong>Command Line Arguments</strong>:
-.. code-block:: bash</p>
-<blockquote>
-<div><p># Basic usage
-python src/dendritic_modeling/train_experiments.py config_exp.yaml</p>
-<p># Override learning strategy
-python src/dendritic_modeling/train_experiments.py config_exp.yaml –train.learning_strategy freeze_branches</p>
-<p># Enable visualization
-python src/dendritic_modeling/train_experiments.py config_exp.yaml –visualization.enabled true</p>
-</div></blockquote>
-<p>For more information about specific configuration options, see the <a class="reference internal" href="../advanced/network_structures/index.html"><span class="doc">Network Structures</span></a> and <a class="reference internal" href="../advanced/learning/index.html"><span class="doc">Learning Strategies</span></a> sections.</p>
+<p>The framework provides a flexible experiment runner through <code class="docutils literal notranslate"><span class="pre">train_experiments.py</span></code>. Here’s how to use it:</p>
+<p><strong>Basic Usage</strong>:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>python<span class="w"> </span>src/dendritic_modeling/train_experiments.py<span class="w"> </span>config_exp.yaml
+</pre></div>
+</div>
+<p><strong>Overriding Configuration Values</strong>:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># Override learning strategy</span>
+python<span class="w"> </span>src/dendritic_modeling/train_experiments.py<span class="w"> </span>config_exp.yaml<span class="w"> </span>--train.learning_strategy<span class="w"> </span>freeze_branches
+
+<span class="c1"># Enable visualization</span>
+python<span class="w"> </span>src/dendritic_modeling/train_experiments.py<span class="w"> </span>config_exp.yaml<span class="w"> </span>--visualization.enabled<span class="w"> </span><span class="nb">true</span>
+</pre></div>
+</div>
+<p>For more information about specific configuration options, see:
+- <a class="reference internal" href="../advanced/network_structures/index.html"><span class="doc">Network Structures</span></a> for network architecture options
+- <a class="reference internal" href="../advanced/learning/index.html"><span class="doc">Learning Strategies</span></a> for learning strategies
+- <a class="reference internal" href="../advanced/analysis/index.html"><span class="doc">Analysis Tools</span></a> for analysis tools
+- <a class="reference internal" href="../advanced/visualization/visualization_guide.html"><span class="doc">Network Visualization Guide</span></a> for visualization options</p>
 </section>
 </section>
 <section id="notebook-examples">

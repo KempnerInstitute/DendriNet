@@ -24,7 +24,7 @@
     <link rel="author" title="About these documents" href="../../../about.html" />
     <link rel="index" title="Index" href="../../../genindex.html" />
     <link rel="search" title="Search" href="../../../search.html" />
-    <link rel="next" title="Experiment Tracking and Logging" href="experiment_tracking.html" />
+    <link rel="next" title="Branch Information Analysis" href="branch_information.html" />
     <link rel="prev" title="Analysis Tools" href="index.html" /> 
 </head>
 
@@ -60,7 +60,7 @@
 <ul class="current">
 <li class="toctree-l1"><a class="reference internal" href="../network_structures/index.html">Network Structures</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../learning/index.html">Learning Strategies</a></li>
-<li class="toctree-l1"><a class="reference internal" href="../visualization/index.html">Visualization Guide</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../visualization/index.html">Visualization Tools</a></li>
 <li class="toctree-l1 current"><a class="reference internal" href="index.html">Analysis Tools</a><ul class="current">
 <li class="toctree-l2 current"><a class="current reference internal" href="#">Ablation Studies</a><ul>
 <li class="toctree-l3"><a class="reference internal" href="#overview">Overview</a></li>
@@ -80,9 +80,14 @@
 <li class="toctree-l3"><a class="reference internal" href="#conclusion">Conclusion</a></li>
 </ul>
 </li>
+<li class="toctree-l2"><a class="reference internal" href="branch_information.html">Branch Information Analysis</a></li>
+<li class="toctree-l2"><a class="reference internal" href="ablation_information_analysis.html">Ablation Studies and Information Analysis</a></li>
+<li class="toctree-l2"><a class="reference internal" href="synthetic_datasets.html">Datasets and Data Utilities</a></li>
 <li class="toctree-l2"><a class="reference internal" href="experiment_tracking.html">Experiment Tracking and Logging</a></li>
+<li class="toctree-l2"><a class="reference internal" href="output_handling.html">Output Handling and Loss Functions</a></li>
 </ul>
 </li>
+<li class="toctree-l1"><a class="reference internal" href="../configuration/index.html">Configuration System</a></li>
 </ul>
 <p class="caption" role="heading"><span class="caption-text">Contents</span></p>
 <ul>
@@ -217,34 +222,31 @@
 <section id="layer-wise-ablation-analysis">
 <h3>Layer-wise Ablation Analysis<a class="headerlink" href="#layer-wise-ablation-analysis" title="Link to this heading"></a></h3>
 <p>The framework provides a layerwise ablation analysis function:</p>
-<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="k">def</span><span class="w"> </span><span class="nf">analyze_layerwise_ablation</span><span class="p">(</span><span class="n">model</span><span class="p">,</span> <span class="n">dataset</span><span class="p">,</span> <span class="n">train_data</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">valid_data</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
-                             <span class="n">ablation_mode</span><span class="o">=</span><span class="s1">&#39;direct&#39;</span><span class="p">,</span> <span class="n">device</span><span class="o">=</span><span class="s1">&#39;cpu&#39;</span><span class="p">):</span>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="k">def</span><span class="w"> </span><span class="nf">analyze_layerwise_ablation</span><span class="p">(</span><span class="n">model</span><span class="p">,</span> <span class="n">dataset</span><span class="p">,</span> <span class="n">train_data</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">valid_data</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">test_data</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">save_path</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">device</span><span class="o">=</span><span class="s1">&#39;cuda&#39;</span><span class="p">):</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Analyze the impact of ablating each layer on the model&#39;s performance.</span>
 
 <span class="sd">    Parameters</span>
 <span class="sd">    ----------</span>
-<span class="sd">    model : nn.Module</span>
+<span class="sd">    model : torch.nn.Module</span>
 <span class="sd">        A trained model to analyze.</span>
 <span class="sd">    dataset : torch.utils.data.Dataset</span>
-<span class="sd">        Test dataset for evaluation.</span>
+<span class="sd">        Main dataset for evaluation.</span>
 <span class="sd">    train_data : torch.utils.data.Dataset, optional</span>
-<span class="sd">        Training dataset, used only if retraining is needed.</span>
+<span class="sd">        Training dataset (used for retraining mode if applicable).</span>
 <span class="sd">    valid_data : torch.utils.data.Dataset, optional</span>
-<span class="sd">        Validation dataset, used only if retraining is needed.</span>
-<span class="sd">    ablation_mode : str</span>
-<span class="sd">        The ablation mode to use. Options: &#39;direct&#39;, &#39;indirect&#39;, &#39;retrain&#39;.</span>
-<span class="sd">        &#39;direct&#39;: Simply zero out the layer&#39;s outputs.</span>
-<span class="sd">        &#39;indirect&#39;: Replace the layer with a pass-through.</span>
-<span class="sd">        &#39;retrain&#39;: Retrain the network with the layer fixed at initialization.</span>
-<span class="sd">    device : str</span>
-<span class="sd">        Device to use for computation.</span>
+<span class="sd">        Validation dataset (used for retraining mode if applicable).</span>
+<span class="sd">    test_data : torch.utils.data.Dataset, optional</span>
+<span class="sd">        Test dataset for evaluation.</span>
+<span class="sd">    save_path : str, optional</span>
+<span class="sd">        Path to save ablation results.</span>
+<span class="sd">    device : str, default=&#39;cuda&#39;</span>
+<span class="sd">        Device to use for computation (&#39;cuda&#39; or &#39;cpu&#39;).</span>
 
 <span class="sd">    Returns</span>
 <span class="sd">    -------</span>
 <span class="sd">    dict</span>
-<span class="sd">        Dictionary with ablation results, including baseline accuracy and</span>
-<span class="sd">        accuracy drop for each layer.</span>
+<span class="sd">        Dictionary with ablation results, detailing accuracy impact per layer.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
     <span class="o">...</span>
 </pre></div>
@@ -255,32 +257,51 @@
 <span class="c1"># Run layerwise ablation analysis</span>
 <span class="n">results</span> <span class="o">=</span> <span class="n">analyze_layerwise_ablation</span><span class="p">(</span>
     <span class="n">model</span><span class="o">=</span><span class="n">trained_model</span><span class="p">,</span>
-    <span class="n">dataset</span><span class="o">=</span><span class="n">test_dataset</span><span class="p">,</span>
-    <span class="n">ablation_mode</span><span class="o">=</span><span class="s1">&#39;direct&#39;</span><span class="p">,</span>
+    <span class="n">dataset</span><span class="o">=</span><span class="n">test_dataset</span><span class="p">,</span> <span class="c1"># Provide if retraining is part of analysis</span>
+    <span class="n">train_data</span><span class="o">=</span><span class="n">train_dataset</span><span class="p">,</span> <span class="c1"># Provide if retraining is part of analysis</span>
+    <span class="n">valid_data</span><span class="o">=</span><span class="n">valid_dataset</span><span class="p">,</span> <span class="c1"># Provide if retraining is part of analysis</span>
+    <span class="n">test_data</span><span class="o">=</span><span class="n">test_dataset</span><span class="p">,</span>
+    <span class="n">save_path</span><span class="o">=</span><span class="s2">&quot;./layer_ablation_results&quot;</span><span class="p">,</span>
     <span class="n">device</span><span class="o">=</span><span class="s1">&#39;cuda&#39;</span>
 <span class="p">)</span>
 
-<span class="c1"># Print results</span>
-<span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Baseline accuracy: </span><span class="si">{</span><span class="n">results</span><span class="p">[</span><span class="s1">&#39;baseline_acc&#39;</span><span class="p">]</span><span class="si">:</span><span class="s2">.4f</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
-<span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="n">acc_drop</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">results</span><span class="p">[</span><span class="s1">&#39;accuracy_drops&#39;</span><span class="p">]):</span>
-    <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Layer </span><span class="si">{</span><span class="n">i</span><span class="si">}</span><span class="s2"> ablation: accuracy drop = </span><span class="si">{</span><span class="n">acc_drop</span><span class="si">:</span><span class="s2">.4f</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+<span class="c1"># Analyze the saved results (e.g., load from save_path)</span>
+<span class="c1"># The specific structure of `results` depends on the implementation details</span>
+<span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Layerwise ablation results saved to </span><span class="si">{</span><span class="n">results</span><span class="p">[</span><span class="s1">&#39;save_path&#39;</span><span class="p">]</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
 </pre></div>
 </div>
 <p>This can help identify which layers are most critical to model performance, providing insights into the hierarchical processing structure of the network.</p>
-<p>Example for visualizing layerwise ablation results:</p>
+<p>Example for visualizing layerwise ablation results (assuming results are loaded from file):</p>
 <div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">import</span><span class="w"> </span><span class="nn">matplotlib.pyplot</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">plt</span>
 <span class="kn">import</span><span class="w"> </span><span class="nn">numpy</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">np</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">json</span>
 
-<span class="c1"># Plot results</span>
-<span class="n">plt</span><span class="o">.</span><span class="n">figure</span><span class="p">(</span><span class="n">figsize</span><span class="o">=</span><span class="p">(</span><span class="mi">10</span><span class="p">,</span> <span class="mi">6</span><span class="p">))</span>
-<span class="n">plt</span><span class="o">.</span><span class="n">bar</span><span class="p">(</span><span class="nb">range</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">results</span><span class="p">[</span><span class="s1">&#39;accuracy_drops&#39;</span><span class="p">])),</span> <span class="n">results</span><span class="p">[</span><span class="s1">&#39;accuracy_drops&#39;</span><span class="p">])</span>
-<span class="n">plt</span><span class="o">.</span><span class="n">xlabel</span><span class="p">(</span><span class="s1">&#39;Layer Index&#39;</span><span class="p">)</span>
-<span class="n">plt</span><span class="o">.</span><span class="n">ylabel</span><span class="p">(</span><span class="s1">&#39;Accuracy Drop&#39;</span><span class="p">)</span>
-<span class="n">plt</span><span class="o">.</span><span class="n">title</span><span class="p">(</span><span class="s1">&#39;Impact of Layer Ablation on Performance&#39;</span><span class="p">)</span>
-<span class="n">plt</span><span class="o">.</span><span class="n">xticks</span><span class="p">(</span><span class="nb">range</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">results</span><span class="p">[</span><span class="s1">&#39;accuracy_drops&#39;</span><span class="p">])))</span>
-<span class="n">plt</span><span class="o">.</span><span class="n">grid</span><span class="p">(</span><span class="n">axis</span><span class="o">=</span><span class="s1">&#39;y&#39;</span><span class="p">,</span> <span class="n">linestyle</span><span class="o">=</span><span class="s1">&#39;--&#39;</span><span class="p">,</span> <span class="n">alpha</span><span class="o">=</span><span class="mf">0.7</span><span class="p">)</span>
-<span class="n">plt</span><span class="o">.</span><span class="n">tight_layout</span><span class="p">()</span>
-<span class="n">plt</span><span class="o">.</span><span class="n">show</span><span class="p">()</span>
+<span class="c1"># Load results from the saved file</span>
+<span class="n">results_path</span> <span class="o">=</span> <span class="s2">&quot;./layer_ablation_results/layerwise_ablation_results.json&quot;</span> <span class="c1"># Adjust filename as needed</span>
+<span class="k">try</span><span class="p">:</span>
+    <span class="k">with</span> <span class="nb">open</span><span class="p">(</span><span class="n">results_path</span><span class="p">,</span> <span class="s1">&#39;r&#39;</span><span class="p">)</span> <span class="k">as</span> <span class="n">f</span><span class="p">:</span>
+        <span class="n">results</span> <span class="o">=</span> <span class="n">json</span><span class="o">.</span><span class="n">load</span><span class="p">(</span><span class="n">f</span><span class="p">)</span>
+<span class="k">except</span> <span class="ne">FileNotFoundError</span><span class="p">:</span>
+    <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Error: Results file not found at </span><span class="si">{</span><span class="n">results_path</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+    <span class="n">exit</span><span class="p">()</span>
+
+<span class="c1"># Assuming &#39;accuracy_drops&#39; or similar key exists in the loaded results</span>
+<span class="k">if</span> <span class="s1">&#39;accuracy_drops&#39;</span> <span class="ow">in</span> <span class="n">results</span><span class="p">:</span>
+    <span class="n">accuracy_drops</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="n">results</span><span class="p">[</span><span class="s1">&#39;accuracy_drops&#39;</span><span class="p">])</span>
+    <span class="n">num_layers</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">accuracy_drops</span><span class="p">)</span>
+
+    <span class="c1"># Plot results</span>
+    <span class="n">plt</span><span class="o">.</span><span class="n">figure</span><span class="p">(</span><span class="n">figsize</span><span class="o">=</span><span class="p">(</span><span class="mi">10</span><span class="p">,</span> <span class="mi">6</span><span class="p">))</span>
+    <span class="n">plt</span><span class="o">.</span><span class="n">bar</span><span class="p">(</span><span class="nb">range</span><span class="p">(</span><span class="n">num_layers</span><span class="p">),</span> <span class="n">accuracy_drops</span><span class="p">)</span>
+    <span class="n">plt</span><span class="o">.</span><span class="n">xlabel</span><span class="p">(</span><span class="s1">&#39;Layer Index&#39;</span><span class="p">)</span>
+    <span class="n">plt</span><span class="o">.</span><span class="n">ylabel</span><span class="p">(</span><span class="s1">&#39;Accuracy Drop&#39;</span><span class="p">)</span>
+    <span class="n">plt</span><span class="o">.</span><span class="n">title</span><span class="p">(</span><span class="s1">&#39;Impact of Layer Ablation on Performance&#39;</span><span class="p">)</span>
+    <span class="n">plt</span><span class="o">.</span><span class="n">xticks</span><span class="p">(</span><span class="nb">range</span><span class="p">(</span><span class="n">num_layers</span><span class="p">))</span>
+    <span class="n">plt</span><span class="o">.</span><span class="n">grid</span><span class="p">(</span><span class="n">axis</span><span class="o">=</span><span class="s1">&#39;y&#39;</span><span class="p">,</span> <span class="n">linestyle</span><span class="o">=</span><span class="s1">&#39;--&#39;</span><span class="p">,</span> <span class="n">alpha</span><span class="o">=</span><span class="mf">0.7</span><span class="p">)</span>
+    <span class="n">plt</span><span class="o">.</span><span class="n">tight_layout</span><span class="p">()</span>
+    <span class="n">plt</span><span class="o">.</span><span class="n">show</span><span class="p">()</span>
+<span class="k">else</span><span class="p">:</span>
+    <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;Key &#39;accuracy_drops&#39; not found in the results file.&quot;</span><span class="p">)</span>
 </pre></div>
 </div>
 </section>
@@ -425,7 +446,7 @@
           </div>
           <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
         <a href="index.html" class="btn btn-neutral float-left" title="Analysis Tools" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
-        <a href="experiment_tracking.html" class="btn btn-neutral float-right" title="Experiment Tracking and Logging" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
+        <a href="branch_information.html" class="btn btn-neutral float-right" title="Branch Information Analysis" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
     </div>
 
   <hr/>

@@ -24,7 +24,7 @@
     <link rel="author" title="About these documents" href="../../../about.html" />
     <link rel="index" title="Index" href="../../../genindex.html" />
     <link rel="search" title="Search" href="../../../search.html" />
-    <link rel="next" title="Activation Functions" href="activation_functions.html" />
+    <link rel="next" title="Network Structures and Architecture" href="network_structures.html" />
     <link rel="prev" title="CIFAR10 Tutorial" href="../../user_guide/cifar10_tutorial.html" /> 
 </head>
 
@@ -59,14 +59,16 @@
 <p class="caption" role="heading"><span class="caption-text">Contents</span></p>
 <ul class="current">
 <li class="toctree-l1 current"><a class="current reference internal" href="#">Network Structures</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="network_structures.html">Network Structures and Architecture</a></li>
 <li class="toctree-l2"><a class="reference internal" href="activation_functions.html">Activation Functions</a></li>
-<li class="toctree-l2"><a class="reference internal" href="gradient_scaling.html">Gradient Scaling Techniques</a></li>
 <li class="toctree-l2"><a class="reference internal" href="weight_initialization.html">Weight Initialization Methods</a></li>
+<li class="toctree-l2"><a class="reference internal" href="gradient_scaling.html">Gradient Scaling Techniques</a></li>
 </ul>
 </li>
 <li class="toctree-l1"><a class="reference internal" href="../learning/index.html">Learning Strategies</a></li>
-<li class="toctree-l1"><a class="reference internal" href="../visualization/index.html">Visualization Guide</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../visualization/index.html">Visualization Tools</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../analysis/index.html">Analysis Tools</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../configuration/index.html">Configuration System</a></li>
 </ul>
 <p class="caption" role="heading"><span class="caption-text">Contents</span></p>
 <ul>
@@ -102,11 +104,28 @@
            <div itemprop="articleBody">
              
   <section id="network-structures">
-<h1>Network Structures<a class="headerlink" href="#network-structures" title="Link to this heading"></a></h1>
-<p>This section covers the various network architectures and components available in the dendritic modeling framework.</p>
+<span id="id1"></span><h1>Network Structures<a class="headerlink" href="#network-structures" title="Link to this heading"></a></h1>
+<p>The Dendritic Modeling framework supports a variety of network architectures and structures that incorporate dendritic computations. This section explores the different network types, configuration options, and how they relate to biological dendritic processing.</p>
 <div class="toctree-wrapper compound">
 <p class="caption" role="heading"><span class="caption-text">Contents:</span></p>
 <ul>
+<li class="toctree-l1"><a class="reference internal" href="network_structures.html">Network Structures and Architecture</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="network_structures.html#overview">Overview</a></li>
+<li class="toctree-l2"><a class="reference internal" href="network_structures.html#available-network-types">Available Network Types</a></li>
+<li class="toctree-l2"><a class="reference internal" href="network_structures.html#core-network-architecture">Core Network Architecture</a></li>
+<li class="toctree-l2"><a class="reference internal" href="network_structures.html#excitation-inhibition-network-einet">Excitation-Inhibition Network (EINet)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="network_structures.html#input-processing-modes">Input Processing Modes</a></li>
+<li class="toctree-l2"><a class="reference internal" href="network_structures.html#input-network-types">Input Network Types</a></li>
+<li class="toctree-l2"><a class="reference internal" href="network_structures.html#input-network-configuration">Input Network Configuration</a></li>
+<li class="toctree-l2"><a class="reference internal" href="network_structures.html#training-strategies">Training Strategies</a></li>
+<li class="toctree-l2"><a class="reference internal" href="network_structures.html#example-configurations">Example Configurations</a></li>
+<li class="toctree-l2"><a class="reference internal" href="network_structures.html#network-output-types">Network Output Types</a></li>
+<li class="toctree-l2"><a class="reference internal" href="network_structures.html#creating-custom-networks">Creating Custom Networks</a></li>
+<li class="toctree-l2"><a class="reference internal" href="network_structures.html#computational-properties">Computational Properties</a></li>
+<li class="toctree-l2"><a class="reference internal" href="network_structures.html#choosing-the-right-architecture">Choosing the Right Architecture</a></li>
+<li class="toctree-l2"><a class="reference internal" href="network_structures.html#implementation-details">Implementation Details</a></li>
+</ul>
+</li>
 <li class="toctree-l1"><a class="reference internal" href="activation_functions.html">Activation Functions</a><ul>
 <li class="toctree-l2"><a class="reference internal" href="activation_functions.html#overview">Overview</a></li>
 <li class="toctree-l2"><a class="reference internal" href="activation_functions.html#available-activation-functions">Available Activation Functions</a></li>
@@ -118,6 +137,16 @@
 <li class="toctree-l2"><a class="reference internal" href="activation_functions.html#usage-in-the-network">Usage in the Network</a></li>
 <li class="toctree-l2"><a class="reference internal" href="activation_functions.html#biological-intuition">Biological Intuition</a></li>
 <li class="toctree-l2"><a class="reference internal" href="activation_functions.html#best-practices">Best Practices</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="weight_initialization.html">Weight Initialization Methods</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="weight_initialization.html#overview">Overview</a></li>
+<li class="toctree-l2"><a class="reference internal" href="weight_initialization.html#topklinear-initialization">TopKLinear Initialization</a></li>
+<li class="toctree-l2"><a class="reference internal" href="weight_initialization.html#xavier-vs-kaiming-initialization">Xavier vs. Kaiming Initialization</a></li>
+<li class="toctree-l2"><a class="reference internal" href="weight_initialization.html#the-init-gain-parameter">The init_gain Parameter</a></li>
+<li class="toctree-l2"><a class="reference internal" href="weight_initialization.html#blocklinear-initialization">BlockLinear Initialization</a></li>
+<li class="toctree-l2"><a class="reference internal" href="weight_initialization.html#initialization-of-parametrictanh-parameters">Initialization of ParametricTanh Parameters</a></li>
+<li class="toctree-l2"><a class="reference internal" href="weight_initialization.html#best-practices-for-initialization">Best Practices for Initialization</a></li>
 </ul>
 </li>
 <li class="toctree-l1"><a class="reference internal" href="gradient_scaling.html">Gradient Scaling Techniques</a><ul>
@@ -132,16 +161,6 @@
 <li class="toctree-l2"><a class="reference internal" href="gradient_scaling.html#integration-with-optimizers">Integration with Optimizers</a></li>
 </ul>
 </li>
-<li class="toctree-l1"><a class="reference internal" href="weight_initialization.html">Weight Initialization Methods</a><ul>
-<li class="toctree-l2"><a class="reference internal" href="weight_initialization.html#overview">Overview</a></li>
-<li class="toctree-l2"><a class="reference internal" href="weight_initialization.html#topklinear-initialization">TopKLinear Initialization</a></li>
-<li class="toctree-l2"><a class="reference internal" href="weight_initialization.html#xavier-vs-kaiming-initialization">Xavier vs. Kaiming Initialization</a></li>
-<li class="toctree-l2"><a class="reference internal" href="weight_initialization.html#the-init-gain-parameter">The init_gain Parameter</a></li>
-<li class="toctree-l2"><a class="reference internal" href="weight_initialization.html#blocklinear-initialization">BlockLinear Initialization</a></li>
-<li class="toctree-l2"><a class="reference internal" href="weight_initialization.html#initialization-of-parametrictanh-parameters">Initialization of ParametricTanh Parameters</a></li>
-<li class="toctree-l2"><a class="reference internal" href="weight_initialization.html#best-practices-for-initialization">Best Practices for Initialization</a></li>
-</ul>
-</li>
 </ul>
 </div>
 </section>
@@ -151,7 +170,7 @@
           </div>
           <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
         <a href="../../user_guide/cifar10_tutorial.html" class="btn btn-neutral float-left" title="CIFAR10 Tutorial" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
-        <a href="activation_functions.html" class="btn btn-neutral float-right" title="Activation Functions" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
+        <a href="network_structures.html" class="btn btn-neutral float-right" title="Network Structures and Architecture" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
     </div>
 
   <hr/>

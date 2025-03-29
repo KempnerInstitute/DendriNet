@@ -1,0 +1,280 @@
+
+
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" data-content_root="../../../">
+<head>
+  <meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Branch Information Analysis &mdash; dendritic_modeling 0.1.0 documentation</title>
+      <link rel="stylesheet" type="text/css" href="../../../_static/pygments.css?v=b86133f3" />
+      <link rel="stylesheet" type="text/css" href="../../../_static/css/theme.css?v=e59714d7" />
+      <link rel="stylesheet" type="text/css" href="../../../_static/copybutton.css?v=76b2166b" />
+
+  
+      <script src="../../../_static/jquery.js?v=5d32c60e"></script>
+      <script src="../../../_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
+      <script src="../../../_static/documentation_options.js?v=01f34227"></script>
+      <script src="../../../_static/doctools.js?v=9bcbadda"></script>
+      <script src="../../../_static/sphinx_highlight.js?v=dc90522c"></script>
+      <script src="../../../_static/clipboard.min.js?v=a7894cd8"></script>
+      <script src="../../../_static/copybutton.js?v=f281be69"></script>
+      <script crossorigin="anonymous" integrity="sha256-Ae2Vz/4ePdIu6ZyI/5ZGsYnb+m0JlOmKPjt6XZ9JJkA=" src="https://cdnjs.cloudflare.com/ajax/libs/require.js/2.3.4/require.min.js"></script>
+    <script src="../../../_static/js/theme.js"></script>
+    <link rel="author" title="About these documents" href="../../../about.html" />
+    <link rel="index" title="Index" href="../../../genindex.html" />
+    <link rel="search" title="Search" href="../../../search.html" />
+    <link rel="next" title="Ablation Studies and Information Analysis" href="ablation_information_analysis.html" />
+    <link rel="prev" title="Ablation Studies" href="ablation_studies.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+
+          
+          
+          <a href="../../../index.html" class="icon icon-home">
+            dendritic_modeling
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../../../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <p class="caption" role="heading"><span class="caption-text">Introduction</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../about.html">About</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Contents</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../getting_started/index.html">Getting Started Guide</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../user_guide/index.html">User Guide</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Contents</span></p>
+<ul class="current">
+<li class="toctree-l1"><a class="reference internal" href="../network_structures/index.html">Network Structures</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../learning/index.html">Learning Strategies</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../visualization/index.html">Visualization Tools</a></li>
+<li class="toctree-l1 current"><a class="reference internal" href="index.html">Analysis Tools</a><ul class="current">
+<li class="toctree-l2"><a class="reference internal" href="ablation_studies.html">Ablation Studies</a></li>
+<li class="toctree-l2 current"><a class="current reference internal" href="#">Branch Information Analysis</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#overview">Overview</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#available-analysis-tools">Available Analysis Tools</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="#analyze-dendritic-information">analyze_dendritic_information</a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="#configuration-based-analysis">Configuration-Based Analysis</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#interpreting-the-results">Interpreting the Results</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="#branch-information-plots">Branch Information Plots</a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="#example-analysis">Example Analysis</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#related-analysis-tools">Related Analysis Tools</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#see-also">See Also</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="ablation_information_analysis.html">Ablation Studies and Information Analysis</a></li>
+<li class="toctree-l2"><a class="reference internal" href="synthetic_datasets.html">Datasets and Data Utilities</a></li>
+<li class="toctree-l2"><a class="reference internal" href="experiment_tracking.html">Experiment Tracking and Logging</a></li>
+<li class="toctree-l2"><a class="reference internal" href="output_handling.html">Output Handling and Loss Functions</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="../configuration/index.html">Configuration System</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Contents</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../api/index.html">API Reference</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Contents</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../deployment/index.html">Deployment Guide</a></li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../../../index.html">dendritic_modeling</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="../../../index.html" class="icon icon-home" aria-label="Home"></a></li>
+          <li class="breadcrumb-item"><a href="index.html">Analysis Tools</a></li>
+      <li class="breadcrumb-item active">Branch Information Analysis</li>
+      <li class="wy-breadcrumbs-aside">
+            <a href="../../../_sources/source/advanced/analysis/branch_information.rst.txt" rel="nofollow"> View page source</a>
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <section id="branch-information-analysis">
+<span id="branch-information"></span><h1>Branch Information Analysis<a class="headerlink" href="#branch-information-analysis" title="Link to this heading"></a></h1>
+<p>The Dendritic Modeling framework provides tools to analyze the information content in dendritic branches. These analyses help understand how branches learn to represent features and how they contribute to the overall function of the network.</p>
+<section id="overview">
+<h2>Overview<a class="headerlink" href="#overview" title="Link to this heading"></a></h2>
+<p>Dendritic branches in biological neurons are known to perform local computations, with different branches potentially specializing in detecting different input patterns. Similarly, in our artificial dendritic networks, branches may learn to represent different features or aspects of the input data.</p>
+<p>Branch information analysis helps answer questions such as:</p>
+<ol class="arabic simple">
+<li><p>Which branches carry the most information about the task?</p></li>
+<li><p>Are there branches that specialize in certain classes or features?</p></li>
+<li><p>How is information distributed across branches and layers?</p></li>
+<li><p>How does branch information content evolve during training?</p></li>
+</ol>
+</section>
+<section id="available-analysis-tools">
+<h2>Available Analysis Tools<a class="headerlink" href="#available-analysis-tools" title="Link to this heading"></a></h2>
+<p>The framework provides several tools for branch information analysis:</p>
+<section id="analyze-dendritic-information">
+<h3>analyze_dendritic_information<a class="headerlink" href="#analyze-dendritic-information" title="Link to this heading"></a></h3>
+<p>The primary function for branch information analysis:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span><span class="w"> </span><span class="nn">dendritic_modeling.utils</span><span class="w"> </span><span class="kn">import</span> <span class="n">analyze_dendritic_information</span>
+
+<span class="n">branch_info</span> <span class="o">=</span> <span class="n">analyze_dendritic_information</span><span class="p">(</span>
+    <span class="n">model</span><span class="o">=</span><span class="n">trained_model</span><span class="p">,</span>
+    <span class="n">dataset</span><span class="o">=</span><span class="n">test_dataset</span><span class="p">,</span>
+    <span class="n">device</span><span class="o">=</span><span class="s1">&#39;cuda&#39;</span>
+<span class="p">)</span>
+</pre></div>
+</div>
+<p>This function computes various information metrics for each branch in the model, including:</p>
+<ul class="simple">
+<li><p><strong>Mutual Information</strong>: How much information each branch provides about the class labels</p></li>
+<li><p><strong>Class Selectivity</strong>: How selectively branches respond to different classes</p></li>
+<li><p><strong>Feature Correlation</strong>: How branch activations correlate with input features</p></li>
+<li><p><strong>Activity Statistics</strong>: Statistical properties of branch activations</p></li>
+</ul>
+</section>
+</section>
+<section id="configuration-based-analysis">
+<h2>Configuration-Based Analysis<a class="headerlink" href="#configuration-based-analysis" title="Link to this heading"></a></h2>
+<p>You can enable branch information analysis in your configuration file:</p>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">visualization</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">enabled</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+<span class="w">  </span><span class="nt">plots</span><span class="p">:</span>
+<span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">branch_info</span><span class="w">  </span><span class="c1"># Enable branch information analysis</span>
+</pre></div>
+</div>
+<p>This will automatically run the analysis during evaluation and generate visualizations.</p>
+</section>
+<section id="interpreting-the-results">
+<h2>Interpreting the Results<a class="headerlink" href="#interpreting-the-results" title="Link to this heading"></a></h2>
+<section id="branch-information-plots">
+<h3>Branch Information Plots<a class="headerlink" href="#branch-information-plots" title="Link to this heading"></a></h3>
+<p>The analysis generates several plots:</p>
+<ol class="arabic simple">
+<li><p><strong>Mutual Information Distribution</strong>: Shows the distribution of mutual information across branches</p></li>
+<li><p><strong>Class Selectivity Map</strong>: Visualizes which branches are selective for which classes</p></li>
+<li><p><strong>Branch Activity Distribution</strong>: Shows the distribution of branch activations</p></li>
+<li><p><strong>Information by Layer</strong>: Compares information content across layers</p></li>
+</ol>
+<p>High mutual information indicates branches that are important for the classification task. Branches with high class selectivity may be specialized for detecting features specific to certain classes.</p>
+</section>
+</section>
+<section id="example-analysis">
+<h2>Example Analysis<a class="headerlink" href="#example-analysis" title="Link to this heading"></a></h2>
+<p>Here’s an example of how to analyze and interpret branch information:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">import</span><span class="w"> </span><span class="nn">matplotlib.pyplot</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">plt</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">numpy</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">np</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">dendritic_modeling.utils</span><span class="w"> </span><span class="kn">import</span> <span class="n">analyze_dendritic_information</span>
+
+<span class="c1"># Analyze branch information</span>
+<span class="n">branch_info</span> <span class="o">=</span> <span class="n">analyze_dendritic_information</span><span class="p">(</span>
+    <span class="n">model</span><span class="o">=</span><span class="n">trained_model</span><span class="p">,</span>
+    <span class="n">dataset</span><span class="o">=</span><span class="n">test_dataset</span><span class="p">,</span>
+    <span class="n">device</span><span class="o">=</span><span class="s1">&#39;cuda&#39;</span>
+<span class="p">)</span>
+
+<span class="c1"># Extract mutual information</span>
+<span class="n">mutual_info</span> <span class="o">=</span> <span class="n">branch_info</span><span class="p">[</span><span class="s1">&#39;mutual_information&#39;</span><span class="p">]</span>
+
+<span class="c1"># Plot mutual information by branch</span>
+<span class="n">plt</span><span class="o">.</span><span class="n">figure</span><span class="p">(</span><span class="n">figsize</span><span class="o">=</span><span class="p">(</span><span class="mi">10</span><span class="p">,</span> <span class="mi">6</span><span class="p">))</span>
+<span class="n">plt</span><span class="o">.</span><span class="n">bar</span><span class="p">(</span><span class="nb">range</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">mutual_info</span><span class="p">)),</span> <span class="n">mutual_info</span><span class="p">)</span>
+<span class="n">plt</span><span class="o">.</span><span class="n">xlabel</span><span class="p">(</span><span class="s1">&#39;Branch Index&#39;</span><span class="p">)</span>
+<span class="n">plt</span><span class="o">.</span><span class="n">ylabel</span><span class="p">(</span><span class="s1">&#39;Mutual Information (bits)&#39;</span><span class="p">)</span>
+<span class="n">plt</span><span class="o">.</span><span class="n">title</span><span class="p">(</span><span class="s1">&#39;Information Content in Dendritic Branches&#39;</span><span class="p">)</span>
+
+<span class="c1"># Find branches with highest information content</span>
+<span class="n">top_branches</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">argsort</span><span class="p">(</span><span class="n">mutual_info</span><span class="p">)[</span><span class="o">-</span><span class="mi">10</span><span class="p">:]</span>
+<span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Top 10 branches by information content: </span><span class="si">{</span><span class="n">top_branches</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+
+<span class="c1"># Analyze class selectivity</span>
+<span class="n">class_selectivity</span> <span class="o">=</span> <span class="n">branch_info</span><span class="p">[</span><span class="s1">&#39;class_selectivity&#39;</span><span class="p">]</span>
+
+<span class="c1"># Plot class selectivity for top branches</span>
+<span class="n">plt</span><span class="o">.</span><span class="n">figure</span><span class="p">(</span><span class="n">figsize</span><span class="o">=</span><span class="p">(</span><span class="mi">12</span><span class="p">,</span> <span class="mi">8</span><span class="p">))</span>
+<span class="n">plt</span><span class="o">.</span><span class="n">imshow</span><span class="p">(</span><span class="n">class_selectivity</span><span class="p">[</span><span class="n">top_branches</span><span class="p">],</span> <span class="n">cmap</span><span class="o">=</span><span class="s1">&#39;viridis&#39;</span><span class="p">,</span> <span class="n">aspect</span><span class="o">=</span><span class="s1">&#39;auto&#39;</span><span class="p">)</span>
+<span class="n">plt</span><span class="o">.</span><span class="n">xlabel</span><span class="p">(</span><span class="s1">&#39;Class&#39;</span><span class="p">)</span>
+<span class="n">plt</span><span class="o">.</span><span class="n">ylabel</span><span class="p">(</span><span class="s1">&#39;Branch Index&#39;</span><span class="p">)</span>
+<span class="n">plt</span><span class="o">.</span><span class="n">title</span><span class="p">(</span><span class="s1">&#39;Class Selectivity of Top Information-Carrying Branches&#39;</span><span class="p">)</span>
+<span class="n">plt</span><span class="o">.</span><span class="n">colorbar</span><span class="p">(</span><span class="n">label</span><span class="o">=</span><span class="s1">&#39;Selectivity&#39;</span><span class="p">)</span>
+
+<span class="n">plt</span><span class="o">.</span><span class="n">tight_layout</span><span class="p">()</span>
+<span class="n">plt</span><span class="o">.</span><span class="n">show</span><span class="p">()</span>
+</pre></div>
+</div>
+</section>
+<section id="related-analysis-tools">
+<h2>Related Analysis Tools<a class="headerlink" href="#related-analysis-tools" title="Link to this heading"></a></h2>
+<p>Branch information analysis is often used alongside:</p>
+<ul class="simple">
+<li><p><a class="reference internal" href="ablation_studies.html"><span class="doc">Ablation Studies</span></a>: To validate the importance of high-information branches</p></li>
+<li><p><a class="reference internal" href="../visualization/visualization_guide.html"><span class="doc">Network Visualization Guide</span></a>: To visualize branch activations for different inputs</p></li>
+<li><p><a class="reference internal" href="ablation_information_analysis.html"><span class="doc">Ablation Studies and Information Analysis</span></a>: For a deeper analysis combining ablation and information theory</p></li>
+</ul>
+</section>
+<section id="see-also">
+<h2>See Also<a class="headerlink" href="#see-also" title="Link to this heading"></a></h2>
+<ul class="simple">
+<li><p><a class="reference internal" href="../network_structures/network_structures.html"><span class="doc">Network Structures and Architecture</span></a>: For details on branch architecture</p></li>
+<li><p><a class="reference internal" href="../learning/learning_strategies.html"><span class="doc">Learning Strategies</span></a>: For learning strategies that might affect branch specialization</p></li>
+</ul>
+</section>
+</section>
+
+
+           </div>
+          </div>
+          <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
+        <a href="ablation_studies.html" class="btn btn-neutral float-left" title="Ablation Studies" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
+        <a href="ablation_information_analysis.html" class="btn btn-neutral float-right" title="Ablation Studies and Information Analysis" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright 2025, Research and Engineering at Kempner.</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>

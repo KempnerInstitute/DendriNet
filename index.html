@@ -20,6 +20,8 @@
       <script src="_static/clipboard.min.js?v=a7894cd8"></script>
       <script src="_static/copybutton.js?v=f281be69"></script>
       <script crossorigin="anonymous" integrity="sha256-Ae2Vz/4ePdIu6ZyI/5ZGsYnb+m0JlOmKPjt6XZ9JJkA=" src="https://cdnjs.cloudflare.com/ajax/libs/require.js/2.3.4/require.min.js"></script>
+      <script>window.MathJax = {"tex": {"inlineMath": [["$", "$"], ["\\(", "\\)"]], "processEscapes": true}, "options": {"ignoreHtmlClass": "tex2jax_ignore|mathjax_ignore|document", "processHtmlClass": "tex2jax_process|mathjax_process|math|output_area"}}</script>
+      <script defer="defer" src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
     <script src="_static/js/theme.js"></script>
     <link rel="author" title="About these documents" href="about.html" />
     <link rel="index" title="Index" href="genindex.html" />
@@ -59,8 +61,9 @@
 <ul>
 <li class="toctree-l1"><a class="reference internal" href="source/advanced/network_structures/index.html">Network Structures</a></li>
 <li class="toctree-l1"><a class="reference internal" href="source/advanced/learning/index.html">Learning Strategies</a></li>
-<li class="toctree-l1"><a class="reference internal" href="source/advanced/visualization/index.html">Visualization Guide</a></li>
+<li class="toctree-l1"><a class="reference internal" href="source/advanced/visualization/index.html">Visualization Tools</a></li>
 <li class="toctree-l1"><a class="reference internal" href="source/advanced/analysis/index.html">Analysis Tools</a></li>
+<li class="toctree-l1"><a class="reference internal" href="source/advanced/configuration/index.html">Configuration System</a></li>
 </ul>
 <p class="caption" role="heading"><span class="caption-text">Contents</span></p>
 <ul>
@@ -101,6 +104,7 @@
 <a class="reference internal image-reference" href="_images/dendritic_diagram.png"><img alt="Dendritic neuron diagram" src="_images/dendritic_diagram.png" style="width: 400px;" />
 </a>
 <p>This documentation provides comprehensive information about the dendritic modeling framework, its theoretical foundations, implementation details, and practical usage guides.</p>
+<p>The framework allows you to define and run experiments using a flexible YAML-based configuration system, making it easy to reproduce experiments and iterate quickly.</p>
 <div class="toctree-wrapper compound">
 <p class="caption" role="heading"><span class="caption-text">Introduction</span></p>
 <ul>
@@ -142,9 +146,10 @@
 <p class="caption" role="heading"><span class="caption-text">Contents</span></p>
 <ul>
 <li class="toctree-l1"><a class="reference internal" href="source/advanced/network_structures/index.html">Network Structures</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="source/advanced/network_structures/network_structures.html">Network Structures and Architecture</a></li>
 <li class="toctree-l2"><a class="reference internal" href="source/advanced/network_structures/activation_functions.html">Activation Functions</a></li>
-<li class="toctree-l2"><a class="reference internal" href="source/advanced/network_structures/gradient_scaling.html">Gradient Scaling Techniques</a></li>
 <li class="toctree-l2"><a class="reference internal" href="source/advanced/network_structures/weight_initialization.html">Weight Initialization Methods</a></li>
+<li class="toctree-l2"><a class="reference internal" href="source/advanced/network_structures/gradient_scaling.html">Gradient Scaling Techniques</a></li>
 </ul>
 </li>
 <li class="toctree-l1"><a class="reference internal" href="source/advanced/learning/index.html">Learning Strategies</a><ul>
@@ -152,14 +157,27 @@
 <li class="toctree-l2"><a class="reference internal" href="source/advanced/learning/topk_linear.html">TopKLinear Layers and Dendritic Processing</a></li>
 </ul>
 </li>
-<li class="toctree-l1"><a class="reference internal" href="source/advanced/visualization/index.html">Visualization Guide</a><ul>
+<li class="toctree-l1"><a class="reference internal" href="source/advanced/visualization/index.html">Visualization Tools</a><ul>
 <li class="toctree-l2"><a class="reference internal" href="source/advanced/visualization/visualization_guide.html">Network Visualization Guide</a></li>
 <li class="toctree-l2"><a class="reference internal" href="source/advanced/visualization/evaluation_visualization.html">Evaluation and Visualization</a></li>
 </ul>
 </li>
 <li class="toctree-l1"><a class="reference internal" href="source/advanced/analysis/index.html">Analysis Tools</a><ul>
 <li class="toctree-l2"><a class="reference internal" href="source/advanced/analysis/ablation_studies.html">Ablation Studies</a></li>
+<li class="toctree-l2"><a class="reference internal" href="source/advanced/analysis/branch_information.html">Branch Information Analysis</a></li>
+<li class="toctree-l2"><a class="reference internal" href="source/advanced/analysis/ablation_information_analysis.html">Ablation Studies and Information Analysis</a></li>
+<li class="toctree-l2"><a class="reference internal" href="source/advanced/analysis/synthetic_datasets.html">Datasets and Data Utilities</a></li>
 <li class="toctree-l2"><a class="reference internal" href="source/advanced/analysis/experiment_tracking.html">Experiment Tracking and Logging</a></li>
+<li class="toctree-l2"><a class="reference internal" href="source/advanced/analysis/output_handling.html">Output Handling and Loss Functions</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="source/advanced/configuration/index.html">Configuration System</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="source/advanced/configuration/index.html#overview">Overview</a></li>
+<li class="toctree-l2"><a class="reference internal" href="source/advanced/configuration/index.html#configuration-file-structure">Configuration File Structure</a></li>
+<li class="toctree-l2"><a class="reference internal" href="source/advanced/configuration/index.html#running-experiments">Running Experiments</a></li>
+<li class="toctree-l2"><a class="reference internal" href="source/advanced/configuration/index.html#configuration-templates">Configuration Templates</a></li>
+<li class="toctree-l2"><a class="reference internal" href="source/advanced/configuration/index.html#best-practices">Best Practices</a></li>
+<li class="toctree-l2"><a class="reference internal" href="source/advanced/configuration/index.html#advanced-configuration-options">Advanced Configuration Options</a></li>
 </ul>
 </li>
 </ul>

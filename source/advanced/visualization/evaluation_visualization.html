@@ -60,7 +60,7 @@
 <ul class="current">
 <li class="toctree-l1"><a class="reference internal" href="../network_structures/index.html">Network Structures</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../learning/index.html">Learning Strategies</a></li>
-<li class="toctree-l1 current"><a class="reference internal" href="index.html">Visualization Guide</a><ul class="current">
+<li class="toctree-l1 current"><a class="reference internal" href="index.html">Visualization Tools</a><ul class="current">
 <li class="toctree-l2"><a class="reference internal" href="visualization_guide.html">Network Visualization Guide</a></li>
 <li class="toctree-l2 current"><a class="current reference internal" href="#">Evaluation and Visualization</a><ul>
 <li class="toctree-l3"><a class="reference internal" href="#overview">Overview</a></li>
@@ -93,6 +93,7 @@
 </ul>
 </li>
 <li class="toctree-l1"><a class="reference internal" href="../analysis/index.html">Analysis Tools</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../configuration/index.html">Configuration System</a></li>
 </ul>
 <p class="caption" role="heading"><span class="caption-text">Contents</span></p>
 <ul>
@@ -117,7 +118,7 @@
           <div role="navigation" aria-label="Page navigation">
   <ul class="wy-breadcrumbs">
       <li><a href="../../../index.html" class="icon icon-home" aria-label="Home"></a></li>
-          <li class="breadcrumb-item"><a href="index.html">Visualization Guide</a></li>
+          <li class="breadcrumb-item"><a href="index.html">Visualization Tools</a></li>
       <li class="breadcrumb-item active">Evaluation and Visualization</li>
       <li class="wy-breadcrumbs-aside">
             <a href="../../../_sources/source/advanced/visualization/evaluation_visualization.rst.txt" rel="nofollow"> View page source</a>
@@ -270,24 +271,29 @@
 <p>The framework includes tools for information-theoretic analysis of branch behavior.</p>
 <section id="branch-mutual-information">
 <h3>Branch Mutual Information<a class="headerlink" href="#branch-mutual-information" title="Link to this heading"></a></h3>
-<p>The <code class="docutils literal notranslate"><span class="pre">compute_branch_info</span></code> function calculates various information metrics for branch activations:</p>
-<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="k">def</span><span class="w"> </span><span class="nf">compute_branch_info</span><span class="p">(</span><span class="n">activations</span><span class="p">,</span> <span class="n">labels</span><span class="p">,</span> <span class="n">n_bins</span><span class="o">=</span><span class="mi">10</span><span class="p">):</span>
+<p>The <code class="docutils literal notranslate"><span class="pre">analyze_dendritic_information</span></code> function calculates various information metrics for branch activations:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="k">def</span><span class="w"> </span><span class="nf">analyze_dendritic_information</span><span class="p">(</span><span class="n">model</span><span class="p">,</span> <span class="n">dataset</span><span class="p">,</span> <span class="n">device</span><span class="o">=</span><span class="s1">&#39;cuda&#39;</span><span class="p">,</span>
+                                  <span class="n">use_post_shunting</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">output_format</span><span class="o">=</span><span class="s1">&#39;auto&#39;</span><span class="p">):</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
-<span class="sd">    Estimate information metrics between branch activations and labels.</span>
+<span class="sd">    Analyze dendritic information metrics for a trained model.</span>
 
 <span class="sd">    Parameters</span>
 <span class="sd">    ----------</span>
-<span class="sd">    activations : torch.Tensor</span>
-<span class="sd">        Activation values</span>
-<span class="sd">    labels : torch.Tensor</span>
-<span class="sd">        Label values</span>
-<span class="sd">    n_bins : int</span>
-<span class="sd">        Number of bins for discretization</span>
+<span class="sd">    model : torch.nn.Module</span>
+<span class="sd">        The trained model.</span>
+<span class="sd">    dataset : torch.utils.data.Dataset</span>
+<span class="sd">        The dataset to evaluate on.</span>
+<span class="sd">    device : str</span>
+<span class="sd">        Device to perform computation on (&#39;cuda&#39; or &#39;cpu&#39;).</span>
+<span class="sd">    use_post_shunting : bool</span>
+<span class="sd">        Whether to use activations after potential shunting.</span>
+<span class="sd">    output_format : str</span>
+<span class="sd">        &#39;auto&#39;, &#39;legacy&#39;, or &#39;new&#39;. Specifies the output dictionary format.</span>
 
 <span class="sd">    Returns</span>
 <span class="sd">    -------</span>
 <span class="sd">    dict</span>
-<span class="sd">        Dictionary containing information metrics</span>
+<span class="sd">        Dictionary containing various information metrics like mutual information, entropy, etc.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
 </pre></div>
 </div>
@@ -329,7 +335,7 @@
 <section id="layer-wise-ablation">
 <h3>Layer-wise Ablation<a class="headerlink" href="#layer-wise-ablation" title="Link to this heading"></a></h3>
 <p>The <code class="docutils literal notranslate"><span class="pre">analyze_layerwise_ablation</span></code> function performs ablation at the layer level:</p>
-<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="k">def</span><span class="w"> </span><span class="nf">analyze_layerwise_ablation</span><span class="p">(</span><span class="n">model</span><span class="p">,</span> <span class="n">dataset</span><span class="p">,</span> <span class="n">ablation_mode</span><span class="o">=</span><span class="s1">&#39;direct&#39;</span><span class="p">,</span> <span class="n">device</span><span class="o">=</span><span class="s1">&#39;cpu&#39;</span><span class="p">):</span>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="k">def</span><span class="w"> </span><span class="nf">analyze_layerwise_ablation</span><span class="p">(</span><span class="n">model</span><span class="p">,</span> <span class="n">dataset</span><span class="p">,</span> <span class="n">train_data</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">valid_data</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">test_data</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">save_path</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">device</span><span class="o">=</span><span class="s1">&#39;cuda&#39;</span><span class="p">):</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Perform ablation analysis for each layer in the model.</span>
 
@@ -338,18 +344,22 @@
 <span class="sd">    model : torch.nn.Module</span>
 <span class="sd">        The model to analyze</span>
 <span class="sd">    dataset : torch.utils.data.Dataset</span>
-<span class="sd">        Dataset to evaluate on</span>
-<span class="sd">    ablation_mode : str</span>
-<span class="sd">        Ablation mode: &#39;direct&#39; or &#39;indirect&#39;</span>
-<span class="sd">    device : str</span>
-<span class="sd">        Device to use for computation</span>
+<span class="sd">        Main dataset for evaluation</span>
+<span class="sd">    train_data : torch.utils.data.Dataset, optional</span>
+<span class="sd">        Training dataset (used for retraining mode if applicable)</span>
+<span class="sd">    valid_data : torch.utils.data.Dataset, optional</span>
+<span class="sd">        Validation dataset (used for retraining mode if applicable)</span>
+<span class="sd">    test_data : torch.utils.data.Dataset, optional</span>
+<span class="sd">        Test dataset for evaluation</span>
+<span class="sd">    save_path : str, optional</span>
+<span class="sd">        Path to save results</span>
+<span class="sd">    device : str, default=&#39;cuda&#39;</span>
+<span class="sd">        Device to use for computation (&#39;cuda&#39; or &#39;cpu&#39;)</span>
 
 <span class="sd">    Returns</span>
 <span class="sd">    -------</span>
 <span class="sd">    dict</span>
-<span class="sd">        Dictionary containing ablation results including:</span>
-<span class="sd">        - baseline_acc: Accuracy before ablation</span>
-<span class="sd">        - accuracy_drops: List of accuracy drops per layer</span>
+<span class="sd">        Dictionary containing ablation results including accuracy per layer.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
 </pre></div>
 </div>
