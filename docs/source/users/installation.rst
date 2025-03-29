@@ -42,19 +42,6 @@ For development or the latest features, install from source:
     # Install in development mode
     pip install -e .
 
-Docker Installation
-~~~~~~~~~~~~~~~~~~~
-
-For an isolated environment with all dependencies:
-
-.. code-block:: bash
-
-    # Build the Docker image
-    docker build -t dendritic-modeling .
-    
-    # Run a container with GPU support
-    docker run --gpus all -it dendritic-modeling
-
 Detailed Installation Steps
 ---------------------------
 
