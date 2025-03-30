@@ -65,5 +65,3 @@ docs = [
 all = [
     "dendritic_modeling[dev,train, docs]",
 ]
-
-

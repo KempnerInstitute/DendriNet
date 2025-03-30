@@ -17,83 +17,98 @@ Example usage:
 python src/dendritic_modeling/train_experiments.py .vscode/config_exp.yaml --learning_strategy dendrinet_from_mlp
 """
 
-import os
 import argparse
+import json
 import logging
-from pathlib import Path
+import os
+import random
+import time
+import traceback
+from copy import deepcopy
 from dataclasses import asdict
 from datetime import datetime
-import time
-from copy import deepcopy
-import json
+from pathlib import Path
+
+import matplotlib.pyplot as plt
+import numpy as np
+import torch
+import torchinfo
 import yaml
-import traceback
+from omegaconf import OmegaConf
+from tqdm import tqdm
 
 import wandb
-import torch
-import numpy as np
-import random
-import matplotlib.pyplot as plt
-from tqdm import tqdm
-import torchinfo
-
 from dendritic_modeling import logger
+from dendritic_modeling.config import EINetParameters, load_config
 from dendritic_modeling.learning_strategies import (
-    get_trainer, CustomWeightDecayOptimizer, 
-    train_simple_mlp, train_mlp_with_classification_head,
-    transfer_mlp_weights_to_input_net, extract_weights_from_simple_mlp,
-    VoltageStabilizationTrainer
+    CustomWeightDecayOptimizer,
+    VoltageStabilizationTrainer,
+    extract_weights_from_simple_mlp,
+    get_trainer,
+    train_mlp_with_classification_head,
+    train_simple_mlp,
+    transfer_mlp_weights_to_input_net,
 )
 from dendritic_modeling.models import (
-    ProbabilisticClassifier, Classifier, 
-    SimpleMLP, SimpleClassifier, MLPWithClassificationHead
+    Classifier,
+    MLPWithClassificationHead,
+    ProbabilisticClassifier,
+    SimpleClassifier,
+    SimpleMLP,
 )
 from dendritic_modeling.networks import (
-    ExcitationInhibitionNetwork, MLPExcInhNetwork, 
-    InputNetTransform, SigmoidInputNetTransform
+    ExcitationInhibitionNetwork,
+    InputNetTransform,
+    MLPExcInhNetwork,
+    SigmoidInputNetTransform,
 )
-from dendritic_modeling.config import load_config, EINetParameters
-from dendritic_modeling.visualization_manager import PlotManager
 from dendritic_modeling.plot_utils import plot_NLL_loss_curves
 from dendritic_modeling.synthetic_datasets import get_unified_datasets
 from dendritic_modeling.utils import (
-    evaluate_accuracy, save_dict, 
-    analyze_branch_ablation, analyze_layerwise_ablation,
-    safe_register_hooks
+    analyze_branch_ablation,
+    analyze_layerwise_ablation,
+    evaluate_accuracy,
+    safe_register_hooks,
+    save_dict,
 )
-from omegaconf import OmegaConf
+from dendritic_modeling.visualization_manager import PlotManager
+
 
 def initialize_model(model_cfg, visualization_enabled=False):
     task = model_cfg.task
     probabilistic = model_cfg.probabilistic
     net_type = model_cfg.network.type
     net_params = model_cfg.network.parameters
-    config_branch_outputs = getattr(net_params, 'enable_branch_outputs', False)
+    config_branch_outputs = getattr(net_params, "enable_branch_outputs", False)
     enable_branch_outputs = config_branch_outputs or visualization_enabled
-    learning_strategy = getattr(net_params, 'learning_strategy', 'mle')
+    learning_strategy = getattr(net_params, "learning_strategy", "mle")
 
     logger.info(f"EINet branch outputs enabled: {enable_branch_outputs}")
 
-    if task == 'classification':
-        if net_type == 'MLP':
-            logger.info(f"Running feedforward with {'probabilistic' if probabilistic else 'simple'} classifier")
+    if task == "classification":
+        if net_type == "MLP":
+            logger.info(
+                f"Running feedforward with {'probabilistic' if probabilistic else 'simple'} classifier"
+            )
             net_params_dict = OmegaConf.to_container(net_params, resolve=True)
             net = MLPExcInhNetwork(**net_params_dict)
-            output_dim = net_params_dict.get('output_dim', 10)
+            output_dim = net_params_dict.get("output_dim", 10)
             if probabilistic:
                 model = ProbabilisticClassifier(net, output_dim)
             else:
                 model = Classifier(net)
             safe_register_hooks(model)
             return model
-        elif net_type == 'EINet':
-            logger.info(f"Running EINet with {'probabilistic' if probabilistic else 'simple'} classifier")
+        elif net_type == "EINet":
+            logger.info(
+                f"Running EINet with {'probabilistic' if probabilistic else 'simple'} classifier"
+            )
             net_params_dict = OmegaConf.to_container(net_params, resolve=True)
-            net_params_dict['enable_branch_outputs'] = enable_branch_outputs
-            net_params_dict['learning_strategy'] = learning_strategy
+            net_params_dict["enable_branch_outputs"] = enable_branch_outputs
+            net_params_dict["learning_strategy"] = learning_strategy
             net = ExcitationInhibitionNetwork(**net_params_dict)
             safe_register_hooks(net)
-            output_dim = net_params_dict.get('output_dim', 10)
+            output_dim = net_params_dict.get("output_dim", 10)
             if probabilistic:
                 model = ProbabilisticClassifier(net, output_dim)
             else:
@@ -127,39 +142,43 @@ def setup_training_environment(config, args=None):
     wandb_cfg = config.wandb
     outputs_cfg = config.outputs
     visualization_cfg = config.visualization
-    
+
     run_name = train_cfg.run_name
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     run_id = f"{run_name}_{timestamp}"
-    
+
     run_save_path = os.path.join(outputs_cfg.dir, run_id)
     os.makedirs(run_save_path, exist_ok=True)
     logger.info(f"Created output directory: {run_save_path}")
-    
+
     log_file = os.path.join(run_save_path, "train.log")
     file_handler = logging.FileHandler(log_file)
-    file_handler.setFormatter(logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s'))
+    file_handler.setFormatter(
+        logging.Formatter("%(asctime)s - %(name)s - %(levelname)s - %(message)s")
+    )
     logger.addHandler(file_handler)
     logger.info(f"Logging to {log_file}")
-    
+
     seed = train_cfg.seed
     torch.manual_seed(seed)
     np.random.seed(seed)
     random.seed(seed)
     logger.info(f"Set random seed to {seed}")
-    
-    if hasattr(wandb_cfg, 'use_wandb') and wandb_cfg.use_wandb:
+
+    if hasattr(wandb_cfg, "use_wandb") and wandb_cfg.use_wandb:
         try:
             wandb_config = {
                 "model": asdict(model_cfg),
                 "train": asdict(train_cfg),
                 "task": asdict(task_cfg),
             }
-            tags = wandb_cfg.tags if hasattr(wandb_cfg, 'tags') else None
+            tags = wandb_cfg.tags if hasattr(wandb_cfg, "tags") else None
             wandb.init(
-                project=wandb_cfg.project if hasattr(wandb_cfg, 'project') else "dendritic-modeling",
-                entity=wandb_cfg.entity if hasattr(wandb_cfg, 'entity') else None,
-                group=wandb_cfg.group if hasattr(wandb_cfg, 'group') else None,
+                project=wandb_cfg.project
+                if hasattr(wandb_cfg, "project")
+                else "dendritic-modeling",
+                entity=wandb_cfg.entity if hasattr(wandb_cfg, "entity") else None,
+                group=wandb_cfg.group if hasattr(wandb_cfg, "group") else None,
                 name=run_id,
                 config=wandb_config,
                 tags=tags,
@@ -169,55 +188,74 @@ def setup_training_environment(config, args=None):
             logger.error(f"Error initializing W&B: {e}")
             logger.error("Continuing without W&B logging")
             wandb_cfg.use_wandb = False
-    
+
     logger.info(f"Loading dataset: {task_cfg.dataset}")
-    if not hasattr(task_cfg, 'dataset') or not task_cfg.dataset:
+    if not hasattr(task_cfg, "dataset") or not task_cfg.dataset:
         raise ValueError("No dataset specified in configuration")
-    
+
     train_ds, valid_ds, test_ds = get_unified_datasets(task_cfg, train_cfg)
-    logger.info(f"Loaded datasets: {len(train_ds)} training, {len(valid_ds)} validation, {len(test_ds)} test samples")
-    
-    if hasattr(train_ds, 'data') and len(train_ds.data) > 0:
+    logger.info(
+        f"Loaded datasets: {len(train_ds)} training, {len(valid_ds)} validation, {len(test_ds)} test samples"
+    )
+
+    if hasattr(train_ds, "data") and len(train_ds.data) > 0:
         input_dim = np.prod(train_ds.data[0].shape)
-    elif hasattr(train_ds, 'tensors') and len(train_ds.tensors) > 0:
+    elif hasattr(train_ds, "tensors") and len(train_ds.tensors) > 0:
         input_dim = train_ds.tensors[0].shape[1]
-    elif hasattr(train_ds, '__getitem__'):
+    elif hasattr(train_ds, "__getitem__"):
         x, _ = train_ds[0]
         if isinstance(x, torch.Tensor):
             input_dim = x.numel()
         else:
             input_dim = np.prod(x.shape)
     else:
-        logger.warning("Could not automatically determine input dimension. Using default 784.")
+        logger.warning(
+            "Could not automatically determine input dimension. Using default 784."
+        )
         input_dim = 784
-    
+
     try:
         model_cfg.network.parameters.input_dim = input_dim
     except Exception:
         model_cfg.network.parameters["input_dim"] = input_dim
     logger.info(f"Set input dimension to {input_dim}")
-    
-    visualization_enabled = visualization_cfg.enabled if hasattr(visualization_cfg, 'enabled') else False
+
+    visualization_enabled = (
+        visualization_cfg.enabled if hasattr(visualization_cfg, "enabled") else False
+    )
     model = initialize_model(model_cfg, visualization_enabled)
     logger.info(f"Initialized model: {type(model).__name__}")
-    
+
     optimizer = CustomWeightDecayOptimizer(
         model=model,
         optimizer=torch.optim.Adam(model.parameters(), lr=train_cfg.lr),
         weight_decay=train_cfg.weight_decay_rate,
     )
-    
+
     learning_strategy = train_cfg.learning_strategy.lower()
-    trainer = get_trainer(learning_strategy, optimizer, suppress_prints=False, print_every=10)
+    trainer = get_trainer(
+        learning_strategy, optimizer, suppress_prints=False, print_every=10
+    )
     logger.info(f"Created trainer with learning strategy: {learning_strategy}")
-    
+
     return run_save_path, model, train_ds, valid_ds, test_ds, optimizer, trainer
 
 
-def train_and_evaluate(model, train_ds, valid_ds, test_ds, trainer, train_cfg, visualization_cfg, run_save_path):
+def train_and_evaluate(
+    model,
+    train_ds,
+    valid_ds,
+    test_ds,
+    trainer,
+    train_cfg,
+    visualization_cfg,
+    run_save_path,
+):
     learning_strategy = train_cfg.learning_strategy.lower()
     if learning_strategy in ["two_step", "two_step_kl"]:
-        logger.info(f"Training with {learning_strategy} strategy: {train_cfg.pretrain_epochs} pretrain epochs + {train_cfg.epochs - train_cfg.pretrain_epochs} main epochs")
+        logger.info(
+            f"Training with {learning_strategy} strategy: {train_cfg.pretrain_epochs} pretrain epochs + {train_cfg.epochs - train_cfg.pretrain_epochs} main epochs"
+        )
         results = trainer.train(
             model=model,
             train_data=train_ds,
@@ -229,10 +267,12 @@ def train_and_evaluate(model, train_ds, valid_ds, test_ds, trainer, train_cfg, v
             shuffle=True,
             load_best_state_dict=True,
             plot_losses=True,
-            save_path=run_save_path
+            save_path=run_save_path,
         )
     elif learning_strategy == "freeze_branches":
-        logger.info(f"Training with freeze_branches strategy: {train_cfg.epochs_per_layer} epochs per branch + {train_cfg.final_tune_epochs} final tuning epochs (from soma to input)")
+        logger.info(
+            f"Training with freeze_branches strategy: {train_cfg.epochs_per_layer} epochs per branch + {train_cfg.final_tune_epochs} final tuning epochs (from soma to input)"
+        )
         results = trainer.train_freeze_branches(
             model=model,
             train_data=train_ds,
@@ -243,10 +283,12 @@ def train_and_evaluate(model, train_ds, valid_ds, test_ds, trainer, train_cfg, v
             shuffle=True,
             plot_losses=True,
             save_path=run_save_path,
-            final_tune_epochs=train_cfg.final_tune_epochs
+            final_tune_epochs=train_cfg.final_tune_epochs,
         )
     elif learning_strategy == "freeze_branches_reversed":
-        logger.info(f"Training with freeze_branches_reversed strategy: {train_cfg.epochs_per_layer} epochs per branch + {train_cfg.final_tune_epochs} final tuning epochs (from input to soma)")
+        logger.info(
+            f"Training with freeze_branches_reversed strategy: {train_cfg.epochs_per_layer} epochs per branch + {train_cfg.final_tune_epochs} final tuning epochs (from input to soma)"
+        )
         results = trainer.train_freeze_branches_reversed(
             model=model,
             train_data=train_ds,
@@ -257,10 +299,12 @@ def train_and_evaluate(model, train_ds, valid_ds, test_ds, trainer, train_cfg, v
             shuffle=True,
             plot_losses=True,
             save_path=run_save_path,
-            final_tune_epochs=train_cfg.final_tune_epochs
+            final_tune_epochs=train_cfg.final_tune_epochs,
         )
     elif learning_strategy == "freeze_branches_with_pretraining":
-        logger.info(f"Training with freeze_branches_with_pretraining strategy: {train_cfg.pretrain_epochs} pretrain epochs + {train_cfg.epochs_per_layer} epochs per branch + {train_cfg.final_tune_epochs} final tuning epochs (from soma to input)")
+        logger.info(
+            f"Training with freeze_branches_with_pretraining strategy: {train_cfg.pretrain_epochs} pretrain epochs + {train_cfg.epochs_per_layer} epochs per branch + {train_cfg.final_tune_epochs} final tuning epochs (from soma to input)"
+        )
         results = trainer.train_freeze_branches_with_pretraining(
             model=model,
             train_data=train_ds,
@@ -272,10 +316,12 @@ def train_and_evaluate(model, train_ds, valid_ds, test_ds, trainer, train_cfg, v
             shuffle=True,
             plot_losses=True,
             save_path=run_save_path,
-            final_tune_epochs=train_cfg.final_tune_epochs
+            final_tune_epochs=train_cfg.final_tune_epochs,
         )
     elif learning_strategy == "freeze_branches_reversed_with_pretraining":
-        logger.info(f"Training with freeze_branches_reversed_with_pretraining strategy: {train_cfg.pretrain_epochs} pretrain epochs + {train_cfg.epochs_per_layer} epochs per branch + {train_cfg.final_tune_epochs} final tuning epochs (from input to soma)")
+        logger.info(
+            f"Training with freeze_branches_reversed_with_pretraining strategy: {train_cfg.pretrain_epochs} pretrain epochs + {train_cfg.epochs_per_layer} epochs per branch + {train_cfg.final_tune_epochs} final tuning epochs (from input to soma)"
+        )
         results = trainer.train_freeze_branches_reversed_with_pretraining(
             model=model,
             train_data=train_ds,
@@ -287,7 +333,7 @@ def train_and_evaluate(model, train_ds, valid_ds, test_ds, trainer, train_cfg, v
             shuffle=True,
             plot_losses=True,
             save_path=run_save_path,
-            final_tune_epochs=train_cfg.final_tune_epochs
+            final_tune_epochs=train_cfg.final_tune_epochs,
         )
     else:
         logger.info(f"Training with standard approach: {train_cfg.epochs} epochs")
@@ -302,7 +348,7 @@ def train_and_evaluate(model, train_ds, valid_ds, test_ds, trainer, train_cfg, v
                 grad_clip_value=train_cfg.grad_clip_value,
                 shuffle=True,
                 plot_losses=True,
-                save_path=run_save_path
+                save_path=run_save_path,
             )
         else:
             results = trainer.train(
@@ -317,73 +363,110 @@ def train_and_evaluate(model, train_ds, valid_ds, test_ds, trainer, train_cfg, v
                 early_stopping=True,
                 patience=100,
                 plot_losses=True,
-                save_path=run_save_path
+                save_path=run_save_path,
             )
 
     save_model(model, run_save_path, "final_model.pt")
-    train_losses = results.get('train_losses', [])
-    valid_losses = results.get('valid_losses', [])
-    
+    train_losses = results.get("train_losses", [])
+    valid_losses = results.get("valid_losses", [])
+
     if len(train_losses) > 0:
         logger.info("Plotting loss curves")
         if len(train_losses) != train_cfg.epochs:
-            logger.warning(f"Number of loss points ({len(train_losses)}) doesn't match epochs ({train_cfg.epochs})")
+            logger.warning(
+                f"Number of loss points ({len(train_losses)}) doesn't match epochs ({train_cfg.epochs})"
+            )
             plot_epochs = len(train_losses)
         else:
             plot_epochs = train_cfg.epochs
         plot_NLL_loss_curves(train_losses, valid_losses, plot_epochs, run_save_path)
-    
+
     logger.info("Evaluating final model performance")
     train_acc, valid_acc, test_acc = evaluate_accuracy(
-        model, train_ds, valid_ds, test_ds, 
-        save_path=os.path.join(run_save_path, 'performance'), 
+        model,
+        train_ds,
+        valid_ds,
+        test_ds,
+        save_path=os.path.join(run_save_path, "performance"),
         filename="final",
     )
-    logger.info(f"Final accuracy: train={train_acc:.4f}, valid={valid_acc:.4f}, test={test_acc:.4f}")
-    
+    logger.info(
+        f"Final accuracy: train={train_acc:.4f}, valid={valid_acc:.4f}, test={test_acc:.4f}"
+    )
+
     if wandb.run is not None:
-        wandb.log({
-            "final_train_acc": train_acc,
-            "final_valid_acc": valid_acc,
-            "final_test_acc": test_acc
-        })
-    
+        wandb.log(
+            {
+                "final_train_acc": train_acc,
+                "final_valid_acc": valid_acc,
+                "final_test_acc": test_acc,
+            }
+        )
+
     return results
 
 
-def train_sequential_input_net(model_cfg, train_cfg, task_cfg, train_ds, valid_ds, test_ds, run_save_path):
+def train_sequential_input_net(
+    model_cfg, train_cfg, task_cfg, train_ds, valid_ds, test_ds, run_save_path
+):
     logger.info("Starting sequential input network training")
-    if hasattr(train_ds, 'data'):
+    if hasattr(train_ds, "data"):
         input_dim = np.prod(train_ds.data[0].shape)
     else:
         input_dim = 784
-    input_net_dict = getattr(model_cfg.network.parameters, 'input_net_dict', {})
-    hidden_dims = input_net_dict.get('hidden_dims', [128, 64])
-    output_dim = input_net_dict.get('output_dim', 64)
-    input_net_training = getattr(train_cfg, 'input_net_training', {})
-    train_input_net = input_net_training.get('train_input_net', True)
-    input_net_epochs = input_net_training.get('input_net_epochs', 20)
+    input_net_dict = getattr(model_cfg.network.parameters, "input_net_dict", {})
+    hidden_dims = input_net_dict.get("hidden_dims", [128, 64])
+    output_dim = input_net_dict.get("output_dim", 64)
+    input_net_training = getattr(train_cfg, "input_net_training", {})
+    train_input_net = input_net_training.get("train_input_net", True)
+    input_net_epochs = input_net_training.get("input_net_epochs", 20)
     if not train_input_net:
         logger.info("Skipping input network training (train_input_net=False)")
         return initialize_model(model_cfg, visualization_enabled=False)
-    train_heads_independently = input_net_training.get('train_heads_independently', False)
+    train_heads_independently = input_net_training.get(
+        "train_heads_independently", False
+    )
     if train_heads_independently:
         logger.info("Training excitatory and inhibitory heads independently")
         return train_independent_input_nets(
-            model_cfg, train_cfg, train_ds, valid_ds, test_ds, 
-            input_dim, hidden_dims, output_dim, input_net_epochs, run_save_path
+            model_cfg,
+            train_cfg,
+            train_ds,
+            valid_ds,
+            test_ds,
+            input_dim,
+            hidden_dims,
+            output_dim,
+            input_net_epochs,
+            run_save_path,
         )
     else:
         logger.info("Training a single input network for both heads")
         return train_single_input_net(
-            model_cfg, train_cfg, train_ds, valid_ds, test_ds,
-            input_dim, hidden_dims, output_dim, input_net_epochs, run_save_path
+            model_cfg,
+            train_cfg,
+            train_ds,
+            valid_ds,
+            test_ds,
+            input_dim,
+            hidden_dims,
+            output_dim,
+            input_net_epochs,
+            run_save_path,
         )
 
 
 def train_independent_input_nets(
-    model_cfg, train_cfg, train_ds, valid_ds, test_ds, 
-    input_dim, hidden_dims, output_dim, input_net_epochs, run_save_path
+    model_cfg,
+    train_cfg,
+    train_ds,
+    valid_ds,
+    test_ds,
+    input_dim,
+    hidden_dims,
+    output_dim,
+    input_net_epochs,
+    run_save_path,
 ):
     final_output_dim = 10
     excit_head_dir = os.path.join(run_save_path, "excit_head_model")
@@ -400,16 +483,20 @@ def train_independent_input_nets(
         epochs=input_net_epochs,
         batch_size=train_cfg.batch_size,
         lr=train_cfg.lr,
-        run_save_path=excit_head_dir
+        run_save_path=excit_head_dir,
     )
     save_model(excit_feature_extractor, run_save_path, "excit_feature_extractor.pt")
-    logger.info(f"Excitatory head metrics: train={excit_metrics[0]:.4f}, valid={excit_metrics[1]:.4f}, test={excit_metrics[2]:.4f}")
+    logger.info(
+        f"Excitatory head metrics: train={excit_metrics[0]:.4f}, valid={excit_metrics[1]:.4f}, test={excit_metrics[2]:.4f}"
+    )
     if wandb.run is not None:
-        wandb.log({
-            "excit_head_train_acc": excit_metrics[0],
-            "excit_head_valid_acc": excit_metrics[1],
-            "excit_head_test_acc": excit_metrics[2]
-        })
+        wandb.log(
+            {
+                "excit_head_train_acc": excit_metrics[0],
+                "excit_head_valid_acc": excit_metrics[1],
+                "excit_head_test_acc": excit_metrics[2],
+            }
+        )
     inhib_head_dir = os.path.join(run_save_path, "inhib_head_model")
     os.makedirs(inhib_head_dir, exist_ok=True)
     logger.info("Training inhibitory head")
@@ -424,32 +511,40 @@ def train_independent_input_nets(
         epochs=input_net_epochs,
         batch_size=train_cfg.batch_size,
         lr=train_cfg.lr,
-        run_save_path=inhib_head_dir
+        run_save_path=inhib_head_dir,
     )
     save_model(inhib_feature_extractor, run_save_path, "inhib_feature_extractor.pt")
-    logger.info(f"Inhibitory head metrics: train={inhib_metrics[0]:.4f}, valid={inhib_metrics[1]:.4f}, test={inhib_metrics[2]:.4f}")
+    logger.info(
+        f"Inhibitory head metrics: train={inhib_metrics[0]:.4f}, valid={inhib_metrics[1]:.4f}, test={inhib_metrics[2]:.4f}"
+    )
     if wandb.run is not None:
-        wandb.log({
-            "inhib_head_train_acc": inhib_metrics[0],
-            "inhib_head_valid_acc": inhib_metrics[1],
-            "inhib_head_test_acc": inhib_metrics[2]
-        })
+        wandb.log(
+            {
+                "inhib_head_train_acc": inhib_metrics[0],
+                "inhib_head_valid_acc": inhib_metrics[1],
+                "inhib_head_test_acc": inhib_metrics[2],
+            }
+        )
     model = initialize_model(model_cfg, visualization_enabled=False)
     logger.info("Creating input network with sigmoid activation")
     new_input_net = SigmoidInputNetTransform(
         input_dim=input_dim,
         hidden_dims=hidden_dims,
         output_dim=output_dim,
-        network_type=model_cfg.network.parameters.input_net_dict.get("type", "MLPInputTransform")
+        network_type=model_cfg.network.parameters.input_net_dict.get(
+            "type", "MLPInputTransform"
+        ),
     )
     logger.info("Transferring weights to input network")
     extract_weights_from_simple_mlp(excit_feature_extractor, new_input_net)
-    if hasattr(model, 'net') and hasattr(model.net, 'input_net'):
+    if hasattr(model, "net") and hasattr(model.net, "input_net"):
         model.net.input_net = new_input_net
-    elif hasattr(model, 'network') and hasattr(model.network, 'input_net'):
+    elif hasattr(model, "network") and hasattr(model.network, "input_net"):
         model.network.input_net = new_input_net
     else:
-        logger.warning("Could not set input network in model - model structure may be incompatible")
+        logger.warning(
+            "Could not set input network in model - model structure may be incompatible"
+        )
     save_model(new_input_net, run_save_path, "input_net_with_sigmoid.pt")
     logger.info("Training full model with pretrained input networks")
     optimizer = CustomWeightDecayOptimizer(
@@ -468,15 +563,23 @@ def train_independent_input_nets(
         shuffle=True,
         load_best_state_dict=True,
         plot_losses=True,
-        save_path=run_save_path
+        save_path=run_save_path,
     )
     save_model(model, run_save_path, "full_model.pt")
     return model
 
 
 def train_single_input_net(
-    model_cfg, train_cfg, train_ds, valid_ds, test_ds,
-    input_dim, hidden_dims, output_dim, input_net_epochs, run_save_path
+    model_cfg,
+    train_cfg,
+    train_ds,
+    valid_ds,
+    test_ds,
+    input_dim,
+    hidden_dims,
+    output_dim,
+    input_net_epochs,
+    run_save_path,
 ):
     final_output_dim = 10
     mlp_model_dir = os.path.join(run_save_path, "mlp_model")
@@ -493,32 +596,40 @@ def train_single_input_net(
         epochs=input_net_epochs,
         batch_size=train_cfg.batch_size,
         lr=train_cfg.lr,
-        run_save_path=mlp_model_dir
+        run_save_path=mlp_model_dir,
     )
     save_model(feature_extractor, run_save_path, "feature_extractor.pt")
-    logger.info(f"Feature extractor metrics: train={metrics[0]:.4f}, valid={metrics[1]:.4f}, test={metrics[2]:.4f}")
+    logger.info(
+        f"Feature extractor metrics: train={metrics[0]:.4f}, valid={metrics[1]:.4f}, test={metrics[2]:.4f}"
+    )
     if wandb.run is not None:
-        wandb.log({
-            "feature_extractor_train_acc": metrics[0],
-            "feature_extractor_valid_acc": metrics[1],
-            "feature_extractor_test_acc": metrics[2]
-        })
+        wandb.log(
+            {
+                "feature_extractor_train_acc": metrics[0],
+                "feature_extractor_valid_acc": metrics[1],
+                "feature_extractor_test_acc": metrics[2],
+            }
+        )
     model = initialize_model(model_cfg, visualization_enabled=False)
     logger.info("Creating input network with sigmoid activation")
     new_input_net = SigmoidInputNetTransform(
         input_dim=input_dim,
         hidden_dims=hidden_dims,
         output_dim=output_dim,
-        network_type=model_cfg.network.parameters.input_net_dict.get("type", "MLPInputTransform")
+        network_type=model_cfg.network.parameters.input_net_dict.get(
+            "type", "MLPInputTransform"
+        ),
     )
     logger.info("Transferring weights to input network")
     extract_weights_from_simple_mlp(feature_extractor, new_input_net)
-    if hasattr(model, 'net') and hasattr(model.net, 'input_net'):
+    if hasattr(model, "net") and hasattr(model.net, "input_net"):
         model.net.input_net = new_input_net
-    elif hasattr(model, 'network') and hasattr(model.network, 'input_net'):
+    elif hasattr(model, "network") and hasattr(model.network, "input_net"):
         model.network.input_net = new_input_net
     else:
-        logger.warning("Could not set input network in model - model structure may be incompatible")
+        logger.warning(
+            "Could not set input network in model - model structure may be incompatible"
+        )
     save_model(new_input_net, run_save_path, "input_net_with_sigmoid.pt")
     logger.info("Training full model with pretrained input network")
     optimizer = CustomWeightDecayOptimizer(
@@ -537,16 +648,23 @@ def train_single_input_net(
         shuffle=True,
         load_best_state_dict=True,
         plot_losses=True,
-        save_path=run_save_path
+        save_path=run_save_path,
     )
     save_model(model, run_save_path, "full_model.pt")
     return model
 
 
-def run_analysis(model, train_ds, valid_ds, test_ds, outputs_cfg, visualization_cfg, run_save_path):
-    is_visualization_enabled = (visualization_cfg and hasattr(visualization_cfg, 'enabled') and visualization_cfg.enabled)
+def run_analysis(
+    model, train_ds, valid_ds, test_ds, outputs_cfg, visualization_cfg, run_save_path
+):
+    is_visualization_enabled = (
+        visualization_cfg
+        and hasattr(visualization_cfg, "enabled")
+        and visualization_cfg.enabled
+    )
     if is_visualization_enabled:
         logger.info("Visualization is enabled. Setting up PlotManager...")
+
         # Create a class to hold args in the format expected by PlotManager
         class Args:
             def __init__(self, viz_cfg, save_path):
@@ -555,23 +673,19 @@ def run_analysis(model, train_ds, valid_ds, test_ds, outputs_cfg, visualization_
                 self.file_name = "final"
                 self.shape = None
                 self.train = None
-        
+
         # Create args and data dictionary for PlotManager
         args = Args(visualization_cfg, run_save_path)
-        data = {
-            'train': train_ds,
-            'valid': valid_ds,
-            'test': test_ds
-        }
-        
+        data = {"train": train_ds, "valid": valid_ds, "test": test_ds}
+
         # Create PlotManager instance
-        device = 'cuda' if torch.cuda.is_available() else 'cpu'
+        device = "cuda" if torch.cuda.is_available() else "cpu"
         plot_manager = PlotManager(model, data, args, device=device)
-        
+
         # Get the list of plots to generate
-        plots = visualization_cfg.plots if hasattr(visualization_cfg, 'plots') else []
+        plots = visualization_cfg.plots if hasattr(visualization_cfg, "plots") else []
         logger.info(f"Generating the following plots: {plots}")
-        
+
         # Run each requested plot
         for plot_name in plots:
             try:
@@ -587,7 +701,7 @@ def run_analysis(model, train_ds, valid_ds, test_ds, outputs_cfg, visualization_
 def train_and_evaluate_main(config_path, args=None):
     config = load_config(config_path)
     logger.info(f"Loaded configuration from {config_path}")
-    
+
     if args:
         if args.learning_strategy:
             config.train.learning_strategy = args.learning_strategy
@@ -598,16 +712,24 @@ def train_and_evaluate_main(config_path, args=None):
         if args.run_name:
             config.train.run_name = args.run_name
             logger.info(f"Override run name: {args.run_name}")
-    
+
     model_cfg = config.model
     train_cfg = config.train
     task_cfg = config.task
     wandb_cfg = config.wandb
     outputs_cfg = config.outputs
     visualization_cfg = config.visualization
-    
-    run_save_path, model, train_ds, valid_ds, test_ds, optimizer, trainer = setup_training_environment(config, args)
-    
+
+    (
+        run_save_path,
+        model,
+        train_ds,
+        valid_ds,
+        test_ds,
+        optimizer,
+        trainer,
+    ) = setup_training_environment(config, args)
+
     logger.info("Network architecture summary before training:")
     try:
         sample_input, _ = train_ds[0]
@@ -618,47 +740,66 @@ def train_and_evaluate_main(config_path, args=None):
             col_names=["input_size", "output_size", "num_params"],
             col_width=25,
             row_settings=["depth"],
-            depth=7
+            depth=7,
         )
         logger.info("Model summary generated (see console output)")
         if wandb.run:
-            wandb.log({
-                "total_params": summary.total_params,
-                "trainable_params": summary.trainable_params
-            })
+            wandb.log(
+                {
+                    "total_params": summary.total_params,
+                    "trainable_params": summary.trainable_params,
+                }
+            )
     except Exception as e:
         logger.error(f"Failed to generate model summary before training: {e}")
-    
+
     save_dict(asdict(config), run_save_path, "config.json")
-    
-    input_mode = getattr(model_cfg.network.parameters, 'input_mode', 0)
-    input_net_training = getattr(train_cfg, 'input_net_training', {})
-    training_mode = input_net_training.get('training_mode', 'joint')
-    sequential_training = (input_mode == 2 and training_mode == 'sequential')
-    
+
+    input_mode = getattr(model_cfg.network.parameters, "input_mode", 0)
+    input_net_training = getattr(train_cfg, "input_net_training", {})
+    training_mode = input_net_training.get("training_mode", "joint")
+    sequential_training = input_mode == 2 and training_mode == "sequential"
+
     if sequential_training:
         logger.info("Using sequential training mode")
         model = train_sequential_input_net(
-            model_cfg, train_cfg, task_cfg, 
-            train_ds, valid_ds, test_ds, run_save_path
+            model_cfg, train_cfg, task_cfg, train_ds, valid_ds, test_ds, run_save_path
         )
         results = {
             "train_acc": evaluate_accuracy(model, train_ds),
             "valid_acc": evaluate_accuracy(model, valid_ds),
-            "test_acc": evaluate_accuracy(model, test_ds)
+            "test_acc": evaluate_accuracy(model, test_ds),
         }
     else:
         logger.info("Using standard training mode")
         results = train_and_evaluate(
-            model, train_ds, valid_ds, test_ds, trainer,
-            train_cfg, visualization_cfg, run_save_path
+            model,
+            train_ds,
+            valid_ds,
+            test_ds,
+            trainer,
+            train_cfg,
+            visualization_cfg,
+            run_save_path,
         )
-    
-    run_analysis(model, train_ds, valid_ds, test_ds, outputs_cfg, visualization_cfg, run_save_path)
-    
-    if hasattr(wandb_cfg, 'use_wandb') and wandb_cfg.use_wandb and wandb.run is not None:
+
+    run_analysis(
+        model,
+        train_ds,
+        valid_ds,
+        test_ds,
+        outputs_cfg,
+        visualization_cfg,
+        run_save_path,
+    )
+
+    if (
+        hasattr(wandb_cfg, "use_wandb")
+        and wandb_cfg.use_wandb
+        and wandb.run is not None
+    ):
         wandb.finish()
-    
+
     logger.info("Training experiment completed successfully")
     return model, results
 
@@ -667,16 +808,28 @@ def main(config_path, args=None):
     train_and_evaluate_main(config_path, args=args)
 
 
-if __name__ == '__main__':
-    parser = argparse.ArgumentParser(description='Run dendritic modeling training and evaluation.')
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser(
+        description="Run dendritic modeling training and evaluation."
+    )
     parser.add_argument("config", help="Path to the configuration YAML file.")
-    parser.add_argument("--output_dir", help="Override output directory specified in config.")
+    parser.add_argument(
+        "--output_dir", help="Override output directory specified in config."
+    )
     parser.add_argument("--run_name", help="Override run name specified in config.")
-    parser.add_argument("--learning_strategy", 
-                       choices=["mle", 
-                                "freeze_branches", "freeze_branches_reversed",
-                                "freeze_branches_with_pretraining", "freeze_branches_reversed_with_pretraining",
-                                "two_step", "two_step_kl", "voltage_stabilization"],
-                       help="Override learning strategy specified in config.")
+    parser.add_argument(
+        "--learning_strategy",
+        choices=[
+            "mle",
+            "freeze_branches",
+            "freeze_branches_reversed",
+            "freeze_branches_with_pretraining",
+            "freeze_branches_reversed_with_pretraining",
+            "two_step",
+            "two_step_kl",
+            "voltage_stabilization",
+        ],
+        help="Override learning strategy specified in config.",
+    )
     args = parser.parse_args()
     main(config_path=args.config, args=args)
