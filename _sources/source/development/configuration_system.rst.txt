@@ -89,14 +89,14 @@ Here's an example of a complete configuration (simplified):
 
     task:
       dataset: mnist
-      data_path: 
+      data_path:
       parameters: {}
 
     wandb:
-      entity: 
-      project: 
-      group: 
-      tags: 
+      entity:
+      project:
+      group:
+      tags:
       use_wandb: false
 
     visualization:
@@ -191,18 +191,18 @@ The ``train`` section defines the training procedure and hyperparameters:
       epochs: 50  # Number of training epochs
       batch_size: 64  # Batch size
       grad_clip_value: 1.0  # Gradient clipping value
-      
+
       # Branch-wise training parameters
       epochs_per_branch: 20        # Number of epochs to train each branch
       final_tune_epochs: 10        # Final fine-tuning epochs
-      
+
       # Pretraining parameters
       pretrain_epochs: 10  # Pretraining epochs for strategies with pretraining
-      
+
       # Voltage stabilization parameters
       warmup_epochs: 1  # Warm-up epochs for voltage stabilization
       stability_target_voltage: 0.5  # Target activation value for stabilization
-      
+
       # Input network training options
       input_net_training:
         training_mode: "sequential"  # "joint" or "sequential"
@@ -340,7 +340,7 @@ Create a ``sweep_params.yaml`` file that defines the parameters to sweep:
 .. code-block:: yaml
 
     base_config: configs/config_exp.yaml  # Base configuration to modify
-    
+
     # Parameters to sweep, with their range of values
     sweep_params:
       model.network.parameters.excitatory_layer_sizes:
@@ -384,18 +384,18 @@ In custom scripts, you can load and modify configurations programmatically:
 .. code-block:: python
 
     from dendritic_modeling.config import load_config
-    
+
     # Load configuration from file
     config = load_config("configs/config_exp.yaml")
-    
+
     # Modify configuration
     config.train.lr = 0.0005
     config.model.network.parameters.excitatory_layer_sizes = [20]
-    
+
     # Use configuration in your script
     # ...
 
-This allows for flexible experimentation while maintaining reproducibility. 
+This allows for flexible experimentation while maintaining reproducibility.
 
 # Development parameters
 development_mode: false        # Enable development mode for extra logging
@@ -407,4 +407,4 @@ device: 'auto'                 # 'auto', 'cpu', 'cuda', 'cuda:0', etc.
 
 # Branch-wise training parameters
 epochs_per_branch: 20        # Number of epochs to train each branch
-final_tune_epochs: 10        # Final fine-tuning epochs 
+final_tune_epochs: 10        # Final fine-tuning epochs

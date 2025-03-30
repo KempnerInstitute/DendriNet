@@ -32,7 +32,7 @@ The framework provides functions for branch ablation in ``utils.py``:
     def ablate_branch(model, layer_idx, branch_ids=None, mode='direct'):
         """
         Zero out weights for branch(es) at the specified layer.
-        
+
         Parameters
         ----------
         model : torch.nn.Module
@@ -42,7 +42,7 @@ The framework provides functions for branch ablation in ``utils.py``:
         branch_ids : list or None
             IDs of branches to ablate, or None for all branches
         mode : str
-            Ablation mode: 'direct' (zero out specific branches) or 
+            Ablation mode: 'direct' (zero out specific branches) or
             'indirect' (zero out all except specified branches)
         """
 
@@ -56,7 +56,7 @@ A comprehensive branch ablation analysis function is also available:
                                 mode='direct', device='cpu'):
         """
         Perform ablation analysis for specific branches.
-        
+
         Parameters
         ----------
         model : torch.nn.Module
@@ -71,7 +71,7 @@ A comprehensive branch ablation analysis function is also available:
             Ablation mode: 'direct' or 'indirect'
         device : str
             Device to use for computation
-            
+
         Returns
         -------
         tuple
@@ -89,20 +89,20 @@ Here's an example of how to conduct a branch ablation study:
 
     import torch
     from dendritic_modeling.utils import analyze_branch_ablation
-    
+
     # Load model and dataset
     model = torch.load("path/to/model.pt")
-    
+
     # Perform branch ablation analysis on layer 0
     baseline_acc, branch_results = analyze_branch_ablation(
         model, dataset, layer_idx=0, branch_ids=None, mode='direct'
     )
-    
+
     # Print results
     print(f"Baseline accuracy: {baseline_acc:.4f}")
     for branch_id, (acc, delta) in branch_results.items():
         print(f"Branch {branch_id} ablated: {acc:.4f} (Δ = {delta:.4f})")
-    
+
     # Identify most important branches
     importance = {branch_id: delta for branch_id, (acc, delta) in branch_results.items()}
     most_important = sorted(importance.items(), key=lambda x: x[1], reverse=True)[:5]
@@ -120,7 +120,7 @@ The framework provides a layerwise ablation analysis function:
     def analyze_layerwise_ablation(model, dataset, train_data=None, valid_data=None, test_data=None, save_path=None, device='cuda'):
         """
         Analyze the impact of ablating each layer on the model's performance.
-        
+
         Parameters
         ----------
         model : torch.nn.Module
@@ -137,7 +137,7 @@ The framework provides a layerwise ablation analysis function:
             Path to save ablation results.
         device : str, default='cuda'
             Device to use for computation ('cuda' or 'cpu').
-            
+
         Returns
         -------
         dict
@@ -150,10 +150,10 @@ To use this function in your analysis:
 .. code-block:: python
 
     from dendritic_modeling.utils import analyze_layerwise_ablation
-    
+
     # Run layerwise ablation analysis
     results = analyze_layerwise_ablation(
-        model=trained_model, 
+        model=trained_model,
         dataset=test_dataset, # Provide if retraining is part of analysis
         train_data=train_dataset, # Provide if retraining is part of analysis
         valid_data=valid_dataset, # Provide if retraining is part of analysis
@@ -161,10 +161,10 @@ To use this function in your analysis:
         save_path="./layer_ablation_results",
         device='cuda'
     )
-    
+
     # Analyze the saved results (e.g., load from save_path)
     # The specific structure of `results` depends on the implementation details
-    print(f"Layerwise ablation results saved to {results['save_path']}") 
+    print(f"Layerwise ablation results saved to {results['save_path']}")
 
 This can help identify which layers are most critical to model performance, providing insights into the hierarchical processing structure of the network.
 
@@ -189,7 +189,7 @@ Example for visualizing layerwise ablation results (assuming results are loaded 
     if 'accuracy_drops' in results:
         accuracy_drops = np.array(results['accuracy_drops'])
         num_layers = len(accuracy_drops)
-        
+
         # Plot results
         plt.figure(figsize=(10, 6))
         plt.bar(range(num_layers), accuracy_drops)
@@ -217,18 +217,18 @@ After performing branch ablation, you can visualize the importance of each branc
 
     import matplotlib.pyplot as plt
     import numpy as np
-    
+
     # Assuming branch_results is the result of analyze_branch_ablation
-    
+
     # Extract branch IDs and importance values
     branch_ids = np.array(list(branch_results.keys()))
     importance = np.array([delta for _, delta in branch_results.values()])
-    
+
     # Sort by importance
     sort_idx = np.argsort(importance)[::-1]
     branch_ids = branch_ids[sort_idx]
     importance = importance[sort_idx]
-    
+
     # Plot branch importance
     plt.figure(figsize=(12, 6))
     plt.bar(np.arange(len(branch_ids)), importance)
@@ -250,25 +250,25 @@ You can also visualize the activation patterns of different branches to understa
 .. code-block:: python
 
     from dendritic_modeling.utils import record_branch_activations
-    
+
     # Record branch activations for a subset of the dataset
     activations = record_branch_activations(
-        model, 
+        model,
         dataset,
         batch_size=32,
         device='cuda'
     )
-    
+
     # Plot activation patterns for the first layer
     plt.figure(figsize=(15, 10))
     layer_activations = activations[0]  # First layer
-    
+
     for i in range(min(10, layer_activations.shape[0])):
         plt.subplot(2, 5, i+1)
         plt.imshow(layer_activations[i].mean(dim=0).reshape(28, 28), cmap='viridis')
         plt.title(f'Branch {i}')
         plt.axis('off')
-    
+
     plt.suptitle('Branch Activation Patterns (Layer 0)')
     plt.tight_layout()
     plt.savefig('branch_activation_patterns.png')
@@ -285,37 +285,37 @@ For a comprehensive understanding of branch function, you can combine branch abl
 
     import torch
     from dendritic_modeling.utils import analyze_branch_ablation, record_branch_activations
-    
+
     # Load model and dataset
     model = torch.load("path/to/model.pt")
-    
+
     # Get branch activations
     activations = record_branch_activations(model, dataset, device='cuda')
-    
+
     # Perform branch ablation
     baseline_acc, branch_results = analyze_branch_ablation(
         model, dataset, layer_idx=0, device='cuda'
     )
-    
+
     # Combine results
     results = {}
     for branch_id, (acc, delta) in branch_results.items():
         # Get mean activation for this branch
         mean_activation = activations[0][branch_id].mean().item()
-        
+
         # Store combined results
         results[branch_id] = {
             'importance': delta,
             'mean_activation': mean_activation
         }
-    
+
     # Analyze correlation between activation and importance
     importance_values = [r['importance'] for r in results.values()]
     activation_values = [r['mean_activation'] for r in results.values()]
-    
+
     correlation = np.corrcoef(importance_values, activation_values)[0, 1]
     print(f"Correlation between importance and activation: {correlation:.4f}")
-    
+
     # Create scatter plot
     plt.figure(figsize=(8, 6))
     plt.scatter(activation_values, importance_values)
@@ -352,4 +352,4 @@ Conclusion
 
 Ablation studies are a powerful tool for understanding the function of dendritic networks. By systematically removing branches or layers and measuring the impact on performance, you can identify which components are critical for different aspects of computation.
 
-The dendritic modeling framework provides specialized tools for conducting these studies, enabling researchers to gain insights into the computational principles of dendritic networks. 
+The dendritic modeling framework provides specialized tools for conducting these studies, enabling researchers to gain insights into the computational principles of dendritic networks.

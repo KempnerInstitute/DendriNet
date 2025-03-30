@@ -50,14 +50,14 @@ The dataset is loaded using the ``load_mnist_as_datasets`` function, which retur
     def load_mnist_as_datasets(train_valid_split=0.8, data_path=None):
         """
         Load the MNIST dataset and split into train, validation, and test datasets.
-        
+
         Parameters
         ----------
         train_valid_split : float
             Fraction of training data to use for training (vs. validation)
         data_path : str or None
             Path to dataset, downloads if None
-            
+
         Returns
         -------
         dict
@@ -136,7 +136,7 @@ The ``LineDataset`` class implements this dataset:
 
     class LineDataset(Dataset):
         """
-        Dataset for line detection. Each sample is a small image that either 
+        Dataset for line detection. Each sample is a small image that either
         contains a horizontal or vertical line, or no line.
         """
         def __init__(self, n_samples=10000, image_size=10):
@@ -254,7 +254,7 @@ The ``InfoShuntingDataset`` class implements this dataset:
 
     class InfoShuntingDataset(Dataset):
         """
-        Dataset for testing shunting inhibition. Contains samples where 
+        Dataset for testing shunting inhibition. Contains samples where
         some input dimensions should inhibit others.
         """
         def __init__(self,n_samples=20000, input_dim=10):
@@ -356,14 +356,14 @@ The ``split_MNIST_inputs`` function splits MNIST inputs by digit:
     def split_MNIST_inputs(inputs, labels):
         """
         Split MNIST inputs into a list where each element contains all samples for one digit.
-        
+
         Parameters
         ----------
         inputs : torch.Tensor
             Input tensor [N, 784]
         labels : torch.Tensor
             Label tensor [N]
-            
+
         Returns
         -------
         list
@@ -380,14 +380,14 @@ The ``get_unified_datasets`` function provides a unified interface for loading d
     def get_unified_datasets(task_cfg, train_cfg):
         """
         Load datasets based on configuration.
-        
+
         Parameters
         ----------
         task_cfg : dict
             Task configuration with dataset name and parameters
         train_cfg : dict
             Training configuration with train_valid_split
-            
+
         Returns
         -------
         dict
@@ -407,4 +407,4 @@ When working with datasets:
 4. **Data preprocessing**: Consider normalization and augmentation for improved performance
 5. **Balanced samples**: Ensure balanced class distribution in validation and test sets
 
-Synthetic datasets are particularly valuable for understanding the specific computational advantages of dendritic networks compared to standard neural networks. 
+Synthetic datasets are particularly valuable for understanding the specific computational advantages of dendritic networks compared to standard neural networks.

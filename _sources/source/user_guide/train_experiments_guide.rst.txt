@@ -247,7 +247,7 @@ Here's a simple bash script for a learning rate sweep:
 .. code-block:: bash
 
     #!/bin/bash
-    
+
     for lr in 0.0001 0.0005 0.001 0.005 0.01
     do
         python src/dendritic_modeling/train_experiments.py configs/mnist_exp.yaml \
@@ -341,4 +341,4 @@ The ``train_experiments.py`` script provides a flexible and powerful interface f
 - Perform parameter sweeps to optimize performance
 - Generate visualizations to understand model behavior
 
-For more detailed information, see the :ref:`config_yaml_guide` for configuration options and the API reference for implementation details. 
+For more detailed information, see the :ref:`config_yaml_guide` for configuration options and the API reference for implementation details.

@@ -68,7 +68,7 @@ Here's an example sweep parameters file:
               type: "MLPInputTransform"
               hidden_dims: []
               output_dim: 128
-      
+
       train:
         learning_strategy: mle
         run_name: einet_sweep
@@ -79,19 +79,19 @@ Here's an example sweep parameters file:
         batch_size: 64
         grad_clip_value: 1.0
         weight_decay_rate: 0.01
-      
+
       task:
         dataset: mnist
-        data_path: 
+        data_path:
         parameters: {}
-      
+
       wandb:
-        entity: 
-        project: 
-        group: 
-        tags: 
+        entity:
+        project:
+        group:
+        tags:
         use_wandb: false
-      
+
       visualization:
         enabled: false
         visualize_epochs: [10, 30]
@@ -99,27 +99,27 @@ Here's an example sweep parameters file:
           - weights
           - activations
           - gradients
-      
+
       outputs:
         dir: outputs
-    
+
     # Parameters to sweep over
     sweep_config:
       model.network.parameters.excitatory_branch_factors:
         - [1,2]
         - [1,3]
         - [1,4]
-      
+
       train.lr:
         - 0.001
         - 0.0005
         - 0.0001
-      
+
       train.batch_size:
         - 32
         - 64
         - 128
-    
+
     # SLURM configuration for job submission
     slurm_config:
       account: "lab-account"
@@ -277,29 +277,29 @@ To collect results from all runs, you can use the following script:
     import os
     import pandas as pd
     import yaml
-    
+
     def collect_sweep_results(sweep_dir, metrics_filename="metrics.csv"):
         """
         Collect results from all runs in a sweep.
-        
+
         Parameters
         ----------
         sweep_dir : str
             Directory containing sweep results
         metrics_filename : str
             Name of metrics file
-            
+
         Returns
         -------
         pd.DataFrame
             DataFrame with results from all runs
         """
         results = []
-        
+
         # Load sweep summary
         with open(os.path.join(sweep_dir, "config_sweeps.txt"), "r") as f:
             sweep_summary = f.readlines()
-        
+
         # Parse sweep summary
         sweep_params = {}
         for line in sweep_summary:
@@ -309,7 +309,7 @@ To collect results from all runs, you can use the following script:
             config_file, params = line.split(":", 1)
             config_id = int(config_file.split("_")[1].split(".")[0])
             sweep_params[config_id] = eval(params)
-        
+
         # Find all result directories
         for root, dirs, files in os.walk(sweep_dir):
             if metrics_filename in files:
@@ -317,14 +317,14 @@ To collect results from all runs, you can use the following script:
                 parts = root.split("_")
                 if len(parts) >= 2 and parts[-1].isdigit():
                     config_id = int(parts[-1])
-                    
+
                     # Load metrics
                     metrics_path = os.path.join(root, metrics_filename)
                     metrics = pd.read_csv(metrics_path)
-                    
+
                     # Get best validation accuracy
                     best_valid_acc = metrics["valid_accuracy"].max()
-                    
+
                     # Add to results
                     result = {
                         "config_id": config_id,
@@ -332,7 +332,7 @@ To collect results from all runs, you can use the following script:
                         **sweep_params.get(config_id, {})
                     }
                     results.append(result)
-        
+
         return pd.DataFrame(results)
 
 This script collects results from all runs in a sweep and returns a DataFrame with the best validation accuracy for each parameter combination.
@@ -346,7 +346,7 @@ You can then find the best parameter combination:
 
     # Collect results
     results = collect_sweep_results("outputs/sweep_20230501")
-    
+
     # Find best configuration
     best_config = results.loc[results["best_valid_acc"].idxmax()]
     print(f"Best configuration: {best_config}")
@@ -362,7 +362,7 @@ You can visualize how different parameters affect performance:
 
     import matplotlib.pyplot as plt
     import seaborn as sns
-    
+
     # Plot effect of learning rate
     plt.figure(figsize=(10, 6))
     sns.boxplot(x="train.lr", y="best_valid_acc", data=results)
@@ -396,7 +396,7 @@ Instead of trying all combinations, you can randomly sample from the parameter s
 .. code-block:: python
 
     import random
-    
+
     def generate_random_configs(base_config, sweep_params, num_configs=10):
         """Generate random parameter combinations."""
         configs = []
@@ -425,14 +425,14 @@ For even more efficient hyperparameter search, you can use Bayesian optimization
 
     from skopt import gp_minimize
     from skopt.space import Real, Integer, Categorical
-    
+
     # Define parameter space
     space = [
         Real(0.0001, 0.01, name="lr", prior="log-uniform"),
         Integer(16, 128, name="batch_size"),
         Categorical([[1,2], [1,3], [1,4]], name="branch_factors")
     ]
-    
+
     # Define objective function (requires running an experiment)
     def objective(params):
         lr, batch_size, branch_factors = params
@@ -440,12 +440,12 @@ For even more efficient hyperparameter search, you can use Bayesian optimization
         # Run experiment
         # Return -validation_accuracy (minimize negative accuracy)
         return -validation_accuracy
-    
+
     # Run Bayesian optimization
     result = gp_minimize(objective, space, n_calls=20, random_state=42)
-    
+
     # Best parameters
     best_params = result.x
     print(f"Best parameters: lr={best_params[0]}, batch_size={best_params[1]}, branch_factors={best_params[2]}")
 
-This approach requires more integration effort but can find good hyperparameters with fewer trials. 
+This approach requires more integration effort but can find good hyperparameters with fewer trials.

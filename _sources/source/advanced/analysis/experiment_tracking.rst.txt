@@ -132,7 +132,7 @@ The logging system uses Python's built-in ``logging`` module, configured in ``lo
     def setup_logging(log_dir, experiment_name, log_level=logging.INFO):
         """
         Setup logging configuration.
-        
+
         Parameters
         ----------
         log_dir : str
@@ -141,35 +141,35 @@ The logging system uses Python's built-in ``logging`` module, configured in ``lo
             Name of the experiment
         log_level : int
             Logging level, default is INFO
-            
+
         Returns
         -------
         logging.Logger
             Configured logger
         """
         log_path = os.path.join(log_dir, f"{experiment_name}.log")
-        
+
         # Create formatter
         formatter = logging.Formatter(
             '%(asctime)s - %(name)s - %(levelname)s - %(message)s'
         )
-        
+
         # File handler
         file_handler = logging.FileHandler(log_path)
         file_handler.setLevel(log_level)
         file_handler.setFormatter(formatter)
-        
+
         # Console handler
         console_handler = logging.StreamHandler()
         console_handler.setLevel(log_level)
         console_handler.setFormatter(formatter)
-        
+
         # Create logger
         logger = logging.getLogger(experiment_name)
         logger.setLevel(log_level)
         logger.addHandler(file_handler)
         logger.addHandler(console_handler)
-        
+
         return logger
 
 This creates a logger that writes both to a file and to the console.
@@ -183,15 +183,15 @@ The logger is used throughout the codebase to record events and errors:
 
     # Get logger
     logger = setup_logging(output_dir, config.train.run_name)
-    
+
     # Log training progress
     logger.info(f"Epoch {epoch}/{config.train.epochs} - "
                 f"Train Loss: {train_loss:.4f}, Valid Loss: {valid_loss:.4f}, "
                 f"Train Acc: {train_accuracy:.4f}, Valid Acc: {valid_accuracy:.4f}")
-    
+
     # Log warnings
     logger.warning("Learning rate is unusually high")
-    
+
     # Log errors (without stopping execution)
     try:
         # Some code that might raise an exception
@@ -317,13 +317,13 @@ Here's an example of how to use the tracking system in a custom script:
     from dendritic_modeling.config import load_config
     from dendritic_modeling.logging_config import setup_logging
     import wandb
-    
+
     # Load configuration
     config = load_config("configs/my_experiment.yaml")
-    
+
     # Set up logging
     logger = setup_logging("outputs", config.train.run_name)
-    
+
     # Initialize W&B
     if config.wandb.use_wandb:
         wandb.init(
@@ -332,19 +332,19 @@ Here's an example of how to use the tracking system in a custom script:
             name=config.train.run_name,
             config=config
         )
-    
+
     # Log parameters
     logger.info(f"Starting experiment with learning rate: {config.train.lr}")
-    
+
     # Training loop
     for epoch in range(config.train.epochs):
         # Train model
         train_loss, train_accuracy = train_epoch(model, train_loader)
         valid_loss, valid_accuracy = validate_epoch(model, valid_loader)
-        
+
         # Log metrics
         logger.info(f"Epoch {epoch}: Train Acc={train_accuracy:.4f}, Valid Acc={valid_accuracy:.4f}")
-        
+
         if config.wandb.use_wandb:
             wandb.log({
                 "train_loss": train_loss,
@@ -353,7 +353,7 @@ Here's an example of how to use the tracking system in a custom script:
                 "valid_accuracy": valid_accuracy,
                 "epoch": epoch
             })
-    
+
     # Save final model
     torch.save(model.state_dict(), "outputs/final_model.pt")
-    logger.info("Training complete, model saved.") 
+    logger.info("Training complete, model saved.")

@@ -44,7 +44,7 @@ The ``utils.py`` module includes functions for evaluating model performance:
     def accuracy_score(classifier, inputs, labels):
         """
         Compute classification accuracy.
-        
+
         Parameters
         ----------
         classifier : torch.nn.Module
@@ -53,7 +53,7 @@ The ``utils.py`` module includes functions for evaluating model performance:
             Input tensor
         labels : torch.Tensor
             Label tensor
-            
+
         Returns
         -------
         float
@@ -64,11 +64,11 @@ A more comprehensive evaluation function is also available:
 
 .. code-block:: python
 
-    def evaluate_accuracy(classifier, train_ds=None, valid_ds=None, test_ds=None, 
+    def evaluate_accuracy(classifier, train_ds=None, valid_ds=None, test_ds=None,
                           save_path=None, filename='accuracy'):
         """
         Evaluate accuracy on train, validation, and test datasets.
-        
+
         Parameters
         ----------
         classifier : torch.nn.Module
@@ -79,7 +79,7 @@ A more comprehensive evaluation function is also available:
             Path to save results
         filename : str
             Filename for saving results
-            
+
         Returns
         -------
         tuple
@@ -98,11 +98,11 @@ The ``plot_einet_params`` function visualizes the weights of ExcitationInhibitio
 
 .. code-block:: python
 
-    def plot_einet_params(einet, save_root, reshape_fn=None, reshape_exc_syn=False, 
+    def plot_einet_params(einet, save_root, reshape_fn=None, reshape_exc_syn=False,
                            logspace=False, save_in_dir=False, filename='image'):
         """
         Plot EINet parameters including weights, branch connections, etc.
-        
+
         Parameters
         ----------
         einet : ExcitationInhibitionNetwork
@@ -138,7 +138,7 @@ The ``plot_einet_activations`` function visualizes activations in the network:
     def plot_einet_activations(einet, input_list, save_root, save_in_dir=False, filename='image'):
         """
         Plot EINet activations for different inputs.
-        
+
         Parameters
         ----------
         einet : ExcitationInhibitionNetwork
@@ -171,7 +171,7 @@ The ``analyze_dendritic_information`` function calculates various information me
                                       use_post_shunting=False, output_format='auto'):
         """
         Analyze dendritic information metrics for a trained model.
-        
+
         Parameters
         ----------
         model : torch.nn.Module
@@ -184,7 +184,7 @@ The ``analyze_dendritic_information`` function calculates various information me
             Whether to use activations after potential shunting.
         output_format : str
             'auto', 'legacy', or 'new'. Specifies the output dictionary format.
-            
+
         Returns
         -------
         dict
@@ -208,7 +208,7 @@ The ``analyze_branch_ablation`` function performs comprehensive ablation analysi
     def analyze_branch_ablation(model, dataset, ablation_mode='direct', device='cpu'):
         """
         Perform ablation analysis for all branches in the model.
-        
+
         Parameters
         ----------
         model : torch.nn.Module
@@ -219,7 +219,7 @@ The ``analyze_branch_ablation`` function performs comprehensive ablation analysi
             Ablation mode: 'direct' or 'indirect'
         device : str
             Device to use for computation
-            
+
         Returns
         -------
         dict
@@ -240,7 +240,7 @@ The ``analyze_layerwise_ablation`` function performs ablation at the layer level
     def analyze_layerwise_ablation(model, dataset, train_data=None, valid_data=None, test_data=None, save_path=None, device='cuda'):
         """
         Perform ablation analysis for each layer in the model.
-        
+
         Parameters
         ----------
         model : torch.nn.Module
@@ -257,7 +257,7 @@ The ``analyze_layerwise_ablation`` function performs ablation at the layer level
             Path to save results
         device : str, default='cuda'
             Device to use for computation ('cuda' or 'cpu')
-            
+
         Returns
         -------
         dict
@@ -274,7 +274,7 @@ The framework provides a PlotManager class that can automate many of these visua
 .. code-block:: python
 
     from dendritic_modeling.visualization_manager import PlotManager
-    
+
     # Create a plot manager
     plot_manager = PlotManager(
         model=model,
@@ -283,10 +283,10 @@ The framework provides a PlotManager class that can automate many of these visua
         device='cuda',
         plots=['weights', 'activations', 'branch_info', 'ablation']
     )
-    
+
     # Generate all plots
     plot_manager.generate_plots()
-    
+
     # Generate plots for specific epoch
     plot_manager.generate_plots(epoch=10)
 
@@ -300,4 +300,4 @@ Best Practices for Evaluation and Visualization
 5. **Monitor activations**: Track how activations change for different inputs
 6. **Use appropriate metrics**: Choose metrics that align with your research questions
 
-Visualizations are particularly important for dendritic networks because they help reveal the specialized computational roles of different branches and how they work together to process information. 
+Visualizations are particularly important for dendritic networks because they help reveal the specialized computational roles of different branches and how they work together to process information.
