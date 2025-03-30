@@ -167,15 +167,9 @@
 <section id="quick-installation-recommended-for-mamba-conda-users">
 <h3>Quick Installation (Recommended for Mamba/Conda Users)<a class="headerlink" href="#quick-installation-recommended-for-mamba-conda-users" title="Link to this heading"></a></h3>
 <p>For a quick installation using Mamba:</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># Install Mamba if you don&#39;t have it</span>
-conda<span class="w"> </span>install<span class="w"> </span>mamba<span class="w"> </span>-n<span class="w"> </span>base<span class="w"> </span>-c<span class="w"> </span>conda-forge
-
-<span class="c1"># Create a new environment</span>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># Create a new environment</span>
 mamba<span class="w"> </span>create<span class="w"> </span>-n<span class="w"> </span>dendritic<span class="w"> </span><span class="nv">python</span><span class="o">=</span><span class="m">3</span>.10
 mamba<span class="w"> </span>activate<span class="w"> </span>dendritic
-
-<span class="c1"># Install PyTorch with CUDA (modify cudatoolkit version if needed)</span>
-mamba<span class="w"> </span>install<span class="w"> </span>pytorch<span class="w"> </span>torchvision<span class="w"> </span>torchaudio<span class="w"> </span>pytorch-cuda<span class="o">=</span><span class="m">11</span>.8<span class="w"> </span>-c<span class="w"> </span>pytorch<span class="w"> </span>-c<span class="w"> </span>nvidia
 
 <span class="c1"># Clone the repository</span>
 git<span class="w"> </span>clone<span class="w"> </span>https://github.com/KempnerInstitute/dendritic-modeling.git
@@ -192,9 +186,6 @@ pip<span class="w"> </span>install<span class="w"> </span>.
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># Create a new Mamba environment</span>
 mamba<span class="w"> </span>create<span class="w"> </span>-n<span class="w"> </span>dendritic<span class="w"> </span><span class="nv">python</span><span class="o">=</span><span class="m">3</span>.10
 mamba<span class="w"> </span>activate<span class="w"> </span>dendritic
-
-<span class="c1"># Install PyTorch with CUDA</span>
-mamba<span class="w"> </span>install<span class="w"> </span>pytorch<span class="w"> </span>torchvision<span class="w"> </span>torchaudio<span class="w"> </span>pytorch-cuda<span class="o">=</span><span class="m">11</span>.8<span class="w"> </span>-c<span class="w"> </span>pytorch<span class="w"> </span>-c<span class="w"> </span>nvidia
 
 <span class="c1"># Clone the repository</span>
 git<span class="w"> </span>clone<span class="w"> </span>https://github.com/KempnerInstitute/dendritic-modeling.git
@@ -215,10 +206,7 @@ pip<span class="w"> </span>install<span class="w"> </span>-e<span class="w"> </s
 <section id="step-1-set-up-the-python-environment">
 <h3>Step 1: Set up the Python environment<a class="headerlink" href="#step-1-set-up-the-python-environment" title="Link to this heading"></a></h3>
 <p>Using Mamba:</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># Install Mamba if you don&#39;t have it</span>
-conda<span class="w"> </span>install<span class="w"> </span>mamba<span class="w"> </span>-n<span class="w"> </span>base<span class="w"> </span>-c<span class="w"> </span>conda-forge
-
-<span class="c1"># Create and activate a new environment</span>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># Create and activate a new environment</span>
 mamba<span class="w"> </span>create<span class="w"> </span>-n<span class="w"> </span>dendritic<span class="w"> </span><span class="nv">python</span><span class="o">=</span><span class="m">3</span>.10
 mamba<span class="w"> </span>activate<span class="w"> </span>dendritic
 </pre></div>
