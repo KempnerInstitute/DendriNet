@@ -38,6 +38,7 @@ class EINetParameters(BaseConfig):
     reactivate: bool = True
     somatic_synapses: bool = True
     topk_init_method: str = "xavier_normal"
+    topk_noise_level: float = 0.0
     use_shunting: bool = True
     reactivation_type: str = "param_tanh"
     reactivation_strategy: str = "inverse"
