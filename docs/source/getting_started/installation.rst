@@ -39,16 +39,10 @@ Quick Installation (Recommended for Mamba/Conda Users)
 For a quick installation using Mamba:
 
 .. code-block:: bash
-
-    # Install Mamba if you don't have it
-    conda install mamba -n base -c conda-forge
     
     # Create a new environment
     mamba create -n dendritic python=3.10
     mamba activate dendritic
-    
-    # Install PyTorch with CUDA (modify cudatoolkit version if needed)
-    mamba install pytorch torchvision torchaudio pytorch-cuda=11.8 -c pytorch -c nvidia
     
     # Clone the repository
     git clone https://github.com/KempnerInstitute/dendritic-modeling.git
@@ -67,9 +61,6 @@ For development or the latest features, install from source with development dep
     # Create a new Mamba environment
     mamba create -n dendritic python=3.10
     mamba activate dendritic
-    
-    # Install PyTorch with CUDA
-    mamba install pytorch torchvision torchaudio pytorch-cuda=11.8 -c pytorch -c nvidia
     
     # Clone the repository
     git clone https://github.com/KempnerInstitute/dendritic-modeling.git
@@ -92,9 +83,6 @@ Step 1: Set up the Python environment
 Using Mamba:
 
 .. code-block:: bash
-
-    # Install Mamba if you don't have it
-    conda install mamba -n base -c conda-forge
     
     # Create and activate a new environment
     mamba create -n dendritic python=3.10
