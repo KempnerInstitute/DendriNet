@@ -154,4 +154,4 @@ Example complete initialization configuration:
           topk_init_method: "xavier_normal"
           init_gain: 1.0
           reactivation_initial_m: 1.5
-          reactivation_initial_b: 1.0 
+          reactivation_initial_b: 1.0

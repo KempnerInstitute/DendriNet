@@ -43,25 +43,25 @@ Configure ablation studies in your evaluation:
         enabled: true
         save_results: true
         output_dir: "ablation_results/"
-        
+
         # Components to ablate
         components:
           - type: "pathway"
             target: "inhibitory"  # Options: "excitatory", "inhibitory"
-          
+
           - type: "layer"
             pathway: "excitatory"  # Which pathway the layer belongs to
             index: 0               # Layer index
-          
+
           - type: "branch"
             pathway: "excitatory"
             layer: 0
             indices: [0, 1, 2]     # Branch indices
-          
+
           - type: "mechanism"
             target: "topk"         # Target mechanism
             replacement: "average"  # Replacement mechanism
-        
+
         # Metrics to compute
         metrics:
           - "accuracy"
@@ -312,7 +312,7 @@ The implementation consists of the following steps:
    - Excitatory Ablation: All excitatory branches at a specific dendritic order are ablated.
    - Inhibitory Ablation: All inhibitory branches at a specific dendritic order are ablated.
 
-3. **Result Analysis**: The performance drop for each ablation is calculated. 
+3. **Result Analysis**: The performance drop for each ablation is calculated.
    - Both absolute performance drops and percentage drops relative to baseline are computed.
    - If the results contain lists instead of single values (e.g., from multiple runs), they are appropriately processed.
 
@@ -551,7 +551,7 @@ For the most comprehensive understanding, combine ablation and information analy
         components:
           - type: "branch"
             # ... ablation details ...
-      
+
       # Then analyze information changes
       information_analysis:
         enabled: true
@@ -614,20 +614,20 @@ Here's a complete example configuration for comprehensive ablation and informati
         enabled: true
         save_results: true
         output_dir: "ablation_results/"
-        
+
         # Components to ablate
         components:
           # Pathway ablation
           - type: "pathway"
             target: "inhibitory"
             method: "zero_output"
-          
+
           # Layer ablation
           - type: "layer"
             pathway: "excitatory"
             index: 0
             method: "identity"
-          
+
           # Branch ablation
           - type: "branch"
             pathway: "excitatory"
@@ -635,12 +635,12 @@ Here's a complete example configuration for comprehensive ablation and informati
             selection: "top_active"
             count: 10
             method: "zero_weights"
-          
+
           # Mechanism ablation
           - type: "mechanism"
             target: "topk"
             replacement: "average"
-        
+
         # Progressive branch ablation
         progressive:
           enabled: true
@@ -650,13 +650,13 @@ Here's a complete example configuration for comprehensive ablation and informati
           selection: "importance"
           step_size: 5
           steps: 20
-        
+
         # Metrics to compute
         metrics:
           - "accuracy"
           - "loss"
           - "per_class_accuracy"
-        
+
         # Analysis of ablation results
         analysis:
           enabled: true
@@ -666,7 +666,7 @@ Here's a complete example configuration for comprehensive ablation and informati
           visualization:
             enabled: true
             type: "bar_chart"
-      
+
       # Information analysis
       information_analysis:
         enabled: true
@@ -676,7 +676,7 @@ Here's a complete example configuration for comprehensive ablation and informati
           num_bins: 30
         num_samples: 1000
         output_dir: "info_analysis/"
-        
+
         # Layer-based analysis
         layer_analysis:
           enabled: true
@@ -684,7 +684,7 @@ Here's a complete example configuration for comprehensive ablation and informati
           layer_layer_mi: true
           layer_target_mi: true
           pathway_pathway_mi: true
-        
+
         # Branch-based analysis
         branch_analysis:
           enabled: true
@@ -692,7 +692,7 @@ Here's a complete example configuration for comprehensive ablation and informati
           branch_target_mi: true
           synapse_branch_mi: true
           selectivity_analysis: true
-        
+
         # Synaptic weight analysis
         synaptic_analysis:
           enabled: true
@@ -702,7 +702,7 @@ Here's a complete example configuration for comprehensive ablation and informati
           connection_importance:
             enabled: true
             metric: "information_gain"
-        
+
         # Receptive field analysis
         receptive_fields:
           enabled: true
@@ -711,14 +711,14 @@ Here's a complete example configuration for comprehensive ablation and informati
           visualization:
             enabled: true
             format: "heatmap"
-        
+
         # Bottleneck analysis
         bottleneck_analysis:
           enabled: true
           sweep_beta: true
           beta_values: [0.001, 0.01, 0.1, 1.0, 10.0]
           compute_ib_curve: true
-        
+
         # Visualizations
         visualization:
           enabled: true
@@ -729,11 +729,11 @@ Here's a complete example configuration for comprehensive ablation and informati
             - type: "bottleneck_curve"
           interactive: true
           output_dir: "visualizations/info_analysis/"
-        
+
       # Combined analysis
       combined_analysis:
         enabled: true
         ablation_info:
           enabled: true
           baseline: "no_ablation"
-          compute_mi_difference: true 
+          compute_mi_difference: true

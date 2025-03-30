@@ -26,10 +26,10 @@ The ``TopKLinear`` layer extends the standard linear layer with a top-k selectio
     class TopKLinear(nn.Module):
         """
         Linear layer with top-k activation.
-        
+
         This layer processes inputs by selecting the top k inputs for each output unit,
         modeling the selective integration property of biological dendrites.
-        
+
         Parameters
         ----------
         in_features : int
@@ -41,37 +41,37 @@ The ``TopKLinear`` layer extends the standard linear layer with a top-k selectio
         bias : bool
             Whether to use a bias term
         """
-        
+
         def __init__(self, in_features, out_features, k, bias=True):
             super().__init__()
             self.in_features = in_features
             self.out_features = out_features
             self.k = k
-            
+
             # Initialize weights and bias
             self.weight = nn.Parameter(torch.Tensor(out_features, in_features))
             if bias:
                 self.bias = nn.Parameter(torch.Tensor(out_features))
             else:
                 self.register_parameter('bias', None)
-                
+
             # Initialize parameters
             self.reset_parameters()
-            
+
         def forward(self, input):
             # Compute all potential contributions
             potential = F.linear(input, self.weight, None)
-            
+
             # Get the indices of the top k inputs for each output unit
             _, indices = torch.topk(potential, self.k, dim=1)
-            
+
             # Create a mask for the selected inputs
             mask = torch.zeros_like(potential)
             mask.scatter_(1, indices, 1)
-            
+
             # Apply the mask to select only the top k inputs
             selected = potential * mask
-            
+
             # Sum the selected inputs and add bias if present
             if self.bias is not None:
                 return selected.sum(dim=1) + self.bias
@@ -153,21 +153,21 @@ Implementation details:
         # Compute all potential contributions
         # Shape: [batch_size, in_features]
         potential = F.linear(input, self.weight, None)
-        
+
         # Get the indices of the top k inputs for each output unit
         # Shape of values: [batch_size, k]
         # Shape of indices: [batch_size, k]
         values, indices = torch.topk(potential, self.k, dim=1)
-        
+
         # Create a mask for the selected inputs
         # Shape: [batch_size, in_features]
         mask = torch.zeros_like(potential)
         mask.scatter_(1, indices, 1)
-        
+
         # Apply the mask to select only the top k inputs
         # Shape: [batch_size, in_features]
         selected = potential * mask
-        
+
         # Sum the selected inputs and add bias if present
         # Shape: [batch_size, out_features]
         if self.bias is not None:
@@ -291,4 +291,4 @@ Here's a complete configuration example for a network using TopKLinear layers:
           reactivation_type: "param_tanh"
           reactivation_strategy: "inverse"
           blocklinear_strategy: "block_conductance_dynamic"
-          output_dim: 10 
+          output_dim: 10

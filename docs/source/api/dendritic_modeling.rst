@@ -65,4 +65,3 @@ dendritic_modeling package
    :members:
    :undoc-members:
    :show-inheritance:
-

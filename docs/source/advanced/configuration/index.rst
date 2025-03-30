@@ -146,10 +146,10 @@ You can override configuration values from the command line:
 
     # Override learning rate
     python src/dendritic_modeling/train_experiments.py config.yaml --train.lr 0.0001
-    
+
     # Change dataset
     python src/dendritic_modeling/train_experiments.py config.yaml --task.dataset cifar10
-    
+
     # Enable visualization
     python src/dendritic_modeling/train_experiments.py config.yaml --visualization.enabled true
 
@@ -180,4 +180,4 @@ For advanced users, the configuration system supports:
 - **Custom Datasets**: Defining and using custom datasets
 - **Experiment Tracking**: Integration with experiment tracking tools
 
-See the example configurations and the API documentation for more details on these advanced options. 
+See the example configurations and the API documentation for more details on these advanced options.

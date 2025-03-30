@@ -26,7 +26,7 @@ The dendritic modeling framework implements a sophisticated network architecture
     :width: 100%
     :alt: EINetClassifier dataflow
     :name: EINetClassifier_dataflow
-    
+
     : Dataflow diagram of the EINetClassifier model. Blue arrows represent excitatory data flow, red arrows represent inhibitory data flow.
 
 The architecture consists of several key components:
@@ -41,7 +41,7 @@ The architecture consists of several key components:
     :width: 100%
     :alt: Dendrinet dataflow 1
     :name: Dendrinet_dataflow_1
-    
+
     : Detailed dataflow in a Dendrinet model showing branch factors and layer connectivity.
 
 Key Computational Components
@@ -65,7 +65,7 @@ The ``TopKLinear`` class implements selective synaptic activation, a key feature
 
     # Example of sparse connectivity through TopKLinear
     from dendritic_modeling.dendrinet import TopKLinear
-    
+
     # A layer where each output unit connects to only 10 of the 100 input features
     sparse_layer = TopKLinear(in_features=100, out_features=50, K=10)
 
@@ -89,7 +89,7 @@ The ``BlockLinear`` class handles information aggregation through the dendritic 
     :width: 100%
     :alt: Dendrinet dataflow 2
     :name: Dendrinet_dataflow_2
-    
+
     : Detailed view of information flow in the second layer of a Dendrinet.
 
 Nonlinear Activation Functions
@@ -184,4 +184,4 @@ For more detailed information:
 - Poirazi, P., Brannon, T., & Mel, B. W. (2003). Pyramidal neuron as two-layer neural network. Neuron, 37(6), 989-999.
 - Guerguiev, J., Lillicrap, T. P., & Richards, B. A. (2017). Towards deep learning with segregated dendrites. eLife, 6, e22901.
 
-See :doc:`../additional_resources` for more resources on dendritic computing. 
+See :doc:`../additional_resources` for more resources on dendritic computing.

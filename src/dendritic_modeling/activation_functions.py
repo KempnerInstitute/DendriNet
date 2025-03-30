@@ -5,11 +5,12 @@ Provides various activation/ reactivation modules, plus a factory to build
 the desired activation function from config.
 """
 
+import math
+
 import torch
 from torch import nn
-import math
-from dendritic_modeling.gradient_scaling import scale_activation_grad_hook
 
+from dendritic_modeling.gradient_scaling import scale_activation_grad_hook
 
 
 class ParametricTanh(nn.Module):
@@ -17,16 +18,15 @@ class ParametricTanh(nn.Module):
     A parametric tanh reactivation function with learnable parameters m and b.
     Both parameters are trainable.
     """
+
     def __init__(self, output_dim, init_m=1.5, init_b=1.0):
         super(ParametricTanh, self).__init__()
-        self.log_m = nn.Parameter(torch.empty((output_dim,)), 
-                                  requires_grad=True)
-        self.log_b = nn.Parameter(torch.empty((output_dim,)), 
-                                  requires_grad=True)
+        self.log_m = nn.Parameter(torch.empty((output_dim,)), requires_grad=True)
+        self.log_b = nn.Parameter(torch.empty((output_dim,)), requires_grad=True)
 
         nn.init.constant_(self.log_m, math.log(init_m))
         nn.init.constant_(self.log_b, math.log(init_b))
-        
+
     def forward(self, V):
         m = self.log_m.exp()  # slope
         b = self.log_b.exp()  # midpoint
@@ -39,57 +39,60 @@ class ParametricTanh(nn.Module):
 
 class ParametricTanhOnlyM(nn.Module):
     """
-    A parametric tanh activation function where b is fixed and only m is 
+    A parametric tanh activation function where b is fixed and only m is
     trainable. The fixed value of b is provided via the fixed_b argument.
     """
+
     def __init__(self, output_dim, init_m=1.5, fixed_b=0.5):
         super(ParametricTanhOnlyM, self).__init__()
-        self.log_m = nn.Parameter(torch.empty((output_dim,)), 
-                                  requires_grad=True)
+        self.log_m = nn.Parameter(torch.empty((output_dim,)), requires_grad=True)
         self.fixed_b = fixed_b  # fixed midpoint value
         with torch.no_grad():
             self.log_m.data.fill_(math.log(init_m))
 
         self.register_full_backward_hook(
-            lambda mod, g_in, g_out: scale_activation_grad_hook(mod, 
-                                                                g_in, 
-                                                                g_out)
+            lambda mod, g_in, g_out: scale_activation_grad_hook(mod, g_in, g_out)
         )
-                    
+
     def forward(self, V):
         m = self.log_m.exp()  # slope
-        b = self.fixed_b       # fixed midpoint
+        b = self.fixed_b  # fixed midpoint
         return (torch.tanh(m * (V - b)) + 1) / 2
+
 
 class SimpleReLU(nn.Module):
     def __init__(self):
         super(SimpleReLU, self).__init__()
+
     def forward(self, x):
         return torch.relu(x)
+
 
 class SimpleSigmoid(nn.Module):
     def __init__(self):
         super(SimpleSigmoid, self).__init__()
+
     def forward(self, x):
         return torch.sigmoid(x)
+
 
 class SimpleTanh(nn.Module):
     def __init__(self):
         super(SimpleTanh, self).__init__()
+
     def forward(self, x):
         return torch.tanh(x)
+
 
 class ActivationFactory:
     """
     A factory for building different activation/ reactivation modules.
     """
+
     @staticmethod
-    def create(act_type, 
-               output_dim=None, 
-               init_m=1.5, 
-               init_b=1.0, 
-               fixed_b=0.5, 
-               **kwargs):
+    def create(
+        act_type, output_dim=None, init_m=1.5, init_b=1.0, fixed_b=0.5, **kwargs
+    ):
         """
         Create an activation module of the desired type.
 
