@@ -8,7 +8,7 @@ a unified data-loading function from synthetic_datasets.py.
 
 Learning Strategies:
 - mle: Standard Maximum Likelihood Estimation (default)
-- freeze_layers: Train one layer at a time, freezing others
+- freeze_layers: Train one layer at a time, freezing others (different ways)
 - two_step: Two-phase training with pretraining and main training
 - mlp_only: Train only the MLP component, then train the full model
 - dendrinet_from_mlp: Train MLP first, then use it to initialize and train the dendrinet
