@@ -15,7 +15,8 @@ model:
       ie_synapses_per_branch_per_layer: [10]
       ii_synapses_per_branch_per_layer: [0]
       topk_init_method: xavier_normal
-
+      topk_noise_level: 0.2 # Added parameter for TopK noise
+      
       use_shunting: true
       
       reactivation_type: param_tanh # "none", "param_tanh", "param_tanh_only_m", "relu", "sigmoid", "tanh"
