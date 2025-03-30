@@ -13,4 +13,4 @@ This section covers advanced topics in the Dendritic Modeling framework, includi
    learning/index
    analysis/index
    visualization/index
-   configuration/index 
+   configuration/index

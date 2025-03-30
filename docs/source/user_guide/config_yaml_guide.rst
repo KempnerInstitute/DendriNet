@@ -19,19 +19,19 @@ The configuration file has several main sections:
 
     model:
       # Model architecture and parameters
-      
+
     train:
       # Training parameters
-      
+
     task:
       # Dataset and task parameters
-      
+
     wandb:
       # Experiment tracking settings
-      
+
     visualization:
       # Visualization parameters
-      
+
     outputs:
       # Output directory settings
 
@@ -55,29 +55,29 @@ The ``model`` section defines the network architecture and parameters:
           inhibitory_layer_sizes: [200]
           excitatory_branch_factors: [64]
           inhibitory_branch_factors: []
-          
+
           # Connection parameters
           ee_synapses_per_branch_per_layer: [24]
           ei_synapses_per_branch_per_layer: [200]
           ie_synapses_per_branch_per_layer: [2]
           ii_synapses_per_branch_per_layer: [0]
-          
+
           # Activation parameters
           reactivate: true
           somatic_synapses: true
           topk_init_method: xavier_normal
           use_shunting: true
-          
+
           # Reactivation settings
           reactivation_type: param_tanh
           reactivation_strategy: inverse
           blocklinear_strategy: block_conductance_dynamic
-          
+
           # Output settings
           enable_branch_outputs: true
           output_layer: false
           output_dim: 10
-          
+
           # Input processing
           input_mode: 0  # 0=original, 1=exc=x+inh=x, 2=input_net
           input_net_dict:
@@ -116,18 +116,18 @@ The ``train`` section defines the training process and hyperparameters:
       epochs: 50
       batch_size: 64
       grad_clip_value: 1.0
-      
+
       # For branch-wise training strategies
       epochs_per_layer: 20
       final_tune_epochs: 10
-      
+
       # For strategies with pretraining
       pretrain_epochs: 10
-      
+
       # For voltage stabilization
       warmup_epochs: 5
       stability_target_voltage: 0.5
-      
+
       # Input network training
       input_net_training:
         training_mode: "sequential"
@@ -152,37 +152,37 @@ Available Learning Strategies
 The framework implements several learning strategies:
 
 1. **mle** (Maximum Likelihood Estimation):
-   
+
    Standard end-to-end training where all parameters are updated simultaneously.
 
 2. **freeze_branches**:
-   
+
    Trains branches sequentially from soma to distal branches.
-   
+
    .. code-block:: yaml
-   
+
        train:
          learning_strategy: freeze_branches
          epochs_per_layer: 20
          final_tune_epochs: 10
 
 3. **freeze_branches_reversed**:
-   
+
    Trains branches sequentially from distal branches to soma.
-   
+
    .. code-block:: yaml
-   
+
        train:
          learning_strategy: freeze_branches_reversed
          epochs_per_layer: 20
          final_tune_epochs: 10
 
 4. **freeze_branches_with_pretraining**:
-   
+
    Includes pretraining phase before branch-by-branch training.
-   
+
    .. code-block:: yaml
-   
+
        train:
          learning_strategy: freeze_branches_with_pretraining
          pretrain_epochs: 10
@@ -190,11 +190,11 @@ The framework implements several learning strategies:
          final_tune_epochs: 10
 
 5. **freeze_branches_reversed_with_pretraining**:
-   
+
    Includes pretraining phase before reversed branch-by-branch training.
-   
+
    .. code-block:: yaml
-   
+
        train:
          learning_strategy: freeze_branches_reversed_with_pretraining
          pretrain_epochs: 10
@@ -202,22 +202,22 @@ The framework implements several learning strategies:
          final_tune_epochs: 10
 
 6. **two_step**:
-   
+
    Two-phase training approach.
-   
+
    .. code-block:: yaml
-   
+
        train:
          learning_strategy: two_step
          pretrain_epochs: 10
          epochs: 50
 
 7. **voltage_stabilization**:
-   
+
    Includes a warm-up phase to stabilize activations.
-   
+
    .. code-block:: yaml
-   
+
        train:
          learning_strategy: voltage_stabilization
          warmup_epochs: 5
@@ -413,4 +413,4 @@ This flexible configuration system allows you to:
 - Define a wide range of experiments without code changes
 - Ensure reproducibility by capturing all experiment parameters
 - Easily iterate on hyperparameters
-- Share experiment setups with colleagues 
+- Share experiment setups with colleagues

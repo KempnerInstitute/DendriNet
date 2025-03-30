@@ -6,7 +6,6 @@ from dendritic_modeling.dendrinet import BlockLinear
 
 
 class TestBlockLinear(unittest.TestCase):
-
     def test_basic_functionality(self):
         """Test the basic functionality with standard input data."""
         in_features = 8
@@ -56,8 +55,7 @@ class TestBlockLinear(unittest.TestCase):
 
         with self.assertRaises(AssertionError) as context:
             model = BlockLinear(in_features, out_features)
-        self.assertIn("must be divisible",
-                      str(context.exception))
+        self.assertIn("must be divisible", str(context.exception))
 
     def test_error_handling_negative_in_features(self):
         """Test error handling with negative in_features."""
@@ -81,6 +79,5 @@ class TestBlockLinear(unittest.TestCase):
         self.assertIn("cannot be multiplied", str(context.exception))
 
 
-
-if __name__ == '__main__':
+if __name__ == "__main__":
     unittest.main()

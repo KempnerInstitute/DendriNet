@@ -27,7 +27,7 @@ Key components to visualize include:
 
     import matplotlib.pyplot as plt
     from dendritic_modeling.plot_utils import plot_einet_params
-    
+
     # Visualize the network parameters
     plot_einet_params(
         einet=model.net,
@@ -50,25 +50,25 @@ into excitatory and inhibitory pathways.
     def visualize_input_network(model, input_example):
         """Create visualization of input transformation network structure"""
         fig, axes = plt.subplots(1, 3, figsize=(15, 5))
-        
+
         # Original input
         axes[0].imshow(input_example.reshape(28, 28), cmap='gray')
         axes[0].set_title("Original Input")
-        
+
         # Get transformed inputs
         with torch.no_grad():
             exc_input, inh_input = model.net.input_transform(input_example.unsqueeze(0))
-        
+
         # Excitatory path output
         exc_img = exc_input[0].cpu().reshape(-1, 1).numpy()
         axes[1].imshow(exc_img, cmap='hot', aspect='auto')
         axes[1].set_title("Excitatory Path Output")
-        
+
         # Inhibitory path output
         inh_img = inh_input[0].cpu().reshape(-1, 1).numpy()
         axes[2].imshow(inh_img, cmap='cool', aspect='auto')
         axes[2].set_title("Inhibitory Path Output")
-        
+
         plt.tight_layout()
         return fig
 
@@ -91,28 +91,28 @@ The framework supports different input transformation modes that can be visualiz
             create_model(input_mode=1, config=config),
             create_model(input_mode=2, config=config)
         ]
-        
+
         fig, axes = plt.subplots(3, 3, figsize=(12, 12))
-        
+
         for i, model in enumerate(models):
             # Original input visualization
             axes[i, 0].imshow(input_sample.reshape(28, 28), cmap='gray')
             axes[i, 0].set_title(f"Mode {i}: Original")
-            
+
             # Get transformed inputs
             with torch.no_grad():
                 exc_input, inh_input = get_network_inputs(model, input_sample)
-            
+
             # Visualize excitatory input
             exc_vis = visualize_tensor(exc_input)
             axes[i, 1].imshow(exc_vis, cmap='hot')
             axes[i, 1].set_title(f"Mode {i}: Excitatory")
-            
+
             # Visualize inhibitory input
             inh_vis = visualize_tensor(inh_input)
             axes[i, 2].imshow(inh_vis, cmap='cool')
             axes[i, 2].set_title(f"Mode {i}: Inhibitory")
-        
+
         plt.tight_layout()
         return fig
 
@@ -128,10 +128,10 @@ The most basic visualization for training is plotting accuracy and loss curves o
 
     # Plot accuracy and loss curves
     import matplotlib.pyplot as plt
-    
+
     def plot_training_metrics(train_losses, val_losses, train_accs, val_accs):
         fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(15, 5))
-        
+
         # Plot losses
         ax1.plot(train_losses, label='Train Loss')
         ax1.plot(val_losses, label='Validation Loss')
@@ -139,7 +139,7 @@ The most basic visualization for training is plotting accuracy and loss curves o
         ax1.set_ylabel('Loss')
         ax1.legend()
         ax1.set_title('Training and Validation Loss')
-        
+
         # Plot accuracies
         ax2.plot(train_accs, label='Train Accuracy')
         ax2.plot(val_accs, label='Validation Accuracy')
@@ -147,7 +147,7 @@ The most basic visualization for training is plotting accuracy and loss curves o
         ax2.set_ylabel('Accuracy')
         ax2.legend()
         ax2.set_title('Training and Validation Accuracy')
-        
+
         plt.tight_layout()
         return fig
 
@@ -164,28 +164,28 @@ Visualize how branches activate for different inputs to understand their special
     # Visualizing branch activation patterns
     from dendritic_modeling.utils import record_branch_activations
     import numpy as np
-    
+
     def visualize_branch_activations(model, dataset, device='cpu'):
         # Record branch activations for the dataset
         activations, labels = record_branch_activations(model, dataset, device=device)
-        
+
         # Create average activation maps per class
         n_classes = len(set(labels.tolist()))
         fig, axes = plt.subplots(2, 5, figsize=(15, 6))
         axes = axes.flatten()
-        
+
         for class_idx in range(n_classes):
             # Get activations for this class
             class_mask = labels == class_idx
             class_activations = activations[class_mask]
             mean_activations = class_activations.mean(dim=0).cpu().numpy()
-            
+
             # Create heatmap
             im = axes[class_idx].imshow(mean_activations, cmap='viridis')
             axes[class_idx].set_title(f'Class {class_idx}')
             axes[class_idx].set_xlabel('Branches')
             axes[class_idx].set_ylabel('Layers')
-            
+
         plt.colorbar(im, ax=axes)
         plt.tight_layout()
         return fig
@@ -199,15 +199,15 @@ Visualize the impact of ablating individual branches on network performance.
 
     # Visualizing branch ablation effects
     from dendritic_modeling.utils import analyze_branch_ablation
-    
+
     def visualize_branch_ablation(model, dataset, device='cpu'):
         # Run branch ablation analysis
         results = analyze_branch_ablation(model, dataset, device=device)
-        
+
         # Extract results
         branch_importances = results['branch_importances']
         baseline_acc = results['baseline_acc']
-        
+
         # Visualize branch importances
         fig, ax = plt.subplots(figsize=(10, 6))
         im = ax.imshow(branch_importances, cmap='RdBu_r', aspect='auto')
@@ -215,7 +215,7 @@ Visualize the impact of ablating individual branches on network performance.
         ax.set_xlabel('Branch Index')
         ax.set_ylabel('Layer Index')
         plt.colorbar(im, ax=ax)
-        
+
         plt.tight_layout()
         return fig
 
@@ -228,15 +228,15 @@ Visualize the impact of ablating entire layers on network performance.
 
     # Visualizing layer ablation effects
     from dendritic_modeling.utils import analyze_layerwise_ablation
-    
+
     def visualize_layer_ablation(model, dataset, device='cpu'):
         # Run layer ablation analysis
         results = analyze_layerwise_ablation(model, dataset, ablation_mode='direct', device=device)
-        
+
         # Extract results
         layer_importances = np.array(results['accuracy_drops'])
         baseline_acc = results['baseline_acc']
-        
+
         # Visualize layer importances
         fig, ax = plt.subplots(figsize=(10, 6))
         bars = ax.bar(range(len(layer_importances)), layer_importances)
@@ -244,13 +244,13 @@ Visualize the impact of ablating entire layers on network performance.
         ax.set_xlabel('Layer Index')
         ax.set_ylabel('Accuracy Drop')
         ax.set_ylim(0, max(layer_importances) * 1.2)
-        
+
         # Add value labels
         for bar in bars:
             height = bar.get_height()
             ax.text(bar.get_x() + bar.get_width()/2., height + 0.01,
                    f'{height:.3f}', ha='center', va='bottom')
-        
+
         plt.tight_layout()
         return fig
 
@@ -262,7 +262,7 @@ Visualizing model weights helps understand what features different parts of the 
 .. code-block:: python
 
     from dendritic_modeling.plot_utils import plot_einet_params
-    
+
     # Visualize weights of the network
     plot_einet_params(
         einet=model.net,
@@ -280,10 +280,10 @@ Visualizing activations helps understand how the network processes different inp
 .. code-block:: python
 
     from dendritic_modeling.plot_utils import plot_einet_activations
-    
+
     # Visualize activations for a batch of inputs
     plot_einet_activations(
-        einet=model.net, 
+        einet=model.net,
         input_list=test_data[:10][0],
         save_root="visualization_outputs/activations",
         save_in_dir=True,
@@ -298,7 +298,7 @@ The framework provides a PlotManager class that can automate many of these visua
 .. code-block:: python
 
     from dendritic_modeling.visualization_manager import PlotManager
-    
+
     # Create a plot manager
     plot_manager = PlotManager(
         model=model,
@@ -307,10 +307,10 @@ The framework provides a PlotManager class that can automate many of these visua
         device='cuda',
         plots=['weights', 'activations', 'branch_info', 'ablation']
     )
-    
+
     # Generate all plots
     plot_manager.generate_plots()
-    
+
     # Generate plots for specific epoch
     plot_manager.generate_plots(epoch=10)
 
@@ -342,4 +342,4 @@ Recommended Visualization Practices
 4. **Interactive Exploration**: Use interactive plots when possible for deeper analysis
 5. **Combine with Analysis**: Pair visualizations with quantitative analysis for deeper insights
 
-The visualizations described in this guide help gain insights into how dendritic networks learn and process information differently from traditional neural networks. 
+The visualizations described in this guide help gain insights into how dendritic networks learn and process information differently from traditional neural networks.

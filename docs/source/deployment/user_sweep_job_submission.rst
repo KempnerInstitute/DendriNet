@@ -1,15 +1,15 @@
 Sweep Job Submission (User)
 ===========================
 
-Sumbitting a sweep job is as easy of submitting a single job. All you need to do is to create a sweep configuration file and run `scripts/generate_sweep_configs.py` script, to setup the sweep job. In the following sections, we will walk you through the process of setting up a sweep job. 
+Sumbitting a sweep job is as easy of submitting a single job. All you need to do is to create a sweep configuration file and run `scripts/generate_sweep_configs.py` script, to setup the sweep job. In the following sections, we will walk you through the process of setting up a sweep job.
 
 Step 1: Prepare sweep configuration file
 ----------------------------------------
 
 This file contains all necessary information to setup the sweep job. Here is an example of a sweep configuration file:
 
-.. code-block:: yaml 
-  
+.. code-block:: yaml
+
   slurm_config:
     output_dir:  # <--- Add your output directory path
     conda_env_path: # <--- Add your conda environment path
@@ -34,20 +34,20 @@ This file contains all necessary information to setup the sweep job. Here is an 
       seed: 0
       epochs: 10
       batch_size: 32
-    
+
     wandb:
       entity:  # <---- Add your entity
       project: dendritic_modeling_pr
       group: debug
       tags: [mnist_1]
-  
+
     optimizer:
       name: "adam"
       learning_rate: 0.001
-  
+
     scheduler:
       name: "none"
-    
+
     model:
       input_dim: 784
       excitatory_layer_sizes: [10]
@@ -60,7 +60,7 @@ This file contains all necessary information to setup the sweep job. Here is an 
       ei_synapses_per_branch_per_layer: [100]
       ie_synapses_per_branch_per_layer: [1]
       ii_synapses_per_branch_per_layer: []
-    
+
   sweep_config:
     optimizer:
       learning_rate: [0.001, 0.0001, 0.1]
@@ -69,11 +69,11 @@ This file contains all necessary information to setup the sweep job. Here is an 
       ee_synapses_per_branch_per_layer: [[24], [22]]
 
 
-The sweep configuration file has three major sections: 
+The sweep configuration file has three major sections:
 
-- `slurm_config`, 
-- `train_config`, 
-- and `sweep_config`. 
+- `slurm_config`,
+- `train_config`,
+- and `sweep_config`.
 
 Slurm configuration
 +++++++++++++++++++

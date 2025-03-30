@@ -41,7 +41,7 @@ The ``ParametricTanh`` is a specialized activation function with learnable param
 
             nn.init.constant_(self.log_m, math.log(init_m))
             nn.init.constant_(self.log_b, math.log(init_b))
-            
+
         def forward(self, V):
             m = self.log_m.exp()  # slope
             b = self.log_b.exp()  # midpoint
@@ -71,7 +71,7 @@ The ``ParametricTanhOnlyM`` is a variant where only the slope parameter ``m`` is
             self.register_full_backward_hook(
                 lambda mod, g_in, g_out: scale_activation_grad_hook(mod, g_in, g_out)
             )
-                        
+
         def forward(self, V):
             m = self.log_m.exp()  # slope
             b = self.fixed_b       # fixed midpoint
@@ -85,9 +85,9 @@ Standard Activation Functions
 The framework also provides standard activation functions with consistent interfaces:
 
 1. **SimpleReLU**: Standard ReLU activation
-   
+
    .. code-block:: python
-   
+
        class SimpleReLU(nn.Module):
            def __init__(self):
                super(SimpleReLU, self).__init__()
@@ -95,9 +95,9 @@ The framework also provides standard activation functions with consistent interf
                return torch.relu(x)
 
 2. **SimpleSigmoid**: Standard sigmoid activation
-   
+
    .. code-block:: python
-   
+
        class SimpleSigmoid(nn.Module):
            def __init__(self):
                super(SimpleSigmoid, self).__init__()
@@ -105,9 +105,9 @@ The framework also provides standard activation functions with consistent interf
                return torch.sigmoid(x)
 
 3. **SimpleTanh**: Standard tanh activation
-   
+
    .. code-block:: python
-   
+
        class SimpleTanh(nn.Module):
            def __init__(self):
                super(SimpleTanh, self).__init__()
@@ -212,4 +212,4 @@ When working with dendritic activations:
 3. **Monitor parameters**: Track the learned ``m`` and ``b`` values to understand branch specialization
 4. **Consider constraints**: For some applications, ``ParametricTanhOnlyM`` with fixed ``b`` may be more stable
 
-By carefully configuring activation functions, you can create dendritic networks that capture the computational properties of biological dendrites. 
+By carefully configuring activation functions, you can create dendritic networks that capture the computational properties of biological dendrites.

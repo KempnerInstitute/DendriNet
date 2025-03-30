@@ -11,10 +11,10 @@ The framework includes a built-in logging system that records important informat
 .. code-block:: python
 
     from dendritic_modeling.logging_config import setup_logging
-    
+
     # Get logger
     logger = setup_logging()
-    
+
     # Log information
     logger.info("Starting experiment with learning rate: %f", learning_rate)
     logger.debug("Model parameters: %s", model_parameters)
@@ -32,20 +32,20 @@ You can customize the logging behavior:
 
     import logging
     from dendritic_modeling.logging_config import setup_logging, LOGGER_NAME
-    
+
     # Get logger with custom settings
     logger = setup_logging()
-    
+
     # Change log level
     logger.setLevel(logging.DEBUG)  # Show all logs
-    
+
     # Change handlers
     for handler in logger.handlers:
         if isinstance(handler, logging.FileHandler):
             handler.setLevel(logging.DEBUG)
         elif isinstance(handler, logging.StreamHandler):
             handler.setLevel(logging.INFO)
-    
+
     # Create a new handler for a specific experiment
     experiment_handler = logging.FileHandler('experiment_results.log')
     experiment_handler.setFormatter(logging.Formatter('%(asctime)s %(levelname)s %(message)s'))
@@ -59,18 +59,18 @@ For basic experiment tracking, the framework provides utilities to save results 
 .. code-block:: python
 
     from dendritic_modeling.utils import save_dict
-    
+
     # Training loop
     train_losses = []
     valid_losses = []
     accuracies = []
-    
+
     for epoch in range(epochs):
         # ... training code ...
         train_losses.append(train_loss)
         valid_losses.append(valid_loss)
         accuracies.append(valid_accuracy)
-    
+
     # Save results
     results = {
         'train_losses': train_losses,
@@ -83,7 +83,7 @@ For basic experiment tracking, the framework provides utilities to save results 
         },
         'model_config': model.config
     }
-    
+
     save_dict(results, save_path='results/', fname='experiment_results.json')
 
 This saves a structured JSON file that you can later analyze.
@@ -96,7 +96,7 @@ The framework includes visualization utilities to plot results:
 .. code-block:: python
 
     from dendritic_modeling.plot_utils import plot_NLL_loss_curves
-    
+
     # Plot loss curves
     plot_NLL_loss_curves(
         train_losses=train_losses,
@@ -136,10 +136,10 @@ Setting Up Weights & Biases
 
       import wandb
       from dendritic_modeling.config import load_config
-      
+
       # Load configuration
       config = load_config("path/to/config.yaml")
-      
+
       # Initialize wandb
       if config.wandb.use_wandb:
           wandb.init(
@@ -160,7 +160,7 @@ During training, log metrics to wandb:
     # Training loop
     for epoch in range(epochs):
         # ... training code ...
-        
+
         # Log metrics
         if config.wandb.use_wandb:
             wandb.log({
@@ -197,25 +197,25 @@ Save model checkpoints and visualizations as wandb artifacts:
         'optimizer_state_dict': optimizer.state_dict(),
         'loss': valid_loss,
     }, checkpoint_path)
-    
+
     # Log as wandb artifact
     if config.wandb.use_wandb:
         artifact = wandb.Artifact(f"model-checkpoint-{epoch}", type="model")
         artifact.add_file(checkpoint_path)
         wandb.log_artifact(artifact)
-    
+
     # Save and log visualizations
     if epoch in config.visualization.visualize_epochs:
         # Generate visualizations
         visualization_path = f"visualizations/epoch_{epoch}/"
-        
+
         # Save branch visualizations
         plot_einet_params(
             einet=model.net,
             save_root=visualization_path,
             filename=f"weights_epoch_{epoch}"
         )
-        
+
         # Log to wandb
         if config.wandb.use_wandb:
             wandb.log({
@@ -239,7 +239,7 @@ Wandb supports parameter sweeps for hyperparameter optimization:
               'model.network.parameters.excitatory_branch_factors': {'values': [[1, 2], [2, 2], [2, 4]]}
           }
       }
-      
+
       # Initialize sweep
       sweep_id = wandb.sweep(sweep_config, project=config.wandb.project)
 
@@ -250,21 +250,21 @@ Wandb supports parameter sweeps for hyperparameter optimization:
       def train_sweep():
           # Initialize wandb
           wandb.init()
-          
+
           # Get sweep parameters
           sweep_config = wandb.config
-          
+
           # Update base configuration with sweep parameters
           config.train.lr = sweep_config['train.lr']
           config.train.batch_size = sweep_config['train.batch_size']
           config.model.network.parameters.excitatory_branch_factors = sweep_config['model.network.parameters.excitatory_branch_factors']
-          
+
           # Create model and train
           # ... training code ...
-          
+
           # Log final results
           wandb.log({"final_accuracy": test_accuracy})
-      
+
       # Run sweep
       wandb.agent(sweep_id, train_sweep, count=9)  # 9 combinations in our grid
 
@@ -280,7 +280,7 @@ The framework provides utilities to compare multiple experiments:
 
     import json
     import matplotlib.pyplot as plt
-    
+
     # Load multiple experiment results
     def load_results(experiment_paths):
         results = {}
@@ -288,20 +288,20 @@ The framework provides utilities to compare multiple experiments:
             with open(f"{path}/experiment_results.json", "r") as f:
                 results[name] = json.load(f)
         return results
-    
+
     experiment_paths = {
         "EINet-Standard": "results/einet_standard",
         "EINet-TwoStep": "results/einet_twostep",
         "MLP-Baseline": "results/mlp_baseline"
     }
-    
+
     results = load_results(experiment_paths)
-    
+
     # Compare learning curves
     plt.figure(figsize=(12, 6))
     for name, data in results.items():
         plt.plot(data["valid_losses"], label=f"{name} (Acc: {data['accuracies'][-1]:.4f})")
-    
+
     plt.xlabel("Epoch")
     plt.ylabel("Validation Loss")
     plt.title("Comparison of Learning Curves")
@@ -329,7 +329,7 @@ To ensure experiment reproducibility:
       import torch
       import numpy as np
       import platform
-      
+
       # Log environment details
       env_info = {
           "python_version": platform.python_version(),
@@ -339,7 +339,7 @@ To ensure experiment reproducibility:
           "cuda_version": torch.version.cuda if torch.cuda.is_available() else None,
           "device": str(torch.device("cuda" if torch.cuda.is_available() else "cpu"))
       }
-      
+
       # Save environment info with results
       results["environment"] = env_info
       save_dict(results, save_path='results/', fname='experiment_results.json')
@@ -357,4 +357,4 @@ Best Practices
 6. **Reproducibility**: Set random seeds and record environment details
 7. **Visualization**: Generate visualizations to help interpret results
 
-For research publications, maintain a record of all experiments, including unsuccessful ones, to provide complete context. 
+For research publications, maintain a record of all experiments, including unsuccessful ones, to provide complete context.

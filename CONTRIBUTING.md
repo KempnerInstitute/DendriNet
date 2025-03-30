@@ -1,6 +1,6 @@
 # CONTRIBUTING
 
-Thank you for considering contributing to the dendritic_modeling package! We value your input and aim to make the contribution process as smooth as possible. Please follow the guidelines below to ensure effective collaboration. 
+Thank you for considering contributing to the dendritic_modeling package! We value your input and aim to make the contribution process as smooth as possible. Please follow the guidelines below to ensure effective collaboration.
 
 ## Reporting Issues
 
@@ -12,7 +12,7 @@ We adhere to the [Successful Git Branching](https://nvie.com/posts/a-successful-
 - `main`: Contains production-ready code.
 - `develop`: Serves as the integration branch for features.
 
-For new features or fixes, create a feature branch from the `develop` branch. Name your branch descriptively, such as `iss[issue number]_[short description]`. 
+For new features or fixes, create a feature branch from the `develop` branch. Name your branch descriptively, such as `iss[issue number]_[short description]`.
 
 ## Development Workflow
 
@@ -53,4 +53,4 @@ For documentation changes, manually build the documentation to ensure accuracy. 
 - Merge:
   - Once approved, a maintainer will merge your PR into develop.
 
-**Note**: For substantial changes, consult with core developers to confirm alignment with project priorities. Submitting a PR early, marked as [WIP] (Work in Progress), allows for continuous integration testing and early feedback. 
+**Note**: For substantial changes, consult with core developers to confirm alignment with project priorities. Submitting a PR early, marked as [WIP] (Work in Progress), allows for continuous integration testing and early feedback.

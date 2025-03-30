@@ -4,8 +4,8 @@ import torch
 
 from dendritic_modeling.dendrinet import TopKLinear
 
-class TestTopKLinear(unittest.TestCase):
 
+class TestTopKLinear(unittest.TestCase):
     # def test_basic_functionality(self):
     #     """Test the basic functionality with standard input data."""
     #     in_features = 10
@@ -159,9 +159,9 @@ class TestTopKLinear(unittest.TestCase):
 
     # def test_forward_pass_consistency(self):
     #     """Test that forward pass outputs are consistent with manual computation."""
-        
+
     #     torch.manual_seed(0)
-        
+
     #     in_features = 5
     #     out_features = 2
     #     K = 2
@@ -180,21 +180,19 @@ class TestTopKLinear(unittest.TestCase):
     #     # Check that outputs match
     #     self.assertTrue(torch.allclose(output, expected_output))
 
-
     # def test_weighted_synapses_no_prune(self):
     #     # Test without pruning (prune=False)
     #     in_features = 10
     #     out_features = 5
     #     K = 3
 
-
     #     model = TopKLinear(in_features, out_features, K)
-        
+
     #     torch.manual_seed(0)
 
     #     cell_weights = torch.rand(out_features)
     #     model.pre_w.data.uniform_(-2.0, -1.5)
-        
+
     #     result = model.weighted_synapses(
     #         cell_weights, prune=False)
 
@@ -202,8 +200,8 @@ class TestTopKLinear(unittest.TestCase):
     #     expected_weighted_synapses = (
     #         cell_weights[:, None] * expected_weights).sum(dim=0)
 
-    #     torch.testing.assert_close(result, 
-    #                                expected_weighted_synapses, 
+    #     torch.testing.assert_close(result,
+    #                                expected_weighted_synapses,
     #                                rtol=1e-5, atol=1e-5)
 
     # def test_weighted_synapses_with_prune(self):
@@ -218,7 +216,7 @@ class TestTopKLinear(unittest.TestCase):
     #     cell_weights = torch.rand(out_features)
     #     model.pre_w.data.uniform_(-2.0, -1.5)
 
-    #     result = model.weighted_synapses(cell_weights, 
+    #     result = model.weighted_synapses(cell_weights,
     #                                      prune=True)
 
     #     expected_pruned_weights = model.pruned_weight()
@@ -226,8 +224,9 @@ class TestTopKLinear(unittest.TestCase):
     #         cell_weights[:, None] * expected_pruned_weights).sum(dim=0)
 
     #     torch.testing.assert_close(result,
-    #                                expected_weighted_synapses, 
+    #                                expected_weighted_synapses,
     #                                rtol=1e-5, atol=1e-5)
 
-if __name__ == '__main__':
-    unittest.main(argv=[''], exit=False)
+
+if __name__ == "__main__":
+    unittest.main(argv=[""], exit=False)

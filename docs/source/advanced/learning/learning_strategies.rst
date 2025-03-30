@@ -28,7 +28,7 @@ You can select the learning strategy in your configuration file:
 .. code-block:: yaml
 
     train:
-      learning_strategy: "mle"  # Choices: mle, freeze_branches, freeze_branches_reversed, 
+      learning_strategy: "mle"  # Choices: mle, freeze_branches, freeze_branches_reversed,
                                 # freeze_branches_with_pretraining, freeze_branches_reversed_with_pretraining,
                                 # two_step, voltage_stabilization
 
@@ -42,10 +42,10 @@ to train the entire network end-to-end.
 
     # Example of using MLE trainer
     from dendritic_modeling.learning_strategies import TrainerMLE
-    
+
     optimizer = torch.optim.Adam(model.parameters(), lr=0.001)
     trainer = TrainerMLE(optimizer)
-    
+
     results = trainer.train(
         model=model,
         train_data=train_ds,
@@ -66,17 +66,17 @@ Freeze Branches Strategy
 ------------------------
 
 The freeze branches strategy trains the dendritic network one branch at a time, starting from the branches
-closest to the soma and progressively moving to more distal branches. After all branches have been trained 
+closest to the soma and progressively moving to more distal branches. After all branches have been trained
 independently, a final fine-tuning phase trains the full network end-to-end for a specified number of epochs.
 
 .. code-block:: python
 
     # Example of using freeze branches trainer
     from dendritic_modeling.learning_strategies import TrainerMLE
-    
+
     optimizer = torch.optim.Adam(model.parameters(), lr=0.001)
     trainer = TrainerMLE(optimizer)
-    
+
     results = trainer.train_freeze_branches(
         model=model,
         train_data=train_ds,
@@ -108,10 +108,10 @@ full-network training phase before the branch-by-branch training:
 
     # Example of using freeze branches with pretraining trainer
     from dendritic_modeling.learning_strategies import TrainerMLE
-    
+
     optimizer = torch.optim.Adam(model.parameters(), lr=0.001)
     trainer = TrainerMLE(optimizer)
-    
+
     results = trainer.train_freeze_branches_with_pretraining(
         model=model,
         train_data=train_ds,
@@ -141,10 +141,10 @@ toward the soma. This approach follows the biological flow of information in den
 
     # Example of using freeze branches reversed trainer
     from dendritic_modeling.learning_strategies import TrainerMLE
-    
+
     optimizer = torch.optim.Adam(model.parameters(), lr=0.001)
     trainer = TrainerMLE(optimizer)
-    
+
     results = trainer.train_freeze_branches_reversed(
         model=model,
         train_data=train_ds,
@@ -175,10 +175,10 @@ This strategy combines the benefits of initial full-network training with the re
 
     # Example of using freeze branches reversed with pretraining trainer
     from dendritic_modeling.learning_strategies import TrainerMLE
-    
+
     optimizer = torch.optim.Adam(model.parameters(), lr=0.001)
     trainer = TrainerMLE(optimizer)
-    
+
     results = trainer.train_freeze_branches_reversed_with_pretraining(
         model=model,
         train_data=train_ds,
@@ -200,17 +200,17 @@ Key benefits of this approach:
 Two-Step Training
 ----------------
 
-The two-step training strategy applies a two-phase approach: pretraining followed by main training. 
+The two-step training strategy applies a two-phase approach: pretraining followed by main training.
 This can help with difficult optimization landscapes.
 
 .. code-block:: python
 
     # Example of using two-step trainer
     from dendritic_modeling.learning_strategies import TwoStepTrainer
-    
+
     optimizer = torch.optim.Adam(model.parameters(), lr=0.001)
     trainer = TwoStepTrainer(optimizer)
-    
+
     results = trainer.train(
         model=model,
         train_data=train_ds,
@@ -236,10 +236,10 @@ The voltage stabilization strategy adds a warm-up phase to stabilize voltages be
 
     # Example of using voltage stabilization trainer
     from dendritic_modeling.learning_strategies import VoltageStabilizationTrainer
-    
+
     optimizer = torch.optim.Adam(model.parameters(), lr=0.001)
     trainer = VoltageStabilizationTrainer(optimizer)
-    
+
     results = trainer.train(
         model=model,
         train_data=train_ds,
@@ -269,7 +269,7 @@ The following configuration parameters are available in the `train` section:
     train:
       learning_strategy: "mle"         # Learning strategy to use
       run_name: "experiment_1"         # Name for the experiment run
-      seed: 0                          # Random seed for reproducibility 
+      seed: 0                          # Random seed for reproducibility
       train_valid_split: 0.8           # Split ratio for training/validation
       lr: 0.01                         # Learning rate
       weight_decay_rate: 0.1           # Weight decay rate
@@ -292,11 +292,11 @@ The framework provides a factory function to create the appropriate trainer base
 .. code-block:: python
 
     from dendritic_modeling.learning_strategies import get_trainer
-    
+
     optimizer = torch.optim.Adam(model.parameters(), lr=0.001)
     trainer = get_trainer(
         strategy="mle",  # learning strategy name
         optimizer=optimizer
     )
 
-The get_trainer function supports all learning strategies discussed in this document. 
+The get_trainer function supports all learning strategies discussed in this document.

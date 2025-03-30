@@ -1,8 +1,8 @@
 # sweep_params.yaml
 
 slurm_config:
-  output_dir: 
-  conda_env_path: 
+  output_dir:
+  conda_env_path:
   modules_to_load: ["python/3.12.5-fasrc01", "cuda/12.4.1-fasrc01", "cudnn/8.9.2.26_cuda12-fasrc01"]
   max_concurrent_jobs: 8
   training_script: "/" # path of train_experiments.py
@@ -37,15 +37,15 @@ train_config:
         ii_synapses_per_branch_per_layer: [0]
         topk_init_method: "xavier_normal"
         use_shunting: true
-        
+
         reactivation_type: param_tanh
         reactivation_strategy: inverse
         blocklinear_strategy: none
-        
+
         enable_branch_outputs: true
         output_layer: false
         output_dim: 10
-        
+
         input_mode: 0
         input_net_dict:
           type: "MLPInputTransform"
@@ -67,12 +67,12 @@ train_config:
 
   # If you have wandb config:
   wandb:
-    entity: 
+    entity:
     project: dendritic_mnist_sweep_learning_strategy
     group: "debug"
     tags: [mnist_sweep]
     use_wandb: true
-    
+
   # task config (for get_unified_datasets):
   task:
     dataset: "random_flip_mnist"
@@ -81,7 +81,7 @@ train_config:
 
   visualization:
     enabled: true
-    save_path: 
+    save_path:
     plots:
       #- "weights"
       #- "activations"
@@ -99,7 +99,7 @@ sweep_config:
   #train.epochs: [20, 30, 40]
   #train.batch_size: [100, 200, 500]
   #train.lr: [0.01, 0.03, 0.05]
-  
+
   # Vary branch-focused training parameters
   train.epochs_per_layer: [5, 10, 15]
   train.final_tune_epochs: [5, 10, 15]
