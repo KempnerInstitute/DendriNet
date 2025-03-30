@@ -137,7 +137,7 @@ Classification with probabilistic outputs:
       probabilistic: true
       network:
         # Network configuration...
-        
+
     train:
       loss:
         type: "nll"
@@ -154,7 +154,7 @@ Regression with deterministic outputs:
       probabilistic: false
       network:
         # Network configuration...
-        
+
     train:
       loss:
         type: "mse"
@@ -205,4 +205,4 @@ The following are general recommendations for working with outputs in dendritic 
 
 4. **For loss functions**:
    - Start with standard losses (NLL, MSE) before trying more complex alternatives
-   - Consider adding regularization if overfitting is observed 
+   - Consider adding regularization if overfitting is observed

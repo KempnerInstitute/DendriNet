@@ -74,12 +74,12 @@ The EINet is implemented through several core classes:
         """
         A network with multiple excitatory-inhibitory layers.
         """
-        
-        def __init__(self, input_dim, excitatory_layer_sizes, inhibitory_layer_sizes, 
-                     excitatory_branch_factors, inhibitory_branch_factors, 
+
+        def __init__(self, input_dim, excitatory_layer_sizes, inhibitory_layer_sizes,
+                     excitatory_branch_factors, inhibitory_branch_factors,
                      input_mode=0, input_net_dict=None, ...):
             # Initialize the network with the specified parameters
-            
+
         def forward(self, x):
             # Process input through the network
             # Return output
@@ -121,13 +121,13 @@ computation performed in biological dendrites.
         # Compute excitatory and inhibitory contributions
         excitation = weighted_sum(excitatory_input)
         inhibition = weighted_sum(inhibitory_input)
-        
+
         # Shunting inhibition (division-based)
         voltage = excitation / (excitation + inhibition + 1)
-        
+
         # Apply nonlinear activation
         output = activation_function(voltage)
-        
+
         return output
 
 Branch Parameters
@@ -228,7 +228,7 @@ or jointly (simultaneously with the dendritic network).
         'train_input_net': True,
         'input_net_epochs': 20
     }
-    
+
     # Configuration for joint training
     input_net_training = {
         'training_mode': 'joint'
@@ -295,7 +295,7 @@ Here are some example configurations for different network types:
           excitatory_branch_factors: [32, 16]
           inhibitory_branch_factors: [16, 8]
           output_dim: 10
-          
+
     # Sparse MLP configuration
     model:
       network:
@@ -305,7 +305,7 @@ Here are some example configurations for different network types:
           hidden_dims: [512, 256]
           output_dim: 10
           sparsity: 0.1  # Only 10% of connections are active
-          
+
     # Standard MLP with dropout
     model:
       network:
@@ -342,7 +342,7 @@ The framework supports different output types depending on the task:
         def forward(self, x):
             logits = self.network(x)
             return torch.distributions.Categorical(logits=logits)
-    
+
     # Deterministic classifier
     class Classifier(nn.Module):
         def forward(self, x):
@@ -361,7 +361,7 @@ The framework is designed to be extensible, allowing users to create custom netw
             super().__init__(*args, **kwargs)
             # Add custom layers or components
             self.attention_layer = SelfAttention(dim=kwargs['excitatory_layer_sizes'][-1])
-        
+
         def forward(self, x):
             # Custom forward pass
             features = super().forward(x)
@@ -392,4 +392,4 @@ Implementation Details
 
 Under the hood, the network structures are implemented using PyTorch modules and custom layers.
 The implementation is designed to be efficient, leveraging techniques like sparse operations
-and parallelized computation. 
+and parallelized computation.

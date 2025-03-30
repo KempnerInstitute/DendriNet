@@ -30,7 +30,7 @@ The primary function for branch information analysis:
 .. code-block:: python
 
     from dendritic_modeling.utils import analyze_dendritic_information
-    
+
     branch_info = analyze_dendritic_information(
         model=trained_model,
         dataset=test_dataset,
@@ -83,31 +83,31 @@ Here's an example of how to analyze and interpret branch information:
     import matplotlib.pyplot as plt
     import numpy as np
     from dendritic_modeling.utils import analyze_dendritic_information
-    
+
     # Analyze branch information
     branch_info = analyze_dendritic_information(
         model=trained_model,
         dataset=test_dataset,
         device='cuda'
     )
-    
+
     # Extract mutual information
     mutual_info = branch_info['mutual_information']
-    
+
     # Plot mutual information by branch
     plt.figure(figsize=(10, 6))
     plt.bar(range(len(mutual_info)), mutual_info)
     plt.xlabel('Branch Index')
     plt.ylabel('Mutual Information (bits)')
     plt.title('Information Content in Dendritic Branches')
-    
+
     # Find branches with highest information content
     top_branches = np.argsort(mutual_info)[-10:]
     print(f"Top 10 branches by information content: {top_branches}")
-    
+
     # Analyze class selectivity
     class_selectivity = branch_info['class_selectivity']
-    
+
     # Plot class selectivity for top branches
     plt.figure(figsize=(12, 8))
     plt.imshow(class_selectivity[top_branches], cmap='viridis', aspect='auto')
@@ -115,7 +115,7 @@ Here's an example of how to analyze and interpret branch information:
     plt.ylabel('Branch Index')
     plt.title('Class Selectivity of Top Information-Carrying Branches')
     plt.colorbar(label='Selectivity')
-    
+
     plt.tight_layout()
     plt.show()
 
@@ -132,4 +132,4 @@ See Also
 --------
 
 - :doc:`../network_structures/network_structures`: For details on branch architecture
-- :doc:`../learning/learning_strategies`: For learning strategies that might affect branch specialization 
+- :doc:`../learning/learning_strategies`: For learning strategies that might affect branch specialization

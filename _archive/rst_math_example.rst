@@ -9,7 +9,7 @@ Here is a mathematical equation, The membrane potential dynamics in the Hodgkin-
     C_m \frac{dV}{dt} = I_{ext} - \left[ g_K n^4 (V - V_K) + g_{Na} m^3 h (V - V_{Na}) + g_L (V - V_L) \right]
     \end{gather*}
 
-where: 
+where:
 
 - :math:`C_m` is the membrane capacitance,
 - :math:`V` is the membrane potential,
