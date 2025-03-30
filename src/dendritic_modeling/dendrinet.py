@@ -101,6 +101,7 @@ class TopKLinear(nn.Module):
             param_space = 'log',
             init_method = 'xavier_normal',
             init_gain=1.0,
+            noise_level=0.0,
         ):
         super(TopKLinear, self).__init__()
         
@@ -108,6 +109,7 @@ class TopKLinear(nn.Module):
         self.out_features = out_features
         self.init_method = init_method
         self.init_gain = init_gain
+        self.noise_level = noise_level
         
         self.pre_w = nn.Parameter(
             torch.empty((out_features, in_features)), requires_grad = True)
@@ -169,7 +171,18 @@ class TopKLinear(nn.Module):
         return self.weight().log()
 
     def weight_mask(self):
-        topK_indices = torch.topk(self.pre_w, self.K, dim=-1, largest=True, sorted=False)[1]
+        # Determine which weights to use for topk selection
+        weights_for_topk = self.pre_w
+        if self.noise_level > 0:
+            # Generate Gaussian noise with mean=0 and std=noise_level
+            noise = torch.randn_like(self.pre_w) * self.noise_level
+            # Add noise to the raw weights
+            weights_for_topk = self.pre_w + noise
+
+        # Perform topk on the (potentially noisy) weights
+        topK_indices = torch.topk(weights_for_topk, self.K, dim=-1, largest=True, sorted=False)[1]
+        
+        # Create the mask based on the selected indices
         mask = torch.zeros_like(
             self.pre_w, 
             device=self.pre_w.device, 
@@ -356,6 +369,7 @@ class DendriticBranchLayer(nn.Module):
         inhibitory_synapses_per_branch=None, 
         input_branch_factor=None, 
         topk_init_method='xavier_normal',
+        topk_noise_level=0.0,
         use_shunting=True,
         reactivate=False,
         reactivation_type='param_tanh',
@@ -377,6 +391,7 @@ class DendriticBranchLayer(nn.Module):
                 out_features=output_dim,
                 K=excitatory_synapses_per_branch,
                 init_method=topk_init_method,
+                noise_level=topk_noise_level,
             )
             self.excitatory_input_dim = excitatory_input_dim
         else:
@@ -389,6 +404,7 @@ class DendriticBranchLayer(nn.Module):
                 out_features=output_dim,
                 K=inhibitory_synapses_per_branch,
                 init_method=topk_init_method,
+                noise_level=topk_noise_level,
             )
             self.inhibitory_input_dim = inhibitory_input_dim
         else:
@@ -547,6 +563,7 @@ class DendriNet(nn.Module):
         reactivate=False, 
         somatic_synapses=True,
         topk_init_method='xavier_normal',
+        topk_noise_level=0.0,
         use_shunting=True,
         reactivation_type='param_tanh',
         reactivation_strategy='none',
@@ -596,6 +613,7 @@ class DendriNet(nn.Module):
                 inhibitory_synapses_per_branch=inhibitory_synapses_per_branch,
                 input_branch_factor=branch_factors[i],
                 topk_init_method=topk_init_method,
+                topk_noise_level=topk_noise_level,
                 use_shunting=use_shunting,
                 reactivate=reactivate,
                 reactivation_type=reactivation_type,
@@ -614,6 +632,7 @@ class DendriNet(nn.Module):
                 inhibitory_synapses_per_branch=inhibitory_synapses_per_branch,
                 input_branch_factor=branch_factors[-1],
                 topk_init_method=topk_init_method,
+                topk_noise_level=topk_noise_level,
                 use_shunting=use_shunting,
                 reactivate=reactivate,
                 reactivation_type=reactivation_type,
@@ -630,6 +649,7 @@ class DendriNet(nn.Module):
                 inhibitory_synapses_per_branch=None,
                 input_branch_factor=branch_factors[-1],
                 topk_init_method=topk_init_method,
+                topk_noise_level=topk_noise_level,
                 use_shunting=use_shunting,
                 reactivate=reactivate,
                 reactivation_type=reactivation_type,

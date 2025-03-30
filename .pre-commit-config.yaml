@@ -1,0 +1,5 @@
+# This is a pre-commit configuration file.
+# Add hooks here to enable checks before commits.
+# See https://pre-commit.com for more information.
+
+repos: [] # No repositories or hooks defined means no checks will run. 
