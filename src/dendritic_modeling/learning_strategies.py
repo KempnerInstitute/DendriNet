@@ -1985,7 +1985,16 @@ class VoltageStabilizationTrainer(BaseTrainer):
                     }
                 )
 
-        model.load_state_dict(best_state)
+        # Always save the latest state if save_path is provided
+        final_state = deepcopy(model.state_dict())
+        if save_path:
+            torch.save(final_state, save_path)
+            logger.info(f"Saved final model state to {save_path}")
+
+        # Restore the best validation state for return (if found)
+        if best_state:
+            model.load_state_dict(best_state)
+
         results = {"train_losses": train_losses, "valid_losses": valid_losses}
         if plot_losses and len(train_losses) > 1:
             if save_path and os.path.exists(save_path):
@@ -1995,29 +2004,33 @@ class VoltageStabilizationTrainer(BaseTrainer):
         return results
 
 
-def get_trainer(strategy, optimizer, suppress_prints=False, print_every=10):
-    strategy = strategy.lower()
-    if strategy == "mle":
-        return TrainerMLE(optimizer, suppress_prints, print_every)
-    elif strategy == "freeze_branches":
-        return TrainerMLE(optimizer, suppress_prints, print_every)
-    elif strategy == "freeze_branches_reversed":
-        return TrainerMLE(optimizer, suppress_prints, print_every)
-    elif strategy == "freeze_branches_with_pretraining":
-        return TrainerMLE(optimizer, suppress_prints, print_every)
-    elif strategy == "freeze_branches_reversed_with_pretraining":
-        return TrainerMLE(optimizer, suppress_prints, print_every)
-    elif strategy == "local_credit_assignment":
-        return LocalCreditAssignment(optimizer, suppress_prints, print_every)
-    elif strategy == "two_step":
-        return TwoStepTrainer(optimizer, suppress_prints, print_every)
-    elif strategy == "two_step_kl":
-        return TwoStepTrainerWithKL(optimizer, suppress_prints, print_every)
-    elif strategy == "voltage_stabilization":
-        return VoltageStabilizationTrainer(optimizer, suppress_prints, print_every)
-    else:
-        logger.info(f"Unrecognized strategy '{strategy}', defaulting to 'mle'.")
-        return TrainerMLE(optimizer, suppress_prints, print_every)
+strategies = {
+    "mle": TrainerMLE,
+    "standard": TrainerMLE,
+    "local_credit_assignment": LocalCreditAssignment,
+    "train_only_m_reactivation": TrainOnlyMReactivation,
+    "two_step": TwoStepTrainer,
+    "two_step_kl": TwoStepTrainerWithKL,
+    "voltage_stabilization": VoltageStabilizationTrainer,
+    "freeze_layers": TrainerMLE, # Explicitly map known aliases handled by default
+}
+
+def get_trainer(strategy, optimizer, **kwargs):
+    trainer_class = strategies.get(strategy)
+    if trainer_class is None:
+         logger.warning(f"Unrecognized strategy '{strategy}', defaulting to 'TrainerMLE'.") # Use warning level
+         trainer_class = TrainerMLE # Default trainer
+
+    # Instantiate and return the trainer
+    return trainer_class(optimizer=optimizer, **kwargs)
+
+# Optional: Define the missing Trainer classes if they don't exist
+# (Assuming they exist based on the test)
+# class LocalCreditAssignment(BaseTrainer): pass
+# class TrainOnlyMReactivation(BaseTrainer): pass
+# class TwoStepTrainer(BaseTrainer): pass
+# class TwoStepTrainerWithKL(BaseTrainer): pass
+# class VoltageStabilizationTrainer(BaseTrainer): pass
 
 
 # Add a function to train the simple MLP

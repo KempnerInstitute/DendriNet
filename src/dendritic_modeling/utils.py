@@ -89,6 +89,8 @@ def accuracy_score(
         labels = labels.to(device)
     with torch.no_grad():
         yhat = classifier.predict(inputs)
+        # Ensure yhat is on the same device as labels before comparison
+        yhat = yhat.to(labels.device)
         accuracy = torch.mean((yhat == labels).float(), dim=reduce_dim)
     return accuracy
 

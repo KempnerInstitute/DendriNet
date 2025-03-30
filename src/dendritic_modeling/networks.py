@@ -506,7 +506,8 @@ class ExcitationInhibitionNetwork(nn.Module):
             if i == 0:
                 if self.input_mode == 0:
                     # input_mode=0 => normal approach => use config's inhibitory_layer_sizes[i+1]
-                    n_inh = inhibitory_layer_sizes[i + 1]
+                    # Check if the index exists before accessing
+                    n_inh = inhibitory_layer_sizes[i + 1] if len(inhibitory_layer_sizes) > i + 1 else 0
                 elif self.input_mode in (1, 2):
                     # skip building inhibitory net in the FIRST layer => set n_inh=0
                     n_inh = 0
@@ -514,10 +515,11 @@ class ExcitationInhibitionNetwork(nn.Module):
                     raise ValueError(f"Unknown input_mode={self.input_mode}")
             else:
                 # from 2nd layer onward, use the config's inhibitory_layer_sizes
-                n_inh = inhibitory_layer_sizes[i + 1]
+                # Check if the index exists before accessing
+                n_inh = inhibitory_layer_sizes[i + 1] if len(inhibitory_layer_sizes) > i + 1 else 0
 
             # Determine inhibitory input size
-            inhibitory_input_size = inhibitory_layer_sizes[i]
+            inhibitory_input_size = inhibitory_layer_sizes[i] if len(inhibitory_layer_sizes) > i else None # Check index before access
             if i == 0 and self.input_mode == 2:
                 # For input_mode=2, use net_out_dim as inhibitory_input_dim
                 inhibitory_input_size = self.input_net_dict.get("output_dim", 64)

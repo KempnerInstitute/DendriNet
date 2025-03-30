@@ -258,6 +258,10 @@ class BlockLinear(nn.Module):
     def __init__(self, in_features, out_features):
         super(BlockLinear, self).__init__()
 
+        # Add assertion for positive in_features *before* division
+        assert in_features > 0, "in_features must be positive"
+        assert out_features > 0, "out_features must be positive"
+
         block_size = floor(in_features / out_features)
         assert (
             in_features == out_features * block_size
