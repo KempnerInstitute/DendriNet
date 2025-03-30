@@ -2012,17 +2012,21 @@ strategies = {
     "two_step": TwoStepTrainer,
     "two_step_kl": TwoStepTrainerWithKL,
     "voltage_stabilization": VoltageStabilizationTrainer,
-    "freeze_layers": TrainerMLE, # Explicitly map known aliases handled by default
+    "freeze_layers": TrainerMLE,  # Explicitly map known aliases handled by default
 }
+
 
 def get_trainer(strategy, optimizer, **kwargs):
     trainer_class = strategies.get(strategy)
     if trainer_class is None:
-         logger.warning(f"Unrecognized strategy '{strategy}', defaulting to 'TrainerMLE'.") # Use warning level
-         trainer_class = TrainerMLE # Default trainer
+        logger.warning(
+            f"Unrecognized strategy '{strategy}', defaulting to 'TrainerMLE'."
+        )  # Use warning level
+        trainer_class = TrainerMLE  # Default trainer
 
     # Instantiate and return the trainer
     return trainer_class(optimizer=optimizer, **kwargs)
+
 
 # Optional: Define the missing Trainer classes if they don't exist
 # (Assuming they exist based on the test)

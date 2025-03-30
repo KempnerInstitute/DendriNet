@@ -127,7 +127,7 @@ class Classifier(BaseModel):
 
         # Apply output scaling
         # scaled_logits = logits * self.output_scale # Removed this line
-        return logits # Return logits directly
+        return logits  # Return logits directly
 
     def predict(self, x, stochastic=False):
         with torch.no_grad():
