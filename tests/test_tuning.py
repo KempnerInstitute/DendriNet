@@ -7,6 +7,7 @@ import torch
 from dendritic_modeling.dendrinet import DendriNet
 from dendritic_modeling.tuning import DendriNetTuner
 
+
 class TestDendriNetTuner(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
@@ -19,7 +20,7 @@ class TestDendriNetTuner(unittest.TestCase):
         cls.reactivate_space = [True, False]
         cls.b_trainable_space = [True, False]
         cls.log_lr_space = [-3]
-        
+
         # Create a temporary directory to save results
         cls.save_root = "temp_tuning_results"
         os.makedirs(cls.save_root, exist_ok=True)
@@ -34,7 +35,7 @@ class TestDendriNetTuner(unittest.TestCase):
             shunting_space=cls.shunting_space,
             reactivate_space=cls.reactivate_space,
             b_trainable_space=cls.b_trainable_space,
-            log_lr_space=cls.log_lr_space
+            log_lr_space=cls.log_lr_space,
         )
 
     @classmethod
@@ -44,16 +45,18 @@ class TestDendriNetTuner(unittest.TestCase):
 
     def test_hparam_space(self):
         # Check if hyperparameter space is correctly initialized
-        self.assertEqual(len(self.tuner.hparams['branch factors']), 
-                         len(self.branch_factors_space))
-        self.assertEqual(len(self.tuner.hparams['n inh cells']), 
-                         len(self.n_inh_cells_space))
+        self.assertEqual(
+            len(self.tuner.hparams["branch factors"]), len(self.branch_factors_space)
+        )
+        self.assertEqual(
+            len(self.tuner.hparams["n inh cells"]), len(self.n_inh_cells_space)
+        )
 
     def test_metrics_shape(self):
         # Check if metrics tensor shape matches expected dimensions
         expected_shape = (
-            3, 
-            len(self.branch_factors_space), 
+            3,
+            len(self.branch_factors_space),
             len(self.n_inh_cells_space),
             len(self.syn_per_inh_cell_space),
             len(self.inh_syn_per_branch_space),

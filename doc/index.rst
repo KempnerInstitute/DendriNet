@@ -18,7 +18,7 @@ Key Features
 
 * **Biologically-inspired architectures**: Models with dendritic branching structures
 * **Excitation-Inhibition Networks**: Separate excitatory and inhibitory pathways
-* **Specialized learning strategies**: Algorithms designed for complex dendritic topologies 
+* **Specialized learning strategies**: Algorithms designed for complex dendritic topologies
 * **Visualization tools**: Comprehensive analysis of network behaviors
 * **Configurable experiments**: YAML-based experiment configuration
 
@@ -35,7 +35,7 @@ Getting Started
    users/concepts
    users/configuration
    users/experiment_tracking
-   
+
 .. toctree::
    :maxdepth: 1
    :caption: Components
@@ -47,14 +47,14 @@ Getting Started
    dend_m/weight_initialization
    dend_m/synthetic_datasets
    dend_m/evaluation_visualization
-   
+
 .. toctree::
    :maxdepth: 1
    :caption: Contributing
 
    dend_m/contributing
    dend_m/visualization_guide
-   
+
 .. toctree::
    :maxdepth: 1
    :caption: Reference
@@ -63,7 +63,7 @@ Getting Started
    about
    glossary
    additional_resources
-   
+
 Citation
 --------
 
@@ -86,4 +86,4 @@ Indices and Tables
 
 * :ref:`genindex`
 * :ref:`modindex`
-* :ref:`search` 
+* :ref:`search`

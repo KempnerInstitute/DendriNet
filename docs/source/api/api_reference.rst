@@ -15,10 +15,10 @@ The ``ExcitationInhibitionNetwork`` is the core network class that implements th
     class ExcitationInhibitionNetwork(nn.Module):
         """
         A network with multiple excitatory-inhibitory layers.
-        
+
         This network implements a sequence of excitatory and inhibitory dendritic processing
         layers that model the complex interactions in biological neural networks.
-        
+
         Parameters
         ----------
         input_dim : int
@@ -64,16 +64,16 @@ The ``ExcitationInhibitionNetwork`` is the core network class that implements th
         input_net_dict : dict
             Configuration for input transformation network (used if input_mode=2)
         """
-        
+
         def forward(self, x):
             """
             Forward pass through the network.
-            
+
             Parameters
             ----------
             x : torch.Tensor
                 Input tensor of shape (batch_size, input_dim)
-                
+
             Returns
             -------
             torch.Tensor
@@ -91,10 +91,10 @@ The ``ExcitationInhibitionLayer`` implements a single layer of excitatory and in
     class ExcitationInhibitionLayer(nn.Module):
         """
         A layer that processes inputs through excitatory and inhibitory pathways.
-        
+
         This layer contains an excitatory dendrinet and an inhibitory dendrinet,
         which interact to produce the layer's output.
-        
+
         Parameters
         ----------
         n_excitatory_cells : int
@@ -134,18 +134,18 @@ The ``ExcitationInhibitionLayer`` implements a single layer of excitatory and in
         enable_branch_outputs : bool
             Whether to enable access to branch outputs
         """
-        
+
         def forward(self, excitatory_input, inhibitory_input=None):
             """
             Forward pass through the layer.
-            
+
             Parameters
             ----------
             excitatory_input : torch.Tensor
                 Excitatory input tensor
             inhibitory_input : torch.Tensor, optional
                 Inhibitory input tensor
-                
+
             Returns
             -------
             tuple of torch.Tensor
@@ -163,7 +163,7 @@ The ``DendriNet`` class implements a dendritic network that processes inputs thr
     class DendriNet(nn.Module):
         """
         A network that models dendritic computation with branch-specific processing.
-        
+
         Parameters
         ----------
         n_soma : int
@@ -193,18 +193,18 @@ The ``DendriNet`` class implements a dendritic network that processes inputs thr
         blocklinear_strategy : str
             Strategy for BlockLinear layers
         """
-        
+
         def forward(self, x, inhibitory_input=None):
             """
             Forward pass through the dendritic network.
-            
+
             Parameters
             ----------
             x : torch.Tensor
                 Input tensor
             inhibitory_input : torch.Tensor, optional
                 Inhibitory input for modulation
-                
+
             Returns
             -------
             torch.Tensor
@@ -222,11 +222,11 @@ The ``DendriticBranchLayer`` implements a single layer of dendritic branches.
     class DendriticBranchLayer(nn.Module):
         """
         A layer that models computation in dendritic branches.
-        
+
         This layer is an analogue to the MLP which emulates dendritic computation.
         It processes excitatory and inhibitory inputs through specialized pathways,
         integrating information in a biologically-inspired manner.
-        
+
         Parameters
         ----------
         output_dim : int
@@ -256,18 +256,18 @@ The ``DendriticBranchLayer`` implements a single layer of dendritic branches.
         blocklinear_strategy : str
             Strategy for BlockLinear layers
         """
-        
+
         def forward(self, x, inhibitory_input=None):
             """
             Forward pass through the branch layer.
-            
+
             Parameters
             ----------
             x : torch.Tensor
                 Excitatory input tensor
             inhibitory_input : torch.Tensor, optional
                 Inhibitory input tensor
-                
+
             Returns
             -------
             torch.Tensor
@@ -286,16 +286,16 @@ The ``TopKLinear`` class implements a linear transformation with top-k selection
         """
         A linear layer that retains only the top K strongest synaptic weights for in_features.
 
-        This module implements a linear transformation with weights constrained to 
-        be positive. For each output neuron, only the top K weights are kept, 
-        and the rest are set to zero. This simulates a neuron receiving 
+        This module implements a linear transformation with weights constrained to
+        be positive. For each output neuron, only the top K weights are kept,
+        and the rest are set to zero. This simulates a neuron receiving
         inputs only from its strongest synaptic connections.
 
         Parameters
         ----------
         in_features : int
             The number of input features.
-        
+
         out_features : int
             The number of output features.
 
@@ -307,30 +307,30 @@ The ``TopKLinear`` class implements a linear transformation with top-k selection
             If `'log'`, the weights are parameterized as exponentials of `pre_w`.
             If `'presigmoid'`, the weights are parameterized as sigmoids of `pre_w`.
             Defaults to 'log'.
-            
+
         init_method : str
             Initialization method for weights.
-            
+
         init_gain : float
             Gain factor for weight initialization.
         """
-        
+
         def forward(self, x):
             """
             Forward pass through the layer.
-            
+
             Parameters
             ----------
             x : torch.Tensor
                 Input tensor
-                
+
             Returns
             -------
             torch.Tensor
                 Output tensor
             """
             # Implementation details...
-            
+
 BlockLinear
 ----------
 
@@ -340,14 +340,14 @@ The ``BlockLinear`` class implements a linear transformation that aggregates inf
 
     class BlockLinear(nn.Module):
         """
-        A custom linear layer that aggregates information from converging branches 
+        A custom linear layer that aggregates information from converging branches
         in a previous branch layer.
 
         Parameters
         ----------
         in_features : int
             The number of input features.
-        
+
         out_features : int
             The number of output features.
 
@@ -365,16 +365,16 @@ The ``BlockLinear`` class implements a linear transformation that aggregates inf
         block_size : int
             The number of branches converging onto a single branch.
         """
-        
+
         def forward(self, x):
             """
             Forward pass through the layer.
-            
+
             Parameters
             ----------
             x : torch.Tensor
                 Input tensor
-                
+
             Returns
             -------
             torch.Tensor
@@ -393,7 +393,7 @@ The ``ParametricTanh`` class implements a parametric tanh activation function wi
         """
         A parametric tanh reactivation function with learnable parameters m and b.
         Both parameters are trainable.
-        
+
         Parameters
         ----------
         output_dim : int
@@ -403,16 +403,16 @@ The ``ParametricTanh`` class implements a parametric tanh activation function wi
         init_b : float
             Initial value for the offset parameter
         """
-        
+
         def forward(self, V):
             """
             Forward pass through the activation function.
-            
+
             Parameters
             ----------
             V : torch.Tensor
                 Input tensor (membrane potential)
-                
+
             Returns
             -------
             torch.Tensor
@@ -433,10 +433,10 @@ TrainerMLE
     class TrainerMLE(BaseTrainer):
         """
         Trainer using Maximum Likelihood Estimation.
-        
+
         This trainer implements standard backpropagation training as well as various
         freeze-branch strategies.
-        
+
         Methods
         -------
         train(model, train_data, valid_data, ...)
@@ -459,9 +459,9 @@ TwoStepTrainer
     class TwoStepTrainer(BaseTrainer):
         """
         Trainer implementing two-step training.
-        
+
         This trainer implements a two-phase approach with pretraining and main training.
-        
+
         Methods
         -------
         train(model, train_data, valid_data, pretrain_epochs, maintrain_epochs, ...)
@@ -476,9 +476,9 @@ VoltageStabilizationTrainer
     class VoltageStabilizationTrainer(BaseTrainer):
         """
         Trainer with voltage stabilization warmup.
-        
+
         This trainer implements a warmup phase to stabilize model activations.
-        
+
         Parameters
         ----------
         optimizer : torch.optim.Optimizer
@@ -487,7 +487,7 @@ VoltageStabilizationTrainer
             Number of epochs for warmup phase
         stability_target_voltage : float
             Target activation value for stabilization
-            
+
         Methods
         -------
         train(model, train_data, valid_data, ...)
@@ -504,7 +504,7 @@ The framework includes various utility functions for working with dendritic netw
     def evaluate_accuracy(classifier, train_ds=None, valid_ds=None, test_ds=None, ...):
         """
         Evaluate the accuracy of a classifier on datasets.
-        
+
         Parameters
         ----------
         classifier : torch.nn.Module
@@ -515,17 +515,17 @@ The framework includes various utility functions for working with dendritic netw
             Validation dataset
         test_ds : torch.utils.data.Dataset, optional
             Test dataset
-            
+
         Returns
         -------
         tuple
             (train_accuracy, valid_accuracy, test_accuracy)
         """
-        
+
     def analyze_branch_ablation(model, dataset, layer_idx, branch_ids, ...):
         """
         Analyze the effect of ablating specific branches.
-        
+
         Parameters
         ----------
         model : torch.nn.Module
@@ -536,9 +536,9 @@ The framework includes various utility functions for working with dendritic netw
             Layer index to ablate
         branch_ids : list of int
             Branch IDs to ablate
-            
+
         Returns
         -------
         tuple
             (baseline_accuracy, {branch_id: (accuracy_after_ablation, accuracy_drop)})
-        """ 
+        """

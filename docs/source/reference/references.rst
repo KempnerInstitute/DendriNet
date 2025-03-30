@@ -5,4 +5,4 @@ This page lists the references and scientific papers cited throughout the docume
 
 .. bibliography:: ../refs.bib
    :style: unsrt
-   :all: 
+   :all:

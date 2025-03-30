@@ -52,7 +52,7 @@ Implementation details:
     def block_conductance_scaling(grads, activations, scale_factor):
         """
         Scale gradients based on block conductance.
-        
+
         Parameters
         ----------
         grads : torch.Tensor
@@ -61,7 +61,7 @@ Implementation details:
             The activations of the branch
         scale_factor : float
             Factor to control the scaling strength
-            
+
         Returns
         -------
         torch.Tensor
@@ -69,10 +69,10 @@ Implementation details:
         """
         # Compute conductance as a function of activations
         conductance = compute_conductance(activations)
-        
+
         # Scale gradients inversely with conductance
         scaled_grads = grads / (conductance * scale_factor + 1.0)
-        
+
         return scaled_grads
 
 Dynamic Block Conductance Strategy
@@ -95,7 +95,7 @@ Implementation details:
     def dynamic_block_conductance_scaling(grads, activations, scale_factor, history):
         """
         Dynamically scale gradients based on block conductance and learning history.
-        
+
         Parameters
         ----------
         grads : torch.Tensor
@@ -106,7 +106,7 @@ Implementation details:
             Base factor to control the scaling strength
         history : dict
             Dictionary containing learning history
-            
+
         Returns
         -------
         torch.Tensor
@@ -114,14 +114,14 @@ Implementation details:
         """
         # Compute conductance as in the basic strategy
         conductance = compute_conductance(activations)
-        
+
         # Compute dynamic adjustment factor based on learning history
         adjustment = compute_adjustment_factor(history)
-        
+
         # Apply dynamic scaling
         effective_scale = scale_factor * adjustment
         scaled_grads = grads / (conductance * effective_scale + 1.0)
-        
+
         return scaled_grads
 
 Gradient Scale Factor
@@ -147,15 +147,15 @@ You can implement custom gradient scaling by creating a custom ``torch.autograd.
             ctx.save_for_backward(input)
             ctx.scaling_args = scaling_args
             return input.clone()
-            
+
         @staticmethod
         def backward(ctx, grad_output):
             input, = ctx.saved_tensors
             scaling_args = ctx.scaling_args
-            
+
             # Apply custom scaling logic
             scaled_grad = your_custom_scaling_function(grad_output, input, scaling_args)
-            
+
             return scaled_grad, None
 
 Interaction with Activation Functions
@@ -196,9 +196,9 @@ Example configuration with Adam:
         lr: 0.001
         weight_decay: 0.0001
       grad_clip_value: 5.0
-      
+
     model:
       network:
         parameters:
           gradient_strategy: "block_conductance_dynamic"
-          gradient_scale_factor: 1.5 
+          gradient_scale_factor: 1.5
