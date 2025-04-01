@@ -16,8 +16,9 @@ import pandas as pd
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from torch.utils.data import DataLoader
+from torch.utils.data import DataLoader, TensorDataset
 
+import wandb
 from dendritic_modeling.plot_utils import (
     einet_activations_to_csv,
     plot_depth_info,
@@ -1119,6 +1120,22 @@ class PlotManager:
             plt.legend()
             plt.grid(True, linestyle="--", alpha=0.7)
             plt.savefig(os.path.join(save_dir, "dendritic_ablation_all.png"))
+
+            # Log the ablation plot to W&B if it's available
+            try:
+                if wandb.run is not None:
+                    wandb.log(
+                        {
+                            "dendritic_ablation_all": wandb.Image(
+                                os.path.join(save_dir, "dendritic_ablation_all.png")
+                            ),
+                            "dendritic_ablation_data": wandb.Table(dataframe=df),
+                        }
+                    )
+                    logging.info("Successfully logged dendritic ablation plot to W&B")
+            except Exception as e:
+                logging.error(f"Error logging ablation plot to W&B: {str(e)}")
+
             plt.close()
         except Exception as e:
             logging.error(f"Error in dendritic order ablation analysis: {str(e)}")
@@ -1517,6 +1534,26 @@ class PlotManager:
             plt.grid(True, alpha=0.3)
             plot_path = os.path.join(save_dir, "information_content_inputs.png")
             plt.savefig(plot_path, dpi=300, bbox_inches="tight")
+
+            # Log the dendritic information inputs plot to W&B if it's available
+            try:
+                if wandb.run is not None:
+                    wandb.log(
+                        {
+                            "dendritic_information_inputs": wandb.Image(plot_path),
+                            "dendritic_information_inputs_data": wandb.Table(
+                                dataframe=df
+                            ),
+                        }
+                    )
+                    logging.info(
+                        "Successfully logged dendritic information inputs plot to W&B"
+                    )
+            except Exception as e:
+                logging.error(
+                    f"Error logging dendritic information inputs plot to W&B: {str(e)}"
+                )
+
             plt.close()
             print(f"Saved plot to {plot_path}")
         except Exception as e:
@@ -1712,6 +1749,26 @@ class PlotManager:
             plt.grid(True, alpha=0.3)
             plot_path = os.path.join(save_dir, "information_content_activations.png")
             plt.savefig(plot_path, dpi=300, bbox_inches="tight")
+
+            # Log the dendritic information activations plot to W&B if it's available
+            try:
+                if wandb.run is not None:
+                    wandb.log(
+                        {
+                            "dendritic_information_activations": wandb.Image(plot_path),
+                            "dendritic_information_activations_data": wandb.Table(
+                                dataframe=df
+                            ),
+                        }
+                    )
+                    logging.info(
+                        "Successfully logged dendritic information activations plot to W&B"
+                    )
+            except Exception as e:
+                logging.error(
+                    f"Error logging dendritic information activations plot to W&B: {str(e)}"
+                )
+
             plt.close()
             print(f"Saved plot to {plot_path}")
         except Exception as e:

@@ -20,29 +20,32 @@ slurm_config:
 train_config:
   model:
     task: "classification"
-    probabilistic: True
+    probabilistic: false  # Updated to match config_exp.yaml
     network:
       type: "EINet"
       parameters:
-        input_dim: 784
         excitatory_layer_sizes: [10]
         inhibitory_layer_sizes: [40]
-        excitatory_branch_factors: [5,5,5,5,5]
-        inhibitory_branch_factors: [1]
+        excitatory_branch_factors: [6,6]
+        inhibitory_branch_factors: []
         reactivate: false
-        somatic_synapses: false
+        somatic_synapses: true
         ee_synapses_per_branch_per_layer: [100]
         ei_synapses_per_branch_per_layer: [200]
         ie_synapses_per_branch_per_layer: [10]
         ii_synapses_per_branch_per_layer: [0]
         topk_init_method: "xavier_normal"
+        topk_noise_level: 0.2  # Added to match config_exp.yaml
+        topk_strategy: "standard"  # Options: "standard", "stochastic", "variance"
+        topk_temperature: 0.5  # Controls the stochastic selection sharpness (0.1-1.0)
+        topk_ultrafast: true  # Enable faster implementation for stochastic TopK
         use_shunting: true
 
-        reactivation_type: param_tanh
-        reactivation_strategy: inverse
-        blocklinear_strategy: none
+        reactivation_type: "param_tanh"
+        reactivation_strategy: "inverse"
+        blocklinear_strategy: "block_conductance_dynamic"
 
-        enable_branch_outputs: true
+        enable_branch_outputs: false
         output_layer: false
         output_dim: 10
 
@@ -53,60 +56,78 @@ train_config:
           output_dim: 128
 
   train:
-    learning_strategy: "freeze_branches"   # Using branch-focused methods only
-    run_name: "mnist_einet"
+    learning_strategy: "mle"
+    run_name: "dendritic_sweep_run"
     seed: 0
     train_valid_split: 0.8
-    lr: 0.03
-    epochs: 20
-    batch_size: 100
+    lr: 0.01
+    epochs: 50
+    batch_size: 1024
     grad_clip_value: 5
-    epochs_per_layer: 10  # Used as epochs_per_branch for branch-focused methods
-    final_tune_epochs: 10  # For final fine-tuning after branch-by-branch training
-    pretrain_epochs: 10    # For initial full-network training in strategies with pretraining
+    epochs_per_layer: 50
+    final_tune_epochs: 10
+    warmup_epochs: 1
+    stability_target_voltage: 0.5
+    weight_decay_rate: 0.1
+    input_net_training:
+      training_mode: "sequential"
+      train_input_net: true
+      input_net_epochs: 20
+      train_heads_independently: false
+      inhibitory_head_objective: "classification"
+      diversity_weight: 0.5
+      pretrained_options:
+        source: "file"
+        weights_path: ""
+        pytorch_model: ""
 
-  # If you have wandb config:
-  wandb:
-    entity:
-    project: dendritic_mnist_sweep_learning_strategy
-    group: "debug"
-    tags: [mnist_sweep]
-    use_wandb: true
-
-  # task config (for get_unified_datasets):
   task:
     dataset: "random_flip_mnist"
-    parameters: {r}
+    data_path:
+    parameters: {}
 
+  wandb:
+    entity:
+    project: "dendritic_cifar10"
+    group: "debug"
+    tags: [cifar10]
+    use_wandb: false
 
   visualization:
-    enabled: true
-    save_path:
+    enabled: false
+    visualize_epochs: [10, 30]
     plots:
-      #- "weights"
-      #- "activations"
-      - "dendritic_ablation_all"
-      - "dendritic_information"
+      - weights
+      - activations
+      - gradients
+      - branch_ablation
+      - layer_ablation
 
+  outputs:
+    dir:
 
 sweep_config:
-  # Example: vary some network parameters
-  #model.network.parameters.excitatory_branch_factors: [[5,5,5,5,5], [10,10,10,10,10], [3,3,3,3,3]]
-  #model.network.parameters.inhibitory_branch_factors: [[1], [2], [5]]
-  #model.network.parameters.use_shunting: [true, false]
+  # Network architecture sweeps
+  model.network.parameters.excitatory_layer_sizes: [[10], [20], [30]]
+  model.network.parameters.inhibitory_layer_sizes: [[40], [60], [80]]
+  model.network.parameters.excitatory_branch_factors: [[6,6], [8,8], [10,10]]
 
-  # Vary training parameters
-  #train.epochs: [20, 30, 40]
-  #train.batch_size: [100, 200, 500]
-  #train.lr: [0.01, 0.03, 0.05]
+  # TopK strategy and parameter sweeps
+  model.network.parameters.topk_strategy: ["standard", "stochastic", "variance"]
+  model.network.parameters.topk_noise_level: [0.0, 0.1, 0.2, 0.5]
+  model.network.parameters.topk_temperature: [0.1, 0.3, 0.5, 0.7, 1.0]  # Different temperature values
+  model.network.parameters.topk_ultrafast: [true, false]  # Test both implementations
 
-  # Vary branch-focused training parameters
-  train.epochs_per_layer: [5, 10, 15]
-  train.final_tune_epochs: [5, 10, 15]
-  train.pretrain_epochs: [5, 10, 15]
+  # Training strategy sweeps
+  train.learning_strategy: ["mle", "freeze_layers", "local_credit_assignment", "two_step", "two_step_kl", "voltage_stabilization"]
+  train.lr: [0.01, 0.005, 0.001]
+  train.batch_size: [512, 1024, 2048]
+  train.epochs: [30, 50, 70]
 
-  # The most important sweep - learning strategies
-  train.learning_strategy: ["mle", "freeze_branches", "freeze_branches_reversed", "freeze_branches_with_pretraining", "freeze_branches_reversed_with_pretraining", "voltage_stabilization"]
-
+  # Input network training sweeps
+  train.input_net_training.training_mode: ["sequential", "joint"]
+  train.input_net_training.train_heads_independently: [true, false]
+  train.input_net_training.inhibitory_head_objective: ["classification", "diversity", "combined"]
+  train.input_net_training.diversity_weight: [0.3, 0.5, 0.7]
 
 #python scripts/generate_sweep_configs.py configs sweep_params.yaml

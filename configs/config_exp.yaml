@@ -16,6 +16,9 @@ model:
       ii_synapses_per_branch_per_layer: [0]
       topk_init_method: xavier_normal
       topk_noise_level: 0.2 # Added parameter for TopK noise
+      topk_strategy: standard # Options: "standard", "stochastic", "variance"
+      topk_temperature: 0.5 # Controls the stochastic selection sharpness (0.1-1.0)
+      topk_ultrafast: true # Enable faster implementation for stochastic TopK
 
       use_shunting: true
 
