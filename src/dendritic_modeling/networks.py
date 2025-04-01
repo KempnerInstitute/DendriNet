@@ -196,6 +196,7 @@ class ExcitationInhibitionLayer(nn.Module):
         reactivation_type="param_tanh",
         enable_branch_outputs=False,
         topk_noise_level=0.0,
+        topk_strategy="standard",
     ):
         super().__init__()
 
@@ -223,6 +224,7 @@ class ExcitationInhibitionLayer(nn.Module):
                     reactivation_strategy=reactivation_strategy,
                     blocklinear_strategy=blocklinear_strategy,
                     topk_noise_level=topk_noise_level,
+                    topk_strategy=topk_strategy,
                 )
             else:
                 self.inhibitory_cells = DendriNet(
@@ -240,6 +242,7 @@ class ExcitationInhibitionLayer(nn.Module):
                     reactivation_strategy=reactivation_strategy,
                     blocklinear_strategy=blocklinear_strategy,
                     topk_noise_level=topk_noise_level,
+                    topk_strategy=topk_strategy,
                 )
         else:
             self.inhibitory_cells = None
@@ -262,6 +265,7 @@ class ExcitationInhibitionLayer(nn.Module):
                 reactivation_strategy=reactivation_strategy,
                 blocklinear_strategy=blocklinear_strategy,
                 topk_noise_level=topk_noise_level,
+                topk_strategy=topk_strategy,
             )
         else:
             self.excitatory_cells = DendriNet(
@@ -281,6 +285,7 @@ class ExcitationInhibitionLayer(nn.Module):
                 reactivation_strategy=reactivation_strategy,
                 blocklinear_strategy=blocklinear_strategy,
                 topk_noise_level=topk_noise_level,
+                topk_strategy=topk_strategy,
             )
 
     def decay_weights(self, weight_decay):
@@ -396,6 +401,7 @@ class ExcitationInhibitionNetwork(nn.Module):
         input_net_dict: Dict[str, Any] = None,
         learning_strategy: str = "mle",
         topk_init_method: str = "xavier_normal",
+        topk_strategy: str = "standard",
         **kwargs,
     ):
         super().__init__()
@@ -429,6 +435,7 @@ class ExcitationInhibitionNetwork(nn.Module):
         self.input_net_dict = input_net_dict if input_net_dict else {}
         self.learning_strategy = learning_strategy
         self.topk_init_method = topk_init_method
+        self.topk_strategy = topk_strategy
         self.topk_noise_level = kwargs.get("topk_noise_level", 0.0)
 
         # Set up input transformation based on input_mode
@@ -551,6 +558,7 @@ class ExcitationInhibitionNetwork(nn.Module):
                 reactivation_type=self.reactivation_type,
                 enable_branch_outputs=self.enable_branch_outputs,
                 topk_noise_level=self.topk_noise_level,
+                topk_strategy=self.topk_strategy,
             )
             layers.append(layer)
 
