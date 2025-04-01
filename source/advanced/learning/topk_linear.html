@@ -63,6 +63,12 @@
 <li class="toctree-l2"><a class="reference internal" href="learning_strategies.html">Learning Strategies</a></li>
 <li class="toctree-l2 current"><a class="current reference internal" href="#">TopKLinear Layers and Dendritic Processing</a><ul>
 <li class="toctree-l3"><a class="reference internal" href="#overview">Overview</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#topklinear-variants">TopKLinear Variants</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="#standard-topklinear">Standard TopKLinear</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#stochastictopklinear">StochasticTopKLinear</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#variancetopklinear">VarianceTopKLinear</a></li>
+</ul>
+</li>
 <li class="toctree-l3"><a class="reference internal" href="#topklinear-architecture">TopKLinear Architecture</a></li>
 <li class="toctree-l3"><a class="reference internal" href="#configuration">Configuration</a></li>
 <li class="toctree-l3"><a class="reference internal" href="#branch-factor-selection">Branch Factor Selection</a></li>
@@ -128,6 +134,92 @@
 <li><p>Summing only the selected inputs to produce the output</p></li>
 </ol>
 <p>This selective integration is a fundamental departure from standard neural network layers and allows dendritic networks to implement powerful computational properties like context-dependent processing and feature binding.</p>
+</section>
+<section id="topklinear-variants">
+<h2>TopKLinear Variants<a class="headerlink" href="#topklinear-variants" title="Link to this heading"></a></h2>
+<p>The framework provides three variants of TopKLinear layers, each with different connection selection strategies:</p>
+<ol class="arabic simple">
+<li><p><strong>Standard TopKLinear</strong>: Deterministically selects the k strongest connections for each branch.</p></li>
+<li><p><strong>StochasticTopKLinear</strong>: Selects connections probabilistically based on their strength rank.</p></li>
+<li><p><strong>VarianceTopKLinear</strong>: Selects connections based on a combination of weight magnitude and input variance.</p></li>
+</ol>
+<p>These variants can be configured using the <code class="docutils literal notranslate"><span class="pre">topk_strategy</span></code> parameter:</p>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">model</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">network</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">parameters</span><span class="p">:</span>
+<span class="w">      </span><span class="nt">topk_strategy</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;stochastic&quot;</span><span class="w">  </span><span class="c1"># Options: &quot;standard&quot;, &quot;stochastic&quot;, &quot;variance&quot;</span>
+<span class="w">      </span><span class="c1"># Additional parameters for specific strategies</span>
+<span class="w">      </span><span class="nt">topk_temperature</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">0.5</span><span class="w">        </span><span class="c1"># For stochastic TopK (controls randomness)</span>
+<span class="w">      </span><span class="nt">topk_noise_level</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">0.1</span><span class="w">        </span><span class="c1"># Adds noise to weight selection (all strategies)</span>
+<span class="w">      </span><span class="nt">topk_ultrafast</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span><span class="w">         </span><span class="c1"># Enables highly optimized implementation for stochastic TopK</span>
+</pre></div>
+</div>
+<section id="standard-topklinear">
+<h3>Standard TopKLinear<a class="headerlink" href="#standard-topklinear" title="Link to this heading"></a></h3>
+<p>The standard TopKLinear implementation deterministically selects the k strongest inputs for each branch:</p>
+<ol class="arabic simple">
+<li><p><strong>Deterministic selection</strong>: Always selects the same k connections for identical inputs</p></li>
+<li><p><strong>Based purely on weight magnitude</strong>: Only the absolute strength of the weight matters</p></li>
+<li><p><strong>Sharp selection boundary</strong>: There is a hard cutoff between selected and non-selected inputs</p></li>
+</ol>
+<p>This approach is the fastest and most predictable, but might lead to less flexible representations.</p>
+</section>
+<section id="stochastictopklinear">
+<h3>StochasticTopKLinear<a class="headerlink" href="#stochastictopklinear" title="Link to this heading"></a></h3>
+<p>The StochasticTopKLinear layer introduces controlled randomness to the selection process:</p>
+<ol class="arabic simple">
+<li><p><strong>Probabilistic selection</strong>: Each connection has a probability of being selected based on its rank</p></li>
+<li><p><strong>Sigmoid probability function</strong>: P(select) = sigmoid((k - rank)/(k * temperature))</p></li>
+<li><p><strong>Temperature parameter</strong>: Controls the “sharpness” of the selection threshold
+- Lower temperature (e.g., 0.1): More deterministic, similar to standard TopK
+- Higher temperature (e.g., 1.0): More random, allowing weaker connections to participate</p></li>
+</ol>
+<p>This stochastic approach has several benefits:
+- Helps escape local minima during training by occasionally trying different connection patterns
+- Prevents overfitting by introducing controlled noise into the model
+- Closer to biological reality where synaptic activation has stochastic elements</p>
+<p>Configure StochasticTopKLinear with:</p>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">model</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">network</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">parameters</span><span class="p">:</span>
+<span class="w">      </span><span class="nt">topk_strategy</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;stochastic&quot;</span><span class="w">     </span><span class="c1"># Select stochastic TopK</span>
+<span class="w">      </span><span class="nt">topk_temperature</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">0.5</span><span class="w">           </span><span class="c1"># Control randomness (0.1-1.0)</span>
+<span class="w">      </span><span class="nt">topk_noise_level</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">0.1</span><span class="w">           </span><span class="c1"># Add noise to weight values</span>
+<span class="w">      </span><span class="nt">topk_ultrafast</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span><span class="w">            </span><span class="c1"># Enable ultrafast implementation</span>
+</pre></div>
+</div>
+<section id="ultrafast-mode-for-stochastic-topk">
+<h4>Ultrafast Mode for Stochastic TopK<a class="headerlink" href="#ultrafast-mode-for-stochastic-topk" title="Link to this heading"></a></h4>
+<p>The <code class="docutils literal notranslate"><span class="pre">topk_ultrafast</span></code> option enables a highly optimized implementation that significantly speeds up training:</p>
+<ol class="arabic simple">
+<li><p><strong>Simplified algorithm</strong>: Replaces the full stochastic procedure with a noise-based approximation</p></li>
+<li><p><strong>10-50x faster</strong>: Greatly reduces computational overhead during training</p></li>
+<li><p><strong>Similar behavior</strong>: Maintains the key properties of stochastic selection</p></li>
+</ol>
+<p>With ultrafast mode enabled, noise is directly added to the weights before a single standard TopK selection, approximating the more complex sampling procedure of the full implementation.</p>
+</section>
+</section>
+<section id="variancetopklinear">
+<h3>VarianceTopKLinear<a class="headerlink" href="#variancetopklinear" title="Link to this heading"></a></h3>
+<p>The VarianceTopKLinear layer selects connections based on both weight magnitude and input statistics:</p>
+<ol class="arabic simple">
+<li><p><strong>Variance tracking</strong>: Maintains exponential moving averages of input activation statistics</p></li>
+<li><p><strong>Information-based selection</strong>: Prioritizes inputs with high variance (information content)</p></li>
+<li><p><strong>Combined score</strong>: Select based on weight_magnitude * input_variance</p></li>
+</ol>
+<p>This approach focuses connections on inputs that:
+- Carry more information (high variance = more discriminative signal)
+- Already have strong weights in the model</p>
+<p>This can be especially valuable when some inputs are more informative than others, or when dealing with noisy or redundant inputs.</p>
+<p>Configure VarianceTopKLinear with:</p>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">model</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">network</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">parameters</span><span class="p">:</span>
+<span class="w">      </span><span class="nt">topk_strategy</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;variance&quot;</span><span class="w">      </span><span class="c1"># Select variance-based TopK</span>
+<span class="w">      </span><span class="nt">topk_noise_level</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">0.0</span><span class="w">          </span><span class="c1"># Typically less noise is needed with this approach</span>
+</pre></div>
+</div>
+</section>
 </section>
 <section id="topklinear-architecture">
 <h2>TopKLinear Architecture<a class="headerlink" href="#topklinear-architecture" title="Link to this heading"></a></h2>
@@ -206,6 +298,10 @@
 <span class="w">      </span><span class="nt">excitatory_branch_factors</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">64</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">32</span><span class="p p-Indicator">]</span><span class="w">  </span><span class="c1"># k values for excitatory layers</span>
 <span class="w">      </span><span class="nt">inhibitory_branch_factors</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">32</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">16</span><span class="p p-Indicator">]</span><span class="w">  </span><span class="c1"># k values for inhibitory layers</span>
 <span class="w">      </span><span class="nt">topk_init_method</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;xavier_normal&quot;</span><span class="w">    </span><span class="c1"># Weight initialization method</span>
+<span class="w">      </span><span class="nt">topk_strategy</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;stochastic&quot;</span><span class="w">          </span><span class="c1"># Selection strategy</span>
+<span class="w">      </span><span class="nt">topk_temperature</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">0.5</span><span class="w">                </span><span class="c1"># For stochastic TopK</span>
+<span class="w">      </span><span class="nt">topk_noise_level</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">0.1</span><span class="w">                </span><span class="c1"># Noise level for weight selection</span>
+<span class="w">      </span><span class="nt">topk_ultrafast</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span><span class="w">                 </span><span class="c1"># Enable faster implementation</span>
 </pre></div>
 </div>
 <p>The <code class="docutils literal notranslate"><span class="pre">branch_factors</span></code> parameters define the k value for each layer, which determines how many inputs are selected by each dendritic branch.</p>
@@ -237,6 +333,7 @@
 <li><p><strong>Nonlinear integration</strong>: Inputs that arrive on the same dendritic branch can interact nonlinearly</p></li>
 <li><p><strong>Branch-specific processing</strong>: Each dendritic branch can function as a semi-independent processing unit</p></li>
 <li><p><strong>Sparse activation</strong>: Only a subset of synapses are strongly active for any given input</p></li>
+<li><p><strong>Stochastic activation</strong>: Biological synapses have probabilistic activation properties</p></li>
 </ol>
 <p>The top-k selection mechanism is a simplified model of these biological properties, capturing the essential computational feature of selective integration.</p>
 </section>
@@ -342,21 +439,23 @@
 <h2>Best Practices<a class="headerlink" href="#best-practices" title="Link to this heading"></a></h2>
 <p>For optimal performance with TopKLinear layers:</p>
 <ol class="arabic simple">
-<li><p><strong>Start with reasonable branch factors</strong>:
-- For initial experimentation, set k to 10-20% of the input dimension
-- Adjust based on performance and desired properties</p></li>
-<li><p><strong>Use appropriate reactivation strategies</strong>:
-- The “inverse” reactivation strategy often works well with dendritic networks
-- Param_tanh reactivation type provides smooth activation profiles</p></li>
-<li><p><strong>Combine with appropriate activation functions</strong>:
-- Use reactivation_type param_tanh for better performance
-- Consider the interaction between selectivity and nonlinearity</p></li>
-<li><p><strong>Monitor branch activation</strong>:
-- Track which branches are active during training
-- Ensure branches aren’t “dying” (never being selected)</p></li>
-<li><p><strong>Adjust learning rates carefully</strong>:
-- Use gradient clipping to stabilize training
-- Start with conservative learning rates (0.001) and adjust as needed</p></li>
+<li><p><strong>Choosing K values</strong>:
+- For deterministic TopK: Start with 10-20% of input dimensionality
+- For stochastic TopK: Use smaller K values (5-15% of input dim) with temperature 0.3-0.7
+- For variance-based TopK: Similar to deterministic, but monitor input statistics</p></li>
+<li><p><strong>Training stability</strong>:
+- Use gradient clipping (values between 1.0-10.0 work well)
+- Consider lower learning rates for stochastic variants (0.5-0.8× standard rate)</p></li>
+<li><p><strong>Computational efficiency</strong>:
+- Enable ultrafast mode for stochastic TopK during large-scale training
+- Use standard TopK for inference if deterministic outputs are required</p></li>
+<li><p><strong>Hyperparameter tuning</strong>:
+- For stochastic TopK: Sweep temperature (0.1-1.0) and noise level (0-0.2)
+- For variance TopK: Focus on momentum values (0.9-0.99)</p></li>
+<li><p><strong>When to use each variant</strong>:
+- Standard TopK: When deterministic behavior is needed or for baseline comparisons
+- Stochastic TopK: When training gets stuck or for more flexible representations
+- Variance TopK: When dealing with varied information content across inputs or noisy data</p></li>
 </ol>
 </section>
 <section id="example-configuration">

@@ -61,6 +61,7 @@
 <li class="toctree-l3"><a class="reference internal" href="#key-computational-components">Key Computational Components</a><ul>
 <li class="toctree-l4"><a class="reference internal" href="#dendritic-branches">Dendritic Branches</a></li>
 <li class="toctree-l4"><a class="reference internal" href="#topklinear-layer">TopKLinear Layer</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#topk-selection-strategies">TopK Selection Strategies</a></li>
 <li class="toctree-l4"><a class="reference internal" href="#blocklinear-layer">BlockLinear Layer</a></li>
 <li class="toctree-l4"><a class="reference internal" href="#nonlinear-activation-functions">Nonlinear Activation Functions</a></li>
 <li class="toctree-l4"><a class="reference internal" href="#excitation-inhibition-balance">Excitation-Inhibition Balance</a></li>
@@ -192,6 +193,72 @@
 <span class="pre">y</span> <span class="pre">=</span> <span class="pre">(W</span> <span class="pre">⊙</span> <span class="pre">M)x</span> <span class="pre">+</span> <span class="pre">b</span>
 <span class="pre">`</span></code>
 Where M is a binary mask retaining only the top k elements in each row of W.</p>
+</section>
+<section id="topk-selection-strategies">
+<h3>TopK Selection Strategies<a class="headerlink" href="#topk-selection-strategies" title="Link to this heading"></a></h3>
+<p>The framework offers three strategies for selecting the top K connections in dendritic branches:</p>
+<ol class="arabic">
+<li><p><strong>Standard TopK</strong> (default): The traditional deterministic approach that selects connections based solely on weight magnitude.</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="c1"># Configure a model to use standard TopK selection</span>
+<span class="n">model_config</span> <span class="o">=</span> <span class="p">{</span>
+    <span class="s2">&quot;model&quot;</span><span class="p">:</span> <span class="p">{</span>
+        <span class="s2">&quot;network&quot;</span><span class="p">:</span> <span class="p">{</span>
+            <span class="s2">&quot;parameters&quot;</span><span class="p">:</span> <span class="p">{</span>
+                <span class="s2">&quot;topk_strategy&quot;</span><span class="p">:</span> <span class="s2">&quot;standard&quot;</span><span class="p">,</span>
+                <span class="c1"># other parameters...</span>
+            <span class="p">}</span>
+        <span class="p">}</span>
+    <span class="p">}</span>
+<span class="p">}</span>
+</pre></div>
+</div>
+</li>
+<li><p><strong>Stochastic TopK</strong>: A probabilistic approach that selects connections based on a probability derived from weight rank.</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="c1"># Configure a model to use stochastic TopK selection</span>
+<span class="n">model_config</span> <span class="o">=</span> <span class="p">{</span>
+    <span class="s2">&quot;model&quot;</span><span class="p">:</span> <span class="p">{</span>
+        <span class="s2">&quot;network&quot;</span><span class="p">:</span> <span class="p">{</span>
+            <span class="s2">&quot;parameters&quot;</span><span class="p">:</span> <span class="p">{</span>
+                <span class="s2">&quot;topk_strategy&quot;</span><span class="p">:</span> <span class="s2">&quot;stochastic&quot;</span><span class="p">,</span>
+                <span class="s2">&quot;topk_noise_level&quot;</span><span class="p">:</span> <span class="mf">0.2</span><span class="p">,</span>  <span class="c1"># Optional: adds noise to weight values</span>
+                <span class="c1"># other parameters...</span>
+            <span class="p">}</span>
+        <span class="p">}</span>
+    <span class="p">}</span>
+<span class="p">}</span>
+</pre></div>
+</div>
+<p>Stochastic selection offers several benefits:</p>
+<ul class="simple">
+<li><p>Mitigates overfitting by introducing regularization</p></li>
+<li><p>Enables better exploration during training</p></li>
+<li><p>Increases model robustness to minor variations in input</p></li>
+</ul>
+</li>
+<li><p><strong>Variance-Based TopK</strong>: A data-driven approach that selects connections based on both weight magnitude and input variance.</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="c1"># Configure a model to use variance-based TopK selection</span>
+<span class="n">model_config</span> <span class="o">=</span> <span class="p">{</span>
+    <span class="s2">&quot;model&quot;</span><span class="p">:</span> <span class="p">{</span>
+        <span class="s2">&quot;network&quot;</span><span class="p">:</span> <span class="p">{</span>
+            <span class="s2">&quot;parameters&quot;</span><span class="p">:</span> <span class="p">{</span>
+                <span class="s2">&quot;topk_strategy&quot;</span><span class="p">:</span> <span class="s2">&quot;variance&quot;</span><span class="p">,</span>
+                <span class="c1"># other parameters...</span>
+            <span class="p">}</span>
+        <span class="p">}</span>
+    <span class="p">}</span>
+<span class="p">}</span>
+</pre></div>
+</div>
+<p>Variance-based selection:</p>
+<ul class="simple">
+<li><p>Prioritizes connections to high-variance inputs that carry more information</p></li>
+<li><p>Combines statistical properties of the data with learned weights</p></li>
+<li><p>Adapts connection topology to the distribution of the input data</p></li>
+<li><p>Can improve feature selectivity and reduce redundancy</p></li>
+</ul>
+</li>
+</ol>
+<p>These strategies can be selected through the <code class="docutils literal notranslate"><span class="pre">topk_strategy</span></code> parameter in the network configuration, providing flexibility to optimize models for different tasks and datasets.</p>
 </section>
 <section id="blocklinear-layer">
 <h3>BlockLinear Layer<a class="headerlink" href="#blocklinear-layer" title="Link to this heading"></a></h3>

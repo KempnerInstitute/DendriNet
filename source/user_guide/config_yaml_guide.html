@@ -69,6 +69,10 @@
 <li class="toctree-l3"><a class="reference internal" href="#wandb-configuration">Wandb Configuration</a></li>
 <li class="toctree-l3"><a class="reference internal" href="#visualization-configuration">Visualization Configuration</a></li>
 <li class="toctree-l3"><a class="reference internal" href="#outputs-configuration">Outputs Configuration</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#topk-strategy-examples">TopK Strategy Examples</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="#advanced-topk-configuration">Advanced TopK Configuration</a></li>
+</ul>
+</li>
 <li class="toctree-l3"><a class="reference internal" href="#complete-example-configuration">Complete Example Configuration</a></li>
 <li class="toctree-l3"><a class="reference internal" href="#tips-for-configuration">Tips for Configuration</a></li>
 <li class="toctree-l3"><a class="reference internal" href="#using-the-configuration-system">Using the Configuration System</a></li>
@@ -179,6 +183,8 @@
 <span class="w">      </span><span class="nt">reactivate</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
 <span class="w">      </span><span class="nt">somatic_synapses</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
 <span class="w">      </span><span class="nt">topk_init_method</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">xavier_normal</span>
+<span class="w">      </span><span class="nt">topk_noise_level</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">0.2</span><span class="w">  </span><span class="c1"># Noise level for TopK selection</span>
+<span class="w">      </span><span class="nt">topk_strategy</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">standard</span><span class="w">  </span><span class="c1"># Strategy for TopK selection: &quot;standard&quot;, &quot;stochastic&quot;, or &quot;variance&quot;</span>
 <span class="w">      </span><span class="nt">use_shunting</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
 
 <span class="w">      </span><span class="c1"># Reactivation settings</span>
@@ -213,6 +219,12 @@
 <li><p><strong>reactivation_strategy</strong>: Strategy for reactivation (“inverse” or “none”)</p></li>
 <li><p><strong>input_mode</strong>: Method for handling inputs (0=direct, 1=exc=inh=input, 2=through input network)</p></li>
 <li><p><strong>input_net_dict</strong>: Configuration for input transformation network (used if input_mode=2)</p></li>
+<li><p><strong>reactivate</strong>: Whether to use a reactivation function</p></li>
+<li><p><strong>somatic_synapses</strong>: Whether to include direct synapses to the soma</p></li>
+<li><p><strong>topk_init_method</strong>: Initialization method for the TopK weights</p></li>
+<li><p><strong>topk_noise_level</strong>: Standard deviation of Gaussian noise added during TopK selection (0.0 for no noise)</p></li>
+<li><p><strong>topk_strategy</strong>: Strategy for selecting top K connections (“standard”, “stochastic”, or “variance”)</p></li>
+<li><p><strong>use_shunting</strong>: Whether to use shunting inhibition</p></li>
 </ul>
 </section>
 <section id="train-configuration">
@@ -392,6 +404,86 @@
 </pre></div>
 </div>
 </section>
+<section id="topk-strategy-examples">
+<h2>TopK Strategy Examples<a class="headerlink" href="#topk-strategy-examples" title="Link to this heading"></a></h2>
+<p>Here are example configurations for each TopK selection strategy:</p>
+<ol class="arabic simple">
+<li><p><strong>Standard TopK</strong> (deterministic selection by weight magnitude):</p></li>
+</ol>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">model</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">network</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">parameters</span><span class="p">:</span>
+<span class="w">      </span><span class="c1"># Other parameters...</span>
+<span class="w">      </span><span class="nt">topk_strategy</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">standard</span>
+<span class="w">      </span><span class="nt">topk_noise_level</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">0.0</span><span class="w">  </span><span class="c1"># No noise for purely deterministic selection</span>
+</pre></div>
+</div>
+<ol class="arabic simple" start="2">
+<li><p><strong>Stochastic TopK</strong> (probabilistic selection based on rank):</p></li>
+</ol>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">model</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">network</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">parameters</span><span class="p">:</span>
+<span class="w">      </span><span class="c1"># Other parameters...</span>
+<span class="w">      </span><span class="nt">topk_strategy</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">stochastic</span>
+<span class="w">      </span><span class="nt">topk_temperature</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">0.5</span><span class="w">  </span><span class="c1"># Controls the &quot;sharpness&quot; of selection (0.1-1.0)</span>
+<span class="w">      </span><span class="nt">topk_noise_level</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">0.2</span><span class="w">  </span><span class="c1"># Adding noise can increase randomness</span>
+<span class="w">      </span><span class="nt">topk_ultrafast</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span><span class="w">   </span><span class="c1"># Enable high-performance implementation</span>
+</pre></div>
+</div>
+<dl class="simple">
+<dt>The stochastic approach offers several advantages:</dt><dd><ul class="simple">
+<li><p>Prevents getting stuck in local minima during training</p></li>
+<li><p>Allows occasional exploration of different connection patterns</p></li>
+<li><p>More biologically realistic (synapses have probabilistic behavior)</p></li>
+</ul>
+</dd>
+<dt>The <strong>topk_ultrafast</strong> parameter enables a highly optimized implementation that is 10-50x faster:</dt><dd><ul class="simple">
+<li><p>Uses a simple noise-based approximation instead of the full stochastic algorithm</p></li>
+<li><p>Maintains the key properties of the stochastic approach</p></li>
+<li><p>Recommended for large models or datasets</p></li>
+<li><p>Suitable for most training scenarios</p></li>
+</ul>
+</dd>
+</dl>
+<ol class="arabic simple" start="3">
+<li><p><strong>Variance-Based TopK</strong> (selection based on input variance and weight magnitude):</p></li>
+</ol>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">model</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">network</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">parameters</span><span class="p">:</span>
+<span class="w">      </span><span class="c1"># Other parameters...</span>
+<span class="w">      </span><span class="nt">topk_strategy</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">variance</span>
+<span class="w">      </span><span class="nt">topk_noise_level</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">0.0</span><span class="w">  </span><span class="c1"># Typically not needed with variance-based selection</span>
+</pre></div>
+</div>
+<p>The variance-based strategy is particularly useful for datasets with varying feature importance,
+as it automatically adapts to select connections to more informative inputs.</p>
+<section id="advanced-topk-configuration">
+<h3>Advanced TopK Configuration<a class="headerlink" href="#advanced-topk-configuration" title="Link to this heading"></a></h3>
+<p><strong>Stochastic TopK Temperature Guide</strong>:</p>
+<ul class="simple">
+<li><p><strong>Low temperature</strong> (0.1-0.3):
+- More deterministic selection
+- Fewer weak connections get selected
+- Suitable for fine-tuning or late in training</p></li>
+<li><p><strong>Medium temperature</strong> (0.3-0.7):
+- Balanced exploration vs. exploitation
+- Recommended for most use cases
+- Good default: 0.5</p></li>
+<li><p><strong>High temperature</strong> (0.7-1.0):
+- More uniform selection probabilities
+- More exploration of different connection patterns
+- Useful for early training or difficult datasets</p></li>
+</ul>
+<p><strong>Performance Considerations</strong>:</p>
+<ul class="simple">
+<li><p>For small models (&lt; 1M parameters): Standard TopK or regular Stochastic TopK</p></li>
+<li><p>For medium models (1M-10M parameters): Stochastic TopK with ultrafast mode</p></li>
+<li><p>For large models (&gt;10M parameters): Always use ultrafast mode when using Stochastic TopK</p></li>
+</ul>
+</section>
+</section>
 <section id="complete-example-configuration">
 <h2>Complete Example Configuration<a class="headerlink" href="#complete-example-configuration" title="Link to this heading"></a></h2>
 <p>Here’s a complete example configuration for an MNIST experiment:</p>
@@ -413,6 +505,8 @@
 <span class="w">      </span><span class="nt">reactivate</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
 <span class="w">      </span><span class="nt">somatic_synapses</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
 <span class="w">      </span><span class="nt">topk_init_method</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">xavier_normal</span>
+<span class="w">      </span><span class="nt">topk_noise_level</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">0.2</span><span class="w">  </span><span class="c1"># Noise level for TopK selection</span>
+<span class="w">      </span><span class="nt">topk_strategy</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">standard</span><span class="w">  </span><span class="c1"># Strategy for TopK selection: &quot;standard&quot;, &quot;stochastic&quot;, or &quot;variance&quot;</span>
 <span class="w">      </span><span class="nt">use_shunting</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
 <span class="w">      </span><span class="nt">reactivation_type</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">param_tanh</span>
 <span class="w">      </span><span class="nt">reactivation_strategy</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">inverse</span>

@@ -73,6 +73,8 @@
 <li class="toctree-l3"><a class="reference internal" href="#dendrinet">DendriNet</a></li>
 <li class="toctree-l3"><a class="reference internal" href="#dendriticbranchlayer">DendriticBranchLayer</a></li>
 <li class="toctree-l3"><a class="reference internal" href="#topklinear">TopKLinear</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#stochastictopklinear">StochasticTopKLinear</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#variancetopklinear">VarianceTopKLinear</a></li>
 <li class="toctree-l3"><a class="reference internal" href="#blocklinear">BlockLinear</a></li>
 <li class="toctree-l3"><a class="reference internal" href="#parametrictanh">ParametricTanh</a></li>
 <li class="toctree-l3"><a class="reference internal" href="#training-strategies">Training Strategies</a><ul>
@@ -242,6 +244,11 @@
 <span class="sd">        Strategy for BlockLinear layers</span>
 <span class="sd">    enable_branch_outputs : bool</span>
 <span class="sd">        Whether to enable access to branch outputs</span>
+<span class="sd">    topk_strategy : str</span>
+<span class="sd">        Strategy for topk selection of synaptic weights. Options:</span>
+<span class="sd">        - &quot;standard&quot;: Traditional deterministic top-K selection by weight magnitude</span>
+<span class="sd">        - &quot;stochastic&quot;: Probabilistic selection based on weight rank</span>
+<span class="sd">        - &quot;variance&quot;: Selection based on input activation variance and weight magnitude</span>
 <span class="sd">    &quot;&quot;&quot;</span>
 
     <span class="k">def</span><span class="w"> </span><span class="nf">forward</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">excitatory_input</span><span class="p">,</span> <span class="n">inhibitory_input</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
@@ -299,6 +306,11 @@
 <span class="sd">        Strategy for reactivation</span>
 <span class="sd">    blocklinear_strategy : str</span>
 <span class="sd">        Strategy for BlockLinear layers</span>
+<span class="sd">    topk_strategy : str</span>
+<span class="sd">        Strategy for topk selection of synaptic weights. Options:</span>
+<span class="sd">        - &quot;standard&quot;: Traditional deterministic top-K selection by weight magnitude</span>
+<span class="sd">        - &quot;stochastic&quot;: Probabilistic selection based on weight rank</span>
+<span class="sd">        - &quot;variance&quot;: Selection based on input activation variance and weight magnitude</span>
 <span class="sd">    &quot;&quot;&quot;</span>
 
     <span class="k">def</span><span class="w"> </span><span class="nf">forward</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">x</span><span class="p">,</span> <span class="n">inhibitory_input</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
@@ -360,6 +372,11 @@
 <span class="sd">        Strategy for reactivation</span>
 <span class="sd">    blocklinear_strategy : str</span>
 <span class="sd">        Strategy for BlockLinear layers</span>
+<span class="sd">    topk_strategy : str</span>
+<span class="sd">        Strategy for topk selection of synaptic weights. Options:</span>
+<span class="sd">        - &quot;standard&quot;: Traditional deterministic top-K selection by weight magnitude</span>
+<span class="sd">        - &quot;stochastic&quot;: Probabilistic selection based on weight rank</span>
+<span class="sd">        - &quot;variance&quot;: Selection based on input activation variance and weight magnitude</span>
 <span class="sd">    &quot;&quot;&quot;</span>
 
     <span class="k">def</span><span class="w"> </span><span class="nf">forward</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">x</span><span class="p">,</span> <span class="n">inhibitory_input</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
@@ -431,6 +448,198 @@
 <span class="sd">        -------</span>
 <span class="sd">        torch.Tensor</span>
 <span class="sd">            Output tensor</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="c1"># Implementation details...</span>
+</pre></div>
+</div>
+</section>
+<section id="stochastictopklinear">
+<h2>StochasticTopKLinear<a class="headerlink" href="#stochastictopklinear" title="Link to this heading"></a></h2>
+<p>The <code class="docutils literal notranslate"><span class="pre">StochasticTopKLinear</span></code> class implements a variant of TopKLinear with stochastic weight selection.</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="k">class</span><span class="w"> </span><span class="nc">StochasticTopKLinear</span><span class="p">(</span><span class="n">TopKLinear</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    A variant of TopKLinear where we select top-K stochastically based on rank:</span>
+
+<span class="sd">    This implementation:</span>
+<span class="sd">    1. Ranks weights by magnitude (or magnitude + noise)</span>
+<span class="sd">    2. Converts rank to a keep probability using a logistic function</span>
+<span class="sd">    3. Samples from Bernoulli distribution to determine which weights to keep</span>
+
+<span class="sd">    This stochastic approach allows smaller weights to occasionally contribute,</span>
+<span class="sd">    potentially improving exploration during training and preventing overfitting to</span>
+<span class="sd">    specific features.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    in_features : int</span>
+<span class="sd">        The number of input features.</span>
+
+<span class="sd">    out_features : int</span>
+<span class="sd">        The number of output features.</span>
+
+<span class="sd">    K : int</span>
+<span class="sd">        The number of strongest synapses to keep per dendritic branch.</span>
+
+<span class="sd">    param_space : str, optional</span>
+<span class="sd">        The parameter space for the weights. Options are &#39;log&#39; and &#39;presigmoid&#39;.</span>
+<span class="sd">        If `&#39;log&#39;`, the weights are parameterized as exponentials of `pre_w`.</span>
+<span class="sd">        If `&#39;presigmoid&#39;`, the weights are parameterized as sigmoids of `pre_w`.</span>
+<span class="sd">        Defaults to &#39;log&#39;.</span>
+
+<span class="sd">    init_method : str</span>
+<span class="sd">        Initialization method for weights.</span>
+
+<span class="sd">    init_gain : float</span>
+<span class="sd">        Gain factor for weight initialization.</span>
+
+<span class="sd">    noise_level : float</span>
+<span class="sd">        Standard deviation of Gaussian noise to add to weights during selection.</span>
+
+<span class="sd">    temperature : float</span>
+<span class="sd">        Controls the &quot;sharpness&quot; of the logistic function. Lower values make the</span>
+<span class="sd">        selection more deterministic (approaching standard TopK), while higher</span>
+<span class="sd">        values make it more uniform.</span>
+
+<span class="sd">    ultrafast : bool</span>
+<span class="sd">        When True, uses a highly optimized implementation that approximates</span>
+<span class="sd">        the stochastic selection with a simpler algorithm. This can be 10-50x</span>
+<span class="sd">        faster with similar behavior.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">weight_mask</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Generate a stochastic mask for weights based on their rank.</span>
+
+<span class="sd">        Instead of a hard top-k, ranks by magnitude and keeps each weight with</span>
+<span class="sd">        probability ~ sigmoid((k - rank)/(k*temperature)), so top ranks have</span>
+<span class="sd">        high probability ~1 of being kept.</span>
+
+<span class="sd">        Returns</span>
+<span class="sd">        -------</span>
+<span class="sd">        torch.Tensor</span>
+<span class="sd">            Binary mask for weights</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="c1"># Implementation details...</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">weight_mask_ultrafast</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Ultra-fast approximation of stochastic TopK that uses simple noise</span>
+<span class="sd">        addition followed by standard TopK selection.</span>
+
+<span class="sd">        This method:</span>
+<span class="sd">        1. Adds scaled noise directly to the weights (noise proportional to temperature)</span>
+<span class="sd">        2. Performs standard TopK selection on these noisy weights</span>
+<span class="sd">        3. Avoids the more complex ranking and sampling procedure</span>
+
+<span class="sd">        This provides a 10-50x speedup with similar stochastic behavior.</span>
+
+<span class="sd">        Returns</span>
+<span class="sd">        -------</span>
+<span class="sd">        torch.Tensor</span>
+<span class="sd">            Binary mask for weights</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="c1"># Implementation details...</span>
+</pre></div>
+</div>
+</section>
+<section id="variancetopklinear">
+<h2>VarianceTopKLinear<a class="headerlink" href="#variancetopklinear" title="Link to this heading"></a></h2>
+<p>The <code class="docutils literal notranslate"><span class="pre">VarianceTopKLinear</span></code> class implements a variant of TopKLinear that selects weights based on input activation variance.</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="k">class</span><span class="w"> </span><span class="nc">VarianceTopKLinear</span><span class="p">(</span><span class="n">TopKLinear</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    A variance-based TopK approach that tracks input activation statistics over batches</span>
+<span class="sd">    and selects weights based on the variance of activations at each input.</span>
+
+<span class="sd">    This implementation:</span>
+<span class="sd">    1. Uses exponential moving averages to track input statistics</span>
+<span class="sd">    2. Computes variance estimates for each input dimension</span>
+<span class="sd">    3. Selects connections based on input variance * weight magnitude</span>
+
+<span class="sd">    This approach prioritizes connections to inputs that have high variance</span>
+<span class="sd">    (carry more information) and have strong weights (model already considers important).</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    in_features : int</span>
+<span class="sd">        The number of input features.</span>
+
+<span class="sd">    out_features : int</span>
+<span class="sd">        The number of output features.</span>
+
+<span class="sd">    K : int</span>
+<span class="sd">        The number of strongest synapses to keep per dendritic branch.</span>
+
+<span class="sd">    param_space : str, optional</span>
+<span class="sd">        The parameter space for the weights. Options are &#39;log&#39; and &#39;presigmoid&#39;.</span>
+<span class="sd">        If `&#39;log&#39;`, the weights are parameterized as exponentials of `pre_w`.</span>
+<span class="sd">        If `&#39;presigmoid&#39;`, the weights are parameterized as sigmoids of `pre_w`.</span>
+<span class="sd">        Defaults to &#39;log&#39;.</span>
+
+<span class="sd">    init_method : str</span>
+<span class="sd">        Initialization method for weights.</span>
+
+<span class="sd">    init_gain : float</span>
+<span class="sd">        Gain factor for weight initialization.</span>
+
+<span class="sd">    noise_level : float</span>
+<span class="sd">        Standard deviation of Gaussian noise to add to weights during selection.</span>
+
+<span class="sd">    momentum : float</span>
+<span class="sd">        Momentum parameter for the exponential moving average updates of activation</span>
+<span class="sd">        statistics. Higher values (closer to 1.0) give more weight to past</span>
+<span class="sd">        observations.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">update_stats</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">x</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Update activation statistics with current batch.</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        x : torch.Tensor</span>
+<span class="sd">            Input tensor</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="c1"># Implementation details...</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">weight_mask</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Select TopK connections based on a combination of:</span>
+<span class="sd">        - Input activation variance</span>
+<span class="sd">        - Weight magnitude</span>
+
+<span class="sd">        The intuition is that we want to keep connections to inputs that:</span>
+<span class="sd">        1. Have high variance (carry more information)</span>
+<span class="sd">        2. Have strong weights (model cares about them)</span>
+
+<span class="sd">        Returns</span>
+<span class="sd">        -------</span>
+<span class="sd">        torch.Tensor</span>
+<span class="sd">            Binary mask for weights</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="c1"># Implementation details...</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">train</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">mode</span><span class="o">=</span><span class="kc">True</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Override train method to control stats tracking.</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        mode : bool</span>
+<span class="sd">            Whether to set the module in training mode</span>
+
+<span class="sd">        Returns</span>
+<span class="sd">        -------</span>
+<span class="sd">        self</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="c1"># Implementation details...</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">eval</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Override eval method to freeze stats in eval mode.</span>
+
+<span class="sd">        Returns</span>
+<span class="sd">        -------</span>
+<span class="sd">        self</span>
 <span class="sd">        &quot;&quot;&quot;</span>
         <span class="c1"># Implementation details...</span>
 </pre></div>
