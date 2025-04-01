@@ -75,6 +75,75 @@ y = (W ⊙ M)x + b
 ```
 Where M is a binary mask retaining only the top k elements in each row of W.
 
+TopK Selection Strategies
+~~~~~~~~~~~~~~~~~~~~~~~
+
+The framework offers three strategies for selecting the top K connections in dendritic branches:
+
+1. **Standard TopK** (default): The traditional deterministic approach that selects connections based solely on weight magnitude.
+
+   .. code-block:: python
+
+       # Configure a model to use standard TopK selection
+       model_config = {
+           "model": {
+               "network": {
+                   "parameters": {
+                       "topk_strategy": "standard",
+                       # other parameters...
+                   }
+               }
+           }
+       }
+
+2. **Stochastic TopK**: A probabilistic approach that selects connections based on a probability derived from weight rank.
+
+   .. code-block:: python
+
+       # Configure a model to use stochastic TopK selection
+       model_config = {
+           "model": {
+               "network": {
+                   "parameters": {
+                       "topk_strategy": "stochastic",
+                       "topk_noise_level": 0.2,  # Optional: adds noise to weight values
+                       # other parameters...
+                   }
+               }
+           }
+       }
+
+   Stochastic selection offers several benefits:
+
+   - Mitigates overfitting by introducing regularization
+   - Enables better exploration during training
+   - Increases model robustness to minor variations in input
+
+3. **Variance-Based TopK**: A data-driven approach that selects connections based on both weight magnitude and input variance.
+
+   .. code-block:: python
+
+       # Configure a model to use variance-based TopK selection
+       model_config = {
+           "model": {
+               "network": {
+                   "parameters": {
+                       "topk_strategy": "variance",
+                       # other parameters...
+                   }
+               }
+           }
+       }
+
+   Variance-based selection:
+
+   - Prioritizes connections to high-variance inputs that carry more information
+   - Combines statistical properties of the data with learned weights
+   - Adapts connection topology to the distribution of the input data
+   - Can improve feature selectivity and reduce redundancy
+
+These strategies can be selected through the ``topk_strategy`` parameter in the network configuration, providing flexibility to optimize models for different tasks and datasets.
+
 BlockLinear Layer
 ~~~~~~~~~~~~~~~
 

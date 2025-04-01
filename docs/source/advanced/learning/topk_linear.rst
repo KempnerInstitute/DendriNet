@@ -16,6 +16,103 @@ Biological dendrites perform selective integration of inputs by activating only 
 
 This selective integration is a fundamental departure from standard neural network layers and allows dendritic networks to implement powerful computational properties like context-dependent processing and feature binding.
 
+TopKLinear Variants
+-------------------
+
+The framework provides three variants of TopKLinear layers, each with different connection selection strategies:
+
+1. **Standard TopKLinear**: Deterministically selects the k strongest connections for each branch.
+2. **StochasticTopKLinear**: Selects connections probabilistically based on their strength rank.
+3. **VarianceTopKLinear**: Selects connections based on a combination of weight magnitude and input variance.
+
+These variants can be configured using the ``topk_strategy`` parameter:
+
+.. code-block:: yaml
+
+    model:
+      network:
+        parameters:
+          topk_strategy: "stochastic"  # Options: "standard", "stochastic", "variance"
+          # Additional parameters for specific strategies
+          topk_temperature: 0.5        # For stochastic TopK (controls randomness)
+          topk_noise_level: 0.1        # Adds noise to weight selection (all strategies)
+          topk_ultrafast: true         # Enables highly optimized implementation for stochastic TopK
+
+Standard TopKLinear
+~~~~~~~~~~~~~~~~~~~
+
+The standard TopKLinear implementation deterministically selects the k strongest inputs for each branch:
+
+1. **Deterministic selection**: Always selects the same k connections for identical inputs
+2. **Based purely on weight magnitude**: Only the absolute strength of the weight matters
+3. **Sharp selection boundary**: There is a hard cutoff between selected and non-selected inputs
+
+This approach is the fastest and most predictable, but might lead to less flexible representations.
+
+StochasticTopKLinear
+~~~~~~~~~~~~~~~~~~~~
+
+The StochasticTopKLinear layer introduces controlled randomness to the selection process:
+
+1. **Probabilistic selection**: Each connection has a probability of being selected based on its rank
+2. **Sigmoid probability function**: P(select) = sigmoid((k - rank)/(k * temperature))
+3. **Temperature parameter**: Controls the "sharpness" of the selection threshold
+   - Lower temperature (e.g., 0.1): More deterministic, similar to standard TopK
+   - Higher temperature (e.g., 1.0): More random, allowing weaker connections to participate
+
+This stochastic approach has several benefits:
+- Helps escape local minima during training by occasionally trying different connection patterns
+- Prevents overfitting by introducing controlled noise into the model
+- Closer to biological reality where synaptic activation has stochastic elements
+
+Configure StochasticTopKLinear with:
+
+.. code-block:: yaml
+
+    model:
+      network:
+        parameters:
+          topk_strategy: "stochastic"     # Select stochastic TopK
+          topk_temperature: 0.5           # Control randomness (0.1-1.0)
+          topk_noise_level: 0.1           # Add noise to weight values
+          topk_ultrafast: true            # Enable ultrafast implementation
+
+Ultrafast Mode for Stochastic TopK
+++++++++++++++++++++++++++++++++++
+
+The ``topk_ultrafast`` option enables a highly optimized implementation that significantly speeds up training:
+
+1. **Simplified algorithm**: Replaces the full stochastic procedure with a noise-based approximation
+2. **10-50x faster**: Greatly reduces computational overhead during training
+3. **Similar behavior**: Maintains the key properties of stochastic selection
+
+With ultrafast mode enabled, noise is directly added to the weights before a single standard TopK selection, approximating the more complex sampling procedure of the full implementation.
+
+VarianceTopKLinear
+~~~~~~~~~~~~~~~~~~
+
+The VarianceTopKLinear layer selects connections based on both weight magnitude and input statistics:
+
+1. **Variance tracking**: Maintains exponential moving averages of input activation statistics
+2. **Information-based selection**: Prioritizes inputs with high variance (information content)
+3. **Combined score**: Select based on weight_magnitude * input_variance
+
+This approach focuses connections on inputs that:
+- Carry more information (high variance = more discriminative signal)
+- Already have strong weights in the model
+
+This can be especially valuable when some inputs are more informative than others, or when dealing with noisy or redundant inputs.
+
+Configure VarianceTopKLinear with:
+
+.. code-block:: yaml
+
+    model:
+      network:
+        parameters:
+          topk_strategy: "variance"      # Select variance-based TopK
+          topk_noise_level: 0.0          # Typically less noise is needed with this approach
+
 TopKLinear Architecture
 -----------------------
 
@@ -99,6 +196,10 @@ The TopKLinear layer is configured through several parameters:
           excitatory_branch_factors: [64, 32]  # k values for excitatory layers
           inhibitory_branch_factors: [32, 16]  # k values for inhibitory layers
           topk_init_method: "xavier_normal"    # Weight initialization method
+          topk_strategy: "stochastic"          # Selection strategy
+          topk_temperature: 0.5                # For stochastic TopK
+          topk_noise_level: 0.1                # Noise level for weight selection
+          topk_ultrafast: true                 # Enable faster implementation
 
 The ``branch_factors`` parameters define the k value for each layer, which determines how many inputs are selected by each dendritic branch.
 
@@ -133,6 +234,7 @@ The TopKLinear layer is inspired by several properties of biological dendrites:
 2. **Nonlinear integration**: Inputs that arrive on the same dendritic branch can interact nonlinearly
 3. **Branch-specific processing**: Each dendritic branch can function as a semi-independent processing unit
 4. **Sparse activation**: Only a subset of synapses are strongly active for any given input
+5. **Stochastic activation**: Biological synapses have probabilistic activation properties
 
 The top-k selection mechanism is a simplified model of these biological properties, capturing the essential computational feature of selective integration.
 
@@ -249,25 +351,27 @@ Best Practices
 
 For optimal performance with TopKLinear layers:
 
-1. **Start with reasonable branch factors**:
-   - For initial experimentation, set k to 10-20% of the input dimension
-   - Adjust based on performance and desired properties
+1. **Choosing K values**:
+   - For deterministic TopK: Start with 10-20% of input dimensionality
+   - For stochastic TopK: Use smaller K values (5-15% of input dim) with temperature 0.3-0.7
+   - For variance-based TopK: Similar to deterministic, but monitor input statistics
 
-2. **Use appropriate reactivation strategies**:
-   - The "inverse" reactivation strategy often works well with dendritic networks
-   - Param_tanh reactivation type provides smooth activation profiles
+2. **Training stability**:
+   - Use gradient clipping (values between 1.0-10.0 work well)
+   - Consider lower learning rates for stochastic variants (0.5-0.8× standard rate)
 
-3. **Combine with appropriate activation functions**:
-   - Use reactivation_type param_tanh for better performance
-   - Consider the interaction between selectivity and nonlinearity
+3. **Computational efficiency**:
+   - Enable ultrafast mode for stochastic TopK during large-scale training
+   - Use standard TopK for inference if deterministic outputs are required
 
-4. **Monitor branch activation**:
-   - Track which branches are active during training
-   - Ensure branches aren't "dying" (never being selected)
+4. **Hyperparameter tuning**:
+   - For stochastic TopK: Sweep temperature (0.1-1.0) and noise level (0-0.2)
+   - For variance TopK: Focus on momentum values (0.9-0.99)
 
-5. **Adjust learning rates carefully**:
-   - Use gradient clipping to stabilize training
-   - Start with conservative learning rates (0.001) and adjust as needed
+5. **When to use each variant**:
+   - Standard TopK: When deterministic behavior is needed or for baseline comparisons
+   - Stochastic TopK: When training gets stuck or for more flexible representations
+   - Variance TopK: When dealing with varied information content across inputs or noisy data
 
 Example Configuration
 ---------------------

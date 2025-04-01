@@ -66,6 +66,8 @@ The ``model`` section defines the network architecture and parameters:
           reactivate: true
           somatic_synapses: true
           topk_init_method: xavier_normal
+          topk_noise_level: 0.2  # Noise level for TopK selection
+          topk_strategy: standard  # Strategy for TopK selection: "standard", "stochastic", or "variance"
           use_shunting: true
 
           # Reactivation settings
@@ -99,6 +101,12 @@ Key parameters include:
 * **reactivation_strategy**: Strategy for reactivation ("inverse" or "none")
 * **input_mode**: Method for handling inputs (0=direct, 1=exc=inh=input, 2=through input network)
 * **input_net_dict**: Configuration for input transformation network (used if input_mode=2)
+* **reactivate**: Whether to use a reactivation function
+* **somatic_synapses**: Whether to include direct synapses to the soma
+* **topk_init_method**: Initialization method for the TopK weights
+* **topk_noise_level**: Standard deviation of Gaussian noise added during TopK selection (0.0 for no noise)
+* **topk_strategy**: Strategy for selecting top K connections ("standard", "stochastic", or "variance")
+* **use_shunting**: Whether to use shunting inhibition
 
 Train Configuration
 ------------------
@@ -299,6 +307,86 @@ The ``outputs`` section defines where experiment results are saved:
     outputs:
       dir: "outputs"  # Directory for experiment outputs
 
+TopK Strategy Examples
+--------------------
+
+Here are example configurations for each TopK selection strategy:
+
+1. **Standard TopK** (deterministic selection by weight magnitude):
+
+.. code-block:: yaml
+
+    model:
+      network:
+        parameters:
+          # Other parameters...
+          topk_strategy: standard
+          topk_noise_level: 0.0  # No noise for purely deterministic selection
+
+2. **Stochastic TopK** (probabilistic selection based on rank):
+
+.. code-block:: yaml
+
+    model:
+      network:
+        parameters:
+          # Other parameters...
+          topk_strategy: stochastic
+          topk_temperature: 0.5  # Controls the "sharpness" of selection (0.1-1.0)
+          topk_noise_level: 0.2  # Adding noise can increase randomness
+          topk_ultrafast: true   # Enable high-performance implementation
+
+The stochastic approach offers several advantages:
+  - Prevents getting stuck in local minima during training
+  - Allows occasional exploration of different connection patterns
+  - More biologically realistic (synapses have probabilistic behavior)
+
+The **topk_ultrafast** parameter enables a highly optimized implementation that is 10-50x faster:
+  - Uses a simple noise-based approximation instead of the full stochastic algorithm
+  - Maintains the key properties of the stochastic approach
+  - Recommended for large models or datasets
+  - Suitable for most training scenarios
+
+3. **Variance-Based TopK** (selection based on input variance and weight magnitude):
+
+.. code-block:: yaml
+
+    model:
+      network:
+        parameters:
+          # Other parameters...
+          topk_strategy: variance
+          topk_noise_level: 0.0  # Typically not needed with variance-based selection
+
+The variance-based strategy is particularly useful for datasets with varying feature importance,
+as it automatically adapts to select connections to more informative inputs.
+
+Advanced TopK Configuration
+~~~~~~~~~~~~~~~~~~~~~~~~~
+
+**Stochastic TopK Temperature Guide**:
+
+- **Low temperature** (0.1-0.3):
+  - More deterministic selection
+  - Fewer weak connections get selected
+  - Suitable for fine-tuning or late in training
+
+- **Medium temperature** (0.3-0.7):
+  - Balanced exploration vs. exploitation
+  - Recommended for most use cases
+  - Good default: 0.5
+
+- **High temperature** (0.7-1.0):
+  - More uniform selection probabilities
+  - More exploration of different connection patterns
+  - Useful for early training or difficult datasets
+
+**Performance Considerations**:
+
+- For small models (< 1M parameters): Standard TopK or regular Stochastic TopK
+- For medium models (1M-10M parameters): Stochastic TopK with ultrafast mode
+- For large models (>10M parameters): Always use ultrafast mode when using Stochastic TopK
+
 Complete Example Configuration
 -----------------------------
 
@@ -324,6 +412,8 @@ Here's a complete example configuration for an MNIST experiment:
           reactivate: true
           somatic_synapses: true
           topk_init_method: xavier_normal
+          topk_noise_level: 0.2  # Noise level for TopK selection
+          topk_strategy: standard  # Strategy for TopK selection: "standard", "stochastic", or "variance"
           use_shunting: true
           reactivation_type: param_tanh
           reactivation_strategy: inverse
