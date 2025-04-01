@@ -58,12 +58,46 @@ def custom_yaml_dump(data, indent=0):
 
     for key, value in data.items():
         if isinstance(value, dict) or isinstance(value, DictConfig):
-            # Recursively process dictionaries with increased indentation
-            yaml_str += f"{indent_str}{key}:\n"
-            yaml_str += custom_yaml_dump(value, indent + 1)
+            # Check if it's an empty dict
+            if not value:
+                yaml_str += f"{indent_str}{key}: {{}}\n"
+            else:
+                # Recursively process dictionaries with increased indentation
+                yaml_str += f"{indent_str}{key}:\n"
+                yaml_str += custom_yaml_dump(value, indent + 1)
         elif isinstance(value, list):
-            # Write lists inline with brackets
-            yaml_str += f"{indent_str}{key}: {value}\n"
+            # Special handling for empty lists
+            if not value:
+                yaml_str += f"{indent_str}{key}: []\n"
+            # For short lists, write them inline with brackets
+            elif (
+                all(not isinstance(x, (dict, list)) for x in value)
+                and len(str(value)) < 60
+            ):
+                # Remove spaces after commas for consistency
+                list_str = str(value).replace(", ", ",")
+                yaml_str += f"{indent_str}{key}: {list_str}\n"
+            # For longer or complex lists, write each item on a new line
+            else:
+                yaml_str += f"{indent_str}{key}:\n"
+                for item in value:
+                    if isinstance(item, (dict, DictConfig)):
+                        yaml_str += f"{indent_str}  -\n"
+                        yaml_str += custom_yaml_dump(item, indent + 2)
+                    else:
+                        yaml_str += f"{indent_str}  - {item}\n"
+        elif isinstance(value, bool):
+            # Output booleans as lowercase 'true' or 'false' for consistency
+            yaml_str += f"{indent_str}{key}: {str(value).lower()}\n"
+        elif value is None:
+            # Handle None values
+            yaml_str += f"{indent_str}{key}:\n"
+        elif isinstance(value, str):
+            # Add quotes around strings that might need them
+            if any(c in value for c in ",:{}[]#&*!|>'\"%@`") or value.strip() != value:
+                yaml_str += f'{indent_str}{key}: "{value}"\n'
+            else:
+                yaml_str += f"{indent_str}{key}: {value}\n"
         else:
             # Write scalar values directly
             yaml_str += f"{indent_str}{key}: {value}\n"
@@ -142,33 +176,94 @@ def generate_config_files(base_config, sweep_params, output_dir="config_files"):
         Default is "config_files".
 
     """
+    print("[DEBUG inside generate_config_files] Function started.")
     os.makedirs(output_dir, exist_ok=True)
 
     sweep_keys = list(sweep_params.keys())
     sweep_values = [params for params in sweep_params.values()]
 
     # If nested lists, create all possible combinations
+    print(
+        f"[DEBUG inside generate_config_files] Generating product of sweep values: {sweep_values}"
+    )
     all_combinations = list(product(*sweep_values))
+    print(
+        f"[DEBUG inside generate_config_files] Generated {len(all_combinations)} combinations."
+    )
 
     configs = []
     sweeps = []
 
-    for combination in all_combinations:
+    print(
+        f"[DEBUG inside generate_config_files] Starting loop over {len(all_combinations)} combinations..."
+    )
+    for i, combination in enumerate(all_combinations):
+        print(
+            f"[DEBUG inside generate_config_files] --- Processing combination {i} --- "
+        )
+        print(
+            f"[DEBUG inside generate_config_files] Combination {i}: Starting deepcopy..."
+        )
         new_config = deepcopy(base_config)
+        print(
+            f"[DEBUG inside generate_config_files] Combination {i}: Deepcopy finished."
+        )
         param_details = {}
-        for key, value in zip(sweep_keys, combination):
-            keys = key.split(".")
-            sub_config = new_config
-            for sub_key in keys[:-1]:
-                sub_config = sub_config[sub_key]
-            sub_config[keys[-1]] = value
-            param_details[key] = value
 
+        print(
+            f"[DEBUG inside generate_config_files] Combination {i}: Applying sweep params..."
+        )
+        for key, value in zip(sweep_keys, combination):
+            # Manually handle the specific sweep parameters
+            try:
+                if key == "train.learning_strategy":
+                    print(
+                        f"[DEBUG inside generate_config_files] Setting train.learning_strategy to {value}"
+                    )
+                    new_config["train"]["learning_strategy"] = value
+                    param_details[key] = value
+
+                elif key == "model.network.parameters.topk_noise_level":
+                    print(
+                        f"[DEBUG inside generate_config_files] Setting model.network.parameters.topk_noise_level to {value}"
+                    )
+                    new_config["model"]["network"]["parameters"][
+                        "topk_noise_level"
+                    ] = value
+                    param_details[key] = value
+
+                elif key == "model.network.parameters.topk_strategy":
+                    print(
+                        f"[DEBUG inside generate_config_files] Setting model.network.parameters.topk_strategy to {value}"
+                    )
+                    new_config["model"]["network"]["parameters"][
+                        "topk_strategy"
+                    ] = value
+                    param_details[key] = value
+
+                else:
+                    print(f"[WARNING] Unknown sweep parameter: {key}")
+            except Exception as e:
+                print(f"[ERROR] Failed to set {key} to {value}: {e}")
+
+        print(
+            f"[DEBUG inside generate_config_files] Combination {i}: Sweep params applied."
+        )
+
+        print(
+            f"[DEBUG inside generate_config_files] Combination {i}: Containerizing config..."
+        )
         containerized_config = OmegaConf.to_container(new_config, resolve=False)
+        print(
+            f"[DEBUG inside generate_config_files] Combination {i}: Config containerized."
+        )
         configs.append(containerized_config)
         sweeps.append(param_details)
+    print(f"[DEBUG inside generate_config_files] Finished loop.")
 
-    print(f"Generated {len(configs)} configuration files.")
+    print(
+        f"[DEBUG inside generate_config_files] Returning {len(configs)} configs and {len(sweeps)} sweeps."
+    )
     return configs, sweeps
 
 
@@ -260,13 +355,32 @@ def generate_run_sh(num_config, config_dir, config_filename_init, slurm_config):
             ]
         )
 
+    # Ensure time is in HH:MM:SS format
+    time_value = slurm_config["time"]
+    # If time value is just a number (seconds), convert to HH:MM:SS
+    if isinstance(time_value, (int, float)) or (
+        isinstance(time_value, str) and time_value.isdigit()
+    ):
+        seconds = int(time_value)
+        hours = seconds // 3600
+        minutes = (seconds % 3600) // 60
+        seconds = seconds % 60
+        formatted_time = f"{hours}:{minutes:02d}:{seconds:02d}"
+    else:
+        # Already in string format, ensure it has colons
+        if ":" not in time_value:
+            # Assume it's hours if no colons
+            formatted_time = f"{time_value}:00:00"
+        else:
+            formatted_time = time_value
+
     lines.extend(
         [
             f"#SBATCH --nodes={slurm_config['nodes']}",
             f"#SBATCH --ntasks-per-node={slurm_config['ntasks_per_node']}",
             f"#SBATCH --gpus-per-node={slurm_config['gpus_per_node']}",
             f"#SBATCH --cpus-per-task={slurm_config['cpus_per_task']}",
-            f"#SBATCH --time={slurm_config['time']}",
+            f"#SBATCH --time={formatted_time}",
             f"#SBATCH --mem={slurm_config['mem']}",
             f"#SBATCH --partition={slurm_config['partition']}",
         ]
@@ -339,10 +453,16 @@ def generate_run_sh(num_config, config_dir, config_filename_init, slurm_config):
     lines.append("srun \\")
     lines.append("  --cpus-per-task=${SLURM_CPUS_PER_TASK} \\")
     lines.append("  --kill-on-bad-exit \\")
-    lines.append("  ${PYTHON} -u  ${TRAINING_SCRIPT} ${CONFIG} \\")
-    lines.append("  --output_dir=${OUTPUT_FOLDER_PATH} \\")
-    lines.append("  --experiment_name=${RUN_NAME} \\")
-    lines.append("  ${@}")
+
+    # Fix the training script path - use the full path to the script
+    # And only pass the config file as an argument, as that's all the script expects
+    if slurm_config["training_script"].startswith("/"):
+        # If it's already an absolute path, use it as is
+        lines.append("  ${PYTHON} -u ${TRAINING_SCRIPT} ${CONFIG}")
+    else:
+        # If it's a relative path, prepend the current directory
+        lines.append("  ${PYTHON} -u $(pwd)/${TRAINING_SCRIPT} ${CONFIG}")
+
     lines.append("end_time=$(date +%s)")
     lines.append('echo "Done with running a training job at $(date)"')
     lines.append('echo "Total duration: $((end_time - start_time)) seconds."')
@@ -382,35 +502,63 @@ if __name__ == "__main__":
     config_dir = args.config_dir
     param_filename = args.param_filename
 
+    print(f"[DEBUG] Reading config from {config_dir}/{param_filename}...")
     # Read the config file
     params = read_config(config_dir, param_filename)
+    print("[DEBUG] Config read successfully.")
 
     # Validate the parameters
+    print("[DEBUG] Validating parameters...")
     validate_params(params)
+    print("[DEBUG] Parameters validated.")
 
     params.slurm_config.run_name = params.train_config.train.run_name
+    print(f"[DEBUG] Set slurm_config.run_name to {params.slurm_config.run_name}")
 
-    # Generate configuration files for each combination of sweep parameters
+    # Prepare for generation
     base_config = params["train_config"]
     sweep_params = params["sweep_config"]
     slurm_config = params["slurm_config"]
     config_filename_init = slurm_config["config_filename_init"]
 
-    flatten_sweep_params = flatten(sweep_params)
+    # SIMPLIFIED APPROACH FOR SPECIFIC SWEEP PARAMETERS
+    # Replace the complex flattening with a direct dictionary for the key sweep parameters
+    print("[DEBUG] Creating direct sweep parameter dictionary...")
+    manual_sweep_params = {}
+    if "train.learning_strategy" in sweep_params:
+        manual_sweep_params["train.learning_strategy"] = sweep_params[
+            "train.learning_strategy"
+        ]
+    if "model.network.parameters.topk_noise_level" in sweep_params:
+        manual_sweep_params["model.network.parameters.topk_noise_level"] = sweep_params[
+            "model.network.parameters.topk_noise_level"
+        ]
+    if "model.network.parameters.topk_strategy" in sweep_params:
+        manual_sweep_params["model.network.parameters.topk_strategy"] = sweep_params[
+            "model.network.parameters.topk_strategy"
+        ]
+    print(f"[DEBUG] Direct sweep parameters = {manual_sweep_params}")
+
+    # Generate configuration files for each combination of sweep parameters
+    print("[DEBUG] Generating config combinations...")
     configs, sweeps = generate_config_files(
-        base_config, flatten_sweep_params, output_dir=config_dir
+        base_config, manual_sweep_params, output_dir=config_dir
     )
+    print(f"[DEBUG] Generated {len(configs)} config combinations.")
 
     # Write the configuration files to disk
+    print("[DEBUG] Writing config files...")
     write_config_files(
         configs, sweeps, output_dir=config_dir, base_name=config_filename_init
     )
+    print("[DEBUG] Finished writing config files.")
 
     # Generate a SLURM batch script for running jobs
-    # Get config file name init
+    print("[DEBUG] Generating run.sh script...")
     generate_run_sh(
         len(configs),
         config_dir=config_dir,
         config_filename_init=config_filename_init,
         slurm_config=slurm_config,
     )
+    print("[DEBUG] Finished generating run.sh script.")
