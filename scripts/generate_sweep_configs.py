@@ -232,6 +232,15 @@ def generate_config_files(base_config, sweep_params, output_dir="config_files"):
                     ] = value
                     param_details[key] = value
 
+                elif key == "model.network.parameters.topk_strategy":
+                    print(
+                        f"[DEBUG inside generate_config_files] Setting model.network.parameters.topk_strategy to {value}"
+                    )
+                    new_config["model"]["network"]["parameters"][
+                        "topk_strategy"
+                    ] = value
+                    param_details[key] = value
+
                 else:
                     print(f"[WARNING] Unknown sweep parameter: {key}")
             except Exception as e:
