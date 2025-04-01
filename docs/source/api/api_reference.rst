@@ -133,6 +133,11 @@ The ``ExcitationInhibitionLayer`` implements a single layer of excitatory and in
             Strategy for BlockLinear layers
         enable_branch_outputs : bool
             Whether to enable access to branch outputs
+        topk_strategy : str
+            Strategy for topk selection of synaptic weights. Options:
+            - "standard": Traditional deterministic top-K selection by weight magnitude
+            - "stochastic": Probabilistic selection based on weight rank
+            - "variance": Selection based on input activation variance and weight magnitude
         """
 
         def forward(self, excitatory_input, inhibitory_input=None):
@@ -192,6 +197,11 @@ The ``DendriNet`` class implements a dendritic network that processes inputs thr
             Strategy for reactivation
         blocklinear_strategy : str
             Strategy for BlockLinear layers
+        topk_strategy : str
+            Strategy for topk selection of synaptic weights. Options:
+            - "standard": Traditional deterministic top-K selection by weight magnitude
+            - "stochastic": Probabilistic selection based on weight rank
+            - "variance": Selection based on input activation variance and weight magnitude
         """
 
         def forward(self, x, inhibitory_input=None):
@@ -255,6 +265,11 @@ The ``DendriticBranchLayer`` implements a single layer of dendritic branches.
             Strategy for reactivation
         blocklinear_strategy : str
             Strategy for BlockLinear layers
+        topk_strategy : str
+            Strategy for topk selection of synaptic weights. Options:
+            - "standard": Traditional deterministic top-K selection by weight magnitude
+            - "stochastic": Probabilistic selection based on weight rank
+            - "variance": Selection based on input activation variance and weight magnitude
         """
 
         def forward(self, x, inhibitory_input=None):
@@ -328,6 +343,202 @@ The ``TopKLinear`` class implements a linear transformation with top-k selection
             -------
             torch.Tensor
                 Output tensor
+            """
+            # Implementation details...
+
+StochasticTopKLinear
+------------------
+
+The ``StochasticTopKLinear`` class implements a variant of TopKLinear with stochastic weight selection.
+
+.. code-block:: python
+
+    class StochasticTopKLinear(TopKLinear):
+        """
+        A variant of TopKLinear where we select top-K stochastically based on rank:
+
+        This implementation:
+        1. Ranks weights by magnitude (or magnitude + noise)
+        2. Converts rank to a keep probability using a logistic function
+        3. Samples from Bernoulli distribution to determine which weights to keep
+
+        This stochastic approach allows smaller weights to occasionally contribute,
+        potentially improving exploration during training and preventing overfitting to
+        specific features.
+
+        Parameters
+        ----------
+        in_features : int
+            The number of input features.
+
+        out_features : int
+            The number of output features.
+
+        K : int
+            The number of strongest synapses to keep per dendritic branch.
+
+        param_space : str, optional
+            The parameter space for the weights. Options are 'log' and 'presigmoid'.
+            If `'log'`, the weights are parameterized as exponentials of `pre_w`.
+            If `'presigmoid'`, the weights are parameterized as sigmoids of `pre_w`.
+            Defaults to 'log'.
+
+        init_method : str
+            Initialization method for weights.
+
+        init_gain : float
+            Gain factor for weight initialization.
+
+        noise_level : float
+            Standard deviation of Gaussian noise to add to weights during selection.
+
+        temperature : float
+            Controls the "sharpness" of the logistic function. Lower values make the
+            selection more deterministic (approaching standard TopK), while higher
+            values make it more uniform.
+
+        ultrafast : bool
+            When True, uses a highly optimized implementation that approximates
+            the stochastic selection with a simpler algorithm. This can be 10-50x
+            faster with similar behavior.
+        """
+
+        def weight_mask(self):
+            """
+            Generate a stochastic mask for weights based on their rank.
+
+            Instead of a hard top-k, ranks by magnitude and keeps each weight with
+            probability ~ sigmoid((k - rank)/(k*temperature)), so top ranks have
+            high probability ~1 of being kept.
+
+            Returns
+            -------
+            torch.Tensor
+                Binary mask for weights
+            """
+            # Implementation details...
+
+        def weight_mask_ultrafast(self):
+            """
+            Ultra-fast approximation of stochastic TopK that uses simple noise
+            addition followed by standard TopK selection.
+
+            This method:
+            1. Adds scaled noise directly to the weights (noise proportional to temperature)
+            2. Performs standard TopK selection on these noisy weights
+            3. Avoids the more complex ranking and sampling procedure
+
+            This provides a 10-50x speedup with similar stochastic behavior.
+
+            Returns
+            -------
+            torch.Tensor
+                Binary mask for weights
+            """
+            # Implementation details...
+
+VarianceTopKLinear
+----------------
+
+The ``VarianceTopKLinear`` class implements a variant of TopKLinear that selects weights based on input activation variance.
+
+.. code-block:: python
+
+    class VarianceTopKLinear(TopKLinear):
+        """
+        A variance-based TopK approach that tracks input activation statistics over batches
+        and selects weights based on the variance of activations at each input.
+
+        This implementation:
+        1. Uses exponential moving averages to track input statistics
+        2. Computes variance estimates for each input dimension
+        3. Selects connections based on input variance * weight magnitude
+
+        This approach prioritizes connections to inputs that have high variance
+        (carry more information) and have strong weights (model already considers important).
+
+        Parameters
+        ----------
+        in_features : int
+            The number of input features.
+
+        out_features : int
+            The number of output features.
+
+        K : int
+            The number of strongest synapses to keep per dendritic branch.
+
+        param_space : str, optional
+            The parameter space for the weights. Options are 'log' and 'presigmoid'.
+            If `'log'`, the weights are parameterized as exponentials of `pre_w`.
+            If `'presigmoid'`, the weights are parameterized as sigmoids of `pre_w`.
+            Defaults to 'log'.
+
+        init_method : str
+            Initialization method for weights.
+
+        init_gain : float
+            Gain factor for weight initialization.
+
+        noise_level : float
+            Standard deviation of Gaussian noise to add to weights during selection.
+
+        momentum : float
+            Momentum parameter for the exponential moving average updates of activation
+            statistics. Higher values (closer to 1.0) give more weight to past
+            observations.
+        """
+
+        def update_stats(self, x):
+            """
+            Update activation statistics with current batch.
+
+            Parameters
+            ----------
+            x : torch.Tensor
+                Input tensor
+            """
+            # Implementation details...
+
+        def weight_mask(self):
+            """
+            Select TopK connections based on a combination of:
+            - Input activation variance
+            - Weight magnitude
+
+            The intuition is that we want to keep connections to inputs that:
+            1. Have high variance (carry more information)
+            2. Have strong weights (model cares about them)
+
+            Returns
+            -------
+            torch.Tensor
+                Binary mask for weights
+            """
+            # Implementation details...
+
+        def train(self, mode=True):
+            """
+            Override train method to control stats tracking.
+
+            Parameters
+            ----------
+            mode : bool
+                Whether to set the module in training mode
+
+            Returns
+            -------
+            self
+            """
+            # Implementation details...
+
+        def eval(self):
+            """
+            Override eval method to freeze stats in eval mode.
+
+            Returns
+            -------
+            self
             """
             # Implementation details...
 
