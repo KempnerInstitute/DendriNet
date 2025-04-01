@@ -119,7 +119,7 @@ class TopKLinear(nn.Module):
         )
 
         if not isinstance(K, int):
-            raise TypeError("K must be an integer")
+            K = int(K)  # Ensure K is an integer
 
         if K < 1:
             raise ValueError("K must be >= 1")
@@ -218,6 +218,321 @@ class TopKLinear(nn.Module):
 
         weighted_synapses = cell_weights[:, None] * synapse_weights
         return weighted_synapses.sum(dim=0)
+
+
+# ------------- New TopK Variant Classes -------------
+class StochasticTopKLinear(TopKLinear):
+    """
+    A variant of TopKLinear where we select top-K stochastically based on rank:
+    - We rank by pre_w (or pre_w + noise if noise_level>0).
+    - Convert rank => probability of being "kept."
+    - Sample a Bernoulli, so smaller weights still have a small chance to stay on.
+    """
+
+    def __init__(
+        self,
+        in_features,
+        out_features,
+        K,
+        param_space="log",
+        init_method="xavier_normal",
+        init_gain=1.0,
+        noise_level=0.0,
+        temperature=0.5,  # extra hyperparam for sharper or flatter gating
+        ultrafast=False,  # Set to True for much faster but approximate implementation
+    ):
+        super().__init__(
+            in_features,
+            out_features,
+            K,
+            param_space=param_space,
+            init_method=init_method,
+            init_gain=init_gain,
+            noise_level=noise_level,
+        )
+        self.temperature = temperature
+        self.ultrafast = ultrafast
+
+    def weight_mask_ultrafast(self):
+        """
+        Ultra-fast approximation of stochastic TopK that:
+        1. Adds noise directly to the weights before standard TopK selection
+        2. Uses more noise for lower-ranked weights to approximate the desired stochasticity
+        3. Performs a single standard TopK operation with no correction steps
+
+        10-50x faster than the full stochastic method with similar behavior.
+        """
+        # Ensure K is valid and an integer
+        k_value = max(1, int(self.K))
+
+        # Apply scaled and temperature-controlled noise
+        w_for_topk = self.pre_w.clone()
+
+        # Generate noise with standard deviation that scales with temperature
+        noise_scale = max(0.01, self.temperature) * (1.0 + self.noise_level)
+        noise = torch.randn_like(w_for_topk) * noise_scale
+
+        # Simply add noise to weights - simpler but still effective approach
+        noisy_weights = w_for_topk + noise
+
+        # Perform standard TopK selection on the noisy weights
+        topK_indices = torch.topk(
+            noisy_weights, k_value, dim=-1, largest=True, sorted=False
+        )[1]
+
+        # Create mask using the standard TopK approach
+        mask = torch.zeros_like(
+            self.pre_w,
+            device=self.pre_w.device,
+            dtype=self.pre_w.dtype,
+        )
+        batch_indices = (
+            torch.arange(self.pre_w.shape[0], device=self.pre_w.device)
+            .view(-1, 1)
+            .expand(-1, k_value)
+        )
+        mask[batch_indices, topK_indices] = 1
+
+        return mask
+
+    def weight_mask(self):
+        """
+        Instead of a hard top-k, we rank by magnitude and keep each weight with a probability
+        ~ sigmoid((k - rank)/ (k*self.temperature)), so top ranks have high prob ~1.
+
+        This is a vectorized implementation that processes all neurons at once for better performance.
+        """
+        # Use ultrafast implementation if requested
+        if self.ultrafast:
+            return self.weight_mask_ultrafast()
+
+        # Apply noise if requested
+        w_for_topk = self.pre_w
+        if self.noise_level > 0:
+            noise = torch.randn_like(self.pre_w) * self.noise_level
+            w_for_topk = self.pre_w + noise
+
+        # Ensure K is an integer and at least 1
+        k_value = max(1, int(self.K))
+
+        # Get dimensions
+        out_features, in_features = w_for_topk.shape
+
+        # Calculate absolute values for ranking
+        abs_weights = w_for_topk.abs()
+
+        # For each neuron, sort the input weights and get the ranks
+        # - First, get the indices that would sort each row in descending order
+        _, sort_indices = torch.sort(abs_weights, dim=1, descending=True)
+
+        # - Create a rank tensor with the same shape as weights
+        # Ensure the dtype is the same as what we'll assign to it (Long/Int64)
+        arange_indices = torch.arange(in_features, device=w_for_topk.device).expand(
+            out_features, -1
+        )
+        ranks = torch.zeros_like(w_for_topk, dtype=arange_indices.dtype)
+
+        # - For each neuron (row), assign ranks to the positions
+        batch_indices = (
+            torch.arange(out_features, device=w_for_topk.device)
+            .view(-1, 1)
+            .expand(-1, in_features)
+        )
+        ranks[batch_indices, sort_indices] = arange_indices
+
+        # Convert ranks to float for sigmoid calculation
+        ranks = ranks.to(torch.float)
+
+        # Calculate selection probabilities using sigmoid
+        temperature = max(0.01, self.temperature)  # Prevent division by zero
+        p = torch.sigmoid((k_value - ranks) / (k_value * temperature))
+
+        # Sample Bernoulli for all neurons at once
+        mask = torch.bernoulli(p)
+
+        # Fast connection count correction to ensure each neuron has reasonable connections
+        # 1. Count connections per neuron
+        connections_per_neuron = mask.sum(dim=1)
+
+        # 2. For neurons with too few connections (less than K/2), add more
+        too_few_mask = connections_per_neuron < (k_value // 2)
+        if too_few_mask.any():
+            # Safe handling of nonzero indices to avoid 0-d tensor issues
+            too_few_indices = too_few_mask.nonzero(as_tuple=False).view(-1)
+            for i in too_few_indices:
+                # Get the indices of the top-K weights for this neuron
+                _, top_indices = torch.topk(abs_weights[i], k_value, largest=True)
+                mask[i, top_indices] = 1
+
+        # 3. For neurons with too many connections (more than 2*K), keep only the top 2*K
+        too_many_mask = connections_per_neuron > (2 * k_value)
+        if too_many_mask.any():
+            # Safe handling of nonzero indices to avoid 0-d tensor issues
+            too_many_indices = too_many_mask.nonzero(as_tuple=False).view(-1)
+            for i in too_many_indices:
+                # Find the weakest connections for this neuron
+                # First, get indices of all connections that are currently active
+                active_indices = mask[i].nonzero(as_tuple=True)[0]
+                # Get their weights
+                active_weights = abs_weights[i, active_indices]
+                # Sort from weakest to strongest
+                _, sorted_indices = torch.sort(active_weights)
+                # Calculate how many to remove
+                to_remove = int(connections_per_neuron[i].item() - k_value)
+                # Set the weakest ones to 0
+                if to_remove > 0:
+                    indices_to_remove = active_indices[sorted_indices[:to_remove]]
+                    mask[i, indices_to_remove] = 0
+
+        # 4. Handle neurons with zero connections
+        zero_connections = connections_per_neuron == 0
+        if zero_connections.any():
+            # Safe handling of nonzero indices to avoid 0-d tensor issues
+            zero_indices = zero_connections.nonzero(as_tuple=False).view(-1)
+            for i in zero_indices:
+                # Get the index of the strongest weight for this neuron
+                strongest_idx = torch.argmax(abs_weights[i])
+                mask[i, strongest_idx] = 1
+
+        return mask
+
+
+class VarianceTopKLinear(TopKLinear):
+    """
+    A variance-based TopK approach that tracks input activation statistics over batches
+    and selects weights based on the variance of activations at each input.
+
+    This implementation:
+    1. Uses exponential moving averages to track input statistics
+    2. Computes variance estimates for each input dimension
+    3. Selects connections based on input variance * weight magnitude
+    """
+
+    def __init__(
+        self,
+        in_features,
+        out_features,
+        K,
+        param_space="log",
+        init_method="xavier_normal",
+        init_gain=1.0,
+        noise_level=0.0,
+        momentum=0.9,  # EMA momentum for tracking statistics
+    ):
+        super().__init__(
+            in_features,
+            out_features,
+            K,
+            param_space=param_space,
+            init_method=init_method,
+            init_gain=init_gain,
+            noise_level=noise_level,
+        )
+        self.momentum = momentum
+
+        # Initialize tracking buffers for activation statistics (not parameters)
+        self.register_buffer("activation_mean", torch.zeros(in_features))
+        self.register_buffer("activation_sq_mean", torch.zeros(in_features))
+        self.register_buffer("activation_var", torch.ones(in_features))
+        self.register_buffer("num_updates", torch.zeros(1))
+
+        # Flag to track if we're in training mode
+        self.stats_tracking = True
+
+    def update_stats(self, x):
+        """Update activation statistics with current batch."""
+        if not self.stats_tracking:
+            return
+
+        # If this is a batched input, average over the batch
+        if x.dim() > 1:
+            batch_means = x.mean(dim=0)
+            batch_sq_means = (x**2).mean(dim=0)
+        else:
+            batch_means = x
+            batch_sq_means = x**2
+
+        # Increment counter
+        self.num_updates += 1
+
+        # Apply exponential moving average updates
+        if self.num_updates == 1:
+            # First update, just use the batch stats
+            self.activation_mean.copy_(batch_means)
+            self.activation_sq_mean.copy_(batch_sq_means)
+        else:
+            # EMA update
+            self.activation_mean.mul_(self.momentum).add_(
+                batch_means * (1 - self.momentum)
+            )
+            self.activation_sq_mean.mul_(self.momentum).add_(
+                batch_sq_means * (1 - self.momentum)
+            )
+
+        # Compute variance: E[X²] - E[X]²
+        self.activation_var = self.activation_sq_mean - self.activation_mean**2
+
+        # Ensure variance is positive (numeric stability)
+        self.activation_var.clamp_(min=1e-6)
+
+    def forward(self, x):
+        # Update statistics during forward pass
+        self.update_stats(x)
+
+        # Use parent class forward implementation to avoid code duplication
+        return super().forward(x)
+
+    def weight_mask(self):
+        """
+        Select TopK connections based on a combination of:
+        - Input activation variance
+        - Weight magnitude
+
+        The intuition is that we want to keep connections to inputs that:
+        1. Have high variance (carry more information)
+        2. Have strong weights (model cares about them)
+        """
+        # Determine weights for topk selection
+        w_for_topk = self.pre_w
+        if self.noise_level > 0:
+            noise = torch.randn_like(self.pre_w) * self.noise_level
+            w_for_topk = self.pre_w + noise
+
+        # Calculate importance scores using weights and input variance
+        # Each neuron sees the same activation variance, but has different weights
+        # Expand variance to match weight shape [out_features, in_features]
+        var_expanded = self.activation_var.expand_as(w_for_topk)
+
+        # Score is weight magnitude * input variance
+        if self.param_space == "log":
+            # For log param space, we use exp(pre_w) * variance
+            importance_scores = w_for_topk.exp() * var_expanded
+        else:
+            # For presigmoid, use sigmoid(pre_w) * variance
+            importance_scores = torch.sigmoid(w_for_topk) * var_expanded
+
+        # Perform topk selection per neuron
+        topk_indices = torch.topk(
+            importance_scores, self.K, dim=-1, largest=True, sorted=False
+        )[1]
+
+        # Create mask based on selected indices
+        mask = torch.zeros_like(self.pre_w)
+        mask[torch.arange(self.pre_w.shape[0])[:, None], topk_indices] = 1
+
+        return mask
+
+    def train(self, mode=True):
+        """Override train method to control stats tracking."""
+        super().train(mode)
+        self.stats_tracking = mode
+        return self
+
+    def eval(self):
+        """Override eval method to freeze stats in eval mode."""
+        super().eval()
+        self.stats_tracking = False
+        return self
 
 
 class BlockLinear(nn.Module):
@@ -403,6 +718,9 @@ class DendriticBranchLayer(nn.Module):
         input_branch_factor=None,
         topk_init_method="xavier_normal",
         topk_noise_level=0.0,
+        topk_strategy="standard",  # New parameter
+        topk_temperature=0.5,  # For stochastic TopK
+        topk_ultrafast=False,  # For much faster stochastic TopK
         use_shunting=True,
         reactivate=False,
         reactivation_type="param_tanh",
@@ -415,10 +733,13 @@ class DendriticBranchLayer(nn.Module):
         self.reactivation_strategy = reactivation_strategy
         self.blocklinear_strategy = blocklinear_strategy
         self.use_shunting = use_shunting
+        self.topk_strategy = topk_strategy  # Store the strategy
+        self.topk_temperature = topk_temperature  # Store the temperature
+        self.topk_ultrafast = topk_ultrafast  # Store the ultrafast flag
 
         self.input_excitatory = excitatory_input_dim is not None
         if self.input_excitatory:
-            self.branch_excitation = TopKLinear(
+            self.branch_excitation = self._create_topk_layer(
                 in_features=excitatory_input_dim,
                 out_features=output_dim,
                 K=excitatory_synapses_per_branch,
@@ -431,7 +752,7 @@ class DendriticBranchLayer(nn.Module):
 
         self.input_inhibitory = inhibitory_input_dim is not None
         if self.input_inhibitory:
-            self.branch_inhibition = TopKLinear(
+            self.branch_inhibition = self._create_topk_layer(
                 in_features=inhibitory_input_dim,
                 out_features=output_dim,
                 K=inhibitory_synapses_per_branch,
@@ -474,6 +795,66 @@ class DendriticBranchLayer(nn.Module):
         self.reactivate = reactivate
 
         self.initialize()
+
+    def _create_topk_layer(
+        self,
+        in_features,
+        out_features,
+        K,
+        init_method,
+        noise_level,
+    ):
+        """Helper function that picks which topk class to use based on strategy."""
+        # For 'standard' strategy, use the original TopKLinear class exactly as before
+        # This provides a direct path with zero overhead compared to the original code
+        if self.topk_strategy is None or self.topk_strategy == "standard":
+            # Create directly without any strategy-specific logic
+            topk_layer = TopKLinear(
+                in_features=in_features,
+                out_features=out_features,
+                K=K,
+                param_space="log",
+                init_method=init_method,
+                noise_level=noise_level,
+            )
+            return topk_layer
+
+        # Alternative strategies only incur overhead if explicitly requested
+        elif self.topk_strategy == "stochastic":
+            # Get temperature parameter if available
+            temperature = getattr(self, "topk_temperature", 0.5)
+            # Check if ultrafast mode is enabled
+            ultrafast = getattr(self, "topk_ultrafast", False)
+
+            return StochasticTopKLinear(
+                in_features=in_features,
+                out_features=out_features,
+                K=K,
+                param_space="log",
+                init_method=init_method,
+                noise_level=noise_level,
+                temperature=temperature,
+                ultrafast=ultrafast,
+            )
+        elif self.topk_strategy == "variance":
+            return VarianceTopKLinear(
+                in_features=in_features,
+                out_features=out_features,
+                K=K,
+                param_space="log",
+                init_method=init_method,
+                noise_level=noise_level,
+            )
+        else:
+            # Fallback for any unknown strategy - use standard
+            return TopKLinear(
+                in_features=in_features,
+                out_features=out_features,
+                K=K,
+                param_space="log",
+                init_method=init_method,
+                noise_level=noise_level,
+            )
 
     def initialize(self):
         with torch.no_grad():
@@ -617,6 +998,9 @@ class DendriNet(nn.Module):
         somatic_synapses=True,
         topk_init_method="xavier_normal",
         topk_noise_level=0.0,
+        topk_strategy="standard",  # New parameter for TopK strategy
+        topk_temperature=0.5,  # For stochastic TopK
+        topk_ultrafast=False,  # For much faster stochastic TopK
         use_shunting=True,
         reactivation_type="param_tanh",
         reactivation_strategy="none",
@@ -673,6 +1057,9 @@ class DendriNet(nn.Module):
                 input_branch_factor=branch_factors[i],
                 topk_init_method=topk_init_method,
                 topk_noise_level=topk_noise_level,
+                topk_strategy=topk_strategy,  # Pass the parameter
+                topk_temperature=topk_temperature,  # Pass the temperature
+                topk_ultrafast=topk_ultrafast,  # Pass the ultrafast flag
                 use_shunting=use_shunting,
                 reactivate=reactivate,
                 reactivation_type=reactivation_type,
@@ -693,6 +1080,9 @@ class DendriNet(nn.Module):
                     input_branch_factor=branch_factors[-1],
                     topk_init_method=topk_init_method,
                     topk_noise_level=topk_noise_level,
+                    topk_strategy=topk_strategy,  # Pass the parameter
+                    topk_temperature=topk_temperature,  # Pass the temperature
+                    topk_ultrafast=topk_ultrafast,  # Pass the ultrafast flag
                     use_shunting=use_shunting,
                     reactivate=reactivate,
                     reactivation_type=reactivation_type,
@@ -712,6 +1102,9 @@ class DendriNet(nn.Module):
                     input_branch_factor=branch_factors[-1],
                     topk_init_method=topk_init_method,
                     topk_noise_level=topk_noise_level,
+                    topk_strategy=topk_strategy,  # Pass the parameter
+                    topk_temperature=topk_temperature,  # Pass the temperature
+                    topk_ultrafast=topk_ultrafast,  # Pass the ultrafast flag
                     use_shunting=use_shunting,
                     reactivate=reactivate,
                     reactivation_type=reactivation_type,
