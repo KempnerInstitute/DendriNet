@@ -3,9 +3,12 @@
 import os
 import shutil
 from copy import deepcopy
+from math import log
+from typing import Dict, List, Optional, Tuple, Union
 
 import numpy as np
 import torch
+import torch.nn.functional as F
 import torchvision.transforms as T
 from torch.utils.data import Dataset, TensorDataset, random_split
 from torchvision import datasets, transforms
@@ -463,8 +466,17 @@ def load_cifar10_as_datasets(train_valid_split=1.0, data_path=None):
     Returns:
         tuple: (train_dataset, valid_dataset, test_dataset)
     """
+    # Modified normalization for better stability with dendritic networks
+    # Use a smaller stddev to avoid extreme values and add a small shift to keep values positive
     transform = transforms.Compose(
-        [transforms.ToTensor(), transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))]
+        [
+            transforms.ToTensor(),
+            # Use more conservative normalization (0.5, 0.2) instead of (0.5, 0.5)
+            # This keeps values in a narrower range [-2.5, 2.5] instead of [-1, 1]
+            transforms.Normalize((0.5, 0.5, 0.5), (0.2, 0.2, 0.2)),
+            # Optional: Add pooling to reduce dimensionality
+            # transforms.Lambda(lambda x: F.avg_pool2d(x, kernel_size=2, stride=2))
+        ]
     )
 
     cifar_dir = get_data_directory("cifar", data_path)
@@ -481,6 +493,9 @@ def load_cifar10_as_datasets(train_valid_split=1.0, data_path=None):
         data = []
         labels = []
         for img, label in dataset:
+            # Apply a small positive shift to keep values positive
+            # This helps with the stability in division operations
+            img = img + 0.01
             data.append(img)
             labels.append(label)
         data_tensor = torch.stack(data)

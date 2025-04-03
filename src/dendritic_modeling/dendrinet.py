@@ -910,7 +910,9 @@ class DendriticBranchLayer(nn.Module):
         ):
             denominator = denominator + self.branch_inhibition(inhibitory_input)
 
-        voltage = numerator / denominator
+        # Add small epsilon to prevent division by zero
+        epsilon = 1e-6
+        voltage = numerator / (denominator + epsilon)
         return self.reactivation(voltage)
 
     def get_weights(self):

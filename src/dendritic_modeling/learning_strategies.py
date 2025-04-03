@@ -126,6 +126,18 @@ class TrainerMLE(BaseTrainer):
                 xb = xb.to(device)
                 yb = yb.to(device)
                 nll = model.compute_loss(xb, yb)
+
+                # Check for NaN in loss and handle it
+                if torch.isnan(nll).any():
+                    logger.warning(f"NaN detected in loss! Loss value: {nll.item()}")
+                    # Get sample data statistics for debugging
+                    logger.info(
+                        f"Input stats - Min: {xb.min().item()}, Max: {xb.max().item()}, Mean: {xb.mean().item()}"
+                    )
+
+                    # Skip this batch to prevent NaN propagation
+                    continue
+
                 self.optimizer.zero_grad()
                 nll.backward()
                 clip_grad_value_(model.parameters(), grad_clip_value)
