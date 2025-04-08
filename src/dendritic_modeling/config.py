@@ -39,11 +39,14 @@ class EINetParameters(BaseConfig):
     somatic_synapses: bool = True
     topk_init_method: str = "xavier_normal"
     topk_noise_level: float = 0.0
-    topk_strategy: str = "standard"  # can be "standard", "stochastic", or "variance"
+    topk_type: str = "standard"  # can be "standard", "stochastic", or "variance"
+    topk_temperature: float = 0.5
+    topk_ultrafast: bool = False
+    topk_strategy: str = "conductance_dynamic"
     use_shunting: bool = True
     reactivation_type: str = "param_tanh"
     reactivation_strategy: str = "inverse"
-    blocklinear_strategy: str = "block_conductance_dynamic"
+    blocklinear_strategy: str = "conductance_dynamic"
     enable_branch_outputs: bool = True
     output_layer: bool = False
     output_dim: int = 10
@@ -74,7 +77,7 @@ class ModelConfig(BaseConfig):
 @dataclass
 class TrainConfig(BaseConfig):
     learning_strategy: str = "mle"
-    run_name: str = "mnist_einet"
+    run_name: str = "exp_run"
     seed: int = 0
     train_valid_split: float = 0.8
     lr: float = 0.01
