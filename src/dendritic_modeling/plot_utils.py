@@ -5,6 +5,7 @@ This module contains utility functions for plotting dendritic model parameters.
 """
 
 import os
+import re
 
 import matplotlib.pyplot as plt
 import networkx as nx
@@ -506,6 +507,7 @@ def plot_einet_params(
     save_root,
     reshape_fn=None,
     reshape_exc_syn=False,
+    reshape_inh_syn=False,
     logspace=False,
     save_in_dir=False,
     filename="image",
@@ -1368,6 +1370,288 @@ def einet_gradients_todict(model, inputs, labels):
     model.eval()
 
     return plot_dict
+
+
+def plot_gradient_flow(
+    model, inputs, labels, save_root, filename="gradient_flow", use_torchviz=False
+):
+    """
+    Plots the gradient flow through the network during backpropagation.
+
+    This function visualizes the distribution of gradients for each layer's parameters,
+    helping to identify issues like vanishing or exploding gradients.
+
+    Args:
+        model: The model to analyze
+        inputs: Input data for forward pass
+        labels: Labels for loss computation
+        save_root: Directory to save the output
+        filename: Name of the output file (default: "gradient_flow")
+        use_torchviz: Whether to use torchviz for computation graph visualization (default: False)
+    """
+    device = "cuda" if torch.cuda.is_available() else "cpu"
+    model = model.to(device)
+    model.train()
+
+    # Create output directory
+    os.makedirs(save_root, exist_ok=True)
+
+    if use_torchviz:
+        # Torchviz-based visualization of computation graph with gradients
+        try:
+            from torchviz import make_dot
+
+            # Forward pass with gradient tracking
+            batch_inputs = inputs.to(device)
+            batch_labels = labels.to(device)
+
+            # For smaller networks, we can visualize the entire computation graph
+            # For larger networks, we'll focus on a small batch
+            if len(batch_inputs) > 8:
+                batch_inputs = batch_inputs[:8]
+                batch_labels = batch_labels[:8] if batch_labels is not None else None
+
+            # Ensure inputs require gradients for visualization
+            batch_inputs.requires_grad_(True)
+
+            # Forward pass
+            outputs = model(batch_inputs, batch_labels)
+
+            # If outputs is a tuple, take the first element (often the loss)
+            if isinstance(outputs, tuple):
+                outputs = outputs[0]
+
+            # If outputs is a dict, find a suitable tensor to backprop from
+            if isinstance(outputs, dict):
+                for k, v in outputs.items():
+                    if isinstance(v, torch.Tensor) and v.requires_grad:
+                        outputs = v
+                        break
+
+            # If outputs is multi-dimensional, take mean or sum
+            if isinstance(outputs, torch.Tensor) and outputs.numel() > 1:
+                outputs = outputs.mean()
+
+            # Create the dot graph
+            dot = make_dot(outputs, params=dict(model.named_parameters()))
+
+            # Customize appearance
+            dot.attr("graph", rankdir="LR")  # Left-to-right layout
+            dot.attr("node", fontsize="12")
+
+            # Save the visualization
+            graph_path = os.path.join(save_root, f"{filename}_graph")
+            dot.render(graph_path, format="png", cleanup=True)
+
+            print(f"Saved computation graph visualization to {graph_path}.png")
+
+            # Also create a gradient magnitude visualization
+            plt.figure(figsize=(12, 8))
+
+            # Extract gradients after backprop
+            outputs.backward()
+
+            # Sort parameters by name for consistent ordering
+            named_parameters = sorted(
+                [
+                    (name, p)
+                    for name, p in model.named_parameters()
+                    if p.requires_grad and p.grad is not None
+                ],
+                key=lambda x: x[0],
+            )
+
+            layer_names = [name for name, _ in named_parameters]
+            grad_magnitudes = [p.grad.abs().mean().item() for _, p in named_parameters]
+
+            # Plot gradient magnitudes
+            plt.barh(range(len(grad_magnitudes)), grad_magnitudes, color="skyblue")
+            plt.yticks(range(len(layer_names)), layer_names)
+            plt.xscale("log")
+            plt.xlabel("Average Gradient Magnitude (log scale)")
+            plt.title("Gradient Magnitudes Across Layers")
+            plt.tight_layout()
+
+            # Save the figure
+            plt.savefig(
+                os.path.join(save_root, f"{filename}_torchviz_magnitudes.png"), dpi=300
+            )
+            plt.close()
+
+            return graph_path + ".png"
+
+        except ImportError:
+            print(
+                "Warning: torchviz not found. Falling back to standard visualization."
+            )
+            # Fall back to standard visualization
+            return plot_gradient_flow(
+                model, inputs, labels, save_root, filename, use_torchviz=False
+            )
+
+        except Exception as e:
+            print(f"Error in torchviz visualization: {e}")
+            print("Falling back to standard visualization.")
+            # Fall back to standard visualization
+            return plot_gradient_flow(
+                model, inputs, labels, save_root, filename, use_torchviz=False
+            )
+
+    # Standard matplotlib-based gradient flow visualization
+    # Forward and backward pass
+    loss = model(inputs.to(device), labels.to(device))
+    loss = loss.mean(dim=0)
+    model.zero_grad()
+    loss.backward()
+
+    # Create figure for the plot
+    plt.figure(figsize=(12, 8))
+
+    # Extract gradients and create plot
+    named_parameters = [
+        (name, p)
+        for name, p in model.named_parameters()
+        if p.requires_grad and p.grad is not None
+    ]
+
+    # Sort by layer order to make visualization more intuitive
+    def sort_key(named_param):
+        name = named_param[0]
+        # Get numeric parts from the name for proper ordering
+        if "layer" in name:
+            layer_match = re.search(r"layer(\d+)", name)
+            if layer_match:
+                return int(layer_match.group(1))
+        return float("inf")  # Items without clear ordering go to the end
+
+    named_parameters = sorted(named_parameters, key=sort_key)
+
+    # Collect data for plotting
+    ave_grads = []
+    max_grads = []
+    min_grads = []
+    abs_grads = []
+    layers = []
+
+    for n, p in named_parameters:
+        if p.grad is None:
+            continue
+
+        # Get layer name for display
+        layer_name = n.split(".")[-1]
+        if layer_name.startswith("weight") or layer_name.startswith("bias"):
+            layer_name = n.split(".")[-2] + "." + layer_name
+
+        # Compute gradient statistics
+        grad_abs = p.grad.abs()
+        ave_grads.append(grad_abs.mean().item())
+        max_grads.append(grad_abs.max().item())
+        min_grads.append(grad_abs.min().item())
+        abs_grads.append(grad_abs.flatten().detach().cpu().numpy())
+        layers.append(layer_name)
+
+    # Plot mean and max of gradients
+    plt.bar(
+        np.arange(len(max_grads)),
+        max_grads,
+        alpha=0.1,
+        lw=1,
+        color="c",
+        label="Max Gradients",
+    )
+    plt.bar(
+        np.arange(len(max_grads)),
+        ave_grads,
+        alpha=0.3,
+        lw=1,
+        color="b",
+        label="Mean Gradients",
+    )
+
+    # Add violin plots to show distribution
+    if len(abs_grads) > 0:
+        pos = np.arange(len(abs_grads))
+        vp = plt.violinplot(
+            abs_grads, pos, points=100, widths=0.7, showmeans=True, showextrema=True
+        )
+        for pc in vp["bodies"]:
+            pc.set_facecolor("r")
+            pc.set_alpha(0.2)
+
+    # Finalize plot
+    plt.hlines(0, 0, len(ave_grads) + 1, lw=2, color="k")
+    plt.xticks(range(0, len(ave_grads)), layers, rotation=45, ha="right", fontsize=8)
+    plt.xlim(left=-0.5, right=len(ave_grads) - 0.5)
+    plt.ylim(bottom=0)
+    plt.yscale("log")  # Log scale for better visualization across orders of magnitude
+    plt.xlabel("Layers")
+    plt.ylabel("Gradient Values (log scale)")
+    plt.title("Gradient Flow Across Network Layers")
+    plt.grid(True, linestyle="--", alpha=0.7)
+    plt.legend(loc="upper right")
+    plt.tight_layout()
+
+    # Save the figure
+    plt.savefig(os.path.join(save_root, f"{filename}.png"), dpi=300)
+    plt.close()
+
+    # Create additional plot for comparing all layer gradients by type
+    layer_types = {}
+    for n, p in named_parameters:
+        if p.grad is None:
+            continue
+
+        # Group by parameter type (e.g., branch_excitation, branch_inhibition, etc.)
+        if "branch_excitation" in n:
+            param_type = "Excitatory"
+        elif "branch_inhibition" in n:
+            param_type = "Inhibitory"
+        elif "branches_to_output" in n:
+            param_type = "Branch->Output"
+        elif "reactivation" in n:
+            param_type = "Reactivation"
+        else:
+            param_type = "Other"
+
+        if param_type not in layer_types:
+            layer_types[param_type] = []
+
+        # Store gradients
+        grad_abs = p.grad.abs()
+        layer_types[param_type].append(grad_abs.mean().item())
+
+    # Create bar plot for layer types
+    if layer_types:
+        plt.figure(figsize=(10, 6))
+
+        # Calculate mean values for each type
+        type_means = {k: np.mean(v) for k, v in layer_types.items()}
+        type_stds = {k: np.std(v) for k, v in layer_types.items()}
+
+        # Sort types by mean gradient value
+        sorted_types = sorted(
+            type_means.keys(), key=lambda x: type_means[x], reverse=True
+        )
+
+        # Plot
+        positions = np.arange(len(sorted_types))
+        means = [type_means[t] for t in sorted_types]
+        stds = [type_stds[t] for t in sorted_types]
+
+        plt.bar(positions, means, yerr=stds, alpha=0.6, capsize=5)
+        plt.xticks(positions, sorted_types, rotation=45, ha="right")
+        plt.yscale("log")
+        plt.ylabel("Mean Gradient Magnitude (log scale)")
+        plt.title("Gradient Magnitudes by Parameter Type")
+        plt.grid(True, axis="y", linestyle="--", alpha=0.7)
+        plt.tight_layout()
+
+        # Save the figure
+        plt.savefig(os.path.join(save_root, f"{filename}_by_type.png"), dpi=300)
+        plt.close()
+
+    model.eval()
+    return os.path.join(save_root, f"{filename}.png")
 
 
 def plot_einet_profiles(

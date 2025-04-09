@@ -26,6 +26,7 @@ from dendritic_modeling.plot_utils import (
     plot_einet_gradients,
     plot_einet_params,
     plot_einet_profiles,
+    plot_gradient_flow,
     plot_NLL_loss_curves,
 )
 from dendritic_modeling.synthetic_datasets import split_MNIST_inputs
@@ -69,6 +70,8 @@ class PlotManager:
             "dendritic_information": self._dendritic_information,
             "dendritic_information_inputs": self._dendritic_information_inputs,
             "dendritic_information_activations": self._dendritic_information_activations,
+            "gradient_flow": self._plot_gradient_flow,
+            "gradient_flow_torchviz": self._plot_gradient_flow_torchviz,
         }
 
     def run_plot(self, plot_name, epoch=None):
@@ -155,6 +158,119 @@ class PlotManager:
             logging.info(f"Saved gradient visualizations in {save_dir}")
         else:
             logging.info("No 'net' attribute found. Skipping gradient plotting.")
+
+    def _plot_gradient_flow(self):
+        """
+        Visualizes the gradient flow across the network by plotting the distribution
+        of gradients for each layer's parameters using matplotlib.
+
+        This helps identify vanishing or exploding gradients during training.
+        """
+        if hasattr(self.model, "net"):
+            save_dir = os.path.join(self.save_path, "gradient_flow")
+            os.makedirs(save_dir, exist_ok=True)
+            train_input, train_label = self.data["train"][:]
+
+            # Use a subset of data for gradient computation if dataset is large
+            batch_size = min(128, len(train_input))
+            indices = torch.randperm(len(train_input))[:batch_size]
+            batch_input = train_input[indices]
+            batch_label = train_label[indices]
+
+            logging.info(f"Using standard matplotlib-based gradient flow visualization")
+
+            plot_path = plot_gradient_flow(
+                model=self.model,
+                inputs=batch_input,
+                labels=batch_label,
+                save_root=save_dir,
+                filename=f"{self.file_name}_gradient_flow",
+                use_torchviz=False,
+            )
+
+            logging.info(f"Saved gradient flow visualization in {plot_path}")
+
+            # Also log to wandb if available
+            if hasattr(self.args, "use_wandb") and self.args.use_wandb:
+                try:
+                    import wandb
+
+                    wandb.log(
+                        {
+                            "gradient_flow": wandb.Image(plot_path),
+                            "gradient_flow_by_type": wandb.Image(
+                                plot_path.replace(".png", "_by_type.png")
+                            ),
+                        }
+                    )
+                    logging.info("Logged gradient flow to wandb")
+                except Exception as e:
+                    logging.warning(f"Failed to log gradient flow to wandb: {e}")
+        else:
+            logging.info("No 'net' attribute found. Skipping gradient flow plotting.")
+
+    def _plot_gradient_flow_torchviz(self):
+        """
+        Visualizes the gradient flow across the network using torchviz to generate
+        a computation graph visualization.
+
+        This helps understand the network structure and gradient flow paths.
+        """
+        if hasattr(self.model, "net"):
+            save_dir = os.path.join(self.save_path, "gradient_flow_torchviz")
+            os.makedirs(save_dir, exist_ok=True)
+            train_input, train_label = self.data["train"][:]
+
+            # Use a smaller subset of data for torchviz to prevent graph explosion
+            batch_size = min(16, len(train_input))
+            indices = torch.randperm(len(train_input))[:batch_size]
+            batch_input = train_input[indices]
+            batch_label = train_label[indices]
+
+            logging.info(f"Using torchviz-based gradient flow visualization")
+
+            try:
+                plot_path = plot_gradient_flow(
+                    model=self.model,
+                    inputs=batch_input,
+                    labels=batch_label,
+                    save_root=save_dir,
+                    filename=f"{self.file_name}_gradient_flow",
+                    use_torchviz=True,
+                )
+
+                logging.info(f"Saved gradient flow visualization in {plot_path}")
+
+                # Also log to wandb if available
+                if hasattr(self.args, "use_wandb") and self.args.use_wandb:
+                    try:
+                        import wandb
+
+                        wandb.log(
+                            {
+                                "gradient_flow_graph": wandb.Image(plot_path),
+                                "gradient_flow_magnitudes": wandb.Image(
+                                    plot_path.replace(
+                                        "_graph.png", "_torchviz_magnitudes.png"
+                                    )
+                                ),
+                            }
+                        )
+                        logging.info("Logged gradient flow to wandb")
+                    except Exception as e:
+                        logging.warning(f"Failed to log gradient flow to wandb: {e}")
+            except ImportError:
+                logging.error(
+                    "torchviz is not installed. Please install it with 'pip install torchviz graphviz'"
+                )
+                print(
+                    "Error: torchviz is not installed. Please install it with 'pip install torchviz graphviz'"
+                )
+            except Exception as e:
+                logging.error(f"Error in torchviz visualization: {e}")
+                print(f"Error in torchviz visualization: {e}")
+        else:
+            logging.info("No 'net' attribute found. Skipping gradient flow plotting.")
 
     def _plot_profiles(self):
         if hasattr(self.model, "net"):

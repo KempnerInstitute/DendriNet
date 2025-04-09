@@ -106,6 +106,9 @@ visualization:
     - weights      # Plot dendritic or EI-net weights
     - activations  # Plot per-digit activation distribution
     - gradients    # Plot synapse or branch gradients
+    # Choose one of the following gradient flow visualizations:
+    - gradient_flow            # Plot gradient flow using matplotlib (simpler, faster)
+    #- gradient_flow_torchviz  # Plot gradient flow using torchviz (shows computational graph, requires graphviz)
     - branch_ablation  # Enable branch-level ablation analysis
     - layer_ablation   # Enable layer-level ablation analysis
     #- profiles     # Plot dendritic compartment profiles

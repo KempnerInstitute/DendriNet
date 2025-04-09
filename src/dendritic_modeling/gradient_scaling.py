@@ -70,7 +70,7 @@ def scale_activation_grad_hook(module, grad_input, grad_output):
     # # If no inputs require gradients, return None
     # if not inputs_require_grad:
     #     return None
-    print('\nscaling reactivation grad\n', flush=True)
+    # print('\nscaling reactivation grad\n', flush=True)
 
     return grad_output
 
@@ -85,20 +85,24 @@ def scale_layer_input_gradients_elementwise(module, grad_input, grad_output):
     else:
         input_scale_vec = 1
 
-    for grad in grad_input:
-        if grad is not None:
-            print(f'grad std:\n{grad.std(dim = 0)}', flush=True)
-            print('scaled grad std:\n', (grad * input_scale_vec).std(dim = 0), flush=True)
-    return tuple(grad * input_scale_vec if grad is not None else None for grad in grad_input)
+    print("\nscale_layer_input_gradients_elementwise CALLED", flush=True)
+
+    # for grad in grad_input:
+    # if grad is not None:
+    # print(f'grad std:\n{grad.std(dim = 0)}', flush=True)
+    # print('scaled grad std:\n', (grad * input_scale_vec).std(dim = 0), flush=True)
+    return tuple(
+        grad * input_scale_vec if grad is not None else None for grad in grad_input
+    )
 
 
 def scale_layer_param_gradients_elementwise(grad, param_scale_vec):
     """
     Apply element-wise scaling to the parameter gradients.
     """
-    if grad is not None:
-        print(f'grad:\n{grad}', flush=True)
-        print('scaled grad:\n', grad * param_scale_vec, flush=True)
+    # if grad is not None:
+    # print(f'grad:\n{grad}', flush=True)
+    # print('scaled grad:\n', grad * param_scale_vec, flush=True)
     param_scale_vec = 1 if param_scale_vec is None else param_scale_vec
     return grad * param_scale_vec if grad is not None else None
 
@@ -193,10 +197,15 @@ class GradientScaler:
         If 'distal_upweight_by_idx', we do (layer_idx+1) * scale_factor for entire param.
         If 'none', no special scaling.
         """
-        print('registering block linear dynamic, strategy:', self.blocklinear_strategy, flush=True)
+        print(
+            "registering block linear dynamic, strategy:",
+            self.blocklinear_strategy,
+            flush=True,
+        )
+
         def input_hook_fn(module, grad_input, grad_output):
             # Apply the appropriate scaling strategy
-            print('\n\nblocklinear input hook call', flush=True)
+            print("\n\nblocklinear input hook call", flush=True)
             if self.blocklinear_strategy == "conductance_dynamic":
                 try:
                     return scale_layer_input_gradients_elementwise(
@@ -218,9 +227,9 @@ class GradientScaler:
 
             else:
                 return grad_input
-        
+
         def param_hook_fn(grad):
-            print('\n\nblocklinear param hook call', flush=True)
+            print("\n\nblocklinear param hook call", flush=True)
             if self.blocklinear_strategy == "conductance_dynamic":
                 try:
                     return scale_layer_param_gradients_elementwise(
@@ -232,7 +241,6 @@ class GradientScaler:
 
             else:
                 return grad
-
 
         # Wrap our hook function with the safe_hook decorator
         # safe_input_hook_fn = safe_hook(input_hook_fn)
@@ -247,7 +255,7 @@ class GradientScaler:
             # Register consistently with full backward hook
             block_linear_layer.register_full_backward_hook(input_hook_fn)
             block_linear_layer.log_weight.register_hook(param_hook_fn)
-            print('registered block linear dynamic', flush=True)
+            # print('registered block linear dynamic', flush=True)
 
     def register_topk_dynamic(self, topk_layer):
         """
@@ -257,10 +265,11 @@ class GradientScaler:
         If 'distal_upweight_by_idx', we do (layer_idx+1) * scale_factor for entire param.
         If 'none', no special scaling.
         """
-        print('registering topk dynamic, strategy:', self.topk_strategy, flush=True)
+        print("registering topk dynamic, strategy:", self.topk_strategy, flush=True)
+
         def input_hook_fn(module, grad_input, grad_output):
             # Apply the appropriate scaling strategy
-            print('\n\ntopk input hook call', flush=True)
+            print("\n\ntopk input hook call", flush=True)
             if self.topk_strategy == "conductance_dynamic":
                 try:
                     return scale_layer_input_gradients_elementwise(
@@ -282,9 +291,9 @@ class GradientScaler:
 
             else:
                 return grad_input
-        
+
         def param_hook_fn(grad):
-            print('\n\ntopk param hook call', flush=True)
+            print("\n\ntopk param hook call", flush=True)
             if self.topk_strategy == "conductance_dynamic":
                 try:
                     return scale_layer_param_gradients_elementwise(
@@ -296,6 +305,7 @@ class GradientScaler:
 
             else:
                 return grad
+
         # Wrap our hook function with the safe_hook decorator
         # safe_input_hook_fn = safe_hook(input_hook_fn)
         # safe_param_hook_fn = safe_hook(param_hook_fn)
@@ -310,6 +320,7 @@ class GradientScaler:
             # Register consistently with full backward hook
             topk_layer.register_full_backward_hook(input_hook_fn)
             topk_layer.pre_w.register_hook(param_hook_fn)
+
 
 # Apply the safe_hook decorator to our existing functions
 # scale_activation_grad_hook = safe_hook(scale_activation_grad_hook)

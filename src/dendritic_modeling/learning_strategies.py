@@ -76,6 +76,7 @@ class BaseTrainer:
         with torch.no_grad():
             for xb, yb in loader:
                 xb = xb.to(device)
+                xb = xb.clone().detach().requires_grad_(True)
                 yb = yb.to(device)
                 nll = model.compute_loss(xb, yb)
                 total_loss += nll.item()
@@ -114,6 +115,15 @@ class TrainerMLE(BaseTrainer):
         best_epoch = 1
         best_state = deepcopy(model.state_dict())
         start_time = time.time()
+
+        # CHANGED: Define a direct hook for input tensor gradients.
+        def print_input_hook(grad):
+            print(
+                "Direct input hook called, grad norm:", grad.norm().item(), flush=True
+            )
+
+        # End CHANGED
+
         # Early stopping setup
         patience_counter = 0
         for epoch in range(1, epochs + 1):
@@ -124,6 +134,9 @@ class TrainerMLE(BaseTrainer):
 
             for xb, yb in train_loader:
                 xb = xb.to(device)
+                xb = xb.clone().detach().requires_grad_(True)
+                # CHANGED: Attach the direct hook to the input tensor.
+                xb.register_hook(print_input_hook)
                 yb = yb.to(device)
                 nll = model.compute_loss(xb, yb)
                 self.optimizer.zero_grad()
