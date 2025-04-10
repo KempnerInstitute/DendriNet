@@ -47,7 +47,7 @@ train:
   seed: 0
   train_valid_split: 0.8
   lr: 0.01  # Standard learning rate for Adam
-  epochs: 50
+  epochs: 1
   batch_size: 1024  # Smaller batch size for better generalization
   grad_clip_value: 5  # Reasonable gradient clipping
   epochs_per_layer: 50  ## this is only for "freeze_layers" and any other method which has sequential single layer training
@@ -112,4 +112,4 @@ visualization:
     #- branch_info  # mutual information
 
 outputs:
-  dir:
+  dir: ./outputs/

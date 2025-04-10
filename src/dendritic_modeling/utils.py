@@ -1189,14 +1189,32 @@ def safe_register_hooks(module):
     has_backward_hooks = bool(module._backward_hooks)
     has_full_backward_hooks = bool(module._backward_pre_hooks)
 
-    # Remove all existing hooks to prevent conflicts
-    if has_backward_hooks:
-        module._backward_hooks.clear()
+    # Preserve gradient scaling hooks by checking if they exist
+    gradient_hooks_exist = False
     if has_full_backward_hooks:
-        module._backward_pre_hooks.clear()
+        for hook_fn in module._backward_pre_hooks.values():
+            # Check if any hook function's name contains gradient-related terms
+            hook_name = str(hook_fn).lower()
+            if (
+                "gradient" in hook_name
+                or "scale" in hook_name
+                or "grad_hook" in hook_name
+                or "scale_activation" in hook_name
+                or "scale_layer" in hook_name
+            ):
+                gradient_hooks_exist = True
+                break
 
-    # Register a new safe full backward hook (preferred)
-    module.register_full_backward_hook(safe_hook_fn)
+    # Only replace hooks if no gradient scaling hooks exist
+    if not gradient_hooks_exist:
+        # Remove all existing hooks to prevent conflicts
+        if has_backward_hooks:
+            module._backward_hooks.clear()
+        if has_full_backward_hooks:
+            module._backward_pre_hooks.clear()
+
+        # Register a new safe full backward hook (preferred)
+        module.register_full_backward_hook(safe_hook_fn)
 
     # Process child modules
     for child in module.children():
