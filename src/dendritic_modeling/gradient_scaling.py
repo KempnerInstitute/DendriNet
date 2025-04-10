@@ -72,7 +72,7 @@ def scale_activation_grad_hook(module, grad_input, grad_output):
     if not inputs_require_grad:
         return None
 
-    # print('\nscaling reactivation grad\n', flush=True)
+    print("\nscaling reactivation grad\n", flush=True)
     return grad_output
 
 
@@ -80,7 +80,7 @@ def scale_layer_input_gradients_elementwise(module, grad_input, grad_output):
     """
     Apply element-wise scaling to the input gradients.
     """
-    # print("\n\n***INPUT HOOK CALLED***", flush=True)
+    print("\n\n***INPUT HOOK CALLED***", flush=True)
     # print(f"Module: {module.__class__.__name__}", flush=True)
     # print(f"grad_input types: {[type(g) for g in grad_input]}", flush=True)
     # print(f"grad_input shapes: {[g.shape if g is not None else None for g in grad_input]}", flush=True)
@@ -91,15 +91,28 @@ def scale_layer_input_gradients_elementwise(module, grad_input, grad_output):
     else:
         input_scale_vec = 1
 
+    # Print gradient norms before scaling
+    # for i, grad in enumerate(grad_input):
+    #     if grad is not None:
+    #         print(f"Before scaling - Module: {module.__class__.__name__}, Input grad {i} norm: {grad.norm()}", flush=True)
+
     # print("scale_layer_input_gradients_elementwise CALLED", flush=True)
+
+    # Scale gradients
+    scaled_grad_input = tuple(
+        grad * input_scale_vec if grad is not None else None for grad in grad_input
+    )
+
+    # Print gradient norms after scaling
+    # for i, grad in enumerate(scaled_grad_input):
+    #     if grad is not None:
+    #         print(f"After scaling - Module: {module.__class__.__name__}, Input grad {i} norm: {grad.norm()}", flush=True)
 
     # for grad in grad_input:
     # if grad is not None:
     # print(f'grad std:\n{grad.std(dim = 0)}', flush=True)
     # print('scaled grad std:\n', (grad * input_scale_vec).std(dim = 0), flush=True)
-    return tuple(
-        grad * input_scale_vec if grad is not None else None for grad in grad_input
-    )
+    return scaled_grad_input
 
 
 def scale_layer_param_gradients_elementwise(grad, param_scale_vec):
@@ -110,7 +123,19 @@ def scale_layer_param_gradients_elementwise(grad, param_scale_vec):
     # print(f"Scale vec shape: {param_scale_vec.shape if hasattr(param_scale_vec, 'shape') else 'scalar'}", flush=True)
 
     param_scale_vec = 1 if param_scale_vec is None else param_scale_vec
-    return grad * param_scale_vec if grad is not None else None
+
+    # Print gradient norm before scaling
+    # if grad is not None:
+    #     print(f"Before scaling - Parameter grad norm: {grad.norm()}", flush=True)
+
+    # Scale gradient
+    scaled_grad = grad * param_scale_vec if grad is not None else None
+
+    # Print gradient norm after scaling
+    # if scaled_grad is not None:
+    #     print(f"After scaling - Parameter grad norm: {scaled_grad.norm()}", flush=True)
+
+    return scaled_grad
 
 
 # def scale_activation_grad_hook(module, grad_input, grad_output):
@@ -131,8 +156,24 @@ def scale_layer_gradients_scalar(module, grad_input, grad_output, scale_factor):
     """
     Multiply entire grad_input by a single scalar factor.
     """
+    # Print gradient norms before scaling
+    # for i, grad in enumerate(grad_input):
+    #     if grad is not None:
+    #         print(f"Before scaling - Module: {module.__class__.__name__}, Scalar scaling with factor {scale_factor}, Input grad {i} norm: {grad.norm()}", flush=True)
+
     # print(f"Scaling gradients by scalar factor: {scale_factor}", flush=True)
-    return tuple(g * scale_factor if (g is not None) else None for g in grad_input)
+
+    # Scale gradients
+    scaled_grad_input = tuple(
+        g * scale_factor if (g is not None) else None for g in grad_input
+    )
+
+    # Print gradient norms after scaling
+    # for i, grad in enumerate(scaled_grad_input):
+    #     if grad is not None:
+    #         print(f"After scaling - Module: {module.__class__.__name__}, Scalar scaling with factor {scale_factor}, Input grad {i} norm: {grad.norm()}", flush=True)
+
+    return scaled_grad_input
 
 
 # Apply the safe_hook decorator to create safe versions
@@ -229,7 +270,18 @@ class GradientScaler:
         # Keep standard backward hook for debugging
         def input_hook_fn(module, grad_input, grad_output):
             # Apply the appropriate scaling strategy
-            # print("\n\nblocklinear input hook call", flush=True)
+            print("\n\nBLOCKLINEAR INPUT HOOK CALLED", flush=True)
+            print(f"Module: {module.__class__.__name__}", flush=True)
+            print(f"grad_input types: {[type(g) for g in grad_input]}", flush=True)
+            print(
+                f"grad_input shapes: {[g.shape if g is not None else None for g in grad_input]}",
+                flush=True,
+            )
+            print(
+                f"grad_output shapes: {[g.shape if g is not None else None for g in grad_output]}",
+                flush=True,
+            )
+
             if self.blocklinear_strategy == "conductance_dynamic":
                 try:
                     if (
@@ -293,7 +345,18 @@ class GradientScaler:
             if self.blocklinear_strategy != "none" and x.requires_grad:
 
                 def tensor_hook_fn(grad):
-                    # print("\n\nBLOCKLINEAR TENSOR HOOK CALLED", flush=True)
+                    print("\n\nBLOCKLINEAR TENSOR HOOK CALLED", flush=True)
+                    print(
+                        f"Tensor hook for layer: {block_linear_layer.__class__.__name__}",
+                        flush=True,
+                    )
+                    print(f"grad tensor shape: {grad.shape}", flush=True)
+                    print(
+                        f"grad tensor requires_grad: {grad.requires_grad}", flush=True
+                    )
+                    print(
+                        f"BEFORE SCALING - grad tensor norm: {grad.norm()}", flush=True
+                    )
 
                     if self.blocklinear_strategy == "conductance_dynamic":
                         try:
@@ -309,6 +372,10 @@ class GradientScaler:
                                     scaled_grad = grad * input_scale_vec.view(1, -1)
                                 else:
                                     scaled_grad = grad * input_scale_vec
+                                print(
+                                    f"AFTER SCALING - grad tensor norm: {scaled_grad.norm()}",
+                                    flush=True,
+                                )
                                 return scaled_grad
                             else:
                                 print(
@@ -321,10 +388,19 @@ class GradientScaler:
                                     f"Created temporary scale vector with shape {scale_vec.shape}",
                                     flush=True,
                                 )
-                                return grad * scale_vec.view(1, -1)
+                                scaled_grad = grad * scale_vec.view(1, -1)
+                                print(
+                                    f"AFTER SCALING - grad tensor norm: {scaled_grad.norm()}",
+                                    flush=True,
+                                )
+                                return scaled_grad
                         except Exception as e:
                             print(f"Error in tensor hook: {e}", flush=True)
                             print(f"Traceback: {traceback.format_exc()}", flush=True)
+                            print(
+                                f"AFTER ERROR - returning original grad norm: {grad.norm()}",
+                                flush=True,
+                            )
                             return grad
                     elif self.blocklinear_strategy == "distal_upweight_by_idx":
                         try:
@@ -333,12 +409,25 @@ class GradientScaler:
                                 f"Scaling tensor grad with factor {scale_val}",
                                 flush=True,
                             )
-                            return grad * scale_val
+                            scaled_grad = grad * scale_val
+                            print(
+                                f"AFTER SCALING - grad tensor norm: {scaled_grad.norm()}",
+                                flush=True,
+                            )
+                            return scaled_grad
                         except Exception as e:
                             print(f"Error in tensor hook: {e}", flush=True)
                             print(f"Traceback: {traceback.format_exc()}", flush=True)
+                            print(
+                                f"AFTER ERROR - returning original grad norm: {grad.norm()}",
+                                flush=True,
+                            )
                             return grad
                     else:
+                        print(
+                            f"NO SCALING APPLIED - grad tensor norm: {grad.norm()}",
+                            flush=True,
+                        )
                         return grad
 
                 # Register the hook directly on the input tensor
@@ -351,19 +440,38 @@ class GradientScaler:
         block_linear_layer.forward = forward_with_hooks
 
         def param_hook_fn(grad):
-            # print("\n\nblocklinear param hook call", flush=True)
+            print("\n\nBLOCKLINEAR PARAM HOOK CALLED", flush=True)
+            print(
+                f"Parameter hook for: {block_linear_layer.__class__.__name__}",
+                flush=True,
+            )
+            print(f"param grad shape: {grad.shape}", flush=True)
+            print(f"BEFORE SCALING - param grad norm: {grad.norm()}", flush=True)
+
             if self.blocklinear_strategy == "conductance_dynamic":
                 try:
-                    return scale_layer_param_gradients_elementwise(
+                    scaled_grad = scale_layer_param_gradients_elementwise(
                         grad, block_linear_layer.param_scale_vec
                     )
+                    print(
+                        f"AFTER SCALING - param grad norm: {scaled_grad.norm()}",
+                        flush=True,
+                    )
+                    return scaled_grad
                 except Exception as e:
                     # If there's any error in applying the scale, return the original gradients
                     print(f"Error in param conductance_dynamic: {e}", flush=True)
                     print(f"Traceback: {traceback.format_exc()}", flush=True)
+                    print(
+                        f"AFTER ERROR - returning original param grad norm: {grad.norm()}",
+                        flush=True,
+                    )
                     return grad
 
             else:
+                print(
+                    f"NO SCALING APPLIED - param grad norm: {grad.norm()}", flush=True
+                )
                 return grad
 
         # Wrap our hook function with the safe_hook decorator
@@ -381,7 +489,14 @@ class GradientScaler:
 
             # Register consistently with full backward hook
             # print(f"Registering block linear hook for {block_linear_layer}", flush=True)
-            block_linear_layer.register_full_backward_hook(safe_input_hook_fn)
+            # Use the direct hook function instead of the safe_hook wrapped version
+            print(
+                f"REGISTERING INPUT HOOK DIRECTLY for {block_linear_layer.__class__.__name__}",
+                flush=True,
+            )
+            block_linear_layer.register_full_backward_hook(
+                input_hook_fn
+            )  # Use direct hook instead of safe_hook
             block_linear_layer.log_weight.register_hook(safe_param_hook_fn)
             # print("registered block linear dynamic", flush=True)
 
