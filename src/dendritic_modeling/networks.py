@@ -19,6 +19,91 @@ from dendritic_modeling import logger
 import numpy as np
 
 
+class InputNetTransform(nn.Module):
+    """
+    A network that transforms raw input data into features for both excitatory and inhibitory pathways.
+    This is used when input_mode=2 in the EINet configuration.
+    """
+    def __init__(
+        self,
+        input_dim,
+        hidden_dims=[],
+        output_dim=128,
+        network_type="MLPInputTransform",
+        dropout_rate=0.0,
+        **kwargs
+    ):
+        super(InputNetTransform, self).__init__()
+        self.input_dim = input_dim
+        self.hidden_dims = hidden_dims
+        self.output_dim = output_dim
+        self.network_type = network_type
+        
+        # Build layers
+        layers = []
+        current_dim = input_dim
+        
+        # Add hidden layers if any
+        for dim in hidden_dims:
+            layers.append(nn.Linear(current_dim, dim))
+            layers.append(nn.ReLU())
+            if dropout_rate > 0:
+                layers.append(nn.Dropout(dropout_rate))
+            current_dim = dim
+        
+        # Add output layer
+        layers.append(nn.Linear(current_dim, output_dim))
+        
+        # Combine layers into a sequential model
+        self.network = nn.Sequential(*layers)
+    
+    def forward(self, x):
+        return self.network(x)
+
+
+class SigmoidInputNetTransform(InputNetTransform):
+    """
+    A version of InputNetTransform that uses sigmoid activation on the final layer
+    to ensure outputs are in the range [0, 1].
+    """
+    def __init__(
+        self,
+        input_dim,
+        hidden_dims=[],
+        output_dim=128,
+        network_type="MLPInputTransform",
+        dropout_rate=0.0,
+        **kwargs
+    ):
+        super(SigmoidInputNetTransform, self).__init__(
+            input_dim=input_dim,
+            hidden_dims=hidden_dims,
+            output_dim=output_dim,
+            network_type=network_type,
+            dropout_rate=dropout_rate,
+            **kwargs
+        )
+        
+        # Replace the final layer with one that has sigmoid activation
+        layers = list(self.network.children())
+        
+        # Remove the last layer
+        final_layer = layers.pop()
+        
+        # Add back a linear layer with sigmoid activation
+        layers.append(nn.Linear(final_layer.in_features, final_layer.out_features))
+        layers.append(nn.Sigmoid())
+        
+        # Rebuild the network with the new layers
+        self.network = nn.Sequential(*layers)
+        
+        # Initialize the new linear layer
+        with torch.no_grad():
+            if len(layers) >= 2:
+                nn.init.xavier_normal_(layers[-2].weight)
+                nn.init.zeros_(layers[-2].bias)
+
+
 class ExcitationInhibitionLayer(nn.Module):
     def __init__(
         self, 
