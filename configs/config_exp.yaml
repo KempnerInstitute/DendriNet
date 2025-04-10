@@ -7,7 +7,7 @@ model:
       # configuration parameters
       excitatory_layer_sizes: [10]
       inhibitory_layer_sizes: [40]
-      excitatory_branch_factors: [6,6]
+      excitatory_branch_factors: [5,5,5,5]
       inhibitory_branch_factors: []
       ee_synapses_per_branch_per_layer: [100]
       ei_synapses_per_branch_per_layer: [200]
@@ -47,7 +47,7 @@ train:
   seed: 0
   train_valid_split: 0.8
   lr: 0.01  # Standard learning rate for Adam
-  epochs: 50
+  epochs: 100
   batch_size: 1024  # Smaller batch size for better generalization
   grad_clip_value: 5  # Reasonable gradient clipping
   epochs_per_layer: 50  ## this is only for "freeze_layers" and any other method which has sequential single layer training
@@ -79,7 +79,7 @@ train:
       pytorch_model: ""        # Name of PyTorch model if source is "pytorch"
 
 task:
-  dataset: random_flip_mnist #mnist, cifar10, mnist_modulo10, random_flip_mnist
+  dataset: cifar10 #mnist, cifar10, mnist_modulo10, random_flip_mnist
   data_path:
   parameters: {}
   # dataset: "line", "center_surround", "orientation_bars", "multi_xor", "mnist", "mnist_modulo10", "mnist_switch2",
@@ -115,4 +115,4 @@ visualization:
     #- branch_info  # mutual information
 
 outputs:
-  dir:
+  dir: "outputs/debug"

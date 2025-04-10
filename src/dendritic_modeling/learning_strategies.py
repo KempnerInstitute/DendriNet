@@ -29,6 +29,14 @@ from dendritic_modeling import logger
 from dendritic_modeling.plot_utils import plot_NLL_loss_curves
 
 
+# Define the missing hook function
+def print_input_hook(grad):
+    """Debug hook to print input gradient norms during training.
+    Can be safely commented out when not needed for debugging."""
+    # print(f"Input gradient hook called, grad norm: {grad.norm()}", flush=True)
+    return grad
+
+
 def compute_metrics_classification(preds, labels):
     preds_np = preds.cpu().numpy()
     labels_np = labels.cpu().numpy()
@@ -116,14 +124,6 @@ class TrainerMLE(BaseTrainer):
         best_state = deepcopy(model.state_dict())
         start_time = time.time()
 
-        # CHANGED: Define a direct hook for input tensor gradients.
-        def print_input_hook(grad):
-            print(
-                "Direct input hook called, grad norm:", grad.norm().item(), flush=True
-            )
-
-        # End CHANGED
-
         # Early stopping setup
         patience_counter = 0
         for epoch in range(1, epochs + 1):
@@ -135,7 +135,7 @@ class TrainerMLE(BaseTrainer):
             for xb, yb in train_loader:
                 xb = xb.to(device)
                 xb = xb.clone().detach().requires_grad_(True)
-                # CHANGED: Attach the direct hook to the input tensor.
+                # Debug hook to verify gradient flow - can be commented out when not needed
                 xb.register_hook(print_input_hook)
                 yb = yb.to(device)
                 nll = model.compute_loss(xb, yb)
