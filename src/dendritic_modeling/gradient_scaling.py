@@ -25,12 +25,12 @@ def safe_hook(hook_fn):
     @functools.wraps(hook_fn)
     def safe_hook_fn(module, grad_input, grad_output):
         # Check if any grad_input requires gradient
-        requires_grad = False
-        if grad_input is not None:
-            for g in grad_input:
-                if g is not None:
-                    requires_grad = True
-                    break
+        requires_grad = True
+        # if grad_input is not None:
+        #     for g in grad_input:
+        #         if g is not None:
+        #             requires_grad = True
+        #             break
 
         # Check parameters too (some hooks need this)
         if not requires_grad:
@@ -178,10 +178,10 @@ class GradientScaler:
         """
         if self.reactivation_strategy != "none":
             # First remove any existing hooks to prevent conflicts
-            if hasattr(reactivation_layer, "_backward_hooks"):
-                reactivation_layer._backward_hooks.clear()
-            if hasattr(reactivation_layer, "_backward_pre_hooks"):
-                reactivation_layer._backward_pre_hooks.clear()
+            # if hasattr(reactivation_layer, "_backward_hooks"):
+            #     reactivation_layer._backward_hooks.clear()
+            # if hasattr(reactivation_layer, "_backward_pre_hooks"):
+            #     reactivation_layer._backward_pre_hooks.clear()
 
             # Register with full backward hook consistently
             reactivation_layer.register_full_backward_hook(
@@ -247,10 +247,10 @@ class GradientScaler:
         # safe_param_hook_fn = safe_hook(param_hook_fn)
         if self.blocklinear_strategy != "none":
             # First remove any existing hooks to prevent conflicts
-            if hasattr(block_linear_layer, "_backward_hooks"):
-                block_linear_layer._backward_hooks.clear()
-            if hasattr(block_linear_layer, "_backward_pre_hooks"):
-                block_linear_layer._backward_pre_hooks.clear()
+            # if hasattr(block_linear_layer, "_backward_hooks"):
+            #     block_linear_layer._backward_hooks.clear()
+            # if hasattr(block_linear_layer, "_backward_pre_hooks"):
+            #     block_linear_layer._backward_pre_hooks.clear()
 
             # Register consistently with full backward hook
             block_linear_layer.register_full_backward_hook(input_hook_fn)
@@ -312,10 +312,10 @@ class GradientScaler:
 
         if self.topk_strategy != "none":
             # First remove any existing hooks to prevent conflicts
-            if hasattr(topk_layer, "_backward_hooks"):
-                topk_layer._backward_hooks.clear()
-            if hasattr(topk_layer, "_backward_pre_hooks"):
-                topk_layer._backward_pre_hooks.clear()
+            # if hasattr(topk_layer, "_backward_hooks"):
+            #     topk_layer._backward_hooks.clear()
+            # if hasattr(topk_layer, "_backward_pre_hooks"):
+            #     topk_layer._backward_pre_hooks.clear()
 
             # Register consistently with full backward hook
             topk_layer.register_full_backward_hook(input_hook_fn)
