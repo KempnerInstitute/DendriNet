@@ -182,9 +182,6 @@ class TopKLinear(nn.Module):
         # CHANGED: If x is not a leaf, explicitly retain its gradient so that input hooks are triggered.
         x.retain_grad()
 
-        # Add debug print
-        # print(f"TopKLinear input shape: {x.shape}, requires_grad: {x.requires_grad}", flush=True)
-
         return torch.matmul(x, pruned_weight.t())
 
     def weight(self):
@@ -695,26 +692,9 @@ class BlockLinear(nn.Module):
         if not x.requires_grad:
             x = x.clone().detach().requires_grad_(True)  # Force leaf
 
-        # CHANGED: Retain gradient on x if it is not a leaf so that the input hook will be called.
-        # This is crucial for hook triggering
         x.retain_grad()
 
-        # Debug print for gradient status
-        # print(f"BlockLinear input shape: {x.shape}, requires_grad: {x.requires_grad}", flush=True)
-
-        output = torch.matmul(x, self.block().t())
-
-        # Add another hook on the output tensor
-        # if self.training:
-        #     def output_hook(grad):
-        #         print(f"\nBlockLinear output hook called, grad norm: {grad.norm()}", flush=True)
-        #         return grad
-
-        #     # Check if output requires gradients before registering hook
-        #     if hasattr(output, 'register_hook') and output.requires_grad:
-        #         output.register_hook(output_hook)
-
-        return output
+        return torch.matmul(x, self.block().t())
 
     def sum_conductances(self):
         return self.log_weight.exp().sum(dim=1)
