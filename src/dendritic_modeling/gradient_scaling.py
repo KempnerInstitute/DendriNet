@@ -334,7 +334,6 @@ class GradientScaler:
             else:
                 return grad_input
 
-        # ADDED: Override forward method to register tensor hooks directly
         original_forward = block_linear_layer.forward
 
         def forward_with_hooks(x):
