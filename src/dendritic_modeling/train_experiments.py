@@ -97,7 +97,8 @@ def initialize_model(model_cfg, visualization_enabled=False):
                 model = ProbabilisticClassifier(net, output_dim)
             else:
                 model = Classifier(net)
-            safe_register_hooks(model)
+            # Commenting out to preserve gradient scaling hooks
+            # safe_register_hooks(model)
             return model
         elif net_type == "EINet":
             logger.info(
@@ -107,13 +108,15 @@ def initialize_model(model_cfg, visualization_enabled=False):
             net_params_dict["enable_branch_outputs"] = enable_branch_outputs
             net_params_dict["learning_strategy"] = learning_strategy
             net = ExcitationInhibitionNetwork(**net_params_dict)
-            safe_register_hooks(net)
+            # Commenting out to preserve gradient scaling hooks
+            # safe_register_hooks(net)
             output_dim = net_params_dict.get("output_dim", 10)
             if probabilistic:
                 model = ProbabilisticClassifier(net, output_dim)
             else:
                 model = Classifier(net)
-            safe_register_hooks(model)
+            # Commenting out to preserve gradient scaling hooks
+            # safe_register_hooks(model)
             return model
         else:
             raise ValueError(f"Invalid network type: {net_type}")
