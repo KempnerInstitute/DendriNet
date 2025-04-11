@@ -203,10 +203,24 @@ def generate_custom_run_script(
             f"#SBATCH --gpus-per-node={slurm_config.gpus_per_node}",
             f"#SBATCH --cpus-per-task={slurm_config.cpus_per_task}",
             f"#SBATCH --time={formatted_time}",
-            f"#SBATCH --mem={slurm_config.mem}",
-            f"#SBATCH --partition={slurm_config.partition}",
         ]
     )
+
+    # Properly handle memory specification - use only one method
+    # Check if the memory specification has a unit suffix
+    mem_value = slurm_config.mem
+    if isinstance(mem_value, str):
+        # If it has a unit suffix (GB, MB, etc.), use it as is for total memory
+        if any(unit in mem_value.upper() for unit in ["GB", "MB", "G", "M", "K", "KB"]):
+            lines.append(f"#SBATCH --mem={mem_value}")
+        else:
+            # If no unit, assume it's in MB and add the unit
+            lines.append(f"#SBATCH --mem={mem_value}MB")
+    else:
+        # If it's a number, assume it's in MB
+        lines.append(f"#SBATCH --mem={mem_value}MB")
+
+    lines.append(f"#SBATCH --partition={slurm_config.partition}")
 
     # Submit an array job or a single job
     if array_job_flag and array_size > 1:
@@ -285,9 +299,11 @@ def generate_custom_run_script(
     lines.append("mkdir -p ${PLOTS_DIR}/${JOB_ID}/task_${TASK_ID}")
     lines.append("")
 
-    # Run the job
+    # Run the job - Fix the srun command to avoid memory specification conflicts
     lines.append('echo "Starting running a training job at $(date)"')
     lines.append("start_time=$(date +%s)")
+
+    # Use srun without extra memory flags that might conflict
     lines.append("srun \\")
     lines.append("  --cpus-per-task=${SLURM_CPUS_PER_TASK} \\")
     lines.append("  --kill-on-bad-exit \\")
