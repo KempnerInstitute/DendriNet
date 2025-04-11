@@ -18,7 +18,7 @@ slurm_config:
   time: 1:00:00
   mem: 1200GB
   partition: kempner_h100
-  max_concurrent_jobs: 40
+  max_concurrent_jobs: 8
   modules_to_load:
     - python/3.12.5-fasrc01
     - cuda/12.4.1-fasrc01
