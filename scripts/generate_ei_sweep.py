@@ -319,38 +319,51 @@ def generate_custom_run_script(
     return main_script_path
 
 
-def create_master_run_script(job_scripts, output_dir):
-    """Create a master script to submit all job scripts
+def create_main_run_script(job_scripts, output_dir):
+    """Create a main run.sh script that submits all the job scripts in a loop
 
     Args:
         job_scripts: List of generated job script paths
         output_dir: Output directory for the sweep
+
+    Returns:
+        Path to the created main run script
     """
-    script_path = "./run_all_jobs.sh"
+    script_path = "./run.sh"
 
     with open(script_path, "w") as f:
         f.write("#!/bin/bash\n")
-        f.write("# Master script to submit all EI sweep jobs\n\n")
+        f.write("# Main script to submit all EI sweep jobs\n\n")
         f.write(f"# Output directory: {output_dir}\n\n")
-        f.write("# Submit all jobs (uncomment to run all at once)\n")
-        for i, script in enumerate(job_scripts):
-            script_name = os.path.basename(script)
-            # Add comments about the index range this script handles
-            f.write(f"# Job {i+1}/{len(job_scripts)}: {script_name}\n")
-            # By default all job submissions are commented out for safety
-            f.write(f"# sbatch {script}\n")
-            # Add a slight delay between submissions
-            if i < len(job_scripts) - 1:
-                f.write("# sleep 2  # Small delay between submissions\n")
 
-        f.write("\n# Or submit them one by one (recommended):\n")
-        f.write("# 1. Submit the first job:\n")
-        f.write(f"#    sbatch {os.path.basename(job_scripts[0])}\n")
-        f.write("# 2. After it completes successfully, submit the next job:\n")
-        if len(job_scripts) > 1:
-            f.write(f"#    sbatch {os.path.basename(job_scripts[1])}\n")
-        f.write("# ... and so on\n")
+        # Get directory names relatively to make it more portable
+        output_dir_basename = os.path.basename(output_dir)
+        output_parent = os.path.dirname(output_dir)
+        output_parent_basename = os.path.basename(output_parent)
 
+        # Calculate relative path to job scripts
+        relative_path = f"{output_parent_basename}/{output_dir_basename}/jobs"
+
+        f.write("# Set up vars\n")
+        f.write(f"SWEEP_DIR={output_dir}\n")
+        f.write("JOBS_DIR=${SWEEP_DIR}/jobs\n\n")
+
+        f.write("# Create jobs directory if it doesn't exist\n")
+        f.write("mkdir -p ${JOBS_DIR}\n\n")
+
+        f.write("# Submit all jobs in order with a slight delay between submissions\n")
+        f.write('echo "Starting job submissions at $(date)"\n')
+        f.write("for job_script in ${JOBS_DIR}/run_ei_sweep_*.sh; do\n")
+        f.write('    echo "Submitting $job_script"\n')
+        f.write("    sbatch $job_script\n")
+        f.write("    # Sleep to avoid overwhelming the scheduler\n")
+        f.write("    sleep 2\n")
+        f.write("done\n\n")
+
+        f.write('echo "All jobs submitted at $(date)"\n')
+        f.write('echo "Check job status with: squeue -u $USER"\n')
+
+    # Make the script executable
     os.chmod(script_path, 0o755)
     return script_path
 
@@ -394,6 +407,11 @@ def main():
         os.makedirs(subdir_path, exist_ok=True)
         print(f"Created subdirectory: {subdir_path}")
 
+    # Create a jobs directory to store all job scripts
+    jobs_dir = os.path.join(output_dir, "jobs")
+    os.makedirs(jobs_dir, exist_ok=True)
+    print(f"Created jobs directory: {jobs_dir}")
+
     # Update the config with the new output directory
     config.slurm_config.output_dir = output_dir
 
@@ -425,15 +443,10 @@ def main():
 
     # If neither split option is provided, create a single job (current behavior)
     if split_jobs is None and configs_per_job is None:
-        # Generate a single run script for all configurations
-        run_script_path = generate_custom_run_script(
-            config, output_dir, num_configs, "./run.sh"
-        )
-        job_scripts = [run_script_path]
-
-        # Also generate run_ei_sweep.sh for backward compatibility
-        shutil.copy(run_script_path, "./run_ei_sweep.sh")
-        print(f"Created run scripts: run.sh and run_ei_sweep.sh")
+        # Generate a single run script but save it in the jobs directory
+        job_script_path = os.path.join(jobs_dir, "run_ei_sweep_0.sh")
+        generate_custom_run_script(config, output_dir, num_configs, job_script_path)
+        job_scripts = [job_script_path]
 
     else:
         # Split into multiple job scripts
@@ -458,46 +471,34 @@ def main():
             start_idx = i * configs_per_job
             end_idx = min((i + 1) * configs_per_job - 1, num_configs - 1)
 
-            # Create job script with appropriate range
-            job_script_path = f"./run_ei_sweep_{i}.sh"
-            if i == 0:
-                # For backward compatibility, also create run.sh as a copy of the first job
-                generate_custom_run_script(
-                    config, output_dir, num_configs, "./run.sh", start_idx, end_idx
-                )
-                shutil.copy("./run.sh", job_script_path)
-            else:
-                generate_custom_run_script(
-                    config, output_dir, num_configs, job_script_path, start_idx, end_idx
-                )
+            # Create job script with appropriate range, saving in the jobs directory
+            job_script_path = os.path.join(jobs_dir, f"run_ei_sweep_{i}.sh")
+            generate_custom_run_script(
+                config, output_dir, num_configs, job_script_path, start_idx, end_idx
+            )
 
             job_scripts.append(job_script_path)
             print(
                 f"Created job script {job_script_path} for configs {start_idx}-{end_idx}"
             )
 
-        # Create a master script to run all jobs
-        master_script = create_master_run_script(job_scripts, output_dir)
-        print(f"Created master script {master_script} to submit all jobs")
+    # Create a main run.sh script in the main directory
+    main_script = create_main_run_script(job_scripts, output_dir)
+    print(f"Created main script {main_script} to submit all jobs")
 
     print("\nSummary:")
     print(f"1. Created sweep directory: {output_dir}")
     print(
         f"2. Generated {num_configs} config files in: {os.path.join(output_dir, 'configs')}"
     )
+    print(f"3. Saved {len(job_scripts)} job scripts in: {jobs_dir}")
     print(
-        f"3. Results will be stored in: {os.path.join(output_dir, 'results')}/<job_id>/task_<task_id>/"
+        f"4. Results will be stored in: {os.path.join(output_dir, 'results')}/<job_id>/task_<task_id>/"
     )
     print(
-        f"4. Plots will be saved to: {os.path.join(output_dir, 'plots')}/<job_id>/task_<task_id>/"
+        f"5. Plots will be saved to: {os.path.join(output_dir, 'plots')}/<job_id>/task_<task_id>/"
     )
-
-    if len(job_scripts) == 1:
-        print(f"5. To run the sweep, use: sbatch {job_scripts[0]}")
-    else:
-        print(f"5. Created {len(job_scripts)} job scripts")
-        print(f"6. To run all jobs, use the helper script: {master_script}")
-        print(f"   Edit this script to uncomment the submission commands")
+    print(f"6. To run the complete sweep, use: ./run.sh")
 
 
 if __name__ == "__main__":
