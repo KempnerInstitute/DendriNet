@@ -303,10 +303,22 @@ def generate_custom_run_script(
     lines.append('echo "Starting running a training job at $(date)"')
     lines.append("start_time=$(date +%s)")
 
-    # Use srun without extra memory flags that might conflict
+    # Unset conflicting SLURM memory environment variables before running srun
+    lines.append(
+        "# Unset conflicting SLURM memory environment variables to avoid conflicts"
+    )
+    lines.append("unset SLURM_MEM_PER_CPU")
+    lines.append("unset SLURM_MEM_PER_GPU")
+    lines.append("unset SLURM_MEM_PER_NODE")
+    lines.append("")
+
+    # Use srun without inheriting memory flags that might conflict
     lines.append("srun \\")
     lines.append("  --cpus-per-task=${SLURM_CPUS_PER_TASK} \\")
     lines.append("  --kill-on-bad-exit \\")
+    lines.append(
+        "  --export=ALL,SLURM_MEM_PER_CPU=,SLURM_MEM_PER_GPU=,SLURM_MEM_PER_NODE= \\"
+    )
 
     # Fix the training script path and set environment variables for output paths
     if slurm_config.training_script.startswith("/"):
