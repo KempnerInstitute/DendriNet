@@ -10,8 +10,6 @@ import math
 import torch
 from torch import nn
 
-from dendritic_modeling.gradient_scaling import scale_activation_grad_hook
-
 
 class ParametricTanh(nn.Module):
     """
@@ -49,10 +47,6 @@ class ParametricTanhOnlyM(nn.Module):
         self.fixed_b = fixed_b  # fixed midpoint value
         with torch.no_grad():
             self.log_m.data.fill_(math.log(init_m))
-
-        self.register_full_backward_hook(
-            lambda mod, g_in, g_out: scale_activation_grad_hook(mod, g_in, g_out)
-        )
 
     def forward(self, V):
         m = self.log_m.exp()  # slope

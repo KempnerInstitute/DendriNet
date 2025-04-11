@@ -464,7 +464,9 @@ def load_cifar10_as_datasets(train_valid_split=1.0, data_path=None):
         tuple: (train_dataset, valid_dataset, test_dataset)
     """
     transform = transforms.Compose(
-        [transforms.ToTensor(), transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))]
+        [transforms.ToTensor(), 
+         #transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))
+         ]
     )
 
     cifar_dir = get_data_directory("cifar", data_path)
