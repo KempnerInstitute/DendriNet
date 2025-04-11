@@ -304,7 +304,8 @@
         <span class="n">reactivation_type</span><span class="o">=</span><span class="s2">&quot;param_tanh&quot;</span><span class="p">,</span>
         <span class="n">enable_branch_outputs</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span>
         <span class="n">topk_noise_level</span><span class="o">=</span><span class="mf">0.0</span><span class="p">,</span>
-        <span class="n">topk_strategy</span><span class="o">=</span><span class="s2">&quot;standard&quot;</span><span class="p">,</span>
+        <span class="n">topk_type</span><span class="o">=</span><span class="s2">&quot;standard&quot;</span><span class="p">,</span>
+        <span class="n">topk_strategy</span><span class="o">=</span><span class="s2">&quot;none&quot;</span><span class="p">,</span>
     <span class="p">):</span>
         <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="fm">__init__</span><span class="p">()</span>
 
@@ -333,6 +334,7 @@
                     <span class="n">blocklinear_strategy</span><span class="o">=</span><span class="n">blocklinear_strategy</span><span class="p">,</span>
                     <span class="n">topk_noise_level</span><span class="o">=</span><span class="n">topk_noise_level</span><span class="p">,</span>
                     <span class="n">topk_strategy</span><span class="o">=</span><span class="n">topk_strategy</span><span class="p">,</span>
+                    <span class="n">topk_type</span><span class="o">=</span><span class="n">topk_type</span><span class="p">,</span>
                 <span class="p">)</span>
             <span class="k">else</span><span class="p">:</span>
                 <span class="bp">self</span><span class="o">.</span><span class="n">inhibitory_cells</span> <span class="o">=</span> <span class="n">DendriNet</span><span class="p">(</span>
@@ -351,6 +353,7 @@
                     <span class="n">blocklinear_strategy</span><span class="o">=</span><span class="n">blocklinear_strategy</span><span class="p">,</span>
                     <span class="n">topk_noise_level</span><span class="o">=</span><span class="n">topk_noise_level</span><span class="p">,</span>
                     <span class="n">topk_strategy</span><span class="o">=</span><span class="n">topk_strategy</span><span class="p">,</span>
+                    <span class="n">topk_type</span><span class="o">=</span><span class="n">topk_type</span><span class="p">,</span>
                 <span class="p">)</span>
         <span class="k">else</span><span class="p">:</span>
             <span class="bp">self</span><span class="o">.</span><span class="n">inhibitory_cells</span> <span class="o">=</span> <span class="kc">None</span>
@@ -374,6 +377,7 @@
                 <span class="n">blocklinear_strategy</span><span class="o">=</span><span class="n">blocklinear_strategy</span><span class="p">,</span>
                 <span class="n">topk_noise_level</span><span class="o">=</span><span class="n">topk_noise_level</span><span class="p">,</span>
                 <span class="n">topk_strategy</span><span class="o">=</span><span class="n">topk_strategy</span><span class="p">,</span>
+                <span class="n">topk_type</span><span class="o">=</span><span class="n">topk_type</span><span class="p">,</span>
             <span class="p">)</span>
         <span class="k">else</span><span class="p">:</span>
             <span class="bp">self</span><span class="o">.</span><span class="n">excitatory_cells</span> <span class="o">=</span> <span class="n">DendriNet</span><span class="p">(</span>
@@ -394,6 +398,7 @@
                 <span class="n">blocklinear_strategy</span><span class="o">=</span><span class="n">blocklinear_strategy</span><span class="p">,</span>
                 <span class="n">topk_noise_level</span><span class="o">=</span><span class="n">topk_noise_level</span><span class="p">,</span>
                 <span class="n">topk_strategy</span><span class="o">=</span><span class="n">topk_strategy</span><span class="p">,</span>
+                <span class="n">topk_type</span><span class="o">=</span><span class="n">topk_type</span><span class="p">,</span>
             <span class="p">)</span>
 
     <span class="k">def</span><span class="w"> </span><span class="nf">decay_weights</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">weight_decay</span><span class="p">):</span>
@@ -505,14 +510,15 @@
         <span class="n">use_shunting</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">True</span><span class="p">,</span>
         <span class="n">reactivation_type</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;param_tanh&quot;</span><span class="p">,</span>
         <span class="n">reactivation_strategy</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;inverse&quot;</span><span class="p">,</span>
-        <span class="n">blocklinear_strategy</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;block_conductance_dynamic&quot;</span><span class="p">,</span>
+        <span class="n">blocklinear_strategy</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;conductance_dynamic&quot;</span><span class="p">,</span>
         <span class="n">enable_branch_outputs</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span>
         <span class="n">output_layer</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span>
         <span class="n">input_mode</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">0</span><span class="p">,</span>
         <span class="n">input_net_dict</span><span class="p">:</span> <span class="n">Dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
         <span class="n">learning_strategy</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;mle&quot;</span><span class="p">,</span>
         <span class="n">topk_init_method</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;xavier_normal&quot;</span><span class="p">,</span>
-        <span class="n">topk_strategy</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;standard&quot;</span><span class="p">,</span>
+        <span class="n">topk_strategy</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;conductance_dynamic&quot;</span><span class="p">,</span>
+        <span class="n">topk_type</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;standard&quot;</span><span class="p">,</span>
         <span class="o">**</span><span class="n">kwargs</span><span class="p">,</span>
     <span class="p">):</span>
         <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="fm">__init__</span><span class="p">()</span>
@@ -547,6 +553,7 @@
         <span class="bp">self</span><span class="o">.</span><span class="n">learning_strategy</span> <span class="o">=</span> <span class="n">learning_strategy</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">topk_init_method</span> <span class="o">=</span> <span class="n">topk_init_method</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">topk_strategy</span> <span class="o">=</span> <span class="n">topk_strategy</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">topk_type</span> <span class="o">=</span> <span class="n">topk_type</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">topk_noise_level</span> <span class="o">=</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;topk_noise_level&quot;</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">)</span>
 
         <span class="c1"># Set up input transformation based on input_mode</span>
@@ -675,6 +682,7 @@
                 <span class="n">enable_branch_outputs</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">enable_branch_outputs</span><span class="p">,</span>
                 <span class="n">topk_noise_level</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">topk_noise_level</span><span class="p">,</span>
                 <span class="n">topk_strategy</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">topk_strategy</span><span class="p">,</span>
+                <span class="n">topk_type</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">topk_type</span><span class="p">,</span>
             <span class="p">)</span>
             <span class="n">layers</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">layer</span><span class="p">)</span>
 

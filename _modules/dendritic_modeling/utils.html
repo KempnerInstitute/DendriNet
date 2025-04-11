@@ -1357,14 +1357,32 @@
     <span class="n">has_backward_hooks</span> <span class="o">=</span> <span class="nb">bool</span><span class="p">(</span><span class="n">module</span><span class="o">.</span><span class="n">_backward_hooks</span><span class="p">)</span>
     <span class="n">has_full_backward_hooks</span> <span class="o">=</span> <span class="nb">bool</span><span class="p">(</span><span class="n">module</span><span class="o">.</span><span class="n">_backward_pre_hooks</span><span class="p">)</span>
 
-    <span class="c1"># Remove all existing hooks to prevent conflicts</span>
-    <span class="k">if</span> <span class="n">has_backward_hooks</span><span class="p">:</span>
-        <span class="n">module</span><span class="o">.</span><span class="n">_backward_hooks</span><span class="o">.</span><span class="n">clear</span><span class="p">()</span>
+    <span class="c1"># Preserve gradient scaling hooks by checking if they exist</span>
+    <span class="n">gradient_hooks_exist</span> <span class="o">=</span> <span class="kc">False</span>
     <span class="k">if</span> <span class="n">has_full_backward_hooks</span><span class="p">:</span>
-        <span class="n">module</span><span class="o">.</span><span class="n">_backward_pre_hooks</span><span class="o">.</span><span class="n">clear</span><span class="p">()</span>
+        <span class="k">for</span> <span class="n">hook_fn</span> <span class="ow">in</span> <span class="n">module</span><span class="o">.</span><span class="n">_backward_pre_hooks</span><span class="o">.</span><span class="n">values</span><span class="p">():</span>
+            <span class="c1"># Check if any hook function&#39;s name contains gradient-related terms</span>
+            <span class="n">hook_name</span> <span class="o">=</span> <span class="nb">str</span><span class="p">(</span><span class="n">hook_fn</span><span class="p">)</span><span class="o">.</span><span class="n">lower</span><span class="p">()</span>
+            <span class="k">if</span> <span class="p">(</span>
+                <span class="s2">&quot;gradient&quot;</span> <span class="ow">in</span> <span class="n">hook_name</span>
+                <span class="ow">or</span> <span class="s2">&quot;scale&quot;</span> <span class="ow">in</span> <span class="n">hook_name</span>
+                <span class="ow">or</span> <span class="s2">&quot;grad_hook&quot;</span> <span class="ow">in</span> <span class="n">hook_name</span>
+                <span class="ow">or</span> <span class="s2">&quot;scale_activation&quot;</span> <span class="ow">in</span> <span class="n">hook_name</span>
+                <span class="ow">or</span> <span class="s2">&quot;scale_layer&quot;</span> <span class="ow">in</span> <span class="n">hook_name</span>
+            <span class="p">):</span>
+                <span class="n">gradient_hooks_exist</span> <span class="o">=</span> <span class="kc">True</span>
+                <span class="k">break</span>
 
-    <span class="c1"># Register a new safe full backward hook (preferred)</span>
-    <span class="n">module</span><span class="o">.</span><span class="n">register_full_backward_hook</span><span class="p">(</span><span class="n">safe_hook_fn</span><span class="p">)</span>
+    <span class="c1"># Only replace hooks if no gradient scaling hooks exist</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">gradient_hooks_exist</span><span class="p">:</span>
+        <span class="c1"># Remove all existing hooks to prevent conflicts</span>
+        <span class="k">if</span> <span class="n">has_backward_hooks</span><span class="p">:</span>
+            <span class="n">module</span><span class="o">.</span><span class="n">_backward_hooks</span><span class="o">.</span><span class="n">clear</span><span class="p">()</span>
+        <span class="k">if</span> <span class="n">has_full_backward_hooks</span><span class="p">:</span>
+            <span class="n">module</span><span class="o">.</span><span class="n">_backward_pre_hooks</span><span class="o">.</span><span class="n">clear</span><span class="p">()</span>
+
+        <span class="c1"># Register a new safe full backward hook (preferred)</span>
+        <span class="n">module</span><span class="o">.</span><span class="n">register_full_backward_hook</span><span class="p">(</span><span class="n">safe_hook_fn</span><span class="p">)</span>
 
     <span class="c1"># Process child modules</span>
     <span class="k">for</span> <span class="n">child</span> <span class="ow">in</span> <span class="n">module</span><span class="o">.</span><span class="n">children</span><span class="p">():</span>

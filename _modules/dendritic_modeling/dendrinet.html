@@ -231,6 +231,8 @@
         <span class="bp">self</span><span class="o">.</span><span class="n">K</span> <span class="o">=</span> <span class="n">K</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">param_space</span> <span class="o">=</span> <span class="n">param_space</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">init_method</span> <span class="o">=</span> <span class="n">init_method</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">input_scale_vec</span> <span class="o">=</span> <span class="kc">None</span>  <span class="c1"># may be used for gradient scaling</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">param_scale_vec</span> <span class="o">=</span> <span class="kc">None</span>  <span class="c1"># may be used for gradient scaling</span>
 
     <span class="k">def</span><span class="w"> </span><span class="nf">initialize</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
         <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">init_method</span> <span class="ow">in</span> <span class="n">TOPK_INIT_METHODS</span><span class="p">:</span>
@@ -737,6 +739,8 @@
         <span class="bp">self</span><span class="o">.</span><span class="n">in_features</span> <span class="o">=</span> <span class="n">in_features</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">out_features</span> <span class="o">=</span> <span class="n">out_features</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">block_size</span> <span class="o">=</span> <span class="n">block_size</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">input_scale_vec</span> <span class="o">=</span> <span class="kc">None</span>  <span class="c1"># may be used for gradient scaling</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">param_scale_vec</span> <span class="o">=</span> <span class="kc">None</span>  <span class="c1"># may be used for gradient scaling</span>
 
     <span class="k">def</span><span class="w"> </span><span class="nf">initialize</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">sum_synapse_conductances</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
         <span class="k">if</span> <span class="n">sum_synapse_conductances</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
@@ -868,9 +872,10 @@
         <span class="n">input_branch_factor</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
         <span class="n">topk_init_method</span><span class="o">=</span><span class="s2">&quot;xavier_normal&quot;</span><span class="p">,</span>
         <span class="n">topk_noise_level</span><span class="o">=</span><span class="mf">0.0</span><span class="p">,</span>
-        <span class="n">topk_strategy</span><span class="o">=</span><span class="s2">&quot;standard&quot;</span><span class="p">,</span>  <span class="c1"># New parameter</span>
+        <span class="n">topk_type</span><span class="o">=</span><span class="s2">&quot;standard&quot;</span><span class="p">,</span>  <span class="c1"># New parameter</span>
         <span class="n">topk_temperature</span><span class="o">=</span><span class="mf">0.5</span><span class="p">,</span>  <span class="c1"># For stochastic TopK</span>
         <span class="n">topk_ultrafast</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span>  <span class="c1"># For much faster stochastic TopK</span>
+        <span class="n">topk_strategy</span><span class="o">=</span><span class="s2">&quot;none&quot;</span><span class="p">,</span>
         <span class="n">use_shunting</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
         <span class="n">reactivate</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span>
         <span class="n">reactivation_type</span><span class="o">=</span><span class="s2">&quot;param_tanh&quot;</span><span class="p">,</span>
@@ -883,11 +888,19 @@
         <span class="bp">self</span><span class="o">.</span><span class="n">reactivation_strategy</span> <span class="o">=</span> <span class="n">reactivation_strategy</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">blocklinear_strategy</span> <span class="o">=</span> <span class="n">blocklinear_strategy</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">use_shunting</span> <span class="o">=</span> <span class="n">use_shunting</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">topk_strategy</span> <span class="o">=</span> <span class="n">topk_strategy</span>  <span class="c1"># Store the strategy</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">topk_type</span> <span class="o">=</span> <span class="n">topk_type</span>  <span class="c1"># Store the strategy</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">topk_temperature</span> <span class="o">=</span> <span class="n">topk_temperature</span>  <span class="c1"># Store the temperature</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">topk_ultrafast</span> <span class="o">=</span> <span class="n">topk_ultrafast</span>  <span class="c1"># Store the ultrafast flag</span>
-
+        <span class="bp">self</span><span class="o">.</span><span class="n">topk_strategy</span> <span class="o">=</span> <span class="n">topk_strategy</span>  <span class="c1"># Store the strategy</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">input_excitatory</span> <span class="o">=</span> <span class="n">excitatory_input_dim</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span>
+
+        <span class="n">gradient_scaler</span> <span class="o">=</span> <span class="n">GradientScaler</span><span class="p">(</span>
+            <span class="n">topk_strategy</span><span class="o">=</span><span class="n">topk_strategy</span><span class="p">,</span>
+            <span class="n">reactivation_strategy</span><span class="o">=</span><span class="n">reactivation_strategy</span><span class="p">,</span>
+            <span class="n">blocklinear_strategy</span><span class="o">=</span><span class="n">blocklinear_strategy</span><span class="p">,</span>
+            <span class="n">layer_idx</span><span class="o">=</span><span class="n">layer_idx</span><span class="p">,</span>
+        <span class="p">)</span>
+
         <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">input_excitatory</span><span class="p">:</span>
             <span class="bp">self</span><span class="o">.</span><span class="n">branch_excitation</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_create_topk_layer</span><span class="p">(</span>
                 <span class="n">in_features</span><span class="o">=</span><span class="n">excitatory_input_dim</span><span class="p">,</span>
@@ -896,6 +909,7 @@
                 <span class="n">init_method</span><span class="o">=</span><span class="n">topk_init_method</span><span class="p">,</span>
                 <span class="n">noise_level</span><span class="o">=</span><span class="n">topk_noise_level</span><span class="p">,</span>
             <span class="p">)</span>
+            <span class="n">gradient_scaler</span><span class="o">.</span><span class="n">register_topk_dynamic</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">branch_excitation</span><span class="p">)</span>
             <span class="bp">self</span><span class="o">.</span><span class="n">excitatory_input_dim</span> <span class="o">=</span> <span class="n">excitatory_input_dim</span>
         <span class="k">else</span><span class="p">:</span>
             <span class="bp">self</span><span class="o">.</span><span class="n">branch_excitation</span> <span class="o">=</span> <span class="kc">None</span>
@@ -909,27 +923,17 @@
                 <span class="n">init_method</span><span class="o">=</span><span class="n">topk_init_method</span><span class="p">,</span>
                 <span class="n">noise_level</span><span class="o">=</span><span class="n">topk_noise_level</span><span class="p">,</span>
             <span class="p">)</span>
+            <span class="n">gradient_scaler</span><span class="o">.</span><span class="n">register_topk_dynamic</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">branch_inhibition</span><span class="p">)</span>
             <span class="bp">self</span><span class="o">.</span><span class="n">inhibitory_input_dim</span> <span class="o">=</span> <span class="n">inhibitory_input_dim</span>
         <span class="k">else</span><span class="p">:</span>
             <span class="bp">self</span><span class="o">.</span><span class="n">branch_inhibition</span> <span class="o">=</span> <span class="kc">None</span>
-
-        <span class="n">gradient_scaler</span> <span class="o">=</span> <span class="n">GradientScaler</span><span class="p">(</span>
-            <span class="n">reactivation_strategy</span><span class="o">=</span><span class="n">reactivation_strategy</span><span class="p">,</span>
-            <span class="n">blocklinear_strategy</span><span class="o">=</span><span class="n">blocklinear_strategy</span><span class="p">,</span>
-            <span class="n">layer_idx</span><span class="o">=</span><span class="n">layer_idx</span><span class="p">,</span>
-        <span class="p">)</span>
 
         <span class="bp">self</span><span class="o">.</span><span class="n">input_branches</span> <span class="o">=</span> <span class="n">input_branch_factor</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span>
         <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">input_branches</span><span class="p">:</span>
             <span class="bp">self</span><span class="o">.</span><span class="n">branches_to_output</span> <span class="o">=</span> <span class="n">BlockLinear</span><span class="p">(</span>
                 <span class="n">output_dim</span> <span class="o">*</span> <span class="n">input_branch_factor</span><span class="p">,</span> <span class="n">output_dim</span>
             <span class="p">)</span>
-            <span class="n">gradient_scaler</span><span class="o">.</span><span class="n">register_block_linear_dynamic</span><span class="p">(</span>
-                <span class="bp">self</span><span class="o">.</span><span class="n">branches_to_output</span><span class="p">,</span>
-                <span class="bp">self</span><span class="o">.</span><span class="n">use_shunting</span><span class="p">,</span>
-                <span class="bp">self</span><span class="o">.</span><span class="n">branch_excitation</span> <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">input_excitatory</span> <span class="k">else</span> <span class="kc">None</span><span class="p">,</span>
-                <span class="bp">self</span><span class="o">.</span><span class="n">branch_inhibition</span> <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">input_inhibitory</span> <span class="k">else</span> <span class="kc">None</span><span class="p">,</span>
-            <span class="p">)</span>
+            <span class="n">gradient_scaler</span><span class="o">.</span><span class="n">register_block_linear_dynamic</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">branches_to_output</span><span class="p">)</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">input_branch_factor</span> <span class="o">=</span> <span class="n">input_branch_factor</span>
 
         <span class="k">if</span> <span class="n">reactivate</span><span class="p">:</span>
@@ -957,7 +961,7 @@
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;Helper function that picks which topk class to use based on strategy.&quot;&quot;&quot;</span>
         <span class="c1"># For &#39;standard&#39; strategy, use the original TopKLinear class exactly as before</span>
         <span class="c1"># This provides a direct path with zero overhead compared to the original code</span>
-        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">topk_strategy</span> <span class="ow">is</span> <span class="kc">None</span> <span class="ow">or</span> <span class="bp">self</span><span class="o">.</span><span class="n">topk_strategy</span> <span class="o">==</span> <span class="s2">&quot;standard&quot;</span><span class="p">:</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">topk_type</span> <span class="ow">is</span> <span class="kc">None</span> <span class="ow">or</span> <span class="bp">self</span><span class="o">.</span><span class="n">topk_type</span> <span class="o">==</span> <span class="s2">&quot;standard&quot;</span><span class="p">:</span>
             <span class="c1"># Create directly without any strategy-specific logic</span>
             <span class="n">topk_layer</span> <span class="o">=</span> <span class="n">TopKLinear</span><span class="p">(</span>
                 <span class="n">in_features</span><span class="o">=</span><span class="n">in_features</span><span class="p">,</span>
@@ -970,7 +974,7 @@
             <span class="k">return</span> <span class="n">topk_layer</span>
 
         <span class="c1"># Alternative strategies only incur overhead if explicitly requested</span>
-        <span class="k">elif</span> <span class="bp">self</span><span class="o">.</span><span class="n">topk_strategy</span> <span class="o">==</span> <span class="s2">&quot;stochastic&quot;</span><span class="p">:</span>
+        <span class="k">elif</span> <span class="bp">self</span><span class="o">.</span><span class="n">topk_type</span> <span class="o">==</span> <span class="s2">&quot;stochastic&quot;</span><span class="p">:</span>
             <span class="c1"># Get temperature parameter if available</span>
             <span class="n">temperature</span> <span class="o">=</span> <span class="nb">getattr</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="s2">&quot;topk_temperature&quot;</span><span class="p">,</span> <span class="mf">0.5</span><span class="p">)</span>
             <span class="c1"># Check if ultrafast mode is enabled</span>
@@ -986,7 +990,7 @@
                 <span class="n">temperature</span><span class="o">=</span><span class="n">temperature</span><span class="p">,</span>
                 <span class="n">ultrafast</span><span class="o">=</span><span class="n">ultrafast</span><span class="p">,</span>
             <span class="p">)</span>
-        <span class="k">elif</span> <span class="bp">self</span><span class="o">.</span><span class="n">topk_strategy</span> <span class="o">==</span> <span class="s2">&quot;variance&quot;</span><span class="p">:</span>
+        <span class="k">elif</span> <span class="bp">self</span><span class="o">.</span><span class="n">topk_type</span> <span class="o">==</span> <span class="s2">&quot;variance&quot;</span><span class="p">:</span>
             <span class="k">return</span> <span class="n">VarianceTopKLinear</span><span class="p">(</span>
                 <span class="n">in_features</span><span class="o">=</span><span class="n">in_features</span><span class="p">,</span>
                 <span class="n">out_features</span><span class="o">=</span><span class="n">out_features</span><span class="p">,</span>
@@ -1039,29 +1043,108 @@
             <span class="bp">self</span><span class="o">.</span><span class="n">branches_to_output</span><span class="o">.</span><span class="n">decay_weights</span><span class="p">(</span><span class="n">weight_decay</span><span class="p">)</span>
 
     <span class="k">def</span><span class="w"> </span><span class="nf">forward</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">x</span><span class="p">,</span> <span class="n">inhibitory_input</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">branch_input</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
-        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">input_excitatory</span> <span class="ow">and</span> <span class="bp">self</span><span class="o">.</span><span class="n">branch_excitation</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
-            <span class="n">excitation</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">branch_excitation</span><span class="p">(</span><span class="n">x</span><span class="p">)</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">use_shunting</span><span class="p">:</span>
+            <span class="n">numerator</span> <span class="o">=</span> <span class="mi">0</span>
+            <span class="n">denominator</span> <span class="o">=</span> <span class="mi">1</span>
+
+            <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">input_excitatory</span> <span class="ow">and</span> <span class="bp">self</span><span class="o">.</span><span class="n">branch_excitation</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+                <span class="n">excitation</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">branch_excitation</span><span class="p">(</span><span class="n">x</span><span class="p">)</span>
+                <span class="n">numerator</span> <span class="o">=</span> <span class="n">numerator</span> <span class="o">+</span> <span class="n">excitation</span>
+                <span class="n">denominator</span> <span class="o">=</span> <span class="n">denominator</span> <span class="o">+</span> <span class="n">excitation</span>
+
+            <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">input_branches</span> <span class="ow">and</span> <span class="n">branch_input</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+                <span class="n">current</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">branches_to_output</span><span class="p">(</span><span class="n">branch_input</span><span class="p">)</span>
+                <span class="n">numerator</span> <span class="o">=</span> <span class="n">numerator</span> <span class="o">+</span> <span class="n">current</span>
+                <span class="n">conductance</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">branches_to_output</span><span class="o">.</span><span class="n">sum_conductances</span><span class="p">()</span>
+                <span class="n">denominator</span> <span class="o">=</span> <span class="n">denominator</span> <span class="o">+</span> <span class="n">conductance</span>
+
+            <span class="k">if</span> <span class="p">(</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">input_inhibitory</span>
+                <span class="ow">and</span> <span class="bp">self</span><span class="o">.</span><span class="n">branch_inhibition</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span>
+                <span class="ow">and</span> <span class="n">inhibitory_input</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span>
+            <span class="p">):</span>
+                <span class="n">denominator</span> <span class="o">=</span> <span class="n">denominator</span> <span class="o">+</span> <span class="bp">self</span><span class="o">.</span><span class="n">branch_inhibition</span><span class="p">(</span><span class="n">inhibitory_input</span><span class="p">)</span>
+
+            <span class="n">voltage</span> <span class="o">=</span> <span class="n">numerator</span> <span class="o">/</span> <span class="n">denominator</span>
+            
         <span class="k">else</span><span class="p">:</span>
-            <span class="n">excitation</span> <span class="o">=</span> <span class="mi">0</span>
+            <span class="n">voltage</span> <span class="o">=</span> <span class="mi">0</span>
 
-        <span class="n">numerator</span> <span class="o">=</span> <span class="n">excitation</span>
-        <span class="n">denominator</span> <span class="o">=</span> <span class="n">excitation</span> <span class="o">+</span> <span class="mi">1</span>
+            <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">input_excitatory</span> <span class="ow">and</span> <span class="bp">self</span><span class="o">.</span><span class="n">branch_excitation</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+                <span class="n">voltage</span> <span class="o">=</span> <span class="n">voltage</span> <span class="o">+</span> <span class="bp">self</span><span class="o">.</span><span class="n">branch_excitation</span><span class="p">(</span><span class="n">x</span><span class="p">)</span>
 
-        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">input_branches</span> <span class="ow">and</span> <span class="n">branch_input</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
-            <span class="n">current</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">branches_to_output</span><span class="p">(</span><span class="n">branch_input</span><span class="p">)</span>
-            <span class="n">numerator</span> <span class="o">=</span> <span class="n">numerator</span> <span class="o">+</span> <span class="n">current</span>
-            <span class="n">conductance</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">branches_to_output</span><span class="o">.</span><span class="n">sum_conductances</span><span class="p">()</span>
-            <span class="n">denominator</span> <span class="o">=</span> <span class="n">denominator</span> <span class="o">+</span> <span class="n">conductance</span>
+            <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">input_branches</span> <span class="ow">and</span> <span class="n">branch_input</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+                <span class="n">voltage</span> <span class="o">=</span> <span class="n">voltage</span> <span class="o">+</span> <span class="bp">self</span><span class="o">.</span><span class="n">branches_to_output</span><span class="p">(</span><span class="n">branch_input</span><span class="p">)</span>
 
-        <span class="k">if</span> <span class="p">(</span>
-            <span class="bp">self</span><span class="o">.</span><span class="n">input_inhibitory</span>
-            <span class="ow">and</span> <span class="bp">self</span><span class="o">.</span><span class="n">branch_inhibition</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span>
-            <span class="ow">and</span> <span class="n">inhibitory_input</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span>
-        <span class="p">):</span>
-            <span class="n">denominator</span> <span class="o">=</span> <span class="n">denominator</span> <span class="o">+</span> <span class="bp">self</span><span class="o">.</span><span class="n">branch_inhibition</span><span class="p">(</span><span class="n">inhibitory_input</span><span class="p">)</span>
+            <span class="k">if</span> <span class="p">(</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">input_inhibitory</span>
+                <span class="ow">and</span> <span class="bp">self</span><span class="o">.</span><span class="n">branch_inhibition</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span>
+                <span class="ow">and</span> <span class="n">inhibitory_input</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span>
+            <span class="p">):</span>
+                <span class="n">voltage</span> <span class="o">=</span> <span class="n">voltage</span> <span class="o">-</span> <span class="bp">self</span><span class="o">.</span><span class="n">branch_inhibition</span><span class="p">(</span><span class="n">inhibitory_input</span><span class="p">)</span>
+        
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">training</span> <span class="ow">and</span> <span class="s2">&quot;conductance_dynamic&quot;</span> <span class="ow">in</span> <span class="p">[</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">topk_strategy</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">blocklinear_strategy</span><span class="p">]:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">compute_grad_scales</span><span class="p">()</span>
 
-        <span class="n">voltage</span> <span class="o">=</span> <span class="n">numerator</span> <span class="o">/</span> <span class="n">denominator</span>
         <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">reactivation</span><span class="p">(</span><span class="n">voltage</span><span class="p">)</span>
+
+<div class="viewcode-block" id="DendriticBranchLayer.compute_grad_scales">
+<a class="viewcode-back" href="../../source/api/dendritic_modeling.html#dendritic_modeling.dendrinet.DendriticBranchLayer.compute_grad_scales">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">compute_grad_scales</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        A conduction-based dynamic scale, returning a flattened vector so each weight</span>
+<span class="sd">        can get a distinct multiplier. shape [out_features * block_size].</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">with</span> <span class="n">torch</span><span class="o">.</span><span class="n">no_grad</span><span class="p">():</span>
+            <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">use_shunting</span><span class="p">:</span>
+                <span class="n">total_conductance</span> <span class="o">=</span> <span class="mi">1</span>
+                <span class="k">if</span> <span class="nb">hasattr</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="s2">&quot;branches_to_output&quot;</span><span class="p">):</span>
+                    <span class="n">total_conductance</span> <span class="o">+=</span> <span class="bp">self</span><span class="o">.</span><span class="n">branches_to_output</span><span class="o">.</span><span class="n">sum_conductances</span><span class="p">()</span>
+
+                <span class="c1"># Safer access to branch_excitation, checking if it exists and has the right attributes</span>
+                <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">branch_excitation</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+                    <span class="k">try</span><span class="p">:</span>
+                        <span class="n">total_conductance</span> <span class="o">+=</span> <span class="bp">self</span><span class="o">.</span><span class="n">branch_excitation</span><span class="o">.</span><span class="n">pruned_weight</span><span class="p">()</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="n">dim</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span>
+                    <span class="k">except</span> <span class="ne">Exception</span> <span class="k">as</span> <span class="n">e</span><span class="p">:</span>
+                        <span class="c1"># If there&#39;s any error, we just skip this part</span>
+                        <span class="k">pass</span>
+
+                <span class="c1"># Safer access to branch_inhibition, checking if it exists and has the right attributes</span>
+                <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">branch_inhibition</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+                    <span class="k">try</span><span class="p">:</span>
+                        <span class="n">total_conductance</span> <span class="o">+=</span> <span class="bp">self</span><span class="o">.</span><span class="n">branch_inhibition</span><span class="o">.</span><span class="n">pruned_weight</span><span class="p">()</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="n">dim</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span>
+                    <span class="k">except</span> <span class="ne">Exception</span> <span class="k">as</span> <span class="n">e</span><span class="p">:</span>
+                        <span class="c1"># If there&#39;s any error, we just skip this part</span>
+                        <span class="k">pass</span>
+
+                <span class="k">if</span> <span class="p">(</span><span class="nb">hasattr</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="s2">&quot;branches_to_output&quot;</span><span class="p">)</span> 
+                    <span class="ow">and</span> <span class="bp">self</span><span class="o">.</span><span class="n">blocklinear_strategy</span> <span class="o">==</span> <span class="s2">&quot;conductance_dynamic&quot;</span><span class="p">):</span>
+                    <span class="bp">self</span><span class="o">.</span><span class="n">branches_to_output</span><span class="o">.</span><span class="n">input_scale_vec</span> <span class="o">=</span> <span class="p">(</span>
+                        <span class="n">total_conductance</span><span class="p">[:,</span> <span class="kc">None</span><span class="p">]</span> <span class="o">/</span> <span class="bp">self</span><span class="o">.</span><span class="n">branches_to_output</span><span class="o">.</span><span class="n">log_weight</span><span class="o">.</span><span class="n">exp</span><span class="p">()</span>
+                    <span class="p">)</span><span class="o">.</span><span class="n">flatten</span><span class="p">()</span>
+                    <span class="bp">self</span><span class="o">.</span><span class="n">branches_to_output</span><span class="o">.</span><span class="n">param_scale_vec</span> <span class="o">=</span> <span class="n">total_conductance</span><span class="p">[:,</span> <span class="kc">None</span><span class="p">]</span>
+                
+                <span class="k">if</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">branch_excitation</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> 
+                    <span class="ow">and</span> <span class="bp">self</span><span class="o">.</span><span class="n">topk_strategy</span> <span class="o">==</span> <span class="s2">&quot;conductance_dynamic&quot;</span><span class="p">):</span>
+                    <span class="bp">self</span><span class="o">.</span><span class="n">branch_excitation</span><span class="o">.</span><span class="n">input_scale_vec</span> <span class="o">=</span> <span class="p">(</span>
+                        <span class="n">total_conductance</span><span class="p">[:,</span> <span class="kc">None</span><span class="p">]</span> <span class="o">/</span> <span class="bp">self</span><span class="o">.</span><span class="n">branch_excitation</span><span class="o">.</span><span class="n">weight</span><span class="p">()</span>
+                    <span class="p">)</span><span class="o">.</span><span class="n">mean</span><span class="p">(</span><span class="n">dim</span> <span class="o">=</span> <span class="mi">0</span><span class="p">)</span>
+                    <span class="bp">self</span><span class="o">.</span><span class="n">branch_excitation</span><span class="o">.</span><span class="n">param_scale_vec</span> <span class="o">=</span> <span class="n">total_conductance</span><span class="p">[:,</span> <span class="kc">None</span><span class="p">]</span>
+
+                <span class="k">if</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">branch_inhibition</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> 
+                    <span class="ow">and</span> <span class="bp">self</span><span class="o">.</span><span class="n">topk_strategy</span> <span class="o">==</span> <span class="s2">&quot;conductance_dynamic&quot;</span><span class="p">):</span>
+                    <span class="bp">self</span><span class="o">.</span><span class="n">branch_inhibition</span><span class="o">.</span><span class="n">input_scale_vec</span> <span class="o">=</span> <span class="p">(</span>
+                        <span class="n">total_conductance</span><span class="p">[:,</span> <span class="kc">None</span><span class="p">]</span> <span class="o">/</span> <span class="bp">self</span><span class="o">.</span><span class="n">branch_inhibition</span><span class="o">.</span><span class="n">weight</span><span class="p">()</span>
+                    <span class="p">)</span><span class="o">.</span><span class="n">mean</span><span class="p">(</span><span class="n">dim</span> <span class="o">=</span> <span class="mi">0</span><span class="p">)</span>
+                    <span class="bp">self</span><span class="o">.</span><span class="n">branch_inhibition</span><span class="o">.</span><span class="n">param_scale_vec</span> <span class="o">=</span> <span class="n">total_conductance</span><span class="p">[:,</span> <span class="kc">None</span><span class="p">]</span>
+
+            <span class="k">else</span><span class="p">:</span>
+                <span class="n">input_scale_vec</span> <span class="o">=</span> <span class="mi">1</span> <span class="o">/</span> <span class="bp">self</span><span class="o">.</span><span class="n">branches_to_output</span><span class="o">.</span><span class="n">log_weight</span><span class="o">.</span><span class="n">exp</span><span class="p">()</span><span class="o">.</span><span class="n">flatten</span><span class="p">()</span>
+                <span class="k">if</span> <span class="p">(</span><span class="nb">hasattr</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="s2">&quot;branches_to_output&quot;</span><span class="p">)</span> 
+                    <span class="ow">and</span> <span class="bp">self</span><span class="o">.</span><span class="n">blocklinear_strategy</span> <span class="o">==</span> <span class="s2">&quot;conductance_dynamic&quot;</span><span class="p">):</span>
+                    <span class="bp">self</span><span class="o">.</span><span class="n">branches_to_output</span><span class="o">.</span><span class="n">input_scale_vec</span> <span class="o">=</span> <span class="n">input_scale_vec</span></div>
+
 
     <span class="k">def</span><span class="w"> </span><span class="nf">get_weights</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
         <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">input_inhibitory</span> <span class="ow">and</span> <span class="bp">self</span><span class="o">.</span><span class="n">input_excitatory</span><span class="p">:</span>
@@ -1151,9 +1234,10 @@
         <span class="n">somatic_synapses</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
         <span class="n">topk_init_method</span><span class="o">=</span><span class="s2">&quot;xavier_normal&quot;</span><span class="p">,</span>
         <span class="n">topk_noise_level</span><span class="o">=</span><span class="mf">0.0</span><span class="p">,</span>
-        <span class="n">topk_strategy</span><span class="o">=</span><span class="s2">&quot;standard&quot;</span><span class="p">,</span>  <span class="c1"># New parameter for TopK strategy</span>
+        <span class="n">topk_type</span><span class="o">=</span><span class="s2">&quot;standard&quot;</span><span class="p">,</span>  <span class="c1"># New parameter for TopK strategy</span>
         <span class="n">topk_temperature</span><span class="o">=</span><span class="mf">0.5</span><span class="p">,</span>  <span class="c1"># For stochastic TopK</span>
         <span class="n">topk_ultrafast</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span>  <span class="c1"># For much faster stochastic TopK</span>
+        <span class="n">topk_strategy</span><span class="o">=</span><span class="s2">&quot;none&quot;</span><span class="p">,</span>
         <span class="n">use_shunting</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
         <span class="n">reactivation_type</span><span class="o">=</span><span class="s2">&quot;param_tanh&quot;</span><span class="p">,</span>
         <span class="n">reactivation_strategy</span><span class="o">=</span><span class="s2">&quot;none&quot;</span><span class="p">,</span>
@@ -1210,9 +1294,10 @@
                 <span class="n">input_branch_factor</span><span class="o">=</span><span class="n">branch_factors</span><span class="p">[</span><span class="n">i</span><span class="p">],</span>
                 <span class="n">topk_init_method</span><span class="o">=</span><span class="n">topk_init_method</span><span class="p">,</span>
                 <span class="n">topk_noise_level</span><span class="o">=</span><span class="n">topk_noise_level</span><span class="p">,</span>
-                <span class="n">topk_strategy</span><span class="o">=</span><span class="n">topk_strategy</span><span class="p">,</span>  <span class="c1"># Pass the parameter</span>
+                <span class="n">topk_type</span><span class="o">=</span><span class="n">topk_type</span><span class="p">,</span>  <span class="c1"># Pass the parameter</span>
                 <span class="n">topk_temperature</span><span class="o">=</span><span class="n">topk_temperature</span><span class="p">,</span>  <span class="c1"># Pass the temperature</span>
                 <span class="n">topk_ultrafast</span><span class="o">=</span><span class="n">topk_ultrafast</span><span class="p">,</span>  <span class="c1"># Pass the ultrafast flag</span>
+                <span class="n">topk_strategy</span><span class="o">=</span><span class="n">topk_strategy</span><span class="p">,</span>
                 <span class="n">use_shunting</span><span class="o">=</span><span class="n">use_shunting</span><span class="p">,</span>
                 <span class="n">reactivate</span><span class="o">=</span><span class="n">reactivate</span><span class="p">,</span>
                 <span class="n">reactivation_type</span><span class="o">=</span><span class="n">reactivation_type</span><span class="p">,</span>
@@ -1233,9 +1318,10 @@
                     <span class="n">input_branch_factor</span><span class="o">=</span><span class="n">branch_factors</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">],</span>
                     <span class="n">topk_init_method</span><span class="o">=</span><span class="n">topk_init_method</span><span class="p">,</span>
                     <span class="n">topk_noise_level</span><span class="o">=</span><span class="n">topk_noise_level</span><span class="p">,</span>
-                    <span class="n">topk_strategy</span><span class="o">=</span><span class="n">topk_strategy</span><span class="p">,</span>  <span class="c1"># Pass the parameter</span>
+                    <span class="n">topk_type</span><span class="o">=</span><span class="n">topk_type</span><span class="p">,</span>  <span class="c1"># Pass the parameter</span>
                     <span class="n">topk_temperature</span><span class="o">=</span><span class="n">topk_temperature</span><span class="p">,</span>  <span class="c1"># Pass the temperature</span>
                     <span class="n">topk_ultrafast</span><span class="o">=</span><span class="n">topk_ultrafast</span><span class="p">,</span>  <span class="c1"># Pass the ultrafast flag</span>
+                    <span class="n">topk_strategy</span><span class="o">=</span><span class="n">topk_strategy</span><span class="p">,</span>
                     <span class="n">use_shunting</span><span class="o">=</span><span class="n">use_shunting</span><span class="p">,</span>
                     <span class="n">reactivate</span><span class="o">=</span><span class="n">reactivate</span><span class="p">,</span>
                     <span class="n">reactivation_type</span><span class="o">=</span><span class="n">reactivation_type</span><span class="p">,</span>
@@ -1255,9 +1341,10 @@
                     <span class="n">input_branch_factor</span><span class="o">=</span><span class="n">branch_factors</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">],</span>
                     <span class="n">topk_init_method</span><span class="o">=</span><span class="n">topk_init_method</span><span class="p">,</span>
                     <span class="n">topk_noise_level</span><span class="o">=</span><span class="n">topk_noise_level</span><span class="p">,</span>
-                    <span class="n">topk_strategy</span><span class="o">=</span><span class="n">topk_strategy</span><span class="p">,</span>  <span class="c1"># Pass the parameter</span>
+                    <span class="n">topk_type</span><span class="o">=</span><span class="n">topk_type</span><span class="p">,</span>  <span class="c1"># Pass the parameter</span>
                     <span class="n">topk_temperature</span><span class="o">=</span><span class="n">topk_temperature</span><span class="p">,</span>  <span class="c1"># Pass the temperature</span>
                     <span class="n">topk_ultrafast</span><span class="o">=</span><span class="n">topk_ultrafast</span><span class="p">,</span>  <span class="c1"># Pass the ultrafast flag</span>
+                    <span class="n">topk_strategy</span><span class="o">=</span><span class="n">topk_strategy</span><span class="p">,</span>
                     <span class="n">use_shunting</span><span class="o">=</span><span class="n">use_shunting</span><span class="p">,</span>
                     <span class="n">reactivate</span><span class="o">=</span><span class="n">reactivate</span><span class="p">,</span>
                     <span class="n">reactivation_type</span><span class="o">=</span><span class="n">reactivation_type</span><span class="p">,</span>
