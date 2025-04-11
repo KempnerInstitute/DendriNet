@@ -49,7 +49,7 @@ def safe_hook(hook_fn):
             return result
         except Exception as e:
             # If anything goes wrong, return the original grad_input as a fallback
-            print(f"Warning: Hook error: {e}")
+            print(f"Warning: Hook error: {e}", flush=True)
             return grad_input
 
     return safe_hook_fn
@@ -60,25 +60,47 @@ def scale_activation_grad_hook(module, grad_input, grad_output):
     A hook for reactivation functions. If inputs don't require gradients,
     return None as required.
     """
-    # Check if any input requires gradients
-    inputs_require_grad = False
-    for p in module.parameters(recurse=True):
-        if p.requires_grad:
-            inputs_require_grad = True
-            break
+    # # Check if any input requires gradients
+    # inputs_require_grad = False
+    # for p in module.parameters(recurse=True):
+    #     if p.requires_grad:
+    #         inputs_require_grad = True
+    #         break
 
-    # If no inputs require gradients, return None
-    if not inputs_require_grad:
-        return None
+    # # If no inputs require gradients, return None
+    # if not inputs_require_grad:
+    #     return None
+    print('\nscaling reactivation grad\n', flush=True)
 
     return grad_output
 
 
-def scale_layer_gradients_elementwise(module, grad_input, grad_output, scale_vec):
+def scale_layer_input_gradients_elementwise(module, grad_input, grad_output):
     """
-    Apply element-wise scaling to the gradients.
+    Apply element-wise scaling to the input gradients.
     """
-    return tuple(grad * scale_vec if grad is not None else None for grad in grad_input)
+    if hasattr(module, "input_scale_vec"):
+        if module.input_scale_vec is not None:
+            input_scale_vec = module.input_scale_vec
+    else:
+        input_scale_vec = 1
+
+    for grad in grad_input:
+        if grad is not None:
+            print(f'grad std:\n{grad.std(dim = 0)}', flush=True)
+            print('scaled grad std:\n', (grad * input_scale_vec).std(dim = 0), flush=True)
+    return tuple(grad * input_scale_vec if grad is not None else None for grad in grad_input)
+
+
+def scale_layer_param_gradients_elementwise(grad, param_scale_vec):
+    """
+    Apply element-wise scaling to the parameter gradients.
+    """
+    if grad is not None:
+        print(f'grad:\n{grad}', flush=True)
+        print('scaled grad:\n', grad * param_scale_vec, flush=True)
+    param_scale_vec = 1 if param_scale_vec is None else param_scale_vec
+    return grad * param_scale_vec if grad is not None else None
 
 
 # def scale_activation_grad_hook(module, grad_input, grad_output):
@@ -103,17 +125,17 @@ def scale_layer_gradients_scalar(module, grad_input, grad_output, scale_factor):
 
 
 # Apply the safe_hook decorator to create safe versions
-safe_scale_layer_gradients_elementwise = (
-    lambda module, grad_input, grad_output, scale_vec: safe_hook(
-        lambda m, gi, go: scale_layer_gradients_elementwise(m, gi, go, scale_vec)
-    )(module, grad_input, grad_output)
-)
+# safe_scale_layer_input_gradients_elementwise = (
+#     lambda module, grad_input, grad_output: safe_hook(
+#         lambda m, gi, go: scale_layer_input_gradients_elementwise(m, gi, go)
+#     )(module, grad_input, grad_output)
+# )
 
-safe_scale_layer_gradients_scalar = (
-    lambda module, grad_input, grad_output, scale_factor: safe_hook(
-        lambda m, gi, go: scale_layer_gradients_scalar(m, gi, go, scale_factor)
-    )(module, grad_input, grad_output)
-)
+# safe_scale_layer_gradients_scalar = (
+#     lambda module, grad_input, grad_output, scale_factor: safe_hook(
+#         lambda m, gi, go: scale_layer_gradients_scalar(m, gi, go, scale_factor)
+#     )(module, grad_input, grad_output)
+# )
 
 
 class GradientScaler:
@@ -126,6 +148,7 @@ class GradientScaler:
         self,
         reactivation_strategy="none",
         blocklinear_strategy="none",
+        topk_strategy="none",
         scale_factor=1.0,
         layer_idx=0,
     ):
@@ -141,6 +164,7 @@ class GradientScaler:
         """
         self.reactivation_strategy = reactivation_strategy
         self.blocklinear_strategy = blocklinear_strategy
+        self.topk_strategy = topk_strategy
         self.scale_factor = scale_factor
         self.layer_idx = layer_idx
 
@@ -157,36 +181,26 @@ class GradientScaler:
 
             # Register with full backward hook consistently
             reactivation_layer.register_full_backward_hook(
-                safe_hook(scale_activation_grad_hook)
+                # safe_hook(scale_activation_grad_hook)
+                scale_activation_grad_hook
             )
 
-    def register_block_linear_dynamic(
-        self,
-        block_linear_layer,
-        use_shunting,
-        branch_excitation=None,
-        branch_inhibition=None,
-    ):
+    def register_block_linear_dynamic(self, block_linear_layer):
         """
-        If strategy='block_conductance_dynamic', attach a backward hook that
+        If strategy='conductance_dynamic', attach a backward hook that
         computes conduction-based scaling from the current block plus excit/inhib.
 
         If 'distal_upweight_by_idx', we do (layer_idx+1) * scale_factor for entire param.
         If 'none', no special scaling.
         """
-
-        def hook_fn(module, grad_input, grad_output):
+        print('registering block linear dynamic, strategy:', self.blocklinear_strategy, flush=True)
+        def input_hook_fn(module, grad_input, grad_output):
             # Apply the appropriate scaling strategy
-            if self.blocklinear_strategy == "block_conductance_dynamic":
+            print('\n\nblocklinear input hook call', flush=True)
+            if self.blocklinear_strategy == "conductance_dynamic":
                 try:
-                    scale_vec = compute_block_linear_grad_scale(
-                        block_linear_layer=block_linear_layer,
-                        use_shunting=use_shunting,
-                        branch_excitation=branch_excitation,
-                        branch_inhibition=branch_inhibition,
-                    )
-                    return scale_layer_gradients_elementwise(
-                        module, grad_input, grad_output, scale_vec
+                    return scale_layer_input_gradients_elementwise(
+                        module, grad_input, grad_output
                     )
                 except Exception as e:
                     # If there's any error in computing the scale, return the original gradients
@@ -204,10 +218,25 @@ class GradientScaler:
 
             else:
                 return grad_input
+        
+        def param_hook_fn(grad):
+            print('\n\nblocklinear param hook call', flush=True)
+            if self.blocklinear_strategy == "conductance_dynamic":
+                try:
+                    return scale_layer_param_gradients_elementwise(
+                        grad, block_linear_layer.param_scale_vec
+                    )
+                except Exception as e:
+                    # If there's any error in applying the scale, return the original gradients
+                    return grad
+
+            else:
+                return grad
+
 
         # Wrap our hook function with the safe_hook decorator
-        safe_hook_fn = safe_hook(hook_fn)
-
+        # safe_input_hook_fn = safe_hook(input_hook_fn)
+        # safe_param_hook_fn = safe_hook(param_hook_fn)
         if self.blocklinear_strategy != "none":
             # First remove any existing hooks to prevent conflicts
             if hasattr(block_linear_layer, "_backward_hooks"):
@@ -216,50 +245,71 @@ class GradientScaler:
                 block_linear_layer._backward_pre_hooks.clear()
 
             # Register consistently with full backward hook
-            block_linear_layer.register_full_backward_hook(safe_hook_fn)
+            block_linear_layer.register_full_backward_hook(input_hook_fn)
+            block_linear_layer.log_weight.register_hook(param_hook_fn)
+            print('registered block linear dynamic', flush=True)
 
+    def register_topk_dynamic(self, topk_layer):
+        """
+        If strategy='conductance_dynamic', attach a backward hook that
+        computes conduction-based scaling from the current block plus excit/inhib.
 
-def compute_block_linear_grad_scale(
-    block_linear_layer, use_shunting, branch_excitation=None, branch_inhibition=None
-):
-    """
-    A conduction-based dynamic scale, returning a flattened vector so each weight
-    can get a distinct multiplier. shape [out_features * block_size].
-    """
-    with torch.no_grad():
-        if use_shunting:
-            total_conductance = block_linear_layer.sum_conductances() + 1.0
-
-            # Safer access to branch_excitation, checking if it exists and has the right attributes
-            if branch_excitation is not None and hasattr(
-                branch_excitation, "pruned_weight"
-            ):
+        If 'distal_upweight_by_idx', we do (layer_idx+1) * scale_factor for entire param.
+        If 'none', no special scaling.
+        """
+        print('registering topk dynamic, strategy:', self.topk_strategy, flush=True)
+        def input_hook_fn(module, grad_input, grad_output):
+            # Apply the appropriate scaling strategy
+            print('\n\ntopk input hook call', flush=True)
+            if self.topk_strategy == "conductance_dynamic":
                 try:
-                    total_conductance += branch_excitation.pruned_weight().sum(dim=1)
+                    return scale_layer_input_gradients_elementwise(
+                        module, grad_input, grad_output
+                    )
                 except Exception as e:
-                    # If there's any error, we just skip this part
-                    pass
+                    # If there's any error in computing the scale, return the original gradients
+                    return grad_input
 
-            # Safer access to branch_inhibition, checking if it exists and has the right attributes
-            if branch_inhibition is not None and hasattr(
-                branch_inhibition, "pruned_weight"
-            ):
+            elif self.topk_strategy == "distal_upweight_by_idx":
                 try:
-                    total_conductance += branch_inhibition.pruned_weight().sum(dim=1)
+                    scale_val = (self.layer_idx + 1) * self.scale_factor
+                    return scale_layer_gradients_scalar(
+                        module, grad_input, grad_output, scale_val
+                    )
                 except Exception as e:
-                    # If there's any error, we just skip this part
-                    pass
+                    # If there's any error in applying the scale, return the original gradients
+                    return grad_input
 
-            block_exp = block_linear_layer.log_weight.exp()
-            ratio_2d = (
-                total_conductance[:, None] / block_exp
-            )  # shape [out_features, block_size]
-            scale_vec = ratio_2d.flatten()  # shape [out_features * block_size]
-        else:
-            scale_vec = 1 / block_linear_layer.log_weight.exp().flatten()
+            else:
+                return grad_input
+        
+        def param_hook_fn(grad):
+            print('\n\ntopk param hook call', flush=True)
+            if self.topk_strategy == "conductance_dynamic":
+                try:
+                    return scale_layer_param_gradients_elementwise(
+                        grad, topk_layer.param_scale_vec
+                    )
+                except Exception as e:
+                    # If there's any error in applying the scale, return the original gradients
+                    return grad
 
-    return scale_vec
+            else:
+                return grad
+        # Wrap our hook function with the safe_hook decorator
+        # safe_input_hook_fn = safe_hook(input_hook_fn)
+        # safe_param_hook_fn = safe_hook(param_hook_fn)
 
+        if self.topk_strategy != "none":
+            # First remove any existing hooks to prevent conflicts
+            if hasattr(topk_layer, "_backward_hooks"):
+                topk_layer._backward_hooks.clear()
+            if hasattr(topk_layer, "_backward_pre_hooks"):
+                topk_layer._backward_pre_hooks.clear()
+
+            # Register consistently with full backward hook
+            topk_layer.register_full_backward_hook(input_hook_fn)
+            topk_layer.pre_w.register_hook(param_hook_fn)
 
 # Apply the safe_hook decorator to our existing functions
-scale_activation_grad_hook = safe_hook(scale_activation_grad_hook)
+# scale_activation_grad_hook = safe_hook(scale_activation_grad_hook)

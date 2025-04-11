@@ -4,28 +4,31 @@ model:
   network:
     type: EINet #"EINet", "MLP"
     parameters:
+      # configuration parameters
       excitatory_layer_sizes: [10]
       inhibitory_layer_sizes: [40]
       excitatory_branch_factors: [6,6]
       inhibitory_branch_factors: []
-      reactivate: false
-      somatic_synapses: true
       ee_synapses_per_branch_per_layer: [100]
       ei_synapses_per_branch_per_layer: [200]
       ie_synapses_per_branch_per_layer: [10]
       ii_synapses_per_branch_per_layer: [0]
+      somatic_synapses: true
+      use_shunting: true
+      # topk parameters
       topk_init_method: xavier_normal
       topk_noise_level: 0.2 # Added parameter for TopK noise
-      topk_strategy: standard # Options: "standard", "stochastic", "variance"
+      topk_type: standard # Options: "standard", "stochastic", "variance"
       topk_temperature: 0.5 # Controls the stochastic selection sharpness (0.1-1.0)
       topk_ultrafast: true # Enable faster implementation for stochastic TopK
-
-      use_shunting: true
-
+      # reactivation parameters
+      reactivate: false
       reactivation_type: param_tanh # "none", "param_tanh", "param_tanh_only_m", "relu", "sigmoid", "tanh"
+      # gradient scaling parameters
       reactivation_strategy: inverse # "none", "inverse"
-      blocklinear_strategy: block_conductance_dynamic # "none", "distal_upweight_by_idx", "block_conductance_dynamic"
-
+      topk_strategy: conductance_dynamic
+      blocklinear_strategy: conductance_dynamic # "none", "distal_upweight_by_idx", "conductance_dynamic"
+      # output parameters
       enable_branch_outputs: false   ### alows DendriNetWithOutputs to keep activations etc
       output_layer: false  ### adding an output classifier layer FC to final dendrinet layer
       output_dim: 10
@@ -39,11 +42,12 @@ model:
         output_dim: 128             # Output dimension for both excitatory and inhibitory pathways
 
 train:
+  run_name: exp_run
   learning_strategy: mle # Options: "mle", "freeze_layers", "local_credit_assignment", "two_step", "two_step_kl", "voltage_stabilization"
   seed: 0
   train_valid_split: 0.8
   lr: 0.01  # Standard learning rate for Adam
-  epochs: 50
+  epochs: 1
   batch_size: 1024  # Smaller batch size for better generalization
   grad_clip_value: 5  # Reasonable gradient clipping
   epochs_per_layer: 50  ## this is only for "freeze_layers" and any other method which has sequential single layer training
@@ -108,4 +112,4 @@ visualization:
     #- branch_info  # mutual information
 
 outputs:
-  dir:
+  dir: ./outputs/

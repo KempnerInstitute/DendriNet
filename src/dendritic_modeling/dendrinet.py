@@ -132,6 +132,8 @@ class TopKLinear(nn.Module):
         self.K = K
         self.param_space = param_space
         self.init_method = init_method
+        self.input_scale_vec = None  # may be used for gradient scaling
+        self.param_scale_vec = None  # may be used for gradient scaling
 
     def initialize(self):
         if self.init_method in TOPK_INIT_METHODS:
@@ -596,6 +598,8 @@ class BlockLinear(nn.Module):
         self.in_features = in_features
         self.out_features = out_features
         self.block_size = block_size
+        self.input_scale_vec = None  # may be used for gradient scaling
+        self.param_scale_vec = None  # may be used for gradient scaling
 
     def initialize(self, sum_synapse_conductances=None):
         if sum_synapse_conductances is None:
@@ -718,9 +722,10 @@ class DendriticBranchLayer(nn.Module):
         input_branch_factor=None,
         topk_init_method="xavier_normal",
         topk_noise_level=0.0,
-        topk_strategy="standard",  # New parameter
+        topk_type="standard",  # New parameter
         topk_temperature=0.5,  # For stochastic TopK
         topk_ultrafast=False,  # For much faster stochastic TopK
+        topk_strategy="none",
         use_shunting=True,
         reactivate=False,
         reactivation_type="param_tanh",
@@ -733,11 +738,19 @@ class DendriticBranchLayer(nn.Module):
         self.reactivation_strategy = reactivation_strategy
         self.blocklinear_strategy = blocklinear_strategy
         self.use_shunting = use_shunting
-        self.topk_strategy = topk_strategy  # Store the strategy
+        self.topk_type = topk_type  # Store the strategy
         self.topk_temperature = topk_temperature  # Store the temperature
         self.topk_ultrafast = topk_ultrafast  # Store the ultrafast flag
-
+        self.topk_strategy = topk_strategy  # Store the strategy
         self.input_excitatory = excitatory_input_dim is not None
+
+        gradient_scaler = GradientScaler(
+            topk_strategy=topk_strategy,
+            reactivation_strategy=reactivation_strategy,
+            blocklinear_strategy=blocklinear_strategy,
+            layer_idx=layer_idx,
+        )
+
         if self.input_excitatory:
             self.branch_excitation = self._create_topk_layer(
                 in_features=excitatory_input_dim,
@@ -746,6 +759,7 @@ class DendriticBranchLayer(nn.Module):
                 init_method=topk_init_method,
                 noise_level=topk_noise_level,
             )
+            gradient_scaler.register_topk_dynamic(self.branch_excitation)
             self.excitatory_input_dim = excitatory_input_dim
         else:
             self.branch_excitation = None
@@ -759,27 +773,17 @@ class DendriticBranchLayer(nn.Module):
                 init_method=topk_init_method,
                 noise_level=topk_noise_level,
             )
+            gradient_scaler.register_topk_dynamic(self.branch_inhibition)
             self.inhibitory_input_dim = inhibitory_input_dim
         else:
             self.branch_inhibition = None
-
-        gradient_scaler = GradientScaler(
-            reactivation_strategy=reactivation_strategy,
-            blocklinear_strategy=blocklinear_strategy,
-            layer_idx=layer_idx,
-        )
 
         self.input_branches = input_branch_factor is not None
         if self.input_branches:
             self.branches_to_output = BlockLinear(
                 output_dim * input_branch_factor, output_dim
             )
-            gradient_scaler.register_block_linear_dynamic(
-                self.branches_to_output,
-                self.use_shunting,
-                self.branch_excitation if self.input_excitatory else None,
-                self.branch_inhibition if self.input_inhibitory else None,
-            )
+            gradient_scaler.register_block_linear_dynamic(self.branches_to_output)
         self.input_branch_factor = input_branch_factor
 
         if reactivate:
@@ -807,7 +811,7 @@ class DendriticBranchLayer(nn.Module):
         """Helper function that picks which topk class to use based on strategy."""
         # For 'standard' strategy, use the original TopKLinear class exactly as before
         # This provides a direct path with zero overhead compared to the original code
-        if self.topk_strategy is None or self.topk_strategy == "standard":
+        if self.topk_type is None or self.topk_type == "standard":
             # Create directly without any strategy-specific logic
             topk_layer = TopKLinear(
                 in_features=in_features,
@@ -820,7 +824,7 @@ class DendriticBranchLayer(nn.Module):
             return topk_layer
 
         # Alternative strategies only incur overhead if explicitly requested
-        elif self.topk_strategy == "stochastic":
+        elif self.topk_type == "stochastic":
             # Get temperature parameter if available
             temperature = getattr(self, "topk_temperature", 0.5)
             # Check if ultrafast mode is enabled
@@ -836,7 +840,7 @@ class DendriticBranchLayer(nn.Module):
                 temperature=temperature,
                 ultrafast=ultrafast,
             )
-        elif self.topk_strategy == "variance":
+        elif self.topk_type == "variance":
             return VarianceTopKLinear(
                 in_features=in_features,
                 out_features=out_features,
@@ -889,29 +893,105 @@ class DendriticBranchLayer(nn.Module):
             self.branches_to_output.decay_weights(weight_decay)
 
     def forward(self, x, inhibitory_input=None, branch_input=None):
-        if self.input_excitatory and self.branch_excitation is not None:
-            excitation = self.branch_excitation(x)
+        if self.use_shunting:
+            numerator = 0
+            denominator = 1
+
+            if self.input_excitatory and self.branch_excitation is not None:
+                excitation = self.branch_excitation(x)
+                numerator = numerator + excitation
+                denominator = denominator + excitation
+
+            if self.input_branches and branch_input is not None:
+                current = self.branches_to_output(branch_input)
+                numerator = numerator + current
+                conductance = self.branches_to_output.sum_conductances()
+                denominator = denominator + conductance
+
+            if (
+                self.input_inhibitory
+                and self.branch_inhibition is not None
+                and inhibitory_input is not None
+            ):
+                denominator = denominator + self.branch_inhibition(inhibitory_input)
+
+            voltage = numerator / denominator
+            
         else:
-            excitation = 0
+            voltage = 0
 
-        numerator = excitation
-        denominator = excitation + 1
+            if self.input_excitatory and self.branch_excitation is not None:
+                voltage = voltage + self.branch_excitation(x)
 
-        if self.input_branches and branch_input is not None:
-            current = self.branches_to_output(branch_input)
-            numerator = numerator + current
-            conductance = self.branches_to_output.sum_conductances()
-            denominator = denominator + conductance
+            if self.input_branches and branch_input is not None:
+                voltage = voltage + self.branches_to_output(branch_input)
 
-        if (
-            self.input_inhibitory
-            and self.branch_inhibition is not None
-            and inhibitory_input is not None
-        ):
-            denominator = denominator + self.branch_inhibition(inhibitory_input)
+            if (
+                self.input_inhibitory
+                and self.branch_inhibition is not None
+                and inhibitory_input is not None
+            ):
+                voltage = voltage - self.branch_inhibition(inhibitory_input)
+        
+        if self.training and "conductance_dynamic" in [
+            self.topk_strategy, self.blocklinear_strategy]:
+            self.compute_grad_scales()
 
-        voltage = numerator / denominator
         return self.reactivation(voltage)
+
+    def compute_grad_scales(self):
+        """
+        A conduction-based dynamic scale, returning a flattened vector so each weight
+        can get a distinct multiplier. shape [out_features * block_size].
+        """
+        with torch.no_grad():
+            if self.use_shunting:
+                total_conductance = 1
+                if hasattr(self, "branches_to_output"):
+                    total_conductance += self.branches_to_output.sum_conductances()
+
+                # Safer access to branch_excitation, checking if it exists and has the right attributes
+                if self.branch_excitation is not None:
+                    try:
+                        total_conductance += self.branch_excitation.pruned_weight().sum(dim=1)
+                    except Exception as e:
+                        # If there's any error, we just skip this part
+                        pass
+
+                # Safer access to branch_inhibition, checking if it exists and has the right attributes
+                if self.branch_inhibition is not None:
+                    try:
+                        total_conductance += self.branch_inhibition.pruned_weight().sum(dim=1)
+                    except Exception as e:
+                        # If there's any error, we just skip this part
+                        pass
+
+                if (hasattr(self, "branches_to_output") 
+                    and self.blocklinear_strategy == "conductance_dynamic"):
+                    self.branches_to_output.input_scale_vec = (
+                        total_conductance[:, None] / self.branches_to_output.log_weight.exp()
+                    ).flatten()
+                    self.branches_to_output.param_scale_vec = total_conductance[:, None]
+                
+                if (self.branch_excitation is not None 
+                    and self.topk_strategy == "conductance_dynamic"):
+                    self.branch_excitation.input_scale_vec = (
+                        total_conductance[:, None] / self.branch_excitation.weight()
+                    ).mean(dim = 0)
+                    self.branch_excitation.param_scale_vec = total_conductance[:, None]
+
+                if (self.branch_inhibition is not None 
+                    and self.topk_strategy == "conductance_dynamic"):
+                    self.branch_inhibition.input_scale_vec = (
+                        total_conductance[:, None] / self.branch_inhibition.weight()
+                    ).mean(dim = 0)
+                    self.branch_inhibition.param_scale_vec = total_conductance[:, None]
+
+            else:
+                input_scale_vec = 1 / self.branches_to_output.log_weight.exp().flatten()
+                if (hasattr(self, "branches_to_output") 
+                    and self.blocklinear_strategy == "conductance_dynamic"):
+                    self.branches_to_output.input_scale_vec = input_scale_vec
 
     def get_weights(self):
         if self.input_inhibitory and self.input_excitatory:
@@ -998,9 +1078,10 @@ class DendriNet(nn.Module):
         somatic_synapses=True,
         topk_init_method="xavier_normal",
         topk_noise_level=0.0,
-        topk_strategy="standard",  # New parameter for TopK strategy
+        topk_type="standard",  # New parameter for TopK strategy
         topk_temperature=0.5,  # For stochastic TopK
         topk_ultrafast=False,  # For much faster stochastic TopK
+        topk_strategy="none",
         use_shunting=True,
         reactivation_type="param_tanh",
         reactivation_strategy="none",
@@ -1057,9 +1138,10 @@ class DendriNet(nn.Module):
                 input_branch_factor=branch_factors[i],
                 topk_init_method=topk_init_method,
                 topk_noise_level=topk_noise_level,
-                topk_strategy=topk_strategy,  # Pass the parameter
+                topk_type=topk_type,  # Pass the parameter
                 topk_temperature=topk_temperature,  # Pass the temperature
                 topk_ultrafast=topk_ultrafast,  # Pass the ultrafast flag
+                topk_strategy=topk_strategy,
                 use_shunting=use_shunting,
                 reactivate=reactivate,
                 reactivation_type=reactivation_type,
@@ -1080,9 +1162,10 @@ class DendriNet(nn.Module):
                     input_branch_factor=branch_factors[-1],
                     topk_init_method=topk_init_method,
                     topk_noise_level=topk_noise_level,
-                    topk_strategy=topk_strategy,  # Pass the parameter
+                    topk_type=topk_type,  # Pass the parameter
                     topk_temperature=topk_temperature,  # Pass the temperature
                     topk_ultrafast=topk_ultrafast,  # Pass the ultrafast flag
+                    topk_strategy=topk_strategy,
                     use_shunting=use_shunting,
                     reactivate=reactivate,
                     reactivation_type=reactivation_type,
@@ -1102,9 +1185,10 @@ class DendriNet(nn.Module):
                     input_branch_factor=branch_factors[-1],
                     topk_init_method=topk_init_method,
                     topk_noise_level=topk_noise_level,
-                    topk_strategy=topk_strategy,  # Pass the parameter
+                    topk_type=topk_type,  # Pass the parameter
                     topk_temperature=topk_temperature,  # Pass the temperature
                     topk_ultrafast=topk_ultrafast,  # Pass the ultrafast flag
+                    topk_strategy=topk_strategy,
                     use_shunting=use_shunting,
                     reactivate=reactivate,
                     reactivation_type=reactivation_type,
