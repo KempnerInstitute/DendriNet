@@ -6,14 +6,18 @@ Custom script to generate sweep configs for the EI sweep with the specific folde
 - Creates a unique 'ei_TIMESTAMP' directory for each sweep run
 - Sets up subdirectories for configs, results, and plots
 - Prepares the SLURM job configuration to organize outputs correctly
+- Optionally splits sweep into multiple smaller job scripts
 
 Usage:
     python scripts/generate_ei_sweep.py configs/sweep_params_seeds_ei.yaml
+    python scripts/generate_ei_sweep.py configs/sweep_params_seeds_ei.yaml --split-jobs 10
+    python scripts/generate_ei_sweep.py configs/sweep_params_seeds_ei.yaml --configs-per-job 50
 """
 
 import argparse
 import datetime
 import glob
+import math
 import os
 import shutil
 import subprocess
@@ -28,6 +32,17 @@ def parse_args():
         description="Generate configurations for EI sweep with custom directory structure"
     )
     parser.add_argument("config_file", help="Path to the sweep configuration file")
+    group = parser.add_mutually_exclusive_group()
+    group.add_argument(
+        "--split-jobs",
+        type=int,
+        help="Number of job scripts to generate (splits configs evenly)",
+    )
+    group.add_argument(
+        "--configs-per-job",
+        type=int,
+        help="Maximum number of configurations per job script",
+    )
     return parser.parse_args()
 
 
@@ -102,17 +117,44 @@ def generate_sweep_configs_manually(config, output_dir, config_filename_init):
 
 
 def generate_custom_run_script(
-    config, output_dir, num_configs, main_script_path="./run.sh"
+    config,
+    output_dir,
+    num_configs,
+    main_script_path="./run.sh",
+    start_idx=0,
+    end_idx=None,
 ):
-    """Generate a custom run.sh script that properly uses the folder structure"""
+    """Generate a custom run.sh script that properly uses the folder structure
+
+    Args:
+        config: The configuration object
+        output_dir: Output directory for the sweep
+        num_configs: Total number of configurations
+        main_script_path: Path where to save the script
+        start_idx: Starting configuration index for this job script
+        end_idx: Ending configuration index for this job script (inclusive)
+    """
 
     slurm_config = config.slurm_config
 
-    array_job_flag = num_configs > 1
+    # Adjust the range of configurations for this specific job script
+    if end_idx is None or end_idx >= num_configs:
+        end_idx = num_configs - 1
+
+    # Determine if this is an array job (more than one config)
+    array_job_flag = end_idx >= start_idx
+    array_size = end_idx - start_idx + 1
+
+    # Extract base script name without extension for job naming
+    script_base_name = os.path.splitext(os.path.basename(main_script_path))[0]
+    job_suffix = (
+        f"_{start_idx}_{end_idx}" if start_idx > 0 or end_idx < num_configs - 1 else ""
+    )
+    job_name = f"{slurm_config.run_name}{job_suffix}"
 
     lines = [
         "#!/bin/bash",
-        f"#SBATCH --job-name={slurm_config.run_name}",
+        f"#SBATCH --job-name={job_name}",
         f"#SBATCH --account={slurm_config.account}",
     ]
 
@@ -167,13 +209,16 @@ def generate_custom_run_script(
     )
 
     # Submit an array job or a single job
-    if array_job_flag:
-        if num_configs > slurm_config.max_concurrent_jobs:
-            lines.append(
-                f"#SBATCH --array=0-{num_configs-1}%{slurm_config.max_concurrent_jobs}"
-            )
+    if array_job_flag and array_size > 1:
+        max_concurrent = min(slurm_config.max_concurrent_jobs, array_size)
+        if max_concurrent < array_size:
+            lines.append(f"#SBATCH --array={start_idx}-{end_idx}%{max_concurrent}")
         else:
-            lines.append(f"#SBATCH --array=0-{num_configs-1}")
+            lines.append(f"#SBATCH --array={start_idx}-{end_idx}")
+    # For single task, don't use array
+    elif start_idx == end_idx:
+        # Nothing to add, will be a regular job
+        pass
 
     lines.append("")
     lines.append("# ================================================================ ")
@@ -214,15 +259,18 @@ def generate_custom_run_script(
     lines.append("")
 
     # Get the specific config file based on the array job ID
-    if array_job_flag:
+    if array_job_flag and array_size > 1:
         lines.append(
             "CONFIG=${CONFIG_DIR}/${CONFIG_FILE_NAME_INIT}_${SLURM_ARRAY_TASK_ID}.yaml"
         )
         lines.append("TASK_ID=${SLURM_ARRAY_TASK_ID}")
         lines.append("JOB_ID=${SLURM_ARRAY_JOB_ID}")
     else:
-        lines.append("CONFIG=${CONFIG_DIR}/${CONFIG_FILE_NAME_INIT}_0.yaml")
-        lines.append("TASK_ID=0")
+        # For single task, use the specific index
+        lines.append(
+            f"CONFIG=${{CONFIG_DIR}}/${{CONFIG_FILE_NAME_INIT}}_{start_idx}.yaml"
+        )
+        lines.append(f"TASK_ID={start_idx}")
         lines.append("JOB_ID=${SLURM_JOB_ID}")
     lines.append("")
 
@@ -265,7 +313,46 @@ def generate_custom_run_script(
         for line in lines:
             file.write(line + "\n")
 
+    # Make the script executable
+    os.chmod(main_script_path, 0o755)
+
     return main_script_path
+
+
+def create_master_run_script(job_scripts, output_dir):
+    """Create a master script to submit all job scripts
+
+    Args:
+        job_scripts: List of generated job script paths
+        output_dir: Output directory for the sweep
+    """
+    script_path = "./run_all_jobs.sh"
+
+    with open(script_path, "w") as f:
+        f.write("#!/bin/bash\n")
+        f.write("# Master script to submit all EI sweep jobs\n\n")
+        f.write(f"# Output directory: {output_dir}\n\n")
+        f.write("# Submit all jobs (uncomment to run all at once)\n")
+        for i, script in enumerate(job_scripts):
+            script_name = os.path.basename(script)
+            # Add comments about the index range this script handles
+            f.write(f"# Job {i+1}/{len(job_scripts)}: {script_name}\n")
+            # By default all job submissions are commented out for safety
+            f.write(f"# sbatch {script}\n")
+            # Add a slight delay between submissions
+            if i < len(job_scripts) - 1:
+                f.write("# sleep 2  # Small delay between submissions\n")
+
+        f.write("\n# Or submit them one by one (recommended):\n")
+        f.write("# 1. Submit the first job:\n")
+        f.write(f"#    sbatch {os.path.basename(job_scripts[0])}\n")
+        f.write("# 2. After it completes successfully, submit the next job:\n")
+        if len(job_scripts) > 1:
+            f.write(f"#    sbatch {os.path.basename(job_scripts[1])}\n")
+        f.write("# ... and so on\n")
+
+    os.chmod(script_path, 0o755)
+    return script_path
 
 
 def main():
@@ -332,15 +419,66 @@ def main():
         f"Generated {num_configs} config files in {os.path.join(output_dir, 'configs')}"
     )
 
-    # Generate run.sh directly in the project directory
-    run_script_path = generate_custom_run_script(
-        config, output_dir, num_configs, "./run.sh"
-    )
+    # Determine how to split the jobs
+    split_jobs = args.split_jobs
+    configs_per_job = args.configs_per_job
 
-    # Also generate run_ei_sweep.sh for backward compatibility or if the user prefers that name
-    shutil.copy(run_script_path, "./run_ei_sweep.sh")
+    # If neither split option is provided, create a single job (current behavior)
+    if split_jobs is None and configs_per_job is None:
+        # Generate a single run script for all configurations
+        run_script_path = generate_custom_run_script(
+            config, output_dir, num_configs, "./run.sh"
+        )
+        job_scripts = [run_script_path]
 
-    print(f"Created run scripts: run.sh and run_ei_sweep.sh")
+        # Also generate run_ei_sweep.sh for backward compatibility
+        shutil.copy(run_script_path, "./run_ei_sweep.sh")
+        print(f"Created run scripts: run.sh and run_ei_sweep.sh")
+
+    else:
+        # Split into multiple job scripts
+        job_scripts = []
+
+        # Calculate how many configs per job
+        if configs_per_job is not None:
+            # User specified configs per job
+            configs_per_job = min(configs_per_job, num_configs)
+            num_jobs = math.ceil(num_configs / configs_per_job)
+        else:
+            # User specified number of jobs
+            num_jobs = min(split_jobs, num_configs)
+            configs_per_job = math.ceil(num_configs / num_jobs)
+
+        print(
+            f"Splitting sweep into {num_jobs} separate job scripts with approximately {configs_per_job} configs each"
+        )
+
+        # Generate each job script
+        for i in range(num_jobs):
+            start_idx = i * configs_per_job
+            end_idx = min((i + 1) * configs_per_job - 1, num_configs - 1)
+
+            # Create job script with appropriate range
+            job_script_path = f"./run_ei_sweep_{i}.sh"
+            if i == 0:
+                # For backward compatibility, also create run.sh as a copy of the first job
+                generate_custom_run_script(
+                    config, output_dir, num_configs, "./run.sh", start_idx, end_idx
+                )
+                shutil.copy("./run.sh", job_script_path)
+            else:
+                generate_custom_run_script(
+                    config, output_dir, num_configs, job_script_path, start_idx, end_idx
+                )
+
+            job_scripts.append(job_script_path)
+            print(
+                f"Created job script {job_script_path} for configs {start_idx}-{end_idx}"
+            )
+
+        # Create a master script to run all jobs
+        master_script = create_master_run_script(job_scripts, output_dir)
+        print(f"Created master script {master_script} to submit all jobs")
 
     print("\nSummary:")
     print(f"1. Created sweep directory: {output_dir}")
@@ -353,7 +491,13 @@ def main():
     print(
         f"4. Plots will be saved to: {os.path.join(output_dir, 'plots')}/<job_id>/task_<task_id>/"
     )
-    print(f"5. To run the sweep, use: sbatch run.sh")
+
+    if len(job_scripts) == 1:
+        print(f"5. To run the sweep, use: sbatch {job_scripts[0]}")
+    else:
+        print(f"5. Created {len(job_scripts)} job scripts")
+        print(f"6. To run all jobs, use the helper script: {master_script}")
+        print(f"   Edit this script to uncomment the submission commands")
 
 
 if __name__ == "__main__":

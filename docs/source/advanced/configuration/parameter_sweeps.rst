@@ -21,13 +21,23 @@ Use ``generate_ei_sweep.py`` to create all required configuration files:
 
 .. code-block:: bash
 
+    # Basic usage - generates one big array job
     python scripts/generate_ei_sweep.py configs/sweep_params_seeds_ei.yaml
+
+    # Split into 10 separate job scripts
+    python scripts/generate_ei_sweep.py configs/sweep_params_seeds_ei.yaml --split-jobs 10
+
+    # Limit to 50 configurations per job
+    python scripts/generate_ei_sweep.py configs/sweep_params_seeds_ei.yaml --configs-per-job 50
 
 This script:
 
 - Creates a timestamped directory (e.g., ``ei_20250411145829``)
 - Generates individual YAML configuration files for each parameter combination and seed
-- Produces a custom ``run.sh`` SLURM script for batch execution
+- Produces SLURM job scripts for batch execution
+- Optionally splits the sweep into multiple smaller job scripts
+
+The ``--split-jobs`` option divides the parameter sweep into the specified number of job scripts, each handling a subset of configurations. The ``--configs-per-job`` option limits each job script to at most the specified number of configurations.
 
 The ``sweep_params_seeds_ei.yaml`` file defines:
 
@@ -87,19 +97,39 @@ The ``generate_ei_sweep.py`` script creates the following directory structure:
 Step 2: Run the Sweeps
 ~~~~~~~~~~~~~~~~~~~~~
 
-Submit the generated SLURM job:
+Run the sweep using the generated job scripts:
 
 .. code-block:: bash
 
+    # If using a single job script (default behavior)
     sbatch run.sh
 
-The generated ``run.sh`` script:
+    # If using multiple job scripts
+    sbatch run_ei_sweep_0.sh
+    sbatch run_ei_sweep_1.sh
+    # etc.
 
-- Launches a SLURM array job with one task per configuration
+    # Or use the generated helper script (edit first to uncomment commands)
+    ./run_all_jobs.sh
+
+When splitting a sweep into multiple jobs, a helper script ``run_all_jobs.sh`` is generated to make it easier to submit all jobs. The script contains commented-out commands that you can uncomment to run jobs all at once or one after another.
+
+The generated job scripts:
+
+- Launch SLURM array jobs with their respective subsets of configurations
 - Each task runs the dendritic model with specific EE/IE values and seed
 - Results are saved to individual directories within the experiment folder
 
-Once submitted, SLURM will manage the execution of all configurations, respecting the maximum number of concurrent jobs specified in the configuration.
+Job Splitting Benefits
+^^^^^^^^^^^^^^^^^^^^
+
+Splitting a large sweep into multiple smaller job scripts offers several advantages:
+
+1. **Better Queue Management**: Smaller jobs may get scheduled faster
+2. **Improved Resource Utilization**: More efficient use of cluster resources
+3. **Reliability**: If one job fails, others can still complete
+4. **Flexibility**: Run different parts of the sweep on different partitions or with different resource requirements
+5. **Time Management**: Easier to fit within walltime limits
 
 Step 3: Analyze Results
 ~~~~~~~~~~~~~~~~~~~~~
@@ -130,6 +160,8 @@ The analysis script supports several options:
     --save_plots           Save plots to the plots directory
     --show_plots           Display plots (not just save them)
     --summary_dir DIR      Directory to save comparison plots
+
+The analysis script automatically combines results from all jobs, regardless of whether they were run as a single job or multiple smaller jobs.
 
 Generated Plots and Analysis
 ^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -208,8 +240,10 @@ Tips for Effective Sweeps
 1. **Parameter Range**: Start with a wide range and then refine with narrower sweeps
 2. **Multiple Seeds**: Always use multiple seeds (3-5) to ensure robust results
 3. **Resource Management**: Set appropriate time limits and memory requirements
-4. **Result Tracking**: Use W&B integration for additional tracking and visualization
-5. **Incremental Analysis**: You can analyze partial results while jobs are still running
+4. **Job Splitting**: For very large sweeps (>100 configurations), use ``--split-jobs`` or ``--configs-per-job``
+5. **Sequential Submission**: Submit job scripts sequentially to better manage cluster resources
+6. **Result Tracking**: Use W&B integration for additional tracking and visualization
+7. **Incremental Analysis**: You can analyze partial results while jobs are still running
 
 Extending for Custom Sweeps
 -------------------------
