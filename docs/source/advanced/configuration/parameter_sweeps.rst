@@ -152,31 +152,32 @@ The analysis script supports several options:
     --folder FOLDER        Full path to the experiment folder
     --all                  Analyze all ei_ folders in the output directory
     --multiple IDs         List of timestamp IDs to analyze and compare
-    --output_base DIR      Base directory for outputs
+    --output-base DIR      Base directory for outputs (default: ./output)
     --prefix PREFIX        Prefix used for the output folder (default: ei_)
-    --save_plots           Save plots to the plots directory
-    --show_plots           Display plots (not just save them)
-    --summary_dir DIR      Directory to save comparison plots
+    --show-plots           Display plots in addition to saving them
+    --report-missing       Report detail of missing or unfinished runs
 
-The analysis script automatically combines results from all jobs, regardless of whether they were run as a single job or multiple smaller jobs.
+The analysis script automatically combines results from all jobs, regardless of whether they were run as a single job or multiple smaller jobs. It also handles missing or incomplete runs gracefully, showing these as grey areas in heatmaps with "N/A" annotations.
 
 Generated Plots and Analysis
 ^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 The analysis script generates various plots to help understand the impact of EE and IE synapse counts:
 
-1. **Heatmap of Test Accuracy**: Shows how test accuracy varies with different EE/IE combinations
+1. **Heatmap of Accuracy**: Shows how train, validation, and test accuracy varies with different EE/IE combinations
 
    .. code-block:: text
 
-       ee_ie_heatmap.png
+       heatmap_train_acc.png
+       heatmap_val_acc.png
+       heatmap_test_acc.png
 
 2. **Line Plots**: Show trends in accuracy for different parameter values
 
    .. code-block:: text
 
-       ee_vs_accuracy.png  # Accuracy vs EE values for different IE values
-       ie_vs_accuracy.png  # Accuracy vs IE values for different EE values
+       sweep_by_ee.png  # Test accuracy vs EE values for different IE values
+       sweep_by_ie.png  # Test accuracy vs IE values for different EE values
 
 3. **Bar Chart of Top Combinations**: Compares the best-performing parameter combinations
 
@@ -190,12 +191,16 @@ The analysis script generates various plots to help understand the impact of EE 
 
        ei_sweep_results.csv  # All results in tabular format
        summary.txt  # Text summary with the best parameter combination
+       missing_runs.csv  # (if missing runs exist) Details about missing or incomplete runs
 
-When comparing multiple experiments, additional plots are generated:
+When comparing multiple experiments with the ``--multiple`` option, additional files are generated in a comparison directory (named ``ei_comparison_[timestamp]``):
 
-1. **Box Plot Comparison**: Shows distribution of test accuracy across experiments
-2. **Best Parameter Comparison**: Bar chart of the best parameter combination for each experiment
-3. **Parameter Combination Line Plot**: Shows how top combinations perform across experiments
+.. code-block:: text
+
+    experiment_comparison.png  # Bar chart comparing best results across experiments
+    multi_experiment_summary.txt  # Text summary of the experiment comparison
+
+The ``--report-missing`` flag provides detailed information about any missing or incomplete runs, which can be helpful for debugging or planning additional runs to complete the parameter sweep.
 
 Output Structure
 --------------
@@ -215,9 +220,11 @@ After running the complete workflow, the output directory will have this structu
     │           └── performance/
     │               └── final.json
     └── plots/             # Generated analysis plots
-        ├── ee_ie_heatmap.png
-        ├── ee_vs_accuracy.png
-        ├── ie_vs_accuracy.png
+        ├── heatmap_train_acc.png
+        ├── heatmap_val_acc.png
+        ├── heatmap_test_acc.png
+        ├── sweep_by_ee.png
+        ├── sweep_by_ie.png
         └── top_combinations.png
 
 When comparing multiple experiments, a separate summary directory is created with comparison plots.
