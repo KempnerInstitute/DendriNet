@@ -181,3 +181,9 @@ For advanced users, the configuration system supports:
 - **Experiment Tracking**: Integration with experiment tracking tools
 
 See the example configurations and the API documentation for more details on these advanced options.
+
+.. toctree::
+   :maxdepth: 2
+   :caption: Advanced Configuration Topics:
+
+   parameter_sweeps

@@ -15,3 +15,4 @@ The Dendritic Modeling framework provides a comprehensive set of tools for analy
    synthetic_datasets
    experiment_tracking
    output_handling
+   ei_sweep_analysis

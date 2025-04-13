@@ -24,7 +24,7 @@
     <link rel="author" title="About these documents" href="../../about.html" />
     <link rel="index" title="Index" href="../../genindex.html" />
     <link rel="search" title="Search" href="../../search.html" />
-    <link rel="next" title="Running an interactive session" href="interactive_run.html" />
+    <link rel="next" title="Running and Analyzing EI Sweeps" href="ei_sweep_guide.html" />
     <link rel="prev" title="Using train_experiments.py" href="train_experiments_guide.html" /> 
 </head>
 
@@ -58,6 +58,7 @@
 <li class="toctree-l2"><a class="reference internal" href="concepts.html">Key Concepts and Overview</a></li>
 <li class="toctree-l2"><a class="reference internal" href="configuration.html">Configuration System</a></li>
 <li class="toctree-l2"><a class="reference internal" href="config_yaml_guide.html">Understanding the Config YAML File</a></li>
+<li class="toctree-l2"><a class="reference internal" href="interactive_run.html">Running an interactive session</a></li>
 <li class="toctree-l2"><a class="reference internal" href="train_experiments_guide.html">Using train_experiments.py</a></li>
 <li class="toctree-l2 current"><a class="current reference internal" href="#">Experiment Tracking</a><ul>
 <li class="toctree-l3"><a class="reference internal" href="#logging-system">Logging System</a><ul>
@@ -74,6 +75,7 @@
 <li class="toctree-l4"><a class="reference internal" href="#logging-model-architecture">Logging Model Architecture</a></li>
 <li class="toctree-l4"><a class="reference internal" href="#saving-and-logging-artifacts">Saving and Logging Artifacts</a></li>
 <li class="toctree-l4"><a class="reference internal" href="#running-sweeps-with-weights-biases">Running Sweeps with Weights &amp; Biases</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#specialized-ei-parameter-sweeps-recommended-approach">Specialized EI Parameter Sweeps (Recommended Approach)</a></li>
 </ul>
 </li>
 <li class="toctree-l3"><a class="reference internal" href="#comparing-experiments">Comparing Experiments</a><ul>
@@ -84,7 +86,7 @@
 <li class="toctree-l3"><a class="reference internal" href="#best-practices">Best Practices</a></li>
 </ul>
 </li>
-<li class="toctree-l2"><a class="reference internal" href="interactive_run.html">Running an interactive session</a></li>
+<li class="toctree-l2"><a class="reference internal" href="ei_sweep_guide.html">Running and Analyzing EI Sweeps</a></li>
 <li class="toctree-l2"><a class="reference internal" href="cifar10_tutorial.html">CIFAR10 Tutorial</a></li>
 </ul>
 </li>
@@ -336,10 +338,13 @@
 </section>
 <section id="running-sweeps-with-weights-biases">
 <h3>Running Sweeps with Weights &amp; Biases<a class="headerlink" href="#running-sweeps-with-weights-biases" title="Link to this heading"></a></h3>
-<p>Wandb supports parameter sweeps for hyperparameter optimization:</p>
-<ol class="arabic">
-<li><p>Define a sweep configuration:</p>
-<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">sweep_config</span> <span class="o">=</span> <span class="p">{</span>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>While Weights &amp; Biases does support parameter sweeps as described below, the standard workflow in this codebase uses dedicated sweep generation scripts like <code class="docutils literal notranslate"><span class="pre">generate_ei_sweep.py</span></code> rather than wandb’s native sweep functionality. See the <a class="reference internal" href="ei_sweep_guide.html#ei-sweep-guide"><span class="std std-ref">Running and Analyzing EI Sweeps</span></a> for the recommended approach.</p>
+</div>
+<p>Wandb can support parameter sweeps for hyperparameter optimization, though this is not the primary method used in this codebase:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="c1"># NOTE: This is provided for reference but is not the standard workflow in this codebase</span>
+<span class="n">sweep_config</span> <span class="o">=</span> <span class="p">{</span>
     <span class="s1">&#39;method&#39;</span><span class="p">:</span> <span class="s1">&#39;grid&#39;</span><span class="p">,</span>  <span class="c1"># or &#39;random&#39;, &#39;bayes&#39;</span>
     <span class="s1">&#39;parameters&#39;</span><span class="p">:</span> <span class="p">{</span>
         <span class="s1">&#39;train.lr&#39;</span><span class="p">:</span> <span class="p">{</span><span class="s1">&#39;values&#39;</span><span class="p">:</span> <span class="p">[</span><span class="mf">0.0001</span><span class="p">,</span> <span class="mf">0.001</span><span class="p">,</span> <span class="mf">0.01</span><span class="p">]},</span>
@@ -350,34 +355,34 @@
 
 <span class="c1"># Initialize sweep</span>
 <span class="n">sweep_id</span> <span class="o">=</span> <span class="n">wandb</span><span class="o">.</span><span class="n">sweep</span><span class="p">(</span><span class="n">sweep_config</span><span class="p">,</span> <span class="n">project</span><span class="o">=</span><span class="n">config</span><span class="o">.</span><span class="n">wandb</span><span class="o">.</span><span class="n">project</span><span class="p">)</span>
+
+<span class="c1"># Run sweep agent</span>
+<span class="n">wandb</span><span class="o">.</span><span class="n">agent</span><span class="p">(</span><span class="n">sweep_id</span><span class="p">,</span> <span class="n">train_function</span><span class="p">,</span> <span class="n">count</span><span class="o">=</span><span class="mi">9</span><span class="p">)</span>
 </pre></div>
 </div>
-</li>
-<li><p>Create a training function for the sweep:</p>
-<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="k">def</span><span class="w"> </span><span class="nf">train_sweep</span><span class="p">():</span>
-    <span class="c1"># Initialize wandb</span>
-    <span class="n">wandb</span><span class="o">.</span><span class="n">init</span><span class="p">()</span>
-
-    <span class="c1"># Get sweep parameters</span>
-    <span class="n">sweep_config</span> <span class="o">=</span> <span class="n">wandb</span><span class="o">.</span><span class="n">config</span>
-
-    <span class="c1"># Update base configuration with sweep parameters</span>
-    <span class="n">config</span><span class="o">.</span><span class="n">train</span><span class="o">.</span><span class="n">lr</span> <span class="o">=</span> <span class="n">sweep_config</span><span class="p">[</span><span class="s1">&#39;train.lr&#39;</span><span class="p">]</span>
-    <span class="n">config</span><span class="o">.</span><span class="n">train</span><span class="o">.</span><span class="n">batch_size</span> <span class="o">=</span> <span class="n">sweep_config</span><span class="p">[</span><span class="s1">&#39;train.batch_size&#39;</span><span class="p">]</span>
-    <span class="n">config</span><span class="o">.</span><span class="n">model</span><span class="o">.</span><span class="n">network</span><span class="o">.</span><span class="n">parameters</span><span class="o">.</span><span class="n">excitatory_branch_factors</span> <span class="o">=</span> <span class="n">sweep_config</span><span class="p">[</span><span class="s1">&#39;model.network.parameters.excitatory_branch_factors&#39;</span><span class="p">]</span>
-
-    <span class="c1"># Create model and train</span>
-    <span class="c1"># ... training code ...</span>
-
-    <span class="c1"># Log final results</span>
-    <span class="n">wandb</span><span class="o">.</span><span class="n">log</span><span class="p">({</span><span class="s2">&quot;final_accuracy&quot;</span><span class="p">:</span> <span class="n">test_accuracy</span><span class="p">})</span>
-
-<span class="c1"># Run sweep</span>
-<span class="n">wandb</span><span class="o">.</span><span class="n">agent</span><span class="p">(</span><span class="n">sweep_id</span><span class="p">,</span> <span class="n">train_sweep</span><span class="p">,</span> <span class="n">count</span><span class="o">=</span><span class="mi">9</span><span class="p">)</span>  <span class="c1"># 9 combinations in our grid</span>
-</pre></div>
-</div>
-</li>
+</section>
+<section id="specialized-ei-parameter-sweeps-recommended-approach">
+<h3>Specialized EI Parameter Sweeps (Recommended Approach)<a class="headerlink" href="#specialized-ei-parameter-sweeps-recommended-approach" title="Link to this heading"></a></h3>
+<p>For detailed exploration of excitatory and inhibitory parameter combinations, the framework provides specialized scripts that are the standard workflow for parameter sweeps in this codebase:</p>
+<ol class="arabic simple">
+<li><p><strong>Generate parameter sweep configurations</strong> using <code class="docutils literal notranslate"><span class="pre">generate_ei_sweep.py</span></code> with <code class="docutils literal notranslate"><span class="pre">sweep_params_seeds_ei.yaml</span></code></p></li>
+<li><p><strong>Run the experiments</strong> using the generated <code class="docutils literal notranslate"><span class="pre">run_ei_sweep.sh</span></code> script</p></li>
+<li><p><strong>Analyze results</strong> with <code class="docutils literal notranslate"><span class="pre">analyze_ei_sweep.py</span></code> to visualize performance across parameter combinations</p></li>
 </ol>
+<p>This is the recommended approach for parameter sweeps in this codebase. For detailed instructions, see the <a class="reference internal" href="ei_sweep_guide.html#ei-sweep-guide"><span class="std std-ref">Running and Analyzing EI Sweeps</span></a>.</p>
+<p>The workflow looks like:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># Step 1: Generate sweep configurations</span>
+python<span class="w"> </span>scripts/generate_ei_sweep.py<span class="w"> </span>configs/sweep_params_seeds_ei.yaml
+
+<span class="c1"># Step 2: Run the sweep experiments</span>
+<span class="nb">cd</span><span class="w"> </span>output/ei_&lt;timestamp&gt;
+./run_ei_sweep.sh
+
+<span class="c1"># Step 3: Analyze the results</span>
+python<span class="w"> </span>scripts/analyze_ei_sweep.py<span class="w"> </span>--folder<span class="w"> </span>output/ei_&lt;timestamp&gt;
+</pre></div>
+</div>
+<p>This approach is particularly useful for understanding how excitatory and inhibitory balance affects model performance and finding the optimal parameter configuration for your tasks.</p>
 </section>
 </section>
 <section id="comparing-experiments">
@@ -473,7 +478,7 @@
           </div>
           <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
         <a href="train_experiments_guide.html" class="btn btn-neutral float-left" title="Using train_experiments.py" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
-        <a href="interactive_run.html" class="btn btn-neutral float-right" title="Running an interactive session" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
+        <a href="ei_sweep_guide.html" class="btn btn-neutral float-right" title="Running and Analyzing EI Sweeps" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
     </div>
 
   <hr/>

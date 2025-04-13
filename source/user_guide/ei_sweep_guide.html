@@ -1,0 +1,436 @@
+
+
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" data-content_root="../../">
+<head>
+  <meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Running and Analyzing EI Sweeps &mdash; dendritic_modeling 0.1.0 documentation</title>
+      <link rel="stylesheet" type="text/css" href="../../_static/pygments.css?v=b86133f3" />
+      <link rel="stylesheet" type="text/css" href="../../_static/css/theme.css?v=e59714d7" />
+      <link rel="stylesheet" type="text/css" href="../../_static/copybutton.css?v=76b2166b" />
+
+  
+      <script src="../../_static/jquery.js?v=5d32c60e"></script>
+      <script src="../../_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
+      <script src="../../_static/documentation_options.js?v=01f34227"></script>
+      <script src="../../_static/doctools.js?v=9bcbadda"></script>
+      <script src="../../_static/sphinx_highlight.js?v=dc90522c"></script>
+      <script src="../../_static/clipboard.min.js?v=a7894cd8"></script>
+      <script src="../../_static/copybutton.js?v=f281be69"></script>
+      <script crossorigin="anonymous" integrity="sha256-Ae2Vz/4ePdIu6ZyI/5ZGsYnb+m0JlOmKPjt6XZ9JJkA=" src="https://cdnjs.cloudflare.com/ajax/libs/require.js/2.3.4/require.min.js"></script>
+    <script src="../../_static/js/theme.js"></script>
+    <link rel="author" title="About these documents" href="../../about.html" />
+    <link rel="index" title="Index" href="../../genindex.html" />
+    <link rel="search" title="Search" href="../../search.html" />
+    <link rel="next" title="CIFAR10 Tutorial" href="cifar10_tutorial.html" />
+    <link rel="prev" title="Experiment Tracking" href="experiment_tracking.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+
+          
+          
+          <a href="../../index.html" class="icon icon-home">
+            dendritic_modeling
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <p class="caption" role="heading"><span class="caption-text">Introduction</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../about.html">About</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Contents</span></p>
+<ul class="current">
+<li class="toctree-l1"><a class="reference internal" href="../getting_started/index.html">Getting Started Guide</a></li>
+<li class="toctree-l1 current"><a class="reference internal" href="index.html">User Guide</a><ul class="current">
+<li class="toctree-l2"><a class="reference internal" href="concepts.html">Key Concepts and Overview</a></li>
+<li class="toctree-l2"><a class="reference internal" href="configuration.html">Configuration System</a></li>
+<li class="toctree-l2"><a class="reference internal" href="config_yaml_guide.html">Understanding the Config YAML File</a></li>
+<li class="toctree-l2"><a class="reference internal" href="interactive_run.html">Running an interactive session</a></li>
+<li class="toctree-l2"><a class="reference internal" href="train_experiments_guide.html">Using train_experiments.py</a></li>
+<li class="toctree-l2"><a class="reference internal" href="experiment_tracking.html">Experiment Tracking</a></li>
+<li class="toctree-l2 current"><a class="current reference internal" href="#">Running and Analyzing EI Sweeps</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#overview">Overview</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#generating-ei-sweeps">Generating EI Sweeps</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="#basic-usage">Basic Usage</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#configuration-settings">Configuration Settings</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#output-structure">Output Structure</a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="#running-the-sweep">Running the Sweep</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#analyzing-results">Analyzing Results</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="#id1">Basic Usage</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#command-line-arguments">Command-Line Arguments</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#visualization-types">Visualization Types</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#id2">Output Structure</a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="#comparing-multiple-sweeps">Comparing Multiple Sweeps</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#troubleshooting">Troubleshooting</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="#common-issues-and-solutions">Common Issues and Solutions</a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="#example-workflow">Example Workflow</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#conclusion">Conclusion</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="cifar10_tutorial.html">CIFAR10 Tutorial</a></li>
+</ul>
+</li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Contents</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../advanced/network_structures/index.html">Network Structures</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../advanced/learning/index.html">Learning Strategies</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../advanced/visualization/index.html">Visualization Tools</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../advanced/analysis/index.html">Analysis Tools</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../advanced/configuration/index.html">Configuration System</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Contents</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../api/index.html">API Reference</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Contents</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../deployment/index.html">Deployment Guide</a></li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../../index.html">dendritic_modeling</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="../../index.html" class="icon icon-home" aria-label="Home"></a></li>
+          <li class="breadcrumb-item"><a href="index.html">User Guide</a></li>
+      <li class="breadcrumb-item active">Running and Analyzing EI Sweeps</li>
+      <li class="wy-breadcrumbs-aside">
+            <a href="../../_sources/source/user_guide/ei_sweep_guide.rst.txt" rel="nofollow"> View page source</a>
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <section id="running-and-analyzing-ei-sweeps">
+<span id="ei-sweep-guide"></span><h1>Running and Analyzing EI Sweeps<a class="headerlink" href="#running-and-analyzing-ei-sweeps" title="Link to this heading"></a></h1>
+<section id="overview">
+<h2>Overview<a class="headerlink" href="#overview" title="Link to this heading"></a></h2>
+<p>The dendritic modeling framework includes specialized tools for running sweeps over excitatory (E) and inhibitory (I) parameters to optimize neural network performance. This guide explains how to generate, run, and analyze EI parameter sweeps using the dedicated scripts.</p>
+<p>EI sweeps allow you to systematically explore how different configurations of excitatory and inhibitory synapse values affect model performance, providing insights into the optimal balance of excitation and inhibition for a given task.</p>
+<div class="admonition important">
+<p class="admonition-title">Important</p>
+<p>The workflow described in this guide is the standard approach for parameter sweeps in this codebase. The proper workflow uses the scripts described below:</p>
+<ol class="arabic simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">generate_ei_sweep.py</span></code> with <code class="docutils literal notranslate"><span class="pre">sweep_params_seeds_ei.yaml</span></code> to generate configurations and run scripts</p></li>
+<li><p>Execute the generated <code class="docutils literal notranslate"><span class="pre">run_ei_sweep.sh</span></code> to run all experiments</p></li>
+<li><p>Use <code class="docutils literal notranslate"><span class="pre">analyze_ei_sweep.py</span></code> to analyze results and generate visualizations</p></li>
+</ol>
+</div>
+</section>
+<section id="generating-ei-sweeps">
+<h2>Generating EI Sweeps<a class="headerlink" href="#generating-ei-sweeps" title="Link to this heading"></a></h2>
+<p>The <code class="docutils literal notranslate"><span class="pre">generate_ei_sweep.py</span></code> script uses the configuration from <code class="docutils literal notranslate"><span class="pre">sweep_params_seeds_ei.yaml</span></code> to create a set of configuration files and job scripts for running parameter sweeps over excitatory and inhibitory synapse counts.</p>
+<section id="basic-usage">
+<h3>Basic Usage<a class="headerlink" href="#basic-usage" title="Link to this heading"></a></h3>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>python<span class="w"> </span>scripts/generate_ei_sweep.py<span class="w"> </span>configs/sweep_params_seeds_ei.yaml
+</pre></div>
+</div>
+<p>This will:</p>
+<ol class="arabic simple">
+<li><p>Use the sweep configuration in <code class="docutils literal notranslate"><span class="pre">sweep_params_seeds_ei.yaml</span></code></p></li>
+<li><p>Generate a set of configurations with varying E/I parameters and seeds</p></li>
+<li><p>Create a directory structure for the sweep experiment</p></li>
+<li><p>Generate a Slurm batch script (<code class="docutils literal notranslate"><span class="pre">run_ei_sweep.sh</span></code>) for running the sweep</p></li>
+</ol>
+</section>
+<section id="configuration-settings">
+<h3>Configuration Settings<a class="headerlink" href="#configuration-settings" title="Link to this heading"></a></h3>
+<p>The <code class="docutils literal notranslate"><span class="pre">sweep_params_seeds_ei.yaml</span></code> file contains all the settings needed for the EI sweep:</p>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="c1"># sweep_params_seeds_ei.yaml</span>
+<span class="nt">slurm_config</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">account</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">your_account</span>
+<span class="w">  </span><span class="nt">run_name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">dendritic_ei_sweep</span>
+<span class="w">  </span><span class="nt">output_dir</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">create_subdir_with_timestamp</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+<span class="w">  </span><span class="nt">subdir_prefix</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;ei_&quot;</span>
+<span class="w">  </span><span class="nt">run_subfolders</span><span class="p">:</span>
+<span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">configs</span>
+<span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">results</span>
+<span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">plots</span>
+<span class="w">  </span><span class="c1"># SLURM settings</span>
+<span class="w">  </span><span class="nt">nodes</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">1</span>
+<span class="w">  </span><span class="nt">ntasks_per_node</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">1</span>
+<span class="w">  </span><span class="nt">gpus_per_node</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">1</span>
+<span class="w">  </span><span class="nt">cpus_per_task</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">10</span>
+<span class="w">  </span><span class="nt">time</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">0:30:00</span>
+<span class="w">  </span><span class="nt">mem</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">400GB</span>
+<span class="w">  </span><span class="nt">partition</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">gpu</span>
+<span class="w">  </span><span class="nt">max_concurrent_jobs</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">8</span>
+<span class="w">  </span><span class="c1"># Other settings</span>
+<span class="w">  </span><span class="nt">training_script</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">src/dendritic_modeling/train_experiments.py</span>
+<span class="w">  </span><span class="nt">config_filename_init</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">ei_sweep_config</span>
+
+<span class="nt">experiment_settings</span><span class="p">:</span>
+<span class="w">  </span><span class="c1"># Use multiple seeds per parameter combination</span>
+<span class="w">  </span><span class="nt">seeds_per_condition</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">5</span>
+<span class="w">  </span><span class="nt">base_seed</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">42</span>
+
+<span class="nt">train_config</span><span class="p">:</span>
+<span class="w">  </span><span class="c1"># Base model configuration here</span>
+<span class="w">  </span><span class="c1"># ...</span>
+
+<span class="nt">sweep_config</span><span class="p">:</span>
+<span class="w">  </span><span class="c1"># EE and IE synapse parameters to sweep</span>
+<span class="w">  </span><span class="nt">model.network.parameters.ee_synapses_per_branch_per_layer</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span>
+<span class="w">    </span><span class="p p-Indicator">[</span><span class="nv">1</span><span class="p p-Indicator">],</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">6</span><span class="p p-Indicator">],</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">11</span><span class="p p-Indicator">],</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">16</span><span class="p p-Indicator">],</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">21</span><span class="p p-Indicator">],</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">26</span><span class="p p-Indicator">],</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">31</span><span class="p p-Indicator">],</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">36</span><span class="p p-Indicator">],</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">41</span><span class="p p-Indicator">],</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">46</span><span class="p p-Indicator">],</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">51</span><span class="p p-Indicator">]</span>
+<span class="w">  </span><span class="p p-Indicator">]</span>
+<span class="w">  </span><span class="nt">model.network.parameters.ie_synapses_per_branch_per_layer</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span>
+<span class="w">    </span><span class="p p-Indicator">[</span><span class="nv">1</span><span class="p p-Indicator">],</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">6</span><span class="p p-Indicator">],</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">11</span><span class="p p-Indicator">],</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">16</span><span class="p p-Indicator">],</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">21</span><span class="p p-Indicator">],</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">26</span><span class="p p-Indicator">],</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">31</span><span class="p p-Indicator">],</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">36</span><span class="p p-Indicator">],</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">41</span><span class="p p-Indicator">],</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">46</span><span class="p p-Indicator">],</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">51</span><span class="p p-Indicator">]</span>
+<span class="w">  </span><span class="p p-Indicator">]</span>
+</pre></div>
+</div>
+<p>Key sections in this configuration file:</p>
+<ol class="arabic simple">
+<li><p><strong>slurm_config</strong>: Settings for SLURM job submission</p></li>
+<li><p><strong>experiment_settings</strong>: Controls seeds and experiment structure</p></li>
+<li><p><strong>train_config</strong>: Base model configuration used for all runs</p></li>
+<li><p><strong>sweep_config</strong>: Parameters to sweep over (EE and IE synapse values)</p></li>
+</ol>
+</section>
+<section id="output-structure">
+<h3>Output Structure<a class="headerlink" href="#output-structure" title="Link to this heading"></a></h3>
+<p>The script generates a directory structure organized as follows:</p>
+<div class="highlight-text notranslate"><div class="highlight"><pre><span></span>output/
+└── ei_&lt;timestamp&gt;/
+    ├── configs/
+    │   ├── ei_sweep_config_0.yaml
+    │   ├── ei_sweep_config_1.yaml
+    │   └── ...
+    ├── jobs/
+    │   ├── run_ei_sweep_0.sh
+    │   ├── run_ei_sweep_1.sh
+    │   └── ...
+    ├── results/
+    │   └── (empty, will contain experimental results)
+    └── run_ei_sweep.sh (master script to submit all jobs)
+</pre></div>
+</div>
+</section>
+</section>
+<section id="running-the-sweep">
+<h2>Running the Sweep<a class="headerlink" href="#running-the-sweep" title="Link to this heading"></a></h2>
+<p>After generating the sweep configuration, run it using the master script:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="nb">cd</span><span class="w"> </span>/path/to/output/ei_&lt;timestamp&gt;
+./run_ei_sweep.sh
+</pre></div>
+</div>
+<p>This submits all jobs to the SLURM scheduler. Each job:</p>
+<ol class="arabic simple">
+<li><p>Loads the corresponding configuration file</p></li>
+<li><p>Runs the training experiment with specific E/I parameter values</p></li>
+<li><p>Saves results in the results directory with appropriate subdirectories</p></li>
+</ol>
+</section>
+<section id="analyzing-results">
+<h2>Analyzing Results<a class="headerlink" href="#analyzing-results" title="Link to this heading"></a></h2>
+<p>Once your sweep experiments are complete, analyze the results using <code class="docutils literal notranslate"><span class="pre">analyze_ei_sweep.py</span></code>.</p>
+<section id="id1">
+<h3>Basic Usage<a class="headerlink" href="#id1" title="Link to this heading"></a></h3>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>python<span class="w"> </span>scripts/analyze_ei_sweep.py<span class="w"> </span>--folder<span class="w"> </span>/path/to/output/ei_&lt;timestamp&gt;
+</pre></div>
+</div>
+<p>This will:</p>
+<ol class="arabic simple">
+<li><p>Scan the experiment directory for results</p></li>
+<li><p>Extract metrics (train accuracy, validation accuracy, test accuracy)</p></li>
+<li><p>Generate visualizations showing the relationship between E/I parameters and performance</p></li>
+<li><p>Identify the optimal parameter configuration</p></li>
+</ol>
+</section>
+<section id="command-line-arguments">
+<h3>Command-Line Arguments<a class="headerlink" href="#command-line-arguments" title="Link to this heading"></a></h3>
+<p>The <code class="docutils literal notranslate"><span class="pre">analyze_ei_sweep.py</span></code> script supports several command-line arguments:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>python<span class="w"> </span>scripts/analyze_ei_sweep.py<span class="w"> </span>--timestamp<span class="w"> </span><span class="m">20250412010555</span><span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>--show-plots<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>--report-missing
+</pre></div>
+</div>
+<p>Key arguments include:</p>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">--folder</span></code>: Path to the experiment folder</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">--timestamp</span></code>: Timestamp ID of the experiment (alternative to –folder)</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">--show-plots</span></code>: Display plots interactively in addition to saving them</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">--report-missing</span></code>: Report details of missing or unfinished runs</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">--all</span></code>: Analyze all <a href="#id3"><span class="problematic" id="id4">ei_</span></a> folders in the output directory</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">--multiple</span></code>: List of timestamps or folders to analyze and compare together</p></li>
+</ul>
+</section>
+<section id="visualization-types">
+<h3>Visualization Types<a class="headerlink" href="#visualization-types" title="Link to this heading"></a></h3>
+<p>The script generates various plots to help you understand the results:</p>
+<ol class="arabic simple">
+<li><p><strong>Heatmaps</strong> (<code class="docutils literal notranslate"><span class="pre">*_heatmap.png</span></code>): 2D visualization showing how metrics (train_acc, val_acc, test_acc) vary with EE/IE parameter combinations. Colors represent performance values with annotations.</p></li>
+<li><p><strong>3D Surface plots</strong> (<code class="docutils literal notranslate"><span class="pre">*_surface.png</span></code>): 3D visualization showing the performance landscape across the parameter space, providing a clearer view of performance trends and optimal regions.</p></li>
+<li><p><strong>Line plots</strong>:
+- <code class="docutils literal notranslate"><span class="pre">*_ie_lines.png</span></code>: Shows effect of IE values on performance for different fixed EE values
+- <code class="docutils literal notranslate"><span class="pre">*_ee_lines.png</span></code>: Shows effect of EE values on performance for different fixed IE values</p></li>
+<li><p><strong>Scatter plots</strong> (<code class="docutils literal notranslate"><span class="pre">*_scatter.png</span></code>): Points colored by performance metrics, useful for identifying patterns across the parameter space.</p></li>
+<li><p><strong>Comparison plots</strong> (when analyzing multiple experiments):
+- Bar charts comparing experiments
+- Line plots showing performance across experiments for specific EE/IE combinations</p></li>
+</ol>
+</section>
+<section id="id2">
+<h3>Output Structure<a class="headerlink" href="#id2" title="Link to this heading"></a></h3>
+<p>The analysis results are saved in the plots directory:</p>
+<div class="highlight-text notranslate"><div class="highlight"><pre><span></span>output/
+└── ei_&lt;timestamp&gt;/
+    ├── ...
+    └── plots/
+        ├── ei_sweep_results.csv
+        ├── ei_sweep_train_acc_heatmap.png
+        ├── ei_sweep_val_acc_heatmap.png
+        ├── ei_sweep_test_acc_heatmap.png
+        ├── ei_sweep_train_acc_surface.png
+        ├── ei_sweep_val_acc_surface.png
+        ├── ei_sweep_test_acc_surface.png
+        ├── ei_sweep_test_acc_ie_lines.png
+        ├── ei_sweep_test_acc_ee_lines.png
+        ├── ...
+        └── summary.txt
+</pre></div>
+</div>
+</section>
+</section>
+<section id="comparing-multiple-sweeps">
+<h2>Comparing Multiple Sweeps<a class="headerlink" href="#comparing-multiple-sweeps" title="Link to this heading"></a></h2>
+<p>To compare results from multiple EI sweeps:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>python<span class="w"> </span>scripts/analyze_ei_sweep.py<span class="w"> </span>--multiple<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>/path/to/output/ei_20250412010555<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>/path/to/output/ei_20250413153045
+</pre></div>
+</div>
+<p>This will:</p>
+<ol class="arabic simple">
+<li><p>Process each experiment individually</p></li>
+<li><p>Create comparison visualizations</p></li>
+<li><p>Generate a summary of the best parameters across experiments</p></li>
+</ol>
+<p>The comparison outputs are saved in a new directory named <code class="docutils literal notranslate"><span class="pre">ei_comparison_&lt;timestamp&gt;</span></code>.</p>
+</section>
+<section id="troubleshooting">
+<h2>Troubleshooting<a class="headerlink" href="#troubleshooting" title="Link to this heading"></a></h2>
+<section id="common-issues-and-solutions">
+<h3>Common Issues and Solutions<a class="headerlink" href="#common-issues-and-solutions" title="Link to this heading"></a></h3>
+<ol class="arabic">
+<li><p><strong>Missing Results</strong>:</p>
+<p>If the analysis shows missing results, check:
+- SLURM job logs for errors (<code class="docutils literal notranslate"><span class="pre">slurm-*.out</span></code> files)
+- Task output logs in the results directories
+- Whether jobs are still running with <code class="docutils literal notranslate"><span class="pre">squeue</span></code></p>
+</li>
+<li><p><strong>No Metrics Extracted</strong>:</p>
+<p>If the script doesn’t extract metrics:
+- Check log file format in your experiment
+- Ensure metrics are reported with standard naming (e.g., “accuracy”, “train_acc”)
+- Use the <code class="docutils literal notranslate"><span class="pre">--report-missing</span></code> flag to see detailed information</p>
+</li>
+<li><p><strong>Poor Visualizations</strong>:</p>
+<p>If heatmaps or plots look incomplete:
+- Ensure sufficient parameter combinations completed successfully
+- Check if there’s enough variation in the results
+- Try using a subset of the data with the most complete results</p>
+</li>
+</ol>
+</section>
+</section>
+<section id="example-workflow">
+<h2>Example Workflow<a class="headerlink" href="#example-workflow" title="Link to this heading"></a></h2>
+<p>Here’s a complete workflow for running and analyzing an EI sweep:</p>
+<ol class="arabic">
+<li><p><strong>Prepare Configuration File</strong>:</p>
+<p>Edit <code class="docutils literal notranslate"><span class="pre">configs/sweep_params_seeds_ei.yaml</span></code> to set your desired EE/IE values, seeds, and model configuration.</p>
+</li>
+<li><p><strong>Generate Sweep</strong>:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>python<span class="w"> </span>scripts/generate_ei_sweep.py<span class="w"> </span>configs/sweep_params_seeds_ei.yaml
+</pre></div>
+</div>
+</li>
+<li><p><strong>Run Sweep</strong>:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="nb">cd</span><span class="w"> </span>output/ei_&lt;timestamp&gt;
+./run_ei_sweep.sh
+</pre></div>
+</div>
+</li>
+<li><p><strong>Analyze Results</strong>:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>python<span class="w"> </span>scripts/analyze_ei_sweep.py<span class="w"> </span>--folder<span class="w"> </span>output/ei_&lt;timestamp&gt;<span class="w"> </span>--show-plots
+</pre></div>
+</div>
+</li>
+<li><p><strong>Identify Optimal Parameters</strong>:</p>
+<p>From the analysis output, identify the best EE and IE values for your task.</p>
+</li>
+<li><p><strong>Fine-tune with Optimal Values</strong>:</p>
+<p>Use the identified optimal values in your final model configuration.</p>
+</li>
+</ol>
+</section>
+<section id="conclusion">
+<h2>Conclusion<a class="headerlink" href="#conclusion" title="Link to this heading"></a></h2>
+<p>EI parameter sweeps provide a powerful method for optimizing the excitatory-inhibitory balance in dendritic networks. The specialized scripts in the framework automate the process of generating, running, and analyzing these sweeps, helping you find the optimal parameter configuration for your specific task.</p>
+</section>
+</section>
+
+
+           </div>
+          </div>
+          <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
+        <a href="experiment_tracking.html" class="btn btn-neutral float-left" title="Experiment Tracking" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
+        <a href="cifar10_tutorial.html" class="btn btn-neutral float-right" title="CIFAR10 Tutorial" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright 2025, Research and Engineering at Kempner.</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>

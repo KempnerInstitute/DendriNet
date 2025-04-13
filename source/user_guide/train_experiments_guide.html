@@ -25,7 +25,7 @@
     <link rel="index" title="Index" href="../../genindex.html" />
     <link rel="search" title="Search" href="../../search.html" />
     <link rel="next" title="Experiment Tracking" href="experiment_tracking.html" />
-    <link rel="prev" title="Understanding the Config YAML File" href="config_yaml_guide.html" /> 
+    <link rel="prev" title="Running an interactive session" href="interactive_run.html" /> 
 </head>
 
 <body class="wy-body-for-nav"> 
@@ -58,6 +58,7 @@
 <li class="toctree-l2"><a class="reference internal" href="concepts.html">Key Concepts and Overview</a></li>
 <li class="toctree-l2"><a class="reference internal" href="configuration.html">Configuration System</a></li>
 <li class="toctree-l2"><a class="reference internal" href="config_yaml_guide.html">Understanding the Config YAML File</a></li>
+<li class="toctree-l2"><a class="reference internal" href="interactive_run.html">Running an interactive session</a></li>
 <li class="toctree-l2 current"><a class="current reference internal" href="#">Using train_experiments.py</a><ul>
 <li class="toctree-l3"><a class="reference internal" href="#overview">Overview</a></li>
 <li class="toctree-l3"><a class="reference internal" href="#basic-usage">Basic Usage</a></li>
@@ -65,14 +66,19 @@
 <li class="toctree-l3"><a class="reference internal" href="#command-line-arguments">Command-Line Arguments</a></li>
 <li class="toctree-l3"><a class="reference internal" href="#example-running-an-mnist-experiment">Example: Running an MNIST Experiment</a></li>
 <li class="toctree-l3"><a class="reference internal" href="#example-training-with-different-learning-strategies">Example: Training with Different Learning Strategies</a></li>
-<li class="toctree-l3"><a class="reference internal" href="#example-parameter-sweeps">Example: Parameter Sweeps</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#example-parameter-sweeps">Example: Parameter Sweeps</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="#recommended-approach-specialized-ei-sweep-scripts">Recommended Approach: Specialized EI Sweep Scripts</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#alternative-approaches-not-standard-practice">Alternative Approaches (Not Standard Practice)</a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="#best-practices">Best Practices</a></li>
 <li class="toctree-l3"><a class="reference internal" href="#debug-and-troubleshooting">Debug and Troubleshooting</a></li>
 <li class="toctree-l3"><a class="reference internal" href="#advanced-usage">Advanced Usage</a></li>
 <li class="toctree-l3"><a class="reference internal" href="#conclusion">Conclusion</a></li>
 </ul>
 </li>
 <li class="toctree-l2"><a class="reference internal" href="experiment_tracking.html">Experiment Tracking</a></li>
-<li class="toctree-l2"><a class="reference internal" href="interactive_run.html">Running an interactive session</a></li>
+<li class="toctree-l2"><a class="reference internal" href="ei_sweep_guide.html">Running and Analyzing EI Sweeps</a></li>
 <li class="toctree-l2"><a class="reference internal" href="cifar10_tutorial.html">CIFAR10 Tutorial</a></li>
 </ul>
 </li>
@@ -333,44 +339,56 @@ INFO train_experiments.py:279  train acc=0.965, valid acc=0.951, test acc=0.948
 </section>
 <section id="example-parameter-sweeps">
 <h2>Example: Parameter Sweeps<a class="headerlink" href="#example-parameter-sweeps" title="Link to this heading"></a></h2>
-<p>For parameter sweeps, you can use shell scripts or Weights &amp; Biases sweeps.</p>
-<p>Here’s a simple bash script for a learning rate sweep:</p>
+<p>The standard approach for parameter sweeps in this codebase uses dedicated scripts rather than manual loops or wandb’s native sweep functionality.</p>
+<section id="recommended-approach-specialized-ei-sweep-scripts">
+<h3>Recommended Approach: Specialized EI Sweep Scripts<a class="headerlink" href="#recommended-approach-specialized-ei-sweep-scripts" title="Link to this heading"></a></h3>
+<p>The recommended workflow for parameter sweeps uses dedicated scripts:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># Step 1: Generate sweep configurations</span>
+python<span class="w"> </span>scripts/generate_ei_sweep.py<span class="w"> </span>configs/sweep_params_seeds_ei.yaml
+
+<span class="c1"># Step 2: Run the sweep experiments</span>
+<span class="nb">cd</span><span class="w"> </span>output/ei_&lt;timestamp&gt;
+./run_ei_sweep.sh
+
+<span class="c1"># Step 3: Analyze the results</span>
+python<span class="w"> </span>scripts/analyze_ei_sweep.py<span class="w"> </span>--folder<span class="w"> </span>output/ei_&lt;timestamp&gt;
+</pre></div>
+</div>
+<p>This approach uses a comprehensive configuration file (<code class="docutils literal notranslate"><span class="pre">sweep_params_seeds_ei.yaml</span></code>) to specify all aspects of the sweep, generates a complete set of configuration files, creates job scripts for each configuration, and provides comprehensive analysis tools.</p>
+<p>For detailed instructions on running and analyzing EI sweeps, see the dedicated <a class="reference internal" href="ei_sweep_guide.html#ei-sweep-guide"><span class="std std-ref">Running and Analyzing EI Sweeps</span></a>.</p>
+</section>
+<section id="alternative-approaches-not-standard-practice">
+<h3>Alternative Approaches (Not Standard Practice)<a class="headerlink" href="#alternative-approaches-not-standard-practice" title="Link to this heading"></a></h3>
+<p>While the following approaches are possible, they are not the standard workflow in this codebase.</p>
+<ol class="arabic">
+<li><p>Simple bash script for parameter iteration:</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="ch">#!/bin/bash</span>
 
-<span class="k">for</span><span class="w"> </span>lr<span class="w"> </span><span class="k">in</span><span class="w"> </span><span class="m">0</span>.0001<span class="w"> </span><span class="m">0</span>.0005<span class="w"> </span><span class="m">0</span>.001<span class="w"> </span><span class="m">0</span>.005<span class="w"> </span><span class="m">0</span>.01
-<span class="k">do</span>
-<span class="w">    </span>python<span class="w"> </span>src/dendritic_modeling/train_experiments.py<span class="w"> </span>configs/mnist_exp.yaml<span class="w"> </span><span class="se">\</span>
-<span class="w">      </span>--train.lr<span class="w"> </span><span class="nv">$lr</span><span class="w"> </span><span class="se">\</span>
-<span class="w">      </span>--train.run_name<span class="w"> </span><span class="s2">&quot;mnist_lr_</span><span class="si">${</span><span class="nv">lr</span><span class="si">}</span><span class="s2">&quot;</span>
+<span class="nv">LR_VALUES</span><span class="o">=(</span><span class="m">0</span>.0001<span class="w"> </span><span class="m">0</span>.0005<span class="w"> </span><span class="m">0</span>.001<span class="w"> </span><span class="m">0</span>.005<span class="w"> </span><span class="m">0</span>.01<span class="o">)</span>
+
+<span class="k">for</span><span class="w"> </span>lr<span class="w"> </span><span class="k">in</span><span class="w"> </span><span class="s2">&quot;</span><span class="si">${</span><span class="nv">LR_VALUES</span><span class="p">[@]</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">;</span><span class="w"> </span><span class="k">do</span>
+<span class="w">    </span><span class="nb">echo</span><span class="w"> </span><span class="s2">&quot;Running experiment with learning rate: </span><span class="nv">$lr</span><span class="s2">&quot;</span>
+<span class="w">    </span>python<span class="w"> </span>src/dendritic_modeling/train_experiments.py<span class="w"> </span>configs/my_config.yaml<span class="w"> </span>--train.lr<span class="w"> </span><span class="nv">$lr</span>
 <span class="k">done</span>
 </pre></div>
 </div>
-<p>For more advanced parameter sweeps, you can use W&amp;B:</p>
-<ol class="arabic">
-<li><p>Create a sweep configuration file <code class="docutils literal notranslate"><span class="pre">sweep_config.yaml</span></code>:</p>
-<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">program</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">src/dendritic_modeling/train_experiments.py</span>
-<span class="nt">method</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">grid</span>
+</li>
+<li><p>Using Weights &amp; Biases sweeps:</p>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">method</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">grid</span>
 <span class="nt">parameters</span><span class="p">:</span>
-<span class="w">  </span><span class="nt">config</span><span class="p">:</span>
-<span class="w">    </span><span class="nt">value</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">configs/mnist_exp.yaml</span>
 <span class="w">  </span><span class="nt">train.lr</span><span class="p">:</span>
 <span class="w">    </span><span class="nt">values</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">0.0001</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">0.0005</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">0.001</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">0.005</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">0.01</span><span class="p p-Indicator">]</span>
 <span class="w">  </span><span class="nt">train.batch_size</span><span class="p">:</span>
-<span class="w">    </span><span class="nt">values</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">64</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">128</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">256</span><span class="p p-Indicator">]</span>
+<span class="w">    </span><span class="nt">values</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">32</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">64</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">128</span><span class="p p-Indicator">]</span>
 </pre></div>
 </div>
-</li>
-<li><p>Initialize the sweep:</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>wandb<span class="w"> </span>sweep<span class="w"> </span>sweep_config.yaml
-</pre></div>
-</div>
-</li>
-<li><p>Run the sweep agent:</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>wandb<span class="w"> </span>agent<span class="w"> </span>YOUR_SWEEP_ID
-</pre></div>
-</div>
+<p>This approach requires additional code to integrate with wandb’s sweep agent and is not commonly used in this codebase.</p>
 </li>
 </ol>
+</section>
+</section>
+<section id="best-practices">
+<h2>Best Practices<a class="headerlink" href="#best-practices" title="Link to this heading"></a></h2>
 </section>
 <section id="debug-and-troubleshooting">
 <h2>Debug and Troubleshooting<a class="headerlink" href="#debug-and-troubleshooting" title="Link to this heading"></a></h2>
@@ -432,7 +450,7 @@ INFO train_experiments.py:279  train acc=0.965, valid acc=0.951, test acc=0.948
            </div>
           </div>
           <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
-        <a href="config_yaml_guide.html" class="btn btn-neutral float-left" title="Understanding the Config YAML File" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
+        <a href="interactive_run.html" class="btn btn-neutral float-left" title="Running an interactive session" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
         <a href="experiment_tracking.html" class="btn btn-neutral float-right" title="Experiment Tracking" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
     </div>
 

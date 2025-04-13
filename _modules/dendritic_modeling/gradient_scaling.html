@@ -162,17 +162,11 @@
 <span class="sd">    A hook for reactivation functions. If inputs don&#39;t require gradients,</span>
 <span class="sd">    return None as required.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
-    <span class="c1"># # Check if any input requires gradients</span>
-    <span class="c1"># inputs_require_grad = False</span>
-    <span class="c1"># for p in module.parameters(recurse=True):</span>
-    <span class="c1">#     if p.requires_grad:</span>
-    <span class="c1">#         inputs_require_grad = True</span>
-    <span class="c1">#         break</span>
+    <span class="c1"># Check if prints are enabled</span>
+    <span class="n">print_hooks</span> <span class="o">=</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">module</span><span class="p">,</span> <span class="s2">&quot;print_hooks&quot;</span><span class="p">,</span> <span class="kc">False</span><span class="p">)</span>
 
-    <span class="c1"># # If no inputs require gradients, return None</span>
-    <span class="c1"># if not inputs_require_grad:</span>
-    <span class="c1">#     return None</span>
-    <span class="nb">print</span><span class="p">(</span><span class="s1">&#39;</span><span class="se">\n</span><span class="s1">scaling reactivation grad</span><span class="se">\n</span><span class="s1">&#39;</span><span class="p">,</span> <span class="n">flush</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">print_hooks</span><span class="p">:</span>
+        <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;</span><span class="se">\n</span><span class="s2">scaling reactivation grad</span><span class="se">\n</span><span class="s2">&quot;</span><span class="p">,</span> <span class="n">flush</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
 
     <span class="k">return</span> <span class="n">grad_output</span></div>
 
@@ -190,24 +184,41 @@
     <span class="k">else</span><span class="p">:</span>
         <span class="n">input_scale_vec</span> <span class="o">=</span> <span class="mi">1</span>
 
-    <span class="k">for</span> <span class="n">grad</span> <span class="ow">in</span> <span class="n">grad_input</span><span class="p">:</span>
+    <span class="c1"># Check if prints are enabled</span>
+    <span class="n">print_hooks</span> <span class="o">=</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">module</span><span class="p">,</span> <span class="s2">&quot;print_hooks&quot;</span><span class="p">,</span> <span class="kc">False</span><span class="p">)</span>
+
+    <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="n">grad</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">grad_input</span><span class="p">):</span>
         <span class="k">if</span> <span class="n">grad</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
-            <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s1">&#39;grad std:</span><span class="se">\n</span><span class="si">{</span><span class="n">grad</span><span class="o">.</span><span class="n">std</span><span class="p">(</span><span class="n">dim</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">0</span><span class="p">)</span><span class="si">}</span><span class="s1">&#39;</span><span class="p">,</span> <span class="n">flush</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
-            <span class="nb">print</span><span class="p">(</span><span class="s1">&#39;scaled grad std:</span><span class="se">\n</span><span class="s1">&#39;</span><span class="p">,</span> <span class="p">(</span><span class="n">grad</span> <span class="o">*</span> <span class="n">input_scale_vec</span><span class="p">)</span><span class="o">.</span><span class="n">std</span><span class="p">(</span><span class="n">dim</span> <span class="o">=</span> <span class="mi">0</span><span class="p">),</span> <span class="n">flush</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
-    <span class="k">return</span> <span class="nb">tuple</span><span class="p">(</span><span class="n">grad</span> <span class="o">*</span> <span class="n">input_scale_vec</span> <span class="k">if</span> <span class="n">grad</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="k">else</span> <span class="kc">None</span> <span class="k">for</span> <span class="n">grad</span> <span class="ow">in</span> <span class="n">grad_input</span><span class="p">)</span></div>
+            <span class="n">mean_abs_before</span> <span class="o">=</span> <span class="n">grad</span><span class="o">.</span><span class="n">abs</span><span class="p">()</span><span class="o">.</span><span class="n">mean</span><span class="p">()</span><span class="o">.</span><span class="n">item</span><span class="p">()</span>
+            <span class="n">mean_abs_after</span> <span class="o">=</span> <span class="p">(</span><span class="n">grad</span> <span class="o">*</span> <span class="n">input_scale_vec</span><span class="p">)</span><span class="o">.</span><span class="n">abs</span><span class="p">()</span><span class="o">.</span><span class="n">mean</span><span class="p">()</span><span class="o">.</span><span class="n">item</span><span class="p">()</span>
+            <span class="k">if</span> <span class="n">print_hooks</span><span class="p">:</span>
+                <span class="nb">print</span><span class="p">(</span>
+                    <span class="sa">f</span><span class="s2">&quot;Gradient </span><span class="si">{</span><span class="n">i</span><span class="si">}</span><span class="s2"> - Mean Abs Before: </span><span class="si">{</span><span class="n">mean_abs_before</span><span class="si">:</span><span class="s2">.6f</span><span class="si">}</span><span class="s2">, Mean Abs After: </span><span class="si">{</span><span class="n">mean_abs_after</span><span class="si">:</span><span class="s2">.6f</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">,</span>
+                    <span class="n">flush</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+                <span class="p">)</span>
+    <span class="k">return</span> <span class="nb">tuple</span><span class="p">(</span>
+        <span class="n">grad</span> <span class="o">*</span> <span class="n">input_scale_vec</span> <span class="k">if</span> <span class="n">grad</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="k">else</span> <span class="kc">None</span> <span class="k">for</span> <span class="n">grad</span> <span class="ow">in</span> <span class="n">grad_input</span>
+    <span class="p">)</span></div>
 
 
 
 <div class="viewcode-block" id="scale_layer_param_gradients_elementwise">
 <a class="viewcode-back" href="../../source/api/dendritic_modeling.html#dendritic_modeling.gradient_scaling.scale_layer_param_gradients_elementwise">[docs]</a>
-<span class="k">def</span><span class="w"> </span><span class="nf">scale_layer_param_gradients_elementwise</span><span class="p">(</span><span class="n">grad</span><span class="p">,</span> <span class="n">param_scale_vec</span><span class="p">):</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">scale_layer_param_gradients_elementwise</span><span class="p">(</span><span class="n">grad</span><span class="p">,</span> <span class="n">param_scale_vec</span><span class="p">,</span> <span class="n">print_hooks</span><span class="o">=</span><span class="kc">False</span><span class="p">):</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Apply element-wise scaling to the parameter gradients.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
     <span class="k">if</span> <span class="n">grad</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
-        <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s1">&#39;grad:</span><span class="se">\n</span><span class="si">{</span><span class="n">grad</span><span class="si">}</span><span class="s1">&#39;</span><span class="p">,</span> <span class="n">flush</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
-        <span class="nb">print</span><span class="p">(</span><span class="s1">&#39;scaled grad:</span><span class="se">\n</span><span class="s1">&#39;</span><span class="p">,</span> <span class="n">grad</span> <span class="o">*</span> <span class="n">param_scale_vec</span><span class="p">,</span> <span class="n">flush</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
-    <span class="n">param_scale_vec</span> <span class="o">=</span> <span class="mi">1</span> <span class="k">if</span> <span class="n">param_scale_vec</span> <span class="ow">is</span> <span class="kc">None</span> <span class="k">else</span> <span class="n">param_scale_vec</span>
+        <span class="n">mean_abs_before</span> <span class="o">=</span> <span class="n">grad</span><span class="o">.</span><span class="n">abs</span><span class="p">()</span><span class="o">.</span><span class="n">mean</span><span class="p">()</span><span class="o">.</span><span class="n">item</span><span class="p">()</span>
+        <span class="n">param_scale_vec</span> <span class="o">=</span> <span class="mi">1</span> <span class="k">if</span> <span class="n">param_scale_vec</span> <span class="ow">is</span> <span class="kc">None</span> <span class="k">else</span> <span class="n">param_scale_vec</span>
+        <span class="n">mean_abs_after</span> <span class="o">=</span> <span class="p">(</span><span class="n">grad</span> <span class="o">*</span> <span class="n">param_scale_vec</span><span class="p">)</span><span class="o">.</span><span class="n">abs</span><span class="p">()</span><span class="o">.</span><span class="n">mean</span><span class="p">()</span><span class="o">.</span><span class="n">item</span><span class="p">()</span>
+        <span class="k">if</span> <span class="n">print_hooks</span><span class="p">:</span>
+            <span class="nb">print</span><span class="p">(</span>
+                <span class="sa">f</span><span class="s2">&quot;Parameter Gradient - Mean Abs Before: </span><span class="si">{</span><span class="n">mean_abs_before</span><span class="si">:</span><span class="s2">.6f</span><span class="si">}</span><span class="s2">, Mean Abs After: </span><span class="si">{</span><span class="n">mean_abs_after</span><span class="si">:</span><span class="s2">.6f</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">,</span>
+                <span class="n">flush</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+            <span class="p">)</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="n">param_scale_vec</span> <span class="o">=</span> <span class="mi">1</span> <span class="k">if</span> <span class="n">param_scale_vec</span> <span class="ow">is</span> <span class="kc">None</span> <span class="k">else</span> <span class="n">param_scale_vec</span>
     <span class="k">return</span> <span class="n">grad</span> <span class="o">*</span> <span class="n">param_scale_vec</span> <span class="k">if</span> <span class="n">grad</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="k">else</span> <span class="kc">None</span></div>
 
 
@@ -232,6 +243,20 @@
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Multiply entire grad_input by a single scalar factor.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
+    <span class="c1"># Check if prints are enabled</span>
+    <span class="n">print_hooks</span> <span class="o">=</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">module</span><span class="p">,</span> <span class="s2">&quot;print_hooks&quot;</span><span class="p">,</span> <span class="kc">False</span><span class="p">)</span>
+
+    <span class="c1"># Calculate and print mean absolute gradient values before and after scaling</span>
+    <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="n">g</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">grad_input</span><span class="p">):</span>
+        <span class="k">if</span> <span class="n">g</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">mean_abs_before</span> <span class="o">=</span> <span class="n">g</span><span class="o">.</span><span class="n">abs</span><span class="p">()</span><span class="o">.</span><span class="n">mean</span><span class="p">()</span><span class="o">.</span><span class="n">item</span><span class="p">()</span>
+            <span class="n">mean_abs_after</span> <span class="o">=</span> <span class="p">(</span><span class="n">g</span> <span class="o">*</span> <span class="n">scale_factor</span><span class="p">)</span><span class="o">.</span><span class="n">abs</span><span class="p">()</span><span class="o">.</span><span class="n">mean</span><span class="p">()</span><span class="o">.</span><span class="n">item</span><span class="p">()</span>
+            <span class="k">if</span> <span class="n">print_hooks</span><span class="p">:</span>
+                <span class="nb">print</span><span class="p">(</span>
+                    <span class="sa">f</span><span class="s2">&quot;Scalar Scaling Gradient </span><span class="si">{</span><span class="n">i</span><span class="si">}</span><span class="s2"> - Mean Abs Before: </span><span class="si">{</span><span class="n">mean_abs_before</span><span class="si">:</span><span class="s2">.6f</span><span class="si">}</span><span class="s2">, Mean Abs After: </span><span class="si">{</span><span class="n">mean_abs_after</span><span class="si">:</span><span class="s2">.6f</span><span class="si">}</span><span class="s2"> (scale=</span><span class="si">{</span><span class="n">scale_factor</span><span class="si">:</span><span class="s2">.4f</span><span class="si">}</span><span class="s2">)&quot;</span><span class="p">,</span>
+                    <span class="n">flush</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+                <span class="p">)</span>
+
     <span class="k">return</span> <span class="nb">tuple</span><span class="p">(</span><span class="n">g</span> <span class="o">*</span> <span class="n">scale_factor</span> <span class="k">if</span> <span class="p">(</span><span class="n">g</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">)</span> <span class="k">else</span> <span class="kc">None</span> <span class="k">for</span> <span class="n">g</span> <span class="ow">in</span> <span class="n">grad_input</span><span class="p">)</span></div>
 
 
@@ -267,6 +292,7 @@
         <span class="n">topk_strategy</span><span class="o">=</span><span class="s2">&quot;none&quot;</span><span class="p">,</span>
         <span class="n">scale_factor</span><span class="o">=</span><span class="mf">1.0</span><span class="p">,</span>
         <span class="n">layer_idx</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span>
+        <span class="n">print_hooks</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span>
     <span class="p">):</span>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">        Parameters</span>
@@ -277,12 +303,15 @@
 <span class="sd">            Base scaling factor for certain strategies.</span>
 <span class="sd">        layer_idx : int</span>
 <span class="sd">            For &#39;distal_upweight_by_idx&#39; if needed.</span>
+<span class="sd">        print_hooks : bool</span>
+<span class="sd">            Whether to print gradient statistics in hooks. Default is False.</span>
 <span class="sd">        &quot;&quot;&quot;</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">reactivation_strategy</span> <span class="o">=</span> <span class="n">reactivation_strategy</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">blocklinear_strategy</span> <span class="o">=</span> <span class="n">blocklinear_strategy</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">topk_strategy</span> <span class="o">=</span> <span class="n">topk_strategy</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">scale_factor</span> <span class="o">=</span> <span class="n">scale_factor</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">layer_idx</span> <span class="o">=</span> <span class="n">layer_idx</span></div>
+        <span class="bp">self</span><span class="o">.</span><span class="n">layer_idx</span> <span class="o">=</span> <span class="n">layer_idx</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">print_hooks</span> <span class="o">=</span> <span class="n">print_hooks</span></div>
 
 
 <div class="viewcode-block" id="GradientScaler.register_reactivation_inverse">
@@ -297,6 +326,9 @@
                 <span class="n">reactivation_layer</span><span class="o">.</span><span class="n">_backward_hooks</span><span class="o">.</span><span class="n">clear</span><span class="p">()</span>
             <span class="k">if</span> <span class="nb">hasattr</span><span class="p">(</span><span class="n">reactivation_layer</span><span class="p">,</span> <span class="s2">&quot;_backward_pre_hooks&quot;</span><span class="p">):</span>
                 <span class="n">reactivation_layer</span><span class="o">.</span><span class="n">_backward_pre_hooks</span><span class="o">.</span><span class="n">clear</span><span class="p">()</span>
+
+            <span class="c1"># Set the print_hooks attribute</span>
+            <span class="n">reactivation_layer</span><span class="o">.</span><span class="n">print_hooks</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">print_hooks</span>
 
             <span class="c1"># Register with full backward hook consistently</span>
             <span class="n">reactivation_layer</span><span class="o">.</span><span class="n">register_full_backward_hook</span><span class="p">(</span>
@@ -315,10 +347,17 @@
 <span class="sd">        If &#39;distal_upweight_by_idx&#39;, we do (layer_idx+1) * scale_factor for entire param.</span>
 <span class="sd">        If &#39;none&#39;, no special scaling.</span>
 <span class="sd">        &quot;&quot;&quot;</span>
-        <span class="nb">print</span><span class="p">(</span><span class="s1">&#39;registering block linear dynamic, strategy:&#39;</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">blocklinear_strategy</span><span class="p">,</span> <span class="n">flush</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">print_hooks</span><span class="p">:</span>
+            <span class="nb">print</span><span class="p">(</span>
+                <span class="s2">&quot;registering block linear dynamic, strategy:&quot;</span><span class="p">,</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">blocklinear_strategy</span><span class="p">,</span>
+                <span class="n">flush</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+            <span class="p">)</span>
+
         <span class="k">def</span><span class="w"> </span><span class="nf">input_hook_fn</span><span class="p">(</span><span class="n">module</span><span class="p">,</span> <span class="n">grad_input</span><span class="p">,</span> <span class="n">grad_output</span><span class="p">):</span>
             <span class="c1"># Apply the appropriate scaling strategy</span>
-            <span class="nb">print</span><span class="p">(</span><span class="s1">&#39;</span><span class="se">\n\n</span><span class="s1">blocklinear input hook call&#39;</span><span class="p">,</span> <span class="n">flush</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+            <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">print_hooks</span><span class="p">:</span>
+                <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;</span><span class="se">\n\n</span><span class="s2">blocklinear input hook call&quot;</span><span class="p">,</span> <span class="n">flush</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
             <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">blocklinear_strategy</span> <span class="o">==</span> <span class="s2">&quot;conductance_dynamic&quot;</span><span class="p">:</span>
                 <span class="k">try</span><span class="p">:</span>
                     <span class="k">return</span> <span class="n">scale_layer_input_gradients_elementwise</span><span class="p">(</span>
@@ -340,13 +379,14 @@
 
             <span class="k">else</span><span class="p">:</span>
                 <span class="k">return</span> <span class="n">grad_input</span>
-        
+
         <span class="k">def</span><span class="w"> </span><span class="nf">param_hook_fn</span><span class="p">(</span><span class="n">grad</span><span class="p">):</span>
-            <span class="nb">print</span><span class="p">(</span><span class="s1">&#39;</span><span class="se">\n\n</span><span class="s1">blocklinear param hook call&#39;</span><span class="p">,</span> <span class="n">flush</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+            <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">print_hooks</span><span class="p">:</span>
+                <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;</span><span class="se">\n\n</span><span class="s2">blocklinear param hook call&quot;</span><span class="p">,</span> <span class="n">flush</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
             <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">blocklinear_strategy</span> <span class="o">==</span> <span class="s2">&quot;conductance_dynamic&quot;</span><span class="p">:</span>
                 <span class="k">try</span><span class="p">:</span>
                     <span class="k">return</span> <span class="n">scale_layer_param_gradients_elementwise</span><span class="p">(</span>
-                        <span class="n">grad</span><span class="p">,</span> <span class="n">block_linear_layer</span><span class="o">.</span><span class="n">param_scale_vec</span>
+                        <span class="n">grad</span><span class="p">,</span> <span class="n">block_linear_layer</span><span class="o">.</span><span class="n">param_scale_vec</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">print_hooks</span>
                     <span class="p">)</span>
                 <span class="k">except</span> <span class="ne">Exception</span> <span class="k">as</span> <span class="n">e</span><span class="p">:</span>
                     <span class="c1"># If there&#39;s any error in applying the scale, return the original gradients</span>
@@ -355,10 +395,6 @@
             <span class="k">else</span><span class="p">:</span>
                 <span class="k">return</span> <span class="n">grad</span>
 
-
-        <span class="c1"># Wrap our hook function with the safe_hook decorator</span>
-        <span class="c1"># safe_input_hook_fn = safe_hook(input_hook_fn)</span>
-        <span class="c1"># safe_param_hook_fn = safe_hook(param_hook_fn)</span>
         <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">blocklinear_strategy</span> <span class="o">!=</span> <span class="s2">&quot;none&quot;</span><span class="p">:</span>
             <span class="c1"># First remove any existing hooks to prevent conflicts</span>
             <span class="k">if</span> <span class="nb">hasattr</span><span class="p">(</span><span class="n">block_linear_layer</span><span class="p">,</span> <span class="s2">&quot;_backward_hooks&quot;</span><span class="p">):</span>
@@ -366,10 +402,14 @@
             <span class="k">if</span> <span class="nb">hasattr</span><span class="p">(</span><span class="n">block_linear_layer</span><span class="p">,</span> <span class="s2">&quot;_backward_pre_hooks&quot;</span><span class="p">):</span>
                 <span class="n">block_linear_layer</span><span class="o">.</span><span class="n">_backward_pre_hooks</span><span class="o">.</span><span class="n">clear</span><span class="p">()</span>
 
+            <span class="c1"># Set the print_hooks attribute</span>
+            <span class="n">block_linear_layer</span><span class="o">.</span><span class="n">print_hooks</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">print_hooks</span>
+
             <span class="c1"># Register consistently with full backward hook</span>
             <span class="n">block_linear_layer</span><span class="o">.</span><span class="n">register_full_backward_hook</span><span class="p">(</span><span class="n">input_hook_fn</span><span class="p">)</span>
             <span class="n">block_linear_layer</span><span class="o">.</span><span class="n">log_weight</span><span class="o">.</span><span class="n">register_hook</span><span class="p">(</span><span class="n">param_hook_fn</span><span class="p">)</span>
-            <span class="nb">print</span><span class="p">(</span><span class="s1">&#39;registered block linear dynamic&#39;</span><span class="p">,</span> <span class="n">flush</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span></div>
+            <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">print_hooks</span><span class="p">:</span>
+                <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;registered block linear dynamic&quot;</span><span class="p">,</span> <span class="n">flush</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span></div>
 
 
 <div class="viewcode-block" id="GradientScaler.register_topk_dynamic">
@@ -382,10 +422,13 @@
 <span class="sd">        If &#39;distal_upweight_by_idx&#39;, we do (layer_idx+1) * scale_factor for entire param.</span>
 <span class="sd">        If &#39;none&#39;, no special scaling.</span>
 <span class="sd">        &quot;&quot;&quot;</span>
-        <span class="nb">print</span><span class="p">(</span><span class="s1">&#39;registering topk dynamic, strategy:&#39;</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">topk_strategy</span><span class="p">,</span> <span class="n">flush</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">print_hooks</span><span class="p">:</span>
+            <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;registering topk dynamic, strategy:&quot;</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">topk_strategy</span><span class="p">,</span> <span class="n">flush</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+
         <span class="k">def</span><span class="w"> </span><span class="nf">input_hook_fn</span><span class="p">(</span><span class="n">module</span><span class="p">,</span> <span class="n">grad_input</span><span class="p">,</span> <span class="n">grad_output</span><span class="p">):</span>
             <span class="c1"># Apply the appropriate scaling strategy</span>
-            <span class="nb">print</span><span class="p">(</span><span class="s1">&#39;</span><span class="se">\n\n</span><span class="s1">topk input hook call&#39;</span><span class="p">,</span> <span class="n">flush</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+            <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">print_hooks</span><span class="p">:</span>
+                <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;</span><span class="se">\n\n</span><span class="s2">topk input hook call&quot;</span><span class="p">,</span> <span class="n">flush</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
             <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">topk_strategy</span> <span class="o">==</span> <span class="s2">&quot;conductance_dynamic&quot;</span><span class="p">:</span>
                 <span class="k">try</span><span class="p">:</span>
                     <span class="k">return</span> <span class="n">scale_layer_input_gradients_elementwise</span><span class="p">(</span>
@@ -407,13 +450,14 @@
 
             <span class="k">else</span><span class="p">:</span>
                 <span class="k">return</span> <span class="n">grad_input</span>
-        
+
         <span class="k">def</span><span class="w"> </span><span class="nf">param_hook_fn</span><span class="p">(</span><span class="n">grad</span><span class="p">):</span>
-            <span class="nb">print</span><span class="p">(</span><span class="s1">&#39;</span><span class="se">\n\n</span><span class="s1">topk param hook call&#39;</span><span class="p">,</span> <span class="n">flush</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+            <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">print_hooks</span><span class="p">:</span>
+                <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;</span><span class="se">\n\n</span><span class="s2">topk param hook call&quot;</span><span class="p">,</span> <span class="n">flush</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
             <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">topk_strategy</span> <span class="o">==</span> <span class="s2">&quot;conductance_dynamic&quot;</span><span class="p">:</span>
                 <span class="k">try</span><span class="p">:</span>
                     <span class="k">return</span> <span class="n">scale_layer_param_gradients_elementwise</span><span class="p">(</span>
-                        <span class="n">grad</span><span class="p">,</span> <span class="n">topk_layer</span><span class="o">.</span><span class="n">param_scale_vec</span>
+                        <span class="n">grad</span><span class="p">,</span> <span class="n">topk_layer</span><span class="o">.</span><span class="n">param_scale_vec</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">print_hooks</span>
                     <span class="p">)</span>
                 <span class="k">except</span> <span class="ne">Exception</span> <span class="k">as</span> <span class="n">e</span><span class="p">:</span>
                     <span class="c1"># If there&#39;s any error in applying the scale, return the original gradients</span>
@@ -421,9 +465,6 @@
 
             <span class="k">else</span><span class="p">:</span>
                 <span class="k">return</span> <span class="n">grad</span>
-        <span class="c1"># Wrap our hook function with the safe_hook decorator</span>
-        <span class="c1"># safe_input_hook_fn = safe_hook(input_hook_fn)</span>
-        <span class="c1"># safe_param_hook_fn = safe_hook(param_hook_fn)</span>
 
         <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">topk_strategy</span> <span class="o">!=</span> <span class="s2">&quot;none&quot;</span><span class="p">:</span>
             <span class="c1"># First remove any existing hooks to prevent conflicts</span>
@@ -432,10 +473,14 @@
             <span class="k">if</span> <span class="nb">hasattr</span><span class="p">(</span><span class="n">topk_layer</span><span class="p">,</span> <span class="s2">&quot;_backward_pre_hooks&quot;</span><span class="p">):</span>
                 <span class="n">topk_layer</span><span class="o">.</span><span class="n">_backward_pre_hooks</span><span class="o">.</span><span class="n">clear</span><span class="p">()</span>
 
+            <span class="c1"># Set the print_hooks attribute</span>
+            <span class="n">topk_layer</span><span class="o">.</span><span class="n">print_hooks</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">print_hooks</span>
+
             <span class="c1"># Register consistently with full backward hook</span>
             <span class="n">topk_layer</span><span class="o">.</span><span class="n">register_full_backward_hook</span><span class="p">(</span><span class="n">input_hook_fn</span><span class="p">)</span>
             <span class="n">topk_layer</span><span class="o">.</span><span class="n">pre_w</span><span class="o">.</span><span class="n">register_hook</span><span class="p">(</span><span class="n">param_hook_fn</span><span class="p">)</span></div>
 </div>
+
 
 
 <span class="c1"># Apply the safe_hook decorator to our existing functions</span>
