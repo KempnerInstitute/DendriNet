@@ -225,48 +225,55 @@ Save model checkpoints and visualizations as wandb artifacts:
 Running Sweeps with Weights & Biases
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-Wandb supports parameter sweeps for hyperparameter optimization:
+.. note::
+   While Weights & Biases does support parameter sweeps as described below, the standard workflow in this codebase uses dedicated sweep generation scripts like ``generate_ei_sweep.py`` rather than wandb's native sweep functionality. See the :ref:`ei_sweep_guide` for the recommended approach.
 
-1. Define a sweep configuration:
+Wandb can support parameter sweeps for hyperparameter optimization, though this is not the primary method used in this codebase:
 
-   .. code-block:: python
+.. code-block:: python
 
-      sweep_config = {
-          'method': 'grid',  # or 'random', 'bayes'
-          'parameters': {
-              'train.lr': {'values': [0.0001, 0.001, 0.01]},
-              'train.batch_size': {'values': [32, 64, 128]},
-              'model.network.parameters.excitatory_branch_factors': {'values': [[1, 2], [2, 2], [2, 4]]}
-          }
-      }
+    # NOTE: This is provided for reference but is not the standard workflow in this codebase
+    sweep_config = {
+        'method': 'grid',  # or 'random', 'bayes'
+        'parameters': {
+            'train.lr': {'values': [0.0001, 0.001, 0.01]},
+            'train.batch_size': {'values': [32, 64, 128]},
+            'model.network.parameters.excitatory_branch_factors': {'values': [[1, 2], [2, 2], [2, 4]]}
+        }
+    }
 
-      # Initialize sweep
-      sweep_id = wandb.sweep(sweep_config, project=config.wandb.project)
+    # Initialize sweep
+    sweep_id = wandb.sweep(sweep_config, project=config.wandb.project)
 
-2. Create a training function for the sweep:
+    # Run sweep agent
+    wandb.agent(sweep_id, train_function, count=9)
 
-   .. code-block:: python
+Specialized EI Parameter Sweeps (Recommended Approach)
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-      def train_sweep():
-          # Initialize wandb
-          wandb.init()
+For detailed exploration of excitatory and inhibitory parameter combinations, the framework provides specialized scripts that are the standard workflow for parameter sweeps in this codebase:
 
-          # Get sweep parameters
-          sweep_config = wandb.config
+1. **Generate parameter sweep configurations** using ``generate_ei_sweep.py`` with ``sweep_params_seeds_ei.yaml``
+2. **Run the experiments** using the generated ``run_ei_sweep.sh`` script
+3. **Analyze results** with ``analyze_ei_sweep.py`` to visualize performance across parameter combinations
 
-          # Update base configuration with sweep parameters
-          config.train.lr = sweep_config['train.lr']
-          config.train.batch_size = sweep_config['train.batch_size']
-          config.model.network.parameters.excitatory_branch_factors = sweep_config['model.network.parameters.excitatory_branch_factors']
+This is the recommended approach for parameter sweeps in this codebase. For detailed instructions, see the :ref:`ei_sweep_guide`.
 
-          # Create model and train
-          # ... training code ...
+The workflow looks like:
 
-          # Log final results
-          wandb.log({"final_accuracy": test_accuracy})
+.. code-block:: bash
 
-      # Run sweep
-      wandb.agent(sweep_id, train_sweep, count=9)  # 9 combinations in our grid
+    # Step 1: Generate sweep configurations
+    python scripts/generate_ei_sweep.py configs/sweep_params_seeds_ei.yaml
+
+    # Step 2: Run the sweep experiments
+    cd output/ei_<timestamp>
+    ./run_ei_sweep.sh
+
+    # Step 3: Analyze the results
+    python scripts/analyze_ei_sweep.py --folder output/ei_<timestamp>
+
+This approach is particularly useful for understanding how excitatory and inhibitory balance affects model performance and finding the optimal parameter configuration for your tasks.
 
 Comparing Experiments
 ---------------------
