@@ -8,7 +8,8 @@ User Guide
    concepts
    configuration
    config_yaml_guide
+   interactive_run
    train_experiments_guide
    experiment_tracking
-   interactive_run
+   ei_sweep_guide
    cifar10_tutorial
