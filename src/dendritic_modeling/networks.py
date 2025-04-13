@@ -198,6 +198,7 @@ class ExcitationInhibitionLayer(nn.Module):
         topk_noise_level=0.0,
         topk_type="standard",
         topk_strategy="none",
+        print_hooks=False,
     ):
         super().__init__()
 
@@ -227,6 +228,7 @@ class ExcitationInhibitionLayer(nn.Module):
                     topk_noise_level=topk_noise_level,
                     topk_strategy=topk_strategy,
                     topk_type=topk_type,
+                    print_hooks=print_hooks,
                 )
             else:
                 self.inhibitory_cells = DendriNet(
@@ -246,6 +248,7 @@ class ExcitationInhibitionLayer(nn.Module):
                     topk_noise_level=topk_noise_level,
                     topk_strategy=topk_strategy,
                     topk_type=topk_type,
+                    print_hooks=print_hooks,
                 )
         else:
             self.inhibitory_cells = None
@@ -270,6 +273,7 @@ class ExcitationInhibitionLayer(nn.Module):
                 topk_noise_level=topk_noise_level,
                 topk_strategy=topk_strategy,
                 topk_type=topk_type,
+                print_hooks=print_hooks,
             )
         else:
             self.excitatory_cells = DendriNet(
@@ -291,6 +295,7 @@ class ExcitationInhibitionLayer(nn.Module):
                 topk_noise_level=topk_noise_level,
                 topk_strategy=topk_strategy,
                 topk_type=topk_type,
+                print_hooks=print_hooks,
             )
 
     def decay_weights(self, weight_decay):
@@ -408,6 +413,7 @@ class ExcitationInhibitionNetwork(nn.Module):
         topk_init_method: str = "xavier_normal",
         topk_strategy: str = "conductance_dynamic",
         topk_type: str = "standard",
+        print_hooks: bool = False,
         **kwargs,
     ):
         super().__init__()
@@ -444,6 +450,7 @@ class ExcitationInhibitionNetwork(nn.Module):
         self.topk_strategy = topk_strategy
         self.topk_type = topk_type
         self.topk_noise_level = kwargs.get("topk_noise_level", 0.0)
+        self.print_hooks = print_hooks
 
         # Set up input transformation based on input_mode
         if input_mode == 0:
@@ -567,6 +574,7 @@ class ExcitationInhibitionNetwork(nn.Module):
                 topk_noise_level=self.topk_noise_level,
                 topk_strategy=self.topk_strategy,
                 topk_type=self.topk_type,
+                print_hooks=self.print_hooks,
             )
             layers.append(layer)
 
