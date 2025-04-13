@@ -240,48 +240,62 @@ Let's run the same experiment with different learning strategies:
 Example: Parameter Sweeps
 -----------------------
 
-For parameter sweeps, you can use shell scripts or Weights & Biases sweeps.
+The standard approach for parameter sweeps in this codebase uses dedicated scripts rather than manual loops or wandb's native sweep functionality.
 
-Here's a simple bash script for a learning rate sweep:
+Recommended Approach: Specialized EI Sweep Scripts
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+The recommended workflow for parameter sweeps uses dedicated scripts:
 
 .. code-block:: bash
 
-    #!/bin/bash
+    # Step 1: Generate sweep configurations
+    python scripts/generate_ei_sweep.py configs/sweep_params_seeds_ei.yaml
 
-    for lr in 0.0001 0.0005 0.001 0.005 0.01
-    do
-        python src/dendritic_modeling/train_experiments.py configs/mnist_exp.yaml \
-          --train.lr $lr \
-          --train.run_name "mnist_lr_${lr}"
-    done
+    # Step 2: Run the sweep experiments
+    cd output/ei_<timestamp>
+    ./run_ei_sweep.sh
 
-For more advanced parameter sweeps, you can use W&B:
+    # Step 3: Analyze the results
+    python scripts/analyze_ei_sweep.py --folder output/ei_<timestamp>
 
-1. Create a sweep configuration file ``sweep_config.yaml``:
+This approach uses a comprehensive configuration file (``sweep_params_seeds_ei.yaml``) to specify all aspects of the sweep, generates a complete set of configuration files, creates job scripts for each configuration, and provides comprehensive analysis tools.
+
+For detailed instructions on running and analyzing EI sweeps, see the dedicated :ref:`ei_sweep_guide`.
+
+Alternative Approaches (Not Standard Practice)
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+While the following approaches are possible, they are not the standard workflow in this codebase.
+
+1. Simple bash script for parameter iteration:
+
+   .. code-block:: bash
+
+       #!/bin/bash
+
+       LR_VALUES=(0.0001 0.0005 0.001 0.005 0.01)
+
+       for lr in "${LR_VALUES[@]}"; do
+           echo "Running experiment with learning rate: $lr"
+           python src/dendritic_modeling/train_experiments.py configs/my_config.yaml --train.lr $lr
+       done
+
+2. Using Weights & Biases sweeps:
 
    .. code-block:: yaml
 
-       program: src/dendritic_modeling/train_experiments.py
        method: grid
        parameters:
-         config:
-           value: configs/mnist_exp.yaml
          train.lr:
            values: [0.0001, 0.0005, 0.001, 0.005, 0.01]
          train.batch_size:
-           values: [64, 128, 256]
+           values: [32, 64, 128]
 
-2. Initialize the sweep:
+   This approach requires additional code to integrate with wandb's sweep agent and is not commonly used in this codebase.
 
-   .. code-block:: bash
-
-       wandb sweep sweep_config.yaml
-
-3. Run the sweep agent:
-
-   .. code-block:: bash
-
-       wandb agent YOUR_SWEEP_ID
+Best Practices
+-----------
 
 Debug and Troubleshooting
 ------------------------
