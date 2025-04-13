@@ -93,194 +93,6 @@ def find_experiment_directory(timestamp, output_base, prefix="ei_"):
     return folder_path
 
 
-def extract_metrics_from_log(log_content, metrics_dict):
-    """Extract metrics from log content and update metrics_dict"""
-    # Pattern 1: "train accuracy: 0.91, val accuracy: 0.88"
-    train_match = re.search(
-        r"train accuracy[:=]\s*([\d\.]+)", log_content, re.IGNORECASE
-    )
-    val_match = re.search(
-        r"val(?:id|idation)? accuracy[:=]\s*([\d\.]+)", log_content, re.IGNORECASE
-    )
-    test_match = re.search(r"test accuracy[:=]\s*([\d\.]+)", log_content, re.IGNORECASE)
-
-    # Pattern 2: "Accuracy: train=0.91, val=0.88"
-    if not train_match:
-        train_match = re.search(
-            r"accuracy.*?train[:=]\s*([\d\.]+)", log_content, re.IGNORECASE
-        )
-    if not val_match:
-        val_match = re.search(
-            r"accuracy.*?val(?:id|idation)?[:=]\s*([\d\.]+)", log_content, re.IGNORECASE
-        )
-    if not test_match:
-        test_match = re.search(
-            r"accuracy.*?test[:=]\s*([\d\.]+)", log_content, re.IGNORECASE
-        )
-
-    # Pattern 3: "Final results: train=0.91, val=0.88, test=0.85"
-    if not train_match:
-        train_match = re.search(
-            r"final results.*?train[:=]\s*([\d\.]+)", log_content, re.IGNORECASE
-        )
-    if not val_match:
-        val_match = re.search(
-            r"final results.*?val(?:id|idation)?[:=]\s*([\d\.]+)",
-            log_content,
-            re.IGNORECASE,
-        )
-    if not test_match:
-        test_match = re.search(
-            r"final results.*?test[:=]\s*([\d\.]+)", log_content, re.IGNORECASE
-        )
-
-    # Pattern 4: "Final accuracy: train=0.91, valid=0.88, test=0.85"
-    if not train_match:
-        train_match = re.search(
-            r"final accuracy.*?train[:=]\s*([\d\.]+)", log_content, re.IGNORECASE
-        )
-    if not val_match:
-        val_match = re.search(
-            r"final accuracy.*?valid[:=]\s*([\d\.]+)", log_content, re.IGNORECASE
-        )
-    if not test_match:
-        test_match = re.search(
-            r"final accuracy.*?test[:=]\s*([\d\.]+)", log_content, re.IGNORECASE
-        )
-
-    # Extract best values from the entire log - often the final values are reported at the end
-    # Get last 20 lines which often contain final results
-    log_lines = log_content.splitlines()
-    last_lines = "\n".join(log_lines[-20:])
-
-    # Try to find accuracy in the last lines
-    if not train_match:
-        train_match = re.search(
-            r"train accuracy[:=]\s*([\d\.]+)", last_lines, re.IGNORECASE
-        )
-    if not val_match:
-        val_match = re.search(
-            r"val(?:id|idation)? accuracy[:=]\s*([\d\.]+)", last_lines, re.IGNORECASE
-        )
-    if not test_match:
-        test_match = re.search(
-            r"test accuracy[:=]\s*([\d\.]+)", last_lines, re.IGNORECASE
-        )
-
-    # Update metrics dict with found values
-    if train_match:
-        metrics_dict["train_acc"] = float(train_match.group(1))
-    if val_match:
-        metrics_dict["val_acc"] = float(val_match.group(1))
-    if test_match:
-        metrics_dict["test_acc"] = float(test_match.group(1))
-
-
-def extract_params_from_log(log_content, params_dict):
-    """Extract parameters from log content and update params_dict"""
-    # Look for parameter values in log
-    ee_match = re.search(
-        r"ee(?:_value|_synapses|_factor)?[:=]\s*([\d\.]+)", log_content, re.IGNORECASE
-    )
-    ie_match = re.search(
-        r"ie(?:_value|_synapses|_factor)?[:=]\s*([\d\.]+)", log_content, re.IGNORECASE
-    )
-    seed_match = re.search(r"seed[:=]\s*(\d+)", log_content, re.IGNORECASE)
-
-    # Alternative patterns
-    if not ee_match:
-        ee_match = re.search(r"excitatory[:=]\s*([\d\.]+)", log_content, re.IGNORECASE)
-    if not ie_match:
-        ie_match = re.search(r"inhibitory[:=]\s*([\d\.]+)", log_content, re.IGNORECASE)
-
-    # Update params dict with found values
-    if ee_match:
-        params_dict["ee_value"] = float(ee_match.group(1))
-    if ie_match:
-        params_dict["ie_value"] = float(ie_match.group(1))
-    if seed_match:
-        params_dict["seed"] = int(seed_match.group(1))
-
-
-def print_sample_keys(data, source=""):
-    """Print sample keys from a dictionary for debugging"""
-    if not isinstance(data, dict):
-        print(f"{source}: Not a dictionary")
-        return
-
-    # Print top-level keys
-    print(f"{source} top-level keys: {', '.join(list(data.keys())[:5])}")
-
-    # Look for accuracy related keys at any level
-    accuracy_keys = []
-    for key in data.keys():
-        if "acc" in key.lower():
-            accuracy_keys.append(key)
-        if isinstance(data[key], dict):
-            # Look one level deeper
-            for subkey in data[key].keys():
-                if "acc" in subkey.lower():
-                    accuracy_keys.append(f"{key}.{subkey}")
-
-    if accuracy_keys:
-        print(f"{source} accuracy-related keys: {', '.join(accuracy_keys)}")
-        for key in accuracy_keys:
-            if "." in key:
-                parts = key.split(".")
-                value = data[parts[0]][parts[1]]
-            else:
-                value = data[key]
-            print(f"  {key} = {value}")
-    else:
-        print(f"{source}: No accuracy-related keys found")
-
-    # Look for parameter related keys
-    param_keys = []
-    for key in data.keys():
-        if any(term in key.lower() for term in ["ee", "ie", "exc", "inh", "synap"]):
-            param_keys.append(key)
-        if isinstance(data[key], dict):
-            # Look one level deeper
-            for subkey in data[key].keys():
-                if any(
-                    term in subkey.lower()
-                    for term in ["ee", "ie", "exc", "inh", "synap"]
-                ):
-                    param_keys.append(f"{key}.{subkey}")
-
-    if param_keys:
-        print(f"{source} parameter-related keys: {', '.join(param_keys)}")
-        for key in param_keys:
-            if "." in key:
-                parts = key.split(".")
-                value = data[parts[0]][parts[1]]
-            else:
-                value = data[key]
-            print(f"  {key} = {value}")
-    else:
-        print(f"{source}: No parameter-related keys found")
-
-
-def convert_to_simple_value(x):
-    """Convert an OmegaConf object to a simple value."""
-    from omegaconf import DictConfig, ListConfig
-
-    if isinstance(x, ListConfig):
-        # Convert ListConfig to a list
-        if len(x) == 1:
-            # Return the first element if there's only one
-            return convert_to_simple_value(x[0])
-        else:
-            # Return the entire list converted
-            return [convert_to_simple_value(item) for item in x]
-    elif isinstance(x, DictConfig):
-        # Convert DictConfig to a dictionary
-        return {k: convert_to_simple_value(v) for k, v in x.items()}
-    else:
-        # Return the value as is if it's not an OmegaConf object
-        return x
-
-
 def collect_params_data(exp_dir):
     """Collect parameter data from the config files"""
     configs_dir = os.path.join(exp_dir, "configs")
@@ -312,10 +124,6 @@ def collect_params_data(exp_dir):
                 ie_values = (
                     config.model.network.parameters.ie_synapses_per_branch_per_layer
                 )
-
-                # Convert OmegaConf objects to simple Python types
-                ee_values = convert_to_simple_value(ee_values)
-                ie_values = convert_to_simple_value(ie_values)
 
                 # If we get here, we found the values
                 # Handle cases where values might be lists
@@ -353,21 +161,17 @@ def collect_params_data(exp_dir):
                 try:
                     # This is a fallback - try other common parameter paths
                     if hasattr(config, "excitation_factor"):
-                        ee_value = convert_to_simple_value(config.excitation_factor)
+                        ee_value = config.excitation_factor
                     elif hasattr(config.model, "excitation_factor"):
-                        ee_value = convert_to_simple_value(
-                            config.model.excitation_factor
-                        )
+                        ee_value = config.model.excitation_factor
                     else:
                         # Default if not found
                         ee_value = "unknown"
 
                     if hasattr(config, "inhibition_factor"):
-                        ie_value = convert_to_simple_value(config.inhibition_factor)
+                        ie_value = config.inhibition_factor
                     elif hasattr(config.model, "inhibition_factor"):
-                        ie_value = convert_to_simple_value(
-                            config.model.inhibition_factor
-                        )
+                        ie_value = config.model.inhibition_factor
                     else:
                         # Default if not found
                         ie_value = "unknown"
@@ -408,9 +212,15 @@ def collect_results(exp_dir, params_df):
     results_dir = os.path.join(exp_dir, "results")
     exp_timestamp = os.path.basename(exp_dir)  # Get folder name for identification
 
-    # Check if results directory exists
+    # If results_dir doesn't exist, try using the exp_dir directly
     if not os.path.exists(results_dir):
-        print(f"Warning: Results directory not found: {results_dir}")
+        print(f"Results directory not found: {results_dir}")
+        print(f"Trying to use the experiment directory directly: {exp_dir}")
+        results_dir = exp_dir
+
+    # If still doesn't exist, return empty dataframes
+    if not os.path.exists(results_dir):
+        print(f"Warning: Directory not found: {results_dir}")
         return pd.DataFrame(), pd.DataFrame()
 
     # Initialize results storage
@@ -424,14 +234,135 @@ def collect_results(exp_dir, params_df):
     all_task_ids = set(params_df["task_id"].tolist()) if has_task_ids else set()
     found_task_ids = set()
 
-    # Find all subdirectories in the results directory
+    # Debug: Print first few task IDs if available
+    if has_task_ids:
+        print(f"First 5 task IDs: {list(all_task_ids)[:5]}")
+
+    # Keep track of directory types for diagnostics
+    job_types = {"numeric": 0, "timestamp": 0, "other": 0}
+    found_formats = set()
+
+    # Find all tasks directories recursively (pattern task_*)
+    all_task_dirs = []
+    for root, dirs, files in os.walk(results_dir):
+        task_dirs = [d for d in dirs if d.startswith("task_")]
+        if task_dirs:
+            for task_dir in task_dirs:
+                all_task_dirs.append(os.path.join(root, task_dir))
+
+    print(f"Found {len(all_task_dirs)} task directories")
+
+    # Now process each task directory
+    for task_dir in all_task_dirs:
+        # Extract task ID from directory name
+        task_match = re.search(r"task_(\d+)", os.path.basename(task_dir))
+        if task_match:
+            task_id = int(task_match.group(1))
+        else:
+            task_id = -1  # Unknown task ID
+
+        try:
+            # Check for output.log in this task directory
+            output_log = os.path.join(task_dir, "output.log")
+            if os.path.exists(output_log):
+                print(f"Processing log file: {output_log}")
+                # Initialize metrics and params
+                metrics = {
+                    "train_acc": float("nan"),
+                    "val_acc": float("nan"),
+                    "test_acc": float("nan"),
+                }
+                params = {"ee_value": None, "ie_value": None, "seed": 0}
+
+                # Read the log file
+                with open(output_log, "r") as f:
+                    log_content = f.read()
+
+                # Extract metrics from log
+                extract_metrics_from_log(log_content, metrics)
+
+                # Extract params from log
+                extract_params_from_log(log_content, params)
+
+                # Get parameter values for this task if we have task_ids
+                if has_task_ids and task_id >= 0:
+                    task_params = params_df[params_df["task_id"] == task_id]
+                    if not task_params.empty:
+                        print(f"Found parameters for task {task_id}")
+                        params["ee_value"] = task_params["ee_value"].iloc[0]
+                        params["ie_value"] = task_params["ie_value"].iloc[0]
+                        params["seed"] = task_params["seed"].iloc[0]
+                        found_task_ids.add(task_id)
+
+                # Store results if metrics are valid
+                if not all(pd.isna(val) for val in metrics.values()):
+                    results_data.append(
+                        {
+                            "ee_value": params["ee_value"],
+                            "ie_value": params["ie_value"],
+                            "train_acc": metrics["train_acc"],
+                            "val_acc": metrics["val_acc"],
+                            "test_acc": metrics["test_acc"],
+                            "experiment": exp_timestamp,
+                            "task_id": task_id,
+                            "seed": params["seed"],
+                            "job_dir": os.path.basename(os.path.dirname(task_dir)),
+                        }
+                    )
+                    print(
+                        f"Added result for task {task_id}: train={metrics['train_acc']:.3f}, val={metrics['val_acc']:.3f}"
+                    )
+        except Exception as e:
+            print(f"Error processing task directory {task_dir}: {e}")
+
+    # Continue with the original function logic for job directories...
     try:
+        # First look for directories at the top level
         job_dirs = [
             d
             for d in os.listdir(results_dir)
             if os.path.isdir(os.path.join(results_dir, d))
         ]
-        print(f"Found {len(job_dirs)} job directories")
+
+        if job_dirs:
+            print(f"Found {len(job_dirs)} job directories")
+        else:
+            # If no subdirectories, try to find files directly
+            print("No job directories found. Looking for log files directly.")
+            log_files = glob.glob(os.path.join(results_dir, "**/*.log"), recursive=True)
+
+            if log_files:
+                print(f"Found {len(log_files)} log files")
+                # Process each log file directly
+                for log_file in log_files:
+                    rel_path = os.path.relpath(log_file, results_dir)
+                    job_dir = (
+                        os.path.dirname(rel_path) if os.path.dirname(rel_path) else "."
+                    )
+                    process_log_file(
+                        log_file,
+                        job_dir,
+                        params_df,
+                        results_data,
+                        missing_data,
+                        exp_timestamp,
+                        has_task_ids,
+                    )
+
+                # Create DataFrame from the collected results
+                results_df = pd.DataFrame(results_data)
+                missing_df = pd.DataFrame(missing_data)
+
+                if not results_df.empty:
+                    print(
+                        f"Collected {len(results_df)} results directly from log files"
+                    )
+                    # Print sample of results
+                    print("\nSample of collected results:")
+                    print(results_df.head().to_string())
+
+                return results_df, missing_df
+
     except Exception as e:
         print(f"Error reading job directories: {e}")
         job_dirs = []
@@ -444,7 +375,29 @@ def collect_results(exp_dir, params_df):
     for job_dir in job_dirs:
         job_path = os.path.join(results_dir, job_dir)
 
-        # Check for best_model.pt files first
+        # Check for all possible log files with common names
+        log_files = []
+        for pattern in ["train.log", "output.log", "*.log", "slurm-*.out"]:
+            log_files.extend(glob.glob(os.path.join(job_path, pattern)))
+
+        # If we found log files, process them first
+        if log_files:
+            found_formats.add("log_files")
+            for log_file in log_files:
+                process_log_file(
+                    log_file,
+                    job_dir,
+                    params_df,
+                    results_data,
+                    missing_data,
+                    exp_timestamp,
+                    has_task_ids,
+                )
+            # If we got results from log files, continue to next directory
+            if any(r["job_dir"] == job_dir for r in results_data):
+                continue
+
+        # Check for best_model.pt files
         best_model_file = os.path.join(job_path, "best_model.pt")
         best_model_json = os.path.join(job_path, "best_model.json")
         best_model_metrics = os.path.join(job_path, "best_model_metrics.json")
@@ -527,6 +480,7 @@ def collect_results(exp_dir, params_df):
                     f"Found best_model.pt in {job_dir} but no associated metrics files"
                 )
 
+        # Look for any valid results in the standard folders
         elif "dendritic_ei_sweep" in job_dir or re.search(r"\d{8}_\d{6}$", job_dir):
             job_types["timestamp"] += 1
             # This is a named directory (likely with timestamp), treat it as a single result
@@ -682,6 +636,69 @@ def collect_results(exp_dir, params_df):
             files = os.listdir(job_path)
             found_formats.add(f"other_dir_{','.join(files[:3])}")
 
+            # Check for any log files in this directory
+            log_files = []
+            for pattern in ["*.log", "*.out"]:
+                log_files.extend(glob.glob(os.path.join(job_path, pattern)))
+
+            if log_files:
+                for log_file in log_files:
+                    process_log_file(
+                        log_file,
+                        job_dir,
+                        params_df,
+                        results_data,
+                        missing_data,
+                        exp_timestamp,
+                        has_task_ids,
+                    )
+
+            # Check for any subdirectories that might contain results
+            for subdir in [
+                d for d in files if os.path.isdir(os.path.join(job_path, d))
+            ]:
+                subdir_path = os.path.join(job_path, subdir)
+                # Look for performance directory
+                performance_dir = os.path.join(subdir_path, "performance")
+                if os.path.exists(performance_dir):
+                    for perf_file in glob.glob(os.path.join(performance_dir, "*.json")):
+                        try:
+                            with open(perf_file, "r") as f:
+                                perf_data = json.load(f)
+
+                            # Process performance data
+                            metrics = {
+                                "train_acc": float("nan"),
+                                "val_acc": float("nan"),
+                                "test_acc": float("nan"),
+                            }
+                            params = {"ee_value": None, "ie_value": None, "seed": 0}
+
+                            # Extract metrics
+                            for key, val in perf_data.items():
+                                if "train" in key.lower() and "acc" in key.lower():
+                                    metrics["train_acc"] = float(val)
+                                elif "val" in key.lower() and "acc" in key.lower():
+                                    metrics["val_acc"] = float(val)
+                                elif "test" in key.lower() and "acc" in key.lower():
+                                    metrics["test_acc"] = float(val)
+
+                            # Store results if we have metrics
+                            if not all(pd.isna(val) for val in metrics.values()):
+                                results_data.append(
+                                    {
+                                        "ee_value": "unknown",
+                                        "ie_value": "unknown",
+                                        "train_acc": metrics["train_acc"],
+                                        "val_acc": metrics["val_acc"],
+                                        "test_acc": metrics["test_acc"],
+                                        "experiment": exp_timestamp,
+                                        "job_dir": os.path.join(job_dir, subdir),
+                                    }
+                                )
+                        except Exception as e:
+                            print(f"Error processing performance file {perf_file}: {e}")
+
     # Find completely missing task IDs (no directory found)
     if has_task_ids:
         missing_ids = all_task_ids - found_task_ids
@@ -730,7 +747,7 @@ def collect_results(exp_dir, params_df):
     missing_df = pd.DataFrame(missing_data)
 
     # Drop duplicates if any (might happen with multiple result sources)
-    if "task_id" in results_df.columns:
+    if "task_id" in results_df.columns and not results_df.empty:
         results_df = results_df.drop_duplicates(
             subset=["task_id", "ee_value", "ie_value", "seed"]
         )
@@ -1016,160 +1033,6 @@ def extract_param(config_data, possible_keys, default=float("nan")):
     return default
 
 
-def process_log_file(
-    file_path,
-    job_dir,
-    params_df,
-    results_data,
-    missing_data,
-    exp_timestamp,
-    has_task_ids,
-):
-    """Process a log file to extract results"""
-    # Initialize empty metrics dict
-    metrics_dict = {
-        "train_acc": float("nan"),
-        "val_acc": float("nan"),
-        "test_acc": float("nan"),
-    }
-
-    try:
-        # Read the file
-        with open(file_path, "r") as f:
-            log_content = f.read()
-
-        # Extract metrics from log using the function defined earlier
-        extract_metrics_from_log(log_content, metrics_dict)
-
-        # Extract task ID from job directory name
-        task_id = -1
-        task_match = re.search(r"_(\d+)$", job_dir)
-        if task_match:
-            task_id = int(task_match.group(1))
-
-        # Extract parameters from log
-        params_dict = {"ee_value": None, "ie_value": None, "seed": 0}
-        extract_params_from_log(log_content, params_dict)
-
-        # Try to match with a parameter from params_df or use extracted values
-        if has_task_ids and task_id >= 0:
-            task_params = params_df[params_df["task_id"] == task_id]
-            if not task_params.empty:
-                params_dict["ee_value"] = task_params["ee_value"].iloc[0]
-                params_dict["ie_value"] = task_params["ie_value"].iloc[0]
-                params_dict["seed"] = task_params["seed"].iloc[0]
-
-        # Store results if we found at least one accuracy value
-        if not (
-            pd.isna(metrics_dict["train_acc"])
-            and pd.isna(metrics_dict["val_acc"])
-            and pd.isna(metrics_dict["test_acc"])
-        ):
-            results_data.append(
-                {
-                    "ee_value": params_dict["ee_value"],
-                    "ie_value": params_dict["ie_value"],
-                    "train_acc": metrics_dict["train_acc"],
-                    "val_acc": metrics_dict["val_acc"],
-                    "test_acc": metrics_dict["test_acc"],
-                    "experiment": exp_timestamp,
-                    "task_id": task_id,
-                    "seed": params_dict["seed"],
-                    "job_dir": job_dir,
-                }
-            )
-        else:
-            # No accuracy values found
-            missing_data.append(
-                {
-                    "job_dir": job_dir,
-                    "reason": "No accuracy values found in log file",
-                    "status": "incomplete",
-                }
-            )
-
-    except Exception as e:
-        # Record as error during processing
-        missing_data.append(
-            {
-                "job_dir": job_dir,
-                "reason": f"Error processing log file: {str(e)}",
-                "status": "error",
-            }
-        )
-        print(f"Error processing log file {file_path}: {e}")
-
-
-def extract_metrics_and_params(data, metrics_dict, params_dict, source=""):
-    """Extract metrics and parameters from a data dictionary"""
-    # Debug print
-    print_sample_keys(data, source)
-
-    # Define metric paths to check
-    metric_paths = {
-        "train_acc": [
-            "train_accuracy",
-            "train_acc",
-            "accuracy/train",
-            "metrics/train_accuracy",
-            "train/accuracy",
-            "results/train_accuracy",
-            "training/accuracy",
-        ],
-        "val_acc": [
-            "val_accuracy",
-            "valid_accuracy",
-            "accuracy/val",
-            "accuracy/valid",
-            "metrics/val_accuracy",
-            "validation/accuracy",
-            "val/accuracy",
-            "results/val_accuracy",
-            "results/valid_accuracy",
-        ],
-        "test_acc": [
-            "test_accuracy",
-            "accuracy/test",
-            "metrics/test_accuracy",
-            "test/accuracy",
-            "results/test_accuracy",
-        ],
-    }
-
-    # Try to extract metrics
-    for metric_name, paths in metric_paths.items():
-        value = extract_param(data, paths, float("nan"))
-        if not pd.isna(value):
-            metrics_dict[metric_name] = value
-
-    # Define parameter paths to check
-    param_paths = {
-        "ee_value": [
-            "ee_synapses_per_branch_per_layer",
-            "excitation_factor",
-            "ee_factor",
-            "ee",
-            "model/excitation_factor",
-            "model/network/parameters/ee_synapses_per_branch_per_layer",
-        ],
-        "ie_value": [
-            "ie_synapses_per_branch_per_layer",
-            "inhibition_factor",
-            "ie_factor",
-            "ie",
-            "model/inhibition_factor",
-            "model/network/parameters/ie_synapses_per_branch_per_layer",
-        ],
-        "seed": ["seed", "random_seed", "train/seed"],
-    }
-
-    # Try to extract parameters
-    for param_name, paths in param_paths.items():
-        value = extract_param(data, paths, None)
-        if value is not None:
-            params_dict[param_name] = value
-
-
 def generate_plots(results_df, params_df, output_dir, base_name):
     """Generate plots from the results dataframe"""
     # Check if the dataframe is empty
@@ -1182,125 +1045,104 @@ def generate_plots(results_df, params_df, output_dir, base_name):
     os.makedirs(plot_dir, exist_ok=True)
 
     # Save original data for reference
-    try:
-        results_df.to_csv(
-            os.path.join(plot_dir, f"{base_name}_results_original.csv"), index=False
-        )
-    except Exception as e:
-        print(f"Warning: Couldn't save original results due to: {e}")
+    results_df.to_csv(
+        os.path.join(plot_dir, f"{base_name}_results_original.csv"), index=False
+    )
 
     # Print diagnostic information
     print("\nDiagnostic information before processing:")
     for col in ["ee_value", "ie_value", "train_acc", "val_acc", "test_acc"]:
         if col in results_df.columns:
-            try:
-                nan_count = results_df[col].isna().sum()
-                total = len(results_df)
-                print(
-                    f"  - {col}: {nan_count}/{total} NaN values ({nan_count/total*100:.1f}%)"
-                )
-                print(f"    Data types: {results_df[col].apply(type).unique()}")
+            nan_count = results_df[col].isna().sum()
+            total = len(results_df)
+            print(
+                f"  - {col}: {nan_count}/{total} NaN values ({nan_count/total*100:.1f}%)"
+            )
+            print(f"    Data types: {results_df[col].apply(type).unique()}")
+            if not results_df[col].isna().all():
+                # Skip min/max calculation for columns that might contain ListConfig objects
+                pass
 
-                # Check for ListConfig objects to avoid min/max errors
-                has_listconfig = any(
-                    str(t) == "<class 'omegaconf.listconfig.ListConfig'>"
-                    for t in results_df[col].apply(type).unique()
-                )
-                if not has_listconfig and not results_df[col].isna().all():
-                    print(
-                        f"    Min: {results_df[col].min()}, Max: {results_df[col].max()}"
-                    )
-            except Exception as e:
-                print(f"  - {col}: Error checking values: {e}")
-
-    # Ensure all values are numeric - convert OmegaConf ListConfig objects to Python types
+    # Ensure all values are numeric
     try:
-        # First, make a copy to avoid modifying the original dataframe
-        plot_df = results_df.copy()
-
         # Handle ListConfig objects that might be in ee_value or ie_value columns
         for col in ["ee_value", "ie_value"]:
-            if col in plot_df.columns:
-                # Check each value and convert ListConfig objects
-                plot_df[col] = plot_df[col].apply(lambda x: convert_to_simple_value(x))
+            if col in results_df.columns:
+                # First convert any 'unknown' values to NaN
+                results_df[col] = results_df[col].replace("unknown", np.nan)
 
-                # Then convert any 'unknown' values to NaN
-                plot_df[col] = plot_df[col].replace("unknown", np.nan)
+                # Then convert remaining values to float, handling ListConfig objects
+                results_df[col] = results_df[col].apply(
+                    lambda x: float(x)
+                    if isinstance(x, (int, float, str)) and not pd.isna(x)
+                    else (
+                        float(x[0])
+                        if hasattr(x, "__getitem__") and len(x) > 0
+                        else float("nan")
+                    )
+                )
 
-                # Then convert to numeric
-                plot_df[col] = pd.to_numeric(plot_df[col], errors="coerce")
-
-        # Convert other metric columns to numeric
+        # Convert potential string columns to float if they contain numbers
         for col in ["train_acc", "val_acc", "test_acc"]:
-            if col in plot_df.columns:
-                plot_df[col] = pd.to_numeric(plot_df[col], errors="coerce")
+            if col in results_df.columns:
+                results_df[col] = pd.to_numeric(results_df[col], errors="coerce")
 
     except Exception as e:
         print(f"Error converting values to numeric: {e}")
-        print(f"Data types: {plot_df.dtypes}")
+        print(f"Data types: {results_df.dtypes}")
 
         # Print problematic rows for debugging
         for col in ["ee_value", "ie_value", "train_acc", "val_acc", "test_acc"]:
-            if col in plot_df.columns:
-                try:
-                    problem_rows = plot_df[
-                        ~pd.to_numeric(plot_df[col], errors="coerce").notna()
-                    ]
-                    if not problem_rows.empty:
-                        print(f"Problematic {col} values:")
-                        for idx, row in problem_rows.iterrows():
-                            print(
-                                f"  Row {idx}: {col}={row[col]} (type: {type(row[col])})"
-                            )
-                except Exception as nested_e:
-                    print(f"  Error checking problematic rows for {col}: {nested_e}")
+            if col in results_df.columns:
+                problem_rows = results_df[
+                    ~pd.to_numeric(results_df[col], errors="coerce").notna()
+                ]
+                if not problem_rows.empty:
+                    print(f"Problematic {col} values:")
+                    for idx, row in problem_rows.iterrows():
+                        print(f"  Row {idx}: {col}={row[col]} (type: {type(row[col])})")
 
     # Print diagnostic information after type conversion
     print("\nDiagnostic information after type conversion:")
     for col in ["ee_value", "ie_value", "train_acc", "val_acc", "test_acc"]:
-        if col in plot_df.columns:
-            nan_count = plot_df[col].isna().sum()
-            total = len(plot_df)
+        if col in results_df.columns:
+            nan_count = results_df[col].isna().sum()
+            total = len(results_df)
             print(
                 f"  - {col}: {nan_count}/{total} NaN values ({nan_count/total*100:.1f}%)"
             )
+            if not results_df[col].isna().all():
+                print(f"    Min: {results_df[col].min()}, Max: {results_df[col].max()}")
 
     # Remove rows where both ee_value and ie_value are NaN
-    valid_rows = ~(pd.isna(plot_df["ee_value"]) & pd.isna(plot_df["ie_value"]))
-    if valid_rows.sum() < len(plot_df):
+    valid_rows = ~(pd.isna(results_df["ee_value"]) & pd.isna(results_df["ie_value"]))
+    if valid_rows.sum() < len(results_df):
         print(
-            f"Removing {len(plot_df) - valid_rows.sum()} rows with both ee_value and ie_value as NaN"
+            f"Removing {len(results_df) - valid_rows.sum()} rows with both ee_value and ie_value as NaN"
         )
-        plot_df = plot_df[valid_rows].copy()
+        results_df = results_df[valid_rows].copy()
 
     # Save a raw CSV of all collected data before any further filtering
-    try:
-        plot_df.to_csv(
-            os.path.join(plot_dir, f"{base_name}_all_results_raw.csv"), index=False
-        )
-    except Exception as e:
-        print(f"Warning: Couldn't save raw results due to: {e}")
+    results_df.to_csv(
+        os.path.join(plot_dir, f"{base_name}_all_results_raw.csv"), index=False
+    )
 
     # Check if we still have enough data to create meaningful plots
-    if len(plot_df) < 3:
+    if len(results_df) < 3:
         print(
-            f"Warning: Only {len(plot_df)} valid results available, skipping plots that require more data"
+            f"Warning: Only {len(results_df)} valid results available, skipping plots that require more data"
         )
-        return
 
     # Save a clean version without NaN values for plotting
-    clean_results = plot_df.dropna(subset=["ee_value", "ie_value"]).copy()
+    clean_results = results_df.dropna(subset=["ee_value", "ie_value"]).copy()
     if len(clean_results) > 0:
-        try:
-            clean_results.to_csv(
-                os.path.join(plot_dir, f"{base_name}_clean_results.csv"), index=False
-            )
-        except Exception as e:
-            print(f"Warning: Couldn't save clean results due to: {e}")
+        clean_results.to_csv(
+            os.path.join(plot_dir, f"{base_name}_clean_results.csv"), index=False
+        )
 
     # Metrics to plot
     metrics = [
-        col for col in ["train_acc", "val_acc", "test_acc"] if col in plot_df.columns
+        col for col in ["train_acc", "val_acc", "test_acc"] if col in results_df.columns
     ]
 
     if not metrics:
@@ -1311,36 +1153,31 @@ def generate_plots(results_df, params_df, output_dir, base_name):
     for metric in metrics:
         try:
             # Skip metrics that are all NaN
-            if plot_df[metric].isna().all():
+            if results_df[metric].isna().all():
                 print(f"Skipping {metric} - all values are NaN")
                 continue
 
             # Use a clean subset for this metric with no NaN values
-            plot_df_clean = plot_df.dropna(
-                subset=[metric, "ee_value", "ie_value"]
-            ).copy()
+            plot_df = results_df.dropna(subset=[metric, "ee_value", "ie_value"]).copy()
 
             print(
-                f"\nPlotting {metric} with {len(plot_df_clean)}/{len(plot_df)} valid rows"
+                f"\nPlotting {metric} with {len(plot_df)}/{len(results_df)} valid rows"
             )
 
-            if len(plot_df_clean) < 3:
+            if len(plot_df) < 3:
                 print(f"Skipping {metric} plots - insufficient non-NaN data points")
                 continue
 
             # Save this clean subset for diagnostic purposes
-            plot_df_clean.to_csv(
+            plot_df.to_csv(
                 os.path.join(plot_dir, f"{base_name}_{metric}_clean.csv"), index=False
             )
 
             # Check if we have both ee_value and ie_value columns
-            if (
-                "ee_value" in plot_df_clean.columns
-                and "ie_value" in plot_df_clean.columns
-            ):
+            if "ee_value" in plot_df.columns and "ie_value" in plot_df.columns:
                 # Create pivot table
                 try:
-                    pivot_df = plot_df_clean.pivot_table(
+                    pivot_df = plot_df.pivot_table(
                         values=metric,
                         index="ee_value",
                         columns="ie_value",
@@ -1498,23 +1335,11 @@ def generate_plots(results_df, params_df, output_dir, base_name):
                     except Exception as e:
                         print(f"Error creating EE line plot: {e}")
 
-                # Create EI ratio plot - similar to plot_utils.py
-                try:
-                    plot_ei_ratio_effect(
-                        plot_df_clean,
-                        metric,
-                        save_path=os.path.join(
-                            plot_dir, f"{base_name}_{metric}_ei_ratio.png"
-                        ),
-                    )
-                except Exception as e:
-                    print(f"Error creating EI ratio plot: {e}")
-
             # If we only have one parameter (either ee_value or ie_value), create line plots
-            elif "ee_value" in plot_df_clean.columns:
+            elif "ee_value" in plot_df.columns:
                 try:
                     plt.figure(figsize=(10, 6))
-                    grouped = plot_df_clean.groupby("ee_value")[metric].mean()
+                    grouped = plot_df.groupby("ee_value")[metric].mean()
                     plt.plot(grouped.index, grouped.values, marker="o")
                     plt.xlabel("EE Value")
                     plt.ylabel(metric.replace("_", " ").title())
@@ -1529,10 +1354,10 @@ def generate_plots(results_df, params_df, output_dir, base_name):
                 except Exception as e:
                     print(f"Error creating single EE line plot: {e}")
 
-            elif "ie_value" in plot_df_clean.columns:
+            elif "ie_value" in plot_df.columns:
                 try:
                     plt.figure(figsize=(10, 6))
-                    grouped = plot_df_clean.groupby("ie_value")[metric].mean()
+                    grouped = plot_df.groupby("ie_value")[metric].mean()
                     plt.plot(grouped.index, grouped.values, marker="o")
                     plt.xlabel("IE Value")
                     plt.ylabel(metric.replace("_", " ").title())
@@ -1556,9 +1381,9 @@ def generate_plots(results_df, params_df, output_dir, base_name):
 
     # Create scatter plot if there are multiple unique ee/ie values
     try:
-        if "ee_value" in plot_df.columns and "ie_value" in plot_df.columns:
+        if "ee_value" in results_df.columns and "ie_value" in results_df.columns:
             for metric in metrics:
-                valid_data = plot_df.dropna(subset=[metric, "ee_value", "ie_value"])
+                valid_data = results_df.dropna(subset=[metric, "ee_value", "ie_value"])
                 if len(valid_data) > 1:
                     plt.figure(figsize=(10, 8))
                     scatter = plt.scatter(
@@ -1582,101 +1407,9 @@ def generate_plots(results_df, params_df, output_dir, base_name):
         print(f"Error creating scatter plot: {e}")
 
     # Create CSV output
-    try:
-        plot_df.to_csv(os.path.join(plot_dir, f"{base_name}_results.csv"), index=False)
-    except Exception as e:
-        print(f"Warning: Couldn't save final results due to: {e}")
+    results_df.to_csv(os.path.join(plot_dir, f"{base_name}_results.csv"), index=False)
 
     print(f"Plots and results saved to {plot_dir}")
-
-
-def plot_ei_ratio_effect(df, metric_column, save_path=None):
-    """Generate a plot showing the effect of E/I ratio on performance.
-
-    Args:
-        df: DataFrame containing ee_value, ie_value and metric columns
-        metric_column: Name of the metric column (e.g., 'val_acc')
-        save_path: Path to save the figure
-    """
-    # Create a copy of the dataframe to avoid modifying the original
-    plot_df = df.copy()
-
-    # Calculate E/I ratio
-    plot_df["ei_ratio"] = plot_df["ee_value"] / plot_df["ie_value"]
-
-    # Group by ei_ratio and calculate mean and std
-    ei_grouped = (
-        plot_df.groupby("ei_ratio")[metric_column].agg(["mean", "std"]).reset_index()
-    )
-
-    # Create figure
-    plt.figure(figsize=(10, 6))
-
-    # Plot mean with error bars
-    plt.errorbar(
-        ei_grouped["ei_ratio"],
-        ei_grouped["mean"],
-        yerr=ei_grouped["std"],
-        marker="o",
-        linestyle="-",
-        capsize=5,
-        color="blue",
-    )
-
-    # Add a second representation with individual points
-    sns.scatterplot(
-        data=plot_df, x="ei_ratio", y=metric_column, alpha=0.4, color="gray"
-    )
-
-    # Fit a curve if we have enough data points
-    if len(ei_grouped) >= 4:
-        try:
-            # Sort for curve fitting
-            ei_sorted = ei_grouped.sort_values("ei_ratio")
-            x = ei_sorted["ei_ratio"].values
-            y = ei_sorted["mean"].values
-
-            # Try polynomial fit
-            z = np.polyfit(x, y, 3)
-            p = np.poly1d(z)
-
-            # Generate smooth curve
-            x_smooth = np.linspace(x.min(), x.max(), 100)
-            plt.plot(x_smooth, p(x_smooth), "r--", label="Fitted curve")
-            plt.legend()
-        except Exception as e:
-            print(f"Could not fit curve to EI ratio data: {e}")
-
-    # Add labels and title
-    plt.xlabel("E/I Ratio (EE Value / IE Value)")
-    plt.ylabel(metric_column.replace("_", " ").title())
-    plt.title(f'Effect of E/I Ratio on {metric_column.replace("_", " ").title()}')
-    plt.grid(True)
-
-    # Add horizontal line at best performance
-    if not ei_grouped.empty:
-        best_idx = ei_grouped["mean"].idxmax()
-        best_ratio = ei_grouped.iloc[best_idx]["ei_ratio"]
-        best_perf = ei_grouped.iloc[best_idx]["mean"]
-        plt.axhline(y=best_perf, color="g", linestyle="--", alpha=0.7)
-        plt.axvline(x=best_ratio, color="g", linestyle="--", alpha=0.7)
-        plt.annotate(
-            f"Best: ({best_ratio:.2f}, {best_perf:.4f})",
-            xy=(best_ratio, best_perf),
-            xytext=(5, 10),
-            textcoords="offset points",
-            bbox=dict(boxstyle="round,pad=0.3", fc="yellow", alpha=0.3),
-        )
-
-    # Adjust layout
-    plt.tight_layout()
-
-    # Save figure if path provided
-    if save_path:
-        plt.savefig(save_path, dpi=300)
-        plt.close()
-
-    return plt
 
 
 def compare_multiple_experiments(exp_results, summary_dir):
@@ -1962,6 +1695,384 @@ def process_single_experiment(exp_dir, show_plots=False, report_missing=False):
     return results_df, exp_dir
 
 
+def convert_to_simple_value(x):
+    """Convert an OmegaConf object to a simple value."""
+    from omegaconf import DictConfig, ListConfig
+
+    if isinstance(x, ListConfig):
+        # Convert ListConfig to a list
+        if len(x) == 1:
+            # Return the first element if there's only one
+            return convert_to_simple_value(x[0])
+        else:
+            # Return the entire list converted
+            return [convert_to_simple_value(item) for item in x]
+    elif isinstance(x, DictConfig):
+        # Convert DictConfig to a dictionary
+        return {k: convert_to_simple_value(v) for k, v in x.items()}
+    else:
+        # Return the value as is if it's not an OmegaConf object
+        return x
+
+
+def process_log_file(
+    file_path,
+    job_dir,
+    params_df,
+    results_data,
+    missing_data,
+    exp_timestamp,
+    has_task_ids,
+):
+    """Process a log file to extract results"""
+    # Initialize empty metrics dict
+    metrics_dict = {
+        "train_acc": float("nan"),
+        "val_acc": float("nan"),
+        "test_acc": float("nan"),
+    }
+
+    try:
+        # Read the file
+        with open(file_path, "r") as f:
+            log_content = f.read()
+
+        # Look for different patterns of reporting accuracy
+        # Pattern 1: "train accuracy: 0.91, val accuracy: 0.88"
+        train_match = re.search(
+            r"train accuracy[:=]\s*([\d\.]+)", log_content, re.IGNORECASE
+        )
+        val_match = re.search(
+            r"val(?:id|idation)? accuracy[:=]\s*([\d\.]+)", log_content, re.IGNORECASE
+        )
+        test_match = re.search(
+            r"test accuracy[:=]\s*([\d\.]+)", log_content, re.IGNORECASE
+        )
+
+        # Pattern 2: "Accuracy: train=0.91, val=0.88"
+        if not train_match:
+            train_match = re.search(
+                r"accuracy.*?train[:=]\s*([\d\.]+)", log_content, re.IGNORECASE
+            )
+        if not val_match:
+            val_match = re.search(
+                r"accuracy.*?val(?:id|idation)?[:=]\s*([\d\.]+)",
+                log_content,
+                re.IGNORECASE,
+            )
+        if not test_match:
+            test_match = re.search(
+                r"accuracy.*?test[:=]\s*([\d\.]+)", log_content, re.IGNORECASE
+            )
+
+        # Pattern 3: "Final results: train=0.91, val=0.88, test=0.85"
+        if not train_match:
+            train_match = re.search(
+                r"final results.*?train[:=]\s*([\d\.]+)", log_content, re.IGNORECASE
+            )
+        if not val_match:
+            val_match = re.search(
+                r"final results.*?val(?:id|idation)?[:=]\s*([\d\.]+)",
+                log_content,
+                re.IGNORECASE,
+            )
+        if not test_match:
+            test_match = re.search(
+                r"final results.*?test[:=]\s*([\d\.]+)", log_content, re.IGNORECASE
+            )
+
+        # Pattern 4: "Final accuracy: train=0.91, valid=0.88, test=0.85"
+        if not train_match:
+            train_match = re.search(
+                r"final accuracy.*?train[:=]\s*([\d\.]+)", log_content, re.IGNORECASE
+            )
+        if not val_match:
+            val_match = re.search(
+                r"final accuracy.*?valid[:=]\s*([\d\.]+)", log_content, re.IGNORECASE
+            )
+        if not test_match:
+            test_match = re.search(
+                r"final accuracy.*?test[:=]\s*([\d\.]+)", log_content, re.IGNORECASE
+            )
+
+        # Extract best values from the entire log - often the final values are reported at the end
+        # Get last 20 lines which often contain final results
+        log_lines = log_content.splitlines()
+        last_lines = "\n".join(log_lines[-20:])
+
+        # Try to find accuracy in the last lines
+        if not train_match:
+            train_match = re.search(
+                r"train accuracy[:=]\s*([\d\.]+)", last_lines, re.IGNORECASE
+            )
+        if not val_match:
+            val_match = re.search(
+                r"val(?:id|idation)? accuracy[:=]\s*([\d\.]+)",
+                last_lines,
+                re.IGNORECASE,
+            )
+        if not test_match:
+            test_match = re.search(
+                r"test accuracy[:=]\s*([\d\.]+)", last_lines, re.IGNORECASE
+            )
+
+        # Update metrics dict with found values
+        if train_match:
+            metrics_dict["train_acc"] = float(train_match.group(1))
+        if val_match:
+            metrics_dict["val_acc"] = float(val_match.group(1))
+        if test_match:
+            metrics_dict["test_acc"] = float(test_match.group(1))
+
+        # Extract task ID from job directory name
+        task_id = -1
+        task_match = re.search(r"_(\d+)$", job_dir)
+        if task_match:
+            task_id = int(task_match.group(1))
+
+        # Extract parameters from log
+        params_dict = {"ee_value": None, "ie_value": None, "seed": 0}
+        extract_params_from_log(log_content, params_dict)
+
+        # Try to match with a parameter from params_df or use extracted values
+        if has_task_ids and task_id >= 0:
+            task_params = params_df[params_df["task_id"] == task_id]
+            if not task_params.empty:
+                params_dict["ee_value"] = task_params["ee_value"].iloc[0]
+                params_dict["ie_value"] = task_params["ie_value"].iloc[0]
+                params_dict["seed"] = task_params["seed"].iloc[0]
+
+        # Store results if we found at least one accuracy value
+        if not (
+            pd.isna(metrics_dict["train_acc"])
+            and pd.isna(metrics_dict["val_acc"])
+            and pd.isna(metrics_dict["test_acc"])
+        ):
+            results_data.append(
+                {
+                    "ee_value": params_dict["ee_value"],
+                    "ie_value": params_dict["ie_value"],
+                    "train_acc": metrics_dict["train_acc"],
+                    "val_acc": metrics_dict["val_acc"],
+                    "test_acc": metrics_dict["test_acc"],
+                    "experiment": exp_timestamp,
+                    "task_id": task_id,
+                    "seed": params_dict["seed"],
+                    "job_dir": job_dir,
+                }
+            )
+        else:
+            # No accuracy values found
+            missing_data.append(
+                {
+                    "job_dir": job_dir,
+                    "reason": "No accuracy values found in log file",
+                    "status": "incomplete",
+                }
+            )
+
+    except Exception as e:
+        # Record as error during processing
+        missing_data.append(
+            {
+                "job_dir": job_dir,
+                "reason": f"Error processing log file: {str(e)}",
+                "status": "error",
+            }
+        )
+        print(f"Error processing log file {file_path}: {e}")
+
+
+# Add extract_metrics_from_log function
+
+
+def extract_metrics_from_log(log_content, metrics_dict):
+    """Extract metrics from log content and update metrics_dict"""
+    # Look for different patterns of reporting accuracy
+
+    # Pattern for output.log format: [Epoch 100/100] train_loss=1.8706, train_acc=0.370, valid_loss=1.9548, valid_acc=0.319
+    train_matches = re.findall(r"train_acc=(\d+\.\d+)", log_content, re.IGNORECASE)
+    valid_matches = re.findall(r"valid_acc=(\d+\.\d+)", log_content, re.IGNORECASE)
+    test_matches = re.findall(r"test_acc=(\d+\.\d+)", log_content, re.IGNORECASE)
+
+    # If we found matches, use the last (most recent) one
+    if train_matches:
+        metrics_dict["train_acc"] = float(train_matches[-1])
+    if valid_matches:
+        metrics_dict["val_acc"] = float(valid_matches[-1])
+    if test_matches:
+        metrics_dict["test_acc"] = float(test_matches[-1])
+
+    # If we didn't find val_acc but found valid_acc, use that
+    if "val_acc" not in metrics_dict or pd.isna(metrics_dict["val_acc"]):
+        val_matches = re.findall(r"val_acc=(\d+\.\d+)", log_content, re.IGNORECASE)
+        if val_matches:
+            metrics_dict["val_acc"] = float(val_matches[-1])
+
+    # Pattern 1: "train accuracy: 0.91, val accuracy: 0.88"
+    if "train_acc" not in metrics_dict or pd.isna(metrics_dict["train_acc"]):
+        train_match = re.search(
+            r"train accuracy[:=]\s*([\d\.]+)", log_content, re.IGNORECASE
+        )
+        if train_match:
+            metrics_dict["train_acc"] = float(train_match.group(1))
+
+    if "val_acc" not in metrics_dict or pd.isna(metrics_dict["val_acc"]):
+        val_match = re.search(
+            r"val(?:id|idation)? accuracy[:=]\s*([\d\.]+)", log_content, re.IGNORECASE
+        )
+        if val_match:
+            metrics_dict["val_acc"] = float(val_match.group(1))
+
+    if "test_acc" not in metrics_dict or pd.isna(metrics_dict["test_acc"]):
+        test_match = re.search(
+            r"test accuracy[:=]\s*([\d\.]+)", log_content, re.IGNORECASE
+        )
+        if test_match:
+            metrics_dict["test_acc"] = float(test_match.group(1))
+
+    # Pattern 2: "Accuracy: train=0.91, val=0.88"
+    if "train_acc" not in metrics_dict or pd.isna(metrics_dict["train_acc"]):
+        train_match = re.search(
+            r"accuracy.*?train[:=]\s*([\d\.]+)", log_content, re.IGNORECASE
+        )
+        if train_match:
+            metrics_dict["train_acc"] = float(train_match.group(1))
+
+    if "val_acc" not in metrics_dict or pd.isna(metrics_dict["val_acc"]):
+        val_match = re.search(
+            r"accuracy.*?val(?:id|idation)?[:=]\s*([\d\.]+)",
+            log_content,
+            re.IGNORECASE,
+        )
+        if val_match:
+            metrics_dict["val_acc"] = float(val_match.group(1))
+
+    if "test_acc" not in metrics_dict or pd.isna(metrics_dict["test_acc"]):
+        test_match = re.search(
+            r"accuracy.*?test[:=]\s*([\d\.]+)", log_content, re.IGNORECASE
+        )
+        if test_match:
+            metrics_dict["test_acc"] = float(test_match.group(1))
+
+    # Extract best values from the entire log - often the final values are reported at the end
+    # Get last 20 lines which often contain final results
+    log_lines = log_content.splitlines()
+    last_lines = "\n".join(log_lines[-20:])
+
+    # If we don't have validation accuracy yet, try to find it in the last lines
+    if "val_acc" not in metrics_dict or pd.isna(metrics_dict["val_acc"]):
+        # Try to find validation accuracy in various formats in the last lines
+        val_match = re.search(r"valid_acc=(\d+\.\d+)", last_lines, re.IGNORECASE)
+        if val_match:
+            metrics_dict["val_acc"] = float(val_match.group(1))
+
+    # Since no test accuracy found in the log, use validation accuracy as a proxy if available
+    if (
+        ("test_acc" not in metrics_dict or pd.isna(metrics_dict["test_acc"]))
+        and "val_acc" in metrics_dict
+        and not pd.isna(metrics_dict["val_acc"])
+    ):
+        print("No test accuracy found, using validation accuracy as proxy")
+        metrics_dict["test_acc"] = metrics_dict["val_acc"]
+
+
+def extract_params_from_log(log_content, params_dict):
+    """Extract parameters from log content and update params_dict"""
+    # Look for parameter values in log
+    ee_match = re.search(
+        r"ee(?:_value|_synapses|_factor)?[:=]\s*([\d\.]+)", log_content, re.IGNORECASE
+    )
+    ie_match = re.search(
+        r"ie(?:_value|_synapses|_factor)?[:=]\s*([\d\.]+)", log_content, re.IGNORECASE
+    )
+    seed_match = re.search(r"seed[:=]\s*(\d+)", log_content, re.IGNORECASE)
+
+    # Alternative patterns
+    if not ee_match:
+        ee_match = re.search(r"excitatory[:=]\s*([\d\.]+)", log_content, re.IGNORECASE)
+    if not ie_match:
+        ie_match = re.search(r"inhibitory[:=]\s*([\d\.]+)", log_content, re.IGNORECASE)
+
+    # Update params dict with found values
+    if ee_match:
+        params_dict["ee_value"] = float(ee_match.group(1))
+    if ie_match:
+        params_dict["ie_value"] = float(ie_match.group(1))
+    if seed_match:
+        params_dict["seed"] = int(seed_match.group(1))
+
+
+def extract_metrics_and_params(data, metrics_dict, params_dict, source=""):
+    """Extract metrics and parameters from a data dictionary"""
+    # Debug print
+    print_sample_keys(data, source)
+
+    # Define metric paths to check
+    metric_paths = {
+        "train_acc": [
+            "train_accuracy",
+            "train_acc",
+            "accuracy/train",
+            "metrics/train_accuracy",
+            "train/accuracy",
+            "results/train_accuracy",
+            "training/accuracy",
+        ],
+        "val_acc": [
+            "val_accuracy",
+            "valid_accuracy",
+            "accuracy/val",
+            "accuracy/valid",
+            "metrics/val_accuracy",
+            "validation/accuracy",
+            "val/accuracy",
+            "results/val_accuracy",
+            "results/valid_accuracy",
+        ],
+        "test_acc": [
+            "test_accuracy",
+            "accuracy/test",
+            "metrics/test_accuracy",
+            "test/accuracy",
+            "results/test_accuracy",
+        ],
+    }
+
+    # Try to extract metrics
+    for metric_name, paths in metric_paths.items():
+        value = extract_param(data, paths, float("nan"))
+        if not pd.isna(value):
+            metrics_dict[metric_name] = value
+
+    # Define parameter paths to check
+    param_paths = {
+        "ee_value": [
+            "ee_synapses_per_branch_per_layer",
+            "excitation_factor",
+            "ee_factor",
+            "ee",
+            "model/excitation_factor",
+            "model/network/parameters/ee_synapses_per_branch_per_layer",
+        ],
+        "ie_value": [
+            "ie_synapses_per_branch_per_layer",
+            "inhibition_factor",
+            "ie_factor",
+            "ie",
+            "model/inhibition_factor",
+            "model/network/parameters/ie_synapses_per_branch_per_layer",
+        ],
+        "seed": ["seed", "random_seed", "train/seed"],
+    }
+
+    # Try to extract parameters
+    for param_name, paths in param_paths.items():
+        value = extract_param(data, paths, None)
+        if value is not None:
+            params_dict[param_name] = value
+
+
 def main():
     args = parse_args()
 
@@ -1973,15 +2084,51 @@ def main():
         # Determine the experiment directory
         if args.folder:
             exp_dir = args.folder
+            print(f"Analyzing folder: {exp_dir}")
+
+            # Verify the directory exists
+            if not os.path.exists(exp_dir):
+                print(f"Error: Directory {exp_dir} not found!")
+                print(
+                    "Usage: python scripts/analyze_ei_sweep.py --folder /path/to/experiment/folder"
+                )
+                return
         else:
             exp_dir = find_experiment_directory(
                 args.timestamp, args.output_base, args.prefix
             )
+            print(f"Analyzing experiment with timestamp {args.timestamp}: {exp_dir}")
 
-        print(f"Analyzing experiment in: {exp_dir}")
-        process_single_experiment(
+        # Process the experiment
+        results_df, _ = process_single_experiment(
             exp_dir, show_plots=args.show_plots, report_missing=args.report_missing
         )
+
+        # Print summary information if results were found
+        if results_df is not None and not results_df.empty:
+            print(f"\nFound {len(results_df)} valid results")
+
+            # Show best configuration for each metric
+            for metric in ["val_acc", "test_acc"]:
+                if metric in results_df.columns and not results_df[metric].isna().all():
+                    best_idx = results_df[metric].idxmax()
+                    best_row = results_df.loc[best_idx]
+                    print(f"\nBest {metric}: {best_row[metric]:.4f}")
+                    print(f"  EE Value: {best_row['ee_value']}")
+                    print(f"  IE Value: {best_row['ie_value']}")
+                    if "seed" in best_row:
+                        print(f"  Seed: {best_row['seed']}")
+        else:
+            print(
+                "\nNo valid results found. Check if the directory structure is correct."
+            )
+            print("The script looks for:")
+            print("1. Log files (*.log, slurm-*.out)")
+            print("2. Model files (best_model.pt, *.pt) with associated JSON files")
+            print("3. Performance directories with result files")
+            print("\nYou can create a test file to check extraction patterns:")
+            print("echo 'Final accuracy: train=0.95, valid=0.92, test=0.91' > test.log")
+            print("python scripts/analyze_ei_sweep.py --folder ./")
 
     # If analyzing multiple experiments
     elif args.multiple:
@@ -1991,9 +2138,13 @@ def main():
             if os.path.isdir(exp_id):
                 exp_dir = exp_id
             else:
-                exp_dir = find_experiment_directory(
-                    exp_id, args.output_base, args.prefix
-                )
+                try:
+                    exp_dir = find_experiment_directory(
+                        exp_id, args.output_base, args.prefix
+                    )
+                except ValueError as e:
+                    print(f"Error: {e}")
+                    continue
 
             print(f"Analyzing experiment in: {exp_dir}")
             results_df, _ = process_single_experiment(
@@ -2004,11 +2155,17 @@ def main():
                 exp_results.append((exp_name, results_df, exp_dir))
 
         # Create comparison directory
-        comparison_dir = os.path.join(args.output_base, f"ei_comparison_{timestamp}")
-        os.makedirs(comparison_dir, exist_ok=True)
+        if exp_results:
+            comparison_dir = os.path.join(
+                args.output_base, f"ei_comparison_{timestamp}"
+            )
+            os.makedirs(comparison_dir, exist_ok=True)
+            print(f"Creating comparison plots in: {comparison_dir}")
 
-        # Generate comparison plots
-        compare_multiple_experiments(exp_results, comparison_dir)
+            # Generate comparison plots
+            compare_multiple_experiments(exp_results, comparison_dir)
+        else:
+            print("No valid results found in any of the specified experiments.")
 
     # If analyzing all ei_ folders
     elif args.all:
@@ -2030,11 +2187,97 @@ def main():
                 exp_results.append((exp_name, results_df, folder))
 
         # Create comparison directory
-        comparison_dir = os.path.join(args.output_base, f"ei_comparison_{timestamp}")
-        os.makedirs(comparison_dir, exist_ok=True)
+        if exp_results:
+            comparison_dir = os.path.join(
+                args.output_base, f"ei_comparison_{timestamp}"
+            )
+            os.makedirs(comparison_dir, exist_ok=True)
+            print(f"Creating comparison plots in: {comparison_dir}")
 
-        # Generate comparison plots
-        compare_multiple_experiments(exp_results, comparison_dir)
+            # Generate comparison plots
+            compare_multiple_experiments(exp_results, comparison_dir)
+        else:
+            print("No valid results found in any of the folders.")
+
+    else:
+        print(
+            "No action specified. Use one of: --timestamp, --folder, --multiple, or --all"
+        )
+        print("\nUsage examples:")
+        print("  Process a single experiment by timestamp:")
+        print("    python scripts/analyze_ei_sweep.py --timestamp 20230615123456")
+        print("\n  Process a specific folder:")
+        print(
+            "    python scripts/analyze_ei_sweep.py --folder /path/to/experiment/folder"
+        )
+        print("\n  Process multiple experiments:")
+        print(
+            "    python scripts/analyze_ei_sweep.py --multiple 20230615123456 20230615234567"
+        )
+        print("\n  Process all ei_ folders in output directory:")
+        print("    python scripts/analyze_ei_sweep.py --all")
+
+
+# Define the print_sample_keys function if it's not already defined
+if "print_sample_keys" not in globals():
+
+    def print_sample_keys(data, source=""):
+        """Print sample keys from a dictionary for debugging"""
+        if not isinstance(data, dict):
+            print(f"{source}: Not a dictionary")
+            return
+
+        # Print top-level keys
+        print(f"{source} top-level keys: {', '.join(list(data.keys())[:5])}")
+
+        # Look for accuracy related keys at any level
+        accuracy_keys = []
+        for key in data.keys():
+            if "acc" in key.lower():
+                accuracy_keys.append(key)
+            if isinstance(data[key], dict):
+                # Look one level deeper
+                for subkey in data[key].keys():
+                    if "acc" in subkey.lower():
+                        accuracy_keys.append(f"{key}.{subkey}")
+
+        if accuracy_keys:
+            print(f"{source} accuracy-related keys: {', '.join(accuracy_keys)}")
+            for key in accuracy_keys:
+                if "." in key:
+                    parts = key.split(".")
+                    value = data[parts[0]][parts[1]]
+                else:
+                    value = data[key]
+                print(f"  {key} = {value}")
+        else:
+            print(f"{source}: No accuracy-related keys found")
+
+        # Look for parameter related keys
+        param_keys = []
+        for key in data.keys():
+            if any(term in key.lower() for term in ["ee", "ie", "exc", "inh", "synap"]):
+                param_keys.append(key)
+            if isinstance(data[key], dict):
+                # Look one level deeper
+                for subkey in data[key].keys():
+                    if any(
+                        term in subkey.lower()
+                        for term in ["ee", "ie", "exc", "inh", "synap"]
+                    ):
+                        param_keys.append(f"{key}.{subkey}")
+
+        if param_keys:
+            print(f"{source} parameter-related keys: {', '.join(param_keys)}")
+            for key in param_keys:
+                if "." in key:
+                    parts = key.split(".")
+                    value = data[parts[0]][parts[1]]
+                else:
+                    value = data[key]
+                print(f"  {key} = {value}")
+        else:
+            print(f"{source}: No parameter-related keys found")
 
 
 if __name__ == "__main__":
