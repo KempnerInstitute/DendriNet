@@ -83,6 +83,8 @@ class TrainConfig(BaseConfig):
     lr: float = 0.01
     weight_decay_rate: float = 0.1
     epochs: int = 50
+    early_stopping: bool = True
+    patience: int = 10
     batch_size: int = 128
     grad_clip_value: float = 5.0
     epochs_per_layer: int = 50
