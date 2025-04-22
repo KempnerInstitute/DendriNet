@@ -141,9 +141,195 @@ class InputNetTransform(nn.Module):
         else:
             raise ValueError(f"Unknown source: {source}")
 
-
 # For backward compatibility
-MLPInputTransform = InputNetTransform
+# MLPInputTransform = InputNetTransform
+
+
+class IndexInputTransform(nn.Module):
+    def __init__(self, input_dim: int, excitatory_dim: int, inhibitory_dim: int):
+        super().__init__()
+        assert excitatory_dim + inhibitory_dim == input_dim, \
+            'error in IndexInputTransform: excitatory_dim + inhibitory_dim must ' \
+            f'equal input_dim, got {excitatory_dim} + {inhibitory_dim} != {input_dim}'
+        
+        dims = torch.randperm(input_dim)
+        exc_dims = dims[:excitatory_dim]
+        inh_dims = dims[excitatory_dim:]
+
+        self.exc_dims : torch.Tensor
+        self.register_buffer('exc_dims', exc_dims)
+        self.inh_dims : torch.Tensor
+        self.register_buffer('inh_dims', inh_dims)
+
+    def forward(self, x):
+        if x.dim() == 1:
+            x = x[None, :]
+        
+        excitatory_input = x[..., self.exc_dims]
+        inhibitory_input = x[..., self.inh_dims]
+        return excitatory_input, inhibitory_input
+
+
+class MLPInputTransform(nn.Module):
+    """
+    A transform that maps the raw input x to (excitatory_input, inhibitory_input).
+    This is a generalized version that can support different network architectures.
+    By default, it uses an MLP with configurable hidden dimensions.
+    """
+
+    def __init__(
+        self, 
+        input_dim: int, 
+        hidden_dims: List[int], 
+        excitatory_dim: int, 
+        inhibitory_dim: int
+    ):
+        super().__init__()
+
+        # Build MLP backbone
+        exc_layers = []
+        inh_layers = []
+        in_features = input_dim
+        for hdim in hidden_dims:
+            exc_layer = nn.Linear(in_features, hdim)
+            nn.init.kaiming_normal_(exc_layer.weight)
+            nn.init.zeros_(exc_layer.bias)
+            
+            exc_layers.append(exc_layer)
+            exc_layers.append(nn.ReLU())
+
+            inh_layer = nn.Linear(in_features, hdim)
+            nn.init.kaiming_normal_(inh_layer.weight)
+            nn.init.zeros_(inh_layer.bias)
+            inh_layers.append(inh_layer)
+            inh_layers.append(nn.ReLU())
+
+            in_features = hdim
+        
+        exc_head = nn.Linear(in_features, excitatory_dim)
+        nn.init.xavier_normal_(exc_head.weight)
+        nn.init.zeros_(exc_head.bias)
+        exc_layers.append(exc_head)
+        exc_layers.append(nn.Sigmoid())
+        
+        inh_head = nn.Linear(in_features, inhibitory_dim)
+        nn.init.xavier_normal_(inh_head.weight)
+        nn.init.zeros_(inh_head.bias)
+        inh_layers.append(inh_head)
+        inh_layers.append(nn.Sigmoid())
+
+        self.exc_encoding = nn.Sequential(*exc_layers)
+        self.inh_encoding = nn.Sequential(*inh_layers)
+
+    def forward(self, x):
+        excitatory_input = self.exc_encoding(x)
+        inhibitory_input = self.inh_encoding(x)
+        return excitatory_input, inhibitory_input
+
+
+class CNNInputTransform(nn.Module):
+    """
+    A transform that maps the raw input x to (excitatory_input, inhibitory_input)
+    using convolutional layers.
+    """
+
+    def __init__(
+        self, 
+        input_shape: Tuple[int, int, int],  # (channels, height, width)
+        conv_channels: List[int],           # List of channel sizes for each conv layer
+        kernel_size: int = 3,               # Kernel size for all conv layers
+        excitatory_dim: int = 128,          # Output dimension for excitatory pathway
+        inhibitory_dim: int = 128,          # Output dimension for inhibitory pathway
+        pool_type: str = 'max'              # Type of pooling: 'max' or 'avg'
+    ):
+        super().__init__()
+        
+        # Input validation
+        channels, height, width = input_shape
+        
+        # Build CNN backbone for excitatory pathway
+        exc_layers = []
+        in_channels = channels
+        current_h, current_w = height, width
+        
+        for out_channels in conv_channels:
+            # Add convolutional layer
+            exc_conv = nn.Conv2d(in_channels, out_channels, kernel_size, padding=1)
+            nn.init.kaiming_normal_(exc_conv.weight)
+            nn.init.zeros_(exc_conv.bias)
+            exc_layers.append(exc_conv)
+            exc_layers.append(nn.ReLU())
+            
+            # Add pooling layer
+            if pool_type == 'max':
+                exc_layers.append(nn.MaxPool2d(2, 2))
+            else:  # avg pooling
+                exc_layers.append(nn.AvgPool2d(2, 2))
+                
+            # Update dimensions
+            current_h //= 2
+            current_w //= 2
+            in_channels = out_channels
+        
+        # Flatten layer
+        exc_layers.append(nn.Flatten())
+        
+        # Calculate flattened dimension
+        flattened_dim = in_channels * current_h * current_w
+        
+        # Add fully connected layer to get to desired output dimension
+        exc_fc = nn.Linear(flattened_dim, excitatory_dim)
+        nn.init.xavier_normal_(exc_fc.weight)
+        nn.init.zeros_(exc_fc.bias)
+        exc_layers.append(exc_fc)
+        exc_layers.append(nn.Sigmoid())
+        
+        # Build CNN backbone for inhibitory pathway (same architecture)
+        inh_layers = []
+        in_channels = channels
+        current_h, current_w = height, width
+        
+        for out_channels in conv_channels:
+            # Add convolutional layer
+            inh_conv = nn.Conv2d(in_channels, out_channels, kernel_size, padding=1)
+            nn.init.kaiming_normal_(inh_conv.weight)
+            nn.init.zeros_(inh_conv.bias)
+            inh_layers.append(inh_conv)
+            inh_layers.append(nn.ReLU())
+            
+            # Add pooling layer
+            if pool_type == 'max':
+                inh_layers.append(nn.MaxPool2d(2, 2))
+            else:  # avg pooling
+                inh_layers.append(nn.AvgPool2d(2, 2))
+                
+            # Update dimensions
+            current_h //= 2
+            current_w //= 2
+            in_channels = out_channels
+        
+        # Flatten layer
+        inh_layers.append(nn.Flatten())
+        
+        # Add fully connected layer to get to desired output dimension
+        inh_fc = nn.Linear(flattened_dim, inhibitory_dim)
+        nn.init.xavier_normal_(inh_fc.weight)
+        nn.init.zeros_(inh_fc.bias)
+        inh_layers.append(inh_fc)
+        inh_layers.append(nn.Sigmoid())
+        
+        # Create sequential models
+        self.exc_encoding = nn.Sequential(*exc_layers)
+        self.inh_encoding = nn.Sequential(*inh_layers)
+
+    def forward(self, x):
+        # Ensure input has correct shape (add batch dimension if needed)
+        if x.dim() == 3:  # (C, H, W)
+            x = x.unsqueeze(0)  # Add batch dimension: (1, C, H, W)
+            
+        excitatory_input = self.exc_encoding(x)
+        inhibitory_input = self.inh_encoding(x)
+        return excitatory_input, inhibitory_input
 
 
 ###############################################################################
@@ -971,3 +1157,4 @@ class MatchedParamMLP(nn.Module):
 
     def forward(self, x):
         return self.network(x)
+
