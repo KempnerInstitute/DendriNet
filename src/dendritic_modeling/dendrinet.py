@@ -148,12 +148,11 @@ class TopKLinear(nn.Module):
 
     def decay_weights(self, weight_decay=0.1):
         with torch.no_grad():
-            log_decay_rate = log(
-                1 - weight_decay
-            )  # effect of weight decay decoupled from learning rate
-            self.pre_w.data += (
-                log_decay_rate * self.weight_mask()
-            )  # only decay active synapses
+            weight_mask = self.weight_mask()
+            log_decay = log(1 - weight_decay) * weight_mask
+            self.pre_w.data += log_decay # suppress active synapses
+            log_boost = log(1 + weight_decay) * (1 - weight_mask)
+            self.pre_w.data -= log_boost # boost inactive synapses
 
     def forward(self, x):
         pruned_weight = self.pruned_weight()
@@ -889,8 +888,8 @@ class DendriticBranchLayer(nn.Module):
             self.branch_excitation.decay_weights(weight_decay)
         if self.input_inhibitory and self.branch_inhibition is not None:
             self.branch_inhibition.decay_weights(weight_decay)
-        if self.input_branches:
-            self.branches_to_output.decay_weights(weight_decay)
+        # if self.input_branches:
+        #     self.branches_to_output.decay_weights(weight_decay)
 
     def forward(self, x, inhibitory_input=None, branch_input=None):
         if self.use_shunting:
@@ -935,63 +934,101 @@ class DendriticBranchLayer(nn.Module):
         
         if self.training and "conductance_dynamic" in [
             self.topk_strategy, self.blocklinear_strategy]:
-            self.compute_grad_scales()
+            self.compute_grad_scales(
+                g_total = denominator if self.use_shunting else None)
 
         return self.reactivation(voltage)
 
-    def compute_grad_scales(self):
+    def compute_grad_scales(self, g_total = None):
         """
         A conduction-based dynamic scale, returning a flattened vector so each weight
         can get a distinct multiplier. shape [out_features * block_size].
         """
         with torch.no_grad():
             if self.use_shunting:
-                total_conductance = 1
-                if hasattr(self, "branches_to_output"):
-                    total_conductance += self.branches_to_output.sum_conductances()
-
-                # Safer access to branch_excitation, checking if it exists and has the right attributes
-                if self.branch_excitation is not None:
-                    try:
-                        total_conductance += self.branch_excitation.pruned_weight().sum(dim=1)
-                    except Exception as e:
-                        # If there's any error, we just skip this part
-                        pass
-
-                # Safer access to branch_inhibition, checking if it exists and has the right attributes
-                if self.branch_inhibition is not None:
-                    try:
-                        total_conductance += self.branch_inhibition.pruned_weight().sum(dim=1)
-                    except Exception as e:
-                        # If there's any error, we just skip this part
-                        pass
+                if g_total.dim() > 1:
+                    g_total = g_total.mean(dim = tuple(range(g_total.dim() - 1)))
 
                 if (hasattr(self, "branches_to_output") 
                     and self.blocklinear_strategy == "conductance_dynamic"):
                     self.branches_to_output.input_scale_vec = (
-                        total_conductance[:, None] / self.branches_to_output.log_weight.exp()
+                        g_total[:, None] / self.branches_to_output.log_weight.exp()
                     ).flatten()
-                    self.branches_to_output.param_scale_vec = total_conductance[:, None]
+                    self.branches_to_output.param_scale_vec = g_total[:, None]
                 
                 if (self.branch_excitation is not None 
                     and self.topk_strategy == "conductance_dynamic"):
                     self.branch_excitation.input_scale_vec = (
-                        total_conductance[:, None] / self.branch_excitation.weight()
+                        g_total[:, None] / self.branch_excitation.weight()
                     ).mean(dim = 0)
-                    self.branch_excitation.param_scale_vec = total_conductance[:, None]
+                    self.branch_excitation.param_scale_vec = g_total[:, None]
 
                 if (self.branch_inhibition is not None 
                     and self.topk_strategy == "conductance_dynamic"):
                     self.branch_inhibition.input_scale_vec = (
-                        total_conductance[:, None] / self.branch_inhibition.weight()
+                        g_total[:, None] / self.branch_inhibition.weight()
                     ).mean(dim = 0)
-                    self.branch_inhibition.param_scale_vec = total_conductance[:, None]
+                    self.branch_inhibition.param_scale_vec = g_total[:, None]
 
             else:
                 input_scale_vec = 1 / self.branches_to_output.log_weight.exp().flatten()
                 if (hasattr(self, "branches_to_output") 
                     and self.blocklinear_strategy == "conductance_dynamic"):
                     self.branches_to_output.input_scale_vec = input_scale_vec
+
+    # def compute_grad_scales(self):
+    #     """
+    #     A conduction-based dynamic scale, returning a flattened vector so each weight
+    #     can get a distinct multiplier. shape [out_features * block_size].
+    #     """
+    #     with torch.no_grad():
+    #         if self.use_shunting:
+    #             total_conductance = 1
+    #             if hasattr(self, "branches_to_output"):
+    #                 total_conductance += self.branches_to_output.sum_conductances()
+
+    #             # Safer access to branch_excitation, checking if it exists and has the right attributes
+    #             if self.branch_excitation is not None:
+    #                 try:
+    #                     total_conductance += self.branch_excitation.pruned_weight().sum(dim=1)
+    #                 except Exception as e:
+    #                     # If there's any error, we just skip this part
+    #                     pass
+
+    #             # Safer access to branch_inhibition, checking if it exists and has the right attributes
+    #             if self.branch_inhibition is not None:
+    #                 try:
+    #                     total_conductance += self.branch_inhibition.pruned_weight().sum(dim=1)
+    #                 except Exception as e:
+    #                     # If there's any error, we just skip this part
+    #                     pass
+
+    #             if (hasattr(self, "branches_to_output") 
+    #                 and self.blocklinear_strategy == "conductance_dynamic"):
+    #                 self.branches_to_output.input_scale_vec = (
+    #                     total_conductance[:, None] / self.branches_to_output.log_weight.exp()
+    #                 ).flatten()
+    #                 self.branches_to_output.param_scale_vec = total_conductance[:, None]
+                
+    #             if (self.branch_excitation is not None 
+    #                 and self.topk_strategy == "conductance_dynamic"):
+    #                 self.branch_excitation.input_scale_vec = (
+    #                     total_conductance[:, None] / self.branch_excitation.weight()
+    #                 ).mean(dim = 0)
+    #                 self.branch_excitation.param_scale_vec = total_conductance[:, None]
+
+    #             if (self.branch_inhibition is not None 
+    #                 and self.topk_strategy == "conductance_dynamic"):
+    #                 self.branch_inhibition.input_scale_vec = (
+    #                     total_conductance[:, None] / self.branch_inhibition.weight()
+    #                 ).mean(dim = 0)
+    #                 self.branch_inhibition.param_scale_vec = total_conductance[:, None]
+
+    #         else:
+    #             input_scale_vec = 1 / self.branches_to_output.log_weight.exp().flatten()
+    #             if (hasattr(self, "branches_to_output") 
+    #                 and self.blocklinear_strategy == "conductance_dynamic"):
+    #                 self.branches_to_output.input_scale_vec = input_scale_vec
 
     def get_weights(self):
         if self.input_inhibitory and self.input_excitatory:
