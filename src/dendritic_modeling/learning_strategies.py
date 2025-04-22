@@ -105,6 +105,7 @@ class TrainerMLE(BaseTrainer):
         patience=10,
         plot_losses=False,
         save_path=None,
+        **kwargs,
     ):
         device = "cuda" if torch.cuda.is_available() else "cpu"
         model = model.to(device)
@@ -217,6 +218,7 @@ class TrainerMLE(BaseTrainer):
         plot_losses=False,
         save_path=None,
         final_tune_epochs=10,
+        **kwargs,
     ):
         """Train individual dendritic branches sequentially from soma to input (distal).
         This method trains each branch in the dendritic tree separately, starting from the branches
@@ -374,6 +376,7 @@ class TrainerMLE(BaseTrainer):
         plot_losses=False,
         save_path=None,
         final_tune_epochs=10,
+        **kwargs,
     ):
         """Train individual dendritic branches sequentially from input (distal) to soma.
         This method trains each branch in the dendritic tree separately, starting from the branches
@@ -532,6 +535,7 @@ class TrainerMLE(BaseTrainer):
         plot_losses=False,
         save_path=None,
         final_tune_epochs=10,
+        **kwargs,
     ):
         """Train with a three-phase approach:
         1. Initial full network training (all parameters unfrozen) for pretrain_epochs
@@ -725,6 +729,7 @@ class TrainerMLE(BaseTrainer):
         plot_losses=False,
         save_path=None,
         final_tune_epochs=10,
+        **kwargs,
     ):
         """Train with a three-phase approach:
         1. Initial full network training (all parameters unfrozen) for pretrain_epochs
@@ -919,6 +924,7 @@ class LocalCreditAssignment(BaseTrainer):
         load_best_state_dict=True,
         plot_losses=False,
         save_path=None,
+        **kwargs,
     ):
         device = "cuda" if torch.cuda.is_available() else "cpu"
         model = model.to(device)
@@ -1037,6 +1043,7 @@ class TrainOnlyMReactivation(BaseTrainer):
         load_best_state_dict=True,
         plot_losses=False,
         save_path=None,
+        **kwargs,
     ):
         device = "cuda" if torch.cuda.is_available() else "cpu"
         model = model.to(device)
@@ -1133,6 +1140,7 @@ class TwoStepTrainer(BaseTrainer):
         load_best_state_dict=True,
         plot_losses=False,
         save_path=None,
+        **kwargs,
     ):
         device = "cuda" if torch.cuda.is_available() else "cpu"
         model = model.to(device)
@@ -1830,6 +1838,7 @@ class VoltageStabilizationTrainer(BaseTrainer):
         shuffle=True,
         plot_losses=False,
         save_path=None,
+        **kwargs,
     ):
         device = "cuda" if torch.cuda.is_available() else "cpu"
         model = model.to(device)
