@@ -6,7 +6,7 @@ This module defines the configuration dataclasses for the model, training, task,
 It loads and saves configurations using OmegaConf.
 """
 from dataclasses import asdict, dataclass, field
-from typing import Dict, List
+from typing import Any, Dict, List
 
 from omegaconf import OmegaConf as om
 
@@ -47,6 +47,11 @@ class EINetParameters(BaseConfig):
     reactivation_type: str = "param_tanh"
     reactivation_strategy: str = "inverse"
     blocklinear_strategy: str = "conductance_dynamic"
+    print_hooks: bool = False  # Whether to print gradient statistics in hooks
+    input_mode: int = 0  # Input mode (0=original, 1=exc=x+inh=x, 2=input_net)
+    input_net_dict: Dict[str, Any] = field(
+        default_factory=dict
+    )  # Input network configuration
     enable_branch_outputs: bool = True
     output_layer: bool = False
     output_dim: int = 10

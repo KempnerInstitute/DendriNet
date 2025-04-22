@@ -28,6 +28,7 @@ model:
       reactivation_strategy: inverse # "none", "inverse"
       topk_strategy: conductance_dynamic
       blocklinear_strategy: conductance_dynamic # "none", "distal_upweight_by_idx", "conductance_dynamic"
+      print_hooks: false # Whether to print gradient statistics in hooks
       # output parameters
       enable_branch_outputs: false   ### alows DendriNetWithOutputs to keep activations etc
       output_layer: false  ### adding an output classifier layer FC to final dendrinet layer
