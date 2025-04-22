@@ -731,6 +731,8 @@ class DendriticBranchLayer(nn.Module):
         reactivation_strategy="none",
         blocklinear_strategy="none",
         layer_idx=0,
+        print_hooks=False,
+        **kwargs,
     ):
         super(DendriticBranchLayer, self).__init__()
         self.layer_idx = layer_idx
@@ -742,12 +744,14 @@ class DendriticBranchLayer(nn.Module):
         self.topk_ultrafast = topk_ultrafast  # Store the ultrafast flag
         self.topk_strategy = topk_strategy  # Store the strategy
         self.input_excitatory = excitatory_input_dim is not None
+        self.print_hooks = print_hooks
 
         gradient_scaler = GradientScaler(
             topk_strategy=topk_strategy,
             reactivation_strategy=reactivation_strategy,
             blocklinear_strategy=blocklinear_strategy,
             layer_idx=layer_idx,
+            print_hooks=print_hooks,
         )
 
         if self.input_excitatory:
@@ -915,7 +919,7 @@ class DendriticBranchLayer(nn.Module):
                 denominator = denominator + self.branch_inhibition(inhibitory_input)
 
             voltage = numerator / denominator
-            
+
         else:
             voltage = 0
 
@@ -931,7 +935,7 @@ class DendriticBranchLayer(nn.Module):
                 and inhibitory_input is not None
             ):
                 voltage = voltage - self.branch_inhibition(inhibitory_input)
-        
+
         if self.training and "conductance_dynamic" in [
             self.topk_strategy, self.blocklinear_strategy]:
             self.compute_grad_scales(
@@ -949,8 +953,10 @@ class DendriticBranchLayer(nn.Module):
                 if g_total.dim() > 1:
                     g_total = g_total.mean(dim = tuple(range(g_total.dim() - 1)))
 
-                if (hasattr(self, "branches_to_output") 
-                    and self.blocklinear_strategy == "conductance_dynamic"):
+                if (
+                    hasattr(self, "branches_to_output")
+                    and self.blocklinear_strategy == "conductance_dynamic"
+                ):
                     self.branches_to_output.input_scale_vec = (
                         g_total[:, None] / self.branches_to_output.log_weight.exp()
                     ).flatten()
@@ -963,8 +969,10 @@ class DendriticBranchLayer(nn.Module):
                     ).mean(dim = 0)
                     self.branch_excitation.param_scale_vec = g_total[:, None]
 
-                if (self.branch_inhibition is not None 
-                    and self.topk_strategy == "conductance_dynamic"):
+                if (
+                    self.branch_inhibition is not None
+                    and self.topk_strategy == "conductance_dynamic"
+                ):
                     self.branch_inhibition.input_scale_vec = (
                         g_total[:, None] / self.branch_inhibition.weight()
                     ).mean(dim = 0)
@@ -972,63 +980,11 @@ class DendriticBranchLayer(nn.Module):
 
             else:
                 input_scale_vec = 1 / self.branches_to_output.log_weight.exp().flatten()
-                if (hasattr(self, "branches_to_output") 
-                    and self.blocklinear_strategy == "conductance_dynamic"):
+                if (
+                    hasattr(self, "branches_to_output")
+                    and self.blocklinear_strategy == "conductance_dynamic"
+                ):
                     self.branches_to_output.input_scale_vec = input_scale_vec
-
-    # def compute_grad_scales(self):
-    #     """
-    #     A conduction-based dynamic scale, returning a flattened vector so each weight
-    #     can get a distinct multiplier. shape [out_features * block_size].
-    #     """
-    #     with torch.no_grad():
-    #         if self.use_shunting:
-    #             total_conductance = 1
-    #             if hasattr(self, "branches_to_output"):
-    #                 total_conductance += self.branches_to_output.sum_conductances()
-
-    #             # Safer access to branch_excitation, checking if it exists and has the right attributes
-    #             if self.branch_excitation is not None:
-    #                 try:
-    #                     total_conductance += self.branch_excitation.pruned_weight().sum(dim=1)
-    #                 except Exception as e:
-    #                     # If there's any error, we just skip this part
-    #                     pass
-
-    #             # Safer access to branch_inhibition, checking if it exists and has the right attributes
-    #             if self.branch_inhibition is not None:
-    #                 try:
-    #                     total_conductance += self.branch_inhibition.pruned_weight().sum(dim=1)
-    #                 except Exception as e:
-    #                     # If there's any error, we just skip this part
-    #                     pass
-
-    #             if (hasattr(self, "branches_to_output") 
-    #                 and self.blocklinear_strategy == "conductance_dynamic"):
-    #                 self.branches_to_output.input_scale_vec = (
-    #                     total_conductance[:, None] / self.branches_to_output.log_weight.exp()
-    #                 ).flatten()
-    #                 self.branches_to_output.param_scale_vec = total_conductance[:, None]
-                
-    #             if (self.branch_excitation is not None 
-    #                 and self.topk_strategy == "conductance_dynamic"):
-    #                 self.branch_excitation.input_scale_vec = (
-    #                     total_conductance[:, None] / self.branch_excitation.weight()
-    #                 ).mean(dim = 0)
-    #                 self.branch_excitation.param_scale_vec = total_conductance[:, None]
-
-    #             if (self.branch_inhibition is not None 
-    #                 and self.topk_strategy == "conductance_dynamic"):
-    #                 self.branch_inhibition.input_scale_vec = (
-    #                     total_conductance[:, None] / self.branch_inhibition.weight()
-    #                 ).mean(dim = 0)
-    #                 self.branch_inhibition.param_scale_vec = total_conductance[:, None]
-
-    #         else:
-    #             input_scale_vec = 1 / self.branches_to_output.log_weight.exp().flatten()
-    #             if (hasattr(self, "branches_to_output") 
-    #                 and self.blocklinear_strategy == "conductance_dynamic"):
-    #                 self.branches_to_output.input_scale_vec = input_scale_vec
 
     def get_weights(self):
         if self.input_inhibitory and self.input_excitatory:
@@ -1123,6 +1079,8 @@ class DendriNet(nn.Module):
         reactivation_type="param_tanh",
         reactivation_strategy="none",
         blocklinear_strategy="none",
+        print_hooks=False,
+        **kwargs,
     ):
         super(DendriNet, self).__init__()
 
@@ -1185,6 +1143,7 @@ class DendriNet(nn.Module):
                 reactivation_strategy=reactivation_strategy,
                 blocklinear_strategy=blocklinear_strategy,
                 layer_idx=i,
+                print_hooks=print_hooks,
             )
             branch_layers.append(lyr)
 
@@ -1209,6 +1168,7 @@ class DendriNet(nn.Module):
                     reactivation_strategy=reactivation_strategy,
                     blocklinear_strategy=blocklinear_strategy,
                     layer_idx=self.n_branch_layers,
+                    print_hooks=print_hooks,
                 )
             )
         else:
@@ -1232,6 +1192,7 @@ class DendriNet(nn.Module):
                     reactivation_strategy=reactivation_strategy,
                     blocklinear_strategy=blocklinear_strategy,
                     layer_idx=self.n_branch_layers,
+                    print_hooks=print_hooks,
                 )
             )
 
@@ -1306,9 +1267,54 @@ class DendriNet(nn.Module):
 
 class DendriNetWithOutputs(DendriNet):
     """
-    Extends the existing DendriNet to provide a method that returns
-    (final_soma_output, list_of_layer_activations).
+    A version of DendriNet that also returns branch activations from forward pass.
     """
+
+    def __init__(
+        self,
+        n_soma,
+        branch_factors,
+        excitatory_input_dim,
+        excitatory_synapses_per_branch,
+        inhibitory_input_dim=None,
+        inhibitory_synapses_per_branch=None,
+        reactivate=False,
+        somatic_synapses=True,
+        topk_init_method="xavier_normal",
+        topk_noise_level=0.0,
+        topk_type="standard",
+        topk_temperature=0.5,
+        topk_ultrafast=False,
+        topk_strategy="none",
+        use_shunting=True,
+        reactivation_type="param_tanh",
+        reactivation_strategy="none",
+        blocklinear_strategy="none",
+        print_hooks=False,
+        **kwargs,
+    ):
+        super().__init__(
+            n_soma=n_soma,
+            branch_factors=branch_factors,
+            excitatory_input_dim=excitatory_input_dim,
+            excitatory_synapses_per_branch=excitatory_synapses_per_branch,
+            inhibitory_input_dim=inhibitory_input_dim,
+            inhibitory_synapses_per_branch=inhibitory_synapses_per_branch,
+            reactivate=reactivate,
+            somatic_synapses=somatic_synapses,
+            topk_init_method=topk_init_method,
+            topk_noise_level=topk_noise_level,
+            topk_type=topk_type,
+            topk_temperature=topk_temperature,
+            topk_ultrafast=topk_ultrafast,
+            topk_strategy=topk_strategy,
+            use_shunting=use_shunting,
+            reactivation_type=reactivation_type,
+            reactivation_strategy=reactivation_strategy,
+            blocklinear_strategy=blocklinear_strategy,
+            print_hooks=print_hooks,
+            **kwargs,
+        )
 
     def forward_with_branch_outputs(self, x, inhibitory_input=None):
         """
