@@ -1,13 +1,13 @@
 model:
   task: classification
-  probabilistic: false  # This is only for the final EINet model
+  probabilistic: true  # This is only for the final EINet model
   network:
     type: EINet #"EINet", "MLP"
     parameters:
       # configuration parameters
       excitatory_layer_sizes: [10]
       inhibitory_layer_sizes: [40]
-      excitatory_branch_factors: [6,6]
+      excitatory_branch_factors: [2,2]
       inhibitory_branch_factors: []
       ee_synapses_per_branch_per_layer: [100]
       ei_synapses_per_branch_per_layer: [200]
@@ -22,7 +22,7 @@ model:
       topk_temperature: 0.5 # Controls the stochastic selection sharpness (0.1-1.0)
       topk_ultrafast: true # Enable faster implementation for stochastic TopK
       # reactivation parameters
-      reactivate: false
+      reactivate: true
       reactivation_type: param_tanh # "none", "param_tanh", "param_tanh_only_m", "relu", "sigmoid", "tanh"
       # gradient scaling parameters
       reactivation_strategy: inverse # "none", "inverse"
@@ -47,7 +47,9 @@ train:
   seed: 0
   train_valid_split: 0.8
   lr: 0.01  # Standard learning rate for Adam
-  epochs: 1
+  epochs: 50
+  early_stopping: false
+  patience: 10
   batch_size: 1024  # Smaller batch size for better generalization
   grad_clip_value: 5  # Reasonable gradient clipping
   epochs_per_layer: 50  ## this is only for "freeze_layers" and any other method which has sequential single layer training
@@ -84,14 +86,19 @@ task:
   parameters: {}
   # dataset: "line", "center_surround", "orientation_bars", "multi_xor", "mnist", "mnist_modulo10", "mnist_switch2",
             #"mnist_switch10", "info_shunting", "noise_resilience", "feature_selectivity", "context_gating",
-            #"learning_dynamics", "hierarchical_processing", "cifar10"
+            #"learning_dynamics", "hierarchical_processing", "cifar10", "poisson_generator"
   # parameters:
   #   train_size: 8000
   #   valid_size: 1000
   #   test_size:  1000
   #   image_size: 16   # relevant for orientation_bars
+  #   flatten: true
+  #   normalize: true
+  #   base_dataset: "mnist"
+  #   rate_multiplier: 1
+  #   n_samples: 10
   #   n_orient_classes: 8
-
+  #   n_bits: 8
 wandb:
   entity:
   project: "dendritic_cifar10"
