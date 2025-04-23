@@ -7,8 +7,6 @@ various gradient-scaling strategies for BlockLinear or other modules.
 
 import functools
 
-import torch
-
 
 def safe_hook(hook_fn):
     """
@@ -73,20 +71,19 @@ def scale_layer_input_gradients_elementwise(module, grad_input, grad_output):
     """
     Apply element-wise scaling to the input gradients.
     """
+    input_scale_vec = 1
     if hasattr(module, "input_scale_vec"):
         if module.input_scale_vec is not None:
             input_scale_vec = module.input_scale_vec
-    else:
-        input_scale_vec = 1
 
     # Check if prints are enabled
     print_hooks = getattr(module, "print_hooks", False)
 
-    for i, grad in enumerate(grad_input):
-        if grad is not None:
-            mean_abs_before = grad.abs().mean().item()
-            mean_abs_after = (grad * input_scale_vec).abs().mean().item()
-            if print_hooks:
+    if print_hooks:
+        for i, grad in enumerate(grad_input):
+            if grad is not None:
+                mean_abs_before = grad.abs().mean().item()
+                mean_abs_after = (grad * input_scale_vec).abs().mean().item()
                 print(
                     f"Gradient {i} - Mean Abs Before: {mean_abs_before:.6f}, Mean Abs After: {mean_abs_after:.6f}",
                     flush=True,
@@ -100,32 +97,15 @@ def scale_layer_param_gradients_elementwise(grad, param_scale_vec, print_hooks=F
     """
     Apply element-wise scaling to the parameter gradients.
     """
-    if grad is not None:
+    param_scale_vec = 1 if param_scale_vec is None else param_scale_vec
+    if print_hooks and grad is not None:
         mean_abs_before = grad.abs().mean().item()
-        param_scale_vec = 1 if param_scale_vec is None else param_scale_vec
         mean_abs_after = (grad * param_scale_vec).abs().mean().item()
-        if print_hooks:
-            print(
-                f"Parameter Gradient - Mean Abs Before: {mean_abs_before:.6f}, Mean Abs After: {mean_abs_after:.6f}",
-                flush=True,
-            )
-    else:
-        param_scale_vec = 1 if param_scale_vec is None else param_scale_vec
+        print(
+            f"Parameter Gradient - Mean Abs Before: {mean_abs_before:.6f}, Mean Abs After: {mean_abs_after:.6f}",
+            flush=True,
+        )
     return grad * param_scale_vec if grad is not None else None
-
-
-# def scale_activation_grad_hook(module, grad_input, grad_output):
-#     return grad_output
-
-
-# def scale_layer_gradients_elementwise(module, grad_input, grad_output, scale_vec):
-#     print('\nbackward hook call', flush=True)
-#     print(f'grad_input:\n{grad_input[0].mean(dim = 0)}\n{grad_input[0].std(dim = 0)}')
-#     print(f'grad_output:\n{grad_output[0].mean(dim = 0)}\n{grad_output[0].std(dim = 0)}')
-#     print(f'scale_vec: {scale_vec.shape}\n{scale_vec}')
-#     return tuple(
-#         grad * scale_vec if grad is not None else None for grad in grad_input
-#     )
 
 
 def scale_layer_gradients_scalar(module, grad_input, grad_output, scale_factor):
@@ -136,11 +116,11 @@ def scale_layer_gradients_scalar(module, grad_input, grad_output, scale_factor):
     print_hooks = getattr(module, "print_hooks", False)
 
     # Calculate and print mean absolute gradient values before and after scaling
-    for i, g in enumerate(grad_input):
-        if g is not None:
-            mean_abs_before = g.abs().mean().item()
-            mean_abs_after = (g * scale_factor).abs().mean().item()
-            if print_hooks:
+    if print_hooks:
+        for i, g in enumerate(grad_input):
+            if g is not None:
+                mean_abs_before = g.abs().mean().item()
+                mean_abs_after = (g * scale_factor).abs().mean().item()
                 print(
                     f"Scalar Scaling Gradient {i} - Mean Abs Before: {mean_abs_before:.6f}, Mean Abs After: {mean_abs_after:.6f} (scale={scale_factor:.4f})",
                     flush=True,
@@ -353,7 +333,7 @@ class GradientScaler:
 
             # Register consistently with full backward hook
             topk_layer.register_full_backward_hook(input_hook_fn)
-            topk_layer.pre_w.register_hook(param_hook_fn)
+            # topk_layer.pre_w.register_hook(param_hook_fn)
 
 
 # Apply the safe_hook decorator to our existing functions
