@@ -174,7 +174,12 @@ class MultiXORDataset(Dataset):
         return self.data[idx], self.labels[idx]
 
 
-def load_mnist_as_datasets(train_valid_split=0.8, data_path=None):
+def load_mnist_as_datasets(
+    train_valid_split=0.8,
+    flatten=False,
+    normalize=False,
+    data_path=None
+):
     """
     Load the MNIST dataset and split into train, validation, and test sets.
 
@@ -187,11 +192,16 @@ def load_mnist_as_datasets(train_valid_split=0.8, data_path=None):
     """
     mnist_dir = get_data_directory("mnist", data_path)
 
+    tf_list = [transforms.ToTensor()]
+    if normalize:
+        tf_list.append(transforms.Normalize((0.1307,), (0.3081,)))
+    transform = transforms.Compose(tf_list)
+
     train_dataset = datasets.MNIST(
-        root=mnist_dir, train=True, download=True, transform=transforms.ToTensor()
+        root=mnist_dir, train=True, download=True, transform=transform
     )
     test_dataset = datasets.MNIST(
-        root=mnist_dir, train=False, download=True, transform=transforms.ToTensor()
+        root=mnist_dir, train=False, download=True, transform=transform
     )
 
     train_size = int(len(train_dataset) * train_valid_split)
@@ -210,10 +220,10 @@ def load_mnist_as_datasets(train_valid_split=0.8, data_path=None):
     x_test = torch.stack([img for img, _ in test_dataset])
     y_test = torch.tensor([label for _, label in test_dataset])
 
-    # Flatten images
-    x_train = x_train.view(x_train.shape[0], -1)
-    x_valid = x_valid.view(x_valid.shape[0], -1)
-    x_test = x_test.view(x_test.shape[0], -1)
+    if flatten:
+        x_train = x_train.view(x_train.shape[0], -1)
+        x_valid = x_valid.view(x_valid.shape[0], -1)
+        x_test = x_test.view(x_test.shape[0], -1)
 
     train_ds = torch.utils.data.TensorDataset(x_train, y_train)
     valid_ds = torch.utils.data.TensorDataset(x_valid, y_valid)
@@ -222,8 +232,19 @@ def load_mnist_as_datasets(train_valid_split=0.8, data_path=None):
     return train_ds, valid_ds, test_ds
 
 
-def load_MNIST_modulo10(shuffle_iterations=2, train_valid_split=1, cache_dir=None):
-    train_ds, valid_ds, test_ds = load_mnist_as_datasets(train_valid_split, cache_dir)
+def load_MNIST_modulo10(
+    shuffle_iterations=2, 
+    train_valid_split=1, 
+    flatten=False,
+    normalize=False,
+    cache_dir=None
+):
+    train_ds, valid_ds, test_ds = load_mnist_as_datasets(
+        train_valid_split=train_valid_split, 
+        flatten=flatten, 
+        normalize=normalize, 
+        data_path=cache_dir
+    )
     data = {"train": train_ds, "valid": valid_ds, "test": test_ds}
 
     for key, ds in data.items():
@@ -452,7 +473,12 @@ class CompositionalMNIST(Dataset):
         return self.data[idx], self.labels[idx]
 
 
-def load_cifar10_as_datasets(train_valid_split=1.0, data_path=None):
+def load_cifar10_as_datasets(
+    train_valid_split=1.0,
+    flatten=False,
+    normalize=False,
+    data_path=None
+):
     """
     Load the CIFAR-10 dataset and split into train, validation, and test sets.
 
@@ -463,11 +489,12 @@ def load_cifar10_as_datasets(train_valid_split=1.0, data_path=None):
     Returns:
         tuple: (train_dataset, valid_dataset, test_dataset)
     """
-    transform = transforms.Compose(
-        [transforms.ToTensor(), 
-         #transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))
-         ]
-    )
+    tf_list = [transforms.ToTensor()]
+    if normalize:
+        tf_list.append(transforms.Normalize(
+            (0.4914, 0.4822, 0.4465), (0.2470, 0.2435, 0.2616)))
+    
+    transform = transforms.Compose(tf_list)
 
     cifar_dir = get_data_directory("cifar", data_path)
 
@@ -487,7 +514,8 @@ def load_cifar10_as_datasets(train_valid_split=1.0, data_path=None):
             labels.append(label)
         data_tensor = torch.stack(data)
         label_tensor = torch.tensor(labels)
-        data_tensor = data_tensor.view(data_tensor.size(0), -1)
+        if flatten:
+            data_tensor = data_tensor.view(data_tensor.size(0), -1)
         return data_tensor, label_tensor
 
     if train_valid_split < 1.0:
@@ -653,6 +681,65 @@ class RandomFlipMNISTDataset(Dataset):
         return x, y
 
 
+def poisson_generator_dataset(
+    base_dataset: str,
+    rate_multiplier: float = 1,
+    n_samples: int = 10,
+    train_valid_split: float = 0.8,
+    flatten: bool = False,
+    data_path: str = None
+):
+    """
+    Generate a dataset of Poisson-distributed samples from a base dataset.
+
+    Args:
+        base_dataset: The base dataset to sample from
+        n_samples: The number of samples to generate
+        train_valid_split: The proportion of samples to use for training vs validation
+        flatten: Whether to flatten the samples
+        normalize: Whether to normalize the samples
+        data_path: The path to save the generated dataset
+
+    Returns:
+        A dataset of Poisson-distributed samples
+    """
+    # Load the base dataset
+    if base_dataset == "mnist":
+        train_ds, valid_ds, test_ds = load_mnist_as_datasets(
+            train_valid_split=train_valid_split,
+            flatten=flatten,
+            normalize=False,
+            data_path=data_path
+        )    
+    elif base_dataset == "cifar10":
+        train_ds, valid_ds, test_ds = load_cifar10_as_datasets(
+            train_valid_split=train_valid_split,
+            flatten=flatten,
+            normalize=False,
+            data_path=data_path
+        )
+    else:
+        raise ValueError(f"Unknown base dataset: {base_dataset}")
+    
+    data = {"train": train_ds, "valid": valid_ds, "test": test_ds}
+
+    for key, ds in data.items():
+        inputs, labels = ds[:]
+
+        scaled_inputs = inputs * rate_multiplier
+        noisy_scaled_inputs = torch.poisson(
+            scaled_inputs[None, ...].expand(n_samples, *inputs.shape)
+        )
+        noisy_inputs = noisy_scaled_inputs / rate_multiplier
+        noisy_inputs = noisy_inputs.flatten(0, 1)
+        labels = labels[None, ...].expand(n_samples, *labels.shape)
+        labels = labels.flatten(0, 1)
+
+        data[key] = TensorDataset(noisy_inputs, labels)
+
+    return data
+
+
 def get_unified_datasets(task_cfg, train_cfg):
     """
     Get datasets based on configuration.
@@ -690,6 +777,11 @@ def get_unified_datasets(task_cfg, train_cfg):
     valid_size = p.get("valid_size", 1000)
     test_size = p.get("test_size", 1000)
     image_size = p.get("image_size", 784)
+    flatten = p.get("flatten", True)
+    normalize = p.get("normalize", False)
+    base_dataset = p.get("base_dataset", "mnist")
+    rate_multiplier = p.get("rate_multiplier", 1)
+    n_samples = p.get("n_samples", 10)
     n_orient_classes = p.get("n_orient_classes", 8)
     n_bits = p.get("n_bits", 8)
     total = train_size + valid_size + test_size
@@ -710,7 +802,10 @@ def get_unified_datasets(task_cfg, train_cfg):
         return random_split(full_ds, [train_size, valid_size, test_size])
     elif dataset_name == "mnist":
         train_ds, valid_ds, test_ds = load_mnist_as_datasets(
-            train_valid_split=train_valid_split, data_path=data_path
+            train_valid_split=train_valid_split, 
+            flatten=flatten,
+            normalize=normalize,
+            data_path=data_path
         )
         return train_ds, valid_ds, test_ds
     elif dataset_name == "random_flip_mnist":
@@ -728,7 +823,10 @@ def get_unified_datasets(task_cfg, train_cfg):
         return train_dataset, valid_dataset, test_dataset
     elif dataset_name == "mnist_modulo10":
         data = load_MNIST_modulo10(
-            train_valid_split=train_valid_split, cache_dir=data_path
+            train_valid_split=train_valid_split, 
+            flatten=flatten,
+            normalize=normalize,
+            cache_dir=data_path
         )
         train_ds = data["train"]
         if "valid" in data:
@@ -762,8 +860,27 @@ def get_unified_datasets(task_cfg, train_cfg):
         return random_split(full_ds, [train_size, valid_size, test_size])
     elif dataset_name == "cifar10":
         return load_cifar10_as_datasets(
-            train_valid_split=train_valid_split, data_path=data_path
+            train_valid_split=train_valid_split, 
+            flatten=flatten,
+            normalize=normalize,
+            data_path=data_path
         )
+    elif dataset_name == "poisson_generator":
+        data = poisson_generator_dataset(
+            base_dataset=base_dataset,
+            rate_multiplier=rate_multiplier,
+            n_samples=n_samples,
+            train_valid_split=train_valid_split,
+            flatten=flatten,
+            data_path=data_path
+        )
+        train_ds = data["train"]
+        if "valid" in data:
+            valid_ds = data["valid"]
+        else:
+            valid_ds = data["test"]
+        test_ds = data["test"]
+        return train_ds, valid_ds, test_ds
     else:
         raise ValueError(f"Unknown dataset name: {dataset_name}")
 
