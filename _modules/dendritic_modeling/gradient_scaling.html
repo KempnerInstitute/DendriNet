@@ -104,8 +104,6 @@
 
 <span class="kn">import</span><span class="w"> </span><span class="nn">functools</span>
 
-<span class="kn">import</span><span class="w"> </span><span class="nn">torch</span>
-
 
 <div class="viewcode-block" id="safe_hook">
 <a class="viewcode-back" href="../../source/api/dendritic_modeling.html#dendritic_modeling.gradient_scaling.safe_hook">[docs]</a>
@@ -178,20 +176,19 @@
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Apply element-wise scaling to the input gradients.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">input_scale_vec</span> <span class="o">=</span> <span class="mi">1</span>
     <span class="k">if</span> <span class="nb">hasattr</span><span class="p">(</span><span class="n">module</span><span class="p">,</span> <span class="s2">&quot;input_scale_vec&quot;</span><span class="p">):</span>
         <span class="k">if</span> <span class="n">module</span><span class="o">.</span><span class="n">input_scale_vec</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
             <span class="n">input_scale_vec</span> <span class="o">=</span> <span class="n">module</span><span class="o">.</span><span class="n">input_scale_vec</span>
-    <span class="k">else</span><span class="p">:</span>
-        <span class="n">input_scale_vec</span> <span class="o">=</span> <span class="mi">1</span>
 
     <span class="c1"># Check if prints are enabled</span>
     <span class="n">print_hooks</span> <span class="o">=</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">module</span><span class="p">,</span> <span class="s2">&quot;print_hooks&quot;</span><span class="p">,</span> <span class="kc">False</span><span class="p">)</span>
 
-    <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="n">grad</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">grad_input</span><span class="p">):</span>
-        <span class="k">if</span> <span class="n">grad</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
-            <span class="n">mean_abs_before</span> <span class="o">=</span> <span class="n">grad</span><span class="o">.</span><span class="n">abs</span><span class="p">()</span><span class="o">.</span><span class="n">mean</span><span class="p">()</span><span class="o">.</span><span class="n">item</span><span class="p">()</span>
-            <span class="n">mean_abs_after</span> <span class="o">=</span> <span class="p">(</span><span class="n">grad</span> <span class="o">*</span> <span class="n">input_scale_vec</span><span class="p">)</span><span class="o">.</span><span class="n">abs</span><span class="p">()</span><span class="o">.</span><span class="n">mean</span><span class="p">()</span><span class="o">.</span><span class="n">item</span><span class="p">()</span>
-            <span class="k">if</span> <span class="n">print_hooks</span><span class="p">:</span>
+    <span class="k">if</span> <span class="n">print_hooks</span><span class="p">:</span>
+        <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="n">grad</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">grad_input</span><span class="p">):</span>
+            <span class="k">if</span> <span class="n">grad</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+                <span class="n">mean_abs_before</span> <span class="o">=</span> <span class="n">grad</span><span class="o">.</span><span class="n">abs</span><span class="p">()</span><span class="o">.</span><span class="n">mean</span><span class="p">()</span><span class="o">.</span><span class="n">item</span><span class="p">()</span>
+                <span class="n">mean_abs_after</span> <span class="o">=</span> <span class="p">(</span><span class="n">grad</span> <span class="o">*</span> <span class="n">input_scale_vec</span><span class="p">)</span><span class="o">.</span><span class="n">abs</span><span class="p">()</span><span class="o">.</span><span class="n">mean</span><span class="p">()</span><span class="o">.</span><span class="n">item</span><span class="p">()</span>
                 <span class="nb">print</span><span class="p">(</span>
                     <span class="sa">f</span><span class="s2">&quot;Gradient </span><span class="si">{</span><span class="n">i</span><span class="si">}</span><span class="s2"> - Mean Abs Before: </span><span class="si">{</span><span class="n">mean_abs_before</span><span class="si">:</span><span class="s2">.6f</span><span class="si">}</span><span class="s2">, Mean Abs After: </span><span class="si">{</span><span class="n">mean_abs_after</span><span class="si">:</span><span class="s2">.6f</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">,</span>
                     <span class="n">flush</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
@@ -208,33 +205,16 @@
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Apply element-wise scaling to the parameter gradients.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
-    <span class="k">if</span> <span class="n">grad</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+    <span class="n">param_scale_vec</span> <span class="o">=</span> <span class="mi">1</span> <span class="k">if</span> <span class="n">param_scale_vec</span> <span class="ow">is</span> <span class="kc">None</span> <span class="k">else</span> <span class="n">param_scale_vec</span>
+    <span class="k">if</span> <span class="n">print_hooks</span> <span class="ow">and</span> <span class="n">grad</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
         <span class="n">mean_abs_before</span> <span class="o">=</span> <span class="n">grad</span><span class="o">.</span><span class="n">abs</span><span class="p">()</span><span class="o">.</span><span class="n">mean</span><span class="p">()</span><span class="o">.</span><span class="n">item</span><span class="p">()</span>
-        <span class="n">param_scale_vec</span> <span class="o">=</span> <span class="mi">1</span> <span class="k">if</span> <span class="n">param_scale_vec</span> <span class="ow">is</span> <span class="kc">None</span> <span class="k">else</span> <span class="n">param_scale_vec</span>
         <span class="n">mean_abs_after</span> <span class="o">=</span> <span class="p">(</span><span class="n">grad</span> <span class="o">*</span> <span class="n">param_scale_vec</span><span class="p">)</span><span class="o">.</span><span class="n">abs</span><span class="p">()</span><span class="o">.</span><span class="n">mean</span><span class="p">()</span><span class="o">.</span><span class="n">item</span><span class="p">()</span>
-        <span class="k">if</span> <span class="n">print_hooks</span><span class="p">:</span>
-            <span class="nb">print</span><span class="p">(</span>
-                <span class="sa">f</span><span class="s2">&quot;Parameter Gradient - Mean Abs Before: </span><span class="si">{</span><span class="n">mean_abs_before</span><span class="si">:</span><span class="s2">.6f</span><span class="si">}</span><span class="s2">, Mean Abs After: </span><span class="si">{</span><span class="n">mean_abs_after</span><span class="si">:</span><span class="s2">.6f</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">,</span>
-                <span class="n">flush</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
-            <span class="p">)</span>
-    <span class="k">else</span><span class="p">:</span>
-        <span class="n">param_scale_vec</span> <span class="o">=</span> <span class="mi">1</span> <span class="k">if</span> <span class="n">param_scale_vec</span> <span class="ow">is</span> <span class="kc">None</span> <span class="k">else</span> <span class="n">param_scale_vec</span>
+        <span class="nb">print</span><span class="p">(</span>
+            <span class="sa">f</span><span class="s2">&quot;Parameter Gradient - Mean Abs Before: </span><span class="si">{</span><span class="n">mean_abs_before</span><span class="si">:</span><span class="s2">.6f</span><span class="si">}</span><span class="s2">, Mean Abs After: </span><span class="si">{</span><span class="n">mean_abs_after</span><span class="si">:</span><span class="s2">.6f</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">,</span>
+            <span class="n">flush</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+        <span class="p">)</span>
     <span class="k">return</span> <span class="n">grad</span> <span class="o">*</span> <span class="n">param_scale_vec</span> <span class="k">if</span> <span class="n">grad</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="k">else</span> <span class="kc">None</span></div>
 
-
-
-<span class="c1"># def scale_activation_grad_hook(module, grad_input, grad_output):</span>
-<span class="c1">#     return grad_output</span>
-
-
-<span class="c1"># def scale_layer_gradients_elementwise(module, grad_input, grad_output, scale_vec):</span>
-<span class="c1">#     print(&#39;\nbackward hook call&#39;, flush=True)</span>
-<span class="c1">#     print(f&#39;grad_input:\n{grad_input[0].mean(dim = 0)}\n{grad_input[0].std(dim = 0)}&#39;)</span>
-<span class="c1">#     print(f&#39;grad_output:\n{grad_output[0].mean(dim = 0)}\n{grad_output[0].std(dim = 0)}&#39;)</span>
-<span class="c1">#     print(f&#39;scale_vec: {scale_vec.shape}\n{scale_vec}&#39;)</span>
-<span class="c1">#     return tuple(</span>
-<span class="c1">#         grad * scale_vec if grad is not None else None for grad in grad_input</span>
-<span class="c1">#     )</span>
 
 
 <div class="viewcode-block" id="scale_layer_gradients_scalar">
@@ -247,11 +227,11 @@
     <span class="n">print_hooks</span> <span class="o">=</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">module</span><span class="p">,</span> <span class="s2">&quot;print_hooks&quot;</span><span class="p">,</span> <span class="kc">False</span><span class="p">)</span>
 
     <span class="c1"># Calculate and print mean absolute gradient values before and after scaling</span>
-    <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="n">g</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">grad_input</span><span class="p">):</span>
-        <span class="k">if</span> <span class="n">g</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
-            <span class="n">mean_abs_before</span> <span class="o">=</span> <span class="n">g</span><span class="o">.</span><span class="n">abs</span><span class="p">()</span><span class="o">.</span><span class="n">mean</span><span class="p">()</span><span class="o">.</span><span class="n">item</span><span class="p">()</span>
-            <span class="n">mean_abs_after</span> <span class="o">=</span> <span class="p">(</span><span class="n">g</span> <span class="o">*</span> <span class="n">scale_factor</span><span class="p">)</span><span class="o">.</span><span class="n">abs</span><span class="p">()</span><span class="o">.</span><span class="n">mean</span><span class="p">()</span><span class="o">.</span><span class="n">item</span><span class="p">()</span>
-            <span class="k">if</span> <span class="n">print_hooks</span><span class="p">:</span>
+    <span class="k">if</span> <span class="n">print_hooks</span><span class="p">:</span>
+        <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="n">g</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">grad_input</span><span class="p">):</span>
+            <span class="k">if</span> <span class="n">g</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+                <span class="n">mean_abs_before</span> <span class="o">=</span> <span class="n">g</span><span class="o">.</span><span class="n">abs</span><span class="p">()</span><span class="o">.</span><span class="n">mean</span><span class="p">()</span><span class="o">.</span><span class="n">item</span><span class="p">()</span>
+                <span class="n">mean_abs_after</span> <span class="o">=</span> <span class="p">(</span><span class="n">g</span> <span class="o">*</span> <span class="n">scale_factor</span><span class="p">)</span><span class="o">.</span><span class="n">abs</span><span class="p">()</span><span class="o">.</span><span class="n">mean</span><span class="p">()</span><span class="o">.</span><span class="n">item</span><span class="p">()</span>
                 <span class="nb">print</span><span class="p">(</span>
                     <span class="sa">f</span><span class="s2">&quot;Scalar Scaling Gradient </span><span class="si">{</span><span class="n">i</span><span class="si">}</span><span class="s2"> - Mean Abs Before: </span><span class="si">{</span><span class="n">mean_abs_before</span><span class="si">:</span><span class="s2">.6f</span><span class="si">}</span><span class="s2">, Mean Abs After: </span><span class="si">{</span><span class="n">mean_abs_after</span><span class="si">:</span><span class="s2">.6f</span><span class="si">}</span><span class="s2"> (scale=</span><span class="si">{</span><span class="n">scale_factor</span><span class="si">:</span><span class="s2">.4f</span><span class="si">}</span><span class="s2">)&quot;</span><span class="p">,</span>
                     <span class="n">flush</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
@@ -477,10 +457,10 @@
             <span class="n">topk_layer</span><span class="o">.</span><span class="n">print_hooks</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">print_hooks</span>
 
             <span class="c1"># Register consistently with full backward hook</span>
-            <span class="n">topk_layer</span><span class="o">.</span><span class="n">register_full_backward_hook</span><span class="p">(</span><span class="n">input_hook_fn</span><span class="p">)</span>
-            <span class="n">topk_layer</span><span class="o">.</span><span class="n">pre_w</span><span class="o">.</span><span class="n">register_hook</span><span class="p">(</span><span class="n">param_hook_fn</span><span class="p">)</span></div>
+            <span class="n">topk_layer</span><span class="o">.</span><span class="n">register_full_backward_hook</span><span class="p">(</span><span class="n">input_hook_fn</span><span class="p">)</span></div>
 </div>
 
+            <span class="c1"># topk_layer.pre_w.register_hook(param_hook_fn)</span>
 
 
 <span class="c1"># Apply the safe_hook decorator to our existing functions</span>

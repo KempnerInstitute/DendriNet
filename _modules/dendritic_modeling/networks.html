@@ -244,9 +244,204 @@
 </div>
 
 
-
 <span class="c1"># For backward compatibility</span>
-<span class="n">MLPInputTransform</span> <span class="o">=</span> <span class="n">InputNetTransform</span>
+<span class="c1"># MLPInputTransform = InputNetTransform</span>
+
+
+<div class="viewcode-block" id="IndexInputTransform">
+<a class="viewcode-back" href="../../source/api/dendritic_modeling.html#dendritic_modeling.networks.IndexInputTransform">[docs]</a>
+<span class="k">class</span><span class="w"> </span><span class="nc">IndexInputTransform</span><span class="p">(</span><span class="n">nn</span><span class="o">.</span><span class="n">Module</span><span class="p">):</span>
+    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">input_dim</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span> <span class="n">excitatory_dim</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span> <span class="n">inhibitory_dim</span><span class="p">:</span> <span class="nb">int</span><span class="p">):</span>
+        <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="fm">__init__</span><span class="p">()</span>
+        <span class="k">assert</span> <span class="n">excitatory_dim</span> <span class="o">+</span> <span class="n">inhibitory_dim</span> <span class="o">==</span> <span class="n">input_dim</span><span class="p">,</span> \
+            <span class="s1">&#39;error in IndexInputTransform: excitatory_dim + inhibitory_dim must &#39;</span> \
+            <span class="sa">f</span><span class="s1">&#39;equal input_dim, got </span><span class="si">{</span><span class="n">excitatory_dim</span><span class="si">}</span><span class="s1"> + </span><span class="si">{</span><span class="n">inhibitory_dim</span><span class="si">}</span><span class="s1"> != </span><span class="si">{</span><span class="n">input_dim</span><span class="si">}</span><span class="s1">&#39;</span>
+        
+        <span class="n">dims</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">randperm</span><span class="p">(</span><span class="n">input_dim</span><span class="p">)</span>
+        <span class="n">exc_dims</span> <span class="o">=</span> <span class="n">dims</span><span class="p">[:</span><span class="n">excitatory_dim</span><span class="p">]</span>
+        <span class="n">inh_dims</span> <span class="o">=</span> <span class="n">dims</span><span class="p">[</span><span class="n">excitatory_dim</span><span class="p">:]</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">exc_dims</span> <span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">register_buffer</span><span class="p">(</span><span class="s1">&#39;exc_dims&#39;</span><span class="p">,</span> <span class="n">exc_dims</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">inh_dims</span> <span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">register_buffer</span><span class="p">(</span><span class="s1">&#39;inh_dims&#39;</span><span class="p">,</span> <span class="n">inh_dims</span><span class="p">)</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">forward</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">x</span><span class="p">):</span>
+        <span class="k">if</span> <span class="n">x</span><span class="o">.</span><span class="n">dim</span><span class="p">()</span> <span class="o">==</span> <span class="mi">1</span><span class="p">:</span>
+            <span class="n">x</span> <span class="o">=</span> <span class="n">x</span><span class="p">[</span><span class="kc">None</span><span class="p">,</span> <span class="p">:]</span>
+        
+        <span class="n">excitatory_input</span> <span class="o">=</span> <span class="n">x</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">exc_dims</span><span class="p">]</span>
+        <span class="n">inhibitory_input</span> <span class="o">=</span> <span class="n">x</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">inh_dims</span><span class="p">]</span>
+        <span class="k">return</span> <span class="n">excitatory_input</span><span class="p">,</span> <span class="n">inhibitory_input</span></div>
+
+
+
+<div class="viewcode-block" id="MLPInputTransform">
+<a class="viewcode-back" href="../../source/api/dendritic_modeling.html#dendritic_modeling.networks.MLPInputTransform">[docs]</a>
+<span class="k">class</span><span class="w"> </span><span class="nc">MLPInputTransform</span><span class="p">(</span><span class="n">nn</span><span class="o">.</span><span class="n">Module</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    A transform that maps the raw input x to (excitatory_input, inhibitory_input).</span>
+<span class="sd">    This is a generalized version that can support different network architectures.</span>
+<span class="sd">    By default, it uses an MLP with configurable hidden dimensions.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span> 
+        <span class="n">input_dim</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span> 
+        <span class="n">hidden_dims</span><span class="p">:</span> <span class="n">List</span><span class="p">[</span><span class="nb">int</span><span class="p">],</span> 
+        <span class="n">excitatory_dim</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span> 
+        <span class="n">inhibitory_dim</span><span class="p">:</span> <span class="nb">int</span>
+    <span class="p">):</span>
+        <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="fm">__init__</span><span class="p">()</span>
+
+        <span class="c1"># Build MLP backbone</span>
+        <span class="n">exc_layers</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="n">inh_layers</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="n">in_features</span> <span class="o">=</span> <span class="n">input_dim</span>
+        <span class="k">for</span> <span class="n">hdim</span> <span class="ow">in</span> <span class="n">hidden_dims</span><span class="p">:</span>
+            <span class="n">exc_layer</span> <span class="o">=</span> <span class="n">nn</span><span class="o">.</span><span class="n">Linear</span><span class="p">(</span><span class="n">in_features</span><span class="p">,</span> <span class="n">hdim</span><span class="p">)</span>
+            <span class="n">nn</span><span class="o">.</span><span class="n">init</span><span class="o">.</span><span class="n">kaiming_normal_</span><span class="p">(</span><span class="n">exc_layer</span><span class="o">.</span><span class="n">weight</span><span class="p">)</span>
+            <span class="n">nn</span><span class="o">.</span><span class="n">init</span><span class="o">.</span><span class="n">zeros_</span><span class="p">(</span><span class="n">exc_layer</span><span class="o">.</span><span class="n">bias</span><span class="p">)</span>
+            
+            <span class="n">exc_layers</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">exc_layer</span><span class="p">)</span>
+            <span class="n">exc_layers</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">nn</span><span class="o">.</span><span class="n">ReLU</span><span class="p">())</span>
+
+            <span class="n">inh_layer</span> <span class="o">=</span> <span class="n">nn</span><span class="o">.</span><span class="n">Linear</span><span class="p">(</span><span class="n">in_features</span><span class="p">,</span> <span class="n">hdim</span><span class="p">)</span>
+            <span class="n">nn</span><span class="o">.</span><span class="n">init</span><span class="o">.</span><span class="n">kaiming_normal_</span><span class="p">(</span><span class="n">inh_layer</span><span class="o">.</span><span class="n">weight</span><span class="p">)</span>
+            <span class="n">nn</span><span class="o">.</span><span class="n">init</span><span class="o">.</span><span class="n">zeros_</span><span class="p">(</span><span class="n">inh_layer</span><span class="o">.</span><span class="n">bias</span><span class="p">)</span>
+            <span class="n">inh_layers</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">inh_layer</span><span class="p">)</span>
+            <span class="n">inh_layers</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">nn</span><span class="o">.</span><span class="n">ReLU</span><span class="p">())</span>
+
+            <span class="n">in_features</span> <span class="o">=</span> <span class="n">hdim</span>
+        
+        <span class="n">exc_head</span> <span class="o">=</span> <span class="n">nn</span><span class="o">.</span><span class="n">Linear</span><span class="p">(</span><span class="n">in_features</span><span class="p">,</span> <span class="n">excitatory_dim</span><span class="p">)</span>
+        <span class="n">nn</span><span class="o">.</span><span class="n">init</span><span class="o">.</span><span class="n">xavier_normal_</span><span class="p">(</span><span class="n">exc_head</span><span class="o">.</span><span class="n">weight</span><span class="p">)</span>
+        <span class="n">nn</span><span class="o">.</span><span class="n">init</span><span class="o">.</span><span class="n">zeros_</span><span class="p">(</span><span class="n">exc_head</span><span class="o">.</span><span class="n">bias</span><span class="p">)</span>
+        <span class="n">exc_layers</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">exc_head</span><span class="p">)</span>
+        <span class="n">exc_layers</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">nn</span><span class="o">.</span><span class="n">Sigmoid</span><span class="p">())</span>
+        
+        <span class="n">inh_head</span> <span class="o">=</span> <span class="n">nn</span><span class="o">.</span><span class="n">Linear</span><span class="p">(</span><span class="n">in_features</span><span class="p">,</span> <span class="n">inhibitory_dim</span><span class="p">)</span>
+        <span class="n">nn</span><span class="o">.</span><span class="n">init</span><span class="o">.</span><span class="n">xavier_normal_</span><span class="p">(</span><span class="n">inh_head</span><span class="o">.</span><span class="n">weight</span><span class="p">)</span>
+        <span class="n">nn</span><span class="o">.</span><span class="n">init</span><span class="o">.</span><span class="n">zeros_</span><span class="p">(</span><span class="n">inh_head</span><span class="o">.</span><span class="n">bias</span><span class="p">)</span>
+        <span class="n">inh_layers</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">inh_head</span><span class="p">)</span>
+        <span class="n">inh_layers</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">nn</span><span class="o">.</span><span class="n">Sigmoid</span><span class="p">())</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">exc_encoding</span> <span class="o">=</span> <span class="n">nn</span><span class="o">.</span><span class="n">Sequential</span><span class="p">(</span><span class="o">*</span><span class="n">exc_layers</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">inh_encoding</span> <span class="o">=</span> <span class="n">nn</span><span class="o">.</span><span class="n">Sequential</span><span class="p">(</span><span class="o">*</span><span class="n">inh_layers</span><span class="p">)</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">forward</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">x</span><span class="p">):</span>
+        <span class="n">excitatory_input</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">exc_encoding</span><span class="p">(</span><span class="n">x</span><span class="p">)</span>
+        <span class="n">inhibitory_input</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">inh_encoding</span><span class="p">(</span><span class="n">x</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">excitatory_input</span><span class="p">,</span> <span class="n">inhibitory_input</span></div>
+
+
+
+<div class="viewcode-block" id="CNNInputTransform">
+<a class="viewcode-back" href="../../source/api/dendritic_modeling.html#dendritic_modeling.networks.CNNInputTransform">[docs]</a>
+<span class="k">class</span><span class="w"> </span><span class="nc">CNNInputTransform</span><span class="p">(</span><span class="n">nn</span><span class="o">.</span><span class="n">Module</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    A transform that maps the raw input x to (excitatory_input, inhibitory_input)</span>
+<span class="sd">    using convolutional layers.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span> 
+        <span class="n">input_shape</span><span class="p">:</span> <span class="n">Tuple</span><span class="p">[</span><span class="nb">int</span><span class="p">,</span> <span class="nb">int</span><span class="p">,</span> <span class="nb">int</span><span class="p">],</span>  <span class="c1"># (channels, height, width)</span>
+        <span class="n">conv_channels</span><span class="p">:</span> <span class="n">List</span><span class="p">[</span><span class="nb">int</span><span class="p">],</span>           <span class="c1"># List of channel sizes for each conv layer</span>
+        <span class="n">kernel_size</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">3</span><span class="p">,</span>               <span class="c1"># Kernel size for all conv layers</span>
+        <span class="n">excitatory_dim</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">128</span><span class="p">,</span>          <span class="c1"># Output dimension for excitatory pathway</span>
+        <span class="n">inhibitory_dim</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">128</span><span class="p">,</span>          <span class="c1"># Output dimension for inhibitory pathway</span>
+        <span class="n">pool_type</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s1">&#39;max&#39;</span>              <span class="c1"># Type of pooling: &#39;max&#39; or &#39;avg&#39;</span>
+    <span class="p">):</span>
+        <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="fm">__init__</span><span class="p">()</span>
+        
+        <span class="c1"># Input validation</span>
+        <span class="n">channels</span><span class="p">,</span> <span class="n">height</span><span class="p">,</span> <span class="n">width</span> <span class="o">=</span> <span class="n">input_shape</span>
+        
+        <span class="c1"># Build CNN backbone for excitatory pathway</span>
+        <span class="n">exc_layers</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="n">in_channels</span> <span class="o">=</span> <span class="n">channels</span>
+        <span class="n">current_h</span><span class="p">,</span> <span class="n">current_w</span> <span class="o">=</span> <span class="n">height</span><span class="p">,</span> <span class="n">width</span>
+        
+        <span class="k">for</span> <span class="n">out_channels</span> <span class="ow">in</span> <span class="n">conv_channels</span><span class="p">:</span>
+            <span class="c1"># Add convolutional layer</span>
+            <span class="n">exc_conv</span> <span class="o">=</span> <span class="n">nn</span><span class="o">.</span><span class="n">Conv2d</span><span class="p">(</span><span class="n">in_channels</span><span class="p">,</span> <span class="n">out_channels</span><span class="p">,</span> <span class="n">kernel_size</span><span class="p">,</span> <span class="n">padding</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span>
+            <span class="n">nn</span><span class="o">.</span><span class="n">init</span><span class="o">.</span><span class="n">kaiming_normal_</span><span class="p">(</span><span class="n">exc_conv</span><span class="o">.</span><span class="n">weight</span><span class="p">)</span>
+            <span class="n">nn</span><span class="o">.</span><span class="n">init</span><span class="o">.</span><span class="n">zeros_</span><span class="p">(</span><span class="n">exc_conv</span><span class="o">.</span><span class="n">bias</span><span class="p">)</span>
+            <span class="n">exc_layers</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">exc_conv</span><span class="p">)</span>
+            <span class="n">exc_layers</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">nn</span><span class="o">.</span><span class="n">ReLU</span><span class="p">())</span>
+            
+            <span class="c1"># Add pooling layer</span>
+            <span class="k">if</span> <span class="n">pool_type</span> <span class="o">==</span> <span class="s1">&#39;max&#39;</span><span class="p">:</span>
+                <span class="n">exc_layers</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">nn</span><span class="o">.</span><span class="n">MaxPool2d</span><span class="p">(</span><span class="mi">2</span><span class="p">,</span> <span class="mi">2</span><span class="p">))</span>
+            <span class="k">else</span><span class="p">:</span>  <span class="c1"># avg pooling</span>
+                <span class="n">exc_layers</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">nn</span><span class="o">.</span><span class="n">AvgPool2d</span><span class="p">(</span><span class="mi">2</span><span class="p">,</span> <span class="mi">2</span><span class="p">))</span>
+                
+            <span class="c1"># Update dimensions</span>
+            <span class="n">current_h</span> <span class="o">//=</span> <span class="mi">2</span>
+            <span class="n">current_w</span> <span class="o">//=</span> <span class="mi">2</span>
+            <span class="n">in_channels</span> <span class="o">=</span> <span class="n">out_channels</span>
+        
+        <span class="c1"># Flatten layer</span>
+        <span class="n">exc_layers</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">nn</span><span class="o">.</span><span class="n">Flatten</span><span class="p">())</span>
+        
+        <span class="c1"># Calculate flattened dimension</span>
+        <span class="n">flattened_dim</span> <span class="o">=</span> <span class="n">in_channels</span> <span class="o">*</span> <span class="n">current_h</span> <span class="o">*</span> <span class="n">current_w</span>
+        
+        <span class="c1"># Add fully connected layer to get to desired output dimension</span>
+        <span class="n">exc_fc</span> <span class="o">=</span> <span class="n">nn</span><span class="o">.</span><span class="n">Linear</span><span class="p">(</span><span class="n">flattened_dim</span><span class="p">,</span> <span class="n">excitatory_dim</span><span class="p">)</span>
+        <span class="n">nn</span><span class="o">.</span><span class="n">init</span><span class="o">.</span><span class="n">xavier_normal_</span><span class="p">(</span><span class="n">exc_fc</span><span class="o">.</span><span class="n">weight</span><span class="p">)</span>
+        <span class="n">nn</span><span class="o">.</span><span class="n">init</span><span class="o">.</span><span class="n">zeros_</span><span class="p">(</span><span class="n">exc_fc</span><span class="o">.</span><span class="n">bias</span><span class="p">)</span>
+        <span class="n">exc_layers</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">exc_fc</span><span class="p">)</span>
+        <span class="n">exc_layers</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">nn</span><span class="o">.</span><span class="n">Sigmoid</span><span class="p">())</span>
+        
+        <span class="c1"># Build CNN backbone for inhibitory pathway (same architecture)</span>
+        <span class="n">inh_layers</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="n">in_channels</span> <span class="o">=</span> <span class="n">channels</span>
+        <span class="n">current_h</span><span class="p">,</span> <span class="n">current_w</span> <span class="o">=</span> <span class="n">height</span><span class="p">,</span> <span class="n">width</span>
+        
+        <span class="k">for</span> <span class="n">out_channels</span> <span class="ow">in</span> <span class="n">conv_channels</span><span class="p">:</span>
+            <span class="c1"># Add convolutional layer</span>
+            <span class="n">inh_conv</span> <span class="o">=</span> <span class="n">nn</span><span class="o">.</span><span class="n">Conv2d</span><span class="p">(</span><span class="n">in_channels</span><span class="p">,</span> <span class="n">out_channels</span><span class="p">,</span> <span class="n">kernel_size</span><span class="p">,</span> <span class="n">padding</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span>
+            <span class="n">nn</span><span class="o">.</span><span class="n">init</span><span class="o">.</span><span class="n">kaiming_normal_</span><span class="p">(</span><span class="n">inh_conv</span><span class="o">.</span><span class="n">weight</span><span class="p">)</span>
+            <span class="n">nn</span><span class="o">.</span><span class="n">init</span><span class="o">.</span><span class="n">zeros_</span><span class="p">(</span><span class="n">inh_conv</span><span class="o">.</span><span class="n">bias</span><span class="p">)</span>
+            <span class="n">inh_layers</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">inh_conv</span><span class="p">)</span>
+            <span class="n">inh_layers</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">nn</span><span class="o">.</span><span class="n">ReLU</span><span class="p">())</span>
+            
+            <span class="c1"># Add pooling layer</span>
+            <span class="k">if</span> <span class="n">pool_type</span> <span class="o">==</span> <span class="s1">&#39;max&#39;</span><span class="p">:</span>
+                <span class="n">inh_layers</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">nn</span><span class="o">.</span><span class="n">MaxPool2d</span><span class="p">(</span><span class="mi">2</span><span class="p">,</span> <span class="mi">2</span><span class="p">))</span>
+            <span class="k">else</span><span class="p">:</span>  <span class="c1"># avg pooling</span>
+                <span class="n">inh_layers</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">nn</span><span class="o">.</span><span class="n">AvgPool2d</span><span class="p">(</span><span class="mi">2</span><span class="p">,</span> <span class="mi">2</span><span class="p">))</span>
+                
+            <span class="c1"># Update dimensions</span>
+            <span class="n">current_h</span> <span class="o">//=</span> <span class="mi">2</span>
+            <span class="n">current_w</span> <span class="o">//=</span> <span class="mi">2</span>
+            <span class="n">in_channels</span> <span class="o">=</span> <span class="n">out_channels</span>
+        
+        <span class="c1"># Flatten layer</span>
+        <span class="n">inh_layers</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">nn</span><span class="o">.</span><span class="n">Flatten</span><span class="p">())</span>
+        
+        <span class="c1"># Add fully connected layer to get to desired output dimension</span>
+        <span class="n">inh_fc</span> <span class="o">=</span> <span class="n">nn</span><span class="o">.</span><span class="n">Linear</span><span class="p">(</span><span class="n">flattened_dim</span><span class="p">,</span> <span class="n">inhibitory_dim</span><span class="p">)</span>
+        <span class="n">nn</span><span class="o">.</span><span class="n">init</span><span class="o">.</span><span class="n">xavier_normal_</span><span class="p">(</span><span class="n">inh_fc</span><span class="o">.</span><span class="n">weight</span><span class="p">)</span>
+        <span class="n">nn</span><span class="o">.</span><span class="n">init</span><span class="o">.</span><span class="n">zeros_</span><span class="p">(</span><span class="n">inh_fc</span><span class="o">.</span><span class="n">bias</span><span class="p">)</span>
+        <span class="n">inh_layers</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">inh_fc</span><span class="p">)</span>
+        <span class="n">inh_layers</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">nn</span><span class="o">.</span><span class="n">Sigmoid</span><span class="p">())</span>
+        
+        <span class="c1"># Create sequential models</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">exc_encoding</span> <span class="o">=</span> <span class="n">nn</span><span class="o">.</span><span class="n">Sequential</span><span class="p">(</span><span class="o">*</span><span class="n">exc_layers</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">inh_encoding</span> <span class="o">=</span> <span class="n">nn</span><span class="o">.</span><span class="n">Sequential</span><span class="p">(</span><span class="o">*</span><span class="n">inh_layers</span><span class="p">)</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">forward</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">x</span><span class="p">):</span>
+        <span class="c1"># Ensure input has correct shape (add batch dimension if needed)</span>
+        <span class="k">if</span> <span class="n">x</span><span class="o">.</span><span class="n">dim</span><span class="p">()</span> <span class="o">==</span> <span class="mi">3</span><span class="p">:</span>  <span class="c1"># (C, H, W)</span>
+            <span class="n">x</span> <span class="o">=</span> <span class="n">x</span><span class="o">.</span><span class="n">unsqueeze</span><span class="p">(</span><span class="mi">0</span><span class="p">)</span>  <span class="c1"># Add batch dimension: (1, C, H, W)</span>
+            
+        <span class="n">excitatory_input</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">exc_encoding</span><span class="p">(</span><span class="n">x</span><span class="p">)</span>
+        <span class="n">inhibitory_input</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">inh_encoding</span><span class="p">(</span><span class="n">x</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">excitatory_input</span><span class="p">,</span> <span class="n">inhibitory_input</span></div>
+
 
 
 <span class="c1">###############################################################################</span>
@@ -1117,6 +1312,7 @@
 
     <span class="k">def</span><span class="w"> </span><span class="nf">forward</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">x</span><span class="p">):</span>
         <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">network</span><span class="p">(</span><span class="n">x</span><span class="p">)</span></div>
+
 
 </pre></div>
 
