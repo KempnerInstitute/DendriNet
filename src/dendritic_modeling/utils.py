@@ -168,6 +168,99 @@ def evaluate_accuracy(
     return train_acc, valid_acc, test_acc
 
 
+def mse_score(
+    regressor: torch.nn.Module,
+    inputs: torch.Tensor,
+    labels: torch.Tensor,
+    reduce_dim: int = 0,
+    move_device: bool = True,
+    device: str = "cuda" if torch.cuda.is_available() else "cpu",
+):
+    if move_device:
+        regressor = regressor.to(device)
+        inputs = inputs.to(device)
+        labels = labels.to(device)
+    with torch.no_grad():
+        yhat = regressor.predict(inputs)
+        mse = torch.mean((yhat - labels) ** 2, dim=reduce_dim)
+    return mse
+
+
+def evaluate_mse(
+    regressor: torch.nn.Module,
+    train_ds: Optional[torch.utils.data.Dataset] = None,
+    valid_ds: Optional[torch.utils.data.Dataset] = None,
+    test_ds: Optional[torch.utils.data.Dataset] = None,
+    reduce_dim: int = 0,
+    move_device: bool = True,
+    device: str = "cuda" if torch.cuda.is_available() else "cpu",
+    save_path: Optional[str] = None,
+    filename: Optional[str] = "accuracy",
+):
+    train_mse = (
+        mse_score(
+            regressor,
+            *train_ds[:],
+            reduce_dim=reduce_dim,
+            move_device=move_device,
+            device=device,
+        )
+        if train_ds
+        else None
+    )
+    valid_mse = (
+        mse_score(
+            regressor,
+            *valid_ds[:],
+            reduce_dim=reduce_dim,
+            move_device=move_device,
+            device=device,
+        )
+        if valid_ds
+        else None
+    )
+    test_mse = (
+        mse_score(
+            regressor,
+            *test_ds[:],
+            reduce_dim=reduce_dim,
+            move_device=move_device,
+            device=device,
+        )
+        if test_ds
+        else None
+    )
+
+    if train_mse is not None:
+        if train_mse.numel() == 1:
+            train_mse = train_mse.item()
+    if valid_mse is not None:
+        if valid_mse.numel() == 1:
+            valid_mse = valid_mse.item()
+    if test_mse is not None:
+        if test_mse.numel() == 1:
+            test_mse = test_mse.item()
+
+    if save_path is not None:
+        save_dict(
+            {
+                "train mse": train_mse.tolist()
+                if isinstance(train_mse, torch.Tensor)
+                else train_mse,
+                "valid mse": valid_mse.tolist()
+                if isinstance(valid_mse, torch.Tensor)
+                else valid_mse,
+                "test mse": test_mse.tolist()
+                if isinstance(test_mse, torch.Tensor)
+                else test_mse,
+            },
+            save_path,
+            filename,
+        )
+
+    return train_mse, valid_mse, test_mse
+
+
 def add_gaussian_noise(
     x: torch.Tensor,
     std: float = 0.1,
