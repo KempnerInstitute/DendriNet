@@ -1,5 +1,5 @@
 model:
-  task: classification
+  task: classification  # Options: "classification", "regression"
   probabilistic: true  # This is only for the final EINet model
   network:
     type: EINet #"EINet", "MLP"
@@ -18,12 +18,14 @@ model:
       # topk parameters
       topk_init_method: xavier_normal
       topk_noise_level: 0.2 # Added parameter for TopK noise
-      topk_type: standard # Options: "standard", "stochastic", "variance"
+      topk_type: standard # Options: "standard", "stochastic", "variance", "deepst"
       topk_temperature: 0.5 # Controls the stochastic selection sharpness (0.1-1.0)
       topk_ultrafast: true # Enable faster implementation for stochastic TopK
       # reactivation parameters
       reactivate: true
-      reactivation_type: param_tanh # "none", "param_tanh", "param_tanh_only_m", "relu", "sigmoid", "tanh"
+      reactivation_type: param_tanh # "none", "param_tanh", "param_tanh_only_m", "relu", "sigmoid", "tanh", "param_linear_sigmoid"
+      reactivation_init_m: 1.5
+      reactivation_init_b: 0.5
       # gradient scaling parameters
       reactivation_strategy: inverse # "none", "inverse"
       topk_strategy: conductance_dynamic
@@ -41,10 +43,23 @@ model:
         type: "MLPInputTransform"  # Type of input network: "MLPInputTransform", "AlexNetTransform", etc.
         hidden_dims: [] #[512, 256, 128]     # Hidden layer dimensions for better capacity
         output_dim: 128             # Output dimension for both excitatory and inhibitory pathways
+      
+      # DEEPST specific parameters
+      excitatory_target_density: 0.1
+      inhibitory_target_density: 0.1
+      use_noise: true
+      sigma: 0.05
+      rewiring_mode: "global"  # "global", "local", "constant_branch"
+      rewire_frequency: 1
+      synapses_per_branch: None
+      freeze_excitatory_connectivity: false
+      freeze_inhibitory_connectivity: false
+      init_method: "xavier_normal"
+      weight_threshold: 1e-6
 
 train:
   run_name: exp_run
-  learning_strategy: mle # Options: "mle", "freeze_layers", "local_credit_assignment", "two_step", "two_step_kl", "voltage_stabilization"
+  learning_strategy: mle # Options: "mle", "freeze_layers", "local_credit_assignment", "two_step", "two_step_kl", "voltage_stabilization", "mse"
   seed: 0
   train_valid_split: 0.8
   lr: 0.01  # Standard learning rate for Adam
@@ -87,7 +102,7 @@ task:
   parameters: {}
   # dataset: "line", "center_surround", "orientation_bars", "multi_xor", "mnist", "mnist_modulo10", "mnist_switch2",
             #"mnist_switch10", "info_shunting", "noise_resilience", "feature_selectivity", "context_gating",
-            #"learning_dynamics", "hierarchical_processing", "cifar10", "poisson_generator"
+            #"learning_dynamics", "hierarchical_processing", "cifar10", "poisson_generator", "orthonet"
   # parameters:
   #   train_size: 8000
   #   valid_size: 1000
