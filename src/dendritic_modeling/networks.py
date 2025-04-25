@@ -374,6 +374,8 @@ class ExcitationInhibitionLayer(nn.Module):
         ie_synapses_per_branch=None,
         ii_synapses_per_branch=None,
         reactivate=True,
+        reactivation_init_m=1.5,
+        reactivation_init_b=0.5,
         somatic_synapses=True,
         topk_init_method="xavier_normal",
         use_shunting=True,
@@ -385,6 +387,17 @@ class ExcitationInhibitionLayer(nn.Module):
         topk_type="standard",
         topk_strategy="none",
         print_hooks=False,
+        excitatory_target_density=0.1,
+        inhibitory_target_density=0.1,
+        use_noise=True,
+        sigma=0.05,
+        rewiring_mode="global",
+        synapses_per_branch=None,
+        freeze_excitatory_connectivity=False,
+        freeze_inhibitory_connectivity=False,
+        init_method="xavier_normal",
+        weight_threshold=1e-6,
+        **kwargs
     ):
         super().__init__()
 
@@ -409,12 +422,25 @@ class ExcitationInhibitionLayer(nn.Module):
                     topk_init_method=topk_init_method,
                     use_shunting=use_shunting,
                     reactivation_type=reactivation_type,
+                    reactivation_init_m=reactivation_init_m,
+                    reactivation_init_b=reactivation_init_b,
                     reactivation_strategy=reactivation_strategy,
                     blocklinear_strategy=blocklinear_strategy,
                     topk_noise_level=topk_noise_level,
                     topk_strategy=topk_strategy,
                     topk_type=topk_type,
                     print_hooks=print_hooks,
+                    excitatory_target_density=excitatory_target_density,
+                    inhibitory_target_density=inhibitory_target_density,
+                    use_noise=use_noise,
+                    sigma=sigma,
+                    rewiring_mode=rewiring_mode,
+                    synapses_per_branch=synapses_per_branch,
+                    freeze_excitatory_connectivity=freeze_excitatory_connectivity,
+                    freeze_inhibitory_connectivity=freeze_inhibitory_connectivity,
+                    init_method=init_method,
+                    weight_threshold=weight_threshold,
+                    **kwargs
                 )
             else:
                 self.inhibitory_cells = DendriNet(
@@ -425,6 +451,8 @@ class ExcitationInhibitionLayer(nn.Module):
                     inhibitory_input_dim=inhibitory_input_dim,
                     inhibitory_synapses_per_branch=ii_synapses_per_branch,
                     reactivate=reactivate,
+                    reactivation_init_m=reactivation_init_m,
+                    reactivation_init_b=reactivation_init_b,
                     somatic_synapses=somatic_synapses,
                     topk_init_method=topk_init_method,
                     use_shunting=use_shunting,
@@ -435,6 +463,17 @@ class ExcitationInhibitionLayer(nn.Module):
                     topk_strategy=topk_strategy,
                     topk_type=topk_type,
                     print_hooks=print_hooks,
+                    excitatory_target_density=excitatory_target_density,
+                    inhibitory_target_density=inhibitory_target_density,
+                    use_noise=use_noise,
+                    sigma=sigma,
+                    rewiring_mode=rewiring_mode,
+                    synapses_per_branch=synapses_per_branch,
+                    freeze_excitatory_connectivity=freeze_excitatory_connectivity,
+                    freeze_inhibitory_connectivity=freeze_inhibitory_connectivity,
+                    init_method=init_method,
+                    weight_threshold=weight_threshold,
+                    **kwargs
                 )
         else:
             self.inhibitory_cells = None
@@ -450,6 +489,8 @@ class ExcitationInhibitionLayer(nn.Module):
                 else None,
                 inhibitory_synapses_per_branch=ie_synapses_per_branch,
                 reactivate=reactivate,
+                reactivation_init_m=reactivation_init_m,
+                reactivation_init_b=reactivation_init_b,
                 somatic_synapses=somatic_synapses,
                 topk_init_method=topk_init_method,
                 use_shunting=use_shunting,
@@ -460,6 +501,17 @@ class ExcitationInhibitionLayer(nn.Module):
                 topk_strategy=topk_strategy,
                 topk_type=topk_type,
                 print_hooks=print_hooks,
+                excitatory_target_density=excitatory_target_density,
+                inhibitory_target_density=inhibitory_target_density,
+                use_noise=use_noise,
+                sigma=sigma,
+                rewiring_mode=rewiring_mode,
+                synapses_per_branch=synapses_per_branch,
+                freeze_excitatory_connectivity=freeze_excitatory_connectivity,
+                freeze_inhibitory_connectivity=freeze_inhibitory_connectivity,
+                init_method=init_method,
+                weight_threshold=weight_threshold,
+                **kwargs
             )
         else:
             self.excitatory_cells = DendriNet(
@@ -472,6 +524,8 @@ class ExcitationInhibitionLayer(nn.Module):
                 else None,
                 inhibitory_synapses_per_branch=ie_synapses_per_branch,
                 reactivate=reactivate,
+                reactivation_init_m=reactivation_init_m,
+                reactivation_init_b=reactivation_init_b,
                 somatic_synapses=somatic_synapses,
                 topk_init_method=topk_init_method,
                 use_shunting=use_shunting,
@@ -482,6 +536,17 @@ class ExcitationInhibitionLayer(nn.Module):
                 topk_strategy=topk_strategy,
                 topk_type=topk_type,
                 print_hooks=print_hooks,
+                excitatory_target_density=excitatory_target_density,
+                inhibitory_target_density=inhibitory_target_density,
+                use_noise=use_noise,
+                sigma=sigma,
+                rewiring_mode=rewiring_mode,
+                synapses_per_branch=synapses_per_branch,
+                freeze_excitatory_connectivity=freeze_excitatory_connectivity,
+                freeze_inhibitory_connectivity=freeze_inhibitory_connectivity,
+                init_method=init_method,
+                weight_threshold=weight_threshold,
+                **kwargs
             )
 
     def decay_weights(self, weight_decay):
@@ -582,6 +647,8 @@ class ExcitationInhibitionNetwork(nn.Module):
         inhibitory_branch_factors: List[int],
         output_dim: int = 10,
         reactivate: bool = True,
+        reactivation_init_m: float = 1.5,
+        reactivation_init_b: float = 0.5,
         somatic_synapses: bool = True,
         ee_synapses_per_branch_per_layer: List[int] = None,
         ei_synapses_per_branch_per_layer: List[int] = None,
@@ -600,6 +667,16 @@ class ExcitationInhibitionNetwork(nn.Module):
         topk_strategy: str = "conductance_dynamic",
         topk_type: str = "standard",
         print_hooks: bool = False,
+        excitatory_target_density=0.1,
+        inhibitory_target_density=0.1,
+        use_noise=True,
+        sigma=0.05,
+        rewiring_mode="global",
+        synapses_per_branch=None,
+        freeze_excitatory_connectivity=False,
+        freeze_inhibitory_connectivity=False,
+        init_method="xavier_normal",
+        weight_threshold=1e-6,
         **kwargs,
     ):
         super().__init__()
@@ -610,6 +687,8 @@ class ExcitationInhibitionNetwork(nn.Module):
         self.excitatory_branch_factors = excitatory_branch_factors
         self.inhibitory_branch_factors = inhibitory_branch_factors
         self.reactivate = reactivate
+        self.reactivation_init_m = reactivation_init_m
+        self.reactivation_init_b = reactivation_init_b
         self.somatic_synapses = somatic_synapses
         self.ee_synapses_per_branch_per_layer = (
             ee_synapses_per_branch_per_layer if ee_synapses_per_branch_per_layer else []
@@ -637,6 +716,16 @@ class ExcitationInhibitionNetwork(nn.Module):
         self.topk_type = topk_type
         self.topk_noise_level = kwargs.get("topk_noise_level", 0.0)
         self.print_hooks = print_hooks
+        self.excitatory_target_density = excitatory_target_density
+        self.inhibitory_target_density = inhibitory_target_density
+        self.use_noise = use_noise
+        self.sigma = sigma
+        self.rewiring_mode = rewiring_mode
+        self.synapses_per_branch = synapses_per_branch
+        self.freeze_excitatory_connectivity = freeze_excitatory_connectivity
+        self.freeze_inhibitory_connectivity = freeze_inhibitory_connectivity
+        self.init_method = init_method
+        self.weight_threshold = weight_threshold
 
         # Set up input transformation based on input_mode
         if input_mode == 0:
@@ -750,6 +839,8 @@ class ExcitationInhibitionNetwork(nn.Module):
                 ie_synapses_per_branch=ie_syn[i],
                 ii_synapses_per_branch=ii_syn[i],
                 reactivate=self.reactivate,
+                reactivation_init_m=self.reactivation_init_m,
+                reactivation_init_b=self.reactivation_init_b,
                 somatic_synapses=self.somatic_synapses,
                 topk_init_method=self.topk_init_method,
                 use_shunting=self.use_shunting,
@@ -761,6 +852,16 @@ class ExcitationInhibitionNetwork(nn.Module):
                 topk_strategy=self.topk_strategy,
                 topk_type=self.topk_type,
                 print_hooks=self.print_hooks,
+                excitatory_target_density=self.excitatory_target_density,
+                inhibitory_target_density=self.inhibitory_target_density,
+                use_noise=self.use_noise,
+                sigma=self.sigma,
+                rewiring_mode=self.rewiring_mode,
+                synapses_per_branch=self.synapses_per_branch,
+                freeze_excitatory_connectivity=self.freeze_excitatory_connectivity,
+                freeze_inhibitory_connectivity=self.freeze_inhibitory_connectivity,
+                init_method=self.init_method,
+                weight_threshold=self.weight_threshold
             )
             layers.append(layer)
 
@@ -773,6 +874,10 @@ class ExcitationInhibitionNetwork(nn.Module):
             self.excitatory_layer_sizes[-1] if self.excitatory_layer_sizes else 0
         )
         self.output_classifier = nn.Linear(final_exc_size, self.output_dim)
+
+    def decay_weights(self, weight_decay):
+        for layer in self.layers:
+            layer.decay_weights(weight_decay)
 
     def forward(self, x):
         """
@@ -1105,6 +1210,7 @@ class MatchedParamMLP(nn.Module):
             somatic_synapses=somatic_synapses,
             output_layer=output_layer,
             output_dim=output_dim,
+            **kwargs
         )
 
         summary = torchinfo.summary(einet, verbose=0)
@@ -1166,3 +1272,203 @@ class MatchedParamMLP(nn.Module):
     def forward(self, x):
         return self.network(x)
 
+
+class SimpleMLPLayer(nn.Module):
+    """
+    A single layer of a simple MLP with configurable activation function.
+    Supports all activation functions from ActivationFactory.
+    """
+    def __init__(self, in_features, out_features, activation_type=None, trainable_activation=True, 
+                 activation_wrapper=None, positive_weights=False, init_m=4.0, use_batch_norm=False,
+                 weight_init="kaiming_uniform"):  # Updated default to be more explicit
+        super(SimpleMLPLayer, self).__init__()
+        self.in_features = int(in_features)
+        self.out_features = int(out_features)
+        self.init_m = init_m
+        self.use_batch_norm = use_batch_norm
+        
+        # Linear layer
+        self.linear = nn.Linear(self.in_features, self.out_features)
+
+        # Initialize weights using selected method
+        weight_init = weight_init.lower()  # Normalize to lowercase for comparison
+        
+        # Kaiming/He initialization variants
+        if weight_init == "kaiming_normal" or weight_init == "kaiming" or weight_init == "he_normal":
+            nn.init.kaiming_normal_(self.linear.weight)
+        elif weight_init == "kaiming_uniform" or weight_init == "he_uniform":
+            nn.init.kaiming_uniform_(self.linear.weight)
+            
+        # Xavier/Glorot initialization variants
+        elif weight_init == "xavier_normal" or weight_init == "xavier" or weight_init == "glorot_normal":
+            nn.init.xavier_normal_(self.linear.weight)
+        elif weight_init == "xavier_uniform" or weight_init == "glorot_uniform":
+            nn.init.xavier_uniform_(self.linear.weight)
+            
+        # Standard normal and uniform initialization
+        elif weight_init == "normal":
+            nn.init.normal_(self.linear.weight, mean=0.0, std=0.01)
+        elif weight_init == "uniform":
+            nn.init.uniform_(self.linear.weight, -0.01, 0.01)
+            
+        # Default to kaiming_normal if unrecognized
+        else:
+            nn.init.kaiming_uniform_(self.linear.weight)
+            
+        # Scale weights to [0,1] if positive_weights is True
+        if positive_weights:
+            with torch.no_grad():
+                self.linear.weight.data = (self.linear.weight.data + 1) / 2
+                
+        nn.init.zeros_(self.linear.bias)
+        
+        # Batch normalization layer
+        if self.use_batch_norm:
+            self.batch_norm = nn.BatchNorm1d(self.out_features)
+        
+        # Activation function from factory
+        if activation_type is not None:
+            self.activation = ActivationFactory.create(
+                act_type=activation_type,
+                output_dim=self.out_features,
+                init_m=self.init_m,
+                init_b=2.0,
+                trainable=trainable_activation,
+                activation_wrapper=activation_wrapper
+            )
+        else:
+            self.activation = None
+
+    def decay_weights(self, weight_decay):
+        """Apply weight decay to linear layer."""
+        if weight_decay is not None:
+            with torch.no_grad():
+                self.linear.weight.sub_(weight_decay * self.linear.weight)
+                self.linear.bias.sub_(weight_decay * self.linear.bias)
+
+    def forward(self, x):
+        """Forward pass through the layer."""
+        x = self.linear(x)
+        
+        # Apply batch normalization if enabled
+        if self.use_batch_norm:
+            x = self.batch_norm(x)
+            
+        # Apply activation if present
+        if self.activation is not None:
+            x = self.activation(x)
+            
+        return x
+
+
+class SimpleMLPNet(nn.Module):
+    """
+    A modular MLP implementation that uses SimpleMLPLayer.
+    Supports all activation functions from ActivationFactory.
+    """
+    def __init__(
+        self,
+        input_dim,
+        hidden_dim,
+        output_dim,
+        nb_layers = 2,  # default to 2-layer network
+        activation_type="param_linear_sigmoid",
+        weight_decay_rate=None,
+        learning_strategy="regression",
+        trainable_activation=True,
+        grad_clip_value=1.0,
+        activation_wrapper=None,
+        init_m=4.0,
+        seed=None,
+        use_batch_norm=False,  # Batch normalization parameter
+        weight_init="kaiming_uniform",  # Updated default value with more options
+        **kwargs
+    ):
+        super(SimpleMLPNet, self).__init__()
+        self.weight_decay_rate = weight_decay_rate
+        self.learning_strategy = learning_strategy
+        self.input_dim = int(input_dim)
+        self.grad_clip_value = grad_clip_value
+        self.init_m = init_m
+        self.use_batch_norm = use_batch_norm
+        self.weight_init = weight_init
+
+        if seed is not None:
+            self.set_seed(seed)
+            
+        # Build multi-layer network
+        layers = []
+        
+        # First layer: input_dim -> hidden_dim
+        layers.append(SimpleMLPLayer(
+            in_features=input_dim,
+            out_features=hidden_dim,
+            activation_type=activation_type,
+            trainable_activation=trainable_activation,
+            activation_wrapper=activation_wrapper,
+            init_m=self.init_m,
+            use_batch_norm=use_batch_norm,
+            weight_init=weight_init
+        ))
+        
+        # Hidden layers: hidden_dim -> hidden_dim
+        for _ in range(nb_layers - 2):
+            layers.append(SimpleMLPLayer(
+                in_features=hidden_dim,
+                out_features=hidden_dim,
+                activation_type=activation_type,
+                trainable_activation=trainable_activation,
+                activation_wrapper=activation_wrapper,
+                init_m=self.init_m,
+                use_batch_norm=use_batch_norm,
+                weight_init=weight_init
+            ))
+            
+        # Output layer: hidden_dim -> output_dim (no activation)
+        layers.append(SimpleMLPLayer(
+            in_features=hidden_dim,
+            out_features=output_dim,
+            activation_type=None,
+            trainable_activation=trainable_activation,
+            activation_wrapper=activation_wrapper,
+            init_m=self.init_m,
+            use_batch_norm=False,  # No batch norm on output layer
+            weight_init=weight_init
+        ))
+        
+        self.layers = nn.ModuleList(layers)
+
+    def decay_weights(self, weight_decay=None):
+        """Apply weight decay to all layers."""
+        if weight_decay is not None:
+            weight_decay = self.weight_decay_rate
+            for layer in self.layers:
+                layer.decay_weights(weight_decay)
+    
+    def clip_gradients(self):
+        """Apply gradient clipping to all parameters."""
+        if self.grad_clip_value > 0:
+            torch.nn.utils.clip_grad_norm_(self.parameters(), max_norm=self.grad_clip_value)
+                
+    def forward(self, x):
+        """Forward pass through the network."""
+        for layer in self.layers:
+            x = layer(x)
+        return x
+    
+    def set_seed(self, seed):
+        """Set the seed for the network."""
+        torch.manual_seed(seed)
+        torch.cuda.manual_seed(seed)
+        torch.cuda.manual_seed_all(seed)
+
+    @property
+    def branch_layers(self):
+        """Compatibility with existing codebase expectations."""
+        return []
+
+    @property
+    def n_branch_layers(self):
+        """Compatibility with existing codebase expectations."""
+        return 0
+    
