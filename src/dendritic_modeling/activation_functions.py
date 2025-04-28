@@ -78,6 +78,62 @@ class SimpleTanh(nn.Module):
         return torch.tanh(x)
 
 
+class ParametricLinearSigmoid(nn.Module):
+    """
+    A parametric activation function that interpolates between linear and sigmoid functions.
+    The function is: h(x)*g(x) + f(x)*(1-g(x)) where:
+    - h(x) = x (linear function)
+    - g(x) = exp(x/2) (exponential weighting)
+    - f(x) = 4/(1 + exp(-(mx + 2))) (sigmoid function)
+    
+    Parameters
+    ----------
+    output_dim : int
+        Dimension of the output
+    init_m : float
+        Initial value for the slope parameter
+    init_b : float or None
+        Initial value for the bias parameter
+    trainable : bool
+        Whether to train the slope parameter (default: True)
+    """
+    def __init__(self, output_dim, init_m=4, init_b=None, trainable=True,
+                 activation_wrapper=None):
+        super(ParametricLinearSigmoid, self).__init__()
+        self.log_m = nn.Parameter(torch.empty((output_dim,)), 
+                                requires_grad=trainable)
+        
+        # Initialize trainable parameter
+        if init_m == 0:
+            init_m = 1e-8
+        nn.init.constant_(self.log_m, math.log(init_m))
+
+        # Fixed parameters for sigmoid
+        self.fixed_L = 1.0
+        if init_b is None:
+            self.fixed_b = 2.0
+        else:
+            self.fixed_b = init_b
+        
+        # Wrapper for the activation function using ActivationFactory
+        self.activation_wrapper = activation_wrapper
+        
+    def forward(self, x):
+        m = self.log_m.exp()  # slope
+        
+        # Calculate the three component functions
+        h_x = x  # linear function
+        g_x = torch.exp(-3*x)  # exponential weighting
+        f_x = self.fixed_L / (1 + torch.exp(-(m * x + self.fixed_b)))  # sigmoid
+        
+        # Combine using the interpolation formula
+        if self.activation_wrapper is not None:
+            act_wrap = ActivationFactory.create(self.activation_wrapper)
+            return act_wrap(h_x * g_x + f_x * (1 - g_x))
+        else:
+            return h_x * g_x + f_x * (1 - g_x)
+
+
 class ActivationFactory:
     """
     A factory for building different activation/ reactivation modules.
@@ -127,5 +183,9 @@ class ActivationFactory:
             return SimpleSigmoid()
         elif act_type == "tanh":
             return SimpleTanh()
+        elif act_type == "param_linear_sigmoid":
+            if output_dim is None:
+                raise ValueError("ParametricLinearSigmoid requires output_dim.")
+            return ParametricLinearSigmoid(output_dim, init_m=init_m, init_b=init_b, **kwargs)
         else:
             raise ValueError(f"Unknown activation type: {act_type}")

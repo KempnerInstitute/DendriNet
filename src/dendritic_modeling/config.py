@@ -6,7 +6,7 @@ This module defines the configuration dataclasses for the model, training, task,
 It loads and saves configurations using OmegaConf.
 """
 from dataclasses import asdict, dataclass, field
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional
 
 from omegaconf import OmegaConf as om
 
@@ -36,6 +36,8 @@ class EINetParameters(BaseConfig):
     ie_synapses_per_branch_per_layer: List[int] = field(default_factory=lambda: [1])
     ii_synapses_per_branch_per_layer: List[int] = field(default_factory=lambda: [])
     reactivate: bool = True
+    reactivation_init_m: float = 1.5
+    reactivation_init_b: float = 0.5
     somatic_synapses: bool = True
     topk_init_method: str = "xavier_normal"
     topk_noise_level: float = 0.0
@@ -55,6 +57,16 @@ class EINetParameters(BaseConfig):
     enable_branch_outputs: bool = True
     output_layer: bool = False
     output_dim: int = 10
+    excitatory_target_density: float = 0.1
+    inhibitory_target_density: float = 0.1
+    use_noise: bool = True
+    sigma: float = 0.05
+    rewiring_mode: str = "global"
+    synapses_per_branch: Optional[int] = None
+    freeze_excitatory_connectivity: bool = False
+    freeze_inhibitory_connectivity: bool = False
+    init_method: str = "xavier_normal"
+    weight_threshold: float = 1e-6
 
 
 @dataclass
