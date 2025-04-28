@@ -740,6 +740,134 @@ def poisson_generator_dataset(
     return data
 
 
+class OrthoNet(torch.nn.Module):
+    """ Orthogonal sigmoid network (Invertible network) """
+
+    def __init__(self,d, nb_layers, nonlinearity='sigmoid'):
+        super().__init__()
+        for i in range(nb_layers):
+            # register as we don't want to update it
+            self.register_buffer(f'Q_{i}', self.rand_ortho(d))
+        self.nb_layer = nb_layers
+        if nonlinearity is None:
+            self.nonlinearity = torch.tanh
+        elif nonlinearity == 'sigmoid':
+            self.nonlinearity = torch.sigmoid
+        elif nonlinearity == 'tanh':
+            self.nonlinearity = torch.tanh
+        else:
+            raise ValueError(f"Invalid nonlinearity: {nonlinearity}")
+
+
+    def forward(self,x):
+        for i in range(self.nb_layer):
+            Q = getattr(self,f'Q_{i}')
+            x = self.nonlinearity(x @ Q)
+        return x
+    
+    def rand_ortho(self,d):
+        """ Generate a random orthogonal matrix of dimension d """
+        Q, R = torch.linalg.qr(torch.randn(d,d))
+        return Q
+    
+
+class OrthoNetRepeat(torch.nn.Module):
+    """ Orthogonal sigmoid network with repeated layer weights plus noise """
+
+    def __init__(self, d, nb_layers, nonlinearity=None, noise_std=0.1):
+        super().__init__()
+        # Generate the first layer's orthogonal matrix
+        base_Q = self.rand_ortho(d)
+        self.register_buffer('Q_0', base_Q)
+        
+        # Create subsequent layers by adding noise to the first layer
+        for i in range(1, nb_layers):
+            noise = torch.randn_like(base_Q) * noise_std
+            noisy_Q = base_Q + noise
+            # Re-orthogonalize the matrix
+            Q, R = torch.linalg.qr(noisy_Q)
+            self.register_buffer(f'Q_{i}', Q)
+            
+        self.nb_layer = nb_layers
+        if nonlinearity is None:
+            self.nonlinearity = torch.tanh
+        elif nonlinearity == 'sigmoid':
+            self.nonlinearity = torch.sigmoid
+        elif nonlinearity == 'tanh':
+            self.nonlinearity = torch.tanh
+        else:
+            raise ValueError(f"Invalid nonlinearity: {nonlinearity}")
+
+    def forward(self, x):
+        for i in range(self.nb_layer):
+            Q = getattr(self, f'Q_{i}')
+            x = self.nonlinearity(x @ Q)
+        return x
+    
+    def rand_ortho(self, d):
+        """ Generate a random orthogonal matrix of dimension d """
+        Q, R = torch.linalg.qr(torch.randn(d, d))
+        return Q
+    
+class OrthoNetDataset(Dataset):
+    """
+    Dataset that generates data using invertible nonlinear transformations.
+    Input data is uniformly random in [-1,1]^d, transformed through an OrthoNet network.
+    Labels are the original inputs, making this an inverse problem dataset.
+    """
+    def __init__(self, n_samples=10000, input_dim=10, n_layers=5, nonlinearity='sigmoid', 
+                 positive_input=True, seed=None, repeat_layers=False, noise_std=0.1):
+        super().__init__()
+        self.n_samples = n_samples
+        self.input_dim = input_dim
+        self.n_layers = n_layers
+        self.nonlinearity = nonlinearity
+        self.positive_input = positive_input
+        self.repeat_layers = repeat_layers
+        self.noise_std = noise_std
+        self.seed = seed
+
+        if seed is not None:
+            self.set_seed(seed)
+            
+        self.data, self.labels = self._generate_data()
+
+    def set_seed(self, seed):
+        """Set the seed for the network."""
+        torch.manual_seed(seed)
+        torch.cuda.manual_seed(seed)
+        torch.cuda.manual_seed_all(seed)
+        torch.backends.cudnn.deterministic = True
+        torch.backends.cudnn.benchmark = False
+
+    def _generate_data(self):
+        # Generate random input data in [-1,1]^d
+        if self.positive_input:
+            X = torch.rand(self.n_samples, self.input_dim)
+        else:
+            X = 2 * torch.rand(self.n_samples, self.input_dim) - 1
+        
+        # Create and apply transformation
+        if self.repeat_layers:
+            F = OrthoNetRepeat(self.input_dim, self.n_layers, 
+                             self.nonlinearity, self.noise_std)
+        else:
+            F = OrthoNet(self.input_dim, self.n_layers, self.nonlinearity)
+            
+        with torch.no_grad():
+            Y = F(X)
+        
+        return Y, X
+
+    def __len__(self):
+        return self.n_samples
+
+    def __getitem__(self, idx):
+        # if isinstance(idx, slice):
+        #     return self.data[idx], self.labels[idx]
+        return self.data[idx], self.labels[idx]
+
+
 def get_unified_datasets(task_cfg, train_cfg):
     """
     Get datasets based on configuration.
@@ -881,6 +1009,23 @@ def get_unified_datasets(task_cfg, train_cfg):
             valid_ds = data["test"]
         test_ds = data["test"]
         return train_ds, valid_ds, test_ds
+    elif dataset_name == "orthonet":
+        input_dim = p.get('input_dim', 10)
+        n_layers = p.get('n_layers', 5)
+        nonlinearity = p.get('nonlinearity', 'sigmoid')
+        repeat_layers = p.get('repeat_layers', False)
+        noise_std = p.get('noise_std', 0.1)
+        seed = getattr(train_cfg, 'seed', 0)
+        full_ds = OrthoNetDataset(
+            n_samples=total, 
+            input_dim=input_dim, 
+            n_layers=n_layers, 
+            nonlinearity=nonlinearity, 
+            seed=seed,
+            repeat_layers=repeat_layers,
+            noise_std=noise_std
+        )
+        return random_split(full_ds, [train_size, valid_size, test_size])
     else:
         raise ValueError(f"Unknown dataset name: {dataset_name}")
 

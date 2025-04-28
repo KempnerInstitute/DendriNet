@@ -32,7 +32,7 @@ def initialize_dendritic_branch_layer(dbl):
             exc_std = sqrt(2 / (dbl.excitatory_input_dim + 1))
 
             if not dbl.input_inhibitory and not dbl.input_branches:
-                print("exc method 1", flush=True)
+                # print("exc method 1", flush=True)
                 step = 0.01
                 done = False
                 while not done:
@@ -47,7 +47,7 @@ def initialize_dendritic_branch_layer(dbl):
                         exc_mean -= step
 
             else:
-                print("exc method 2", flush=True)
+                # print("exc method 2", flush=True)
                 E_w_exc = compute_expectation_truncated_log_normal(
                     mean=exc_mean,
                     std=exc_std,
@@ -56,13 +56,13 @@ def initialize_dendritic_branch_layer(dbl):
 
             _no_grad_normal_(dbl.branch_excitation.pre_w, exc_mean, exc_std)
             E_g_exc = 0.5 * dbl.branch_excitation.K * E_w_exc
-            print("exc", E_g_exc, E_w_exc, flush=True)
+            # print("exc", E_g_exc, E_w_exc, flush=True)
 
         if dbl.input_inhibitory:
             inh_upper_quantile = dbl.branch_inhibition.K / dbl.inhibitory_input_dim
 
             if dbl.input_excitatory:
-                print("inh method 1", flush=True)
+                # print("inh method 1", flush=True)
                 ie_ratio = dbl.branch_inhibition.K / dbl.branch_excitation.K
 
                 inh_std = exc_std
@@ -80,7 +80,7 @@ def initialize_dendritic_branch_layer(dbl):
                         inh_std += step
 
             else:
-                print("inh method 2", flush=True)
+                # print("inh method 2", flush=True)
                 inh_std = sqrt(2 / (dbl.inhibitory_input_dim + 1))
                 E_w_inh = compute_expectation_truncated_log_normal(
                     mean=0,
@@ -90,7 +90,7 @@ def initialize_dendritic_branch_layer(dbl):
 
             _no_grad_normal_(dbl.branch_inhibition.pre_w, 0, inh_std)
             E_g_inh = 0.5 * dbl.branch_inhibition.K * E_w_inh
-            print("inh", E_g_inh, E_w_inh, flush=True)
+            # print("inh", E_g_inh, E_w_inh, flush=True)
 
         E_Vinf = E_g_exc / (E_g_exc + E_g_inh + 1)
 
@@ -100,12 +100,18 @@ def initialize_dendritic_branch_layer(dbl):
             sum_g_branch = ((E_g_exc + E_g_inh + 1) * E_Vinf - E_g_exc) / (0.5 - E_Vinf)
             g_branch = sum_g_branch / dbl.branches_to_output.block_size
 
-            dbl.branches_to_output.initialize(g_branch)
+            dbl.branches_to_output.initialize(
+                torch.full(
+                    (dbl.branches_to_output.out_features,),
+                    g_branch,
+                    device=dbl.branches_to_output.log_weight.device,
+                )
+            )
 
-        print("E_Vinf", E_Vinf, flush=True)
+        # print("E_Vinf", E_Vinf, flush=True)
 
-        if dbl.reactivate:
-            print("init react", flush=True)
-            dbl.reactivation.initialize(1.8, log(E_Vinf))
+        # if dbl.reactivate:
+        #     print("init react", flush=True)
+        #     dbl.reactivation.initialize(1.8, log(E_Vinf))
 
-    print("dbl initialized", flush=True)
+    # print("dbl initialized", flush=True)
