@@ -438,13 +438,24 @@ def train_and_evaluate(
         )
 
     if wandb.run is not None:
-        wandb.log(
-            {
+        if train_cfg.task == "classification":
+            wandb.log(
+                {
                 "final_train_acc": train_acc,
                 "final_valid_acc": valid_acc,
                 "final_test_acc": test_acc,
-            }
-        )
+                }
+            )
+        elif train_cfg.task == "regression":
+            wandb.log(
+                {
+                    "final_train_mse": train_mse,
+                    "final_valid_mse": valid_mse,
+                    "final_test_mse": test_mse,
+                }
+            )
+        else:
+            raise ValueError(f"Invalid task: {train_cfg.task}")
 
     return results
 

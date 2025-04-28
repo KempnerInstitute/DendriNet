@@ -172,7 +172,7 @@ def mse_score(
     regressor: torch.nn.Module,
     inputs: torch.Tensor,
     labels: torch.Tensor,
-    reduce_dim: int = 0,
+    reduce_dim: int = None,
     move_device: bool = True,
     device: str = "cuda" if torch.cuda.is_available() else "cpu",
 ):
@@ -182,7 +182,7 @@ def mse_score(
         labels = labels.to(device)
     with torch.no_grad():
         yhat = regressor.predict(inputs)
-        mse = torch.mean((yhat - labels) ** 2, dim=reduce_dim)
+        mse = torch.mean((yhat - labels) ** 2)
     return mse
 
 
@@ -195,7 +195,7 @@ def evaluate_mse(
     move_device: bool = True,
     device: str = "cuda" if torch.cuda.is_available() else "cpu",
     save_path: Optional[str] = None,
-    filename: Optional[str] = "accuracy",
+    filename: Optional[str] = "mse",
 ):
     train_mse = (
         mse_score(
