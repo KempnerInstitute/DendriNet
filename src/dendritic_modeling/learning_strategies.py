@@ -959,9 +959,10 @@ class TrainerRegression(BaseTrainer):
         start_time = time.time()
 
         patience_counter = 0
-        
+        epoch_counter = 0
         for epoch in range(1, epochs + 1):
             model.train()
+            epoch_counter += 1
             epoch_train_loss = 0.0
             epoch_train_mse = 0.0
             
@@ -1002,7 +1003,7 @@ class TrainerRegression(BaseTrainer):
             
             if wandb.run is not None:
                 wandb.log({
-                    "epoch": epoch,
+                    "epoch": epoch_counter,
                     "train_loss": epoch_train_loss,
                     "train_mse": epoch_train_mse,
                     "valid_loss": val_loss,
@@ -1016,7 +1017,7 @@ class TrainerRegression(BaseTrainer):
             
             if val_loss < best_loss:
                 best_loss = val_loss
-                best_epoch = epoch
+                best_epoch = epoch_counter
                 best_state = deepcopy(model.state_dict())
                 patience_counter = 0
                 if save_path and os.path.exists(save_path):
