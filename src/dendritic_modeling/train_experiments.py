@@ -55,12 +55,14 @@ from dendritic_modeling.models import (
     ProbabilisticClassifier,
     SimpleClassifier,
     SimpleMLP,
+    Regressor,
+    DeepstRegressor,
 )
 from dendritic_modeling.networks import (
     ExcitationInhibitionNetwork,
     InputNetTransform,
-    MLPExcInhNetwork,
-    SigmoidInputNetTransform,
+    MatchedParamMLP,
+    SigmoidInputNetTransform
 )
 from dendritic_modeling.plot_utils import plot_NLL_loss_curves
 from dendritic_modeling.synthetic_datasets import get_unified_datasets
@@ -68,6 +70,7 @@ from dendritic_modeling.utils import (
     analyze_branch_ablation,
     analyze_layerwise_ablation,
     evaluate_accuracy,
+    evaluate_mse,
     safe_register_hooks,
     save_dict,
 )
@@ -91,7 +94,7 @@ def initialize_model(model_cfg, visualization_enabled=False):
                 f"Running feedforward with {'probabilistic' if probabilistic else 'simple'} classifier"
             )
             net_params_dict = OmegaConf.to_container(net_params, resolve=True)
-            net = MLPExcInhNetwork(**net_params_dict)
+            net = MatchedParamMLP(**net_params_dict)
             output_dim = net_params_dict.get("output_dim", 10)
             if probabilistic:
                 model = ProbabilisticClassifier(net, output_dim)
@@ -115,6 +118,36 @@ def initialize_model(model_cfg, visualization_enabled=False):
                 model = ProbabilisticClassifier(net, output_dim)
             else:
                 model = Classifier(net)
+            # Commenting out to preserve gradient scaling hooks
+            # safe_register_hooks(model)
+            return model
+        else:
+            raise ValueError(f"Invalid network type: {net_type}")
+    elif task == "regression":
+        if net_type == "MLP":
+            logger.info(
+                f"Running feedforward with regressor"
+            )
+            net_params_dict = OmegaConf.to_container(net_params, resolve=True)
+            net = MatchedParamMLP(**net_params_dict)
+            output_dim = net_params_dict.get("output_dim", 10)
+            model = Regressor(net, output_dim)
+            # Commenting out to preserve gradient scaling hooks
+            # safe_register_hooks(model)
+            return model
+        elif net_type == "EINet":
+            logger.info(
+                f"Running EINet with regressor"
+            )
+            net_params_dict = OmegaConf.to_container(net_params, resolve=True)
+            net_params_dict["enable_branch_outputs"] = enable_branch_outputs
+            net_params_dict["learning_strategy"] = learning_strategy
+            net = ExcitationInhibitionNetwork(**net_params_dict)
+            # Commenting out to preserve gradient scaling hooks
+            # safe_register_hooks(net)
+            output_dim = net_params_dict.get("output_dim", 10)
+            rewire_frequency = net_params_dict.get("rewire_frequency", 1)
+            model = DeepstRegressor(net, output_dim, rewire_frequency=rewire_frequency)
             # Commenting out to preserve gradient scaling hooks
             # safe_register_hooks(model)
             return model
@@ -385,17 +418,24 @@ def train_and_evaluate(
         plot_NLL_loss_curves(train_losses, valid_losses, plot_epochs, run_save_path)
 
     logger.info("Evaluating final model performance")
-    train_acc, valid_acc, test_acc = evaluate_accuracy(
-        model,
-        train_ds,
-        valid_ds,
-        test_ds,
-        save_path=os.path.join(run_save_path, "performance"),
-        filename="final",
-    )
-    logger.info(
-        f"Final accuracy: train={train_acc:.4f}, valid={valid_acc:.4f}, test={test_acc:.4f}"
-    )
+    if train_cfg.task == "classification":
+        train_acc, valid_acc, test_acc = evaluate_accuracy(
+            model,
+            train_ds,
+            valid_ds,
+            test_ds,
+            save_path=os.path.join(run_save_path, "performance"),
+            filename="final",
+        )
+    elif train_cfg.task == "regression":
+        train_mse, valid_mse, test_mse = evaluate_mse(
+            model,
+            train_ds,
+            valid_ds,
+            test_ds,
+            save_path=os.path.join(run_save_path, "performance"),
+            filename="final",
+        )
 
     if wandb.run is not None:
         wandb.log(
@@ -775,6 +815,7 @@ def train_and_evaluate_main(config_path, args=None):
         }
     else:
         logger.info("Using standard training mode")
+        train_cfg.task = model_cfg.task
         results = train_and_evaluate(
             model,
             train_ds,
