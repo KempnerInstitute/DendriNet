@@ -103,15 +103,14 @@
 
 <span class="kn">import</span><span class="w"> </span><span class="nn">math</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">copy</span><span class="w"> </span><span class="kn">import</span> <span class="n">deepcopy</span>
-<span class="kn">from</span><span class="w"> </span><span class="nn">math</span><span class="w"> </span><span class="kn">import</span> <span class="n">floor</span><span class="p">,</span> <span class="n">log</span><span class="p">,</span> <span class="n">sqrt</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">math</span><span class="w"> </span><span class="kn">import</span> <span class="n">floor</span><span class="p">,</span> <span class="n">log</span>
 
 <span class="kn">import</span><span class="w"> </span><span class="nn">torch</span>
 <span class="kn">import</span><span class="w"> </span><span class="nn">torch.nn</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">nn</span>
-<span class="kn">from</span><span class="w"> </span><span class="nn">torch.nn.init</span><span class="w"> </span><span class="kn">import</span> <span class="n">_no_grad_normal_</span>
 
 <span class="kn">from</span><span class="w"> </span><span class="nn">dendritic_modeling.activation_functions</span><span class="w"> </span><span class="kn">import</span> <span class="n">ActivationFactory</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">dendritic_modeling.gradient_scaling</span><span class="w"> </span><span class="kn">import</span> <span class="n">GradientScaler</span>
-<span class="kn">from</span><span class="w"> </span><span class="nn">dendritic_modeling.initialize</span><span class="w"> </span><span class="kn">import</span> <span class="n">compute_expectation_truncated_log_normal</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">dendritic_modeling.initialize</span><span class="w"> </span><span class="kn">import</span> <span class="n">initialize_dendritic_branch_layer</span>
 
 <span class="n">TOPK_INIT_METHODS</span> <span class="o">=</span> <span class="p">{</span>
     <span class="s2">&quot;xavier_normal&quot;</span><span class="p">:</span> <span class="n">nn</span><span class="o">.</span><span class="n">init</span><span class="o">.</span><span class="n">xavier_normal_</span><span class="p">,</span>
@@ -675,6 +674,368 @@
 
 
 
+<div class="viewcode-block" id="DeepstLinear">
+<a class="viewcode-back" href="../../source/api/dendritic_modeling.html#dendritic_modeling.dendrinet.DeepstLinear">[docs]</a>
+<span class="k">class</span><span class="w"> </span><span class="nc">DeepstLinear</span><span class="p">(</span><span class="n">nn</span><span class="o">.</span><span class="n">Module</span><span class="p">):</span>
+    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span>
+            <span class="bp">self</span><span class="p">,</span> 
+            <span class="n">in_features</span><span class="p">,</span> 
+            <span class="n">out_features</span><span class="p">,</span> 
+            <span class="n">target_density</span><span class="o">=</span><span class="mf">0.1</span><span class="p">,</span>
+            <span class="n">sigma</span><span class="o">=</span><span class="mf">0.05</span><span class="p">,</span>  <span class="c1"># Noise amplitude for the random walk</span>
+            <span class="n">use_noise</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>  <span class="c1"># Whether to apply Gaussian noise</span>
+            <span class="n">rewiring_mode</span><span class="o">=</span><span class="s1">&#39;global&#39;</span><span class="p">,</span>  <span class="c1"># &#39;local&#39;, &#39;global&#39;, or &#39;constant_branch&#39;</span>
+            <span class="n">synapses_per_branch</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>  <span class="c1"># Required for &#39;constant_branch&#39; mode</span>
+            <span class="n">param_space</span><span class="o">=</span><span class="s1">&#39;log&#39;</span><span class="p">,</span>  <span class="c1"># &#39;log&#39; or &#39;presigmoid&#39; for weight parameterization</span>
+            <span class="n">weight_init_range</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+            <span class="n">init_method</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>  <span class="c1"># Add initialization method parameter</span>
+            <span class="n">freeze_connectivity</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span>  <span class="c1"># New: flag to freeze synapse locations</span>
+            <span class="n">weight_threshold</span><span class="o">=</span><span class="mf">1e-6</span>  <span class="c1"># New: threshold for weight pruning</span>
+        <span class="p">):</span>    
+        <span class="nb">super</span><span class="p">(</span><span class="n">DeepstLinear</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="fm">__init__</span><span class="p">()</span>
+        
+        <span class="bp">self</span><span class="o">.</span><span class="n">in_features</span> <span class="o">=</span> <span class="n">in_features</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">out_features</span> <span class="o">=</span> <span class="n">out_features</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">target_density</span> <span class="o">=</span> <span class="n">target_density</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">sigma</span> <span class="o">=</span> <span class="n">sigma</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">use_noise</span> <span class="o">=</span> <span class="n">use_noise</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">rewiring_mode</span> <span class="o">=</span> <span class="n">rewiring_mode</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">param_space</span> <span class="o">=</span> <span class="n">param_space</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">init_method</span> <span class="o">=</span> <span class="n">init_method</span>
+
+        <span class="c1"># Add K attribute for compatibility with initialize_dendritic_branch_layer</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">K</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">target_density</span> <span class="o">*</span> <span class="n">in_features</span><span class="p">)</span> <span class="k">if</span> <span class="n">in_features</span> <span class="k">else</span> <span class="kc">None</span>
+
+        <span class="c1"># Default initialization ranges</span>
+        <span class="k">if</span> <span class="n">weight_init_range</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">param_space</span> <span class="o">==</span> <span class="s1">&#39;log&#39;</span><span class="p">:</span>
+                <span class="n">weight_init_range</span> <span class="o">=</span> <span class="p">(</span><span class="o">-</span><span class="mf">2.1</span><span class="p">,</span> <span class="o">-</span><span class="mf">2.0</span><span class="p">)</span>  <span class="c1"># Default for log parameterization</span>
+            <span class="k">elif</span> <span class="n">param_space</span> <span class="o">==</span> <span class="s1">&#39;presigmoid&#39;</span><span class="p">:</span>
+                <span class="n">weight_init_range</span> <span class="o">=</span> <span class="p">(</span><span class="o">-</span><span class="mf">0.1</span><span class="p">,</span> <span class="mf">0.1</span><span class="p">)</span>   <span class="c1"># Default for presigmoid</span>
+            <span class="k">elif</span> <span class="n">param_space</span> <span class="o">==</span> <span class="s1">&#39;uniform&#39;</span><span class="p">:</span>
+                <span class="n">weight_init_range</span> <span class="o">=</span> <span class="p">(</span><span class="mf">0.25</span><span class="p">,</span> <span class="mf">0.75</span><span class="p">)</span>   <span class="c1"># Default for uniform</span>
+        <span class="c1"># Store weight initialization range</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">weight_init_range</span> <span class="o">=</span> <span class="n">weight_init_range</span>
+        
+        <span class="c1"># For constant_branch mode</span>
+        <span class="k">if</span> <span class="n">rewiring_mode</span> <span class="o">==</span> <span class="s1">&#39;constant_branch&#39;</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">synapses_per_branch</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+                <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;synapses_per_branch must be specified for constant_branch mode&quot;</span><span class="p">)</span>
+            <span class="k">if</span> <span class="n">synapses_per_branch</span> <span class="o">&gt;</span> <span class="n">in_features</span><span class="p">:</span>
+                <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;synapses_per_branch (</span><span class="si">{</span><span class="n">synapses_per_branch</span><span class="si">}</span><span class="s2">) cannot exceed in_features (</span><span class="si">{</span><span class="n">in_features</span><span class="si">}</span><span class="s2">)&quot;</span><span class="p">)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">synapses_per_branch</span> <span class="o">=</span> <span class="n">synapses_per_branch</span>
+        
+        <span class="c1"># Total number of possible connections</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">total_connections</span> <span class="o">=</span> <span class="n">out_features</span> <span class="o">*</span> <span class="n">in_features</span>
+        
+        <span class="c1"># Target number of active connections based on density</span>
+        <span class="k">if</span> <span class="n">rewiring_mode</span> <span class="o">==</span> <span class="s1">&#39;constant_branch&#39;</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">target_connections</span> <span class="o">=</span> <span class="n">out_features</span> <span class="o">*</span> <span class="n">synapses_per_branch</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">target_connections</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">total_connections</span> <span class="o">*</span> <span class="n">target_density</span><span class="p">)</span>
+        
+        <span class="c1"># Initialize weights parameter</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">init_method</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="ow">and</span> <span class="bp">self</span><span class="o">.</span><span class="n">init_method</span> <span class="ow">in</span> <span class="n">TOPK_INIT_METHODS</span><span class="p">:</span>
+            <span class="c1"># Initialize using PyTorch&#39;s initialization methods</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">pre_w</span> <span class="o">=</span> <span class="n">nn</span><span class="o">.</span><span class="n">Parameter</span><span class="p">(</span><span class="n">torch</span><span class="o">.</span><span class="n">zeros</span><span class="p">((</span><span class="n">out_features</span><span class="p">,</span> <span class="n">in_features</span><span class="p">)),</span> <span class="n">requires_grad</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+            <span class="c1"># Apply initialization to a temporary tensor (correct shape for initialization)</span>
+            <span class="n">temp_weight</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">zeros</span><span class="p">((</span><span class="n">out_features</span><span class="p">,</span> <span class="n">in_features</span><span class="p">))</span>
+            <span class="n">TOPK_INIT_METHODS</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">init_method</span><span class="p">](</span><span class="n">temp_weight</span><span class="p">)</span>
+            <span class="c1"># Reshape to our desired shape</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">pre_w</span><span class="o">.</span><span class="n">data</span> <span class="o">=</span> <span class="n">temp_weight</span><span class="o">.</span><span class="n">reshape</span><span class="p">(</span><span class="n">out_features</span><span class="p">,</span> <span class="n">in_features</span><span class="p">)</span>
+            
+            <span class="c1"># If using log or presigmoid parameterization, transform the weights accordingly</span>
+            <span class="k">if</span> <span class="n">param_space</span> <span class="o">==</span> <span class="s1">&#39;log&#39;</span><span class="p">:</span>
+                <span class="c1"># For log parameterization, ensure weights are positive then take log</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">pre_w</span><span class="o">.</span><span class="n">data</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">abs</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">pre_w</span><span class="o">.</span><span class="n">data</span><span class="p">)</span><span class="o">.</span><span class="n">clamp</span><span class="p">(</span><span class="nb">min</span><span class="o">=</span><span class="mf">1e-6</span><span class="p">)</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">pre_w</span><span class="o">.</span><span class="n">data</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">log</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">pre_w</span><span class="o">.</span><span class="n">data</span><span class="p">)</span>
+            <span class="k">elif</span> <span class="n">param_space</span> <span class="o">==</span> <span class="s1">&#39;presigmoid&#39;</span><span class="p">:</span>
+                <span class="c1"># For presigmoid, pass through inverse sigmoid (logit)</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">pre_w</span><span class="o">.</span><span class="n">data</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">clamp</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">pre_w</span><span class="o">.</span><span class="n">data</span><span class="p">,</span> <span class="nb">min</span><span class="o">=</span><span class="mf">1e-6</span><span class="p">,</span> <span class="nb">max</span><span class="o">=</span><span class="mi">1</span><span class="o">-</span><span class="mf">1e-6</span><span class="p">)</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">pre_w</span><span class="o">.</span><span class="n">data</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">log</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">pre_w</span><span class="o">.</span><span class="n">data</span> <span class="o">/</span> <span class="p">(</span><span class="mi">1</span> <span class="o">-</span> <span class="bp">self</span><span class="o">.</span><span class="n">pre_w</span><span class="o">.</span><span class="n">data</span><span class="p">))</span>
+            <span class="k">elif</span> <span class="n">param_space</span> <span class="o">==</span> <span class="s1">&#39;uniform&#39;</span><span class="p">:</span>
+                <span class="c1"># For uniform, pass through uniform initialization</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">pre_w</span><span class="o">.</span><span class="n">data</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">empty</span><span class="p">(</span><span class="n">out_features</span><span class="p">,</span> <span class="n">in_features</span><span class="p">)</span><span class="o">.</span><span class="n">uniform_</span><span class="p">(</span>
+                    <span class="bp">self</span><span class="o">.</span><span class="n">weight_init_range</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="bp">self</span><span class="o">.</span><span class="n">weight_init_range</span><span class="p">[</span><span class="mi">1</span><span class="p">])</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="c1"># Use uniform initialization with specified range</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">pre_w</span> <span class="o">=</span> <span class="n">nn</span><span class="o">.</span><span class="n">Parameter</span><span class="p">(</span><span class="n">torch</span><span class="o">.</span><span class="n">zeros</span><span class="p">((</span><span class="n">out_features</span><span class="p">,</span> <span class="n">in_features</span><span class="p">))</span><span class="o">.</span><span class="n">uniform_</span><span class="p">(</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">weight_init_range</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="bp">self</span><span class="o">.</span><span class="n">weight_init_range</span><span class="p">[</span><span class="mi">1</span><span class="p">]),</span> <span class="n">requires_grad</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+        
+        <span class="c1"># Initialize mask</span>
+        <span class="n">mask</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">zeros_like</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">pre_w</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">torch</span><span class="o">.</span><span class="n">bool</span><span class="p">)</span>
+        <span class="c1"># Register it as a buffer to ensure it moves with the model</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">mask</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">register_buffer</span><span class="p">(</span><span class="s1">&#39;mask&#39;</span><span class="p">,</span> <span class="n">mask</span><span class="p">)</span>
+    
+        <span class="c1"># Initialize connectivity</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_initialize_connectivity</span><span class="p">()</span>
+        
+        <span class="c1"># Store freeze flag</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">freeze_connectivity</span> <span class="o">=</span> <span class="n">freeze_connectivity</span>
+        
+        <span class="c1"># Store weight threshold for pruning</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">weight_threshold</span> <span class="o">=</span> <span class="n">weight_threshold</span>
+    
+    <span class="k">def</span><span class="w"> </span><span class="nf">_initialize_connectivity</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">rewiring_mode</span> <span class="o">==</span> <span class="s1">&#39;constant_branch&#39;</span><span class="p">:</span>
+            <span class="c1"># Initialize with constant number of connections per branch</span>
+            <span class="k">for</span> <span class="n">neuron_idx</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">out_features</span><span class="p">):</span>
+                <span class="c1"># Randomly select synapses_per_branch input connections</span>
+                <span class="n">input_indices</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">randperm</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">in_features</span><span class="p">)[:</span><span class="bp">self</span><span class="o">.</span><span class="n">synapses_per_branch</span><span class="p">]</span>
+                <span class="k">for</span> <span class="n">input_idx</span> <span class="ow">in</span> <span class="n">input_indices</span><span class="p">:</span>
+                    <span class="bp">self</span><span class="o">.</span><span class="n">mask</span><span class="p">[</span><span class="n">neuron_idx</span><span class="p">,</span> <span class="n">input_idx</span><span class="p">]</span> <span class="o">=</span> <span class="kc">True</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="c1"># Standard random initialization for global or local modes</span>
+            <span class="n">connections_to_activate</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">target_connections</span>
+            
+            <span class="c1"># Flatten indices for uniform sampling</span>
+            <span class="n">all_indices</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">nonzero</span><span class="p">(</span><span class="n">torch</span><span class="o">.</span><span class="n">ones_like</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">pre_w</span><span class="p">),</span> <span class="n">as_tuple</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
+            
+            <span class="c1"># Randomly select indices to activate</span>
+            <span class="n">selected_indices</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">randperm</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">all_indices</span><span class="p">))[:</span><span class="n">connections_to_activate</span><span class="p">]</span>
+            <span class="n">selected_connections</span> <span class="o">=</span> <span class="n">all_indices</span><span class="p">[</span><span class="n">selected_indices</span><span class="p">]</span>
+            
+            <span class="c1"># Activate connections</span>
+            <span class="k">with</span> <span class="n">torch</span><span class="o">.</span><span class="n">no_grad</span><span class="p">():</span>
+                <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="n">j</span> <span class="ow">in</span> <span class="n">selected_connections</span><span class="p">:</span>
+                    <span class="bp">self</span><span class="o">.</span><span class="n">mask</span><span class="p">[</span><span class="n">i</span><span class="p">,</span> <span class="n">j</span><span class="p">]</span> <span class="o">=</span> <span class="kc">True</span>
+    
+<div class="viewcode-block" id="DeepstLinear.weight">
+<a class="viewcode-back" href="../../source/api/dendritic_modeling.html#dendritic_modeling.dendrinet.DeepstLinear.weight">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">weight</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Return the actual weight values (after transformation)&quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">param_space</span> <span class="o">==</span> <span class="s1">&#39;log&#39;</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">torch</span><span class="o">.</span><span class="n">exp</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">pre_w</span><span class="p">)</span>
+        <span class="k">elif</span> <span class="bp">self</span><span class="o">.</span><span class="n">param_space</span> <span class="o">==</span> <span class="s1">&#39;presigmoid&#39;</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">torch</span><span class="o">.</span><span class="n">sigmoid</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">pre_w</span><span class="p">)</span>
+        <span class="k">elif</span> <span class="bp">self</span><span class="o">.</span><span class="n">param_space</span> <span class="o">==</span> <span class="s1">&#39;uniform&#39;</span><span class="p">:</span>
+            <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">pre_w</span></div>
+
+    
+<div class="viewcode-block" id="DeepstLinear.weight_mask">
+<a class="viewcode-back" href="../../source/api/dendritic_modeling.html#dendritic_modeling.dendrinet.DeepstLinear.weight_mask">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">weight_mask</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Return the current mask&quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">mask</span></div>
+
+    
+<div class="viewcode-block" id="DeepstLinear.pruned_weight">
+<a class="viewcode-back" href="../../source/api/dendritic_modeling.html#dendritic_modeling.dendrinet.DeepstLinear.pruned_weight">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">pruned_weight</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Return masked weights&quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">weight</span><span class="p">()</span> <span class="o">*</span> <span class="bp">self</span><span class="o">.</span><span class="n">mask</span></div>
+
+    
+    <span class="k">def</span><span class="w"> </span><span class="nf">forward</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">x</span><span class="p">):</span>
+        <span class="c1"># Apply mask and sum across dendritic locations</span>
+        <span class="k">return</span> <span class="n">torch</span><span class="o">.</span><span class="n">matmul</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">pruned_weight</span><span class="p">()</span><span class="o">.</span><span class="n">t</span><span class="p">())</span>
+    
+<div class="viewcode-block" id="DeepstLinear.weighted_synapses">
+<a class="viewcode-back" href="../../source/api/dendritic_modeling.html#dendritic_modeling.dendrinet.DeepstLinear.weighted_synapses">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">weighted_synapses</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">cell_weights</span><span class="p">,</span> <span class="n">prune</span><span class="o">=</span><span class="kc">False</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Apply cell weights to synapses (compatibility with DendriNet)&quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="n">prune</span><span class="p">:</span>
+            <span class="n">synapse_weights</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">pruned_weight</span><span class="p">()</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">synapse_weights</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">weight</span><span class="p">()</span>
+        
+        <span class="n">weighted_synapses</span> <span class="o">=</span> <span class="n">cell_weights</span><span class="p">[:,</span> <span class="kc">None</span><span class="p">,</span> <span class="kc">None</span><span class="p">]</span> <span class="o">*</span> <span class="n">synapse_weights</span>
+        <span class="k">return</span> <span class="n">weighted_synapses</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="n">dim</span><span class="o">=</span><span class="mi">0</span><span class="p">)</span></div>
+
+    
+<div class="viewcode-block" id="DeepstLinear.apply_noise_and_enforce_constraints">
+<a class="viewcode-back" href="../../source/api/dendritic_modeling.html#dendritic_modeling.dendrinet.DeepstLinear.apply_noise_and_enforce_constraints">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">apply_noise_and_enforce_constraints</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Apply Brownian motion-like noise and enforce connectivity constraints.</span>
+<span class="sd">        Modified to support freezing connectivity while maintaining stability.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">with</span> <span class="n">torch</span><span class="o">.</span><span class="n">no_grad</span><span class="p">():</span>
+            <span class="c1"># Get current weights</span>
+            <span class="n">current_weights</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">weight</span><span class="p">()</span>
+            
+            <span class="c1"># Always apply basic constraints for numerical stability</span>
+            <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">param_space</span> <span class="o">==</span> <span class="s1">&#39;log&#39;</span><span class="p">:</span>
+                <span class="c1"># Use a tighter clamping range for better stability</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">pre_w</span><span class="o">.</span><span class="n">data</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">clamp</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">pre_w</span><span class="o">.</span><span class="n">data</span><span class="p">,</span> <span class="nb">min</span><span class="o">=-</span><span class="mf">10.0</span><span class="p">,</span> <span class="nb">max</span><span class="o">=</span><span class="mf">10.0</span><span class="p">)</span>
+            <span class="k">elif</span> <span class="bp">self</span><span class="o">.</span><span class="n">param_space</span> <span class="o">==</span> <span class="s1">&#39;presigmoid&#39;</span><span class="p">:</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">pre_w</span><span class="o">.</span><span class="n">data</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">clamp</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">pre_w</span><span class="o">.</span><span class="n">data</span><span class="p">,</span> <span class="nb">min</span><span class="o">=-</span><span class="mf">5.0</span><span class="p">,</span> <span class="nb">max</span><span class="o">=</span><span class="mf">5.0</span><span class="p">)</span>
+            <span class="k">elif</span> <span class="bp">self</span><span class="o">.</span><span class="n">param_space</span> <span class="o">==</span> <span class="s1">&#39;uniform&#39;</span><span class="p">:</span>
+                <span class="k">pass</span>
+            
+            <span class="c1"># Skip rewiring if connectivity is frozen</span>
+            <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">freeze_connectivity</span><span class="p">:</span>
+                <span class="k">return</span>
+            
+            <span class="c1"># Continue with normal rewiring process for non-frozen connectivity</span>
+            
+            <span class="c1"># Apply Gaussian noise if enabled</span>
+            <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">use_noise</span><span class="p">:</span>
+                <span class="n">noise</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">zeros_like</span><span class="p">(</span><span class="n">current_weights</span><span class="p">)</span>
+                <span class="n">noise</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">mask</span><span class="p">]</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">randn</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">mask</span><span class="o">.</span><span class="n">sum</span><span class="p">(),</span> <span class="n">device</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">mask</span><span class="o">.</span><span class="n">device</span><span class="p">)</span> <span class="o">*</span> <span class="bp">self</span><span class="o">.</span><span class="n">sigma</span>
+                <span class="n">current_weights</span> <span class="o">=</span> <span class="n">current_weights</span> <span class="o">+</span> <span class="n">noise</span>
+            
+            <span class="c1"># Find connections to prune (weights &lt;= weight_threshold)</span>
+            <span class="n">to_prune</span> <span class="o">=</span> <span class="p">(</span><span class="n">current_weights</span> <span class="o">&lt;=</span> <span class="bp">self</span><span class="o">.</span><span class="n">weight_threshold</span><span class="p">)</span> <span class="o">&amp;</span> <span class="bp">self</span><span class="o">.</span><span class="n">mask</span>
+            
+            <span class="c1"># Count pruned connections</span>
+            <span class="n">num_pruned</span> <span class="o">=</span> <span class="n">to_prune</span><span class="o">.</span><span class="n">sum</span><span class="p">()</span><span class="o">.</span><span class="n">item</span><span class="p">()</span>
+            
+            <span class="c1"># Update mask (remove pruned connections)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">mask</span><span class="p">[</span><span class="n">to_prune</span><span class="p">]</span> <span class="o">=</span> <span class="kc">False</span>
+            
+            <span class="c1"># Create new random connections</span>
+            <span class="k">if</span> <span class="n">num_pruned</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">:</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">_create_new_connections</span><span class="p">(</span><span class="n">to_prune</span><span class="p">)</span></div>
+
+    
+    <span class="k">def</span><span class="w"> </span><span class="nf">_create_new_connections</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">pruned_mask</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Create new random connections based on the rewiring mode</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">rewiring_mode</span> <span class="o">==</span> <span class="s1">&#39;constant_branch&#39;</span><span class="p">:</span>
+            <span class="c1"># For each branch, maintain a constant number of synapses</span>
+            <span class="k">for</span> <span class="n">neuron_idx</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">out_features</span><span class="p">):</span>
+                <span class="c1"># Current active synapses at this branch</span>
+                <span class="n">current_active</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">mask</span><span class="p">[</span><span class="n">neuron_idx</span><span class="p">]</span><span class="o">.</span><span class="n">sum</span><span class="p">()</span><span class="o">.</span><span class="n">item</span><span class="p">()</span>
+                
+                <span class="c1"># How many synapses need to be added</span>
+                <span class="n">to_add</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">synapses_per_branch</span> <span class="o">-</span> <span class="n">current_active</span>
+                
+                <span class="k">if</span> <span class="n">to_add</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">:</span>
+                    <span class="c1"># Get potential input neurons for new connections</span>
+                    <span class="n">potential_inputs</span> <span class="o">=</span> <span class="o">~</span><span class="bp">self</span><span class="o">.</span><span class="n">mask</span><span class="p">[</span><span class="n">neuron_idx</span><span class="p">]</span>
+                    <span class="n">potential_indices</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">nonzero</span><span class="p">(</span><span class="n">potential_inputs</span><span class="p">,</span> <span class="n">as_tuple</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span><span class="o">.</span><span class="n">squeeze</span><span class="p">(</span><span class="mi">1</span><span class="p">)</span>
+                    
+                    <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">potential_indices</span><span class="p">)</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">:</span>
+                        <span class="c1"># Randomly select input neurons to connect</span>
+                        <span class="n">num_to_select</span> <span class="o">=</span> <span class="nb">min</span><span class="p">(</span><span class="n">to_add</span><span class="p">,</span> <span class="nb">len</span><span class="p">(</span><span class="n">potential_indices</span><span class="p">))</span>
+                        <span class="n">selected_indices</span> <span class="o">=</span> <span class="n">potential_indices</span><span class="p">[</span><span class="n">torch</span><span class="o">.</span><span class="n">randperm</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">potential_indices</span><span class="p">))[:</span><span class="n">num_to_select</span><span class="p">]]</span>
+                        
+                        <span class="c1"># Create new connections</span>
+                        <span class="k">for</span> <span class="n">input_idx</span> <span class="ow">in</span> <span class="n">selected_indices</span><span class="p">:</span>
+                            <span class="bp">self</span><span class="o">.</span><span class="n">mask</span><span class="p">[</span><span class="n">neuron_idx</span><span class="p">,</span> <span class="n">input_idx</span><span class="p">]</span> <span class="o">=</span> <span class="kc">True</span>
+                            <span class="bp">self</span><span class="o">.</span><span class="n">pre_w</span><span class="o">.</span><span class="n">data</span><span class="p">[</span><span class="n">neuron_idx</span><span class="p">,</span> <span class="n">input_idx</span><span class="p">]</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_initialize_new_weight</span><span class="p">()</span>
+        
+        <span class="k">elif</span> <span class="bp">self</span><span class="o">.</span><span class="n">rewiring_mode</span> <span class="o">==</span> <span class="s1">&#39;local&#39;</span><span class="p">:</span>
+            <span class="c1"># Local rewiring - only create connections within the same neuron</span>
+            <span class="k">for</span> <span class="n">neuron_idx</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">out_features</span><span class="p">):</span>
+                <span class="c1"># Count pruned connections for this neuron</span>
+                <span class="n">pruned_for_neuron</span> <span class="o">=</span> <span class="n">pruned_mask</span><span class="p">[</span><span class="n">neuron_idx</span><span class="p">]</span><span class="o">.</span><span class="n">sum</span><span class="p">()</span><span class="o">.</span><span class="n">item</span><span class="p">()</span>
+                
+                <span class="k">if</span> <span class="n">pruned_for_neuron</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">:</span>
+                    <span class="c1"># Get potential new connections for this neuron</span>
+                    <span class="n">potential_connections</span> <span class="o">=</span> <span class="o">~</span><span class="bp">self</span><span class="o">.</span><span class="n">mask</span><span class="p">[</span><span class="n">neuron_idx</span><span class="p">]</span>
+                    
+                    <span class="k">if</span> <span class="n">potential_connections</span><span class="o">.</span><span class="n">sum</span><span class="p">()</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">:</span>
+                        <span class="c1"># Get indices of potential connections</span>
+                        <span class="n">flat_indices</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">nonzero</span><span class="p">(</span><span class="n">potential_connections</span><span class="p">,</span> <span class="n">as_tuple</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
+                        
+                        <span class="c1"># Randomly select indices to add</span>
+                        <span class="n">num_to_add</span> <span class="o">=</span> <span class="nb">min</span><span class="p">(</span><span class="n">pruned_for_neuron</span><span class="p">,</span> <span class="nb">len</span><span class="p">(</span><span class="n">flat_indices</span><span class="p">))</span>
+                        <span class="k">if</span> <span class="n">num_to_add</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">:</span>
+                            <span class="n">selected_indices</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">randperm</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">flat_indices</span><span class="p">))[:</span><span class="n">num_to_add</span><span class="p">]</span>
+                            <span class="n">selected_connections</span> <span class="o">=</span> <span class="n">flat_indices</span><span class="p">[</span><span class="n">selected_indices</span><span class="p">]</span>
+                            
+                            <span class="c1"># Add new connections</span>
+                            <span class="k">for</span> <span class="n">in_idx</span> <span class="ow">in</span> <span class="n">selected_connections</span><span class="p">:</span>
+                                <span class="bp">self</span><span class="o">.</span><span class="n">mask</span><span class="p">[</span><span class="n">neuron_idx</span><span class="p">,</span> <span class="n">in_idx</span><span class="p">]</span> <span class="o">=</span> <span class="kc">True</span>
+                                <span class="bp">self</span><span class="o">.</span><span class="n">pre_w</span><span class="o">.</span><span class="n">data</span><span class="p">[</span><span class="n">neuron_idx</span><span class="p">,</span> <span class="n">in_idx</span><span class="p">]</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_initialize_new_weight</span><span class="p">()</span>
+        
+        <span class="k">else</span><span class="p">:</span>  <span class="c1"># &#39;global&#39; rewiring mode</span>
+            <span class="c1"># Count total pruned connections</span>
+            <span class="n">num_pruned</span> <span class="o">=</span> <span class="n">pruned_mask</span><span class="o">.</span><span class="n">sum</span><span class="p">()</span><span class="o">.</span><span class="n">item</span><span class="p">()</span>
+            
+            <span class="c1"># Get all potential connections globally</span>
+            <span class="n">potential_connections</span> <span class="o">=</span> <span class="o">~</span><span class="bp">self</span><span class="o">.</span><span class="n">mask</span>
+            
+            <span class="k">if</span> <span class="n">potential_connections</span><span class="o">.</span><span class="n">sum</span><span class="p">()</span> <span class="o">&gt;</span> <span class="mi">0</span> <span class="ow">and</span> <span class="n">num_pruned</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">:</span>
+                <span class="n">flat_indices</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">nonzero</span><span class="p">(</span><span class="n">potential_connections</span><span class="p">,</span> <span class="n">as_tuple</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
+                
+                <span class="c1"># Randomly select indices to add</span>
+                <span class="n">num_to_add</span> <span class="o">=</span> <span class="nb">min</span><span class="p">(</span><span class="n">num_pruned</span><span class="p">,</span> <span class="nb">len</span><span class="p">(</span><span class="n">flat_indices</span><span class="p">))</span>
+                <span class="k">if</span> <span class="n">num_to_add</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">:</span>
+                    <span class="n">selected_indices</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">randperm</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">flat_indices</span><span class="p">))[:</span><span class="n">num_to_add</span><span class="p">]</span>
+                    <span class="n">selected_connections</span> <span class="o">=</span> <span class="n">flat_indices</span><span class="p">[</span><span class="n">selected_indices</span><span class="p">]</span>
+                    
+                    <span class="c1"># Add new connections</span>
+                    <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="n">j</span> <span class="ow">in</span> <span class="n">selected_connections</span><span class="p">:</span>
+                        <span class="bp">self</span><span class="o">.</span><span class="n">mask</span><span class="p">[</span><span class="n">i</span><span class="p">,</span> <span class="n">j</span><span class="p">]</span> <span class="o">=</span> <span class="kc">True</span>
+                        <span class="bp">self</span><span class="o">.</span><span class="n">pre_w</span><span class="o">.</span><span class="n">data</span><span class="p">[</span><span class="n">i</span><span class="p">,</span> <span class="n">j</span><span class="p">]</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_initialize_new_weight</span><span class="p">()</span>
+    
+    <span class="k">def</span><span class="w"> </span><span class="nf">_initialize_new_weight</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Helper method to initialize a new weight according to the chosen method&quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">init_method</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="ow">and</span> <span class="bp">self</span><span class="o">.</span><span class="n">init_method</span> <span class="ow">in</span> <span class="n">TOPK_INIT_METHODS</span><span class="p">:</span>
+            <span class="c1"># Create a tensor with at least 2 dimensions for initialization</span>
+            <span class="n">temp</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">zeros</span><span class="p">(</span><span class="mi">2</span><span class="p">,</span> <span class="mi">2</span><span class="p">,</span> <span class="n">device</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">pre_w</span><span class="o">.</span><span class="n">device</span><span class="p">)</span>  <span class="c1"># Changed from 1D to 2D</span>
+            <span class="n">TOPK_INIT_METHODS</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">init_method</span><span class="p">](</span><span class="n">temp</span><span class="p">)</span>
+            
+            <span class="c1"># Just use one value from the initialized tensor</span>
+            <span class="n">value</span> <span class="o">=</span> <span class="n">temp</span><span class="p">[</span><span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">item</span><span class="p">()</span>
+            
+            <span class="c1"># Apply transformations for log/presigmoid if needed</span>
+            <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">param_space</span> <span class="o">==</span> <span class="s1">&#39;log&#39;</span><span class="p">:</span>
+            <span class="c1">#     value = abs(value)</span>
+            <span class="c1">#     value = max(value, 1e-6)</span>
+            <span class="c1">#     value = math.log(value)</span>
+
+                <span class="c1">### EXPERIMENTAL</span>
+                <span class="n">value</span> <span class="o">=</span> <span class="n">math</span><span class="o">.</span><span class="n">log</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">weight_threshold</span><span class="p">)</span>
+            <span class="k">elif</span> <span class="bp">self</span><span class="o">.</span><span class="n">param_space</span> <span class="o">==</span> <span class="s1">&#39;presigmoid&#39;</span><span class="p">:</span>
+                <span class="n">value</span> <span class="o">=</span> <span class="nb">max</span><span class="p">(</span><span class="nb">min</span><span class="p">(</span><span class="n">value</span><span class="p">,</span> <span class="mi">1</span><span class="o">-</span><span class="mf">1e-6</span><span class="p">),</span> <span class="mf">1e-6</span><span class="p">)</span>
+                <span class="n">value</span> <span class="o">=</span> <span class="n">math</span><span class="o">.</span><span class="n">log</span><span class="p">(</span><span class="n">value</span> <span class="o">/</span> <span class="p">(</span><span class="mi">1</span> <span class="o">-</span> <span class="n">value</span><span class="p">))</span>
+            <span class="k">elif</span> <span class="bp">self</span><span class="o">.</span><span class="n">param_space</span> <span class="o">==</span> <span class="s1">&#39;uniform&#39;</span><span class="p">:</span>
+                <span class="k">pass</span>
+            <span class="k">return</span> <span class="n">value</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="c1"># Default to uniform initialization with the specified range</span>
+            <span class="k">return</span> <span class="n">torch</span><span class="o">.</span><span class="n">empty</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="n">device</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">pre_w</span><span class="o">.</span><span class="n">device</span><span class="p">)</span><span class="o">.</span><span class="n">uniform_</span><span class="p">(</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">weight_init_range</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="bp">self</span><span class="o">.</span><span class="n">weight_init_range</span><span class="p">[</span><span class="mi">1</span><span class="p">])</span><span class="o">.</span><span class="n">item</span><span class="p">()</span>
+    
+<div class="viewcode-block" id="DeepstLinear.get_connectivity_stats">
+<a class="viewcode-back" href="../../source/api/dendritic_modeling.html#dendritic_modeling.dendrinet.DeepstLinear.get_connectivity_stats">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">get_connectivity_stats</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Return statistics about the network connectivity</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">active_connections</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">mask</span><span class="o">.</span><span class="n">sum</span><span class="p">()</span><span class="o">.</span><span class="n">item</span><span class="p">()</span>
+        <span class="n">density</span> <span class="o">=</span> <span class="n">active_connections</span> <span class="o">/</span> <span class="bp">self</span><span class="o">.</span><span class="n">total_connections</span>
+        
+        <span class="c1"># Per-branch stats for constant_branch mode</span>
+        <span class="n">branch_stats</span> <span class="o">=</span> <span class="p">{}</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">rewiring_mode</span> <span class="o">==</span> <span class="s1">&#39;constant_branch&#39;</span><span class="p">:</span>
+            <span class="n">branch_counts</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">mask</span><span class="p">,</span> <span class="n">dim</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span>  <span class="c1"># Sum over input dimension</span>
+            <span class="n">branch_stats</span> <span class="o">=</span> <span class="p">{</span>
+                <span class="s1">&#39;min_per_branch&#39;</span><span class="p">:</span> <span class="n">branch_counts</span><span class="o">.</span><span class="n">min</span><span class="p">()</span><span class="o">.</span><span class="n">item</span><span class="p">(),</span>
+                <span class="s1">&#39;max_per_branch&#39;</span><span class="p">:</span> <span class="n">branch_counts</span><span class="o">.</span><span class="n">max</span><span class="p">()</span><span class="o">.</span><span class="n">item</span><span class="p">(),</span>
+                <span class="s1">&#39;mean_per_branch&#39;</span><span class="p">:</span> <span class="n">branch_counts</span><span class="o">.</span><span class="n">float</span><span class="p">()</span><span class="o">.</span><span class="n">mean</span><span class="p">()</span><span class="o">.</span><span class="n">item</span><span class="p">(),</span>
+                <span class="s1">&#39;target_per_branch&#39;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">synapses_per_branch</span>
+            <span class="p">}</span>
+            
+        <span class="k">return</span> <span class="p">{</span>
+            <span class="s1">&#39;active_connections&#39;</span><span class="p">:</span> <span class="n">active_connections</span><span class="p">,</span>
+            <span class="s1">&#39;total_connections&#39;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">total_connections</span><span class="p">,</span>
+            <span class="s1">&#39;density&#39;</span><span class="p">:</span> <span class="n">density</span><span class="p">,</span>
+            <span class="s1">&#39;target_density&#39;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">target_density</span><span class="p">,</span>
+            <span class="s1">&#39;branch_stats&#39;</span><span class="p">:</span> <span class="n">branch_stats</span>
+        <span class="p">}</span></div>
+
+
+<div class="viewcode-block" id="DeepstLinear.decay_weights">
+<a class="viewcode-back" href="../../source/api/dendritic_modeling.html#dendritic_modeling.dendrinet.DeepstLinear.decay_weights">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">decay_weights</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">weight_decay</span><span class="o">=</span><span class="mf">0.1</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Apply weight decay to active synaptic connections.</span>
+<span class="sd">        </span>
+<span class="sd">        Args:</span>
+<span class="sd">            weight_decay: float, weight decay rate (default: 0.1)</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">pass</span></div>
+</div>
+
+
+
 <div class="viewcode-block" id="BlockLinear">
 <a class="viewcode-back" href="../../source/api/dendritic_modeling.html#dendritic_modeling.dendrinet.BlockLinear">[docs]</a>
 <span class="k">class</span><span class="w"> </span><span class="nc">BlockLinear</span><span class="p">(</span><span class="n">nn</span><span class="o">.</span><span class="n">Module</span><span class="p">):</span>
@@ -878,10 +1239,23 @@
         <span class="n">use_shunting</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
         <span class="n">reactivate</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span>
         <span class="n">reactivation_type</span><span class="o">=</span><span class="s2">&quot;param_tanh&quot;</span><span class="p">,</span>
+        <span class="n">reactivation_init_m</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span>
+        <span class="n">reactivation_init_b</span><span class="o">=</span><span class="mf">0.5</span><span class="p">,</span>
         <span class="n">reactivation_strategy</span><span class="o">=</span><span class="s2">&quot;none&quot;</span><span class="p">,</span>
         <span class="n">blocklinear_strategy</span><span class="o">=</span><span class="s2">&quot;none&quot;</span><span class="p">,</span>
         <span class="n">layer_idx</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span>
         <span class="n">print_hooks</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span>
+        <span class="c1"># DEEPST specific parameters, clean up later</span>
+        <span class="n">use_noise</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+        <span class="n">rewiring_mode</span><span class="o">=</span><span class="s1">&#39;global&#39;</span><span class="p">,</span>
+        <span class="n">synapses_per_branch</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+        <span class="n">sigma</span><span class="o">=</span><span class="mf">0.05</span><span class="p">,</span>
+        <span class="n">excitatory_target_density</span><span class="o">=</span><span class="mf">0.1</span><span class="p">,</span>
+        <span class="n">inhibitory_target_density</span><span class="o">=</span><span class="mf">0.1</span><span class="p">,</span>
+        <span class="n">freeze_excitatory_connectivity</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span>
+        <span class="n">freeze_inhibitory_connectivity</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span>
+        <span class="n">init_method</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+        <span class="n">weight_threshold</span><span class="o">=</span><span class="mf">1e-6</span><span class="p">,</span>
         <span class="o">**</span><span class="n">kwargs</span><span class="p">,</span>
     <span class="p">):</span>
         <span class="nb">super</span><span class="p">(</span><span class="n">DendriticBranchLayer</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="fm">__init__</span><span class="p">()</span>
@@ -896,6 +1270,18 @@
         <span class="bp">self</span><span class="o">.</span><span class="n">input_excitatory</span> <span class="o">=</span> <span class="n">excitatory_input_dim</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">print_hooks</span> <span class="o">=</span> <span class="n">print_hooks</span>
 
+        <span class="c1"># DEEPST specific parameters, clean up later</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">use_noise</span> <span class="o">=</span> <span class="n">use_noise</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">rewiring_mode</span> <span class="o">=</span> <span class="n">rewiring_mode</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">synapses_per_branch</span> <span class="o">=</span> <span class="n">synapses_per_branch</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">sigma</span> <span class="o">=</span> <span class="n">sigma</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">excitatory_target_density</span> <span class="o">=</span> <span class="n">excitatory_target_density</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">inhibitory_target_density</span> <span class="o">=</span> <span class="n">inhibitory_target_density</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">freeze_excitatory_connectivity</span> <span class="o">=</span> <span class="n">freeze_excitatory_connectivity</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">freeze_inhibitory_connectivity</span> <span class="o">=</span> <span class="n">freeze_inhibitory_connectivity</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">init_method</span> <span class="o">=</span> <span class="n">init_method</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">weight_threshold</span> <span class="o">=</span> <span class="n">weight_threshold</span>
+        
         <span class="n">gradient_scaler</span> <span class="o">=</span> <span class="n">GradientScaler</span><span class="p">(</span>
             <span class="n">topk_strategy</span><span class="o">=</span><span class="n">topk_strategy</span><span class="p">,</span>
             <span class="n">reactivation_strategy</span><span class="o">=</span><span class="n">reactivation_strategy</span><span class="p">,</span>
@@ -911,6 +1297,7 @@
                 <span class="n">K</span><span class="o">=</span><span class="n">excitatory_synapses_per_branch</span><span class="p">,</span>
                 <span class="n">init_method</span><span class="o">=</span><span class="n">topk_init_method</span><span class="p">,</span>
                 <span class="n">noise_level</span><span class="o">=</span><span class="n">topk_noise_level</span><span class="p">,</span>
+                <span class="n">cell_type</span><span class="o">=</span><span class="s1">&#39;exc&#39;</span><span class="p">,</span>
             <span class="p">)</span>
             <span class="n">gradient_scaler</span><span class="o">.</span><span class="n">register_topk_dynamic</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">branch_excitation</span><span class="p">)</span>
             <span class="bp">self</span><span class="o">.</span><span class="n">excitatory_input_dim</span> <span class="o">=</span> <span class="n">excitatory_input_dim</span>
@@ -925,6 +1312,7 @@
                 <span class="n">K</span><span class="o">=</span><span class="n">inhibitory_synapses_per_branch</span><span class="p">,</span>
                 <span class="n">init_method</span><span class="o">=</span><span class="n">topk_init_method</span><span class="p">,</span>
                 <span class="n">noise_level</span><span class="o">=</span><span class="n">topk_noise_level</span><span class="p">,</span>
+                <span class="n">cell_type</span><span class="o">=</span><span class="s1">&#39;inh&#39;</span><span class="p">,</span>
             <span class="p">)</span>
             <span class="n">gradient_scaler</span><span class="o">.</span><span class="n">register_topk_dynamic</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">branch_inhibition</span><span class="p">)</span>
             <span class="bp">self</span><span class="o">.</span><span class="n">inhibitory_input_dim</span> <span class="o">=</span> <span class="n">inhibitory_input_dim</span>
@@ -943,15 +1331,19 @@
             <span class="bp">self</span><span class="o">.</span><span class="n">reactivation</span> <span class="o">=</span> <span class="n">ActivationFactory</span><span class="o">.</span><span class="n">create</span><span class="p">(</span>
                 <span class="n">act_type</span><span class="o">=</span><span class="n">reactivation_type</span><span class="p">,</span>
                 <span class="n">output_dim</span><span class="o">=</span><span class="n">output_dim</span><span class="p">,</span>
-                <span class="n">init_m</span><span class="o">=</span><span class="mi">1</span> <span class="k">if</span> <span class="n">use_shunting</span> <span class="k">else</span> <span class="mf">0.1</span><span class="p">,</span>
-                <span class="n">init_b</span><span class="o">=</span><span class="mf">0.5</span> <span class="k">if</span> <span class="n">use_shunting</span> <span class="k">else</span> <span class="mf">0.1</span><span class="p">,</span>
+                <span class="n">init_m</span><span class="o">=</span><span class="n">reactivation_init_m</span> <span class="k">if</span> <span class="n">use_shunting</span> <span class="k">else</span> <span class="mf">0.1</span><span class="p">,</span>
+                <span class="n">init_b</span><span class="o">=</span><span class="n">reactivation_init_b</span> <span class="k">if</span> <span class="n">use_shunting</span> <span class="k">else</span> <span class="mf">0.1</span><span class="p">,</span>
+                <span class="o">**</span><span class="n">kwargs</span>
             <span class="p">)</span>
             <span class="n">gradient_scaler</span><span class="o">.</span><span class="n">register_reactivation_inverse</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">reactivation</span><span class="p">)</span>
         <span class="k">else</span><span class="p">:</span>
             <span class="bp">self</span><span class="o">.</span><span class="n">reactivation</span> <span class="o">=</span> <span class="n">nn</span><span class="o">.</span><span class="n">Identity</span><span class="p">()</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">reactivate</span> <span class="o">=</span> <span class="n">reactivate</span>
 
-        <span class="bp">self</span><span class="o">.</span><span class="n">initialize</span><span class="p">()</span>
+        <span class="k">if</span> <span class="n">topk_type</span> <span class="o">==</span> <span class="s1">&#39;deepst&#39;</span><span class="p">:</span>
+            <span class="n">initialize_dendritic_branch_layer</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">initialize</span><span class="p">()</span>
 
     <span class="k">def</span><span class="w"> </span><span class="nf">_create_topk_layer</span><span class="p">(</span>
         <span class="bp">self</span><span class="p">,</span>
@@ -960,6 +1352,7 @@
         <span class="n">K</span><span class="p">,</span>
         <span class="n">init_method</span><span class="p">,</span>
         <span class="n">noise_level</span><span class="p">,</span>
+        <span class="n">cell_type</span><span class="o">=</span><span class="s1">&#39;exc&#39;</span><span class="p">,</span>
     <span class="p">):</span>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;Helper function that picks which topk class to use based on strategy.&quot;&quot;&quot;</span>
         <span class="c1"># For &#39;standard&#39; strategy, use the original TopKLinear class exactly as before</span>
@@ -1001,6 +1394,20 @@
                 <span class="n">param_space</span><span class="o">=</span><span class="s2">&quot;log&quot;</span><span class="p">,</span>
                 <span class="n">init_method</span><span class="o">=</span><span class="n">init_method</span><span class="p">,</span>
                 <span class="n">noise_level</span><span class="o">=</span><span class="n">noise_level</span><span class="p">,</span>
+            <span class="p">)</span>
+        <span class="k">elif</span> <span class="bp">self</span><span class="o">.</span><span class="n">topk_type</span> <span class="o">==</span> <span class="s2">&quot;deepst&quot;</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">DeepstLinear</span><span class="p">(</span>
+                <span class="n">in_features</span><span class="o">=</span><span class="n">in_features</span><span class="p">,</span>
+                <span class="n">out_features</span><span class="o">=</span><span class="n">out_features</span><span class="p">,</span>
+                <span class="n">target_density</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">excitatory_target_density</span> <span class="k">if</span> <span class="n">cell_type</span> <span class="o">==</span> <span class="s1">&#39;exc&#39;</span> <span class="k">else</span> <span class="bp">self</span><span class="o">.</span><span class="n">inhibitory_target_density</span><span class="p">,</span>
+                <span class="n">sigma</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">sigma</span><span class="p">,</span>
+                <span class="n">use_noise</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">use_noise</span><span class="p">,</span>
+                <span class="n">rewiring_mode</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">rewiring_mode</span><span class="p">,</span>
+                <span class="n">synapses_per_branch</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">synapses_per_branch</span><span class="p">,</span>
+                <span class="n">param_space</span><span class="o">=</span><span class="s1">&#39;log&#39;</span><span class="p">,</span>
+                <span class="n">init_method</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">init_method</span><span class="p">,</span>
+                <span class="n">freeze_connectivity</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">freeze_excitatory_connectivity</span> <span class="k">if</span> <span class="n">cell_type</span> <span class="o">==</span> <span class="s1">&#39;exc&#39;</span> <span class="k">else</span> <span class="bp">self</span><span class="o">.</span><span class="n">freeze_inhibitory_connectivity</span><span class="p">,</span>
+                <span class="n">weight_threshold</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">weight_threshold</span><span class="p">,</span>
             <span class="p">)</span>
         <span class="k">else</span><span class="p">:</span>
             <span class="c1"># Fallback for any unknown strategy - use standard</span>
@@ -1044,6 +1451,19 @@
             <span class="bp">self</span><span class="o">.</span><span class="n">branch_inhibition</span><span class="o">.</span><span class="n">decay_weights</span><span class="p">(</span><span class="n">weight_decay</span><span class="p">)</span>
         <span class="c1"># if self.input_branches:</span>
         <span class="c1">#     self.branches_to_output.decay_weights(weight_decay)</span>
+
+    <span class="c1"># DEEPST specific method</span>
+<div class="viewcode-block" id="DendriticBranchLayer.apply_rewiring">
+<a class="viewcode-back" href="../../source/api/dendritic_modeling.html#dendritic_modeling.dendrinet.DendriticBranchLayer.apply_rewiring">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">apply_rewiring</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Apply rewiring to all synaptic connections.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="nb">hasattr</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">branch_excitation</span><span class="p">,</span> <span class="s1">&#39;apply_noise_and_enforce_constraints&#39;</span><span class="p">):</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">branch_excitation</span><span class="o">.</span><span class="n">apply_noise_and_enforce_constraints</span><span class="p">()</span>
+        <span class="k">if</span> <span class="nb">hasattr</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">branch_inhibition</span><span class="p">,</span> <span class="s1">&#39;apply_noise_and_enforce_constraints&#39;</span><span class="p">):</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">branch_inhibition</span><span class="o">.</span><span class="n">apply_noise_and_enforce_constraints</span><span class="p">()</span></div>
+
 
     <span class="k">def</span><span class="w"> </span><span class="nf">forward</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">x</span><span class="p">,</span> <span class="n">inhibitory_input</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">branch_input</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
         <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">use_shunting</span><span class="p">:</span>
@@ -1236,6 +1656,19 @@
         <span class="n">reactivation_strategy</span><span class="o">=</span><span class="s2">&quot;none&quot;</span><span class="p">,</span>
         <span class="n">blocklinear_strategy</span><span class="o">=</span><span class="s2">&quot;none&quot;</span><span class="p">,</span>
         <span class="n">print_hooks</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span>
+        <span class="n">reactivation_init_m</span> <span class="o">=</span> <span class="mi">1</span><span class="p">,</span>
+        <span class="n">reactivation_init_b</span> <span class="o">=</span> <span class="mf">0.5</span><span class="p">,</span>
+        <span class="c1"># DEEPST specific parameters, clean up later</span>
+        <span class="n">excitatory_target_density</span><span class="o">=</span><span class="mf">0.1</span><span class="p">,</span>
+        <span class="n">inhibitory_target_density</span><span class="o">=</span><span class="mf">0.1</span><span class="p">,</span>
+        <span class="n">use_noise</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+        <span class="n">sigma</span><span class="o">=</span><span class="mf">0.05</span><span class="p">,</span>
+        <span class="n">rewiring_mode</span><span class="o">=</span><span class="s1">&#39;global&#39;</span><span class="p">,</span>
+        <span class="n">synapses_per_branch</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+        <span class="n">freeze_excitatory_connectivity</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span>
+        <span class="n">freeze_inhibitory_connectivity</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span>
+        <span class="n">init_method</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+        <span class="n">weight_threshold</span><span class="o">=</span><span class="mf">1e-6</span><span class="p">,</span>
         <span class="o">**</span><span class="n">kwargs</span><span class="p">,</span>
     <span class="p">):</span>
         <span class="nb">super</span><span class="p">(</span><span class="n">DendriNet</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="fm">__init__</span><span class="p">()</span>
@@ -1295,11 +1728,23 @@
                 <span class="n">topk_strategy</span><span class="o">=</span><span class="n">topk_strategy</span><span class="p">,</span>
                 <span class="n">use_shunting</span><span class="o">=</span><span class="n">use_shunting</span><span class="p">,</span>
                 <span class="n">reactivate</span><span class="o">=</span><span class="n">reactivate</span><span class="p">,</span>
+                <span class="n">reactivation_init_m</span><span class="o">=</span><span class="n">reactivation_init_m</span><span class="p">,</span>
+                <span class="n">reactivation_init_b</span><span class="o">=</span><span class="n">reactivation_init_b</span><span class="p">,</span>
                 <span class="n">reactivation_type</span><span class="o">=</span><span class="n">reactivation_type</span><span class="p">,</span>
                 <span class="n">reactivation_strategy</span><span class="o">=</span><span class="n">reactivation_strategy</span><span class="p">,</span>
                 <span class="n">blocklinear_strategy</span><span class="o">=</span><span class="n">blocklinear_strategy</span><span class="p">,</span>
                 <span class="n">layer_idx</span><span class="o">=</span><span class="n">i</span><span class="p">,</span>
                 <span class="n">print_hooks</span><span class="o">=</span><span class="n">print_hooks</span><span class="p">,</span>
+                <span class="n">use_noise</span><span class="o">=</span><span class="n">use_noise</span><span class="p">,</span>
+                <span class="n">rewiring_mode</span><span class="o">=</span><span class="n">rewiring_mode</span><span class="p">,</span>
+                <span class="n">synapses_per_branch</span><span class="o">=</span><span class="n">synapses_per_branch</span><span class="p">,</span>
+                <span class="n">excitatory_target_density</span><span class="o">=</span><span class="n">excitatory_target_density</span><span class="p">,</span>
+                <span class="n">inhibitory_target_density</span><span class="o">=</span><span class="n">inhibitory_target_density</span><span class="p">,</span>
+                <span class="n">freeze_excitatory_connectivity</span><span class="o">=</span><span class="n">freeze_excitatory_connectivity</span><span class="p">,</span>
+                <span class="n">freeze_inhibitory_connectivity</span><span class="o">=</span><span class="n">freeze_inhibitory_connectivity</span><span class="p">,</span>
+                <span class="n">init_method</span><span class="o">=</span><span class="n">init_method</span><span class="p">,</span>
+                <span class="n">weight_threshold</span><span class="o">=</span><span class="n">weight_threshold</span><span class="p">,</span>
+                <span class="o">**</span><span class="n">kwargs</span>
             <span class="p">)</span>
             <span class="n">branch_layers</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">lyr</span><span class="p">)</span>
 
@@ -1320,11 +1765,23 @@
                     <span class="n">topk_strategy</span><span class="o">=</span><span class="n">topk_strategy</span><span class="p">,</span>
                     <span class="n">use_shunting</span><span class="o">=</span><span class="n">use_shunting</span><span class="p">,</span>
                     <span class="n">reactivate</span><span class="o">=</span><span class="n">reactivate</span><span class="p">,</span>
+                    <span class="n">reactivation_init_m</span><span class="o">=</span><span class="n">reactivation_init_m</span><span class="p">,</span>
+                    <span class="n">reactivation_init_b</span><span class="o">=</span><span class="n">reactivation_init_b</span><span class="p">,</span>
                     <span class="n">reactivation_type</span><span class="o">=</span><span class="n">reactivation_type</span><span class="p">,</span>
                     <span class="n">reactivation_strategy</span><span class="o">=</span><span class="n">reactivation_strategy</span><span class="p">,</span>
                     <span class="n">blocklinear_strategy</span><span class="o">=</span><span class="n">blocklinear_strategy</span><span class="p">,</span>
                     <span class="n">layer_idx</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">n_branch_layers</span><span class="p">,</span>
                     <span class="n">print_hooks</span><span class="o">=</span><span class="n">print_hooks</span><span class="p">,</span>
+                    <span class="n">use_noise</span><span class="o">=</span><span class="n">use_noise</span><span class="p">,</span>
+                    <span class="n">rewiring_mode</span><span class="o">=</span><span class="n">rewiring_mode</span><span class="p">,</span>
+                    <span class="n">synapses_per_branch</span><span class="o">=</span><span class="n">synapses_per_branch</span><span class="p">,</span>
+                    <span class="n">excitatory_target_density</span><span class="o">=</span><span class="n">excitatory_target_density</span><span class="p">,</span>
+                    <span class="n">inhibitory_target_density</span><span class="o">=</span><span class="n">inhibitory_target_density</span><span class="p">,</span>
+                    <span class="n">freeze_excitatory_connectivity</span><span class="o">=</span><span class="n">freeze_excitatory_connectivity</span><span class="p">,</span>
+                    <span class="n">freeze_inhibitory_connectivity</span><span class="o">=</span><span class="n">freeze_inhibitory_connectivity</span><span class="p">,</span>
+                    <span class="n">init_method</span><span class="o">=</span><span class="n">init_method</span><span class="p">,</span>
+                    <span class="n">weight_threshold</span><span class="o">=</span><span class="n">weight_threshold</span><span class="p">,</span>
+                    <span class="o">**</span><span class="n">kwargs</span>
                 <span class="p">)</span>
             <span class="p">)</span>
         <span class="k">else</span><span class="p">:</span>
@@ -1344,11 +1801,23 @@
                     <span class="n">topk_strategy</span><span class="o">=</span><span class="n">topk_strategy</span><span class="p">,</span>
                     <span class="n">use_shunting</span><span class="o">=</span><span class="n">use_shunting</span><span class="p">,</span>
                     <span class="n">reactivate</span><span class="o">=</span><span class="n">reactivate</span><span class="p">,</span>
+                    <span class="n">reactivation_init_m</span><span class="o">=</span><span class="n">reactivation_init_m</span><span class="p">,</span>
+                    <span class="n">reactivation_init_b</span><span class="o">=</span><span class="n">reactivation_init_b</span><span class="p">,</span>
                     <span class="n">reactivation_type</span><span class="o">=</span><span class="n">reactivation_type</span><span class="p">,</span>
                     <span class="n">reactivation_strategy</span><span class="o">=</span><span class="n">reactivation_strategy</span><span class="p">,</span>
                     <span class="n">blocklinear_strategy</span><span class="o">=</span><span class="n">blocklinear_strategy</span><span class="p">,</span>
                     <span class="n">layer_idx</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">n_branch_layers</span><span class="p">,</span>
                     <span class="n">print_hooks</span><span class="o">=</span><span class="n">print_hooks</span><span class="p">,</span>
+                    <span class="n">use_noise</span><span class="o">=</span><span class="n">use_noise</span><span class="p">,</span>
+                    <span class="n">rewiring_mode</span><span class="o">=</span><span class="n">rewiring_mode</span><span class="p">,</span>
+                    <span class="n">synapses_per_branch</span><span class="o">=</span><span class="n">synapses_per_branch</span><span class="p">,</span>
+                    <span class="n">excitatory_target_density</span><span class="o">=</span><span class="n">excitatory_target_density</span><span class="p">,</span>
+                    <span class="n">inhibitory_target_density</span><span class="o">=</span><span class="n">inhibitory_target_density</span><span class="p">,</span>
+                    <span class="n">freeze_excitatory_connectivity</span><span class="o">=</span><span class="n">freeze_excitatory_connectivity</span><span class="p">,</span>
+                    <span class="n">freeze_inhibitory_connectivity</span><span class="o">=</span><span class="n">freeze_inhibitory_connectivity</span><span class="p">,</span>
+                    <span class="n">init_method</span><span class="o">=</span><span class="n">init_method</span><span class="p">,</span>
+                    <span class="n">weight_threshold</span><span class="o">=</span><span class="n">weight_threshold</span><span class="p">,</span>
+                    <span class="o">**</span><span class="n">kwargs</span>
                 <span class="p">)</span>
             <span class="p">)</span>
 
@@ -1359,6 +1828,10 @@
         <span class="bp">self</span><span class="o">.</span><span class="n">input_inhibitory</span> <span class="o">=</span> <span class="n">inhibitory_input_dim</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">n_soma</span> <span class="o">=</span> <span class="n">n_soma</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">somatic_synapses</span> <span class="o">=</span> <span class="n">somatic_synapses</span>
+    
+    <span class="k">def</span><span class="w"> </span><span class="nf">apply_rewiring</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">for</span> <span class="n">layer</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">branch_layers</span><span class="p">:</span>
+            <span class="n">layer</span><span class="o">.</span><span class="n">apply_rewiring</span><span class="p">()</span>
 
     <span class="k">def</span><span class="w"> </span><span class="nf">decay_weights</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">weight_decay</span><span class="p">):</span>
         <span class="k">for</span> <span class="n">branch_layer</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">branch_layers</span><span class="p">:</span>
@@ -1441,38 +1914,64 @@
         <span class="n">somatic_synapses</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
         <span class="n">topk_init_method</span><span class="o">=</span><span class="s2">&quot;xavier_normal&quot;</span><span class="p">,</span>
         <span class="n">topk_noise_level</span><span class="o">=</span><span class="mf">0.0</span><span class="p">,</span>
-        <span class="n">topk_type</span><span class="o">=</span><span class="s2">&quot;standard&quot;</span><span class="p">,</span>
-        <span class="n">topk_temperature</span><span class="o">=</span><span class="mf">0.5</span><span class="p">,</span>
-        <span class="n">topk_ultrafast</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span>
+        <span class="n">topk_type</span><span class="o">=</span><span class="s2">&quot;standard&quot;</span><span class="p">,</span>  <span class="c1"># New parameter for TopK strategy</span>
+        <span class="n">topk_temperature</span><span class="o">=</span><span class="mf">0.5</span><span class="p">,</span>  <span class="c1"># For stochastic TopK</span>
+        <span class="n">topk_ultrafast</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span>  <span class="c1"># For much faster stochastic TopK</span>
         <span class="n">topk_strategy</span><span class="o">=</span><span class="s2">&quot;none&quot;</span><span class="p">,</span>
         <span class="n">use_shunting</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
         <span class="n">reactivation_type</span><span class="o">=</span><span class="s2">&quot;param_tanh&quot;</span><span class="p">,</span>
         <span class="n">reactivation_strategy</span><span class="o">=</span><span class="s2">&quot;none&quot;</span><span class="p">,</span>
         <span class="n">blocklinear_strategy</span><span class="o">=</span><span class="s2">&quot;none&quot;</span><span class="p">,</span>
         <span class="n">print_hooks</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span>
-        <span class="o">**</span><span class="n">kwargs</span><span class="p">,</span>
+        <span class="n">reactivation_init_m</span> <span class="o">=</span> <span class="mi">1</span><span class="p">,</span>
+        <span class="n">reactivation_init_b</span> <span class="o">=</span> <span class="mf">0.5</span><span class="p">,</span>
+        <span class="c1"># DEEPST specific parameters, clean up later</span>
+        <span class="n">excitatory_target_density</span><span class="o">=</span><span class="mf">0.1</span><span class="p">,</span>
+        <span class="n">inhibitory_target_density</span><span class="o">=</span><span class="mf">0.1</span><span class="p">,</span>
+        <span class="n">use_noise</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+        <span class="n">sigma</span><span class="o">=</span><span class="mf">0.05</span><span class="p">,</span>
+        <span class="n">rewiring_mode</span><span class="o">=</span><span class="s1">&#39;global&#39;</span><span class="p">,</span>
+        <span class="n">synapses_per_branch</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+        <span class="n">freeze_excitatory_connectivity</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span>
+        <span class="n">freeze_inhibitory_connectivity</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span>
+        <span class="n">init_method</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+        <span class="n">weight_threshold</span><span class="o">=</span><span class="mf">1e-6</span><span class="p">,</span>
+        <span class="o">**</span><span class="n">kwargs</span>
     <span class="p">):</span>
         <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span>
-            <span class="n">n_soma</span><span class="o">=</span><span class="n">n_soma</span><span class="p">,</span>
-            <span class="n">branch_factors</span><span class="o">=</span><span class="n">branch_factors</span><span class="p">,</span>
-            <span class="n">excitatory_input_dim</span><span class="o">=</span><span class="n">excitatory_input_dim</span><span class="p">,</span>
-            <span class="n">excitatory_synapses_per_branch</span><span class="o">=</span><span class="n">excitatory_synapses_per_branch</span><span class="p">,</span>
+            <span class="n">n_soma</span><span class="p">,</span>
+            <span class="n">branch_factors</span><span class="p">,</span>
+            <span class="n">excitatory_input_dim</span><span class="p">,</span>
+            <span class="n">excitatory_synapses_per_branch</span><span class="p">,</span>
             <span class="n">inhibitory_input_dim</span><span class="o">=</span><span class="n">inhibitory_input_dim</span><span class="p">,</span>
             <span class="n">inhibitory_synapses_per_branch</span><span class="o">=</span><span class="n">inhibitory_synapses_per_branch</span><span class="p">,</span>
             <span class="n">reactivate</span><span class="o">=</span><span class="n">reactivate</span><span class="p">,</span>
             <span class="n">somatic_synapses</span><span class="o">=</span><span class="n">somatic_synapses</span><span class="p">,</span>
             <span class="n">topk_init_method</span><span class="o">=</span><span class="n">topk_init_method</span><span class="p">,</span>
             <span class="n">topk_noise_level</span><span class="o">=</span><span class="n">topk_noise_level</span><span class="p">,</span>
-            <span class="n">topk_type</span><span class="o">=</span><span class="n">topk_type</span><span class="p">,</span>
-            <span class="n">topk_temperature</span><span class="o">=</span><span class="n">topk_temperature</span><span class="p">,</span>
-            <span class="n">topk_ultrafast</span><span class="o">=</span><span class="n">topk_ultrafast</span><span class="p">,</span>
+            <span class="n">topk_type</span><span class="o">=</span><span class="n">topk_type</span><span class="p">,</span>  <span class="c1"># New parameter for TopK strategy</span>
+            <span class="n">topk_temperature</span><span class="o">=</span><span class="n">topk_temperature</span><span class="p">,</span>  <span class="c1"># For stochastic TopK</span>
+            <span class="n">topk_ultrafast</span><span class="o">=</span><span class="n">topk_ultrafast</span><span class="p">,</span>  <span class="c1"># For much faster stochastic TopK</span>
             <span class="n">topk_strategy</span><span class="o">=</span><span class="n">topk_strategy</span><span class="p">,</span>
             <span class="n">use_shunting</span><span class="o">=</span><span class="n">use_shunting</span><span class="p">,</span>
             <span class="n">reactivation_type</span><span class="o">=</span><span class="n">reactivation_type</span><span class="p">,</span>
             <span class="n">reactivation_strategy</span><span class="o">=</span><span class="n">reactivation_strategy</span><span class="p">,</span>
             <span class="n">blocklinear_strategy</span><span class="o">=</span><span class="n">blocklinear_strategy</span><span class="p">,</span>
             <span class="n">print_hooks</span><span class="o">=</span><span class="n">print_hooks</span><span class="p">,</span>
-            <span class="o">**</span><span class="n">kwargs</span><span class="p">,</span>
+            <span class="n">reactivation_init_m</span> <span class="o">=</span> <span class="n">reactivation_init_m</span><span class="p">,</span>
+            <span class="n">reactivation_init_b</span> <span class="o">=</span> <span class="n">reactivation_init_b</span><span class="p">,</span>
+            <span class="c1"># DEEPST specific parameters, clean up later</span>
+            <span class="n">excitatory_target_density</span><span class="o">=</span><span class="n">excitatory_target_density</span><span class="p">,</span>
+            <span class="n">inhibitory_target_density</span><span class="o">=</span><span class="n">inhibitory_target_density</span><span class="p">,</span>
+            <span class="n">use_noise</span><span class="o">=</span><span class="n">use_noise</span><span class="p">,</span>
+            <span class="n">sigma</span><span class="o">=</span><span class="n">sigma</span><span class="p">,</span>
+            <span class="n">rewiring_mode</span><span class="o">=</span><span class="n">rewiring_mode</span><span class="p">,</span>
+            <span class="n">synapses_per_branch</span><span class="o">=</span><span class="n">synapses_per_branch</span><span class="p">,</span>
+            <span class="n">freeze_excitatory_connectivity</span><span class="o">=</span><span class="n">freeze_excitatory_connectivity</span><span class="p">,</span>
+            <span class="n">freeze_inhibitory_connectivity</span><span class="o">=</span><span class="n">freeze_inhibitory_connectivity</span><span class="p">,</span>
+            <span class="n">init_method</span><span class="o">=</span><span class="n">init_method</span><span class="p">,</span>
+            <span class="n">weight_threshold</span><span class="o">=</span><span class="n">weight_threshold</span><span class="p">,</span>
+            <span class="o">**</span><span class="n">kwargs</span>
         <span class="p">)</span>
 
 <div class="viewcode-block" id="DendriNetWithOutputs.forward_with_branch_outputs">
