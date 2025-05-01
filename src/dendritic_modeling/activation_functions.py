@@ -204,7 +204,7 @@ class ParametricLinearTanhTransition(nn.Module):
         # Clamp initial values
         clamped_threshold_vals = torch.clamp(threshold_vals, max=max_init_threshold)
         if torch.any(threshold_vals > max_init_threshold):
-             print(f"Warning: Some initial thresholds violated constraint threshold < {1.0/self.linear_slope:.4f}. They were clamped.")
+             logging.warning(f"Some initial thresholds violated constraint threshold < {1.0/self.linear_slope:.4f}. They were clamped.")
 
         if trainable_threshold:
             self.threshold = nn.Parameter(clamped_threshold_vals)
