@@ -256,6 +256,86 @@ Common Issues and Solutions
    - Check if there's enough variation in the results
    - Try using a subset of the data with the most complete results
 
+Rerunning Missing Configurations
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+If some configurations failed or were not completed in the sweep, you can use the ``rerun_missing_configs.py`` script to generate a new batch job that only runs the missing configurations:
+
+.. code-block:: bash
+
+    python scripts/rerun_missing_configs.py --timestamp 20250412010555
+    sbatch rerun_missing.sh
+
+This will:
+
+1. Scan the experiment directory to identify which configurations have results
+2. Generate a new SLURM job script that only runs the missing configurations
+3. Save the generated script as ``rerun_missing.sh`` (or a custom name with ``--output-file``)
+
+Command-Line Arguments
+^^^^^^^^^^^^^^^^^^^^^^
+
+The ``rerun_missing_configs.py`` script supports several command-line arguments:
+
+.. code-block:: bash
+
+    python scripts/rerun_missing_configs.py --timestamp 20250412010555 \
+      --config configs/sweep_params_seeds_ei.yaml \
+      --max-concurrent 20 \
+      --rerun-partial-failures \
+      --force-config-ids 8,15,23 \
+      --identify-failed-directories
+
+Key arguments include:
+
+* ``--folder``: Full path to the ei_TIMESTAMP folder
+* ``--timestamp``: Timestamp ID of the experiment (alternative to --folder)
+* ``--config``: Path to the sweep configuration file to get output_dir
+* ``--base-dir``: Base directory where ei_TIMESTAMP folders are located (overridden if config file has output_dir)
+* ``--output-file``: Path to save the generated SLURM script (default: rerun_missing.sh)
+* ``--max-concurrent``: Maximum number of concurrent jobs (default: 40)
+* ``--check-log-content``: Check log content to verify task completion rather than just file existence
+* ``--rerun-partial-failures``: Rerun configs that have any failed attempts, even if they also have successful runs
+* ``--force-config-ids``: Comma-separated list of config IDs to forcibly rerun (e.g., '8,15,23')
+* ``--identify-failed-directories``: Show specific job directories with failed tasks
+
+Common Use Cases
+^^^^^^^^^^^^^^^
+
+1. **Rerun Completely Failed Configurations**:
+
+   .. code-block:: bash
+
+       python scripts/rerun_missing_configs.py --timestamp 20250412010555
+
+   This runs only configurations that have no successful results.
+
+2. **Rerun Configurations with Any Failed Attempts**:
+
+   .. code-block:: bash
+
+       python scripts/rerun_missing_configs.py --timestamp 20250412010555 --rerun-partial-failures
+
+   This also includes configurations that have some successful runs but also have some failed attempts.
+
+3. **Force Specific Configurations to Rerun**:
+
+   .. code-block:: bash
+
+       python scripts/rerun_missing_configs.py --timestamp 20250412010555 --force-config-ids 8,15,23
+
+   This forcibly reruns specific configurations regardless of their current status.
+
+4. **Identify Failed Task Directories**:
+
+   .. code-block:: bash
+
+       python scripts/rerun_missing_configs.py --timestamp 20250412010555 --identify-failed-directories
+
+   This shows exactly which job/task directories have failed runs.
+
+The script maintains the same directory structure and configuration as the original sweep, ensuring that results are stored consistently. This makes it easy to fill in missing results without rerunning the entire sweep.
+
 Example Workflow
 --------------
 
@@ -278,17 +358,30 @@ Here's a complete workflow for running and analyzing an EI sweep:
        cd output/ei_<timestamp>
        ./run_ei_sweep.sh
 
-4. **Analyze Results**:
+4. **Check for Missing Results** (Optional):
+
+   .. code-block:: bash
+
+       python scripts/analyze_ei_sweep.py --folder output/ei_<timestamp> --report-missing
+
+   If there are missing results, rerun only those configurations:
+
+   .. code-block:: bash
+
+       python scripts/rerun_missing_configs.py --timestamp <timestamp>
+       sbatch rerun_missing.sh
+
+5. **Analyze Results**:
 
    .. code-block:: bash
 
        python scripts/analyze_ei_sweep.py --folder output/ei_<timestamp> --show-plots
 
-5. **Identify Optimal Parameters**:
+6. **Identify Optimal Parameters**:
 
    From the analysis output, identify the best EE and IE values for your task.
 
-6. **Fine-tune with Optimal Values**:
+7. **Fine-tune with Optimal Values**:
 
    Use the identified optimal values in your final model configuration.
 
