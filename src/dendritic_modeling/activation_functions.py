@@ -5,6 +5,7 @@ Provides various activation/ reactivation modules, plus a factory to build
 the desired activation function from config.
 """
 
+import logging
 import math
 
 import torch
@@ -85,7 +86,7 @@ class ParametricLinearSigmoid(nn.Module):
     - h(x) = x (linear function)
     - g(x) = exp(x/2) (exponential weighting)
     - f(x) = 4/(1 + exp(-(mx + 2))) (sigmoid function)
-    
+
     Parameters
     ----------
     output_dim : int
@@ -97,41 +98,212 @@ class ParametricLinearSigmoid(nn.Module):
     trainable : bool
         Whether to train the slope parameter (default: True)
     """
-    def __init__(self, output_dim, init_m=4, init_b=None, trainable=True,
-                 activation_wrapper=None):
+
+    def __init__(self, output_dim, init_m=4, init_b=None, trainable=True):
         super(ParametricLinearSigmoid, self).__init__()
-        self.log_m = nn.Parameter(torch.empty((output_dim,)), 
-                                requires_grad=trainable)
-        
+        self.log_m = nn.Parameter(torch.empty((output_dim,)), requires_grad=trainable)
+
         # Initialize trainable parameter
         if init_m == 0:
             init_m = 1e-8
         nn.init.constant_(self.log_m, math.log(init_m))
 
         # Fixed parameters for sigmoid
-        self.fixed_L = 1.0
         if init_b is None:
-            self.fixed_b = 2.0
+            self.fixed_b = -2.0
         else:
             self.fixed_b = init_b
-        
-        # Wrapper for the activation function using ActivationFactory
-        self.activation_wrapper = activation_wrapper
-        
+
     def forward(self, x):
         m = self.log_m.exp()  # slope
-        
+
         # Calculate the three component functions
         h_x = x  # linear function
-        g_x = torch.exp(-3*x)  # exponential weighting
-        f_x = self.fixed_L / (1 + torch.exp(-(m * x + self.fixed_b)))  # sigmoid
-        
+        g_x = torch.exp(-3 * x)  # exponential weighting
+        f_x = 1 / (1 + torch.exp(-(m * x + self.fixed_b)))  # sigmoid
+
         # Combine using the interpolation formula
-        if self.activation_wrapper is not None:
-            act_wrap = ActivationFactory.create(self.activation_wrapper)
-            return act_wrap(h_x * g_x + f_x * (1 - g_x))
+        return h_x * g_x + f_x * (1 - g_x)
+
+
+class ParametricLinearTanh(nn.Module):
+    """
+    A parametric activation function that interpolates between linear and tanh functions.
+    The function is: h(x)*g(x) + f(x)*(1-g(x)) where:
+    - h(x) = x (linear function)
+    - g(x) = exp(x/2) (exponential weighting)
+    - f(x) = (tanh(mx + b)+1)/2 (positivetanh function)
+
+    Parameters
+    ----------
+    output_dim : int
+        Dimension of the output
+    init_m : float
+        Initial value for the slope parameter
+    init_b : float or None
+        Initial value for the bias parameter
+    trainable : bool
+        Whether to train the slope parameter (default: True)
+    """
+
+    def __init__(self, output_dim, init_m=4, init_b=None, trainable=True):
+        super(ParametricLinearTanh, self).__init__()
+        self.log_m = nn.Parameter(torch.empty((output_dim,)), requires_grad=trainable)
+
+        # Initialize trainable parameter
+        if init_m == 0:
+            init_m = 1e-8
+        nn.init.constant_(self.log_m, math.log(init_m))
+
+        # Fixed parameters for sigmoid
+        if init_b is None:
+            self.fixed_b = -2.0
         else:
-            return h_x * g_x + f_x * (1 - g_x)
+            self.fixed_b = init_b
+
+    def forward(self, x):
+        m = self.log_m.exp()  # slope
+
+        # Calculate the three component functions
+        h_x = x  # linear function
+        g_x = torch.exp(-3 * x)  # exponential weighting
+        f_x = (torch.tanh(m * x + self.fixed_b) + 1) / 2  # tanh
+        # Combine using the interpolation formula
+        return h_x * g_x + f_x * (1 - g_x)
+
+
+class ParametricLinearTanhTransition(nn.Module):
+    """
+    A differentiable activation function operating element-wise for a given output dimension.
+    Each element starts linear (scalar slope linear_slope) for x < threshold[i],
+    and transitions into a scaled and shifted tanh function for x >= threshold[i],
+    saturating at 1.
+    The transition threshold and transition slope are potentially learnable parameters for each dimension.
+
+    Requires threshold[i] < 1 / linear_slope for proper behavior (saturation at 1).
+    Requires transition_slope[i] > 0.
+    """
+
+    def __init__(
+        self,
+        output_dim: int,
+        init_threshold=0.0,
+        linear_slope=1.0,
+        init_transition_slope=None,
+        trainable_threshold=True,
+        trainable_transition_slope=True,
+    ):
+        super().__init__()
+
+        if not isinstance(output_dim, int) or output_dim <= 0:
+            raise ValueError("output_dim must be a positive integer.")
+        self.output_dim = output_dim
+
+        if linear_slope <= 0:
+            raise ValueError("linear_slope must be positive.")
+        # linear_slope remains a scalar shared across dimensions
+        self.linear_slope = linear_slope
+
+        # --- Initialize Threshold ---
+        max_init_threshold = (1.0 / self.linear_slope) - 1e-6
+        threshold_vals = self._initialize_param_val(
+            init_threshold, output_dim, "init_threshold"
+        )
+        # Clamp initial values
+        clamped_threshold_vals = torch.clamp(threshold_vals, max=max_init_threshold)
+        if torch.any(threshold_vals > max_init_threshold):
+            logging.warning(
+                f"Some initial thresholds violated constraint threshold < {1.0/self.linear_slope:.4f}. They were clamped."
+            )
+
+        if trainable_threshold:
+            self.threshold = nn.Parameter(clamped_threshold_vals)
+        else:
+            self.register_buffer("threshold", clamped_threshold_vals)
+
+        # --- Initialize Transition Slope ---
+        if init_transition_slope is None:
+            # Default to linear_slope if not provided
+            init_transition_slope = self.linear_slope
+        transition_slope_vals = self._initialize_param_val(
+            init_transition_slope, output_dim, "init_transition_slope"
+        )
+        # Clamp initial values to be positive
+        clamped_transition_slope_vals = torch.clamp(transition_slope_vals, min=1e-9)
+        if torch.any(transition_slope_vals <= 0):
+            logging.warning(
+                f"Some initial transition slopes were <= 0. They were clamped to min=1e-9."
+            )
+
+        if trainable_transition_slope:
+            self.transition_slope = nn.Parameter(clamped_transition_slope_vals)
+        else:
+            self.register_buffer("transition_slope", clamped_transition_slope_vals)
+
+    def _initialize_param_val(self, init_val, dim, name):
+        """Helper to initialize parameter values from scalar or tensor/list."""
+        if isinstance(init_val, (int, float)):
+            return torch.full((dim,), float(init_val))
+        elif isinstance(init_val, torch.Tensor):
+            if init_val.shape == (dim,):
+                return init_val.clone().float()
+            else:
+                raise ValueError(
+                    f"{name} tensor has wrong shape ({init_val.shape}), expected ({dim},)"
+                )
+        elif isinstance(init_val, (list, tuple)):
+            if len(init_val) == dim:
+                return torch.tensor(init_val, dtype=torch.float32)
+            else:
+                raise ValueError(
+                    f"{name} list/tuple has wrong length ({len(init_val)}), expected {dim}"
+                )
+        else:
+            raise TypeError(f"Unsupported type for {name}: {type(init_val)}")
+
+    def forward(self, x):
+        # x shape: (batch_size, ..., output_dim) or (output_dim,)
+        # parameters shape: (output_dim,) - broadcasting will handle element-wise ops
+
+        # Clamp threshold to ensure 1 - m * threshold > 0
+        max_threshold = (1.0 / self.linear_slope) - 1e-6  # scalar
+        threshold = torch.clamp(
+            self.threshold, max=max_threshold
+        )  # shape (output_dim,)
+
+        # Clamp transition_slope to ensure > 0
+        transition_slope = torch.clamp(
+            self.transition_slope, min=1e-8
+        )  # shape (output_dim,)
+
+        # Parameters A, B, D now depend on threshold and transition_slope per dimension
+        # Broadcasting applies: (output_dim,) op (output_dim,) -> (output_dim,)
+        A = 1.0 - self.linear_slope * threshold
+        D = self.linear_slope * threshold
+        # Add epsilon for stability when A is close to zero
+        B = transition_slope / (A + 1e-8)
+
+        # Apply element-wise logic using broadcasting
+        # x: (..., output_dim), threshold: (output_dim,) -> comparison: (..., output_dim)
+        linear_part = self.linear_slope * x
+        # Tanh part involves ops between x and params.
+        # (x - threshold) -> shape (..., output_dim)
+        # B * (x - threshold) -> shape (..., output_dim)
+        # A * tanh(...) + D -> shape (..., output_dim)
+        tanh_part = A * torch.tanh(B * (x - threshold)) + D
+
+        output = torch.where(x < threshold, linear_part, tanh_part)
+
+        return output
+
+    def extra_repr(self):
+        is_thresh_trainable = isinstance(self.threshold, nn.Parameter)
+        is_slope_trainable = isinstance(self.transition_slope, nn.Parameter)
+        return (
+            f"output_dim={self.output_dim}, linear_slope={self.linear_slope}, "
+            f"threshold=Parameter(shape={tuple(self.threshold.shape)}, trainable={is_thresh_trainable}), "
+            f"transition_slope=Parameter(shape={tuple(self.transition_slope.shape)}, trainable={is_slope_trainable})"
+        )
 
 
 class ActivationFactory:
@@ -184,8 +356,52 @@ class ActivationFactory:
         elif act_type == "tanh":
             return SimpleTanh()
         elif act_type == "param_linear_sigmoid":
+            if output_dim is None:  # trainable init_m
+                raise ValueError("ParametricLinearSigmoid requires output_dim.")
+            return ParametricLinearSigmoid(
+                output_dim, init_m=init_m, init_b=init_b, trainable=True, **kwargs
+            )
+        elif act_type == "linear_sigmoid":  # not trainable
             if output_dim is None:
                 raise ValueError("ParametricLinearSigmoid requires output_dim.")
-            return ParametricLinearSigmoid(output_dim, init_m=init_m, init_b=init_b, **kwargs)
+            return ParametricLinearSigmoid(
+                output_dim, init_m=init_m, init_b=init_b, trainable=False, **kwargs
+            )
+        elif act_type == "param_linear_tanh":  # trainable init_m
+            if output_dim is None:
+                raise ValueError("ParametricLinearTanh requires output_dim.")
+            return ParametricLinearTanh(
+                output_dim, init_m=init_m, init_b=init_b, trainable=True, **kwargs
+            )
+        elif act_type == "linear_tanh":  # not trainable
+            if output_dim is None:
+                raise ValueError("ParametricLinearTanh requires output_dim.")
+            return ParametricLinearTanh(
+                output_dim, init_m=init_m, init_b=init_b, trainable=False, **kwargs
+            )
+        elif act_type == "param_linear_tanh_transition":  # trainable init_m, init_b
+            # Map factory parameters to ParametricLinearTanhTransition parameters:
+            # - init_b maps to init_threshold (the point where transition happens)
+            # - init_m maps to init_transition_slope (controls transition curve steepness)
+            return ParametricLinearTanhTransition(
+                output_dim,
+                init_threshold=init_b,
+                linear_slope=1.0,
+                init_transition_slope=init_m,
+                trainable_threshold=True,
+                trainable_transition_slope=True,
+            )
+        elif act_type == "linear_tanh_transition":  # not trainable
+            # Map factory parameters to ParametricLinearTanhTransition parameters:
+            # - init_b maps to init_threshold (the point where transition happens)
+            # - init_m maps to init_transition_slope (controls transition curve steepness)
+            return ParametricLinearTanhTransition(
+                output_dim,
+                init_threshold=init_b,
+                linear_slope=1.0,
+                init_transition_slope=init_m,
+                trainable_threshold=False,
+                trainable_transition_slope=False,
+            )
         else:
             raise ValueError(f"Unknown activation type: {act_type}")
