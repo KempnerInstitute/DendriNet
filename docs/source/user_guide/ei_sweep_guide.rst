@@ -256,6 +256,43 @@ Common Issues and Solutions
    - Check if there's enough variation in the results
    - Try using a subset of the data with the most complete results
 
+Rerunning Missing Configurations
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+If some configurations failed or were not completed in the sweep, you can use the ``rerun_missing_configs.py`` script to generate a new batch job that only runs the missing configurations:
+
+.. code-block:: bash
+
+    python scripts/rerun_missing_configs.py --timestamp 20250412010555
+    sbatch rerun_missing.sh
+
+This will:
+
+1. Scan the experiment directory to identify which configurations have results
+2. Generate a new SLURM job script that only runs the missing configurations
+3. Save the generated script as ``rerun_missing.sh`` (or a custom name with ``--output-file``)
+
+Command-Line Arguments
+^^^^^^^^^^^^^^^^^^^^^^
+
+The ``rerun_missing_configs.py`` script supports several command-line arguments:
+
+.. code-block:: bash
+
+    python scripts/rerun_missing_configs.py --timestamp 20250412010555 \
+      --max-concurrent 20 \
+      --output-file custom_rerun.sh
+
+Key arguments include:
+
+* ``--folder``: Full path to the ei_TIMESTAMP folder
+* ``--timestamp``: Timestamp ID of the experiment (alternative to --folder)
+* ``--base-dir``: Base directory where ei_TIMESTAMP folders are located (default: results directory)
+* ``--output-file``: Path to save the generated SLURM script (default: rerun_missing.sh)
+* ``--max-concurrent``: Maximum number of concurrent jobs (default: 40)
+
+The script maintains the same directory structure and configuration as the original sweep, ensuring that results are stored consistently. This makes it easy to fill in missing results without rerunning the entire sweep.
+
 Example Workflow
 --------------
 
@@ -278,17 +315,30 @@ Here's a complete workflow for running and analyzing an EI sweep:
        cd output/ei_<timestamp>
        ./run_ei_sweep.sh
 
-4. **Analyze Results**:
+4. **Check for Missing Results** (Optional):
+
+   .. code-block:: bash
+
+       python scripts/analyze_ei_sweep.py --folder output/ei_<timestamp> --report-missing
+
+   If there are missing results, rerun only those configurations:
+
+   .. code-block:: bash
+
+       python scripts/rerun_missing_configs.py --timestamp <timestamp>
+       sbatch rerun_missing.sh
+
+5. **Analyze Results**:
 
    .. code-block:: bash
 
        python scripts/analyze_ei_sweep.py --folder output/ei_<timestamp> --show-plots
 
-5. **Identify Optimal Parameters**:
+6. **Identify Optimal Parameters**:
 
    From the analysis output, identify the best EE and IE values for your task.
 
-6. **Fine-tune with Optimal Values**:
+7. **Fine-tune with Optimal Values**:
 
    Use the identified optimal values in your final model configuration.
 
