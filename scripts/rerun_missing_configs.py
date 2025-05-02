@@ -14,6 +14,7 @@ Usage:
 import argparse
 import glob
 import os
+import re
 import sys
 from datetime import datetime
 from pathlib import Path
@@ -125,9 +126,24 @@ def get_config_ids(configs_dir, verbose=False):
     return sorted(config_ids)
 
 
-def check_result_exists(results_dir, config_id, verbose=False, check_log_content=False):
-    """Check if results exist for a specific config ID by searching all job folders."""
-    # Check all job directories for the given task ID
+def check_result_for_config(
+    results_dir, config_id, verbose=False, check_log_content=False
+):
+    """Check if results exist for a specific config ID.
+
+    This function looks for "Training experiment completed successfully" in output.log files:
+    1. Finding task directories for this config ID
+    2. Checking output logs for successful completion message
+
+    Returns:
+        (is_completed, _, _): Tuple containing completion status and placeholders
+        for backward compatibility.
+    """
+    if verbose:
+        print(f"\n===== Checking completion for config ID {config_id} =====")
+        print(f"Looking in results directory: {results_dir}")
+
+    # Find job directories
     job_dirs = [
         d
         for d in os.listdir(results_dir)
@@ -135,77 +151,146 @@ def check_result_exists(results_dir, config_id, verbose=False, check_log_content
     ]
 
     if verbose:
-        print(f"Checking for config {config_id} in {len(job_dirs)} job directories")
+        print(f"Found {len(job_dirs)} potential job directories to check")
 
+    # Check for task directories with this config ID
     for job_dir in job_dirs:
         job_path = os.path.join(results_dir, job_dir)
         task_dir = os.path.join(job_path, f"task_{config_id}")
 
-        # Check if this specific task directory exists
         if os.path.isdir(task_dir):
             if verbose:
                 print(f"Found task directory for config {config_id}: {task_dir}")
 
-            # Check for result files
-            config_used = os.path.join(task_dir, "config_used.yaml")
+            # Check output log for completion message
             output_log = os.path.join(task_dir, "output.log")
+            if os.path.exists(output_log):
+                if verbose:
+                    print(f"Found output log: {output_log}")
 
-            config_exists = os.path.exists(config_used)
-            log_exists = os.path.exists(output_log)
-
-            # Default completion status based on file existence
-            task_completed = config_exists and log_exists
-
-            # For more thorough checking, verify log content
-            if task_completed and check_log_content:
+                # Check if log contains success message
                 try:
                     with open(output_log, "r") as f:
-                        log_content = f.read()
-                        # Look for typical completion markers in the log
-                        has_markers = any(
-                            marker in log_content
-                            for marker in [
-                                "Training complete",
-                                "Done with running a training job",
-                                "Total duration:",
-                                "Experiment finished",
-                            ]
-                        )
-
-                        # Check if log is too small (might indicate failure)
-                        too_small = len(log_content.strip()) < 100
-
-                        # Update completion status
-                        if too_small or not has_markers:
-                            task_completed = False
+                        content = f.read()
+                        if "Training experiment completed successfully" in content:
                             if verbose:
-                                reason = (
-                                    "log too small"
-                                    if too_small
-                                    else "no completion markers"
+                                print(
+                                    f"FOUND: 'Training experiment completed successfully' in {output_log}"
                                 )
-                                print(f"  Task directory exists but {reason}")
+                            return True, False, []
+                        elif verbose:
+                            print(f"NOT FOUND: Success message not in {output_log}")
                 except Exception as e:
                     if verbose:
-                        print(f"  Error reading log file: {e}")
+                        print(f"Error reading output log: {e}")
+            elif verbose:
+                print(f"No output log found at {output_log}")
 
-            if verbose:
-                status = "COMPLETE" if task_completed else "INCOMPLETE"
-                details = []
-                if not config_exists:
-                    details.append("missing config")
-                if not log_exists:
-                    details.append("missing log")
-                detail_str = f" ({', '.join(details)})" if details else ""
-                print(f"  Status: {status}{detail_str}")
+    # If we reach here, no successful completion was found
+    if verbose:
+        print(
+            f"Config {config_id} incomplete: no successful completion message found\n"
+        )
+    return False, True, []
 
-            if task_completed:
-                return True
+
+def extract_model_dir_from_log(log_file):
+    """Extract the model directory from a log file.
+    Looks for 'Saved model to' lines in the log that show where models were saved.
+    """
+    try:
+        with open(log_file, "r") as f:
+            for line in f:
+                if "Saved model to" in line and (
+                    "final_model.pt" in line or "best_model.pt" in line
+                ):
+                    # Extract directory path
+                    parts = line.split("Saved model to")
+                    if len(parts) > 1:
+                        # Get the full path
+                        path = parts[1].strip()
+                        if "final_model.pt" in path:
+                            path = path.replace("/final_model.pt", "")
+                        elif "best_model.pt" in path:
+                            path = path.replace("/best_model.pt", "")
+                        # Get just the directory name (last component of path)
+                        return os.path.basename(path)
+    except Exception as e:
+        print(f"Error reading log file {log_file}: {e}")
+    return None
+
+
+def find_missing_configs(
+    configs_dir,
+    results_dir,
+    verbose=False,
+    check_log_content=False,
+    rerun_partial_failures=False,
+    force_config_ids=None,
+):
+    """Find all configs that don't have successful completion messages in output logs."""
+    # Get all config IDs
+    config_ids = get_config_ids(configs_dir, verbose)
 
     if verbose:
-        print(f"No valid results found for config {config_id}")
+        print(f"\nFound {len(config_ids)} total config files in {configs_dir}")
 
-    return False
+    # If force_config_ids is specified, only consider those IDs
+    if force_config_ids:
+        forced_ids = [int(id_str.strip()) for id_str in force_config_ids.split(",")]
+        config_ids = [cid for cid in config_ids if cid in forced_ids]
+        if verbose:
+            print(f"Limiting check to forced config IDs: {forced_ids}")
+
+    # Check each config for completion (has successful completion message)
+    completed_ids = set()
+    missing_ids = []
+
+    if verbose:
+        print(
+            f"\nChecking {len(config_ids)} configurations for successful completion..."
+        )
+
+    for config_id in config_ids:
+        # Check if this config has a successful completion message
+        is_completed, _, _ = check_result_for_config(
+            results_dir, config_id, verbose, check_log_content
+        )
+
+        if is_completed:
+            completed_ids.add(config_id)
+            if verbose:
+                print(
+                    f"Config {config_id} is COMPLETED (successful completion message found) and will not be rerun"
+                )
+        else:
+            missing_ids.append(config_id)
+            if verbose:
+                print(
+                    f"Config {config_id} is INCOMPLETE (no successful completion message) and will be rerun"
+                )
+
+    # Also add forced config IDs that weren't already included
+    if force_config_ids:
+        for config_id in forced_ids:
+            if config_id not in missing_ids and config_id in config_ids:
+                missing_ids.append(config_id)
+                if verbose:
+                    print(
+                        f"Config {config_id} is being forcibly added to the rerun list"
+                    )
+
+    if verbose:
+        print(f"\nCompletion check summary:")
+        print(f"- Total configs checked: {len(config_ids)}")
+        print(
+            f"- Completed configs: {len(completed_ids)} - {sorted(list(completed_ids))}"
+        )
+        print(
+            f"- Missing/incomplete configs: {len(missing_ids)} - {sorted(missing_ids)}"
+        )
+
+    return config_ids, completed_ids, sorted(missing_ids), []
 
 
 def get_base_dir_from_config(config_file, verbose=False):
@@ -243,186 +328,53 @@ def get_base_dir_from_config(config_file, verbose=False):
     return None
 
 
-def find_missing_configs(
-    configs_dir,
-    results_dir,
-    verbose=False,
-    check_log_content=False,
-    rerun_partial_failures=False,
-    force_config_ids=None,
-):
-    """Find all configs that don't have completed results."""
-    # Get all config IDs
-    config_ids = get_config_ids(configs_dir, verbose)
+def get_job_files_for_config(sweep_dir, config_id):
+    """Check job files to see which ones would run a specific config ID"""
+    jobs_dir = os.path.join(sweep_dir, "jobs")
+    if not os.path.isdir(jobs_dir):
+        return []
 
-    if verbose:
-        print(f"Found {len(config_ids)} configuration files")
+    job_files = []
+    for file in os.listdir(jobs_dir):
+        if file.endswith(".sh"):
+            file_path = os.path.join(jobs_dir, file)
+            try:
+                with open(file_path, "r") as f:
+                    content = f.read()
+                    # Check if file contains array job line with this config ID
+                    array_lines = [
+                        line
+                        for line in content.split("\n")
+                        if line.startswith("#SBATCH --array=")
+                    ]
+                    if not array_lines:
+                        continue
 
-    # If force_config_ids is specified, only consider those IDs
-    if force_config_ids:
-        forced_ids = [int(id_str.strip()) for id_str in force_config_ids.split(",")]
-        config_ids = [cid for cid in config_ids if cid in forced_ids]
-        if verbose:
-            print(
-                f"Filtering to only consider forced config IDs: {', '.join(map(str, config_ids))}"
-            )
+                    array_line = array_lines[0]
 
-    # Track successful and failed attempts for each config
-    completed_ids = set()
-    partial_failure_ids = set()
-    missing_ids = []
+                    # Parse array job range
+                    range_part = array_line.split("=")[1].split("%")[0]
 
-    # Track task directories with failures
-    failed_task_dirs = []
+                    # Handle comma-separated list: "1,2,3,4"
+                    if "," in range_part:
+                        ids = [int(x.strip()) for x in range_part.split(",")]
+                        if config_id in ids:
+                            job_files.append(file_path)
 
-    for config_id in config_ids:
-        success, has_failures, task_failures = check_result_for_config(
-            results_dir, config_id, verbose, check_log_content
-        )
+                    # Handle range: "1-10"
+                    elif "-" in range_part:
+                        start, end = map(int, range_part.split("-"))
+                        if start <= config_id <= end:
+                            job_files.append(file_path)
 
-        # Add any failed task directories to the list
-        failed_task_dirs.extend(task_failures)
+                    # Handle single ID: "5"
+                    else:
+                        if int(range_part.strip()) == config_id:
+                            job_files.append(file_path)
+            except Exception as e:
+                print(f"Error parsing job file {file_path}: {e}")
 
-        if success:
-            completed_ids.add(config_id)
-            if has_failures and rerun_partial_failures:
-                partial_failure_ids.add(config_id)
-                if verbose:
-                    print(
-                        f"Config {config_id} has successful runs but also some failures - marking for rerun"
-                    )
-        else:
-            missing_ids.append(config_id)
-
-    # If rerun_partial_failures is true, add partially failed configs to missing_ids
-    if rerun_partial_failures:
-        for config_id in partial_failure_ids:
-            missing_ids.append(config_id)
-            if verbose:
-                print(
-                    f"Adding config {config_id} to rerun list due to partial failures"
-                )
-
-    # Also add forced config IDs
-    if force_config_ids:
-        for config_id in forced_ids:
-            if config_id not in missing_ids and config_id in config_ids:
-                missing_ids.append(config_id)
-                if verbose:
-                    print(
-                        f"Adding config {config_id} to rerun list due to --force-config-ids"
-                    )
-
-    return config_ids, completed_ids, sorted(missing_ids), failed_task_dirs
-
-
-def check_result_for_config(
-    results_dir, config_id, verbose=False, check_log_content=False
-):
-    """Check if results exist for a specific config ID by searching all job folders.
-
-    Returns:
-        (has_success, has_failures, failed_dirs): Tuple containing:
-                                    - Whether there are any successful runs
-                                    - Whether there are any failed runs
-                                    - List of directories with failed runs
-    """
-    # Check all job directories for the given task ID
-    job_dirs = [
-        d
-        for d in os.listdir(results_dir)
-        if os.path.isdir(os.path.join(results_dir, d))
-    ]
-
-    if verbose:
-        print(f"Checking for config {config_id} in {len(job_dirs)} job directories")
-
-    has_success = False
-    has_failures = False
-    failed_task_dirs = []
-
-    for job_dir in job_dirs:
-        job_path = os.path.join(results_dir, job_dir)
-        task_dir = os.path.join(job_path, f"task_{config_id}")
-
-        # Check if this specific task directory exists
-        if os.path.isdir(task_dir):
-            if verbose:
-                print(f"Found task directory for config {config_id}: {task_dir}")
-
-            # Check for result files
-            config_used = os.path.join(task_dir, "config_used.yaml")
-            output_log = os.path.join(task_dir, "output.log")
-
-            config_exists = os.path.exists(config_used)
-            log_exists = os.path.exists(output_log)
-
-            # Default completion status based on file existence
-            task_completed = config_exists and log_exists
-
-            # For more thorough checking, verify log content
-            if task_completed and check_log_content:
-                try:
-                    with open(output_log, "r") as f:
-                        log_content = f.read()
-                        # Look for typical completion markers in the log
-                        has_markers = any(
-                            marker in log_content
-                            for marker in [
-                                "Training complete",
-                                "Done with running a training job",
-                                "Total duration:",
-                                "Experiment finished",
-                            ]
-                        )
-
-                        # Check if log is too small (might indicate failure)
-                        too_small = len(log_content.strip()) < 100
-
-                        # Update completion status
-                        if too_small or not has_markers:
-                            task_completed = False
-                            if verbose:
-                                reason = (
-                                    "log too small"
-                                    if too_small
-                                    else "no completion markers"
-                                )
-                                print(f"  Task directory exists but {reason}")
-                except Exception as e:
-                    if verbose:
-                        print(f"  Error reading log file: {e}")
-
-            if verbose:
-                status = "COMPLETE" if task_completed else "INCOMPLETE"
-                details = []
-                if not config_exists:
-                    details.append("missing config")
-                if not log_exists:
-                    details.append("missing log")
-                detail_str = f" ({', '.join(details)})" if details else ""
-                print(f"  Status: {status}{detail_str}")
-
-            if task_completed:
-                has_success = True
-            else:
-                has_failures = True
-                failed_task_dirs.append(task_dir)
-
-    if verbose:
-        if not has_success and not has_failures:
-            print(f"No task directories found for config {config_id}")
-        elif has_success:
-            if has_failures:
-                print(
-                    f"Config {config_id} has mixed results: some successful runs, some failed runs"
-                )
-            else:
-                print(f"Config {config_id} has only successful runs")
-        else:
-            print(f"Config {config_id} has NO successful runs")
-
-    return has_success, has_failures, failed_task_dirs
+    return job_files
 
 
 def get_original_slurm_config(sweep_dir):
@@ -668,30 +620,16 @@ def main():
         force_config_ids = args.force_config_ids
         print(f"Will forcibly rerun the following config IDs: {force_config_ids}")
 
-    # Always enable verbose for debugging
-    print(f"Script called with timestamp: {args.timestamp}")
-    print(f"Config file path: {args.config}")
-    print(f"Rerun partial failures: {args.rerun_partial_failures}")
-    print(f"Identify failed directories: {args.identify_failed_directories}")
-
-    # Check if config file exists
-    config_exists = os.path.exists(args.config)
-    print(f"Config file exists: {config_exists}")
-
     # Get base directory from config if provided
     base_dir = args.base_dir
-    if config_exists:
-        config_base_dir = get_base_dir_from_config(args.config, verbose=True)
+    if os.path.exists(args.config):
+        config_base_dir = get_base_dir_from_config(args.config, args.verbose)
         if config_base_dir:
             base_dir = config_base_dir
-            print(f"Using base directory from config file: {base_dir}")
-    else:
-        print(f"WARNING: Config file not found at: {args.config}")
 
     if not base_dir:
         # Default if not provided in args or config
         base_dir = "/n/holylabs/LABS/kempner_dev/Users/hsafaai/results/dendritic-modeling/outputs"
-        print(f"Using default base directory: {base_dir}")
 
     # Determine the sweep directory
     if args.folder:
@@ -699,117 +637,45 @@ def main():
     else:
         sweep_dir = os.path.join(base_dir, f"ei_{args.timestamp}")
 
-    print(f"Full sweep directory path: {sweep_dir}")
+    print(f"Checking sweep directory: {sweep_dir}")
 
     # Ensure the directory exists
     if not os.path.isdir(sweep_dir):
         print(f"ERROR: Sweep directory not found: {sweep_dir}")
-        print("Please verify the timestamp or base directory is correct.")
         sys.exit(1)
 
     # Check configuration files and results
     configs_dir = os.path.join(sweep_dir, "configs")
     results_dir = os.path.join(sweep_dir, "results")
 
-    print(f"Checking configs directory: {configs_dir}")
-    print(f"Checking results directory: {results_dir}")
-
-    if not os.path.isdir(configs_dir):
-        print(f"ERROR: Configs directory not found: {configs_dir}")
+    if not os.path.isdir(configs_dir) or not os.path.isdir(results_dir):
+        print(f"ERROR: Could not find configs or results directories")
         sys.exit(1)
 
-    if not os.path.isdir(results_dir):
-        print(f"ERROR: Results directory not found: {results_dir}")
-        sys.exit(1)
-
-    # List the config files to verify
-    print(f"Config files in directory:")
-    config_files = glob.glob(os.path.join(configs_dir, "*.yaml"))
-    for config_file in config_files[:5]:  # Show first 5 to avoid clutter
-        print(f"  - {os.path.basename(config_file)}")
-    if len(config_files) > 5:
-        print(f"  - ... and {len(config_files) - 5} more")
-
-    # List task directories to verify
-    print(f"Result directories:")
-    job_dirs = [
-        d
-        for d in os.listdir(results_dir)
-        if os.path.isdir(os.path.join(results_dir, d))
-    ]
-    for job_dir in job_dirs[:3]:  # Show first 3 to avoid clutter
-        job_path = os.path.join(results_dir, job_dir)
-        task_dirs = glob.glob(os.path.join(job_path, "task_*"))
-        print(f"  - Job {job_dir}: {len(task_dirs)} tasks")
-    if len(job_dirs) > 3:
-        print(f"  - ... and {len(job_dirs) - 3} more jobs")
-
-    # Find missing configurations with explicit verbose
-    config_ids, completed_ids, missing_ids, failed_task_dirs = find_missing_configs(
+    # Find missing configurations
+    config_ids, completed_ids, missing_ids, _ = find_missing_configs(
         configs_dir,
         results_dir,
-        verbose=True,
+        verbose=args.verbose,
         check_log_content=args.check_log_content,
         rerun_partial_failures=args.rerun_partial_failures,
         force_config_ids=force_config_ids,
     )
 
     print(f"\nSUMMARY:")
-    print(f"Found {len(config_ids)} total configuration files")
-    print(f"Found {len(completed_ids)} configurations with at least one successful run")
-
-    # Count partial failures
-    partial_failures = [
-        cid
-        for cid in completed_ids
-        if cid in config_ids
-        and any(f"task_{cid}" in failed_dir for failed_dir in failed_task_dirs)
-    ]
-
-    print(f"Found {len(partial_failures)} configurations with partial failures")
-
-    # Explain the count
-    if args.rerun_partial_failures:
-        print(
-            f"Found {len(missing_ids)} configurations that are either missing or have partial failures"
-        )
-    else:
-        print(f"Found {len(missing_ids)} configurations with no successful runs")
-
-    # List the task directories with failed runs
-    if args.identify_failed_directories and failed_task_dirs:
-        print("\nFailed task directories:")
-        for task_dir in failed_task_dirs:
-            print(f"  - {task_dir}")
-
-    if force_config_ids and missing_ids:
-        print(
-            f"\nForced config IDs to rerun: {', '.join(map(str, [id for id in missing_ids if id in [int(x.strip()) for x in force_config_ids.split(',')]]))}"
-        )
+    print(f"Found {len(config_ids)} total configurations")
+    print(
+        f"Found {len(completed_ids)} completed configurations (with successful completion messages)"
+    )
+    print(f"Found {len(missing_ids)} configurations to rerun (missing or failed)")
 
     if not missing_ids:
-        if partial_failures and not args.rerun_partial_failures:
-            print(
-                "\nSome configs have partial failures. Use --rerun-partial-failures to include them."
-            )
-            print(
-                f"Partial failure config IDs: {', '.join(map(str, partial_failures))}"
-            )
-            print(
-                f"Rerun with: python scripts/rerun_missing_configs.py --timestamp {args.timestamp} --force-config-ids {','.join(map(str, partial_failures))}"
-            )
-        else:
-            print("\nAll configurations have results. Nothing to do.")
+        print("\nAll configurations have completed successfully. Nothing to do.")
         sys.exit(0)
 
     # Generate rerun script
     success = generate_rerun_script(
-        missing_ids,
-        sweep_dir,
-        args.output_file,
-        args.max_concurrent,
-        failed_task_dirs,
-        args.identify_failed_directories,
+        missing_ids, sweep_dir, args.output_file, args.max_concurrent
     )
 
     if success:
