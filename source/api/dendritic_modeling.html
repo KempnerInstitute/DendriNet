@@ -135,7 +135,7 @@ the desired activation function from config.</p>
 
 <dl class="py class">
 <dt class="sig sig-object py" id="dendritic_modeling.activation_functions.ParametricLinearSigmoid">
-<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">dendritic_modeling.activation_functions.</span></span><span class="sig-name descname"><span class="pre">ParametricLinearSigmoid</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">output_dim</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">init_m</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">4</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">init_b</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">trainable</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">True</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">activation_wrapper</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../../_modules/dendritic_modeling/activation_functions.html#ParametricLinearSigmoid"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#dendritic_modeling.activation_functions.ParametricLinearSigmoid" title="Link to this definition"></a></dt>
+<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">dendritic_modeling.activation_functions.</span></span><span class="sig-name descname"><span class="pre">ParametricLinearSigmoid</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">output_dim</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">init_m</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">4</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">init_b</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">trainable</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">True</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../../_modules/dendritic_modeling/activation_functions.html#ParametricLinearSigmoid"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#dendritic_modeling.activation_functions.ParametricLinearSigmoid" title="Link to this definition"></a></dt>
 <dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">Module</span></code></p>
 <p>A parametric activation function that interpolates between linear and sigmoid functions.
 The function is: h(x)*g(x) + f(x)*(1-g(x)) where:
@@ -152,6 +152,49 @@ The function is: h(x)*g(x) + f(x)*(1-g(x)) where:
 </ul>
 </dd>
 </dl>
+</dd></dl>
+
+<dl class="py class">
+<dt class="sig sig-object py" id="dendritic_modeling.activation_functions.ParametricLinearTanh">
+<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">dendritic_modeling.activation_functions.</span></span><span class="sig-name descname"><span class="pre">ParametricLinearTanh</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">output_dim</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">init_m</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">4</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">init_b</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">trainable</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">True</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../../_modules/dendritic_modeling/activation_functions.html#ParametricLinearTanh"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#dendritic_modeling.activation_functions.ParametricLinearTanh" title="Link to this definition"></a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">Module</span></code></p>
+<p>A parametric activation function that interpolates between linear and tanh functions.
+The function is: h(x)*g(x) + f(x)*(1-g(x)) where:
+- h(x) = x (linear function)
+- g(x) = exp(x/2) (exponential weighting)
+- f(x) = (tanh(mx + b)+1)/2 (positivetanh function)</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>output_dim</strong> (<em>int</em>) – Dimension of the output</p></li>
+<li><p><strong>init_m</strong> (<em>float</em>) – Initial value for the slope parameter</p></li>
+<li><p><strong>init_b</strong> (<em>float</em><em> or </em><em>None</em>) – Initial value for the bias parameter</p></li>
+<li><p><strong>trainable</strong> (<em>bool</em>) – Whether to train the slope parameter (default: True)</p></li>
+</ul>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py class">
+<dt class="sig sig-object py" id="dendritic_modeling.activation_functions.ParametricLinearTanhTransition">
+<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">dendritic_modeling.activation_functions.</span></span><span class="sig-name descname"><span class="pre">ParametricLinearTanhTransition</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">output_dim</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">int</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">init_threshold</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">0.0</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">linear_slope</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">1.0</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">init_transition_slope</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">trainable_threshold</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">True</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">trainable_transition_slope</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">True</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../../_modules/dendritic_modeling/activation_functions.html#ParametricLinearTanhTransition"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#dendritic_modeling.activation_functions.ParametricLinearTanhTransition" title="Link to this definition"></a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">Module</span></code></p>
+<p>A differentiable activation function operating element-wise for a given output dimension.
+Each element starts linear (scalar slope linear_slope) for x &lt; threshold[i],
+and transitions into a scaled and shifted tanh function for x &gt;= threshold[i],
+saturating at 1.
+The transition threshold and transition slope are potentially learnable parameters for each dimension.</p>
+<p>Requires threshold[i] &lt; 1 / linear_slope for proper behavior (saturation at 1).
+Requires transition_slope[i] &gt; 0.</p>
+<dl class="py method">
+<dt class="sig sig-object py" id="dendritic_modeling.activation_functions.ParametricLinearTanhTransition.extra_repr">
+<span class="sig-name descname"><span class="pre">extra_repr</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="../../_modules/dendritic_modeling/activation_functions.html#ParametricLinearTanhTransition.extra_repr"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#dendritic_modeling.activation_functions.ParametricLinearTanhTransition.extra_repr" title="Link to this definition"></a></dt>
+<dd><p>Return the extra representation of the module.</p>
+<p>To print customized extra information, you should re-implement
+this method in your own modules. Both single-line and multi-line
+strings are acceptable.</p>
+</dd></dl>
+
 </dd></dl>
 
 <dl class="py class">
