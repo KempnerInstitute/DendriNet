@@ -80,6 +80,7 @@
 <li class="toctree-l3"><a class="reference internal" href="#comparing-multiple-sweeps">Comparing Multiple Sweeps</a></li>
 <li class="toctree-l3"><a class="reference internal" href="#troubleshooting">Troubleshooting</a><ul>
 <li class="toctree-l4"><a class="reference internal" href="#common-issues-and-solutions">Common Issues and Solutions</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#rerunning-missing-configurations">Rerunning Missing Configurations</a></li>
 </ul>
 </li>
 <li class="toctree-l3"><a class="reference internal" href="#example-workflow">Example Workflow</a></li>
@@ -282,7 +283,7 @@
 <li><p><code class="docutils literal notranslate"><span class="pre">--timestamp</span></code>: Timestamp ID of the experiment (alternative to –folder)</p></li>
 <li><p><code class="docutils literal notranslate"><span class="pre">--show-plots</span></code>: Display plots interactively in addition to saving them</p></li>
 <li><p><code class="docutils literal notranslate"><span class="pre">--report-missing</span></code>: Report details of missing or unfinished runs</p></li>
-<li><p><code class="docutils literal notranslate"><span class="pre">--all</span></code>: Analyze all <a href="#id3"><span class="problematic" id="id4">ei_</span></a> folders in the output directory</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">--all</span></code>: Analyze all <a href="#id4"><span class="problematic" id="id5">ei_</span></a> folders in the output directory</p></li>
 <li><p><code class="docutils literal notranslate"><span class="pre">--multiple</span></code>: List of timestamps or folders to analyze and compare together</p></li>
 </ul>
 </section>
@@ -364,6 +365,75 @@
 </li>
 </ol>
 </section>
+<section id="rerunning-missing-configurations">
+<h3>Rerunning Missing Configurations<a class="headerlink" href="#rerunning-missing-configurations" title="Link to this heading"></a></h3>
+<p>If some configurations failed or were not completed in the sweep, you can use the <code class="docutils literal notranslate"><span class="pre">rerun_missing_configs.py</span></code> script to generate a new batch job that only runs the missing configurations:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>python<span class="w"> </span>scripts/rerun_missing_configs.py<span class="w"> </span>--timestamp<span class="w"> </span><span class="m">20250412010555</span>
+sbatch<span class="w"> </span>rerun_missing.sh
+</pre></div>
+</div>
+<p>This will:</p>
+<ol class="arabic simple">
+<li><p>Scan the experiment directory to identify which configurations have results</p></li>
+<li><p>Generate a new SLURM job script that only runs the missing configurations</p></li>
+<li><p>Save the generated script as <code class="docutils literal notranslate"><span class="pre">rerun_missing.sh</span></code> (or a custom name with <code class="docutils literal notranslate"><span class="pre">--output-file</span></code>)</p></li>
+</ol>
+<section id="id3">
+<h4>Command-Line Arguments<a class="headerlink" href="#id3" title="Link to this heading"></a></h4>
+<p>The <code class="docutils literal notranslate"><span class="pre">rerun_missing_configs.py</span></code> script supports several command-line arguments:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>python<span class="w"> </span>scripts/rerun_missing_configs.py<span class="w"> </span>--timestamp<span class="w"> </span><span class="m">20250412010555</span><span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>--config<span class="w"> </span>configs/sweep_params_seeds_ei.yaml<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>--max-concurrent<span class="w"> </span><span class="m">20</span><span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>--rerun-partial-failures<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>--force-config-ids<span class="w"> </span><span class="m">8</span>,15,23<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>--identify-failed-directories
+</pre></div>
+</div>
+<p>Key arguments include:</p>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">--folder</span></code>: Full path to the ei_TIMESTAMP folder</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">--timestamp</span></code>: Timestamp ID of the experiment (alternative to –folder)</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">--config</span></code>: Path to the sweep configuration file to get output_dir</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">--base-dir</span></code>: Base directory where ei_TIMESTAMP folders are located (overridden if config file has output_dir)</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">--output-file</span></code>: Path to save the generated SLURM script (default: rerun_missing.sh)</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">--max-concurrent</span></code>: Maximum number of concurrent jobs (default: 40)</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">--check-log-content</span></code>: Check log content to verify task completion rather than just file existence</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">--rerun-partial-failures</span></code>: Rerun configs that have any failed attempts, even if they also have successful runs</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">--force-config-ids</span></code>: Comma-separated list of config IDs to forcibly rerun (e.g., ‘8,15,23’)</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">--identify-failed-directories</span></code>: Show specific job directories with failed tasks</p></li>
+</ul>
+</section>
+<section id="common-use-cases">
+<h4>Common Use Cases<a class="headerlink" href="#common-use-cases" title="Link to this heading"></a></h4>
+<ol class="arabic">
+<li><p><strong>Rerun Completely Failed Configurations</strong>:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>python<span class="w"> </span>scripts/rerun_missing_configs.py<span class="w"> </span>--timestamp<span class="w"> </span><span class="m">20250412010555</span>
+</pre></div>
+</div>
+<p>This runs only configurations that have no successful results.</p>
+</li>
+<li><p><strong>Rerun Configurations with Any Failed Attempts</strong>:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>python<span class="w"> </span>scripts/rerun_missing_configs.py<span class="w"> </span>--timestamp<span class="w"> </span><span class="m">20250412010555</span><span class="w"> </span>--rerun-partial-failures
+</pre></div>
+</div>
+<p>This also includes configurations that have some successful runs but also have some failed attempts.</p>
+</li>
+<li><p><strong>Force Specific Configurations to Rerun</strong>:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>python<span class="w"> </span>scripts/rerun_missing_configs.py<span class="w"> </span>--timestamp<span class="w"> </span><span class="m">20250412010555</span><span class="w"> </span>--force-config-ids<span class="w"> </span><span class="m">8</span>,15,23
+</pre></div>
+</div>
+<p>This forcibly reruns specific configurations regardless of their current status.</p>
+</li>
+<li><p><strong>Identify Failed Task Directories</strong>:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>python<span class="w"> </span>scripts/rerun_missing_configs.py<span class="w"> </span>--timestamp<span class="w"> </span><span class="m">20250412010555</span><span class="w"> </span>--identify-failed-directories
+</pre></div>
+</div>
+<p>This shows exactly which job/task directories have failed runs.</p>
+</li>
+</ol>
+<p>The script maintains the same directory structure and configuration as the original sweep, ensuring that results are stored consistently. This makes it easy to fill in missing results without rerunning the entire sweep.</p>
+</section>
+</section>
 </section>
 <section id="example-workflow">
 <h2>Example Workflow<a class="headerlink" href="#example-workflow" title="Link to this heading"></a></h2>
@@ -380,6 +450,16 @@
 <li><p><strong>Run Sweep</strong>:</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="nb">cd</span><span class="w"> </span>output/ei_&lt;timestamp&gt;
 ./run_ei_sweep.sh
+</pre></div>
+</div>
+</li>
+<li><p><strong>Check for Missing Results</strong> (Optional):</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>python<span class="w"> </span>scripts/analyze_ei_sweep.py<span class="w"> </span>--folder<span class="w"> </span>output/ei_&lt;timestamp&gt;<span class="w"> </span>--report-missing
+</pre></div>
+</div>
+<p>If there are missing results, rerun only those configurations:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>python<span class="w"> </span>scripts/rerun_missing_configs.py<span class="w"> </span>--timestamp<span class="w"> </span>&lt;timestamp&gt;
+sbatch<span class="w"> </span>rerun_missing.sh
 </pre></div>
 </div>
 </li>
