@@ -480,6 +480,27 @@ def generate_rerun_script(
         ]
     )
 
+    # Format time to HH:MM:SS if it's not already
+    time_value = slurm_config.get("time", "1:00:00")
+    if isinstance(time_value, (int, float)) or (
+        isinstance(time_value, str) and time_value.isdigit()
+    ):
+        # Convert seconds to HH:MM:SS
+        seconds = int(float(time_value))
+        hours = seconds // 3600
+        minutes = (seconds % 3600) // 60
+        seconds = seconds % 60
+        formatted_time = f"{hours}:{minutes:02d}:{seconds:02d}"
+    elif isinstance(time_value, str):
+        if ":" not in time_value:
+            # Assume it's hours if no colons
+            formatted_time = f"{time_value}:00:00"
+        else:
+            formatted_time = time_value
+    else:
+        # Default to 3 hours if unknown format
+        formatted_time = "3:00:00"
+
     # Resources
     lines.extend(
         [
@@ -487,11 +508,25 @@ def generate_rerun_script(
             f"#SBATCH --ntasks-per-node={slurm_config.get('ntasks_per_node', 1)}",
             f"#SBATCH --gpus-per-node={slurm_config.get('gpus_per_node', 1)}",
             f"#SBATCH --cpus-per-task={slurm_config.get('cpus_per_task', 10)}",
-            f"#SBATCH --time={slurm_config.get('time', '1:00:00')}",
-            f"#SBATCH --mem={slurm_config.get('mem', '64GB')}",
-            f"#SBATCH --partition={slurm_config.get('partition', 'kempner_gpu')}",
+            f"#SBATCH --time={formatted_time}",
         ]
     )
+
+    # Properly handle memory specification - use only one method
+    # Check if the memory specification has a unit suffix
+    mem_value = slurm_config.get("mem", "64GB")
+    if isinstance(mem_value, str):
+        # If it has a unit suffix (GB, MB, etc.), use it as is for total memory
+        if any(unit in mem_value.upper() for unit in ["GB", "MB", "G", "M", "K", "KB"]):
+            lines.append(f"#SBATCH --mem={mem_value}")
+        else:
+            # If no unit, assume it's in MB and add the unit
+            lines.append(f"#SBATCH --mem={mem_value}MB")
+    else:
+        # If it's a number, assume it's in MB
+        lines.append(f"#SBATCH --mem={mem_value}MB")
+
+    lines.append(f"#SBATCH --partition={slurm_config.get('partition', 'kempner_gpu')}")
 
     # Handle array job configuration
     if len(missing_ids) > 1:
