@@ -6,8 +6,9 @@ Script to check which configurations from an EI sweep don't have results
 and generate a new SLURM job script to run only the missing configurations.
 
 Usage:
-    python scripts/rerun_missing_configs.py /path/to/ei_TIMESTAMP --output-file rerun_missing.sh
+    python scripts/rerun_missing_configs.py --folder /path/to/ei_TIMESTAMP --output-file rerun_missing.sh
     python scripts/rerun_missing_configs.py --timestamp TIMESTAMP --output-file rerun_missing.sh
+    python scripts/rerun_missing_configs.py --timestamp TIMESTAMP --config configs/sweep_params_seeds_ei.yaml
 """
 
 import argparse
@@ -30,11 +31,18 @@ def parse_args():
     group.add_argument("--folder", help="Full path to the ei_TIMESTAMP folder")
     group.add_argument("--timestamp", help="Timestamp of the ei_TIMESTAMP folder")
 
-    # Where to find the base folder if only timestamp provided
+    # Add config file parameter
+    parser.add_argument(
+        "--config",
+        default="configs/sweep_params_seeds_ei.yaml",
+        help="Path to the sweep configuration file to get output_dir",
+    )
+
+    # Where to find the base folder if only timestamp provided and no config file is specified
     parser.add_argument(
         "--base-dir",
-        default="/n/holylabs/LABS/kempner_dev/Users/hsafaai/results/dendritic-modeling/outputs",
-        help="Base directory where ei_TIMESTAMP folders are located",
+        default="",
+        help="Base directory where ei_TIMESTAMP folders are located (overridden if config file has output_dir)",
     )
 
     # Output options
@@ -52,13 +60,31 @@ def parse_args():
         help="Maximum number of concurrent jobs",
     )
 
+    # Add verbose mode
+    parser.add_argument(
+        "--verbose",
+        action="store_true",
+        help="Print detailed information about configs and results",
+    )
+
+    # Add option to check log content
+    parser.add_argument(
+        "--check-log-content",
+        action="store_true",
+        help="Check log content to verify task completion rather than just file existence",
+    )
+
     return parser.parse_args()
 
 
-def get_config_ids(configs_dir):
+def get_config_ids(configs_dir, verbose=False):
     """Get all config IDs from the configs directory."""
     config_files = glob.glob(os.path.join(configs_dir, "*.yaml"))
     config_ids = []
+
+    if verbose:
+        print(f"Looking for config files in {configs_dir}")
+        print(f"Found {len(config_files)} yaml files")
 
     for config_file in config_files:
         # Extract the config ID from the filename (e.g., ei_sweep_config_42.yaml -> 42)
@@ -68,49 +94,144 @@ def get_config_ids(configs_dir):
             try:
                 config_id = int(parts[-1].replace(".yaml", ""))
                 config_ids.append(config_id)
+                if verbose:
+                    print(f"Found config file: {filename} with ID {config_id}")
             except ValueError:
+                if verbose:
+                    print(f"Skipping file {filename} - not a numbered config")
                 continue
 
     return sorted(config_ids)
 
 
-def find_completed_results(results_dir):
-    """Find all configs that have completed results."""
-    completed_ids = set()
-
-    # Look through all job directories in the results folder
+def check_result_exists(results_dir, config_id, verbose=False, check_log_content=False):
+    """Check if results exist for a specific config ID by searching all job folders."""
+    # Check all job directories for the given task ID
     job_dirs = [
         d
         for d in os.listdir(results_dir)
         if os.path.isdir(os.path.join(results_dir, d))
     ]
 
+    if verbose:
+        print(f"Checking for config {config_id} in {len(job_dirs)} job directories")
+
     for job_dir in job_dirs:
         job_path = os.path.join(results_dir, job_dir)
+        task_dir = os.path.join(job_path, f"task_{config_id}")
 
-        # Find all task directories within this job
-        task_dirs = glob.glob(os.path.join(job_path, "task_*"))
+        # Check if this specific task directory exists
+        if os.path.isdir(task_dir):
+            if verbose:
+                print(f"Found task directory for config {config_id}: {task_dir}")
 
-        for task_dir in task_dirs:
-            # Extract task ID from directory name (task_42 -> 42)
-            task_name = os.path.basename(task_dir)
-            try:
-                task_id = int(task_name.replace("task_", ""))
+            # Check for result files
+            config_used = os.path.join(task_dir, "config_used.yaml")
+            output_log = os.path.join(task_dir, "output.log")
 
-                # Check if this task has completed by looking for result files
-                # This may need adjustment based on what files indicate completion
-                config_used = os.path.join(task_dir, "config_used.yaml")
-                output_log = os.path.join(task_dir, "output.log")
+            config_exists = os.path.exists(config_used)
+            log_exists = os.path.exists(output_log)
 
-                # Consider it complete if it has a config file and output log
-                if os.path.exists(config_used) and os.path.exists(output_log):
-                    # For more rigorous checking, you could parse the output log
-                    # to verify the job finished successfully
-                    completed_ids.add(task_id)
-            except ValueError:
-                continue
+            # Default completion status based on file existence
+            task_completed = config_exists and log_exists
 
-    return completed_ids
+            # For more thorough checking, verify log content
+            if task_completed and check_log_content:
+                try:
+                    with open(output_log, "r") as f:
+                        log_content = f.read()
+                        # Look for typical completion markers in the log
+                        has_markers = any(
+                            marker in log_content
+                            for marker in [
+                                "Training complete",
+                                "Done with running a training job",
+                                "Total duration:",
+                                "Experiment finished",
+                            ]
+                        )
+
+                        # Check if log is too small (might indicate failure)
+                        too_small = len(log_content.strip()) < 100
+
+                        # Update completion status
+                        if too_small or not has_markers:
+                            task_completed = False
+                            if verbose:
+                                reason = (
+                                    "log too small"
+                                    if too_small
+                                    else "no completion markers"
+                                )
+                                print(f"  Task directory exists but {reason}")
+                except Exception as e:
+                    if verbose:
+                        print(f"  Error reading log file: {e}")
+
+            if verbose:
+                status = "COMPLETE" if task_completed else "INCOMPLETE"
+                details = []
+                if not config_exists:
+                    details.append("missing config")
+                if not log_exists:
+                    details.append("missing log")
+                detail_str = f" ({', '.join(details)})" if details else ""
+                print(f"  Status: {status}{detail_str}")
+
+            if task_completed:
+                return True
+
+    if verbose:
+        print(f"No valid results found for config {config_id}")
+
+    return False
+
+
+def get_base_dir_from_config(config_file, verbose=False):
+    """Extract the output_dir from the sweep configuration file."""
+    if verbose:
+        print(f"Reading base directory from config file: {config_file}")
+
+    try:
+        with open(config_file, "r") as f:
+            config = yaml.safe_load(f)
+
+            if "slurm_config" in config and "output_dir" in config["slurm_config"]:
+                base_dir = config["slurm_config"]["output_dir"]
+                if base_dir:  # Check if it's not empty
+                    if verbose:
+                        print(f"Found base directory in config: {base_dir}")
+                    return base_dir
+    except Exception as e:
+        print(f"Error reading config file {config_file}: {e}")
+
+    if verbose:
+        print("No base directory found in config file or it's empty")
+
+    return None
+
+
+def find_missing_configs(
+    configs_dir, results_dir, verbose=False, check_log_content=False
+):
+    """Find all configs that don't have completed results."""
+    # Get all config IDs
+    config_ids = get_config_ids(configs_dir, verbose)
+
+    if verbose:
+        print(f"Found {len(config_ids)} configuration files")
+
+    # Check each config ID for results
+    completed_ids = set()
+    missing_ids = []
+
+    for config_id in config_ids:
+        if check_result_exists(results_dir, config_id, verbose, check_log_content):
+            completed_ids.add(config_id)
+        else:
+            missing_ids.append(config_id)
+
+    return config_ids, completed_ids, missing_ids
 
 
 def get_original_slurm_config(sweep_dir):
@@ -308,11 +429,29 @@ def generate_rerun_script(missing_ids, sweep_dir, output_file, max_concurrent):
 def main():
     args = parse_args()
 
+    # Get base directory from config if provided
+    base_dir = args.base_dir
+    if os.path.exists(args.config):
+        config_base_dir = get_base_dir_from_config(args.config, args.verbose)
+        if config_base_dir:
+            base_dir = config_base_dir
+            if args.verbose:
+                print(f"Using base directory from config file: {base_dir}")
+
+    if not base_dir:
+        # Default if not provided in args or config
+        base_dir = "/n/holylabs/LABS/kempner_dev/Users/hsafaai/results/dendritic-modeling/outputs"
+        if args.verbose:
+            print(f"Using default base directory: {base_dir}")
+
     # Determine the sweep directory
     if args.folder:
         sweep_dir = args.folder
     else:
-        sweep_dir = os.path.join(args.base_dir, f"ei_{args.timestamp}")
+        sweep_dir = os.path.join(base_dir, f"ei_{args.timestamp}")
+
+    if args.verbose:
+        print(f"Full sweep directory path: {sweep_dir}")
 
     # Ensure the directory exists
     if not os.path.isdir(sweep_dir):
@@ -331,17 +470,17 @@ def main():
         print(f"Error: Results directory not found: {results_dir}")
         sys.exit(1)
 
-    # Get all config IDs
-    config_ids = get_config_ids(configs_dir)
-    print(f"Found {len(config_ids)} configuration files")
+    # Find missing configurations
+    config_ids, completed_ids, missing_ids = find_missing_configs(
+        configs_dir, results_dir, args.verbose, args.check_log_content
+    )
 
-    # Find completed results
-    completed_ids = find_completed_results(results_dir)
+    print(f"Found {len(config_ids)} total configuration files")
     print(f"Found {len(completed_ids)} completed configurations")
-
-    # Identify missing configurations
-    missing_ids = [cid for cid in config_ids if cid not in completed_ids]
     print(f"Found {len(missing_ids)} missing configurations")
+
+    if args.verbose and missing_ids:
+        print(f"Missing config IDs: {', '.join(map(str, missing_ids))}")
 
     if not missing_ids:
         print("All configurations have results. Nothing to do.")
