@@ -1372,11 +1372,11 @@ class DendriticBranchLayer(nn.Module):
                     self.branch_inhibition.param_scale_vec = g_total[:, None]
 
             else:
-                input_scale_vec = 1 / self.branches_to_output.log_weight.exp().flatten()
                 if (
                     hasattr(self, "branches_to_output")
                     and self.blocklinear_strategy == "conductance_dynamic"
                 ):
+                    input_scale_vec = 1 / self.branches_to_output.log_weight.exp().flatten()
                     self.branches_to_output.input_scale_vec = input_scale_vec
 
     def get_weights(self):
