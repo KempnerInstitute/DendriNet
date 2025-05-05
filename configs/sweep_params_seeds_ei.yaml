@@ -41,9 +41,9 @@ train_config:
       parameters:
         excitatory_layer_sizes: [10]
         inhibitory_layer_sizes: [40]
-        excitatory_branch_factors: [10,10]
+        excitatory_branch_factors: [2,2]
         inhibitory_branch_factors: [1]
-        reactivate: false
+        reactivate: true
         somatic_synapses: true
         ee_synapses_per_branch_per_layer: [100]
         ei_synapses_per_branch_per_layer: [200]
@@ -118,6 +118,7 @@ train_config:
       - layer_ablation
 
 sweep_config:
+  model.network.type: ["EINet", "MLP"]
   # EE and IE synapse parameters - both sweep from 0 to 50 in steps of 5
   model.network.parameters.ee_synapses_per_branch_per_layer: [
     [1], [6], [11], [16], [21], [26], [31], [36], [41], [46], [51]
@@ -125,7 +126,7 @@ sweep_config:
   model.network.parameters.ie_synapses_per_branch_per_layer: [
     [1], [6], [11], [16], [21], [26], [31], [36], [41], [46], [51]
   ]
-
+  model.network.parameters.use_shunting: [true, false]
   # This sweep has:
   # - 11 EE values × 11 IE values = 121 parameter combinations
   # - Each combination runs with 5 seeds

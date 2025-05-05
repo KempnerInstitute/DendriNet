@@ -57,8 +57,10 @@ def generate_sweep_configs_manually(config, output_dir, config_filename_init):
     base_seed = experiment_settings.get("base_seed", 42)
 
     # Extract parameter names and values
-    param_names = list(sweep_params.keys())
-    param_values = [sweep_params[key] for key in param_names]
+    einet_param_names = list(sweep_params.keys())
+    einet_param_names.remove("model.network.type")
+    einet_param_values = [sweep_params[key] for key in einet_param_names]
+
 
     # Generate all combinations
     configs = []
@@ -82,8 +84,8 @@ def generate_sweep_configs_manually(config, output_dir, config_filename_init):
             for rest in product(*iterables[1:]):
                 yield (item,) + rest
 
-    # Generate all parameter combinations
-    for params in product(*param_values):
+    # Generate all EINet parameter combinations
+    for params in product(*einet_param_values):
         # For each parameter combination, create configs with different seeds
         for seed_idx in range(seeds_per_condition):
             # Create a new config based on the base config
@@ -94,10 +96,44 @@ def generate_sweep_configs_manually(config, output_dir, config_filename_init):
             # Set the seed
             seed = base_seed + seed_idx
             new_config.train.seed = seed
+            new_config.model.network.type = "EINet"
 
             # Set the parameter values
-            for i, param_name in enumerate(param_names):
+            for i, param_name in enumerate(einet_param_names):
                 set_nested_value(new_config, param_name, params[i])
+
+            # Make sure outputs.dir points to the correct directory
+            if "outputs" not in new_config:
+                new_config.outputs = {}
+            new_config.outputs.dir = os.path.join(output_dir, "results")
+
+            # Save the config
+            config_path = os.path.join(
+                output_dir, "configs", f"{config_filename_init}_{config_idx}.yaml"
+            )
+            OmegaConf.save(new_config, config_path)
+            print(f"Generated config: {config_path}")
+
+            config_idx += 1
+    
+    net_types = sweep_params.get("model.network.type", ["EINet"])
+    if "MLP" in net_types:
+        # set default values for MLP
+        ee = [1]
+        ie = [1]
+        use_shunting = False
+        for seed_idx in range(seeds_per_condition):
+            # Create a new config based on the base config
+            new_config = OmegaConf.create(
+                OmegaConf.to_container(config.train_config, resolve=True)
+            )
+            
+            seed = base_seed + seed_idx
+            new_config.train.seed = seed
+            new_config.model.network.type = "MLP"
+            new_config.model.network.parameters.ee_synapses_per_branch_per_layer = ee
+            new_config.model.network.parameters.ie_synapses_per_branch_per_layer = ie
+            new_config.model.network.parameters.use_shunting = use_shunting
 
             # Make sure outputs.dir points to the correct directory
             if "outputs" not in new_config:
