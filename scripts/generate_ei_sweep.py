@@ -58,9 +58,10 @@ def generate_sweep_configs_manually(config, output_dir, config_filename_init):
 
     # Extract parameter names and values
     einet_param_names = list(sweep_params.keys())
-    einet_param_names.remove("model.network.type")
+    # Only try to remove "model.network.type" if it's in the list
+    if "model.network.type" in einet_param_names:
+        einet_param_names.remove("model.network.type")
     einet_param_values = [sweep_params[key] for key in einet_param_names]
-
 
     # Generate all combinations
     configs = []
@@ -96,7 +97,10 @@ def generate_sweep_configs_manually(config, output_dir, config_filename_init):
             # Set the seed
             seed = base_seed + seed_idx
             new_config.train.seed = seed
-            new_config.model.network.type = "EINet"
+
+            # Set network type to EINet if specified in sweep_params
+            if "model.network.type" in sweep_params:
+                new_config.model.network.type = "EINet"
 
             # Set the parameter values
             for i, param_name in enumerate(einet_param_names):
@@ -105,7 +109,11 @@ def generate_sweep_configs_manually(config, output_dir, config_filename_init):
             # Make sure outputs.dir points to the correct directory
             if "outputs" not in new_config:
                 new_config.outputs = {}
-            new_config.outputs.dir = os.path.join(output_dir, "results")
+
+            # Store config_idx in the output path for consistent location between runs and reruns
+            new_config.outputs.dir = os.path.join(
+                output_dir, "results", f"config_{config_idx}"
+            )
 
             # Save the config
             config_path = os.path.join(
@@ -115,7 +123,8 @@ def generate_sweep_configs_manually(config, output_dir, config_filename_init):
             print(f"Generated config: {config_path}")
 
             config_idx += 1
-    
+
+    # Check if MLP network type is specified
     net_types = sweep_params.get("model.network.type", ["EINet"])
     if "MLP" in net_types:
         # set default values for MLP
@@ -127,7 +136,7 @@ def generate_sweep_configs_manually(config, output_dir, config_filename_init):
             new_config = OmegaConf.create(
                 OmegaConf.to_container(config.train_config, resolve=True)
             )
-            
+
             seed = base_seed + seed_idx
             new_config.train.seed = seed
             new_config.model.network.type = "MLP"
@@ -138,7 +147,11 @@ def generate_sweep_configs_manually(config, output_dir, config_filename_init):
             # Make sure outputs.dir points to the correct directory
             if "outputs" not in new_config:
                 new_config.outputs = {}
-            new_config.outputs.dir = os.path.join(output_dir, "results")
+
+            # Store config_idx in the output path for consistent location
+            new_config.outputs.dir = os.path.join(
+                output_dir, "results", f"config_{config_idx}"
+            )
 
             # Save the config
             config_path = os.path.join(
@@ -194,19 +207,19 @@ def generate_custom_run_script(
         f"#SBATCH --account={slurm_config.account}",
     ]
 
-    # Output paths use a single main job folder with task subfolders
+    # Output paths for logs - store in the config-specific directory
     if array_job_flag:
         lines.extend(
             [
-                f"#SBATCH --output={output_dir}/results/%A/task_%a/output.log",
-                f"#SBATCH --error={output_dir}/results/%A/task_%a/error.log",
+                f"#SBATCH --output={output_dir}/results/config_%a/output.log",
+                f"#SBATCH --error={output_dir}/results/config_%a/error.log",
             ]
         )
     else:
         lines.extend(
             [
-                f"#SBATCH --output={output_dir}/results/%j/output.log",
-                f"#SBATCH --error={output_dir}/results/%j/error.log",
+                f"#SBATCH --output={output_dir}/results/config_{start_idx}/output.log",
+                f"#SBATCH --error={output_dir}/results/config_{start_idx}/error.log",
             ]
         )
 
@@ -313,26 +326,25 @@ def generate_custom_run_script(
         lines.append(
             "CONFIG=${CONFIG_DIR}/${CONFIG_FILE_NAME_INIT}_${SLURM_ARRAY_TASK_ID}.yaml"
         )
-        lines.append("TASK_ID=${SLURM_ARRAY_TASK_ID}")
-        lines.append("JOB_ID=${SLURM_ARRAY_JOB_ID}")
+        lines.append("CONFIG_IDX=${SLURM_ARRAY_TASK_ID}")
     else:
         # For single task, use the specific index
         lines.append(
             f"CONFIG=${{CONFIG_DIR}}/${{CONFIG_FILE_NAME_INIT}}_{start_idx}.yaml"
         )
-        lines.append(f"TASK_ID={start_idx}")
-        lines.append("JOB_ID=${SLURM_JOB_ID}")
+        lines.append(f"CONFIG_IDX={start_idx}")
     lines.append("")
 
-    # Set up output folders with a single main job folder and task subfolders
-    lines.append(f"# Path to the main job results folder")
-    lines.append(f"JOB_FOLDER_PATH=${{RESULTS_DIR}}/${{JOB_ID}}")
-    lines.append(f"TASK_FOLDER_PATH=${{JOB_FOLDER_PATH}}/task_${{TASK_ID}}")
+    # Set up output folders with config-based directories instead of job/task based
+    lines.append(f"# Path to the config-specific results folder")
+    lines.append(f"CONFIG_FOLDER_PATH=${{RESULTS_DIR}}/config_${{CONFIG_IDX}}")
+    lines.append(f"PLOT_FOLDER_PATH=${{PLOTS_DIR}}/config_${{CONFIG_IDX}}")
     lines.append("")
 
+    # Create output directory
     lines.append("# Create output directory")
-    lines.append("mkdir -p ${JOB_FOLDER_PATH}/task_${TASK_ID}")
-    lines.append("mkdir -p ${PLOTS_DIR}/${JOB_ID}/task_${TASK_ID}")
+    lines.append("mkdir -p ${CONFIG_FOLDER_PATH}")
+    lines.append("mkdir -p ${PLOT_FOLDER_PATH}")
     lines.append("")
 
     # Run the job - Fix the srun command to avoid memory specification conflicts
@@ -370,7 +382,7 @@ def generate_custom_run_script(
 
     # Save logs to results directory
     lines.append('echo "Copying logs to results directory"')
-    lines.append("cp ${CONFIG} ${JOB_FOLDER_PATH}/task_${TASK_ID}/config_used.yaml")
+    lines.append("cp ${CONFIG} ${CONFIG_FOLDER_PATH}/config_used.yaml")
 
     # Write to file - now directly to the main script path
     with open(main_script_path, "w") as file:
@@ -557,10 +569,10 @@ def main():
     )
     print(f"3. Saved {len(job_scripts)} job scripts in: {jobs_dir}")
     print(
-        f"4. Results will be stored in: {os.path.join(output_dir, 'results')}/<job_id>/task_<task_id>/"
+        f"4. Results will be stored in: {os.path.join(output_dir, 'results')}/config_<config_idx>/"
     )
     print(
-        f"5. Plots will be saved to: {os.path.join(output_dir, 'plots')}/<job_id>/task_<task_id>/"
+        f"5. Plots will be saved to: {os.path.join(output_dir, 'plots')}/config_<config_idx>/"
     )
     print(f"6. To run the complete sweep, use: ./run.sh")
 
