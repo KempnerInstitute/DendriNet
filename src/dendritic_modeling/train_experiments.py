@@ -75,6 +75,8 @@ from dendritic_modeling.utils import (
     save_dict,
 )
 from dendritic_modeling.visualization_manager import PlotManager
+import collections.abc
+import ast
 
 
 def initialize_model(model_cfg, visualization_enabled=False):
@@ -203,11 +205,66 @@ def setup_training_environment(config, args=None):
 
     if hasattr(wandb_cfg, "use_wandb") and wandb_cfg.use_wandb:
         try:
-            wandb_config = {
+            # --- Define Helper Function for Deep Flattening ---
+            def flatten_config_recursive(value, parent_key='', sep='.', output_dict=None):
+                """Recursively flattens dicts, lists, tuples, including string representations."""
+                if output_dict is None:
+                    output_dict = {}
+                original_value = value # Keep original for final assignment
+
+                # Convert OmegaConf objects first if possible
+                if hasattr(value, '_is_config') and value._is_config():
+                    try: value = OmegaConf.to_container(value, resolve=True)
+                    except Exception: pass # Treat as simple value if conversion fails
+
+                # Try parsing string literals that look like containers
+                if isinstance(value, str):
+                    try:
+                        stripped_value = value.strip()
+                        if (stripped_value.startswith('{') and stripped_value.endswith('}')) or \
+                           (stripped_value.startswith('[') and stripped_value.endswith(']')):
+                            parsed_value = ast.literal_eval(stripped_value)
+                            # Use parsed version only if it's a container we can iterate
+                            if isinstance(parsed_value, (dict, list, tuple)):
+                                value = parsed_value
+                    except (ValueError, SyntaxError, TypeError, MemoryError, RecursionError):
+                        pass # Treat as simple string if parsing fails
+
+                # Process based on type
+                if isinstance(value, collections.abc.MutableMapping): # Handles dict-like
+                    if not value and parent_key: output_dict[parent_key] = {} # Log empty dict
+                    else:
+                        for k, v in value.items():
+                            new_key = f"{parent_key}{sep}{k}" if parent_key else str(k)
+                            flatten_config_recursive(v, new_key, sep=sep, output_dict=output_dict)
+                elif isinstance(value, (list, tuple)): # Handles list-like
+                    if not value and parent_key: output_dict[parent_key] = [] if isinstance(original_value, list) else () # Log empty list/tuple
+                    else:
+                        for i, v in enumerate(value):
+                            new_key = f"{parent_key}{sep}{i}" if parent_key else str(i)
+                            flatten_config_recursive(v, new_key, sep=sep, output_dict=output_dict)
+                else: # Base case: simple types
+                    if parent_key: # Log with the fully constructed key
+                        output_dict[parent_key] = original_value
+                return output_dict
+            # --- End of Helper Function ---
+
+            # Original nested config (convert contents to dicts for storing)
+            original_wandb_config = {
                 "model": asdict(model_cfg),
                 "train": asdict(train_cfg),
                 "task": asdict(task_cfg),
             }
+
+            # Create the deeply flattened config
+            deep_flattened_wandb_config = {}
+            # Flatten starting from the original nested structure
+            flatten_config_recursive(original_wandb_config, output_dict=deep_flattened_wandb_config)
+
+            # Add the original nested config back under "full_task_config"
+            # Note: The original_wandb_config itself is already nested.
+            deep_flattened_wandb_config["full_task_config"] = original_wandb_config
+
             tags = wandb_cfg.tags if hasattr(wandb_cfg, "tags") else None
             wandb.init(
                 project=wandb_cfg.project
@@ -216,12 +273,13 @@ def setup_training_environment(config, args=None):
                 entity=wandb_cfg.entity if hasattr(wandb_cfg, "entity") else None,
                 group=wandb_cfg.group if hasattr(wandb_cfg, "group") else None,
                 name=run_id,
-                config=wandb_config,
+                config=deep_flattened_wandb_config, # Use the deeply flattened config
                 tags=tags,
             )
-            logger.info("Successfully initialized W&B")
+            logger.info("Successfully initialized W&B with deeply flattened config")
         except Exception as e:
-            logger.error(f"Error initializing W&B: {e}")
+            logger.error(f"Error initializing W&B or flattening config: {e}")
+            logger.error(traceback.format_exc())
             logger.error("Continuing without W&B logging")
             wandb_cfg.use_wandb = False
 
