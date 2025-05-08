@@ -238,32 +238,32 @@ def collect_results(exp_dir, params_df):
     if has_task_ids:
         print(f"First 5 task IDs: {list(all_task_ids)[:5]}")
 
-    # Keep track of directory types for diagnostics
-    job_types = {"numeric": 0, "timestamp": 0, "other": 0}
-    found_formats = set()
+    print(f"Looking for config-based directories in {results_dir}")
 
-    # Find all tasks directories recursively (pattern task_*)
-    all_task_dirs = []
-    for root, dirs, files in os.walk(results_dir):
-        task_dirs = [d for d in dirs if d.startswith("task_")]
-        if task_dirs:
-            for task_dir in task_dirs:
-                all_task_dirs.append(os.path.join(root, task_dir))
+    # First, look for config_X directories
+    config_dirs = [
+        d
+        for d in os.listdir(results_dir)
+        if os.path.isdir(os.path.join(results_dir, d)) and d.startswith("config_")
+    ]
 
-    print(f"Found {len(all_task_dirs)} task directories")
+    print(f"Found {len(config_dirs)} config directories")
 
-    # Now process each task directory
-    for task_dir in all_task_dirs:
-        # Extract task ID from directory name
-        task_match = re.search(r"task_(\d+)", os.path.basename(task_dir))
-        if task_match:
-            task_id = int(task_match.group(1))
+    # Process each config directory
+    for config_dir in config_dirs:
+        config_path = os.path.join(results_dir, config_dir)
+
+        # Extract config ID from directory name
+        config_match = re.search(r"config_(\d+)", config_dir)
+        if config_match:
+            config_id = int(config_match.group(1))
         else:
-            task_id = -1  # Unknown task ID
+            print(f"Couldn't extract config ID from directory name: {config_dir}")
+            continue
 
         try:
-            # Check for output.log in this task directory
-            output_log = os.path.join(task_dir, "output.log")
+            # Check for output.log in this config directory
+            output_log = os.path.join(config_path, "output.log")
             if os.path.exists(output_log):
                 print(f"Processing log file: {output_log}")
                 # Initialize metrics and params
@@ -284,15 +284,15 @@ def collect_results(exp_dir, params_df):
                 # Extract params from log
                 extract_params_from_log(log_content, params)
 
-                # Get parameter values for this task if we have task_ids
-                if has_task_ids and task_id >= 0:
-                    task_params = params_df[params_df["task_id"] == task_id]
+                # Get parameter values for this config from params_df
+                if has_task_ids:
+                    task_params = params_df[params_df["task_id"] == config_id]
                     if not task_params.empty:
-                        print(f"Found parameters for task {task_id}")
+                        print(f"Found parameters for config {config_id}")
                         params["ee_value"] = task_params["ee_value"].iloc[0]
                         params["ie_value"] = task_params["ie_value"].iloc[0]
                         params["seed"] = task_params["seed"].iloc[0]
-                        found_task_ids.add(task_id)
+                        found_task_ids.add(config_id)
 
                 # Store results if metrics are valid
                 if not all(pd.isna(val) for val in metrics.values()):
@@ -304,468 +304,182 @@ def collect_results(exp_dir, params_df):
                             "val_acc": metrics["val_acc"],
                             "test_acc": metrics["test_acc"],
                             "experiment": exp_timestamp,
-                            "task_id": task_id,
+                            "task_id": config_id,
                             "seed": params["seed"],
-                            "job_dir": os.path.basename(os.path.dirname(task_dir)),
+                            "job_dir": config_dir,
                         }
                     )
                     print(
-                        f"Added result for task {task_id}: train={metrics['train_acc']:.3f}, val={metrics['val_acc']:.3f}"
+                        f"Added result for config {config_id}: train={metrics['train_acc']:.3f}, val={metrics['val_acc']:.3f}"
                     )
+            else:
+                print(f"No output.log found in {config_path}")
+
+            # Also look for config_used.yaml file
+            config_used = os.path.join(config_path, "config_used.yaml")
+            if (
+                os.path.exists(config_used)
+                and has_task_ids
+                and config_id not in found_task_ids
+            ):
+                # Load config to get parameters
+                config = OmegaConf.load(config_used)
+
+                # Try to extract EE and IE values if they exist
+                try:
+                    ee_values = (
+                        config.model.network.parameters.ee_synapses_per_branch_per_layer
+                    )
+                    ie_values = (
+                        config.model.network.parameters.ie_synapses_per_branch_per_layer
+                    )
+
+                    # Handle cases where values might be lists
+                    if isinstance(ee_values, list) and len(ee_values) == 1:
+                        ee_value = ee_values[0]
+                    else:
+                        ee_value = ee_values
+
+                    if isinstance(ie_values, list) and len(ie_values) == 1:
+                        ie_value = ie_values[0]
+                    else:
+                        ie_value = ie_values
+
+                    seed = config.train.seed
+
+                    # Add to found task IDs
+                    found_task_ids.add(config_id)
+
+                    # If we have a config file but no output.log, might be a failed run
+                    missing_data.append(
+                        {
+                            "task_id": config_id,
+                            "ee_value": ee_value,
+                            "ie_value": ie_value,
+                            "seed": seed,
+                            "job_dir": config_dir,
+                        }
+                    )
+                except Exception as e:
+                    print(
+                        f"Error extracting parameters from config_used.yaml in {config_path}: {e}"
+                    )
+
         except Exception as e:
-            print(f"Error processing task directory {task_dir}: {e}")
+            print(f"Error processing config directory {config_path}: {e}")
 
-    # Continue with the original function logic for job directories...
-    try:
-        # First look for directories at the top level
-        job_dirs = [
-            d
-            for d in os.listdir(results_dir)
-            if os.path.isdir(os.path.join(results_dir, d))
-        ]
-
-        if job_dirs:
-            print(f"Found {len(job_dirs)} job directories")
-        else:
-            # If no subdirectories, try to find files directly
-            print("No job directories found. Looking for log files directly.")
-            log_files = glob.glob(os.path.join(results_dir, "**/*.log"), recursive=True)
-
-            if log_files:
-                print(f"Found {len(log_files)} log files")
-                # Process each log file directly
-                for log_file in log_files:
-                    rel_path = os.path.relpath(log_file, results_dir)
-                    job_dir = (
-                        os.path.dirname(rel_path) if os.path.dirname(rel_path) else "."
-                    )
-                    process_log_file(
-                        log_file,
-                        job_dir,
-                        params_df,
-                        results_data,
-                        missing_data,
-                        exp_timestamp,
-                        has_task_ids,
-                    )
-
-                # Create DataFrame from the collected results
-                results_df = pd.DataFrame(results_data)
-                missing_df = pd.DataFrame(missing_data)
-
-                if not results_df.empty:
-                    print(
-                        f"Collected {len(results_df)} results directly from log files"
-                    )
-                    # Print sample of results
-                    print("\nSample of collected results:")
-                    print(results_df.head().to_string())
-
-                return results_df, missing_df
-
-    except Exception as e:
-        print(f"Error reading job directories: {e}")
-        job_dirs = []
-
-    # Keep track of different types of result directories found
-    job_types = {"numeric": 0, "timestamp": 0, "other": 0}
-    found_formats = set()
-
-    # Process each job directory
-    for job_dir in job_dirs:
-        job_path = os.path.join(results_dir, job_dir)
-
-        # Check for all possible log files with common names
-        log_files = []
-        for pattern in ["train.log", "output.log", "*.log", "slurm-*.out"]:
-            log_files.extend(glob.glob(os.path.join(job_path, pattern)))
-
-        # If we found log files, process them first
-        if log_files:
-            found_formats.add("log_files")
-            for log_file in log_files:
-                process_log_file(
-                    log_file,
-                    job_dir,
-                    params_df,
-                    results_data,
-                    missing_data,
-                    exp_timestamp,
-                    has_task_ids,
-                )
-            # If we got results from log files, continue to next directory
-            if any(r["job_dir"] == job_dir for r in results_data):
-                continue
-
-        # Check for best_model.pt files
-        best_model_file = os.path.join(job_path, "best_model.pt")
-        best_model_json = os.path.join(job_path, "best_model.json")
-        best_model_metrics = os.path.join(job_path, "best_model_metrics.json")
-
-        # If we find a best_model.pt file, try to get metrics from associated files
-        if os.path.exists(best_model_file):
-            found_formats.add("best_model.pt")
-
-            # Try to find metrics in associated JSON
-            if os.path.exists(best_model_json):
-                found_formats.add("best_model.json")
-                try:
-                    with open(best_model_json, "r") as f:
-                        model_data = json.load(f)
-
-                    # Extract metrics
-                    metrics = {
-                        "train_acc": float("nan"),
-                        "val_acc": float("nan"),
-                        "test_acc": float("nan"),
-                    }
-                    params = {"ee_value": None, "ie_value": None, "seed": 0}
-
-                    extract_metrics_and_params(
-                        model_data, metrics, params, f"best_model.json in {job_dir}"
-                    )
-
-                    # Process task_id and params as usual
-                    task_id = -1
-                    task_match = re.search(r"_(\d+)$", job_dir)
-                    if task_match:
-                        task_id = int(task_match.group(1))
-
-                    if has_task_ids and task_id >= 0:
-                        task_params = params_df[params_df["task_id"] == task_id]
-                        if not task_params.empty:
-                            params["ee_value"] = task_params["ee_value"].iloc[0]
-                            params["ie_value"] = task_params["ie_value"].iloc[0]
-                            params["seed"] = task_params["seed"].iloc[0]
-                            found_task_ids.add(task_id)
-
-                    # Store results
-                    if not all(pd.isna(val) for val in metrics.values()):
-                        results_data.append(
-                            {
-                                "ee_value": params["ee_value"],
-                                "ie_value": params["ie_value"],
-                                "train_acc": metrics["train_acc"],
-                                "val_acc": metrics["val_acc"],
-                                "test_acc": metrics["test_acc"],
-                                "experiment": exp_timestamp,
-                                "task_id": task_id,
-                                "seed": params["seed"],
-                                "job_dir": job_dir,
-                                "source": "best_model",
-                            }
-                        )
-                        continue  # Skip other processing for this job_dir
-                except Exception as e:
-                    print(f"Error processing best_model.json in {job_path}: {e}")
-
-            # Try metrics JSON if it exists
-            elif os.path.exists(best_model_metrics):
-                found_formats.add("best_model_metrics.json")
-                try:
-                    with open(best_model_metrics, "r") as f:
-                        metrics_data = json.load(f)
-
-                    # Same processing as above...
-                    # Implementation similar to above
-                    continue  # Skip other processing
-                except Exception as e:
-                    print(
-                        f"Error processing best_model_metrics.json in {job_path}: {e}"
-                    )
-
-            # If no json files but we found the model, note this
-            else:
-                print(
-                    f"Found best_model.pt in {job_dir} but no associated metrics files"
-                )
-
-        # Look for any valid results in the standard folders
-        elif "dendritic_ei_sweep" in job_dir or re.search(r"\d{8}_\d{6}$", job_dir):
-            job_types["timestamp"] += 1
-            # This is a named directory (likely with timestamp), treat it as a single result
-            # Get task_id from job_dir if possible
-            task_id = -1
-            task_match = re.search(r"_(\d+)$", job_dir)
-            if task_match:
-                task_id = int(task_match.group(1))
-
-            # Check for EE/IE values in job_dir name
-            ee_match = re.search(r"ee(\d+)", job_dir.lower())
-            ie_match = re.search(r"ie(\d+)", job_dir.lower())
-            ee_value_from_dir = int(ee_match.group(1)) if ee_match else None
-            ie_value_from_dir = int(ie_match.group(1)) if ie_match else None
-
-            # Try extracting values from config, logs, and model files
-            metrics = {
-                "train_acc": float("nan"),
-                "val_acc": float("nan"),
-                "test_acc": float("nan"),
-            }
-            params = {"ee_value": None, "ie_value": None, "seed": 0}
-
-            # 1. Try config.json first
-            config_json = os.path.join(job_path, "config.json")
-            if os.path.exists(config_json):
-                found_formats.add("config.json")
-                try:
-                    with open(config_json, "r") as f:
-                        config_data = json.load(f)
-
-                    # Extract metrics and parameters
-                    extract_metrics_and_params(
-                        config_data, metrics, params, f"config.json in {job_dir}"
-                    )
-                except Exception as e:
-                    print(f"Error processing config.json in {job_path}: {e}")
-
-            # 2. Try train.log
-            train_log = os.path.join(job_path, "train.log")
-            if os.path.exists(train_log):
-                found_formats.add("train.log")
-                try:
-                    with open(train_log, "r") as f:
-                        log_content = f.read()
-
-                    # Extract metrics
-                    extract_metrics_from_log(log_content, metrics)
-
-                    # Extract params
-                    extract_params_from_log(log_content, params)
-                except Exception as e:
-                    print(f"Error processing train.log in {job_path}: {e}")
-
-            # 3. Try model files
-            model_files = glob.glob(os.path.join(job_path, "*.pt"))
-            if model_files:
-                found_formats.add("model_files")
-                try:
-                    # Look for matching JSON files with the same name
-                    for model_file in model_files:
-                        base_name = os.path.splitext(model_file)[0]
-                        json_file = f"{base_name}.json"
-                        if os.path.exists(json_file):
-                            found_formats.add("model_json")
-                            try:
-                                with open(json_file, "r") as f:
-                                    model_data = json.load(f)
-                                extract_metrics_and_params(
-                                    model_data,
-                                    metrics,
-                                    params,
-                                    f"{os.path.basename(json_file)} in {job_dir}",
-                                )
-                            except Exception as e:
-                                print(f"Error processing {json_file}: {e}")
-                except Exception as e:
-                    print(f"Error checking for model JSON files in {job_path}: {e}")
-
-            # 4. Search for general JSON files if we still don't have metrics
-            if all(pd.isna(val) for val in metrics.values()):
-                json_files = [
-                    f
-                    for f in glob.glob(os.path.join(job_path, "*.json"))
-                    if f != config_json and not f.endswith(".pt.json")
-                ]
-                if json_files:
-                    found_formats.add("other_json")
-                    for json_file in json_files:
-                        try:
-                            with open(json_file, "r") as f:
-                                json_data = json.load(f)
-                            extract_metrics_and_params(
-                                json_data,
-                                metrics,
-                                params,
-                                f"{os.path.basename(json_file)} in {job_dir}",
-                            )
-                        except Exception:
-                            pass  # Silently ignore errors in other JSON files
-
-            # Use parameters from directory name if not found elsewhere
-            if params["ee_value"] is None and ee_value_from_dir is not None:
-                params["ee_value"] = ee_value_from_dir
-            if params["ie_value"] is None and ie_value_from_dir is not None:
-                params["ie_value"] = ie_value_from_dir
-
-            # Use parameters from params_df if task_id is valid
-            if has_task_ids and task_id >= 0:
-                task_params = params_df[params_df["task_id"] == task_id]
-                if not task_params.empty:
-                    params["ee_value"] = task_params["ee_value"].iloc[0]
-                    params["ie_value"] = task_params["ie_value"].iloc[0]
-                    params["seed"] = task_params["seed"].iloc[0]
-                    found_task_ids.add(task_id)
-
-            # Set default values if still not found
-            if params["ee_value"] is None:
-                params["ee_value"] = "unknown"
-            if params["ie_value"] is None:
-                params["ie_value"] = "unknown"
-
-            # Check if we got valid metrics
-            if not all(pd.isna(val) for val in metrics.values()):
-                # Append results
-                results_data.append(
-                    {
-                        "ee_value": params["ee_value"],
-                        "ie_value": params["ie_value"],
-                        "train_acc": metrics["train_acc"],
-                        "val_acc": metrics["val_acc"],
-                        "test_acc": metrics["test_acc"],
-                        "experiment": exp_timestamp,
-                        "task_id": task_id,
-                        "seed": params["seed"],
-                        "job_dir": job_dir,
-                    }
-                )
-            else:
-                # No metrics found
-                missing_data.append(
-                    {
-                        "job_dir": job_dir,
-                        "reason": "No performance metrics found in any files",
-                        "status": "incomplete",
-                    }
-                )
-
-        else:
-            job_types["other"] += 1
-            # Other type of directory, try to extract information
-            # List files
-            files = os.listdir(job_path)
-            found_formats.add(f"other_dir_{','.join(files[:3])}")
-
-            # Check for any log files in this directory
-            log_files = []
-            for pattern in ["*.log", "*.out"]:
-                log_files.extend(glob.glob(os.path.join(job_path, pattern)))
-
-            if log_files:
-                for log_file in log_files:
-                    process_log_file(
-                        log_file,
-                        job_dir,
-                        params_df,
-                        results_data,
-                        missing_data,
-                        exp_timestamp,
-                        has_task_ids,
-                    )
-
-            # Check for any subdirectories that might contain results
-            for subdir in [
-                d for d in files if os.path.isdir(os.path.join(job_path, d))
-            ]:
-                subdir_path = os.path.join(job_path, subdir)
-                # Look for performance directory
-                performance_dir = os.path.join(subdir_path, "performance")
-                if os.path.exists(performance_dir):
-                    for perf_file in glob.glob(os.path.join(performance_dir, "*.json")):
-                        try:
-                            with open(perf_file, "r") as f:
-                                perf_data = json.load(f)
-
-                            # Process performance data
-                            metrics = {
-                                "train_acc": float("nan"),
-                                "val_acc": float("nan"),
-                                "test_acc": float("nan"),
-                            }
-                            params = {"ee_value": None, "ie_value": None, "seed": 0}
-
-                            # Extract metrics
-                            for key, val in perf_data.items():
-                                if "train" in key.lower() and "acc" in key.lower():
-                                    metrics["train_acc"] = float(val)
-                                elif "val" in key.lower() and "acc" in key.lower():
-                                    metrics["val_acc"] = float(val)
-                                elif "test" in key.lower() and "acc" in key.lower():
-                                    metrics["test_acc"] = float(val)
-
-                            # Store results if we have metrics
-                            if not all(pd.isna(val) for val in metrics.values()):
-                                results_data.append(
-                                    {
-                                        "ee_value": "unknown",
-                                        "ie_value": "unknown",
-                                        "train_acc": metrics["train_acc"],
-                                        "val_acc": metrics["val_acc"],
-                                        "test_acc": metrics["test_acc"],
-                                        "experiment": exp_timestamp,
-                                        "job_dir": os.path.join(job_dir, subdir),
-                                    }
-                                )
-                        except Exception as e:
-                            print(f"Error processing performance file {perf_file}: {e}")
-
-    # Find completely missing task IDs (no directory found)
+    # Find missing configs based on params_df
     if has_task_ids:
         missing_ids = all_task_ids - found_task_ids
-        for task_id in missing_ids:
-            task_params = params_df[params_df["task_id"] == task_id]
+        for missing_id in missing_ids:
+            task_params = params_df[params_df["task_id"] == missing_id]
             if not task_params.empty:
-                ee_value = task_params["ee_value"].iloc[0]
-                ie_value = task_params["ie_value"].iloc[0]
-                seed = task_params["seed"].iloc[0]
-
-                # Record as completely missing
+                # Add to missing data
                 missing_data.append(
                     {
-                        "task_id": task_id,
-                        "ee_value": ee_value,
-                        "ie_value": ie_value,
-                        "seed": seed,
-                        "reason": "No task directory found",
-                        "status": "missing",
+                        "task_id": missing_id,
+                        "ee_value": task_params["ee_value"].iloc[0],
+                        "ie_value": task_params["ie_value"].iloc[0],
+                        "seed": task_params["seed"].iloc[0],
+                        "job_dir": f"missing_config_{missing_id}",
                     }
                 )
+                print(f"Added missing config {missing_id} to missing data")
 
-                # Add NaN entries to results for complete parameter grid
-                results_data.append(
-                    {
-                        "ee_value": ee_value,
-                        "ie_value": ie_value,
-                        "train_acc": float("nan"),
-                        "val_acc": float("nan"),
-                        "test_acc": float("nan"),
-                        "experiment": exp_timestamp,
-                        "task_id": task_id,
-                        "seed": seed,
-                    }
-                )
-
-    # Print summary of what was found
-    print(
-        f"Directory types: numeric={job_types['numeric']}, timestamp={job_types['timestamp']}, other={job_types['other']}"
-    )
-    print(f"Formats found: {', '.join(found_formats)}")
-    print(f"Results collected: {len(results_data)}")
-
-    # Create DataFrame
+    # Create DataFrames from the collected results
     results_df = pd.DataFrame(results_data)
     missing_df = pd.DataFrame(missing_data)
 
-    # Drop duplicates if any (might happen with multiple result sources)
-    if "task_id" in results_df.columns and not results_df.empty:
-        results_df = results_df.drop_duplicates(
-            subset=["task_id", "ee_value", "ie_value", "seed"]
+    if not results_df.empty:
+        print(f"Collected {len(results_df)} results")
+        # Print sample of results
+        print("\nSample of collected results:")
+        print(results_df.head().to_string())
+    else:
+        print("No results found.")
+
+    if not missing_df.empty:
+        print(f"Found {len(missing_df)} missing configs")
+        print("\nSample of missing configs:")
+        print(missing_df.head().to_string())
+
+    # For backward compatibility, look for task directories if no config dirs found
+    if len(results_data) == 0 and len(config_dirs) == 0:
+        print(
+            "No config directories found. Trying to look for task directories as fallback."
         )
 
-    # Print sample of results
-    if not results_df.empty:
-        print("\nSample of collected results:")
-        # Check if certain important columns are all NaN
-        nan_cols = []
-        for col in ["train_acc", "val_acc", "test_acc"]:
-            if col in results_df.columns and results_df[col].isna().all():
-                nan_cols.append(col)
+        # Continue with the original function logic for job/task directories
+        # Find all tasks directories recursively (pattern task_*)
+        all_task_dirs = []
+        for root, dirs, files in os.walk(results_dir):
+            task_dirs = [d for d in dirs if d.startswith("task_")]
+            if task_dirs:
+                for task_dir in task_dirs:
+                    all_task_dirs.append(os.path.join(root, task_dir))
 
-        if nan_cols:
-            print(f"Warning: The following columns are all NaN: {', '.join(nan_cols)}")
+        print(f"Found {len(all_task_dirs)} task directories as fallback")
 
-        # Print first few rows
-        print(results_df.head().to_string())
+        # Process each task directory
+        for task_dir in all_task_dirs:
+            # Extract task ID from directory name
+            task_match = re.search(r"task_(\d+)", os.path.basename(task_dir))
+            if task_match:
+                task_id = int(task_match.group(1))
+                # Process each task directory (fallback to original logic)
+                try:
+                    output_log = os.path.join(task_dir, "output.log")
+                    if os.path.exists(output_log):
+                        print(f"Processing log file (fallback): {output_log}")
+                        # Process this output log (abbreviated from original logic)
+                        # Initialize metrics and params
+                        metrics = {
+                            "train_acc": float("nan"),
+                            "val_acc": float("nan"),
+                            "test_acc": float("nan"),
+                        }
+                        params = {"ee_value": None, "ie_value": None, "seed": 0}
+
+                        # Read the log file
+                        with open(output_log, "r") as f:
+                            log_content = f.read()
+
+                        # Extract metrics from log
+                        extract_metrics_from_log(log_content, metrics)
+
+                        # Extract params from log
+                        extract_params_from_log(log_content, params)
+
+                        # Get parameter values from params_df
+                        if has_task_ids:
+                            task_params = params_df[params_df["task_id"] == task_id]
+                            if not task_params.empty:
+                                params["ee_value"] = task_params["ee_value"].iloc[0]
+                                params["ie_value"] = task_params["ie_value"].iloc[0]
+                                params["seed"] = task_params["seed"].iloc[0]
+
+                        # Store results if metrics are valid
+                        if not all(pd.isna(val) for val in metrics.values()):
+                            results_data.append(
+                                {
+                                    "ee_value": params["ee_value"],
+                                    "ie_value": params["ie_value"],
+                                    "train_acc": metrics["train_acc"],
+                                    "val_acc": metrics["val_acc"],
+                                    "test_acc": metrics["test_acc"],
+                                    "experiment": exp_timestamp,
+                                    "task_id": task_id,
+                                    "seed": params["seed"],
+                                    "job_dir": os.path.basename(
+                                        os.path.dirname(task_dir)
+                                    ),
+                                }
+                            )
+                except Exception as e:
+                    print(f"Error processing task directory {task_dir}: {e}")
+
+        # Re-create DataFrames after fallback
+        results_df = pd.DataFrame(results_data)
 
     return results_df, missing_df
 
