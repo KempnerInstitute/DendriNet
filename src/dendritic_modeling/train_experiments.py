@@ -101,7 +101,7 @@ def initialize_model(model_cfg, visualization_enabled=False):
             if probabilistic:
                 model = ProbabilisticClassifier(net, output_dim)
             else:
-                model = Classifier(net)
+                model = Classifier(net, output_dim)
             # Commenting out to preserve gradient scaling hooks
             # safe_register_hooks(model)
             return model
@@ -119,7 +119,7 @@ def initialize_model(model_cfg, visualization_enabled=False):
             if probabilistic:
                 model = ProbabilisticClassifier(net, output_dim)
             else:
-                model = Classifier(net)
+                model = Classifier(net, output_dim)
             # Commenting out to preserve gradient scaling hooks
             # safe_register_hooks(model)
             return model
