@@ -15,6 +15,7 @@ import torch
 from matplotlib.colors import TwoSlopeNorm
 from matplotlib.gridspec import GridSpec
 from mpl_toolkits.axes_grid1 import make_axes_locatable
+from typing import Optional, Union
 
 from dendritic_modeling.synthetic_datasets import split_MNIST_inputs
 
@@ -2625,3 +2626,101 @@ def plot_noise_sweep_branch_results(results_csv_path, noise_type="gaussian"):
         )
     )
     plt.close(fig)
+
+# Plot Utils to use with CorrelationFeatureDataset
+def plot_correlation_matrix(
+    corr: np.ndarray,
+    class_name: Optional[str] = None,
+    ax: Optional[plt.Axes] = None
+) -> plt.Axes:
+    """Plot correlation matrix heatmap."""
+    if ax is None:
+        fig, ax = plt.subplots(figsize=(8, 6))
+    
+    title = f"Correlation Matrix{f' - {class_name}' if class_name else ''}"
+    
+    sns.heatmap(corr, vmin=-1, vmax=1, center=0, cmap='coolwarm', 
+               annot=False, ax=ax)
+    ax.set_title(title)
+    
+    return ax
+
+def plot_correlation_structure(
+    correlation_blocks: list,
+    input_dim: int,
+    class_name: str = "high",
+    ax: Optional[plt.Axes] = None
+) -> plt.Axes:
+    """Plot planned correlation structure from blocks."""
+    corr_matrix = np.eye(input_dim)
+    
+    for block in correlation_blocks:
+        dims = block['dims']
+        corr_values = block[f'{class_name}_corr']
+        
+        if isinstance(corr_values, (float, int)):
+            for i, dim_i in enumerate(dims):
+                for j, dim_j in enumerate(dims):
+                    if i != j:
+                        corr_matrix[dim_i, dim_j] = corr_values
+        elif isinstance(corr_values, np.ndarray):
+            for i, dim_i in enumerate(dims):
+                for j, dim_j in enumerate(dims):
+                    corr_matrix[dim_i, dim_j] = corr_values[i, j]
+    
+    if ax is None:
+        fig, ax = plt.subplots(figsize=(10, 8))
+        
+    sns.heatmap(corr_matrix, vmin=-0.1, vmax=1.0, center=0, 
+                cmap='coolwarm', annot=False, ax=ax)
+    ax.set_title(f"Planned Correlation Structure - {class_name.capitalize()} Correlation Class")
+    
+    return ax
+
+def plot_feature_distributions(
+    data_high: Union[np.ndarray, torch.Tensor],
+    data_low: Union[np.ndarray, torch.Tensor],
+    n_dims: int = 4,
+    class_idx: Optional[int] = None
+) -> plt.Figure:
+    """Plot feature distributions for one or both classes."""
+    if isinstance(data_high, torch.Tensor):
+        data_high = data_high.numpy()
+    if isinstance(data_low, torch.Tensor):
+        data_low = data_low.numpy()
+    
+    n_dims = min(n_dims, data_high.shape[1])
+    
+    if class_idx is not None:
+        data = data_high if class_idx == 1 else data_low
+        fig, axes = plt.subplots(n_dims, 1, figsize=(8, n_dims * 2))
+        class_name = "High Correlation" if class_idx == 1 else "Low Correlation"
+        
+        for i in range(n_dims):
+            if n_dims == 1:
+                ax = axes
+            else:
+                ax = axes[i]
+            sns.histplot(data[:, i], kde=True, ax=ax)
+            ax.set_title(f"{class_name} Class - Feature {i}")
+            ax.set_xlabel("Value")
+            ax.set_ylabel("Count")
+    else:
+        fig, axes = plt.subplots(n_dims, 1, figsize=(8, n_dims * 2))
+        
+        for i in range(n_dims):
+            if n_dims == 1:
+                ax = axes
+            else:
+                ax = axes[i]
+            sns.histplot(data_high[:, i], kde=True, alpha=0.6, 
+                         label="High Correlation", ax=ax)
+            sns.histplot(data_low[:, i], kde=True, alpha=0.6, 
+                         label="Low Correlation", ax=ax)
+            ax.set_title(f"Feature {i} Distribution")
+            ax.set_xlabel("Value")
+            ax.set_ylabel("Count")
+            ax.legend()
+    
+    plt.tight_layout()
+    return fig

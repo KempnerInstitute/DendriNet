@@ -11,6 +11,8 @@ from torch.utils.data import Dataset, TensorDataset, random_split
 from torchvision import datasets, transforms
 from torchvision.datasets import MNIST
 
+from typing import List, Dict, Optional, Union
+
 ########################################
 # Original tasks: line, center_surround, orientation_bars, multi_xor, plus standard MNIST
 ########################################
@@ -867,6 +869,361 @@ class OrthoNetDataset(Dataset):
         #     return self.data[idx], self.labels[idx]
         return self.data[idx], self.labels[idx]
 
+class CorrelatedFeatureDataset(Dataset):
+    """
+    Create a binary classification dataset with heterogeneous correlation structures.
+    
+    This dataset creates features with log-normal distributions to ensure positivity,
+    and allows for defining heterogeneous correlation structures to test dendritic
+    network inductive biases toward clustering correlated inputs.
+    """
+    
+    def __init__(
+        self, 
+        input_dim: int,
+        n_samples: int,
+        correlation_blocks: Optional[List[Dict]] = None,
+        block_proportions: Optional[List[float]] = None,
+        high_corr_means: Optional[List[float]] = None,
+        high_corr_stds: Optional[List[float]] = None,
+        low_corr_means: Optional[List[float]] = None,
+        low_corr_stds: Optional[List[float]] = None,
+        shuffle_dims: bool = True,
+        per_pair_correlation: bool = False,
+        normalize_features: bool = True,
+        seed: Optional[int] = None
+    ):
+        """
+        Initialize the dataset with correlation structures.
+        
+        Parameters:
+        -----------
+        input_dim : int
+            Dimensionality of input features
+        n_samples : int
+            Total number of samples
+        correlation_blocks : List[Dict], optional
+            Pre-defined correlation blocks. Each dict should have keys:
+            - 'dims': list of feature indices forming the block
+            - 'high_corr': correlation value(s) for high-corr class
+            - 'low_corr': correlation value(s) for low-corr class
+            If provided, block_proportions and related parameters are ignored.
+        block_proportions : List[float], optional
+            Proportion of dimensions for each block (should sum to ≤ 1.0)
+        high_corr_means : List[float], optional
+            Mean correlation value for each block in high correlation class
+        high_corr_stds : List[float], optional
+            Standard deviation of correlation values for high correlation class
+        low_corr_means : List[float], optional
+            Mean correlation value for each block in low correlation class
+        low_corr_stds : List[float], optional
+            Standard deviation of correlation values for low correlation class
+        shuffle_dims : bool, default=True
+            Whether to randomly assign dimensions to blocks
+        per_pair_correlation : bool, default=False
+            If True, generate unique correlation values for each feature pair
+        normalize_features : bool, default=True
+            Whether to normalize features to have mean 1.0
+        seed : int, optional
+            Random seed for reproducibility
+        """
+        super().__init__()
+        if seed is not None:
+            np.random.seed(seed)
+            torch.manual_seed(seed)
+
+        self.input_dim = input_dim
+        self.n_samples = n_samples
+        self.n_samples_per_class = n_samples // 2
+        self.normalize_features = normalize_features
+        
+        # If correlation blocks not provided, generate them from parameters
+        if correlation_blocks is None:
+            if any(param is None for param in [block_proportions, high_corr_means, 
+                                              high_corr_stds, low_corr_means, low_corr_stds]):
+                raise ValueError("Either correlation_blocks or all block parameters must be provided")
+                
+            correlation_blocks = self.generate_correlation_blocks(
+                input_dim=input_dim,
+                block_proportions=block_proportions,
+                high_corr_means=high_corr_means,
+                high_corr_stds=high_corr_stds,
+                low_corr_means=low_corr_means,
+                low_corr_stds=low_corr_stds,
+                shuffle_dims=shuffle_dims,
+                per_pair_correlation=per_pair_correlation,
+                seed=seed
+            )
+        
+        # Store correlation blocks for reference
+        self.correlation_blocks = correlation_blocks
+        
+        # Create the dataset based on correlation blocks
+        self._create_dataset()
+    
+    def _create_dataset(self):
+        """
+        Create the dataset based on correlation blocks.
+        """
+        # Generate independent log-normal base variables
+        high_X_base = np.exp(np.random.randn(self.n_samples_per_class, self.input_dim))
+        low_X_base = np.exp(np.random.randn(self.n_samples_per_class, self.input_dim))
+        
+        # Initialize data arrays
+        self.data_high = np.zeros((self.n_samples_per_class, self.input_dim))
+        self.data_low = np.zeros((self.n_samples_per_class, self.input_dim))
+        
+        # Set of dimensions already processed
+        processed_dims = set()
+        
+        # Process each correlation block
+        for block in self.correlation_blocks:
+            dims = block['dims']
+            high_corr = block['high_corr']
+            low_corr = block['low_corr']
+            
+            # Track processed dimensions
+            processed_dims.update(dims)
+            
+            if len(dims) < 2:
+                # Single dimension has no correlation to enforce
+                for dim in dims:
+                    self.data_high[:, dim] = high_X_base[:, dim]
+                    self.data_low[:, dim] = low_X_base[:, dim]
+                continue
+            
+            # For each block, use the first dimension as reference
+            ref_dim = dims[0]
+            
+            # Set reference dimension directly
+            self.data_high[:, ref_dim] = high_X_base[:, ref_dim]
+            self.data_low[:, ref_dim] = low_X_base[:, ref_dim]
+            
+            # If correlation value is a single number (uniform within block)
+            if isinstance(high_corr, (float, int)) and isinstance(low_corr, (float, int)):
+                for i in dims[1:]:
+                    # High correlation class
+                    self.data_high[:, i] = (high_corr * high_X_base[:, ref_dim] + 
+                                          np.sqrt(1 - high_corr**2) * high_X_base[:, i])
+                    
+                    # Low correlation class
+                    self.data_low[:, i] = (low_corr * low_X_base[:, ref_dim] + 
+                                         np.sqrt(1 - low_corr**2) * low_X_base[:, i])
+            
+            # If correlation is a matrix (unique values per pair)
+            elif isinstance(high_corr, np.ndarray) and isinstance(low_corr, np.ndarray):
+                for idx, i in enumerate(dims[1:], 1):
+                    ref_idx = 0  # Index in the correlation matrix for the reference dimension
+                    
+                    # Get correlation value from the matrix
+                    h_corr = high_corr[ref_idx, idx]
+                    l_corr = low_corr[ref_idx, idx]
+                    
+                    # High correlation class
+                    self.data_high[:, i] = (h_corr * high_X_base[:, ref_dim] + 
+                                          np.sqrt(1 - h_corr**2) * high_X_base[:, i])
+                    
+                    # Low correlation class
+                    self.data_low[:, i] = (l_corr * low_X_base[:, ref_dim] + 
+                                         np.sqrt(1 - l_corr**2) * low_X_base[:, i])
+        
+        # Handle any remaining dimensions not in any block (independent)
+        remaining_dims = set(range(self.input_dim)) - processed_dims
+        for dim in remaining_dims:
+            self.data_high[:, dim] = high_X_base[:, dim]
+            self.data_low[:, dim] = low_X_base[:, dim]
+        
+        # Normalize features if requested
+        if self.normalize_features:
+            for i in range(self.input_dim):
+                # Normalize each feature dimension to have mean 1
+                self.data_high[:, i] /= np.mean(self.data_high[:, i])
+                self.data_low[:, i] /= np.mean(self.data_low[:, i])
+        
+        # Concatenate data
+        self.data = np.vstack([self.data_high, self.data_low])
+        
+        # Create binary labels (1 for high correlation, 0 for low correlation)
+        self.labels = np.hstack([np.ones(self.n_samples_per_class), 
+                                np.zeros(self.n_samples_per_class)])
+        
+        # Convert to torch tensors
+        self.data = torch.from_numpy(self.data).float()
+        self.labels = torch.from_numpy(self.labels).long()
+    
+    def __len__(self):
+        """Return the number of samples in the dataset."""
+        return self.n_samples
+    
+    def __getitem__(self, idx):
+        """Return a data sample and its label."""
+        return self.data[idx], self.labels[idx]
+    
+    @staticmethod
+    def generate_correlation_blocks(
+        input_dim: int,
+        block_proportions: List[float],
+        high_corr_means: List[float],
+        high_corr_stds: List[float],
+        low_corr_means: List[float],
+        low_corr_stds: List[float],
+        shuffle_dims: bool = True,
+        per_pair_correlation: bool = False,
+        seed: Optional[int] = None
+    ) -> List[Dict]:
+        
+        if seed is not None:
+            np.random.seed(seed)
+        
+        # Input validation
+        if len(block_proportions) != len(high_corr_means) or \
+          len(block_proportions) != len(high_corr_stds) or \
+          len(block_proportions) != len(low_corr_means) or \
+          len(block_proportions) != len(low_corr_stds):
+            raise ValueError("All input lists must have the same length")
+        
+        if sum(block_proportions) > 1.0:
+            raise ValueError("Sum of block_proportions should not exceed 1.0")
+        
+        # Calculate number of dimensions for each block
+        block_dims = [int(p * input_dim) for p in block_proportions]
+        
+        # Adjust the last block to account for rounding errors
+        total_allocated = sum(block_dims)
+        if total_allocated < int(sum(block_proportions) * input_dim):
+            # Add remaining dimensions to the last block
+            remaining = int(sum(block_proportions) * input_dim) - total_allocated
+            block_dims[-1] += remaining
+        
+        # Create array of dimension indices
+        all_dims = np.arange(input_dim)
+        
+        # Shuffle dimensions if requested
+        if shuffle_dims:
+            np.random.shuffle(all_dims)
+        
+        # Allocate dimensions to blocks
+        blocks = []
+        start_idx = 0
+        
+        for i, block_size in enumerate(block_dims):
+            if block_size < 2:
+                print(f"Warning: Block {i} has fewer than 2 dimensions, skipping")
+                continue
+                
+            # Select dimensions for this block
+            block_dims_indices = all_dims[start_idx:start_idx + block_size]
+            start_idx += block_size
+            
+            # Generate correlation values
+            high_corr = CorrelatedFeatureDataset._generate_correlation_values(
+                block_size,
+                high_corr_means[i],
+                high_corr_stds[i],
+                per_pair_correlation
+            )
+            
+            low_corr = CorrelatedFeatureDataset._generate_correlation_values(
+                block_size,
+                low_corr_means[i],
+                low_corr_stds[i],
+                per_pair_correlation
+            )
+            
+            # Create block dictionary
+            blocks.append({
+                'dims': block_dims_indices.tolist(),
+                'high_corr': high_corr,
+                'low_corr': low_corr
+            })
+        
+        return blocks
+    
+    @staticmethod
+    def _generate_correlation_values(
+        block_size: int,
+        mean: float,
+        std: float,
+        per_pair_correlation: bool
+    ) -> Union[float, np.ndarray]:
+        """
+        Generate correlation values for a block.
+        
+        Parameters:
+        -----------
+        block_size : int
+            Number of dimensions in the block
+        mean : float
+            Mean correlation value
+        std : float
+            Standard deviation of correlation values
+        per_pair_correlation : bool
+            If True, generate unique correlation values for each feature pair
+            
+        Returns:
+        --------
+        Union[float, np.ndarray]
+            Either a single correlation value or a matrix of correlation values
+        """
+        if per_pair_correlation and block_size > 1:
+            # Initialize correlation matrix (identity matrix)
+            corr_matrix = np.eye(block_size)
+            
+            # Fill upper triangle with random correlations
+            for i in range(block_size):
+                for j in range(i+1, block_size):
+                    # Generate random correlation value
+                    corr_value = np.random.normal(mean, std)
+                    # Clip to valid range
+                    corr_value = np.clip(corr_value, 0.0, 0.99)
+                    # Make matrix symmetric
+                    corr_matrix[i, j] = corr_value
+                    corr_matrix[j, i] = corr_value
+            
+            return corr_matrix
+        else:
+            # Generate a single correlation value
+            corr_value = np.random.normal(mean, std)
+            # Clip to valid range
+            corr_value = np.clip(corr_value, 0.0, 0.99)
+            return corr_value
+    
+    def get_correlation_matrix(self, class_idx=None):
+        """Get correlation matrix for specified class."""
+        if class_idx == 1:
+            data = self.data_high
+        elif class_idx == 0:
+            data = self.data_low
+        else:
+            data = self.data.numpy()
+        
+        return np.corrcoef(data.T)
+    
+    def visualize_correlation_matrix(self, class_idx=None, ax=None):
+        """Visualize correlation matrix for specified class."""
+        corr = self.get_correlation_matrix(class_idx)
+        title = {1: "High Correlation Class", 
+                0: "Low Correlation Class",
+                None: "Full Dataset"}[class_idx]
+        return plot_correlation_matrix(corr, title, ax)
+    
+    def visualize_correlation_structure(self, class_name="high", ax=None):
+        """Visualize planned correlation structure."""
+        return plot_correlation_structure(
+            self.correlation_blocks,
+            self.input_dim,
+            class_name,
+            ax
+        )
+    
+    def plot_sample_distributions(self, n_dims=4, class_idx=None):
+        """Plot feature distributions."""
+        return plot_feature_distributions(
+            self.data_high,
+            self.data_low,
+            n_dims,
+            class_idx
+        )
 
 def get_unified_datasets(task_cfg, train_cfg):
     """
@@ -1026,6 +1383,33 @@ def get_unified_datasets(task_cfg, train_cfg):
             noise_std=noise_std
         )
         return random_split(full_ds, [train_size, valid_size, test_size])
+    elif dataset_name == "correlated_features":
+        input_dim = p.get('input_dim', 10)
+        n_samples = p.get('n_samples', 10000)
+        block_proportions = p.get('block_proportions', [0.5])
+        high_corr_means = p.get('high_corr_means', [0.8])
+        high_corr_stds = p.get('high_corr_stds', [0.1])
+        low_corr_means = p.get('low_corr_means', [0.2])
+        low_corr_stds = p.get('low_corr_stds', [0.1])
+        shuffle_dims = p.get('shuffle_dims', True)
+        per_pair_correlation = p.get('per_pair_correlation', True)
+        normalize_features = p.get('normalize_features', True)
+        seed = getattr(train_cfg, 'seed', 0)
+        full_ds = CorrelatedFeatureDataset(
+            input_dim=input_dim,
+            n_samples=n_samples,
+            block_proportions=block_proportions,
+            high_corr_means=high_corr_means,
+            high_corr_stds=high_corr_stds,
+            low_corr_means=low_corr_means,
+            low_corr_stds=low_corr_stds,
+            shuffle_dims=shuffle_dims,
+            per_pair_correlation=per_pair_correlation,
+            normalize_features=normalize_features,
+            seed=seed
+        )
+        return random_split(full_ds, [train_size, valid_size, test_size])
+    
     else:
         raise ValueError(f"Unknown dataset name: {dataset_name}")
 
