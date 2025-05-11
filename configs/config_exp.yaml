@@ -115,6 +115,15 @@ task:
   #   n_samples: 10
   #   n_orient_classes: 8
   #   n_bits: 8
+  #   input_dim: 100
+  #   n_samples: 10000
+  #   block_proportions: [0.5]
+  #   high_corr_means: [0.8]
+  #   high_corr_stds: [0.1]
+  #   low_corr_means: [0.2]
+  #   low_corr_stds: [0.1]
+  #   per_pair_correlation: true
+  #   seed: 42
 wandb:
   entity:
   project: "dendritic_cifar10"
