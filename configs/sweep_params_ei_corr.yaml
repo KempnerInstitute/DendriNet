@@ -1,0 +1,179 @@
+# sweep_params_ei_corr.yaml
+
+slurm_config:
+  output_dir: "outputs"
+  conda_env_path: 
+  modules_to_load: ["python/3.12.5-fasrc01", "cuda/12.4.1-fasrc01", "cudnn/8.9.2.26_cuda12-fasrc01"]
+  max_concurrent_jobs: 12
+  training_script: "scripts/sweep_ei_corr.py" # path of train_experiments.py
+  config_filename_init: "test_config"
+  account: 
+  nodes: 1
+  ntasks_per_node: 1
+  gpus_per_node: 1
+  cpus_per_task: 10
+  mem: 200GB
+  time: "00:30:00"
+  partition: "kempner_h100"
+  run_name: "dendrinet_corr_sweep_job"
+
+experiment_settings:
+  # Use 5 seeds per parameter combination
+  seeds_per_condition: 5
+  base_seed: 42
+
+train_config:
+  model:
+    task: "classification"
+    probabilistic: false  # Updated to match config_exp.yaml
+    network:
+      type: "EINet"
+      parameters:
+        excitatory_layer_sizes: [10]
+        inhibitory_layer_sizes: [40]
+        excitatory_branch_factors: [2,2]
+        inhibitory_branch_factors: []
+        reactivate: true
+        somatic_synapses: true
+        ee_synapses_per_branch_per_layer: [20]
+        ei_synapses_per_branch_per_layer: [100]
+        ie_synapses_per_branch_per_layer: [10]
+        ii_synapses_per_branch_per_layer: [0]
+        topk_type: "standard"
+        topk_init_method: "xavier_normal"
+        topk_noise_level: 0.2  # Added to match config_exp.yaml
+        topk_strategy: "conductance_dynamic"  # Options: "standard", "stochastic", "variance"
+        topk_temperature: 0.5  # Controls the stochastic selection sharpness (0.1-1.0)
+        topk_ultrafast: true  # Enable faster implementation for stochastic TopK
+        use_shunting: true
+
+        reactivation_type: "param_tanh"
+        reactivation_init_m: 1.5
+        reactivation_init_b: 0.5
+        reactivation_strategy: "inverse"
+        blocklinear_strategy: "conductance_dynamic"
+        
+        enable_branch_outputs: false
+        output_layer: true
+        output_dim: 2
+
+        input_mode: 0
+        input_net_dict:
+          type: "MLPInputTransform"
+          hidden_dims: []
+          output_dim: 128
+
+        # DEEPST specific parameters
+        excitatory_target_density: 0.1
+        inhibitory_target_density: 0.1
+        use_noise: true
+        sigma: 0.05
+        rewiring_mode: "global"  # "global", "local", "constant_branch"
+        rewire_frequency: 1
+        synapses_per_branch: None
+        freeze_excitatory_connectivity: false
+        freeze_inhibitory_connectivity: false
+        init_method: "xavier_normal"
+        weight_threshold: 1e-1
+
+  train:
+    learning_strategy: "mle"
+    run_name: "dendrinet_corr_sweep_run"
+    seed: [0]
+    train_valid_split: 0.8
+    lr: 0.01
+    epochs: 400
+    early_stopping: false
+    patience: 50
+    batch_size: 1024
+    grad_clip_value: 5
+    epochs_per_layer: 50
+    final_tune_epochs: 10
+    warmup_epochs: 1
+    stability_target_voltage: 0.5
+    weight_decay_rate: 0.1
+    input_net_training:
+      training_mode: "sequential"
+      train_input_net: true
+      input_net_epochs: 20
+      train_heads_independently: false
+      inhibitory_head_objective: "classification"
+      diversity_weight: 0.5
+      pretrained_options:
+        source: "file"
+        weights_path: ""
+        pytorch_model: ""
+
+  task:
+    dataset: "correlated_features"
+    data_path:
+    parameters:
+      n_samples: 10000
+      input_dim: 100
+      seed: [0]
+      block_proportions: [0.5]
+      high_corr_means: [0.8]
+      high_corr_stds: [0.1]
+      low_corr_means: [0.2]
+      low_corr_stds: [0.1]
+      shuffle_dims: true
+      per_pair_correlation: true
+      normalize_features: true
+  wandb:
+    entity: ilennaj-harvard-university
+    project: "dendrinet_corr_sweep"
+    group: "compare_corr"
+    tags: [correlated_features, excitatory_layer_sizes]
+    use_wandb: true
+
+  visualization:
+    enabled: false
+    visualize_epochs: [10, 30]
+    plots:
+      - weights
+      - activations
+      - gradients
+      - branch_ablation
+      - layer_ablation
+
+  outputs:
+    dir:
+
+sweep_config:
+  # Network architecture sweeps
+  model.network.parameters.excitatory_layer_sizes: [[5], [10], [20], [30]]
+  # model.network.parameters.inhibitory_layer_sizes: [[40], [60], [80]]
+  # model.network.parameters.excitatory_branch_factors: [[1],[1,1], [1,1,1], [2], [4], [2,2], [4,2]]
+  # test different ee ei ratios
+  # model.network.parameters.ee_synapses_per_branch_per_layer: [10, 20, 40]
+  # model.network.parameters.ei_synapses_per_branch_per_layer: [10, 20, 40]
+  # model.network.parameters.ie_synapses_per_branch_per_layer: [1, 2, 4]
+
+  
+  # TopK strategy and parameter sweeps
+  # model.network.parameters.topk_type: ["deepst", "standard"]
+  # model.network.parameters.topk_strategy: ["standard", "stochastic", "variance"]
+  # model.network.parameters.topk_noise_level: [0.0, 0.1, 0.2, 0.5]
+  # model.network.parameters.topk_temperature: [0.1, 0.3, 0.5, 0.7, 1.0]  # Different temperature values
+  # model.network.parameters.topk_ultrafast: [true, false]  # Test both implementations
+  # model.network.parameters.reactivate: [true, false]
+  # model.network.parameters.reactivation_type: ["param_tanh", "param_linear_tanh_transition", "tanh", "linear_tanh_transition"]
+  # model.network.parameters.reactivation_strategy: ["inverse", none]
+  # model.network.parameters.blocklinear_strategy: ["conductance_dynamic", none]
+  # model.network.parameters.topk_strategy: ["conductance_dynamic", none]
+
+  # Training strategy sweeps
+  # train.learning_strategy: ["mle", "freeze_layers", "local_credit_assignment", "two_step", "two_step_kl", "voltage_stabilization"]
+  # train.lr: [0.01, 0.005, 0.001]
+  # train.batch_size: [512, 1024, 2048]
+  # train.epochs: [30, 50, 70]
+  # train.seed: [0,1]
+
+  # Input network training sweeps
+  # train.input_net_training.training_mode: ["sequential", "joint"]
+  # train.input_net_training.train_heads_independently: [true, false]
+  # train.input_net_training.inhibitory_head_objective: ["classification", "diversity", "combined"]
+  # train.input_net_training.diversity_weight: [0.3, 0.5, 0.7]
+
+
+#python scripts/generate_ei_corr_sweep.py configs/sweep_params_ei_corr.yaml
