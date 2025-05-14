@@ -457,10 +457,10 @@
             <span class="n">topk_layer</span><span class="o">.</span><span class="n">print_hooks</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">print_hooks</span>
 
             <span class="c1"># Register consistently with full backward hook</span>
-            <span class="n">topk_layer</span><span class="o">.</span><span class="n">register_full_backward_hook</span><span class="p">(</span><span class="n">input_hook_fn</span><span class="p">)</span></div>
+            <span class="c1"># topk_layer.register_full_backward_hook(input_hook_fn)</span>
+            <span class="n">topk_layer</span><span class="o">.</span><span class="n">pre_w</span><span class="o">.</span><span class="n">register_hook</span><span class="p">(</span><span class="n">param_hook_fn</span><span class="p">)</span></div>
 </div>
 
-            <span class="c1"># topk_layer.pre_w.register_hook(param_hook_fn)</span>
 
 
 <span class="c1"># Apply the safe_hook decorator to our existing functions</span>

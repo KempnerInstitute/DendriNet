@@ -1335,7 +1335,8 @@
                 <span class="n">init_b</span><span class="o">=</span><span class="n">reactivation_init_b</span> <span class="k">if</span> <span class="n">use_shunting</span> <span class="k">else</span> <span class="mf">0.1</span><span class="p">,</span>
                 <span class="o">**</span><span class="n">kwargs</span>
             <span class="p">)</span>
-            <span class="n">gradient_scaler</span><span class="o">.</span><span class="n">register_reactivation_inverse</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">reactivation</span><span class="p">)</span>
+            <span class="k">if</span> <span class="n">use_shunting</span><span class="p">:</span>
+                <span class="n">gradient_scaler</span><span class="o">.</span><span class="n">register_reactivation_inverse</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">reactivation</span><span class="p">)</span>
         <span class="k">else</span><span class="p">:</span>
             <span class="bp">self</span><span class="o">.</span><span class="n">reactivation</span> <span class="o">=</span> <span class="n">nn</span><span class="o">.</span><span class="n">Identity</span><span class="p">()</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">reactivate</span> <span class="o">=</span> <span class="n">reactivate</span>
@@ -1551,11 +1552,11 @@
                     <span class="bp">self</span><span class="o">.</span><span class="n">branch_inhibition</span><span class="o">.</span><span class="n">param_scale_vec</span> <span class="o">=</span> <span class="n">g_total</span><span class="p">[:,</span> <span class="kc">None</span><span class="p">]</span>
 
             <span class="k">else</span><span class="p">:</span>
-                <span class="n">input_scale_vec</span> <span class="o">=</span> <span class="mi">1</span> <span class="o">/</span> <span class="bp">self</span><span class="o">.</span><span class="n">branches_to_output</span><span class="o">.</span><span class="n">log_weight</span><span class="o">.</span><span class="n">exp</span><span class="p">()</span><span class="o">.</span><span class="n">flatten</span><span class="p">()</span>
                 <span class="k">if</span> <span class="p">(</span>
                     <span class="nb">hasattr</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="s2">&quot;branches_to_output&quot;</span><span class="p">)</span>
                     <span class="ow">and</span> <span class="bp">self</span><span class="o">.</span><span class="n">blocklinear_strategy</span> <span class="o">==</span> <span class="s2">&quot;conductance_dynamic&quot;</span>
                 <span class="p">):</span>
+                    <span class="n">input_scale_vec</span> <span class="o">=</span> <span class="mi">1</span> <span class="o">/</span> <span class="bp">self</span><span class="o">.</span><span class="n">branches_to_output</span><span class="o">.</span><span class="n">log_weight</span><span class="o">.</span><span class="n">exp</span><span class="p">()</span><span class="o">.</span><span class="n">flatten</span><span class="p">()</span>
                     <span class="bp">self</span><span class="o">.</span><span class="n">branches_to_output</span><span class="o">.</span><span class="n">input_scale_vec</span> <span class="o">=</span> <span class="n">input_scale_vec</span></div>
 
 
