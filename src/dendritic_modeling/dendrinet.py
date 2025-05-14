@@ -1161,7 +1161,8 @@ class DendriticBranchLayer(nn.Module):
                 init_b=reactivation_init_b if use_shunting else 0.1,
                 **kwargs
             )
-            gradient_scaler.register_reactivation_inverse(self.reactivation)
+            if use_shunting:
+                gradient_scaler.register_reactivation_inverse(self.reactivation)
         else:
             self.reactivation = nn.Identity()
         self.reactivate = reactivate
@@ -1372,11 +1373,11 @@ class DendriticBranchLayer(nn.Module):
                     self.branch_inhibition.param_scale_vec = g_total[:, None]
 
             else:
-                input_scale_vec = 1 / self.branches_to_output.log_weight.exp().flatten()
                 if (
                     hasattr(self, "branches_to_output")
                     and self.blocklinear_strategy == "conductance_dynamic"
                 ):
+                    input_scale_vec = 1 / self.branches_to_output.log_weight.exp().flatten()
                     self.branches_to_output.input_scale_vec = input_scale_vec
 
     def get_weights(self):

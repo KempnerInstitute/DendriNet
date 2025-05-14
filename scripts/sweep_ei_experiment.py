@@ -88,8 +88,8 @@ def train_and_evaluate(model, train_ds, valid_ds, test_ds, train_cfg, run_save_p
         grad_clip_value=train_cfg.grad_clip_value,
         shuffle=True,
         load_best_state_dict=True,
-        early_stopping=True,
-        patience=100,
+        early_stopping=train_cfg.early_stopping,
+        patience=train_cfg.patience,
         plot_losses=True,
         save_path=run_save_path,
     )
