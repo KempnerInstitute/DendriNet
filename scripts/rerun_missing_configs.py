@@ -132,7 +132,7 @@ def check_result_for_config(
     """Check if results exist for a specific config ID.
 
     This function looks for "Training experiment completed successfully" in output.log files:
-    1. Finding task directories for this config ID
+    1. Finding config directories for this config ID
     2. Checking output logs for successful completion message
 
     Returns:
@@ -143,48 +143,36 @@ def check_result_for_config(
         print(f"\n===== Checking completion for config ID {config_id} =====")
         print(f"Looking in results directory: {results_dir}")
 
-    # Find job directories
-    job_dirs = [
-        d
-        for d in os.listdir(results_dir)
-        if os.path.isdir(os.path.join(results_dir, d))
-    ]
+    # Check for config-specific directory
+    config_dir = os.path.join(results_dir, f"config_{config_id}")
 
-    if verbose:
-        print(f"Found {len(job_dirs)} potential job directories to check")
+    if os.path.isdir(config_dir):
+        if verbose:
+            print(f"Found config directory: {config_dir}")
 
-    # Check for task directories with this config ID
-    for job_dir in job_dirs:
-        job_path = os.path.join(results_dir, job_dir)
-        task_dir = os.path.join(job_path, f"task_{config_id}")
-
-        if os.path.isdir(task_dir):
+        # Check output log for completion message
+        output_log = os.path.join(config_dir, "output.log")
+        if os.path.exists(output_log):
             if verbose:
-                print(f"Found task directory for config {config_id}: {task_dir}")
+                print(f"Found output log: {output_log}")
 
-            # Check output log for completion message
-            output_log = os.path.join(task_dir, "output.log")
-            if os.path.exists(output_log):
+            # Check if log contains success message
+            try:
+                with open(output_log, "r") as f:
+                    content = f.read()
+                    if "Training experiment completed successfully" in content:
+                        if verbose:
+                            print(
+                                f"FOUND: 'Training experiment completed successfully' in {output_log}"
+                            )
+                        return True, False, []
+                    elif verbose:
+                        print(f"NOT FOUND: Success message not in {output_log}")
+            except Exception as e:
                 if verbose:
-                    print(f"Found output log: {output_log}")
-
-                # Check if log contains success message
-                try:
-                    with open(output_log, "r") as f:
-                        content = f.read()
-                        if "Training experiment completed successfully" in content:
-                            if verbose:
-                                print(
-                                    f"FOUND: 'Training experiment completed successfully' in {output_log}"
-                                )
-                            return True, False, []
-                        elif verbose:
-                            print(f"NOT FOUND: Success message not in {output_log}")
-                except Exception as e:
-                    if verbose:
-                        print(f"Error reading output log: {e}")
-            elif verbose:
-                print(f"No output log found at {output_log}")
+                    print(f"Error reading output log: {e}")
+        elif verbose:
+            print(f"No output log found at {output_log}")
 
     # If we reach here, no successful completion was found
     if verbose:
@@ -424,13 +412,23 @@ def generate_rerun_script(
         f"#SBATCH --account={slurm_config.get('account', 'kempner_dev')}",
     ]
 
-    # Output paths
-    lines.extend(
-        [
-            f"#SBATCH --output={sweep_dir}/results/%A/task_%a/output.log",
-            f"#SBATCH --error={sweep_dir}/results/%A/task_%a/error.log",
-        ]
-    )
+    # Output paths - use config-based directories
+    if len(missing_ids) > 1:
+        lines.extend(
+            [
+                f"#SBATCH --output={sweep_dir}/results/config_%a/output.log",
+                f"#SBATCH --error={sweep_dir}/results/config_%a/error.log",
+            ]
+        )
+    else:
+        # For single config, hardcode the config ID
+        config_id = missing_ids[0] if missing_ids else 0
+        lines.extend(
+            [
+                f"#SBATCH --output={sweep_dir}/results/config_{config_id}/output.log",
+                f"#SBATCH --error={sweep_dir}/results/config_{config_id}/error.log",
+            ]
+        )
 
     # Format time to HH:MM:SS if it's not already
     time_value = slurm_config.get("time", "1:00:00")
@@ -546,20 +544,19 @@ def generate_rerun_script(
         ]
     )
 
-    # Configure task execution
+    # Configure task execution - using the config-based directory structure
     lines.extend(
         [
             "CONFIG=${CONFIG_DIR}/${CONFIG_FILE_NAME_INIT}_${SLURM_ARRAY_TASK_ID}.yaml",
-            "TASK_ID=${SLURM_ARRAY_TASK_ID}",
-            "JOB_ID=${SLURM_ARRAY_JOB_ID}",
+            "CONFIG_IDX=${SLURM_ARRAY_TASK_ID}",
             "",
-            "# Path to the main job results folder",
-            "JOB_FOLDER_PATH=${RESULTS_DIR}/${JOB_ID}",
-            "TASK_FOLDER_PATH=${JOB_FOLDER_PATH}/task_${TASK_ID}",
+            "# Path to the config-specific results folder",
+            "CONFIG_FOLDER_PATH=${RESULTS_DIR}/config_${CONFIG_IDX}",
+            "PLOT_FOLDER_PATH=${PLOTS_DIR}/config_${CONFIG_IDX}",
             "",
             "# Create output directory",
-            "mkdir -p ${JOB_FOLDER_PATH}/task_${TASK_ID}",
-            "mkdir -p ${PLOTS_DIR}/${JOB_ID}/task_${TASK_ID}",
+            "mkdir -p ${CONFIG_FOLDER_PATH}",
+            "mkdir -p ${PLOT_FOLDER_PATH}",
             "",
             'echo "Starting running a training job at $(date)"',
             "start_time=$(date +%s)",
@@ -596,7 +593,7 @@ def generate_rerun_script(
             'echo "Done with running a training job at $(date)"',
             'echo "Total duration: $((end_time - start_time)) seconds."',
             'echo "Copying logs to results directory"',
-            "cp ${CONFIG} ${JOB_FOLDER_PATH}/task_${TASK_ID}/config_used.yaml",
+            "cp ${CONFIG} ${CONFIG_FOLDER_PATH}/config_used.yaml",
         ]
     )
 

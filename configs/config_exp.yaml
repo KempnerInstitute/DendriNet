@@ -40,10 +40,19 @@ model:
       input_mode: 0
       # If we set input_mode=2, the following get used for input network:
       input_net_dict:
-        type: "MLPInputTransform"  # Type of input network: "MLPInputTransform", "AlexNetTransform", etc.
+        type: "CNNInputTransform"  # Type of input network: "IndexInputTransform", "MLPInputTransform", "AlexNetTransform", etc.
         hidden_dims: [] #[512, 256, 128]     # Hidden layer dimensions for better capacity
-        output_dim: 128             # Output dimension for both excitatory and inhibitory pathways
-      
+        excitatory_dim: 256             # Output dimension for excitatory input network
+        inhibitory_dim: 64             # Output dimension for inhibitory input network
+        # CNNInputTransform arguments
+        input_shape: [3, 32, 32]
+        excitatory_hidden_dims: [8]
+        inhibitory_hidden_dims: [4]
+        excitatory_kernel_sizes: [5]
+        inhibitory_kernel_sizes: [9]
+        excitatory_strides: [1]
+        inhibitory_strides: [1]
+        
       # DEEPST specific parameters
       excitatory_target_density: 0.1
       inhibitory_target_density: 0.1
@@ -62,7 +71,14 @@ train:
   learning_strategy: mle # Options: "mle", "freeze_layers", "local_credit_assignment", "two_step", "two_step_kl", "voltage_stabilization", "mse"
   seed: 0
   train_valid_split: 0.8
-  lr: 0.01  # Standard learning rate for Adam
+  optim_dict:
+    lr: 0.01  # default learning rate if split_params is false
+    split_params: true  # whether to split parameters into groups (only used for EINet)
+    input_net_lr: 0.001  # learning rate for input network
+    topk_lr: 0.001  # learning rate for topk layers
+    blocklinear_lr: 0.001  # learning rate for blocklinear layers
+    reactivation_lr: 0.001  # learning rate for reactivation layers
+    output_layer_lr: 0.001  # learning rate for output layer
   epochs: 50
   early_stopping: false
   patience: 10
