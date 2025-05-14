@@ -264,7 +264,7 @@ def setup_training_environment(config, args=None):
 
     optimizer = CustomWeightDecayOptimizer(
         model=model,
-        optimizer=torch.optim.Adam(model.parameters(), lr=train_cfg.lr),
+        optimizer=torch.optim.Adam(model.get_param_groups(train_cfg.optim_dict)),
         weight_decay=train_cfg.weight_decay_rate,
     )
 
@@ -536,7 +536,7 @@ def train_independent_input_nets(
         test_ds=test_ds,
         epochs=input_net_epochs,
         batch_size=train_cfg.batch_size,
-        lr=train_cfg.lr,
+        lr=train_cfg.optim_dict.get('input_net_lr', 0.001),
         run_save_path=excit_head_dir,
     )
     save_model(excit_feature_extractor, run_save_path, "excit_feature_extractor.pt")
@@ -564,7 +564,7 @@ def train_independent_input_nets(
         test_ds=test_ds,
         epochs=input_net_epochs,
         batch_size=train_cfg.batch_size,
-        lr=train_cfg.lr,
+        lr=train_cfg.optim_dict.get('input_net_lr', 0.001),
         run_save_path=inhib_head_dir,
     )
     save_model(inhib_feature_extractor, run_save_path, "inhib_feature_extractor.pt")
@@ -603,7 +603,7 @@ def train_independent_input_nets(
     logger.info("Training full model with pretrained input networks")
     optimizer = CustomWeightDecayOptimizer(
         model=model,
-        optimizer=torch.optim.Adam(model.parameters(), lr=train_cfg.lr),
+        optimizer=torch.optim.Adam(model.get_param_groups(train_cfg.optim_dict)),
         weight_decay=train_cfg.weight_decay_rate,
     )
     trainer = get_trainer(train_cfg.learning_strategy, optimizer)
@@ -649,7 +649,7 @@ def train_single_input_net(
         test_ds=test_ds,
         epochs=input_net_epochs,
         batch_size=train_cfg.batch_size,
-        lr=train_cfg.lr,
+        lr=train_cfg.optim_dict.get('input_net_lr', 0.001),
         run_save_path=mlp_model_dir,
     )
     save_model(feature_extractor, run_save_path, "feature_extractor.pt")
@@ -688,7 +688,7 @@ def train_single_input_net(
     logger.info("Training full model with pretrained input network")
     optimizer = CustomWeightDecayOptimizer(
         model=model,
-        optimizer=torch.optim.Adam(model.parameters(), lr=train_cfg.lr),
+        optimizer=torch.optim.Adam(model.get_param_groups(train_cfg.optim_dict)),
         weight_decay=train_cfg.weight_decay_rate,
     )
     trainer = get_trainer(train_cfg.learning_strategy, optimizer)

@@ -332,8 +332,8 @@ class GradientScaler:
             topk_layer.print_hooks = self.print_hooks
 
             # Register consistently with full backward hook
-            topk_layer.register_full_backward_hook(input_hook_fn)
-            # topk_layer.pre_w.register_hook(param_hook_fn)
+            # topk_layer.register_full_backward_hook(input_hook_fn)
+            topk_layer.pre_w.register_hook(param_hook_fn)
 
 
 # Apply the safe_hook decorator to our existing functions
