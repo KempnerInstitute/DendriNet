@@ -1161,7 +1161,8 @@ class DendriticBranchLayer(nn.Module):
                 init_b=reactivation_init_b if use_shunting else 0.1,
                 **kwargs
             )
-            gradient_scaler.register_reactivation_inverse(self.reactivation)
+            if use_shunting:
+                gradient_scaler.register_reactivation_inverse(self.reactivation)
         else:
             self.reactivation = nn.Identity()
         self.reactivate = reactivate
