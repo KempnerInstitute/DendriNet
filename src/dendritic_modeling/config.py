@@ -97,7 +97,9 @@ class TrainConfig(BaseConfig):
     run_name: str = "exp_run"
     seed: int = 0
     train_valid_split: float = 0.8
-    lr: float = 0.01
+    optim_dict: Dict[str, Any] = field(
+        default_factory=dict
+    )  # Optimizer / param group settings
     weight_decay_rate: float = 0.1
     epochs: int = 50
     early_stopping: bool = True
