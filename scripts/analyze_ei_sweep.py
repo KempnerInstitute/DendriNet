@@ -1123,6 +1123,96 @@ def generate_plots(results_df, params_df, output_dir, base_name):
     # Create CSV output
     results_df.to_csv(os.path.join(plot_dir, f"{base_name}_results.csv"), index=False)
 
+    # NEW PLOT: Accuracy vs E/I ratio for different fixed E+I values
+    try:
+        # Make a copy of the dataframe with the relevant columns
+        ratio_df = results_df.dropna(subset=["ee_value", "ie_value"]).copy()
+
+        # Skip if we don't have enough data
+        if len(ratio_df) >= 3:
+            # Add E+I sum and E/I ratio columns
+            ratio_df["e_plus_i"] = ratio_df["ee_value"] + ratio_df["ie_value"]
+            ratio_df["e_to_i_ratio"] = ratio_df["ee_value"] / ratio_df["ie_value"]
+
+            # Save this dataframe for reference
+            ratio_df.to_csv(
+                os.path.join(plot_dir, f"{base_name}_ratio_data.csv"), index=False
+            )
+
+            # Metrics to plot
+            metrics_for_ratio = [
+                col
+                for col in ["train_acc", "val_acc", "test_acc"]
+                if col in ratio_df.columns
+            ]
+
+            for metric in metrics_for_ratio:
+                if ratio_df[metric].isna().all():
+                    continue
+
+                # Filter rows with valid metric values
+                plot_data = ratio_df.dropna(subset=[metric]).copy()
+                if len(plot_data) < 3:
+                    continue
+
+                # Identify the most common E+I sums to use for the plot
+                # Get counts for each E+I sum and take the top N with most data points
+                e_plus_i_counts = plot_data["e_plus_i"].value_counts()
+                top_n = min(5, len(e_plus_i_counts))  # Plot at most 5 lines
+                top_e_plus_i = e_plus_i_counts.nlargest(top_n).index.tolist()
+
+                # Create the figure
+                plt.figure(figsize=(12, 8))
+
+                # For each E+I sum, plot accuracy vs E/I ratio
+                for e_plus_i in top_e_plus_i:
+                    subset = plot_data[plot_data["e_plus_i"] == e_plus_i].copy()
+
+                    # Skip if we don't have enough data points for this E+I sum
+                    if len(subset) < 3:
+                        continue
+
+                    # Sort by ratio for proper line drawing
+                    subset = subset.sort_values("e_to_i_ratio")
+
+                    # Create a group by to average results with similar ratios
+                    subset["ratio_rounded"] = np.round(subset["e_to_i_ratio"], 2)
+                    grouped = (
+                        subset.groupby("ratio_rounded")[metric].mean().reset_index()
+                    )
+
+                    # Plot this E+I line
+                    plt.plot(
+                        grouped["ratio_rounded"],
+                        grouped[metric],
+                        marker="o",
+                        linewidth=2,
+                        label=f"E+I = {e_plus_i}",
+                    )
+
+                # Add labels and title
+                plt.xlabel("E/I Ratio")
+                plt.ylabel(metric.replace("_", " ").title())
+                plt.title(
+                    f"{metric.replace('_', ' ').title()} vs E/I Ratio for Fixed E+I Values"
+                )
+                plt.legend()
+                plt.grid(True)
+                plt.tight_layout()
+
+                # Save the figure
+                plt.savefig(
+                    os.path.join(plot_dir, f"{base_name}_{metric}_ei_ratio.png")
+                )
+                plt.close()
+
+                print(
+                    f"Created E/I ratio plot for {metric} with {len(top_e_plus_i)} different E+I sums"
+                )
+    except Exception as e:
+        print(f"Error creating E/I ratio plot: {e}")
+        traceback.print_exc()
+
     print(f"Plots and results saved to {plot_dir}")
 
 
