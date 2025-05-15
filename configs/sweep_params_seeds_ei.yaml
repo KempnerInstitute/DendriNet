@@ -90,8 +90,10 @@ train_config:
       topk_lr: 0.001  # learning rate for topk layers
       blocklinear_lr: 0.001  # learning rate for blocklinear layers
       reactivation_lr: 0.001  # learning rate for reactivation layers
-      output_layer_lr: 0.001  # learning rate for output layer  
+      output_layer_lr: 0.001  # learning rate for output layer
     epochs: 100
+    early_stopping: false
+    patience: 10
     batch_size: 1024
     grad_clip_value: 5
     epochs_per_layer: 50
