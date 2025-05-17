@@ -65,6 +65,7 @@
 <li class="toctree-l3"><a class="reference internal" href="#overview">Overview</a></li>
 <li class="toctree-l3"><a class="reference internal" href="#generating-ei-sweeps">Generating EI Sweeps</a><ul>
 <li class="toctree-l4"><a class="reference internal" href="#basic-usage">Basic Usage</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#filtering-ei-combinations">Filtering EI Combinations</a></li>
 <li class="toctree-l4"><a class="reference internal" href="#configuration-settings">Configuration Settings</a></li>
 <li class="toctree-l4"><a class="reference internal" href="#output-structure">Output Structure</a></li>
 </ul>
@@ -164,6 +165,39 @@
 <li><p>Create a directory structure for the sweep experiment</p></li>
 <li><p>Generate a Slurm batch script (<code class="docutils literal notranslate"><span class="pre">run_ei_sweep.sh</span></code>) for running the sweep</p></li>
 </ol>
+</section>
+<section id="filtering-ei-combinations">
+<h3>Filtering EI Combinations<a class="headerlink" href="#filtering-ei-combinations" title="Link to this heading"></a></h3>
+<p>You can generate sweeps with filtered E-I combinations using the filtering options:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>python<span class="w"> </span>scripts/generate_ei_sweep.py<span class="w"> </span>configs/sweep_params_seeds_ei.yaml<span class="w"> </span>--filter-mode<span class="w"> </span>MODE<span class="w"> </span>--filter-value<span class="w"> </span>VALUE
+</pre></div>
+</div>
+<p>Available filtering modes:</p>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">all</span></code>: Generate all E-I combinations (default)</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">ei-sum</span></code>: Only include combinations where E+I equals a constant (E+I=K)</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">e-const</span></code>: Only include combinations with a specific constant E value</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">i-const</span></code>: Only include combinations with a specific constant I value</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">ei-ratio</span></code>: Only include combinations where E/I approximates a constant ratio</p></li>
+</ul>
+<p>Examples:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># Generate only combinations where E+I=52</span>
+python<span class="w"> </span>scripts/generate_ei_sweep.py<span class="w"> </span>configs/sweep_params_seeds_ei.yaml<span class="w"> </span>--filter-mode<span class="w"> </span>ei-sum<span class="w"> </span>--filter-value<span class="w"> </span><span class="m">52</span>
+
+<span class="c1"># Generate only combinations where E=26</span>
+python<span class="w"> </span>scripts/generate_ei_sweep.py<span class="w"> </span>configs/sweep_params_seeds_ei.yaml<span class="w"> </span>--filter-mode<span class="w"> </span>e-const<span class="w"> </span>--filter-value<span class="w"> </span><span class="m">26</span>
+
+<span class="c1"># Generate only combinations where I=26</span>
+python<span class="w"> </span>scripts/generate_ei_sweep.py<span class="w"> </span>configs/sweep_params_seeds_ei.yaml<span class="w"> </span>--filter-mode<span class="w"> </span>i-const<span class="w"> </span>--filter-value<span class="w"> </span><span class="m">26</span>
+
+<span class="c1"># Generate only combinations where E/I ratio is approximately 2 (with default tolerance of 0.1)</span>
+python<span class="w"> </span>scripts/generate_ei_sweep.py<span class="w"> </span>configs/sweep_params_seeds_ei.yaml<span class="w"> </span>--filter-mode<span class="w"> </span>ei-ratio<span class="w"> </span>--filter-value<span class="w"> </span><span class="m">2</span>
+
+<span class="c1"># Generate only combinations where E/I ratio is approximately 2 with a custom tolerance of 0.2</span>
+python<span class="w"> </span>scripts/generate_ei_sweep.py<span class="w"> </span>configs/sweep_params_seeds_ei.yaml<span class="w"> </span>--filter-mode<span class="w"> </span>ei-ratio<span class="w"> </span>--filter-value<span class="w"> </span><span class="m">2</span><span class="w"> </span>--filter-tolerance<span class="w"> </span><span class="m">0</span>.2
+</pre></div>
+</div>
+<p>This filtering functionality allows you to focus your experiments on specific regions of the parameter space, which is useful for studying particular E-I relationships.</p>
 </section>
 <section id="configuration-settings">
 <h3>Configuration Settings<a class="headerlink" href="#configuration-settings" title="Link to this heading"></a></h3>
