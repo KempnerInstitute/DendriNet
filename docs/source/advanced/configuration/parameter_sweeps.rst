@@ -30,6 +30,9 @@ Use ``generate_ei_sweep.py`` to create all required configuration files:
     # Limit to 50 configurations per job
     python scripts/generate_ei_sweep.py configs/sweep_params_seeds_ei.yaml --configs-per-job 50
 
+    # Filter combinations where E+I=52
+    python scripts/generate_ei_sweep.py configs/sweep_params_seeds_ei.yaml --filter-mode ei-sum --filter-value 52
+
 This script:
 
 - Creates a timestamped directory (e.g., ``ei_20250411145829``)
@@ -37,8 +40,41 @@ This script:
 - Creates job scripts for batch execution and stores them in a ``jobs`` directory
 - Produces a main ``run.sh`` script in the workspace root for easy submission
 - Optionally splits the sweep into multiple smaller job scripts
+- Optionally filters E-I combinations based on specified constraints
 
 The ``--split-jobs`` option divides the parameter sweep into the specified number of job scripts, each handling a subset of configurations. The ``--configs-per-job`` option limits each job script to at most the specified number of configurations.
+
+Filtering Options
+^^^^^^^^^^^^^^^^^
+
+The script now supports advanced filtering options to focus on specific E-I relationships:
+
+.. code-block:: bash
+
+    # Generate only combinations where E+I=52
+    python scripts/generate_ei_sweep.py configs/sweep_params_seeds_ei.yaml --filter-mode ei-sum --filter-value 52
+
+    # Generate only combinations where E=26
+    python scripts/generate_ei_sweep.py configs/sweep_params_seeds_ei.yaml --filter-mode e-const --filter-value 26
+
+    # Generate only combinations where I=26
+    python scripts/generate_ei_sweep.py configs/sweep_params_seeds_ei.yaml --filter-mode i-const --filter-value 26
+
+    # Generate only combinations where E/I ratio is approximately 2
+    python scripts/generate_ei_sweep.py configs/sweep_params_seeds_ei.yaml --filter-mode ei-ratio --filter-value 2
+
+    # Customize the tolerance for ratio filtering
+    python scripts/generate_ei_sweep.py configs/sweep_params_seeds_ei.yaml --filter-mode ei-ratio --filter-value 2 --filter-tolerance 0.2
+
+Available filtering modes:
+
+- ``all``: Generate all E-I combinations (default)
+- ``ei-sum``: Only include combinations where E+I equals a constant (E+I=K)
+- ``e-const``: Only include combinations with a specific constant E value
+- ``i-const``: Only include combinations with a specific constant I value
+- ``ei-ratio``: Only include combinations where E/I approximates a constant ratio (within tolerance)
+
+This filtering functionality allows you to focus your computational resources on the most interesting regions of the parameter space or study specific E-I relationships in depth.
 
 The ``sweep_params_seeds_ei.yaml`` file defines:
 
