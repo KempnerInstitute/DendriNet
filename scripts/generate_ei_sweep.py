@@ -7,11 +7,35 @@ Custom script to generate sweep configs for the EI sweep with the specific folde
 - Sets up subdirectories for configs, results, and plots
 - Prepares the SLURM job configuration to organize outputs correctly
 - Optionally splits sweep into multiple smaller job scripts
+- Optionally filters E-I combinations based on specified constraints
+
+Filtering Modes:
+- all: Generate all E-I combinations (default)
+- ei-sum: Only include combinations where E+I equals a constant (E+I=K)
+- e-const: Only include combinations with a specific constant E value
+- i-const: Only include combinations with a specific constant I value
+- ei-ratio: Only include combinations where E/I approximates a constant ratio
 
 Usage:
     python scripts/generate_ei_sweep.py configs/sweep_params_seeds_ei.yaml
     python scripts/generate_ei_sweep.py configs/sweep_params_seeds_ei.yaml --split-jobs 10
     python scripts/generate_ei_sweep.py configs/sweep_params_seeds_ei.yaml --configs-per-job 50
+
+Filter Examples:
+    # Generate only combinations where E+I=52
+    python scripts/generate_ei_sweep.py configs/sweep_params_seeds_ei.yaml --filter-mode ei-sum --filter-value 52
+
+    # Generate only combinations where E=26
+    python scripts/generate_ei_sweep.py configs/sweep_params_seeds_ei.yaml --filter-mode e-const --filter-value 26
+
+    # Generate only combinations where I=26
+    python scripts/generate_ei_sweep.py configs/sweep_params_seeds_ei.yaml --filter-mode i-const --filter-value 26
+
+    # Generate only combinations where E/I ratio is approximately 2 (with default tolerance of 0.1)
+    python scripts/generate_ei_sweep.py configs/sweep_params_seeds_ei.yaml --filter-mode ei-ratio --filter-value 2
+
+    # Generate only combinations where E/I ratio is approximately 2 with a custom tolerance of 0.2
+    python scripts/generate_ei_sweep.py configs/sweep_params_seeds_ei.yaml --filter-mode ei-ratio --filter-value 2 --filter-tolerance 0.2
 """
 
 import argparse
@@ -43,13 +67,118 @@ def parse_args():
         type=int,
         help="Maximum number of configurations per job script",
     )
+
+    # Add new filter arguments
+    parser.add_argument(
+        "--filter-mode",
+        type=str,
+        choices=["all", "ei-sum", "e-const", "i-const", "ei-ratio"],
+        default="all",
+        help="Filter mode for E-I combinations: all (default), ei-sum (E+I=constant), e-const (E=constant), "
+        "i-const (I=constant), or ei-ratio (E/I=constant)",
+    )
+    parser.add_argument(
+        "--filter-value",
+        type=float,
+        help="Value to use for filtering (constant sum, constant E, constant I, or constant ratio)",
+    )
+    parser.add_argument(
+        "--filter-tolerance",
+        type=float,
+        default=0.1,
+        help="Tolerance for ratio filtering (only used with ei-ratio mode)",
+    )
+
     return parser.parse_args()
 
 
-def generate_sweep_configs_manually(config, output_dir, config_filename_init):
+def filter_ei_combinations(
+    e_values, i_values, filter_mode, filter_value, filter_tolerance=0.1
+):
+    """
+    Filter E-I combinations based on the specified filter mode
+
+    Args:
+        e_values: List of E synapse values
+        i_values: List of I synapse values
+        filter_mode: Filtering mode (all, ei-sum, e-const, i-const, ei-ratio)
+        filter_value: Value to use for filtering
+        filter_tolerance: Tolerance for ratio filtering
+
+    Returns:
+        List of (e, i) tuples that satisfy the filter condition
+    """
+    if filter_mode == "all" or filter_value is None:
+        # Return all combinations
+        return [(e, i) for e in e_values for i in i_values]
+
+    filtered_combinations = []
+
+    for e in e_values:
+        for i in i_values:
+            # Extract the values (they are wrapped in lists)
+            # Handle different types of values (lists, ListConfig objects, etc.)
+            if isinstance(e, list) and len(e) > 0:
+                e_val = e[0]
+            elif hasattr(e, "__getitem__") and len(e) > 0:
+                e_val = e[0]
+            else:
+                e_val = e
+
+            if isinstance(i, list) and len(i) > 0:
+                i_val = i[0]
+            elif hasattr(i, "__getitem__") and len(i) > 0:
+                i_val = i[0]
+            else:
+                i_val = i
+
+            # Convert to float for comparison
+            try:
+                e_val = float(e_val)
+                i_val = float(i_val)
+            except (ValueError, TypeError):
+                print(f"Warning: Could not convert values to float: {e_val}, {i_val}")
+                continue
+
+            if filter_mode == "ei-sum" and abs(e_val + i_val - filter_value) < 1e-6:
+                # E + I = constant
+                filtered_combinations.append((e, i))
+            elif filter_mode == "e-const" and abs(e_val - filter_value) < 1e-6:
+                # E = constant
+                filtered_combinations.append((e, i))
+            elif filter_mode == "i-const" and abs(i_val - filter_value) < 1e-6:
+                # I = constant
+                filtered_combinations.append((e, i))
+            elif (
+                filter_mode == "ei-ratio"
+                and i_val > 0
+                and abs(e_val / i_val - filter_value) <= filter_tolerance
+            ):
+                # E/I = constant within tolerance
+                filtered_combinations.append((e, i))
+
+    return filtered_combinations
+
+
+def generate_sweep_configs_manually(
+    config,
+    output_dir,
+    config_filename_init,
+    filter_mode="all",
+    filter_value=None,
+    filter_tolerance=0.1,
+):
     """
     Generate sweep configs manually without relying on generate_sweep_configs.py
     This ensures configs are created in the correct location
+
+    Args:
+        config: The configuration object
+        output_dir: Output directory for configs
+        config_filename_init: Base filename for config files
+        filter_mode: Mode for filtering E-I combinations
+        filter_value: Value for filtering (dependent on filter_mode)
+        filter_tolerance: Tolerance for ratio filtering
     """
     sweep_params = config.sweep_config
     experiment_settings = config.get("experiment_settings", {})
@@ -85,44 +214,122 @@ def generate_sweep_configs_manually(config, output_dir, config_filename_init):
             for rest in product(*iterables[1:]):
                 yield (item,) + rest
 
-    # Generate all EINet parameter combinations
-    for params in product(*einet_param_values):
-        # For each parameter combination, create configs with different seeds
-        for seed_idx in range(seeds_per_condition):
-            # Create a new config based on the base config
-            new_config = OmegaConf.create(
-                OmegaConf.to_container(config.train_config, resolve=True)
-            )
+    # Check if we need to filter E-I combinations
+    ee_param_name = "model.network.parameters.ee_synapses_per_branch_per_layer"
+    ie_param_name = "model.network.parameters.ie_synapses_per_branch_per_layer"
 
-            # Set the seed
-            seed = base_seed + seed_idx
-            new_config.train.seed = seed
+    if (
+        filter_mode != "all"
+        and filter_value is not None
+        and ee_param_name in sweep_params
+        and ie_param_name in sweep_params
+    ):
+        # Find indices of E and I parameters
+        ee_idx = einet_param_names.index(ee_param_name)
+        ie_idx = einet_param_names.index(ie_param_name)
 
-            # Set network type to EINet if specified in sweep_params
-            if "model.network.type" in sweep_params:
-                new_config.model.network.type = "EINet"
+        # Extract E and I values
+        ee_values = sweep_params[ee_param_name]
+        ie_values = sweep_params[ie_param_name]
 
-            # Set the parameter values
-            for i, param_name in enumerate(einet_param_names):
-                set_nested_value(new_config, param_name, params[i])
+        # Filter combinations
+        filtered_ei_combinations = filter_ei_combinations(
+            ee_values, ie_values, filter_mode, filter_value, filter_tolerance
+        )
 
-            # Make sure outputs.dir points to the correct directory
-            if "outputs" not in new_config:
-                new_config.outputs = {}
+        print(
+            f"Filtered {len(filtered_ei_combinations)} E-I combinations using mode '{filter_mode}' with value {filter_value}"
+        )
 
-            # Store config_idx in the output path for consistent location between runs and reruns
-            new_config.outputs.dir = os.path.join(
-                output_dir, "results", f"config_{config_idx}"
-            )
+        # Generate filtered configurations
+        for ee, ie in filtered_ei_combinations:
+            # For each filtered combination
+            for seed_idx in range(seeds_per_condition):
+                # Create a new config based on the base config
+                new_config = OmegaConf.create(
+                    OmegaConf.to_container(config.train_config, resolve=True)
+                )
 
-            # Save the config
-            config_path = os.path.join(
-                output_dir, "configs", f"{config_filename_init}_{config_idx}.yaml"
-            )
-            OmegaConf.save(new_config, config_path)
-            print(f"Generated config: {config_path}")
+                # Set the seed
+                seed = base_seed + seed_idx
+                new_config.train.seed = seed
 
-            config_idx += 1
+                # Set network type to EINet if specified in sweep_params
+                if "model.network.type" in sweep_params:
+                    new_config.model.network.type = "EINet"
+
+                # Set the filtered E and I parameters
+                set_nested_value(new_config, ee_param_name, ee)
+                set_nested_value(new_config, ie_param_name, ie)
+
+                # Set any other parameters
+                for i, param_name in enumerate(einet_param_names):
+                    if param_name not in [ee_param_name, ie_param_name]:
+                        # For other parameters, use the first value from the sweep
+                        param_values = einet_param_values[i]
+                        param_value = (
+                            param_values[0]
+                            if isinstance(param_values, list) and param_values
+                            else param_values
+                        )
+                        set_nested_value(new_config, param_name, param_value)
+
+                # Make sure outputs.dir points to the correct directory
+                if "outputs" not in new_config:
+                    new_config.outputs = {}
+
+                # Store config_idx in the output path for consistent location between runs and reruns
+                new_config.outputs.dir = os.path.join(
+                    output_dir, "results", f"config_{config_idx}"
+                )
+
+                # Save the config
+                config_path = os.path.join(
+                    output_dir, "configs", f"{config_filename_init}_{config_idx}.yaml"
+                )
+                OmegaConf.save(new_config, config_path)
+                print(f"Generated config: {config_path}")
+
+                config_idx += 1
+    else:
+        # Generate all EINet parameter combinations without filtering
+        for params in product(*einet_param_values):
+            # For each parameter combination, create configs with different seeds
+            for seed_idx in range(seeds_per_condition):
+                # Create a new config based on the base config
+                new_config = OmegaConf.create(
+                    OmegaConf.to_container(config.train_config, resolve=True)
+                )
+
+                # Set the seed
+                seed = base_seed + seed_idx
+                new_config.train.seed = seed
+
+                # Set network type to EINet if specified in sweep_params
+                if "model.network.type" in sweep_params:
+                    new_config.model.network.type = "EINet"
+
+                # Set the parameter values
+                for i, param_name in enumerate(einet_param_names):
+                    set_nested_value(new_config, param_name, params[i])
+
+                # Make sure outputs.dir points to the correct directory
+                if "outputs" not in new_config:
+                    new_config.outputs = {}
+
+                # Store config_idx in the output path for consistent location between runs and reruns
+                new_config.outputs.dir = os.path.join(
+                    output_dir, "results", f"config_{config_idx}"
+                )
+
+                # Save the config
+                config_path = os.path.join(
+                    output_dir, "configs", f"{config_filename_init}_{config_idx}.yaml"
+                )
+                OmegaConf.save(new_config, config_path)
+                print(f"Generated config: {config_path}")
+
+                config_idx += 1
 
     # Check if MLP network type is specified
     net_types = sweep_params.get("model.network.type", ["EINet"])
@@ -469,6 +676,11 @@ def main():
 
     # Create the uniquely named output directory
     output_base_dir = config.slurm_config.output_dir
+    # Handle case where output_dir is not set in config
+    if output_base_dir is None:
+        output_base_dir = os.path.join(os.getcwd(), "outputs")
+        print(f"Output directory not set in config, using default: {output_base_dir}")
+
     output_dir = os.path.join(output_base_dir, f"{subdir_prefix}{timestamp}")
 
     print(f"Creating output directory: {output_dir}")
@@ -503,10 +715,15 @@ def main():
     OmegaConf.save(config, updated_config_path)
     print(f"Saved updated config to: {updated_config_path}")
 
-    # Generate all the sweep configurations directly
+    # Generate all the sweep configurations with optional filtering
     config_filename_init = config.slurm_config.config_filename_init
     num_configs = generate_sweep_configs_manually(
-        config, output_dir, config_filename_init
+        config,
+        output_dir,
+        config_filename_init,
+        filter_mode=args.filter_mode,
+        filter_value=args.filter_value,
+        filter_tolerance=args.filter_tolerance,
     )
 
     print(
@@ -575,6 +792,10 @@ def main():
         f"5. Plots will be saved to: {os.path.join(output_dir, 'plots')}/config_<config_idx>/"
     )
     print(f"6. To run the complete sweep, use: ./run.sh")
+    if args.filter_mode != "all":
+        print(
+            f"7. Applied filtering mode '{args.filter_mode}' with value {args.filter_value}"
+        )
 
 
 if __name__ == "__main__":
