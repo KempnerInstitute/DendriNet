@@ -36,6 +36,44 @@ This will:
 3. Create a directory structure for the sweep experiment
 4. Generate a Slurm batch script (``run_ei_sweep.sh``) for running the sweep
 
+Filtering EI Combinations
+~~~~~~~~~~~~~~~~~~~~~~~~~
+
+You can generate sweeps with filtered E-I combinations using the filtering options:
+
+.. code-block:: bash
+
+    python scripts/generate_ei_sweep.py configs/sweep_params_seeds_ei.yaml --filter-mode MODE --filter-value VALUE
+
+Available filtering modes:
+
+- ``all``: Generate all E-I combinations (default)
+- ``ei-sum``: Only include combinations where E+I equals a constant (E+I=K)
+- ``e-const``: Only include combinations with a specific constant E value
+- ``i-const``: Only include combinations with a specific constant I value
+- ``ei-ratio``: Only include combinations where E/I approximates a constant ratio
+
+Examples:
+
+.. code-block:: bash
+
+    # Generate only combinations where E+I=52
+    python scripts/generate_ei_sweep.py configs/sweep_params_seeds_ei.yaml --filter-mode ei-sum --filter-value 52
+
+    # Generate only combinations where E=26
+    python scripts/generate_ei_sweep.py configs/sweep_params_seeds_ei.yaml --filter-mode e-const --filter-value 26
+
+    # Generate only combinations where I=26
+    python scripts/generate_ei_sweep.py configs/sweep_params_seeds_ei.yaml --filter-mode i-const --filter-value 26
+
+    # Generate only combinations where E/I ratio is approximately 2 (with default tolerance of 0.1)
+    python scripts/generate_ei_sweep.py configs/sweep_params_seeds_ei.yaml --filter-mode ei-ratio --filter-value 2
+
+    # Generate only combinations where E/I ratio is approximately 2 with a custom tolerance of 0.2
+    python scripts/generate_ei_sweep.py configs/sweep_params_seeds_ei.yaml --filter-mode ei-ratio --filter-value 2 --filter-tolerance 0.2
+
+This filtering functionality allows you to focus your experiments on specific regions of the parameter space, which is useful for studying particular E-I relationships.
+
 Configuration Settings
 ~~~~~~~~~~~~~~~~~~~~~~
 

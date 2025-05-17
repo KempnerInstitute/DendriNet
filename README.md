@@ -141,3 +141,34 @@ module load python/3.12.5-fasrc01
 module load cuda/12.4.1-fasrc01
 module load cudnn/8.9.2.26_cuda12-fasrc01
 ```
+
+## E-I Sweep Filtering
+
+The `generate_ei_sweep.py` script now supports filtering E-I combinations based on specific constraints:
+
+### Available Filtering Modes
+
+- `all`: Generate all E-I combinations (default)
+- `ei-sum`: Only include combinations where E+I equals a constant (E+I=K)
+- `e-const`: Only include combinations with a specific constant E value
+- `i-const`: Only include combinations with a specific constant I value
+- `ei-ratio`: Only include combinations where E/I approximates a constant ratio
+
+### Usage Examples
+
+```bash
+# Generate only combinations where E+I=52
+python scripts/generate_ei_sweep.py configs/sweep_params_seeds_ei.yaml --filter-mode ei-sum --filter-value 52
+
+# Generate only combinations where E=26
+python scripts/generate_ei_sweep.py configs/sweep_params_seeds_ei.yaml --filter-mode e-const --filter-value 26
+
+# Generate only combinations where I=26
+python scripts/generate_ei_sweep.py configs/sweep_params_seeds_ei.yaml --filter-mode i-const --filter-value 26
+
+# Generate only combinations where E/I ratio is approximately 2 (with default tolerance of 0.1)
+python scripts/generate_ei_sweep.py configs/sweep_params_seeds_ei.yaml --filter-mode ei-ratio --filter-value 2
+
+# Generate only combinations where E/I ratio is approximately 2 with a custom tolerance of 0.2
+python scripts/generate_ei_sweep.py configs/sweep_params_seeds_ei.yaml --filter-mode ei-ratio --filter-value 2 --filter-tolerance 0.2
+```
