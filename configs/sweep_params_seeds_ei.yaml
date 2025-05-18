@@ -144,7 +144,7 @@ sweep_config:
   model.network.parameters.ie_synapses_per_branch_per_layer: [
     [1], [6], [11], [16], [21], [26], [31], [36], [41], [46], [51]
   ]
-  model.network.parameters.use_shunting: [true, false]
+  model.network.parameters.use_shunting: [true, false, "MLP"]
   # This sweep has:
   # - 11 EE values × 11 IE values = 121 parameter combinations
   # - Each combination runs with 5 seeds
