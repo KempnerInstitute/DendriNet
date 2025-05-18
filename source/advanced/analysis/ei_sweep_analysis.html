@@ -74,6 +74,7 @@
 <li class="toctree-l3"><a class="reference internal" href="#visualizations-explained">Visualizations Explained</a><ul>
 <li class="toctree-l4"><a class="reference internal" href="#heatmaps-accuracy">Heatmaps (Accuracy)</a></li>
 <li class="toctree-l4"><a class="reference internal" href="#parameter-sweep-line-plots">Parameter Sweep Line Plots</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#network-type-comparison">Network Type Comparison</a></li>
 <li class="toctree-l4"><a class="reference internal" href="#top-combinations-bar-chart">Top Combinations Bar Chart</a></li>
 <li class="toctree-l4"><a class="reference internal" href="#multi-experiment-comparison">Multi-Experiment Comparison</a></li>
 </ul>
@@ -183,6 +184,21 @@ Optional arguments:
 <li><p><code class="docutils literal notranslate"><span class="pre">sweep_by_ie.png</span></code>: How test accuracy changes with IE values, shown as separate lines for each EE value</p></li>
 </ul>
 <p>These plots help identify trends and interactions between parameters.</p>
+</section>
+<section id="network-type-comparison">
+<h3>Network Type Comparison<a class="headerlink" href="#network-type-comparison" title="Link to this heading"></a></h3>
+<p>When your sweep includes different network types (via <code class="docutils literal notranslate"><span class="pre">model.network.parameters.use_shunting:</span> <span class="pre">[true,</span> <span class="pre">false,</span> <span class="pre">&quot;MLP&quot;]</span></code>), the script automatically generates additional visualizations for comparing them:</p>
+<ul class="simple">
+<li><p><strong>Network-Grouped Heatmaps</strong>: Separate heatmaps for each network category (<code class="docutils literal notranslate"><span class="pre">*_heatmap_EINet_shunting.png</span></code>, <code class="docutils literal notranslate"><span class="pre">*_heatmap_EINet_no_shunting.png</span></code>, <code class="docutils literal notranslate"><span class="pre">*_heatmap_MLP.png</span></code>)</p></li>
+<li><p><strong>Comparison Line Plots</strong>:
+- <code class="docutils literal notranslate"><span class="pre">*_ee_lines_by_network.png</span></code>: Compares how different network types respond to varying EE values
+- <code class="docutils literal notranslate"><span class="pre">*_ie_lines_by_network.png</span></code>: Compares how different network types respond to varying IE values
+- <code class="docutils literal notranslate"><span class="pre">*_ei_ratio_by_network.png</span></code>: Compares how different network types respond to varying E/I ratios</p></li>
+<li><p><strong>Network-Grouped Scatter Plots</strong>:
+- <code class="docutils literal notranslate"><span class="pre">*_scatter_by_network.png</span></code>: Combined scatter plot showing all network types with different markers
+- <code class="docutils literal notranslate"><span class="pre">*_scatter_EINet_shunting.png</span></code>, <code class="docutils literal notranslate"><span class="pre">*_scatter_EINet_no_shunting.png</span></code>, <code class="docutils literal notranslate"><span class="pre">*_scatter_MLP.png</span></code>: Individual scatter plots for each network type</p></li>
+</ul>
+<p>These visualizations make it easy to compare the performance of dendritic networks (EINet with and without shunting) against standard MLP networks using the same parameter values.</p>
 </section>
 <section id="top-combinations-bar-chart">
 <h3>Top Combinations Bar Chart<a class="headerlink" href="#top-combinations-bar-chart" title="Link to this heading"></a></h3>

@@ -68,6 +68,24 @@ Line plots show the relationship between specific parameters and model performan
 
 These plots help identify trends and interactions between parameters.
 
+Network Type Comparison
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+When your sweep includes different network types (via ``model.network.parameters.use_shunting: [true, false, "MLP"]``), the script automatically generates additional visualizations for comparing them:
+
+- **Network-Grouped Heatmaps**: Separate heatmaps for each network category (``*_heatmap_EINet_shunting.png``, ``*_heatmap_EINet_no_shunting.png``, ``*_heatmap_MLP.png``)
+
+- **Comparison Line Plots**:
+  - ``*_ee_lines_by_network.png``: Compares how different network types respond to varying EE values
+  - ``*_ie_lines_by_network.png``: Compares how different network types respond to varying IE values
+  - ``*_ei_ratio_by_network.png``: Compares how different network types respond to varying E/I ratios
+
+- **Network-Grouped Scatter Plots**:
+  - ``*_scatter_by_network.png``: Combined scatter plot showing all network types with different markers
+  - ``*_scatter_EINet_shunting.png``, ``*_scatter_EINet_no_shunting.png``, ``*_scatter_MLP.png``: Individual scatter plots for each network type
+
+These visualizations make it easy to compare the performance of dendritic networks (EINet with and without shunting) against standard MLP networks using the same parameter values.
+
 Top Combinations Bar Chart
 ^^^^^^^^^^^^^^^^^^^^^^^^
 
