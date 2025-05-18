@@ -118,6 +118,9 @@ Example Configuration
       model.network.parameters.ie_synapses_per_branch_per_layer: [
         [1], [6], [11], [16], [21], [26], [31], [36], [41], [46], [51]
       ]
+      model.network.parameters.use_shunting: [true, false, "MLP"]  # "MLP" will create MLP networks
+
+Note that the special value ``"MLP"`` in the ``use_shunting`` parameter will create configurations with network type set to MLP instead of EINet, which allows you to compare EINet models (with shunting enabled or disabled) against standard MLP models in the same sweep. The MLP networks will use the values specified in ``ee_synapses_per_branch_per_layer`` and ``ie_synapses_per_branch_per_layer`` from the sweep to define their structure and parameter counts, ensuring fair comparisons between the architectures.
 
 Directory Structure
 ^^^^^^^^^^^^^^^^^
@@ -272,6 +275,7 @@ In ``sweep_params_seeds_ei.yaml``:
 
 - ``model.network.parameters.ee_synapses_per_branch_per_layer``: Excitatory-excitatory synapses
 - ``model.network.parameters.ie_synapses_per_branch_per_layer``: Inhibitory-excitatory synapses
+- ``model.network.parameters.use_shunting``: Network type (true for EINet, false for standard MLP, "MLP" for MLP networks)
 - ``seeds_per_condition``: Number of random seeds to use for each parameter combination
 - ``slurm_config.max_concurrent_jobs``: Maximum number of jobs to run simultaneously
 

@@ -74,6 +74,36 @@ Examples:
 
 This filtering functionality allows you to focus your experiments on specific regions of the parameter space, which is useful for studying particular E-I relationships.
 
+Comparing Network Types
+~~~~~~~~~~~~~~~~~~~~~~
+
+You can generate sweeps that compare EINet architecture (with and without shunting) against standard MLP networks by using the special value ``"MLP"`` for the ``use_shunting`` parameter:
+
+.. code-block:: yaml
+
+    sweep_config:
+      model.network.parameters.ee_synapses_per_branch_per_layer: [
+        [1], [6], [11], [16], [21], [26]
+      ]
+      model.network.parameters.ie_synapses_per_branch_per_layer: [
+        [1], [6], [11], [16], [21], [26]
+      ]
+      model.network.parameters.use_shunting: [true, false, "MLP"]
+
+This configuration will generate three types of networks for each E-I combination:
+
+- ``use_shunting=true``: EINet with shunting inhibition enabled
+- ``use_shunting=false``: EINet with shunting inhibition disabled
+- ``use_shunting="MLP"``: Standard MLP network using the same E-I parameters
+
+When using the ``"MLP"`` option, the script automatically:
+
+1. Sets the network type to "MLP" instead of "EINet"
+2. Uses the specified E-I parameters to configure the MLP architecture
+3. Sets ``use_shunting=false`` for the MLP configuration
+
+After running the sweep, the ``analyze_ei_sweep.py`` script will automatically detect the different network types and generate comparative visualizations grouped by network category (EINet with shunting, EINet without shunting, and MLP). This enables direct comparison between dendritic and non-dendritic architectures using the same parameter values.
+
 Configuration Settings
 ~~~~~~~~~~~~~~~~~~~~~~
 
@@ -122,6 +152,7 @@ The ``sweep_params_seeds_ei.yaml`` file contains all the settings needed for the
       model.network.parameters.ie_synapses_per_branch_per_layer: [
         [1], [6], [11], [16], [21], [26], [31], [36], [41], [46], [51]
       ]
+      model.network.parameters.use_shunting: [true, false, "MLP"]
 
 Key sections in this configuration file:
 

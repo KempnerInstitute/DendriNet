@@ -8,6 +8,7 @@ Custom script to generate sweep configs for the EI sweep with the specific folde
 - Prepares the SLURM job configuration to organize outputs correctly
 - Optionally splits sweep into multiple smaller job scripts
 - Optionally filters E-I combinations based on specified constraints
+- Supports network type comparison (EINet with/without shunting vs. MLP)
 
 Filtering Modes:
 - all: Generate all E-I combinations (default)
@@ -15,6 +16,17 @@ Filtering Modes:
 - e-const: Only include combinations with a specific constant E value
 - i-const: Only include combinations with a specific constant I value
 - ei-ratio: Only include combinations where E/I approximates a constant ratio
+
+Network Type Comparison:
+The script supports comparing different network architectures in the same sweep by using:
+`model.network.parameters.use_shunting: [true, false, "MLP"]` in your sweep parameters.
+- true: Creates an EINet with shunting inhibition enabled
+- false: Creates an EINet with shunting inhibition disabled
+- "MLP": Creates a standard MLP network using the same EI parameters
+
+This enables direct comparison between dendritic (EINet) and non-dendritic (MLP)
+architectures. The analyze_ei_sweep.py script will automatically detect these network
+types and generate grouped visualizations to compare performance.
 
 Usage:
     python scripts/generate_ei_sweep.py configs/sweep_params_seeds_ei.yaml
@@ -187,10 +199,43 @@ def generate_sweep_configs_manually(
 
     # Extract parameter names and values
     einet_param_names = list(sweep_params.keys())
-    # Only try to remove "model.network.type" if it's in the list
+
+    # Check if model.network.type is specified in sweep params
+    force_network_type = None
     if "model.network.type" in einet_param_names:
         einet_param_names.remove("model.network.type")
-    einet_param_values = [sweep_params[key] for key in einet_param_names]
+
+    # Check if use_shunting is in the sweep parameters and contains "MLP"
+    use_shunting_param_name = "model.network.parameters.use_shunting"
+    has_mlp_option = False
+    if use_shunting_param_name in sweep_params:
+        # Check if any value is "MLP" (string) in the use_shunting parameter
+        for value in sweep_params[use_shunting_param_name]:
+            if isinstance(value, str) and value.upper() == "MLP":
+                has_mlp_option = True
+                break
+
+    # Prepare parameter values for all parameters in the sweep
+    # Ensure we handle potential OmegaConf objects correctly
+    einet_param_values = []
+    for key in einet_param_names:
+        param_values = sweep_params[key]
+        # Convert to simple Python types if it's an OmegaConf object
+        if hasattr(param_values, "__len__") and not isinstance(
+            param_values, (str, dict)
+        ):
+            # Convert to a list if it's a sequence type
+            param_values = list(param_values)
+        elif hasattr(param_values, "__iter__") and not isinstance(
+            param_values, (str, dict)
+        ):
+            # Convert iterable to list
+            param_values = list(param_values)
+        else:
+            # If it's a single value, wrap it in a list
+            param_values = [param_values]
+
+        einet_param_values.append(param_values)
 
     # Generate all combinations
     configs = []
@@ -210,7 +255,30 @@ def generate_sweep_configs_manually(
         if not iterables:
             yield ()
             return
-        for item in iterables[0]:
+
+        # Get the first iterable and ensure it's a proper list/tuple
+        first_iterable = iterables[0]
+        if hasattr(first_iterable, "__len__") and not isinstance(
+            first_iterable, (str, dict)
+        ):
+            # It's already a sequence-like object
+            pass
+        elif hasattr(first_iterable, "__iter__") and not isinstance(
+            first_iterable, (str, dict)
+        ):
+            # Convert iterator to list
+            first_iterable = list(first_iterable)
+        else:
+            # Single value
+            first_iterable = [first_iterable]
+
+        # Debug output for the first iterable
+        print(
+            f"Processing parameter: {einet_param_names[0] if einet_param_names else 'unknown'}"
+        )
+        print(f"Values: {first_iterable} (type: {type(first_iterable)})")
+
+        for item in first_iterable:
             for rest in product(*iterables[1:]):
                 yield (item,) + rest
 
@@ -245,6 +313,164 @@ def generate_sweep_configs_manually(
         for ee, ie in filtered_ei_combinations:
             # For each filtered combination
             for seed_idx in range(seeds_per_condition):
+                # If we have use_shunting in the sweep params and it contains MLP,
+                # we need to create separate configs for each use_shunting value
+                if has_mlp_option and use_shunting_param_name in einet_param_names:
+                    shunting_values = sweep_params[use_shunting_param_name]
+                    for shunting_value in shunting_values:
+                        # Create a new config based on the base config
+                        new_config = OmegaConf.create(
+                            OmegaConf.to_container(config.train_config, resolve=True)
+                        )
+
+                        # Set the seed
+                        seed = base_seed + seed_idx
+                        new_config.train.seed = seed
+
+                        # Handle MLP network type if use_shunting is "MLP"
+                        if (
+                            isinstance(shunting_value, str)
+                            and shunting_value.upper() == "MLP"
+                        ):
+                            # Set network type to MLP for this configuration
+                            new_config.model.network.type = "MLP"
+                            # Set use_shunting to False for MLP
+                            set_nested_value(new_config, use_shunting_param_name, False)
+                        else:
+                            # This is an EINet config
+                            new_config.model.network.type = "EINet"
+                            # Set use_shunting to the specific value
+                            set_nested_value(
+                                new_config, use_shunting_param_name, shunting_value
+                            )
+
+                        # Set the filtered E and I parameters
+                        set_nested_value(new_config, ee_param_name, ee)
+                        set_nested_value(new_config, ie_param_name, ie)
+
+                        # Set any other parameters
+                        for i, param_name in enumerate(einet_param_names):
+                            if param_name not in [
+                                ee_param_name,
+                                ie_param_name,
+                                use_shunting_param_name,
+                            ]:
+                                # For other parameters, use the first value from the sweep
+                                param_values = einet_param_values[i]
+                                param_value = (
+                                    param_values[0]
+                                    if isinstance(param_values, list) and param_values
+                                    else param_values
+                                )
+                                set_nested_value(new_config, param_name, param_value)
+
+                        # Make sure outputs.dir points to the correct directory
+                        if "outputs" not in new_config:
+                            new_config.outputs = {}
+
+                        # Store config_idx in the output path for consistent location between runs and reruns
+                        new_config.outputs.dir = os.path.join(
+                            output_dir, "results", f"config_{config_idx}"
+                        )
+
+                        # Save the config
+                        config_path = os.path.join(
+                            output_dir,
+                            "configs",
+                            f"{config_filename_init}_{config_idx}.yaml",
+                        )
+                        OmegaConf.save(new_config, config_path)
+
+                        # Print debug information about this config
+                        network_type = (
+                            new_config.model.network.type
+                            if hasattr(new_config.model.network, "type")
+                            else "unknown"
+                        )
+                        use_shunting_value = None
+                        if hasattr(new_config.model.network, "parameters") and hasattr(
+                            new_config.model.network.parameters, "use_shunting"
+                        ):
+                            use_shunting_value = (
+                                new_config.model.network.parameters.use_shunting
+                            )
+
+                        print(
+                            f"Generated config {config_idx}: {network_type} with use_shunting={use_shunting_value}"
+                        )
+
+                        config_idx += 1
+                else:
+                    # Create a new config based on the base config
+                    new_config = OmegaConf.create(
+                        OmegaConf.to_container(config.train_config, resolve=True)
+                    )
+
+                    # Set the seed
+                    seed = base_seed + seed_idx
+                    new_config.train.seed = seed
+
+                    # Set network type to EINet if specified in sweep_params
+                    if "model.network.type" in sweep_params:
+                        new_config.model.network.type = "EINet"
+
+                    # Set the filtered E and I parameters
+                    set_nested_value(new_config, ee_param_name, ee)
+                    set_nested_value(new_config, ie_param_name, ie)
+
+                    # Set any other parameters
+                    for i, param_name in enumerate(einet_param_names):
+                        if param_name not in [ee_param_name, ie_param_name]:
+                            # For other parameters, use the first value from the sweep
+                            param_values = einet_param_values[i]
+                            param_value = (
+                                param_values[0]
+                                if isinstance(param_values, list) and param_values
+                                else param_values
+                            )
+                            set_nested_value(new_config, param_name, param_value)
+
+                    # Make sure outputs.dir points to the correct directory
+                    if "outputs" not in new_config:
+                        new_config.outputs = {}
+
+                    # Store config_idx in the output path for consistent location between runs and reruns
+                    new_config.outputs.dir = os.path.join(
+                        output_dir, "results", f"config_{config_idx}"
+                    )
+
+                    # Save the config
+                    config_path = os.path.join(
+                        output_dir,
+                        "configs",
+                        f"{config_filename_init}_{config_idx}.yaml",
+                    )
+                    OmegaConf.save(new_config, config_path)
+
+                    # Print debug information about this config
+                    network_type = (
+                        new_config.model.network.type
+                        if hasattr(new_config.model.network, "type")
+                        else "unknown"
+                    )
+                    use_shunting_value = None
+                    if hasattr(new_config.model.network, "parameters") and hasattr(
+                        new_config.model.network.parameters, "use_shunting"
+                    ):
+                        use_shunting_value = (
+                            new_config.model.network.parameters.use_shunting
+                        )
+
+                    print(
+                        f"Generated config {config_idx}: {network_type} with use_shunting={use_shunting_value}"
+                    )
+
+                    config_idx += 1
+    else:
+        # Generate all parameter combinations without filtering
+        for params in product(*einet_param_values):
+            # For each parameter combination, create configs with different seeds
+            for seed_idx in range(seeds_per_condition):
                 # Create a new config based on the base config
                 new_config = OmegaConf.create(
                     OmegaConf.to_container(config.train_config, resolve=True)
@@ -254,24 +480,77 @@ def generate_sweep_configs_manually(
                 seed = base_seed + seed_idx
                 new_config.train.seed = seed
 
-                # Set network type to EINet if specified in sweep_params
-                if "model.network.type" in sweep_params:
-                    new_config.model.network.type = "EINet"
+                # Check if this is a configuration with use_shunting="MLP"
+                is_mlp_config = False
+                if has_mlp_option and use_shunting_param_name in einet_param_names:
+                    idx = einet_param_names.index(use_shunting_param_name)
+                    shunting_value = params[idx]
 
-                # Set the filtered E and I parameters
-                set_nested_value(new_config, ee_param_name, ee)
-                set_nested_value(new_config, ie_param_name, ie)
-
-                # Set any other parameters
-                for i, param_name in enumerate(einet_param_names):
-                    if param_name not in [ee_param_name, ie_param_name]:
-                        # For other parameters, use the first value from the sweep
-                        param_values = einet_param_values[i]
-                        param_value = (
-                            param_values[0]
-                            if isinstance(param_values, list) and param_values
-                            else param_values
+                    # Fix: Convert shunting_value to a proper single value
+                    # In case it's still a list or other container
+                    if hasattr(shunting_value, "__len__") and not isinstance(
+                        shunting_value, str
+                    ):
+                        print(
+                            f"Warning: use_shunting parameter is a container: {shunting_value}, using first value"
                         )
+                        if len(shunting_value) > 0:
+                            shunting_value = shunting_value[0]
+                        else:
+                            shunting_value = True  # Default
+
+                    if (
+                        isinstance(shunting_value, str)
+                        and shunting_value.upper() == "MLP"
+                    ):
+                        # Set network type to MLP for this configuration
+                        new_config.model.network.type = "MLP"
+                        is_mlp_config = True
+                        # Set use_shunting to False for MLP
+                        set_nested_value(new_config, use_shunting_param_name, False)
+
+                        # For MLP, keep the ee and ie parameters from the sweep
+                        # and set all other parameters
+                        for i, param_name in enumerate(einet_param_names):
+                            # Fix: Make sure we set single values not lists
+                            param_value = params[i]
+                            # Convert parameter value if it's a container
+                            if hasattr(param_value, "__len__") and not isinstance(
+                                param_value, str
+                            ):
+                                if len(param_value) > 0:
+                                    param_value = param_value[0]
+                            set_nested_value(new_config, param_name, param_value)
+                    else:
+                        # This is an EINet config with specific use_shunting value
+                        new_config.model.network.type = "EINet"
+                        # Set all parameters, including use_shunting
+                        for i, param_name in enumerate(einet_param_names):
+                            # Fix: Make sure we set single values not lists
+                            param_value = params[i]
+                            # Convert parameter value if it's a container
+                            if hasattr(param_value, "__len__") and not isinstance(
+                                param_value, str
+                            ):
+                                if len(param_value) > 0:
+                                    param_value = param_value[0]
+                            set_nested_value(new_config, param_name, param_value)
+                else:
+                    # Standard EINet config (no MLP option)
+                    # Set network type to EINet if specified in sweep_params
+                    if "model.network.type" in sweep_params:
+                        new_config.model.network.type = "EINet"
+
+                    # Set all the parameter values
+                    for i, param_name in enumerate(einet_param_names):
+                        # Fix: Make sure we set single values not lists
+                        param_value = params[i]
+                        # Convert parameter value if it's a container
+                        if hasattr(param_value, "__len__") and not isinstance(
+                            param_value, str
+                        ):
+                            if len(param_value) > 0:
+                                param_value = param_value[0]
                         set_nested_value(new_config, param_name, param_value)
 
                 # Make sure outputs.dir points to the correct directory
@@ -288,52 +567,32 @@ def generate_sweep_configs_manually(
                     output_dir, "configs", f"{config_filename_init}_{config_idx}.yaml"
                 )
                 OmegaConf.save(new_config, config_path)
-                print(f"Generated config: {config_path}")
 
-                config_idx += 1
-    else:
-        # Generate all EINet parameter combinations without filtering
-        for params in product(*einet_param_values):
-            # For each parameter combination, create configs with different seeds
-            for seed_idx in range(seeds_per_condition):
-                # Create a new config based on the base config
-                new_config = OmegaConf.create(
-                    OmegaConf.to_container(config.train_config, resolve=True)
+                # Print debug information about this config
+                network_type = (
+                    new_config.model.network.type
+                    if hasattr(new_config.model.network, "type")
+                    else "unknown"
                 )
+                use_shunting_value = None
+                if hasattr(new_config.model.network, "parameters") and hasattr(
+                    new_config.model.network.parameters, "use_shunting"
+                ):
+                    use_shunting_value = (
+                        new_config.model.network.parameters.use_shunting
+                    )
 
-                # Set the seed
-                seed = base_seed + seed_idx
-                new_config.train.seed = seed
-
-                # Set network type to EINet if specified in sweep_params
-                if "model.network.type" in sweep_params:
-                    new_config.model.network.type = "EINet"
-
-                # Set the parameter values
-                for i, param_name in enumerate(einet_param_names):
-                    set_nested_value(new_config, param_name, params[i])
-
-                # Make sure outputs.dir points to the correct directory
-                if "outputs" not in new_config:
-                    new_config.outputs = {}
-
-                # Store config_idx in the output path for consistent location between runs and reruns
-                new_config.outputs.dir = os.path.join(
-                    output_dir, "results", f"config_{config_idx}"
+                print(
+                    f"Generated config {config_idx}: {network_type} with use_shunting={use_shunting_value}"
                 )
-
-                # Save the config
-                config_path = os.path.join(
-                    output_dir, "configs", f"{config_filename_init}_{config_idx}.yaml"
-                )
-                OmegaConf.save(new_config, config_path)
-                print(f"Generated config: {config_path}")
 
                 config_idx += 1
 
-    # Check if MLP network type is specified
+    # The MLP networks are now handled in the main parameter generation loop
+    # via the use_shunting="MLP" option, so we can remove this separate MLP handling
+    # unless we still want to generate MLP configurations from model.network.type
     net_types = sweep_params.get("model.network.type", ["EINet"])
-    if "MLP" in net_types:
+    if "MLP" in net_types and not has_mlp_option:
         # set default values for MLP
         ee = [1]
         ie = [1]
@@ -365,7 +624,22 @@ def generate_sweep_configs_manually(
                 output_dir, "configs", f"{config_filename_init}_{config_idx}.yaml"
             )
             OmegaConf.save(new_config, config_path)
-            print(f"Generated config: {config_path}")
+
+            # Print debug information about this config
+            network_type = (
+                new_config.model.network.type
+                if hasattr(new_config.model.network, "type")
+                else "unknown"
+            )
+            use_shunting_value = None
+            if hasattr(new_config.model.network, "parameters") and hasattr(
+                new_config.model.network.parameters, "use_shunting"
+            ):
+                use_shunting_value = new_config.model.network.parameters.use_shunting
+
+            print(
+                f"Generated config {config_idx}: {network_type} with use_shunting={use_shunting_value}"
+            )
 
             config_idx += 1
 
