@@ -154,6 +154,28 @@ The `generate_ei_sweep.py` script now supports filtering E-I combinations based 
 - `i-const`: Only include combinations with a specific constant I value
 - `ei-ratio`: Only include combinations where E/I approximates a constant ratio
 
+### Compare EINet vs MLP Using `use_shunting`
+
+You can now specify `"MLP"` as a value for `model.network.parameters.use_shunting` in the sweep configuration to create MLP networks alongside EINet models in the same sweep:
+
+```yaml
+sweep_config:
+  model.network.parameters.ee_synapses_per_branch_per_layer: [
+    [1], [6], [11], [16], [21], [26]
+  ]
+  model.network.parameters.ie_synapses_per_branch_per_layer: [
+    [1], [6], [11], [16], [21], [26]
+  ]
+  model.network.parameters.use_shunting: [true, false, "MLP"]  # "MLP" creates MLP networks
+```
+
+This configuration will:
+- Generate configs with EINet models and `use_shunting=true`
+- Generate configs with EINet models and `use_shunting=false`
+- Generate configs with standard MLP models (`model.network.type="MLP"`)
+
+When using the `"MLP"` option, the specified `ee_synapses_per_branch_per_layer` and `ie_synapses_per_branch_per_layer` values from the sweep will be used to define the MLP's structure/parameters. This enables direct comparison between EINet and MLP models with equivalent parameter counts.
+
 ### Usage Examples
 
 ```bash
