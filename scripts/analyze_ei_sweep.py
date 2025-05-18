@@ -659,6 +659,33 @@ def process_config_file(
             )
             seed = extract_param(config_data, ["seed", "random_seed"])
 
+        # Extract network type and shunting info
+        network_type = extract_param(
+            config_data, ["model.network.type", "network.type"], default="unknown"
+        )
+
+        use_shunting = extract_param(
+            config_data,
+            [
+                "model.network.parameters.use_shunting",
+                "network.parameters.use_shunting",
+            ],
+            default="unknown",
+        )
+
+        # Determine the network category based on network_type and use_shunting
+        if network_type == "MLP":
+            network_category = "MLP"
+        elif network_type == "EINet":
+            if use_shunting == True:
+                network_category = "EINet_shunting"
+            elif use_shunting == False:
+                network_category = "EINet_no_shunting"
+            else:
+                network_category = "EINet_unknown"
+        else:
+            network_category = "unknown"
+
         # Try to extract performance metrics if they exist
         train_acc = extract_param(config_data, ["train_accuracy", "accuracy/train"])
         val_acc = extract_param(
@@ -678,6 +705,9 @@ def process_config_file(
                     "experiment": exp_timestamp,
                     "task_id": task_id,
                     "seed": seed,
+                    "network_type": network_type,
+                    "use_shunting": use_shunting,
+                    "network_category": network_category,
                 }
             )
         else:
@@ -945,6 +975,84 @@ def generate_plots(results_df, params_df, output_dir, base_name):
                         )
                         plt.close()
 
+                        # Create separate heatmaps for each network category if that data is available
+                        if (
+                            "network_category" in plot_df.columns
+                            and len(plot_df["network_category"].unique()) > 1
+                        ):
+                            categories = plot_df["network_category"].unique()
+
+                            for category in categories:
+                                # Filter data for this category
+                                cat_df = plot_df[
+                                    plot_df["network_category"] == category
+                                ].copy()
+
+                                # Skip if not enough data
+                                if len(cat_df) < 3:
+                                    continue
+
+                                try:
+                                    # Create pivot table for this category
+                                    cat_pivot = cat_df.pivot_table(
+                                        values=metric,
+                                        index="ee_value",
+                                        columns="ie_value",
+                                        aggfunc="mean",
+                                    )
+
+                                    # Skip if pivot table is too small
+                                    if cat_pivot.shape[0] < 2 or cat_pivot.shape[1] < 2:
+                                        continue
+
+                                    # Create figure
+                                    plt.figure(figsize=(12, 10))
+
+                                    # Create custom colormap
+                                    colors = [
+                                        (0.8, 0.8, 0.8),
+                                        (0, 0.8, 0),
+                                    ]  # Light grey to green
+                                    cmap = LinearSegmentedColormap.from_list(
+                                        "custom_green", colors, N=100
+                                    )
+
+                                    # Create heatmap with annotations
+                                    ax = sns.heatmap(
+                                        cat_pivot,
+                                        annot=True,
+                                        cmap=cmap,
+                                        linewidths=0.5,
+                                        fmt=".2f",
+                                        cbar_kws={
+                                            "label": metric.replace("_", " ").title()
+                                        },
+                                    )
+
+                                    # Rotate x-axis labels for better readability
+                                    plt.xticks(rotation=45, ha="right")
+
+                                    # Set title and labels
+                                    plt.title(
+                                        f'{metric.replace("_", " ").title()} - {category}'
+                                    )
+                                    plt.xlabel("IE Value")
+                                    plt.ylabel("EE Value")
+
+                                    # Save the figure
+                                    plt.tight_layout()
+                                    plt.savefig(
+                                        os.path.join(
+                                            plot_dir,
+                                            f"{base_name}_{metric}_heatmap_{category}.png",
+                                        )
+                                    )
+                                    plt.close()
+
+                                    print(f"Created heatmap for {metric} - {category}")
+                                except Exception as e:
+                                    print(f"Error creating heatmap for {category}: {e}")
+
                         # Plot 3D surface if we have enough data points
                         if len(pivot_df) >= 3 and len(pivot_df.columns) >= 3:
                             try:
@@ -1019,8 +1127,88 @@ def generate_plots(results_df, params_df, output_dir, base_name):
                             os.path.join(plot_dir, f"{base_name}_{metric}_ie_lines.png")
                         )
                         plt.close()
+
+                        # Create grouped plots by network category if available
+                        if (
+                            "network_category" in plot_df.columns
+                            and len(plot_df["network_category"].unique()) > 1
+                        ):
+                            # Get unique categories
+                            categories = plot_df["network_category"].unique()
+
+                            # Define markers and colors
+                            markers = {
+                                "EINet_shunting": "o",
+                                "EINet_no_shunting": "s",
+                                "MLP": "^",
+                                "EINet_unknown": "x",
+                                "unknown": "+",
+                            }
+                            colors = [
+                                "#1f77b4",
+                                "#ff7f0e",
+                                "#2ca02c",
+                                "#d62728",
+                                "#9467bd",
+                            ]
+
+                            # Create figure
+                            plt.figure(figsize=(12, 8))
+
+                            # For each category, plot a line
+                            for i, category in enumerate(categories):
+                                # Filter data for this category
+                                cat_df = plot_df[
+                                    plot_df["network_category"] == category
+                                ].copy()
+
+                                # Skip if not enough data
+                                if len(cat_df) < 3:
+                                    continue
+
+                                # Get color and marker for this category
+                                color = colors[i % len(colors)]
+                                marker = markers.get(category, "o")
+
+                                # Group by IE value and calculate mean
+                                grouped = (
+                                    cat_df.groupby("ie_value")[metric]
+                                    .mean()
+                                    .reset_index()
+                                )
+                                if not grouped.empty:
+                                    plt.plot(
+                                        grouped["ie_value"],
+                                        grouped[metric],
+                                        marker=marker,
+                                        color=color,
+                                        linewidth=2,
+                                        label=f"{category}",
+                                    )
+
+                            plt.xlabel("IE Value")
+                            plt.ylabel(metric.replace("_", " ").title())
+                            plt.title(
+                                f'Effect of IE Value on {metric.replace("_", " ").title()} by Network Type'
+                            )
+                            plt.legend()
+                            plt.grid(True)
+                            plt.tight_layout()
+                            plt.savefig(
+                                os.path.join(
+                                    plot_dir,
+                                    f"{base_name}_{metric}_ie_lines_by_network.png",
+                                )
+                            )
+                            plt.close()
+
+                            print(
+                                f"Created line plot grouped by network category for IE values"
+                            )
+
                     except Exception as e:
                         print(f"Error creating IE line plot: {e}")
+                        traceback.print_exc()
 
                 # Create line plots for each IE value if we have multiple EE values
                 if len(pivot_df.index) >= 2:
@@ -1046,8 +1234,87 @@ def generate_plots(results_df, params_df, output_dir, base_name):
                             os.path.join(plot_dir, f"{base_name}_{metric}_ee_lines.png")
                         )
                         plt.close()
+
+                        # Create grouped plots by network category if available
+                        if (
+                            "network_category" in plot_df.columns
+                            and len(plot_df["network_category"].unique()) > 1
+                        ):
+                            # Get unique categories
+                            categories = plot_df["network_category"].unique()
+
+                            # Define markers and colors
+                            markers = {
+                                "EINet_shunting": "o",
+                                "EINet_no_shunting": "s",
+                                "MLP": "^",
+                                "EINet_unknown": "x",
+                                "unknown": "+",
+                            }
+                            colors = [
+                                "#1f77b4",
+                                "#ff7f0e",
+                                "#2ca02c",
+                                "#d62728",
+                                "#9467bd",
+                            ]
+
+                            # Create figure
+                            plt.figure(figsize=(12, 8))
+
+                            # For each category, plot a line
+                            for i, category in enumerate(categories):
+                                # Filter data for this category
+                                cat_df = plot_df[
+                                    plot_df["network_category"] == category
+                                ].copy()
+
+                                # Skip if not enough data
+                                if len(cat_df) < 3:
+                                    continue
+
+                                # Get color and marker for this category
+                                color = colors[i % len(colors)]
+                                marker = markers.get(category, "o")
+
+                                # Group by EE value and calculate mean
+                                grouped = (
+                                    cat_df.groupby("ee_value")[metric]
+                                    .mean()
+                                    .reset_index()
+                                )
+                                if not grouped.empty:
+                                    plt.plot(
+                                        grouped["ee_value"],
+                                        grouped[metric],
+                                        marker=marker,
+                                        color=color,
+                                        linewidth=2,
+                                        label=f"{category}",
+                                    )
+
+                            plt.xlabel("EE Value")
+                            plt.ylabel(metric.replace("_", " ").title())
+                            plt.title(
+                                f'Effect of EE Value on {metric.replace("_", " ").title()} by Network Type'
+                            )
+                            plt.legend()
+                            plt.grid(True)
+                            plt.tight_layout()
+                            plt.savefig(
+                                os.path.join(
+                                    plot_dir,
+                                    f"{base_name}_{metric}_ee_lines_by_network.png",
+                                )
+                            )
+                            plt.close()
+
+                            print(
+                                f"Created line plot grouped by network category for EE values"
+                            )
                     except Exception as e:
                         print(f"Error creating EE line plot: {e}")
+                        traceback.print_exc()
 
             # If we only have one parameter (either ee_value or ie_value), create line plots
             elif "ee_value" in plot_df.columns:
@@ -1117,8 +1384,98 @@ def generate_plots(results_df, params_df, output_dir, base_name):
                         os.path.join(plot_dir, f"{base_name}_{metric}_scatter.png")
                     )
                     plt.close()
+
+                    # Create separate scatter plots for each network category if available
+                    if (
+                        "network_category" in valid_data.columns
+                        and len(valid_data["network_category"].unique()) > 1
+                    ):
+                        # Create a subplot figure
+                        categories = valid_data["network_category"].unique()
+                        n_categories = len(categories)
+
+                        # For multiple categories, create a comparison plot with all categories
+                        plt.figure(figsize=(12, 10))
+
+                        # Define different markers for the categories
+                        markers = {
+                            "EINet_shunting": "o",
+                            "EINet_no_shunting": "s",
+                            "MLP": "^",
+                            "EINet_unknown": "x",
+                            "unknown": "+",
+                        }
+                        colors = ["#1f77b4", "#ff7f0e", "#2ca02c", "#d62728", "#9467bd"]
+
+                        # Plot each category with a different marker
+                        for i, category in enumerate(categories):
+                            cat_data = valid_data[
+                                valid_data["network_category"] == category
+                            ].copy()
+                            if len(cat_data) < 2:  # Need at least 2 points
+                                continue
+
+                            plt.scatter(
+                                cat_data["ee_value"],
+                                cat_data["ie_value"],
+                                c=cat_data[metric],
+                                cmap="viridis",
+                                s=100,
+                                alpha=0.7,
+                                marker=markers.get(category, "o"),
+                                label=f"{category}",
+                                edgecolors=colors[i % len(colors)],
+                            )
+
+                        plt.colorbar(label=metric.replace("_", " ").title())
+                        plt.xlabel("EE Value")
+                        plt.ylabel("IE Value")
+                        plt.title(f'{metric.replace("_", " ").title()} by Network Type')
+                        plt.legend()
+                        plt.tight_layout()
+                        plt.savefig(
+                            os.path.join(
+                                plot_dir, f"{base_name}_{metric}_scatter_by_network.png"
+                            )
+                        )
+                        plt.close()
+
+                        # Also create individual scatter plots for each category
+                        for category in categories:
+                            cat_data = valid_data[
+                                valid_data["network_category"] == category
+                            ].copy()
+                            if len(cat_data) < 3:  # Need at least 3 points
+                                continue
+
+                            plt.figure(figsize=(10, 8))
+                            scatter = plt.scatter(
+                                cat_data["ee_value"],
+                                cat_data["ie_value"],
+                                c=cat_data[metric],
+                                cmap="viridis",
+                                s=100,
+                                alpha=0.7,
+                            )
+                            plt.colorbar(
+                                scatter, label=metric.replace("_", " ").title()
+                            )
+                            plt.xlabel("EE Value")
+                            plt.ylabel("IE Value")
+                            plt.title(
+                                f'{metric.replace("_", " ").title()} - {category}'
+                            )
+                            plt.tight_layout()
+                            plt.savefig(
+                                os.path.join(
+                                    plot_dir,
+                                    f"{base_name}_{metric}_scatter_{category}.png",
+                                )
+                            )
+                            plt.close()
     except Exception as e:
         print(f"Error creating scatter plot: {e}")
+        traceback.print_exc()
 
     # Create CSV output
     results_df.to_csv(os.path.join(plot_dir, f"{base_name}_results.csv"), index=False)
@@ -1161,7 +1518,7 @@ def generate_plots(results_df, params_df, output_dir, base_name):
                 top_n = min(5, len(e_plus_i_counts))  # Plot at most 5 lines
                 top_e_plus_i = e_plus_i_counts.nlargest(top_n).index.tolist()
 
-                # Create the figure
+                # Create the figure for standard plot
                 plt.figure(figsize=(12, 8))
 
                 # For each E+I sum, plot accuracy vs E/I ratio
@@ -1209,6 +1566,83 @@ def generate_plots(results_df, params_df, output_dir, base_name):
                 print(
                     f"Created E/I ratio plot for {metric} with {len(top_e_plus_i)} different E+I sums"
                 )
+
+                # Create a network category grouped plot if we have that data
+                if "network_category" in plot_data.columns:
+                    categories = plot_data["network_category"].unique()
+
+                    # Only proceed if we have multiple categories
+                    if len(categories) > 1:
+                        plt.figure(figsize=(12, 8))
+
+                        # Define markers and colors for different network categories
+                        markers = {
+                            "EINet_shunting": "o",
+                            "EINet_no_shunting": "s",
+                            "MLP": "^",
+                            "EINet_unknown": "x",
+                            "unknown": "+",
+                        }
+                        colors = ["#1f77b4", "#ff7f0e", "#2ca02c", "#d62728", "#9467bd"]
+
+                        # Create a plot for each category
+                        for i, category in enumerate(categories):
+                            cat_data = plot_data[
+                                plot_data["network_category"] == category
+                            ].copy()
+
+                            # Skip if not enough data
+                            if len(cat_data) < 3:
+                                continue
+
+                            # Sort by ratio for proper line drawing
+                            cat_data = cat_data.sort_values("e_to_i_ratio")
+
+                            # Round the ratios and group for smoother plot
+                            cat_data["ratio_rounded"] = np.round(
+                                cat_data["e_to_i_ratio"], 2
+                            )
+                            grouped = (
+                                cat_data.groupby("ratio_rounded")[metric]
+                                .mean()
+                                .reset_index()
+                            )
+
+                            # Plot this category
+                            marker = markers.get(category, "o")
+                            color = colors[i % len(colors)]
+
+                            plt.plot(
+                                grouped["ratio_rounded"],
+                                grouped[metric],
+                                marker=marker,
+                                linewidth=2,
+                                color=color,
+                                label=f"{category}",
+                            )
+
+                        # Add labels and title
+                        plt.xlabel("E/I Ratio")
+                        plt.ylabel(metric.replace("_", " ").title())
+                        plt.title(
+                            f"{metric.replace('_', ' ').title()} vs E/I Ratio by Network Type"
+                        )
+                        plt.legend()
+                        plt.grid(True)
+                        plt.tight_layout()
+
+                        # Save the figure
+                        plt.savefig(
+                            os.path.join(
+                                plot_dir,
+                                f"{base_name}_{metric}_ei_ratio_by_network.png",
+                            )
+                        )
+                        plt.close()
+
+                        print(
+                            f"Created E/I ratio plot grouped by network category for {metric}"
+                        )
     except Exception as e:
         print(f"Error creating E/I ratio plot: {e}")
         traceback.print_exc()
