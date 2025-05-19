@@ -472,7 +472,7 @@ def generate_plots(results_df, params_df, output_dir, base_name):
                     # Network-category specific heatmaps
                     if (
                         "network_category" in plot_df.columns
-                        and plot_df["network_category"].nunique() > 1
+                        and plot_df["network_category"].nunique() >= 1
                     ):
                         categories_heatmap = plot_df[
                             "network_category"
@@ -545,7 +545,7 @@ def generate_plots(results_df, params_df, output_dir, base_name):
                 # Line plots: Effect of IE for different EE values, grouped by network_category
                 if (
                     "network_category" in plot_df.columns
-                    and plot_df["network_category"].nunique() > 1
+                    and plot_df["network_category"].nunique() >= 1
                 ):
                     if len(pivot_df.index) >= 1:  # Need at least one EE value
                         plt.figure(figsize=(12, 8))
@@ -663,7 +663,7 @@ def generate_plots(results_df, params_df, output_dir, base_name):
                 # Line plots: Effect of EE for different IE values, grouped by network_category
                 if (
                     "network_category" in plot_df.columns
-                    and plot_df["network_category"].nunique() > 1
+                    and plot_df["network_category"].nunique() >= 1
                 ):
                     if len(pivot_df.columns) >= 1:  # Need at least one IE value
                         plt.figure(figsize=(12, 8))
@@ -780,7 +780,7 @@ def generate_plots(results_df, params_df, output_dir, base_name):
                 # E/I Ratio plots grouped by network_category (if available and multiple categories)
                 if (
                     "network_category" in plot_df.columns
-                    and plot_df["network_category"].nunique() > 1
+                    and plot_df["network_category"].nunique() >= 1
                 ):
                     categories_eiratio = plot_df["network_category"].dropna().unique()
                     print(
@@ -896,8 +896,12 @@ def generate_plots(results_df, params_df, output_dir, base_name):
                             plt.close()  # Close if nothing was plotted
                     else:
                         print(
-                            f"Skipping E/I ratio by network category for {metric} as no categories found or only one category."
+                            f"Skipping E/I ratio by network category for {metric} as no categories found after dropna()."
                         )
+                else:  # This else now means network_category column is missing or has 0 unique values after dropna
+                    print(
+                        f"Skipping E/I ratio plot for {metric} as 'network_category' column is missing or has no valid data."
+                    )
 
             elif "ee_value" in plot_df.columns:
                 try:
@@ -1140,34 +1144,51 @@ def collect_results(exp_dir, params_df):
                                         ["model.network.parameters.use_shunting"],
                                         "unknown",
                                     )
+                                    # Process use_shunting_raw into a canonical use_shunting value (True, False, "MLP", or other)
                                     if isinstance(use_shunting_raw, str):
                                         if use_shunting_raw.lower() == "true":
                                             use_shunting = True
                                         elif use_shunting_raw.lower() == "false":
                                             use_shunting = False
                                         elif use_shunting_raw.lower() == "mlp":
-                                            use_shunting = "MLP"
-                                            if network_type == "EINet":
-                                                network_type = "MLP"
+                                            use_shunting = "MLP"  # This is a canonical string value
+                                            # If use_shunting is MLP, network_type should also be MLP
+                                            if str(network_type).upper() != "MLP":
+                                                network_type = "MLP"  # Override to MLP
                                         else:
-                                            use_shunting = use_shunting_raw
+                                            use_shunting = use_shunting_raw  # Keep as is if not recognized (e.g. "None", other strings)
                                     elif isinstance(use_shunting_raw, bool):
-                                        use_shunting = use_shunting_raw
+                                        use_shunting = use_shunting_raw  # This is a canonical boolean value
                                     else:
+                                        # Could be None if missing from config, or the default "unknown" from extract_param
                                         use_shunting = use_shunting_raw
-                                    if network_type == "MLP":
+
+                                    # Determine network_category (always a string)
+                                    current_network_type_upper = str(
+                                        network_type
+                                    ).upper()
+
+                                    if current_network_type_upper == "MLP":
                                         network_category = "MLP"
-                                    elif network_type == "EINet":
+                                    elif current_network_type_upper == "EINET":
                                         if use_shunting is True:
                                             network_category = "EINet_shunting"
                                         elif use_shunting is False:
                                             network_category = "EINet_no_shunting"
+                                        # If use_shunting was "MLP", network_type should have been forced to "MLP" already.
+                                        # This 'else' covers EINet where use_shunting is not a clear boolean.
                                         else:
-                                            network_category = "EINet_unknown"
-                                    else:
-                                        network_category = "unknown"
+                                            network_category = f"EINet_unexpected_shunting_{str(use_shunting)}"
+                                    else:  # network_type is not MLP or EINet (or is empty/None/unknown)
+                                        network_category = (
+                                            f"unknown_network_type_{str(network_type)}"
+                                        )
+
+                                    # Prepare use_shunting value for storage (ensure it's a string for clarity in CSV/DataFrame)
+                                    use_shunting_for_results = str(use_shunting)
+
                                     print(
-                                        f"  Extracted for config {config_id}: type={network_type}, shunting={use_shunting} (raw: {use_shunting_raw}), category={network_category}"
+                                        f"  Extracted for config {config_id}: type={network_type}, shunting_raw={use_shunting_raw}, shunting_processed={use_shunting}, category={network_category}"
                                     )
                                 except Exception as e_cfg_load:
                                     print(
@@ -1202,7 +1223,7 @@ def collect_results(exp_dir, params_df):
                             "seed": current_params["seed"],
                             "job_dir": config_dir_name,
                             "network_type": network_type,
-                            "use_shunting": use_shunting,
+                            "use_shunting": use_shunting_for_results,
                             "network_category": network_category,
                         }
                     )
@@ -1242,7 +1263,8 @@ def collect_results(exp_dir, params_df):
                             ["model.network.parameters.use_shunting"],
                             "unknown",
                         )
-                        use_shunt_cfg = use_shunt_raw_cfg
+                        # Process use_shunt_raw_cfg into a canonical use_shunt_cfg value
+                        use_shunt_cfg = "unknown"  # Default
                         if isinstance(use_shunt_raw_cfg, str):
                             if use_shunt_raw_cfg.lower() == "true":
                                 use_shunt_cfg = True
@@ -1250,34 +1272,50 @@ def collect_results(exp_dir, params_df):
                                 use_shunt_cfg = False
                             elif use_shunt_raw_cfg.lower() == "mlp":
                                 use_shunt_cfg = "MLP"
+                                if str(net_type_cfg).upper() != "MLP":
+                                    net_type_cfg = "MLP"
+                            else:
+                                use_shunt_cfg = use_shunt_raw_cfg
                         elif isinstance(use_shunt_raw_cfg, bool):
                             use_shunt_cfg = use_shunt_raw_cfg
+                        else:
+                            use_shunt_cfg = use_shunt_raw_cfg  # e.g. None or "unknown"
+
                         net_cat_cfg = "unknown"
-                        if net_type_cfg == "MLP":
+                        current_net_type_cfg_upper = str(net_type_cfg).upper()
+                        if current_net_type_cfg_upper == "MLP":
                             net_cat_cfg = "MLP"
-                        elif net_type_cfg == "EINet":
+                        elif current_net_type_cfg_upper == "EINET":
                             if use_shunt_cfg is True:
                                 net_cat_cfg = "EINet_shunting"
                             elif use_shunt_cfg is False:
                                 net_cat_cfg = "EINet_no_shunting"
                             else:
-                                net_cat_cfg = "EINet_unknown"
+                                net_cat_cfg = (
+                                    f"EINet_unexpected_shunting_{str(use_shunt_cfg)}"
+                                )
+                        else:
+                            net_cat_cfg = f"unknown_network_type_{str(net_type_cfg)}"
+
+                        use_shunt_cfg_for_results = str(use_shunt_cfg)
+
                         missing_data.append(
                             {
                                 "task_id": config_id,
                                 "ee_value": ee_val_cfg,
                                 "ie_value": ie_val_cfg,
                                 "seed": seed_cfg,
-                                "job_dir": config_dir_name,
                                 "network_type": net_type_cfg,
-                                "use_shunting": use_shunt_cfg,
+                                "use_shunting": use_shunt_cfg_for_results,
                                 "network_category": net_cat_cfg,
-                                "status": "missing_log",
+                                "train_acc": float("nan"),
+                                "val_acc": float("nan"),
+                                "test_acc": float("nan"),
+                                "status": "missing_output_log",
                             }
                         )
-                        found_task_ids.add(config_id)
                         print(
-                            f"  Added config {config_id} to missing_data (log not found), category={net_cat_cfg}"
+                            f"  Missing data (from config_used.yaml) for task {config_id}: category={net_cat_cfg}"
                         )
                     except Exception as e_cfg_used:
                         print(
