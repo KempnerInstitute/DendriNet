@@ -381,23 +381,12 @@ def generate_sweep_configs_manually(
                         )
                         OmegaConf.save(new_config, config_path)
 
-                        # Print debug information about this config
-                        network_type = (
-                            new_config.model.network.type
-                            if hasattr(new_config.model.network, "type")
-                            else "unknown"
-                        )
-                        use_shunting_value = None
-                        if hasattr(new_config.model.network, "parameters") and hasattr(
-                            new_config.model.network.parameters, "use_shunting"
-                        ):
-                            use_shunting_value = (
-                                new_config.model.network.parameters.use_shunting
-                            )
-
-                        print(
-                            f"Generated config {config_idx}: {network_type} with use_shunting={use_shunting_value}"
-                        )
+                        # Comment out the detailed print statement for each config
+                        # network_type_str = new_config.model.network.type if hasattr(new_config.model.network, "type") else "unknown"
+                        # use_shunting_val = "unknown"
+                        # if hasattr(new_config.model.network, "parameters") and hasattr(new_config.model.network.parameters, "use_shunting"):
+                        #     use_shunting_val = new_config.model.network.parameters.use_shunting
+                        # print(f"Generated config {config_idx}: {network_type_str} with use_shunting={use_shunting_val}")
 
                         config_idx += 1
                 else:
@@ -447,23 +436,12 @@ def generate_sweep_configs_manually(
                     )
                     OmegaConf.save(new_config, config_path)
 
-                    # Print debug information about this config
-                    network_type = (
-                        new_config.model.network.type
-                        if hasattr(new_config.model.network, "type")
-                        else "unknown"
-                    )
-                    use_shunting_value = None
-                    if hasattr(new_config.model.network, "parameters") and hasattr(
-                        new_config.model.network.parameters, "use_shunting"
-                    ):
-                        use_shunting_value = (
-                            new_config.model.network.parameters.use_shunting
-                        )
-
-                    print(
-                        f"Generated config {config_idx}: {network_type} with use_shunting={use_shunting_value}"
-                    )
+                    # Comment out the detailed print statement for each config
+                    # network_type_str = new_config.model.network.type if hasattr(new_config.model.network, "type") else "unknown"
+                    # use_shunting_val = "unknown"
+                    # if hasattr(new_config.model.network, "parameters") and hasattr(new_config.model.network.parameters, "use_shunting"):
+                    #     use_shunting_val = new_config.model.network.parameters.use_shunting
+                    # print(f"Generated config {config_idx}: {network_type_str} with use_shunting={use_shunting_val}")
 
                     config_idx += 1
     else:
@@ -568,23 +546,12 @@ def generate_sweep_configs_manually(
                 )
                 OmegaConf.save(new_config, config_path)
 
-                # Print debug information about this config
-                network_type = (
-                    new_config.model.network.type
-                    if hasattr(new_config.model.network, "type")
-                    else "unknown"
-                )
-                use_shunting_value = None
-                if hasattr(new_config.model.network, "parameters") and hasattr(
-                    new_config.model.network.parameters, "use_shunting"
-                ):
-                    use_shunting_value = (
-                        new_config.model.network.parameters.use_shunting
-                    )
-
-                print(
-                    f"Generated config {config_idx}: {network_type} with use_shunting={use_shunting_value}"
-                )
+                # Comment out the detailed print statement for each config
+                # network_type_str = new_config.model.network.type if hasattr(new_config.model.network, "type") else "unknown"
+                # use_shunting_val = "unknown"
+                # if hasattr(new_config.model.network, "parameters") and hasattr(new_config.model.network.parameters, "use_shunting"):
+                #     use_shunting_val = new_config.model.network.parameters.use_shunting
+                # print(f"Generated config {config_idx}: {network_type_str} with use_shunting={use_shunting_val}")
 
                 config_idx += 1
 
@@ -625,21 +592,12 @@ def generate_sweep_configs_manually(
             )
             OmegaConf.save(new_config, config_path)
 
-            # Print debug information about this config
-            network_type = (
-                new_config.model.network.type
-                if hasattr(new_config.model.network, "type")
-                else "unknown"
-            )
-            use_shunting_value = None
-            if hasattr(new_config.model.network, "parameters") and hasattr(
-                new_config.model.network.parameters, "use_shunting"
-            ):
-                use_shunting_value = new_config.model.network.parameters.use_shunting
-
-            print(
-                f"Generated config {config_idx}: {network_type} with use_shunting={use_shunting_value}"
-            )
+            # Comment out the detailed print statement for each config
+            # network_type_str = new_config.model.network.type if hasattr(new_config.model.network, "type") else "unknown"
+            # use_shunting_val = "unknown"
+            # if hasattr(new_config.model.network, "parameters") and hasattr(new_config.model.network.parameters, "use_shunting"):
+            #     use_shunting_val = new_config.model.network.parameters.use_shunting
+            # print(f"Generated config {config_idx}: {network_type_str} with use_shunting={use_shunting_val}")
 
             config_idx += 1
 
