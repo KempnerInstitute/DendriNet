@@ -52,37 +52,19 @@ The heatmaps show how model performance varies with different combinations of EE
 - Color: Accuracy value (from 0.0 to 1.0)
 - Missing values: Shown as grey cells with "N/A" annotation
 
-Separate heatmaps are generated for train, validation, and test sets:
+Separate heatmaps are generated for train, validation, and test sets (e.g., ``heatmap_train_acc.png``).
 
-- ``heatmap_train_acc.png``
-- ``heatmap_val_acc.png``
-- ``heatmap_test_acc.png``
+Parameter Sweep Line Plots (Grouped by Network Type)
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-Parameter Sweep Line Plots
-^^^^^^^^^^^^^^^^^^^^^^^^
+When your sweep includes different network types (via ``model.network.parameters.use_shunting: [true, false, "MLP"]``), the script automatically generates additional visualizations for comparing them. These plots show the relationship between specific E/I parameters and model performance, with separate lines for each network category (EINet with Shunting, EINet without Shunting, MLP):
 
-Line plots show the relationship between specific parameters and model performance:
+- **Network-Grouped Heatmaps**: Separate heatmaps for each network category (e.g., ``*_heatmap_EINet_shunting.png``, ``*_heatmap_MLP.png``) are generated, showing performance against EE and IE values for that specific category.
 
-- ``sweep_by_ee.png``: How test accuracy changes with EE values, shown as separate lines for each IE value
-- ``sweep_by_ie.png``: How test accuracy changes with IE values, shown as separate lines for each EE value
-
-These plots help identify trends and interactions between parameters.
-
-Network Type Comparison
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-
-When your sweep includes different network types (via ``model.network.parameters.use_shunting: [true, false, "MLP"]``), the script automatically generates additional visualizations for comparing them:
-
-- **Network-Grouped Heatmaps**: Separate heatmaps for each network category (``*_heatmap_EINet_shunting.png``, ``*_heatmap_EINet_no_shunting.png``, ``*_heatmap_MLP.png``)
-
-- **Comparison Line Plots**:
-  - ``*_ee_lines_by_network.png``: Compares how different network types respond to varying EE values
-  - ``*_ie_lines_by_network.png``: Compares how different network types respond to varying IE values
-  - ``*_ei_ratio_by_network.png``: Compares how different network types respond to varying E/I ratios
-
-- **Network-Grouped Scatter Plots**:
-  - ``*_scatter_by_network.png``: Combined scatter plot showing all network types with different markers
-  - ``*_scatter_EINet_shunting.png``, ``*_scatter_EINet_no_shunting.png``, ``*_scatter_MLP.png``: Individual scatter plots for each network type
+- **Comparison Line Plots** (Accuracy vs. an E/I parameter, lines for the other E/I parameter, grouped by Network Type):
+  - ``*_ie_lines_by_network_per_ee.png``: Compares how different network types respond to varying **IE values**. To maintain clarity, lines are drawn for up to 5 representative **EE values**.
+  - ``*_ee_lines_by_network_per_ie.png``: Compares how different network types respond to varying **EE values**. Similarly, lines are drawn for up to 5 representative **IE values**.
+  - ``*_ei_ratio_by_network.png``: Compares how different network types respond to varying **E/I ratios**. Each network category will have its own line on this plot.
 
 These visualizations make it easy to compare the performance of dendritic networks (EINet with and without shunting) against standard MLP networks using the same parameter values.
 
@@ -109,16 +91,26 @@ When analyzing multiple experiments with the ``--multiple`` option:
 Output Files
 -----------
 
-The script generates several output files:
+The script generates several output files in the ``plots`` subdirectory of your experiment folder:
 
 **Data Files**:
 
-- ``ei_sweep_results.csv``: All results in tabular format
-- ``missing_runs.csv``: Details about missing or incomplete runs (if any)
+- ``ei_sweep_results_original.csv``: Raw collected data before extensive cleaning/pivoting.
+- ``ei_sweep_results.csv``: Processed results in tabular format, used for some plots.
+- ``ei_sweep_<metric>_clean.csv``: Data subset used for plotting a specific metric after NaN removal for EE/IE.
+- ``ei_sweep_<metric>_pivot.csv``: Pivot table for a specific metric (EE vs IE).
+- ``missing_runs.csv``: Details about missing or incomplete runs (if any).
+- ``network_comparison_summary.txt``: A summary listing all generated network comparison plots.
 
-**Summary Files**:
+**Plot Files (Examples)**:
 
-- ``summary.txt``: Text summary with the best parameter combination and performance metrics
+- ``ei_sweep_train_acc_heatmap.png`` (and similar for val/test, and per-network-category)
+- ``ei_sweep_test_acc_ie_lines_by_network_per_ee.png``
+- ``ei_sweep_test_acc_ee_lines_by_network_per_ie.png``
+- ``ei_sweep_test_acc_ei_ratio_by_network.png``
+- ``top_combinations.png``
+
+(Note: General 3D surface plots and non-grouped scatter plots are no longer generated by default.)
 
 Example Usage
 -----------
@@ -185,18 +177,13 @@ Implementation Details
 
 The script follows this workflow:
 
-1. Locate experiment directories based on command-line arguments
-2. For each experiment:
-   - Collect parameter data from config files
-   - Collect results from all job directories
-   - Generate visualizations and summary files
-3. If analyzing multiple experiments:
-   - Combine results for comparison
-   - Generate comparative visualizations
+1. Locate experiment directories based on command-line arguments.
+2. For each experiment (`process_single_experiment`):
+   - Collect parameter data from original config files (`collect_params_data`).
+   - Collect results by parsing `output.log` files from `config_X` directories. Crucially, this step also loads the original config for each run to extract `network_type` and `use_shunting` to determine the `network_category` (`collect_results`).
+   - Generate visualizations and summary files (`generate_plots`). This includes averaging results for repeated E/I and network configurations (e.g., across different seeds) when creating pivot tables and line plot data points.
+3. If analyzing multiple experiments, combine results and generate comparative visualizations (`compare_multiple_experiments`).
 
-The implementation handles various edge cases including:
-- Experiments with different parameter ranges
-- Missing or incomplete runs
-- Multiple random seeds for each parameter combination
+The implementation handles various edge cases including experiments with different parameter ranges, missing or incomplete runs, and multiple random seeds for each parameter combination. The primary grouping for comparative plots is by `network_category`.
 
-See the source code in ``scripts/analyze_ei_sweep.py`` for implementation details.
+See the source code in ``scripts/analyze_ei_sweep.py`` for full implementation details.
