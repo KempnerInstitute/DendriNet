@@ -532,6 +532,7 @@
         <span class="n">excitatory_input_dim</span><span class="p">,</span>
         <span class="n">ee_synapses_per_branch</span><span class="p">,</span>
         <span class="n">ei_synapses_per_branch</span><span class="p">,</span>
+        <span class="n">ii_connectivity</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span>
         <span class="n">inhibitory_input_dim</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
         <span class="n">ie_synapses_per_branch</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
         <span class="n">ii_synapses_per_branch</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
@@ -577,7 +578,9 @@
                     <span class="n">branch_factors</span><span class="o">=</span><span class="n">inhibitory_branch_factors</span><span class="p">,</span>
                     <span class="n">excitatory_input_dim</span><span class="o">=</span><span class="n">excitatory_input_dim</span><span class="p">,</span>
                     <span class="n">excitatory_synapses_per_branch</span><span class="o">=</span><span class="n">ei_synapses_per_branch</span><span class="p">,</span>
-                    <span class="n">inhibitory_input_dim</span><span class="o">=</span><span class="n">inhibitory_input_dim</span><span class="p">,</span>
+                    <span class="n">inhibitory_input_dim</span><span class="o">=</span><span class="n">inhibitory_input_dim</span>
+                    <span class="k">if</span> <span class="n">ii_connectivity</span>
+                    <span class="k">else</span> <span class="kc">None</span><span class="p">,</span>
                     <span class="n">inhibitory_synapses_per_branch</span><span class="o">=</span><span class="n">ii_synapses_per_branch</span><span class="p">,</span>
                     <span class="n">reactivate</span><span class="o">=</span><span class="n">reactivate</span><span class="p">,</span>
                     <span class="n">somatic_synapses</span><span class="o">=</span><span class="n">somatic_synapses</span><span class="p">,</span>
@@ -610,7 +613,9 @@
                     <span class="n">branch_factors</span><span class="o">=</span><span class="n">inhibitory_branch_factors</span><span class="p">,</span>
                     <span class="n">excitatory_input_dim</span><span class="o">=</span><span class="n">excitatory_input_dim</span><span class="p">,</span>
                     <span class="n">excitatory_synapses_per_branch</span><span class="o">=</span><span class="n">ei_synapses_per_branch</span><span class="p">,</span>
-                    <span class="n">inhibitory_input_dim</span><span class="o">=</span><span class="n">inhibitory_input_dim</span><span class="p">,</span>
+                    <span class="n">inhibitory_input_dim</span><span class="o">=</span><span class="n">inhibitory_input_dim</span>
+                    <span class="k">if</span> <span class="n">ii_connectivity</span>
+                    <span class="k">else</span> <span class="kc">None</span><span class="p">,</span>
                     <span class="n">inhibitory_synapses_per_branch</span><span class="o">=</span><span class="n">ii_synapses_per_branch</span><span class="p">,</span>
                     <span class="n">reactivate</span><span class="o">=</span><span class="n">reactivate</span><span class="p">,</span>
                     <span class="n">reactivation_init_m</span><span class="o">=</span><span class="n">reactivation_init_m</span><span class="p">,</span>
@@ -646,9 +651,7 @@
                 <span class="n">branch_factors</span><span class="o">=</span><span class="n">excitatory_branch_factors</span><span class="p">,</span>
                 <span class="n">excitatory_input_dim</span><span class="o">=</span><span class="n">excitatory_input_dim</span><span class="p">,</span>
                 <span class="n">excitatory_synapses_per_branch</span><span class="o">=</span><span class="n">ee_synapses_per_branch</span><span class="p">,</span>
-                <span class="n">inhibitory_input_dim</span><span class="o">=</span><span class="n">n_inhibitory_cells</span>
-                <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">has_inhib_subnet</span>
-                <span class="k">else</span> <span class="kc">None</span><span class="p">,</span>
+                <span class="n">inhibitory_input_dim</span><span class="o">=</span><span class="n">inhibitory_input_dim</span><span class="p">,</span>
                 <span class="n">inhibitory_synapses_per_branch</span><span class="o">=</span><span class="n">ie_synapses_per_branch</span><span class="p">,</span>
                 <span class="n">reactivate</span><span class="o">=</span><span class="n">reactivate</span><span class="p">,</span>
                 <span class="n">reactivation_init_m</span><span class="o">=</span><span class="n">reactivation_init_m</span><span class="p">,</span>
@@ -681,9 +684,7 @@
                 <span class="n">branch_factors</span><span class="o">=</span><span class="n">excitatory_branch_factors</span><span class="p">,</span>
                 <span class="n">excitatory_input_dim</span><span class="o">=</span><span class="n">excitatory_input_dim</span><span class="p">,</span>
                 <span class="n">excitatory_synapses_per_branch</span><span class="o">=</span><span class="n">ee_synapses_per_branch</span><span class="p">,</span>
-                <span class="n">inhibitory_input_dim</span><span class="o">=</span><span class="n">n_inhibitory_cells</span>
-                <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">has_inhib_subnet</span>
-                <span class="k">else</span> <span class="kc">None</span><span class="p">,</span>
+                <span class="n">inhibitory_input_dim</span><span class="o">=</span><span class="n">inhibitory_input_dim</span><span class="p">,</span>
                 <span class="n">inhibitory_synapses_per_branch</span><span class="o">=</span><span class="n">ie_synapses_per_branch</span><span class="p">,</span>
                 <span class="n">reactivate</span><span class="o">=</span><span class="n">reactivate</span><span class="p">,</span>
                 <span class="n">reactivation_init_m</span><span class="o">=</span><span class="n">reactivation_init_m</span><span class="p">,</span>
@@ -995,10 +996,15 @@
                 <span class="n">n_inh</span> <span class="o">=</span> <span class="n">inhibitory_layer_sizes</span><span class="p">[</span><span class="n">i</span> <span class="o">+</span> <span class="mi">1</span><span class="p">]</span>
 
             <span class="c1"># Determine inhibitory input size</span>
-            <span class="n">inhibitory_input_size</span> <span class="o">=</span> <span class="n">inhibitory_layer_sizes</span><span class="p">[</span><span class="n">i</span><span class="p">]</span>
-            <span class="k">if</span> <span class="n">i</span> <span class="o">==</span> <span class="mi">0</span> <span class="ow">and</span> <span class="bp">self</span><span class="o">.</span><span class="n">input_mode</span> <span class="o">==</span> <span class="mi">2</span><span class="p">:</span>
-                <span class="c1"># For input_mode=2, use net_out_dim as inhibitory_input_dim</span>
-                <span class="n">inhibitory_input_size</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">input_net</span><span class="o">.</span><span class="n">input_transform</span><span class="o">.</span><span class="n">inhibitory_dim</span>
+            <span class="n">inhibitory_input_size</span> <span class="o">=</span> <span class="n">n_inh</span>
+            <span class="n">ii_connectivity</span> <span class="o">=</span> <span class="kc">True</span>
+            <span class="k">if</span> <span class="n">i</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
+                <span class="n">ii_connectivity</span> <span class="o">=</span> <span class="kc">False</span>                    
+                <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">input_mode</span> <span class="o">==</span> <span class="mi">1</span><span class="p">:</span>
+                    <span class="n">inhibitory_input_size</span> <span class="o">=</span> <span class="n">excitatory_layer_sizes</span><span class="p">[</span><span class="n">i</span><span class="p">]</span>
+                <span class="k">elif</span> <span class="bp">self</span><span class="o">.</span><span class="n">input_mode</span> <span class="o">==</span> <span class="mi">2</span><span class="p">:</span>
+                    <span class="c1"># For input_mode=2, use net_out_dim as inhibitory_input_dim</span>
+                    <span class="n">inhibitory_input_size</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">input_net</span><span class="o">.</span><span class="n">input_transform</span><span class="o">.</span><span class="n">inhibitory_dim</span>
 
             <span class="c1"># Create ExcitationInhibitionLayer</span>
             <span class="n">layer</span> <span class="o">=</span> <span class="n">ExcitationInhibitionLayer</span><span class="p">(</span>
@@ -1013,6 +1019,7 @@
                     <span class="k">if</span> <span class="n">i</span> <span class="o">==</span> <span class="mi">0</span> <span class="ow">and</span> <span class="bp">self</span><span class="o">.</span><span class="n">input_mode</span> <span class="o">==</span> <span class="mi">2</span> <span class="ow">and</span> <span class="n">inhibitory_input_size</span>
                     <span class="k">else</span> <span class="n">ei_syn</span><span class="p">[</span><span class="n">i</span><span class="p">]</span>
                 <span class="p">),</span>
+                <span class="n">ii_connectivity</span><span class="o">=</span><span class="n">ii_connectivity</span><span class="p">,</span>
                 <span class="n">inhibitory_input_dim</span><span class="o">=</span><span class="n">inhibitory_input_size</span><span class="p">,</span>
                 <span class="n">ie_synapses_per_branch</span><span class="o">=</span><span class="n">ie_syn</span><span class="p">[</span><span class="n">i</span><span class="p">],</span>
                 <span class="n">ii_synapses_per_branch</span><span class="o">=</span><span class="n">ii_syn</span><span class="p">[</span><span class="n">i</span><span class="p">],</span>
