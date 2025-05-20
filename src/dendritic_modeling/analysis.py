@@ -157,11 +157,8 @@ class AnalysisManager:
         self.save_root = save_root
         self.device = device
         os.makedirs(self.save_root, exist_ok=True)
-        logging.basicConfig(
-            filename=os.path.join(self.save_root, "analysis.log"),
-            level=logging.INFO,
-            format="%(asctime)s - %(levelname)s - %(message)s",
-        )
+        # Note: Logging should be configured externally at the application startup.
+        self.logger = logging.getLogger(__name__)
     
     def run_analysis(self, filename: str='final'):
         ei_mi_params = self.config.ei_mi_analysis_params
