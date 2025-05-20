@@ -60,35 +60,36 @@ def initialize_dendritic_branch_layer(dbl):
 
         if dbl.input_inhibitory:
             inh_upper_quantile = dbl.branch_inhibition.K / dbl.inhibitory_input_dim
+            inh_mean = 0
+            inh_std = sqrt(2 / (dbl.inhibitory_input_dim + 1))
 
             if dbl.input_excitatory:
                 # print("inh method 1", flush=True)
                 ie_ratio = dbl.branch_inhibition.K / dbl.branch_excitation.K
 
-                inh_std = exc_std
+                inh_std = inh_std * ie_ratio
                 step = 0.01
                 done = False
                 while not done:
                     E_w_inh = compute_expectation_truncated_log_normal(
-                        mean=0,
+                        mean=inh_mean,
                         std=inh_std,
                         upper_quantile=inh_upper_quantile,
                     )
                     if E_w_exc <= ie_ratio * E_w_inh:
                         done = True
                     else:
-                        inh_std += step
+                        inh_mean += step
 
             else:
                 # print("inh method 2", flush=True)
-                inh_std = sqrt(2 / (dbl.inhibitory_input_dim + 1))
                 E_w_inh = compute_expectation_truncated_log_normal(
-                    mean=0,
+                    mean=inh_mean,
                     std=inh_std,
                     upper_quantile=inh_upper_quantile,
                 )
 
-            _no_grad_normal_(dbl.branch_inhibition.pre_w, 0, inh_std)
+            _no_grad_normal_(dbl.branch_inhibition.pre_w, inh_mean, inh_std)
             E_g_inh = 0.5 * dbl.branch_inhibition.K * E_w_inh
             # print("inh", E_g_inh, E_w_inh, flush=True)
 

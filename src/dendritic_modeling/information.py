@@ -7,7 +7,7 @@ from typing import Optional
 from sklearn.utils.parallel import Parallel, delayed
 
 
-def compute_mi_cc(x: np.ndarray, y: np.ndarray, n_neighbors: int):
+def compute_mi_cc(x: np.ndarray, y: np.ndarray, n_neighbors: int) -> float: 
     """Compute mutual information between two continuous (potentially multivariate) variables.
 
     Parameters
@@ -72,7 +72,7 @@ def compute_mi_cc(x: np.ndarray, y: np.ndarray, n_neighbors: int):
     return max(0, mi)
 
 
-def compute_mi_cd(c: np.ndarray, d: np.ndarray, n_neighbors: int):
+def compute_mi_cd(c: np.ndarray, d: np.ndarray, n_neighbors: int) -> float:
     """Compute mutual information between continuous and discrete variables.
 
     Parameters
@@ -105,9 +105,10 @@ def compute_mi_cd(c: np.ndarray, d: np.ndarray, n_neighbors: int):
        Data Sets". PLoS ONE 9(2), 2014.
     """
 
-    assert c.shape[0] == d.shape[0], "c and d must have the same number of samples"
-    assert c.ndim == 2, "c must be a 2D array"
-    assert d.ndim == 1, "d must be a 1D array"
+    assert c.shape[0] == d.shape[0], "c and d must have the same number of samples." \
+        f" c.shape: {c.shape}, d.shape: {d.shape}"
+    assert c.ndim == 2, f"c must be a 2D array. c.shape: {c.shape}"
+    assert d.ndim == 1, f"d must be a 1D array. d.shape: {d.shape}"
 
     n_samples = c.shape[0]
 

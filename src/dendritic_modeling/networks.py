@@ -412,6 +412,7 @@ class ExcitationInhibitionLayer(nn.Module):
         excitatory_input_dim,
         ee_synapses_per_branch,
         ei_synapses_per_branch,
+        ii_connectivity=False,
         inhibitory_input_dim=None,
         ie_synapses_per_branch=None,
         ii_synapses_per_branch=None,
@@ -457,7 +458,9 @@ class ExcitationInhibitionLayer(nn.Module):
                     branch_factors=inhibitory_branch_factors,
                     excitatory_input_dim=excitatory_input_dim,
                     excitatory_synapses_per_branch=ei_synapses_per_branch,
-                    inhibitory_input_dim=inhibitory_input_dim,
+                    inhibitory_input_dim=inhibitory_input_dim
+                    if ii_connectivity
+                    else None,
                     inhibitory_synapses_per_branch=ii_synapses_per_branch,
                     reactivate=reactivate,
                     somatic_synapses=somatic_synapses,
@@ -490,7 +493,9 @@ class ExcitationInhibitionLayer(nn.Module):
                     branch_factors=inhibitory_branch_factors,
                     excitatory_input_dim=excitatory_input_dim,
                     excitatory_synapses_per_branch=ei_synapses_per_branch,
-                    inhibitory_input_dim=inhibitory_input_dim,
+                    inhibitory_input_dim=inhibitory_input_dim
+                    if ii_connectivity
+                    else None,
                     inhibitory_synapses_per_branch=ii_synapses_per_branch,
                     reactivate=reactivate,
                     reactivation_init_m=reactivation_init_m,
@@ -526,9 +531,7 @@ class ExcitationInhibitionLayer(nn.Module):
                 branch_factors=excitatory_branch_factors,
                 excitatory_input_dim=excitatory_input_dim,
                 excitatory_synapses_per_branch=ee_synapses_per_branch,
-                inhibitory_input_dim=n_inhibitory_cells
-                if self.has_inhib_subnet
-                else None,
+                inhibitory_input_dim=inhibitory_input_dim,
                 inhibitory_synapses_per_branch=ie_synapses_per_branch,
                 reactivate=reactivate,
                 reactivation_init_m=reactivation_init_m,
@@ -561,9 +564,7 @@ class ExcitationInhibitionLayer(nn.Module):
                 branch_factors=excitatory_branch_factors,
                 excitatory_input_dim=excitatory_input_dim,
                 excitatory_synapses_per_branch=ee_synapses_per_branch,
-                inhibitory_input_dim=n_inhibitory_cells
-                if self.has_inhib_subnet
-                else None,
+                inhibitory_input_dim=inhibitory_input_dim,
                 inhibitory_synapses_per_branch=ie_synapses_per_branch,
                 reactivate=reactivate,
                 reactivation_init_m=reactivation_init_m,
@@ -867,10 +868,15 @@ class ExcitationInhibitionNetwork(nn.Module):
                 n_inh = inhibitory_layer_sizes[i + 1]
 
             # Determine inhibitory input size
-            inhibitory_input_size = inhibitory_layer_sizes[i]
-            if i == 0 and self.input_mode == 2:
-                # For input_mode=2, use net_out_dim as inhibitory_input_dim
-                inhibitory_input_size = self.input_net.input_transform.inhibitory_dim
+            inhibitory_input_size = n_inh
+            ii_connectivity = True
+            if i == 0:
+                ii_connectivity = False                    
+                if self.input_mode == 1:
+                    inhibitory_input_size = excitatory_layer_sizes[i]
+                elif self.input_mode == 2:
+                    # For input_mode=2, use net_out_dim as inhibitory_input_dim
+                    inhibitory_input_size = self.input_net.input_transform.inhibitory_dim
 
             # Create ExcitationInhibitionLayer
             layer = ExcitationInhibitionLayer(
@@ -885,6 +891,7 @@ class ExcitationInhibitionNetwork(nn.Module):
                     if i == 0 and self.input_mode == 2 and inhibitory_input_size
                     else ei_syn[i]
                 ),
+                ii_connectivity=ii_connectivity,
                 inhibitory_input_dim=inhibitory_input_size,
                 ie_synapses_per_branch=ie_syn[i],
                 ii_synapses_per_branch=ii_syn[i],

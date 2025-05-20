@@ -75,6 +75,7 @@ from dendritic_modeling.utils import (
     save_dict,
 )
 from dendritic_modeling.visualization_manager import PlotManager
+from dendritic_modeling.analysis import AnalysisManager
 
 
 def initialize_model(model_cfg, visualization_enabled=False):
@@ -456,7 +457,6 @@ def train_and_evaluate(
             )
         else:
             raise ValueError(f"Invalid task: {train_cfg.task}")
-
     return results
 
 
@@ -709,8 +709,17 @@ def train_single_input_net(
 
 
 def run_analysis(
-    model, train_ds, valid_ds, test_ds, outputs_cfg, visualization_cfg, run_save_path
+    model, 
+    train_ds, 
+    valid_ds, 
+    test_ds, 
+    visualization_cfg, 
+    analysis_cfg,
+    run_save_path
 ):
+    data = {"train": train_ds, "valid": valid_ds, "test": test_ds}
+    device = "cuda" if torch.cuda.is_available() else "cpu"
+
     is_visualization_enabled = (
         visualization_cfg
         and hasattr(visualization_cfg, "enabled")
@@ -730,10 +739,8 @@ def run_analysis(
 
         # Create args and data dictionary for PlotManager
         args = Args(visualization_cfg, run_save_path)
-        data = {"train": train_ds, "valid": valid_ds, "test": test_ds}
 
         # Create PlotManager instance
-        device = "cuda" if torch.cuda.is_available() else "cpu"
         plot_manager = PlotManager(model, data, args, device=device)
 
         # Get the list of plots to generate
@@ -750,6 +757,16 @@ def run_analysis(
                 logger.error(traceback.format_exc())
     else:
         logger.info("Visualization is disabled. Skipping plot generation.")
+    
+    logger.info("Running analyses...")
+    analysis_manager = AnalysisManager(
+        model=model,
+        data=data,
+        analysis_config=analysis_cfg,
+        save_root=run_save_path,
+        device=device
+    )
+    analysis_manager.run_analysis()
 
 
 def train_and_evaluate_main(config_path, args=None):
@@ -773,7 +790,7 @@ def train_and_evaluate_main(config_path, args=None):
     wandb_cfg = config.wandb
     outputs_cfg = config.outputs
     visualization_cfg = config.visualization
-
+    analysis_cfg = config.analysis
     (
         run_save_path,
         model,
@@ -839,13 +856,13 @@ def train_and_evaluate_main(config_path, args=None):
         )
 
     run_analysis(
-        model,
-        train_ds,
-        valid_ds,
-        test_ds,
-        outputs_cfg,
-        visualization_cfg,
-        run_save_path,
+        model=model,
+        train_ds=train_ds,
+        valid_ds=valid_ds,
+        test_ds=test_ds,
+        visualization_cfg=visualization_cfg,
+        analysis_cfg=analysis_cfg,
+        run_save_path=run_save_path,
     )
 
     if (

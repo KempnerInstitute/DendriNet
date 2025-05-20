@@ -150,5 +150,13 @@ visualization:
     #- profiles     # Plot dendritic compartment profiles
     #- branch_info  # mutual information
 
+analysis:
+  ei_mi_analysis_enabled: false
+  ei_mi_analysis_params:
+    compute_mi_E_I: true
+    compute_mi_EI_Vout: true
+    compute_mi_EI_label: true
+    n_neighbors: 10
+
 outputs:
   dir: ./outputs/
