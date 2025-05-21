@@ -41,9 +41,9 @@ train_config:
       parameters:
         excitatory_layer_sizes: [10]
         inhibitory_layer_sizes: [40]
-        excitatory_branch_factors: [10,10]
+        excitatory_branch_factors: [2,2]
         inhibitory_branch_factors: [1]
-        reactivate: false
+        reactivate: true
         somatic_synapses: true
         ee_synapses_per_branch_per_layer: [100]
         ei_synapses_per_branch_per_layer: [200]
@@ -65,17 +65,35 @@ train_config:
         output_dim: 10
         input_mode: 0
         input_net_dict:
-          type: "MLPInputTransform"
-          hidden_dims: []
-          output_dim: 128
+          type: "CNNInputTransform"  # Type of input network: "IndexInputTransform", "MLPInputTransform", "AlexNetTransform", etc.
+          hidden_dims: [] #[512, 256, 128]     # Hidden layer dimensions for better capacity
+          excitatory_dim: 256             # Output dimension for excitatory input network
+          inhibitory_dim: 64             # Output dimension for inhibitory input network
+          # CNNInputTransform arguments
+          input_shape: [3, 32, 32]
+          excitatory_hidden_dims: [8]
+          inhibitory_hidden_dims: [4]
+          excitatory_kernel_sizes: [5]
+          inhibitory_kernel_sizes: [9]
+          excitatory_strides: [1]
+          inhibitory_strides: [1]
 
   train:
     learning_strategy: "mle"
     run_name: "dendritic_ei_sweep"
     seed: 0  # This will be overridden for each run
     train_valid_split: 0.8
-    lr: 0.01
+    optim_dict:
+      lr: 0.01  # default learning rate if split_params is false
+      split_params: true  # whether to split parameters into groups (only used for EINet)
+      input_net_lr: 0.001  # learning rate for input network
+      topk_lr: 0.001  # learning rate for topk layers
+      blocklinear_lr: 0.001  # learning rate for blocklinear layers
+      reactivation_lr: 0.001  # learning rate for reactivation layers
+      output_layer_lr: 0.001  # learning rate for output layer
     epochs: 100
+    early_stopping: false
+    patience: 10
     batch_size: 1024
     grad_clip_value: 5
     epochs_per_layer: 50
@@ -116,8 +134,17 @@ train_config:
       - gradients
       - branch_ablation
       - layer_ablation
+  
+  analysis:
+    ei_mi_analysis_enabled: false
+    ei_mi_analysis_params:
+      compute_mi_E_I: true
+      compute_mi_EI_Vout: true
+      compute_mi_EI_label: true
+      n_neighbors: 10
 
 sweep_config:
+  model.network.type: ["EINet", "MLP"]
   # EE and IE synapse parameters - both sweep from 0 to 50 in steps of 5
   model.network.parameters.ee_synapses_per_branch_per_layer: [
     [1], [6], [11], [16], [21], [26], [31], [36], [41], [46], [51]
@@ -125,7 +152,7 @@ sweep_config:
   model.network.parameters.ie_synapses_per_branch_per_layer: [
     [1], [6], [11], [16], [21], [26], [31], [36], [41], [46], [51]
   ]
-
+  model.network.parameters.use_shunting: [true, false, "MLP"]
   # This sweep has:
   # - 11 EE values × 11 IE values = 121 parameter combinations
   # - Each combination runs with 5 seeds
