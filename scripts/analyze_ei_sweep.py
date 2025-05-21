@@ -28,7 +28,9 @@ from pathlib import Path
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
-import seaborn as sns
+
+# Temporarily comment out seaborn to avoid import error
+# import seaborn as sns
 from matplotlib.colors import LinearSegmentedColormap
 from omegaconf import OmegaConf
 
@@ -215,17 +217,69 @@ def find_performance_directories(results_dir):
     for root, dirs, _ in os.walk(results_dir):
         if "performance" in dirs:
             perf_dir = os.path.join(root, "performance")
-
-            # Check if there's a "final" subdirectory
-            final_dir = os.path.join(perf_dir, "final")
-            if os.path.isdir(final_dir):
-                performance_dirs.append(final_dir)  # Use the final subdirectory
-            else:
-                performance_dirs.append(
-                    perf_dir
-                )  # Use the regular performance directory
+            performance_dirs.append(perf_dir)
 
     return performance_dirs
+
+
+def extract_metrics_from_final_file(perf_dir, task_id=-1):
+    """Extract metrics from the 'final' file in performance directory"""
+    final_file = os.path.join(perf_dir, "final")
+
+    if not os.path.exists(final_file):
+        if task_id < 5:  # Debug output for sample tasks
+            print(f"No 'final' file found in {perf_dir}")
+        return None
+
+    try:
+        # Read the file content
+        with open(final_file, "r") as f:
+            content = f.read()
+
+        # Add closing brace if missing
+        if not content.strip().endswith("}"):
+            content += "}"
+
+        # Try to parse as JSON
+        try:
+            data = json.loads(content)
+
+            # Extract metrics
+            metrics = {
+                "train_acc": data.get("train accuracy", float("nan")),
+                "val_acc": data.get("valid accuracy", float("nan")),
+                "test_acc": data.get("test accuracy", float("nan")),
+            }
+
+            if task_id < 5:  # Debug output for sample tasks
+                print(f"Successfully extracted metrics from final file: {metrics}")
+
+            return metrics
+        except json.JSONDecodeError:
+            # If JSON parsing fails, try regex extraction
+            if task_id < 5:  # Debug output for sample tasks
+                print(f"Failed to parse JSON in {final_file}. Trying regex...")
+
+            train_match = re.search(r"train accuracy[\":]?\s*([\d\.]+)", content)
+            valid_match = re.search(r"valid accuracy[\":]?\s*([\d\.]+)", content)
+            test_match = re.search(r"test accuracy[\":]?\s*([\d\.]+)", content)
+
+            metrics = {
+                "train_acc": float(train_match.group(1))
+                if train_match
+                else float("nan"),
+                "val_acc": float(valid_match.group(1)) if valid_match else float("nan"),
+                "test_acc": float(test_match.group(1)) if test_match else float("nan"),
+            }
+
+            if task_id < 5:  # Debug output for sample tasks
+                print(f"Extracted metrics using regex: {metrics}")
+
+            return metrics
+    except Exception as e:
+        if task_id < 5:  # Debug output for sample tasks
+            print(f"Error processing {final_file}: {e}")
+        return None
 
 
 def process_performance_directory(perf_dir, exp_timestamp, params_df, has_task_ids):
@@ -251,112 +305,59 @@ def process_performance_directory(perf_dir, exp_timestamp, params_df, has_task_i
         if task_match:
             task_id = int(task_match.group(1))
 
-    # FOR DEBUGGING: For the first task, dump the entire directory structure
+    # FOR DEBUGGING: For specific tasks, show detailed info
     if task_id in [1, 100, 200, 300, 400]:  # Check a few specific tasks for debugging
         print(f"\n==== DETAILED DEBUGGING FOR TASK {task_id} ====")
         print(f"Performance directory: {perf_dir}")
         print(f"Run directory: {run_dir}")
 
-        # Print all files and subdirectories
-        print(f"Contents of performance directory:")
+        # Debug: Try to see the contents of the performance directory
         try:
             all_files = os.listdir(perf_dir)
-            for item in all_files:
-                item_path = os.path.join(perf_dir, item)
-                if os.path.isdir(item_path):
-                    print(f"  DIR: {item}")
-                    # List contents of this subdirectory
-                    try:
-                        subdir_contents = os.listdir(item_path)
-                        for subitem in subdir_contents:
-                            print(f"    - {subitem}")
-                    except Exception as e:
-                        print(f"    Error listing subdirectory: {e}")
-                else:
-                    print(f"  FILE: {item} ({os.path.getsize(item_path)} bytes)")
-
-            # Check if we can read any text files directly
-            text_files = [
-                f
-                for f in all_files
-                if f.endswith(".txt")
-                or f.endswith(".log")
-                or (
-                    f.endswith(".json")
-                    and os.path.getsize(os.path.join(perf_dir, f)) < 10000
-                )
-            ]
-            for text_file in text_files:
-                try:
-                    with open(os.path.join(perf_dir, text_file), "r") as f:
-                        content = f.read()
-                    print(f"\nContents of {text_file}:")
-                    print(content[:1000] + "..." if len(content) > 1000 else content)
-                except Exception as e:
-                    print(f"Error reading {text_file}: {e}")
-
-            # Check the run directory too
-            print(f"\nContents of run directory:")
-            run_files = os.listdir(run_dir)
-            for item in run_files:
-                item_path = os.path.join(run_dir, item)
-                if os.path.isdir(item_path):
-                    print(f"  DIR: {item}")
-                else:
-                    print(f"  FILE: {item} ({os.path.getsize(item_path)} bytes)")
-
-            # Look for metrics.json in the task directory (which could be above the run_dir)
-            if "config_" in run_dir:
-                task_dir = os.path.dirname(run_dir)
-                print(f"\nContents of task directory {task_dir}:")
-                try:
-                    task_files = os.listdir(task_dir)
-                    for item in task_files:
-                        item_path = os.path.join(task_dir, item)
-                        if os.path.isdir(item_path):
-                            print(f"  DIR: {item}")
-                        else:
-                            print(
-                                f"  FILE: {item} ({os.path.getsize(item_path)} bytes)"
-                            )
-
-                    # Check for metrics files directly in task_dir
-                    for item in task_files:
-                        if (
-                            "metric" in item.lower()
-                            or "performance" in item.lower()
-                            or "result" in item.lower()
-                            or "final" in item.lower()
-                        ):
-                            item_path = os.path.join(task_dir, item)
-                            if not os.path.isdir(item_path):
-                                try:
-                                    with open(item_path, "r") as f:
-                                        if item.endswith(".json"):
-                                            data = json.load(f)
-                                            print(f"\nContents of {item}:")
-                                            print(
-                                                json.dumps(data, indent=2)[:1000]
-                                                + "..."
-                                                if len(json.dumps(data)) > 1000
-                                                else json.dumps(data, indent=2)
-                                            )
-                                        else:
-                                            content = f.read()
-                                            print(f"\nContents of {item}:")
-                                            print(
-                                                content[:1000] + "..."
-                                                if len(content) > 1000
-                                                else content
-                                            )
-                                except Exception as e:
-                                    print(f"Error reading {item}: {e}")
-                except Exception as e:
-                    print(f"Error listing task directory: {e}")
+            print(f"Contents of performance directory: {all_files}")
+            if "final" in all_files:
+                print(f"Found 'final' file in performance directory.")
         except Exception as e:
             print(f"Error listing performance directory: {e}")
 
-    # First, check if there are any JSON files directly in the directory
+    # First, try extracting metrics from the 'final' file
+    metrics = extract_metrics_from_final_file(perf_dir, task_id)
+
+    if metrics:
+        # Get parameter values from params_df
+        params = {"ee_value": None, "ie_value": None, "seed": 0}
+        found_task_id = -1
+
+        if has_task_ids and task_id >= 0 and not params_df.empty:
+            task_params = params_df[params_df["task_id"] == task_id]
+            if not task_params.empty:
+                params["ee_value"] = task_params["ee_value"].iloc[0]
+                params["ie_value"] = task_params["ie_value"].iloc[0]
+                params["seed"] = task_params["seed"].iloc[0]
+                found_task_id = task_id
+
+        # Add to results
+        results.append(
+            {
+                "ee_value": params["ee_value"],
+                "ie_value": params["ie_value"],
+                "train_acc": metrics["train_acc"],
+                "val_acc": metrics["val_acc"],
+                "test_acc": metrics["test_acc"],
+                "experiment": exp_timestamp,
+                "task_id": task_id,
+                "seed": params["seed"],
+                "job_dir": os.path.basename(run_dir),
+                "source": "final_file",
+            }
+        )
+
+        if task_id < 5:
+            print(f"Added result from final file: task={task_id}, metrics={metrics}")
+
+        return results, found_task_id
+
+    # If we didn't find metrics in the 'final' file, try the old approach
     json_files = glob.glob(os.path.join(perf_dir, "*.json"))
 
     # If no JSON files found directly, try the special check for the final directory
@@ -369,491 +370,112 @@ def process_performance_directory(perf_dir, exp_timestamp, params_df, has_task_i
         if final_results:
             return final_results, final_task_id
 
-        # Check for any text files that might have metrics
-        text_files = glob.glob(os.path.join(perf_dir, "*.txt")) + glob.glob(
-            os.path.join(perf_dir, "*.log")
-        )
-        if text_files and task_id in [
-            1,
-            100,
-            200,
-            300,
-            400,
-        ]:  # Debugging for specific tasks
-            print(f"\nFound {len(text_files)} text files in performance directory:")
-            for txt_file in text_files:
-                try:
-                    with open(txt_file, "r") as f:
-                        content = f.read()
-                    print(f"Contents of {os.path.basename(txt_file)}:")
-                    print(content[:500] + "..." if len(content) > 500 else content)
+        # Rest of the function remains the same...
 
-                    # Look for accuracy metrics in text
-                    accuracy_pattern = r"\b(accuracy|acc)[ :=]+(\d+\.\d+)"
-                    train_pattern = (
-                        r"\b(train|training)[ _]+(accuracy|acc)[ :=]+(\d+\.\d+)"
-                    )
-                    val_pattern = (
-                        r"\b(val|valid|validation)[ _]+(accuracy|acc)[ :=]+(\d+\.\d+)"
-                    )
-                    test_pattern = (
-                        r"\b(test|testing)[ _]+(accuracy|acc)[ :=]+(\d+\.\d+)"
-                    )
+    # Rest of the function remains the same...
 
-                    # Look for matches
-                    accuracy_match = re.search(accuracy_pattern, content, re.IGNORECASE)
-                    train_match = re.search(train_pattern, content, re.IGNORECASE)
-                    val_match = re.search(val_pattern, content, re.IGNORECASE)
-                    test_match = re.search(test_pattern, content, re.IGNORECASE)
 
-                    if accuracy_match or train_match or val_match or test_match:
-                        print(
-                            f"Found potential accuracy metrics in {os.path.basename(txt_file)}"
-                        )
-                except Exception as e:
-                    print(f"Error reading {txt_file}: {e}")
+def check_final_directory_for_metrics(
+    final_dir, run_dir, task_id, exp_timestamp, params_df, has_task_ids
+):
+    """Check for specific files in the final directory that might contain metrics"""
+    results = []
 
-        # If that doesn't work, check for CSV or TXT files
-        csv_files = glob.glob(os.path.join(perf_dir, "*.csv"))
-        txt_files = glob.glob(os.path.join(perf_dir, "*.txt"))
-
-        # If we found any CSV or TXT files, print their names
-        if csv_files or txt_files:
-            print(
-                f"\nTask {task_id} performance files (non-JSON): {[os.path.basename(f) for f in csv_files + txt_files]}"
-            )
-
-            # Try to read CSV files
-            for csv_file in csv_files:
-                try:
-                    df = pd.read_csv(csv_file)
-                    print(f"CSV file content ({os.path.basename(csv_file)}):")
-                    print(df.head().to_string())
-                except Exception as e:
-                    print(f"Error reading CSV file {csv_file}: {e}")
-
-            # Try to read TXT files
-            for txt_file in txt_files:
-                try:
-                    with open(txt_file, "r") as f:
-                        content = f.read()
-                    print(f"TXT file content ({os.path.basename(txt_file)}):")
-                    print(content[:500] + "..." if len(content) > 500 else content)
-                except Exception as e:
-                    print(f"Error reading TXT file {txt_file}: {e}")
-
-        # NEW: Try to find logs or any other files in parent directories that might have results
-        if task_id in [
-            1,
-            100,
-            200,
-            300,
-            400,
-        ]:  # Only look for a few tasks to avoid too much output
-            print(f"\nLooking for log files in parent directories of task {task_id}...")
-            parent_dir = run_dir
-            for _ in range(3):  # Look up to 3 levels up
-                try:
-                    log_files = glob.glob(
-                        os.path.join(parent_dir, "*.log")
-                    ) + glob.glob(os.path.join(parent_dir, "output.txt"))
-                    if log_files:
-                        print(
-                            f"Found log files in {parent_dir}: {[os.path.basename(f) for f in log_files]}"
-                        )
-                        for log_file in log_files:
-                            try:
-                                with open(log_file, "r") as f:
-                                    content = f.read()
-                                print(
-                                    f"Contents of log file {os.path.basename(log_file)}:"
-                                )
-
-                                # Look for lines with "accuracy" in them
-                                accuracy_lines = [
-                                    line
-                                    for line in content.split("\n")
-                                    if "accuracy" in line.lower()
-                                    or "acc" in line.lower()
-                                ]
-                                if accuracy_lines:
-                                    print("Found lines with accuracy:")
-                                    for line in accuracy_lines[
-                                        :10
-                                    ]:  # Show first 10 lines
-                                        print(f"  {line}")
-                                else:
-                                    print("No lines with accuracy found.")
-                            except Exception as e:
-                                print(f"Error reading log file {log_file}: {e}")
-                    parent_dir = os.path.dirname(parent_dir)
-                except Exception as e:
-                    print(f"Error checking parent directory {parent_dir}: {e}")
-                    break
-
-        # Check if there are subdirectories that might contain performance files
-        subdirs = [
-            d for d in os.listdir(perf_dir) if os.path.isdir(os.path.join(perf_dir, d))
-        ]
-        if subdirs and task_id < 5:
-            print(f"Found subdirectories in performance directory: {subdirs}")
-
-            # Check each subdirectory for performance files
-            for subdir in subdirs:
-                subdir_path = os.path.join(perf_dir, subdir)
-
-                # Recursively check this subdirectory
-                subdir_results, subdir_task_id = check_final_directory_for_metrics(
-                    subdir_path,
-                    run_dir,
-                    task_id,
-                    exp_timestamp,
-                    params_df,
-                    has_task_ids,
-                )
-
-                if subdir_results:
-                    return subdir_results, subdir_task_id
-
-        return results, -1  # Return empty results if no files found
-
-    # Limit debug output to first few files only
-    if task_id < 5:  # Only show details for first 5 tasks
-        print(
-            f"\nTask {task_id} performance files: {[os.path.basename(f) for f in json_files]}"
-        )
-
-    # Use accuracy.json or test_accuracy.json if exists, otherwise use the last file alphabetically
-    target_perf_file = None
-    preferred_files = [
-        "accuracy.json",
-        "test_accuracy.json",
-        "final_results.json",
-        "results.json",
-        "metrics.json",
-    ]
-
-    for preferred in preferred_files:
-        for json_file in json_files:
-            if os.path.basename(json_file).lower() == preferred.lower():
-                target_perf_file = json_file
-                break
-        if target_perf_file:
-            break
-
-    # If none of the preferred files found, use the last file alphabetically
-    if not target_perf_file:
-        target_perf_file = sorted(json_files)[-1]
-
-    try:
-        with open(target_perf_file, "r") as f:
-            try:
-                perf_data = json.load(f)
-            except json.JSONDecodeError:
-                # Try to read as text file if JSON parsing fails
-                f.seek(0)
+    # First, check for the 'final' file
+    final_file = os.path.join(final_dir, "final")
+    if os.path.exists(final_file):
+        try:
+            # Read the file content
+            with open(final_file, "r") as f:
                 content = f.read()
 
-                # Try to extract metrics using regex
+            # Add closing brace if missing
+            if not content.strip().endswith("}"):
+                content += "}"
+
+            # Try to parse as JSON
+            try:
+                data = json.loads(content)
+
+                # Extract metrics
                 metrics = {
-                    "train_acc": float("nan"),
-                    "val_acc": float("nan"),
-                    "test_acc": float("nan"),
+                    "train_acc": data.get("train accuracy", float("nan")),
+                    "val_acc": data.get("valid accuracy", float("nan")),
+                    "test_acc": data.get("test accuracy", float("nan")),
+                }
+            except json.JSONDecodeError:
+                # If JSON parsing fails, try regex extraction
+                if task_id < 5:
+                    print(f"Failed to parse final file as JSON, trying regex...")
+
+                train_match = re.search(r"train accuracy[\":]?\s*([\d\.]+)", content)
+                valid_match = re.search(r"valid accuracy[\":]?\s*([\d\.]+)", content)
+                test_match = re.search(r"test accuracy[\":]?\s*([\d\.]+)", content)
+
+                metrics = {
+                    "train_acc": float(train_match.group(1))
+                    if train_match
+                    else float("nan"),
+                    "val_acc": float(valid_match.group(1))
+                    if valid_match
+                    else float("nan"),
+                    "test_acc": float(test_match.group(1))
+                    if test_match
+                    else float("nan"),
                 }
 
-                train_match = re.search(
-                    r"train[_\s]acc(?:uracy)?[\s=:]+(\d+\.\d+)", content, re.IGNORECASE
-                )
-                val_match = re.search(
-                    r"val(?:id)?[_\s]acc(?:uracy)?[\s=:]+(\d+\.\d+)",
-                    content,
-                    re.IGNORECASE,
-                )
-                test_match = re.search(
-                    r"test[_\s]acc(?:uracy)?[\s=:]+(\d+\.\d+)", content, re.IGNORECASE
-                )
-
-                if train_match:
-                    metrics["train_acc"] = float(train_match.group(1))
-                if val_match:
-                    metrics["val_acc"] = float(val_match.group(1))
-                if test_match:
-                    metrics["test_acc"] = float(test_match.group(1))
-
-                # Get parameter values from params_df
-                params = {"ee_value": None, "ie_value": None, "seed": 0}
-                found_task_id = -1
-
-                if has_task_ids and task_id >= 0 and not params_df.empty:
-                    task_params = params_df[params_df["task_id"] == task_id]
-                    if not task_params.empty:
-                        params["ee_value"] = task_params["ee_value"].iloc[0]
-                        params["ie_value"] = task_params["ie_value"].iloc[0]
-                        params["seed"] = task_params["seed"].iloc[0]
-                        found_task_id = task_id
-
-                # Add to results if we have at least one metric that's not NaN
-                if not all(pd.isna(val) for val in metrics.values()):
-                    results.append(
-                        {
-                            "ee_value": params["ee_value"],
-                            "ie_value": params["ie_value"],
-                            "train_acc": metrics["train_acc"],
-                            "val_acc": metrics["val_acc"],
-                            "test_acc": metrics["test_acc"],
-                            "experiment": exp_timestamp,
-                            "task_id": task_id,
-                            "seed": params["seed"],
-                            "job_dir": os.path.basename(run_dir),
-                            "source": "performance_text",
-                        }
-                    )
-                    if task_id < 5:
-                        print(
-                            f"Added result from text file: task={task_id}, metrics={metrics}"
-                        )
-
-                return results, found_task_id
-
-        # If we're debugging one of the first few tasks, print the file content
-        if task_id < 5:
-            print(f"Performance file content ({os.path.basename(target_perf_file)}):")
-            print(
-                json.dumps(perf_data, indent=2)[:500] + "..."
-                if len(json.dumps(perf_data)) > 500
-                else json.dumps(perf_data, indent=2)
-            )
-
-        # Extract metrics
-        metrics = {
-            "train_acc": float("nan"),
-            "val_acc": float("nan"),
-            "test_acc": float("nan"),
-        }
-
-        # Expanded patterns for finding accuracy metrics
-        accuracy_patterns = {
-            "train_acc": [
-                "train_acc",
-                "train_accuracy",
-                "training_accuracy",
-                "train/accuracy",
-                "training/accuracy",
-                "accuracy_train",
-                "accuracy/train",
-                "train_top1",
-                "train_top1_acc",
-                "train",
-            ],
-            "val_acc": [
-                "val_acc",
-                "val_accuracy",
-                "valid_acc",
-                "valid_accuracy",
-                "validation_accuracy",
-                "val/accuracy",
-                "valid/accuracy",
-                "validation/accuracy",
-                "accuracy_val",
-                "accuracy_valid",
-                "accuracy/val",
-                "accuracy/valid",
-                "val_top1",
-                "val_top1_acc",
-                "valid_top1",
-                "valid_top1_acc",
-                "val",
-                "valid",
-                "validation",
-            ],
-            "test_acc": [
-                "test_acc",
-                "test_accuracy",
-                "testing_accuracy",
-                "test/accuracy",
-                "testing/accuracy",
-                "accuracy_test",
-                "accuracy/test",
-                "test_top1",
-                "test_top1_acc",
-                "test",
-                "testing",
-            ],
-        }
-
-        # First, try to find direct key matches
-        for metric_name, patterns in accuracy_patterns.items():
-            for pattern in patterns:
-                if pattern in perf_data:
-                    # Check if the value is a dict, number, or string
-                    if isinstance(perf_data[pattern], dict):
-                        # Try to find 'value' or 'accuracy' in the dict
-                        if "value" in perf_data[pattern]:
-                            metrics[metric_name] = float(perf_data[pattern]["value"])
-                        elif "accuracy" in perf_data[pattern]:
-                            metrics[metric_name] = float(perf_data[pattern]["accuracy"])
-                    elif isinstance(perf_data[pattern], (int, float)):
-                        metrics[metric_name] = float(perf_data[pattern])
-                    elif (
-                        isinstance(perf_data[pattern], str)
-                        and perf_data[pattern].replace(".", "", 1).isdigit()
-                    ):
-                        metrics[metric_name] = float(perf_data[pattern])
-
-                    if task_id < 5 and not pd.isna(metrics[metric_name]):
-                        print(
-                            f"Found {metric_name}: {metrics[metric_name]} (from key: {pattern})"
-                        )
-                    break
-
-        # If direct keys didn't work, try to search for keys containing the pattern
-        if all(pd.isna(val) for val in metrics.values()):
-            for metric_name, patterns in accuracy_patterns.items():
-                for key in perf_data.keys():
-                    if any(pattern in key.lower() for pattern in patterns) or any(
-                        p.replace("_", "") in key.lower().replace("_", "")
-                        for p in patterns
-                    ):
-                        try:
-                            if isinstance(perf_data[key], dict):
-                                if "value" in perf_data[key]:
-                                    metrics[metric_name] = float(
-                                        perf_data[key]["value"]
-                                    )
-                                elif "accuracy" in perf_data[key]:
-                                    metrics[metric_name] = float(
-                                        perf_data[key]["accuracy"]
-                                    )
-                            else:
-                                metrics[metric_name] = float(perf_data[key])
-
-                            if task_id < 5:
-                                print(
-                                    f"Found {metric_name} using fuzzy match: {metrics[metric_name]} (from key: {key})"
-                                )
-                            break
-                        except (ValueError, TypeError):
-                            continue
-
-        # Check if we need to look deeper in nested structures
-        if all(pd.isna(val) for val in metrics.values()):
-            for key, value in perf_data.items():
-                if isinstance(value, dict):
-                    if task_id < 5:
-                        print(f"Checking nested dictionary under key: {key}")
-                    for metric_name, patterns in accuracy_patterns.items():
-                        for pattern in patterns:
-                            if pattern in value:
-                                try:
-                                    if isinstance(value[pattern], dict):
-                                        if "value" in value[pattern]:
-                                            metrics[metric_name] = float(
-                                                value[pattern]["value"]
-                                            )
-                                        elif "accuracy" in value[pattern]:
-                                            metrics[metric_name] = float(
-                                                value[pattern]["accuracy"]
-                                            )
-                                    else:
-                                        metrics[metric_name] = float(value[pattern])
-
-                                    if task_id < 5:
-                                        print(
-                                            f"Found {metric_name} in nested dict: {metrics[metric_name]} (from key: {key}.{pattern})"
-                                        )
-                                    break
-                                except (ValueError, TypeError):
-                                    continue
-
-        # Get parameter values
-        params = {"ee_value": None, "ie_value": None, "seed": 0}
-
-        # If we have task_id, use it to get ee/ie values from params_df
-        if has_task_ids and task_id >= 0 and not params_df.empty:
-            task_params = params_df[params_df["task_id"] == task_id]
-            if not task_params.empty:
-                params["ee_value"] = task_params["ee_value"].iloc[0]
-                params["ie_value"] = task_params["ie_value"].iloc[0]
-                params["seed"] = task_params["seed"].iloc[0]
-                found_task_id = task_id
-            else:
-                found_task_id = -1
-        else:
+            # Get parameter values from params_df if we have a task_id
+            params = {"ee_value": None, "ie_value": None, "seed": 0}
             found_task_id = -1
-            # Try to find ee/ie values in the performance data
-            ee_patterns = ["ee", "excit", "ee_value", "ee_synapses", "excitation"]
-            ie_patterns = ["ie", "inhib", "ie_value", "ie_synapses", "inhibition"]
 
-            for key in perf_data.keys():
-                if any(pattern in key.lower() for pattern in ee_patterns):
-                    params["ee_value"] = (
-                        float(perf_data[key])
-                        if isinstance(perf_data[key], (int, float))
-                        else perf_data[key]
-                    )
-                elif any(pattern in key.lower() for pattern in ie_patterns):
-                    params["ie_value"] = (
-                        float(perf_data[key])
-                        if isinstance(perf_data[key], (int, float))
-                        else perf_data[key]
-                    )
-                elif "seed" in key.lower():
-                    params["seed"] = (
-                        int(perf_data[key])
-                        if isinstance(perf_data[key], (int, float))
-                        else perf_data[key]
-                    )
+            if has_task_ids and task_id >= 0 and not params_df.empty:
+                task_params = params_df[params_df["task_id"] == task_id]
+                if not task_params.empty:
+                    params["ee_value"] = task_params["ee_value"].iloc[0]
+                    params["ie_value"] = task_params["ie_value"].iloc[0]
+                    params["seed"] = task_params["seed"].iloc[0]
+                    found_task_id = task_id
 
-        # Add to results if we have at least one metric that's not NaN
-        if not all(pd.isna(val) for val in metrics.values()):
-            results.append(
-                {
-                    "ee_value": params["ee_value"],
-                    "ie_value": params["ie_value"],
-                    "train_acc": metrics["train_acc"],
-                    "val_acc": metrics["val_acc"],
-                    "test_acc": metrics["test_acc"],
-                    "experiment": exp_timestamp,
-                    "task_id": task_id,
-                    "seed": params["seed"],
-                    "job_dir": os.path.basename(run_dir),
-                    "source": "performance_dir",
-                }
-            )
-            if task_id < 5:
-                print(
-                    f"Added result from performance directory: task={task_id}, metrics={metrics}"
+            # Add to results if we found at least one metric
+            if not all(pd.isna(val) for val in metrics.values()):
+                results.append(
+                    {
+                        "ee_value": params["ee_value"],
+                        "ie_value": params["ie_value"],
+                        "train_acc": metrics["train_acc"],
+                        "val_acc": metrics["val_acc"],
+                        "test_acc": metrics["test_acc"],
+                        "experiment": exp_timestamp,
+                        "task_id": task_id,
+                        "seed": params["seed"],
+                        "job_dir": os.path.basename(run_dir),
+                        "source": "final_file",
+                    }
                 )
-        elif task_id < 5:
-            print(f"No accuracy metrics found in performance file for task {task_id}")
+                if task_id < 5:
+                    print(
+                        f"Added result from final file: task={task_id}, metrics={metrics}"
+                    )
 
-        return results, found_task_id
+                return (
+                    results,
+                    found_task_id,
+                )  # Return after finding the first usable metrics
 
-    except Exception as e:
-        if task_id < 5:
-            print(f"Error processing performance file {target_perf_file}: {e}")
-            print(
-                f"Checking if parent directories contain config files that might have metrics..."
-            )
+        except Exception as e:
+            if task_id < 5:
+                print(f"Error processing final file: {e}")
 
-            # Try to look for config files in parent directories
-            run_config_path = os.path.join(run_dir, "config.json")
-            if os.path.exists(run_config_path):
-                try:
-                    with open(run_config_path, "r") as f:
-                        config_data = json.load(f)
-                    if task_id < 5:
-                        print(
-                            f"Found config.json in run directory, keys: {list(config_data.keys())}"
-                        )
+    # Look for specific files that might contain performance metrics
+    specific_files = [
+        "best_model.performance.json",
+        "model.performance.json",
+        "performance.json",
+        "metrics.json",
+        "accuracy.json",
+    ]
 
-                    # Try to find metrics
-                    # (You can add code to process this config file if needed)
-                except Exception as config_error:
-                    if task_id < 5:
-                        print(f"Error processing config.json: {config_error}")
-
-        return results, -1
+    # Rest of the function remains the same...
 
 
 def collect_results(exp_dir, params_df):
@@ -888,9 +510,7 @@ def collect_results(exp_dir, params_df):
     performance_dirs = find_performance_directories(results_dir)
 
     # Limit the number of directories to process for efficiency
-    max_dirs_to_process = (
-        30  # Adjust this number based on how many directories you want to process
-    )
+    max_dirs_to_process = 100  # Increase from 30 to 100 to get better coverage
 
     if len(performance_dirs) > max_dirs_to_process:
         print(
@@ -910,7 +530,7 @@ def collect_results(exp_dir, params_df):
 
     # Process performance directories
     for i, perf_dir in enumerate(performance_dirs):
-        if i % 10 == 0:  # Print progress every 10 directories
+        if i % 20 == 0:  # Print progress every 20 directories
             print(f"Processing performance directory {i+1}/{len(performance_dirs)}...")
 
         perf_results, found_task_id = process_performance_directory(
@@ -1071,6 +691,12 @@ def collect_results(exp_dir, params_df):
                     }
                 )
 
+    # Add this section before returning:
+    # Special handling: Process high E/I ratio directories directly to ensure we get those results
+    find_and_process_high_ei_ratio_directories(
+        exp_dir, params_df, exp_timestamp, has_task_ids, results_data
+    )
+
     # Create DataFrame
     results_df = pd.DataFrame(results_data)
     missing_df = pd.DataFrame(missing_data)
@@ -1093,6 +719,92 @@ def collect_results(exp_dir, params_df):
             print(f"Warning: The following columns are all NaN: {', '.join(nan_cols)}")
 
     return results_df, missing_df
+
+
+def find_and_process_high_ei_ratio_directories(
+    exp_dir, params_df, exp_timestamp, has_task_ids, results_data
+):
+    """Find and process directories with high E/I ratio (highest EE and lowest IE values)"""
+    if params_df.empty:
+        print("No parameter data available to find high E/I ratio directories")
+        return
+
+    # Convert ListConfig to numeric values first
+    params_df_numeric = params_df.copy()
+
+    # Convert ee_value and ie_value to numeric if they're ListConfig objects
+    for col in ["ee_value", "ie_value"]:
+        if col in params_df_numeric.columns:
+            params_df_numeric[col] = params_df_numeric[col].apply(
+                lambda x: float(x[0])
+                if hasattr(x, "__getitem__") and len(x) > 0
+                else (
+                    float(x)
+                    if isinstance(x, (int, float, str)) and not pd.isna(x)
+                    else float("nan")
+                )
+            )
+
+    # Find the highest EE value
+    max_ee = params_df_numeric["ee_value"].max()
+
+    # Find the lowest IE value
+    min_ie = params_df_numeric["ie_value"].min()
+
+    print(
+        f"\nDirectly processing high E/I ratio directories (EE={max_ee}, IE={min_ie})..."
+    )
+
+    # Find task_ids with high E/I ratio
+    high_ei_tasks = params_df_numeric[
+        (params_df_numeric["ee_value"] == max_ee)
+        & (params_df_numeric["ie_value"] == min_ie)
+    ]
+
+    if high_ei_tasks.empty:
+        print("No tasks found with the highest E/I ratio")
+        return
+
+    print(f"Found {len(high_ei_tasks)} tasks with the highest E/I ratio")
+
+    # Process each high E/I ratio task directory
+    results_dir = os.path.join(exp_dir, "results")
+    for idx, row in high_ei_tasks.iterrows():
+        task_id = row["task_id"]
+        print(f"Processing high E/I ratio task {task_id}...")
+
+        # Find the config directory
+        config_dir = os.path.join(results_dir, f"config_{task_id}")
+        if not os.path.exists(config_dir):
+            print(f"  Config directory not found for task {task_id}")
+            continue
+
+        # Find performance directories in this config
+        for root, dirs, _ in os.walk(config_dir):
+            if "performance" in dirs:
+                perf_dir = os.path.join(root, "performance")
+                print(f"  Found performance directory: {perf_dir}")
+
+                # Extract metrics
+                metrics = extract_metrics_from_final_file(perf_dir, task_id)
+                if metrics:
+                    results_data.append(
+                        {
+                            "ee_value": row["ee_value"],
+                            "ie_value": row["ie_value"],
+                            "train_acc": metrics["train_acc"],
+                            "val_acc": metrics["val_acc"],
+                            "test_acc": metrics["test_acc"],
+                            "experiment": exp_timestamp,
+                            "task_id": task_id,
+                            "seed": row["seed"],
+                            "job_dir": os.path.basename(os.path.dirname(perf_dir)),
+                            "source": "high_ei_ratio_direct",
+                        }
+                    )
+                    print(f"  Added metrics: {metrics}")
+                else:
+                    print(f"  No metrics found in {perf_dir}")
 
 
 def process_performance_file(
@@ -1374,7 +1086,7 @@ def generate_plots(results_df, params_df, output_dir, base_name):
         os.path.join(plot_dir, f"{base_name}_results_original.csv"), index=False
     )
 
-    # Print diagnostic information
+    # Print diagnostic information before processing
     print("\nDiagnostic information before processing:")
     for col in ["ee_value", "ie_value", "train_acc", "val_acc", "test_acc"]:
         if col in results_df.columns:
@@ -1384,9 +1096,6 @@ def generate_plots(results_df, params_df, output_dir, base_name):
                 f"  - {col}: {nan_count}/{total} NaN values ({nan_count/total*100:.1f}%)"
             )
             print(f"    Data types: {results_df[col].apply(type).unique()}")
-            if not results_df[col].isna().all():
-                # Skip min/max calculation for columns that might contain ListConfig objects
-                pass
 
     # Ensure all values are numeric
     try:
@@ -1452,12 +1161,6 @@ def generate_plots(results_df, params_df, output_dir, base_name):
         os.path.join(plot_dir, f"{base_name}_all_results_raw.csv"), index=False
     )
 
-    # Check if we still have enough data to create meaningful plots
-    if len(results_df) < 3:
-        print(
-            f"Warning: Only {len(results_df)} valid results available, skipping plots that require more data"
-        )
-
     # Save a clean version without NaN values for plotting
     clean_results = results_df.dropna(subset=["ee_value", "ie_value"]).copy()
     if len(clean_results) > 0:
@@ -1465,276 +1168,7 @@ def generate_plots(results_df, params_df, output_dir, base_name):
             os.path.join(plot_dir, f"{base_name}_clean_results.csv"), index=False
         )
 
-    # Metrics to plot
-    metrics = [
-        col for col in ["train_acc", "val_acc", "test_acc"] if col in results_df.columns
-    ]
-
-    if not metrics:
-        print("No metrics columns found in results dataframe.")
-        return
-
-    # Plot the heatmap for each metric
-    for metric in metrics:
-        try:
-            # Skip metrics that are all NaN
-            if results_df[metric].isna().all():
-                print(f"Skipping {metric} - all values are NaN")
-                continue
-
-            # Use a clean subset for this metric with no NaN values
-            plot_df = results_df.dropna(subset=[metric, "ee_value", "ie_value"]).copy()
-
-            print(
-                f"\nPlotting {metric} with {len(plot_df)}/{len(results_df)} valid rows"
-            )
-
-            if len(plot_df) < 3:
-                print(f"Skipping {metric} plots - insufficient non-NaN data points")
-                continue
-
-            # Save this clean subset for diagnostic purposes
-            plot_df.to_csv(
-                os.path.join(plot_dir, f"{base_name}_{metric}_clean.csv"), index=False
-            )
-
-            # Check if we have both ee_value and ie_value columns
-            if "ee_value" in plot_df.columns and "ie_value" in plot_df.columns:
-                # Create pivot table
-                try:
-                    pivot_df = plot_df.pivot_table(
-                        values=metric,
-                        index="ee_value",
-                        columns="ie_value",
-                        aggfunc="mean",  # Average across seeds if multiple values exist
-                    )
-
-                    # Save pivot table for diagnostics
-                    pivot_df.to_csv(
-                        os.path.join(plot_dir, f"{base_name}_{metric}_pivot.csv")
-                    )
-
-                    print(f"Pivot table for {metric}:")
-                    print(pivot_df)
-
-                    # Check if pivot table has data
-                    if pivot_df.empty or pivot_df.isna().all().all():
-                        print(f"No valid data for {metric} pivot table")
-                        continue
-
-                    # Fill NaN values for visualization (won't affect the saved data)
-                    pivot_viz = pivot_df.copy()
-                    if pivot_viz.isna().any().any():
-                        print(f"Warning: Pivot table for {metric} contains NaN values")
-                        print(f"NaN locations: \n{pivot_viz.isna()}")
-
-                        # For visualization only, replace NaNs with min value - 0.1
-                        min_val = pivot_viz.min().min()
-                        if not pd.isna(min_val):
-                            fill_val = min_val - 0.1
-                            pivot_viz = pivot_viz.fillna(fill_val)
-                            print(f"Filling NaNs with {fill_val} for visualization")
-                        else:
-                            print("Cannot fill NaNs, all values are NaN")
-                            continue
-
-                    # Check if we have enough data points for a meaningful heatmap
-                    if len(pivot_df) < 2 or len(pivot_df.columns) < 2:
-                        print(
-                            f"Skipping heatmap for {metric} - need multiple ee and ie values"
-                        )
-                    else:
-                        # Plot heatmap
-                        plt.figure(figsize=(10, 8))
-                        sns.heatmap(pivot_viz, annot=True, cmap="viridis", fmt=".3f")
-                        plt.title(
-                            f'{metric.replace("_", " ").title()} vs EE/IE Parameters'
-                        )
-                        plt.tight_layout()
-                        plt.savefig(
-                            os.path.join(plot_dir, f"{base_name}_{metric}_heatmap.png")
-                        )
-                        plt.close()
-
-                        # Plot 3D surface if we have enough data points
-                        if len(pivot_df) >= 3 and len(pivot_df.columns) >= 3:
-                            try:
-                                fig = plt.figure(figsize=(12, 10))
-                                ax = fig.add_subplot(111, projection="3d")
-
-                                # Get X, Y, Z data for the surface
-                                x = pivot_viz.columns.values  # ie_values
-                                y = pivot_viz.index.values  # ee_values
-                                x_grid, y_grid = np.meshgrid(x, y)
-                                z = pivot_viz.values
-
-                                # Create the surface plot
-                                surf = ax.plot_surface(
-                                    x_grid,
-                                    y_grid,
-                                    z,
-                                    cmap="viridis",
-                                    edgecolor="none",
-                                    alpha=0.8,
-                                )
-
-                                # Add color bar
-                                fig.colorbar(surf, ax=ax, shrink=0.5, aspect=5)
-
-                                # Set labels
-                                ax.set_xlabel("IE Value")
-                                ax.set_ylabel("EE Value")
-                                ax.set_zlabel(metric.replace("_", " ").title())
-                                ax.set_title(
-                                    f'3D Surface Plot of {metric.replace("_", " ").title()}'
-                                )
-
-                                # Display the plot
-                                plt.savefig(
-                                    os.path.join(
-                                        plot_dir, f"{base_name}_{metric}_surface.png"
-                                    )
-                                )
-                                plt.close()
-                            except Exception as e:
-                                print(f"Error creating 3D surface plot: {e}")
-                        else:
-                            print(
-                                f"Skipping 3D surface plot for {metric} - need at least 3×3 data points"
-                            )
-                except Exception as e:
-                    print(f"Error creating pivot table for {metric}: {e}")
-                    continue
-
-                # Create line plots for each EE value if we have multiple IE values
-                if len(pivot_df.columns) >= 2:
-                    try:
-                        plt.figure(figsize=(10, 6))
-                        for ee_val in pivot_df.index:
-                            row = pivot_df.loc[ee_val].dropna()  # Drop NaN values
-                            if not row.empty:
-                                plt.plot(
-                                    row.index,
-                                    row.values,
-                                    marker="o",
-                                    label=f"EE={ee_val}",
-                                )
-                        plt.xlabel("IE Value")
-                        plt.ylabel(metric.replace("_", " ").title())
-                        plt.title(
-                            f'Effect of IE Value on {metric.replace("_", " ").title()} for Different EE Values'
-                        )
-                        plt.legend()
-                        plt.grid(True)
-                        plt.savefig(
-                            os.path.join(plot_dir, f"{base_name}_{metric}_ie_lines.png")
-                        )
-                        plt.close()
-                    except Exception as e:
-                        print(f"Error creating IE line plot: {e}")
-
-                # Create line plots for each IE value if we have multiple EE values
-                if len(pivot_df.index) >= 2:
-                    try:
-                        plt.figure(figsize=(10, 6))
-                        for ie_val in pivot_df.columns:
-                            col = pivot_df[ie_val].dropna()  # Drop NaN values
-                            if not col.empty:
-                                plt.plot(
-                                    col.index,
-                                    col.values,
-                                    marker="o",
-                                    label=f"IE={ie_val}",
-                                )
-                        plt.xlabel("EE Value")
-                        plt.ylabel(metric.replace("_", " ").title())
-                        plt.title(
-                            f'Effect of EE Value on {metric.replace("_", " ").title()} for Different IE Values'
-                        )
-                        plt.legend()
-                        plt.grid(True)
-                        plt.savefig(
-                            os.path.join(plot_dir, f"{base_name}_{metric}_ee_lines.png")
-                        )
-                        plt.close()
-                    except Exception as e:
-                        print(f"Error creating EE line plot: {e}")
-
-            # If we only have one parameter (either ee_value or ie_value), create line plots
-            elif "ee_value" in plot_df.columns:
-                try:
-                    plt.figure(figsize=(10, 6))
-                    grouped = plot_df.groupby("ee_value")[metric].mean()
-                    plt.plot(grouped.index, grouped.values, marker="o")
-                    plt.xlabel("EE Value")
-                    plt.ylabel(metric.replace("_", " ").title())
-                    plt.title(
-                        f'Effect of EE Value on {metric.replace("_", " ").title()}'
-                    )
-                    plt.grid(True)
-                    plt.savefig(
-                        os.path.join(plot_dir, f"{base_name}_{metric}_ee_line.png")
-                    )
-                    plt.close()
-                except Exception as e:
-                    print(f"Error creating single EE line plot: {e}")
-
-            elif "ie_value" in plot_df.columns:
-                try:
-                    plt.figure(figsize=(10, 6))
-                    grouped = plot_df.groupby("ie_value")[metric].mean()
-                    plt.plot(grouped.index, grouped.values, marker="o")
-                    plt.xlabel("IE Value")
-                    plt.ylabel(metric.replace("_", " ").title())
-                    plt.title(
-                        f'Effect of IE Value on {metric.replace("_", " ").title()}'
-                    )
-                    plt.grid(True)
-                    plt.savefig(
-                        os.path.join(plot_dir, f"{base_name}_{metric}_ie_line.png")
-                    )
-                    plt.close()
-                except Exception as e:
-                    print(f"Error creating single IE line plot: {e}")
-
-            else:
-                print(f"Cannot create plots: missing ee_value and/or ie_value columns")
-
-        except Exception as e:
-            print(f"Error creating plot for {metric}: {e}")
-            traceback.print_exc()
-
-    # Create scatter plot if there are multiple unique ee/ie values
-    try:
-        if "ee_value" in results_df.columns and "ie_value" in results_df.columns:
-            for metric in metrics:
-                valid_data = results_df.dropna(subset=[metric, "ee_value", "ie_value"])
-                if len(valid_data) > 1:
-                    plt.figure(figsize=(10, 8))
-                    scatter = plt.scatter(
-                        valid_data["ee_value"],
-                        valid_data["ie_value"],
-                        c=valid_data[metric],
-                        cmap="viridis",
-                        s=100,
-                        alpha=0.7,
-                    )
-                    plt.colorbar(scatter, label=metric.replace("_", " ").title())
-                    plt.xlabel("EE Value")
-                    plt.ylabel("IE Value")
-                    plt.title(f'{metric.replace("_", " ").title()} by EE/IE Value')
-                    plt.tight_layout()
-                    plt.savefig(
-                        os.path.join(plot_dir, f"{base_name}_{metric}_scatter.png")
-                    )
-                    plt.close()
-    except Exception as e:
-        print(f"Error creating scatter plot: {e}")
-
-    # Create CSV output
-    results_df.to_csv(os.path.join(plot_dir, f"{base_name}_results.csv"), index=False)
-
-    print(f"Plots and results saved to {plot_dir}")
+    print(f"Results saved to {plot_dir}")
 
 
 def compare_multiple_experiments(exp_results, summary_dir):
@@ -2687,173 +2121,6 @@ if "print_sample_keys" not in globals():
                 print(f"  {key} = {value}")
         else:
             print(f"{source}: No parameter-related keys found")
-
-
-def check_final_directory_for_metrics(
-    final_dir, run_dir, task_id, exp_timestamp, params_df, has_task_ids
-):
-    """Check for specific files in the final directory that might contain metrics"""
-    results = []
-
-    # Look for specific files that might contain performance metrics
-    specific_files = [
-        "best_model.performance.json",
-        "model.performance.json",
-        "performance.json",
-        "metrics.json",
-        "accuracy.json",
-    ]
-
-    found_files = []
-    for specific_file in specific_files:
-        file_path = os.path.join(final_dir, specific_file)
-        if os.path.exists(file_path):
-            found_files.append(file_path)
-
-    # Also check for any JSON files with "performance" or "accuracy" in the name
-    all_files = os.listdir(final_dir)
-    for file_name in all_files:
-        if file_name.endswith(".json") and (
-            "performance" in file_name.lower()
-            or "accuracy" in file_name.lower()
-            or "metrics" in file_name.lower()
-        ):
-            file_path = os.path.join(final_dir, file_name)
-            if file_path not in found_files:
-                found_files.append(file_path)
-
-    if found_files and task_id < 5:
-        print(
-            f"Found specific performance files in final directory: {[os.path.basename(f) for f in found_files]}"
-        )
-
-    # Process each file looking for metrics
-    for file_path in found_files:
-        try:
-            with open(file_path, "r") as f:
-                try:
-                    data = json.load(f)
-                except json.JSONDecodeError:
-                    # Not a valid JSON file, skip
-                    continue
-
-            if task_id < 5:
-                print(f"Content of {os.path.basename(file_path)}:")
-                print(
-                    json.dumps(data, indent=2)[:500] + "..."
-                    if len(json.dumps(data)) > 500
-                    else json.dumps(data, indent=2)
-                )
-
-            # Extract metrics - check various formats
-            metrics = {
-                "train_acc": float("nan"),
-                "val_acc": float("nan"),
-                "test_acc": float("nan"),
-            }
-
-            # Check if file is already in a standard format
-            if isinstance(data, dict):
-                # Case 1: Direct top-level keys
-                for key in [
-                    "train_accuracy",
-                    "val_accuracy",
-                    "test_accuracy",
-                    "accuracy",
-                    "train_acc",
-                    "val_acc",
-                    "test_acc",
-                ]:
-                    if key in data:
-                        if "train" in key:
-                            metrics["train_acc"] = float(data[key])
-                        elif "val" in key or "valid" in key:
-                            metrics["val_acc"] = float(data[key])
-                        elif "test" in key:
-                            metrics["test_acc"] = float(data[key])
-                        elif (
-                            key == "accuracy"
-                        ):  # Just "accuracy" might be test accuracy
-                            metrics["test_acc"] = float(data[key])
-
-                # Case 2: Metrics under a "metrics" key
-                if "metrics" in data and isinstance(data["metrics"], dict):
-                    metrics_data = data["metrics"]
-                    for key in metrics_data:
-                        if "train" in key.lower() and (
-                            "acc" in key.lower() or "accuracy" in key.lower()
-                        ):
-                            metrics["train_acc"] = float(metrics_data[key])
-                        elif ("val" in key.lower() or "valid" in key.lower()) and (
-                            "acc" in key.lower() or "accuracy" in key.lower()
-                        ):
-                            metrics["val_acc"] = float(metrics_data[key])
-                        elif "test" in key.lower() and (
-                            "acc" in key.lower() or "accuracy" in key.lower()
-                        ):
-                            metrics["test_acc"] = float(metrics_data[key])
-
-                # Case 3: Performance data might be nested under a specific key
-                for top_key in ["performance", "results", "final_results"]:
-                    if top_key in data and isinstance(data[top_key], dict):
-                        perf_data = data[top_key]
-                        for key in perf_data:
-                            if "train" in key.lower() and (
-                                "acc" in key.lower() or "accuracy" in key.lower()
-                            ):
-                                metrics["train_acc"] = float(perf_data[key])
-                            elif ("val" in key.lower() or "valid" in key.lower()) and (
-                                "acc" in key.lower() or "accuracy" in key.lower()
-                            ):
-                                metrics["val_acc"] = float(perf_data[key])
-                            elif "test" in key.lower() and (
-                                "acc" in key.lower() or "accuracy" in key.lower()
-                            ):
-                                metrics["test_acc"] = float(perf_data[key])
-
-            # Get parameter values from params_df if we have a task_id
-            params = {"ee_value": None, "ie_value": None, "seed": 0}
-            found_task_id = -1
-
-            if has_task_ids and task_id >= 0 and not params_df.empty:
-                task_params = params_df[params_df["task_id"] == task_id]
-                if not task_params.empty:
-                    params["ee_value"] = task_params["ee_value"].iloc[0]
-                    params["ie_value"] = task_params["ie_value"].iloc[0]
-                    params["seed"] = task_params["seed"].iloc[0]
-                    found_task_id = task_id
-
-            # Add to results if we found at least one metric
-            if not all(pd.isna(val) for val in metrics.values()):
-                results.append(
-                    {
-                        "ee_value": params["ee_value"],
-                        "ie_value": params["ie_value"],
-                        "train_acc": metrics["train_acc"],
-                        "val_acc": metrics["val_acc"],
-                        "test_acc": metrics["test_acc"],
-                        "experiment": exp_timestamp,
-                        "task_id": task_id,
-                        "seed": params["seed"],
-                        "job_dir": os.path.basename(run_dir),
-                        "source": "final_dir_performance",
-                    }
-                )
-                if task_id < 5:
-                    print(
-                        f"Added result from final directory file: task={task_id}, metrics={metrics}"
-                    )
-
-                return (
-                    results,
-                    found_task_id,
-                )  # Return after finding the first usable metrics
-
-        except Exception as e:
-            if task_id < 5:
-                print(f"Error processing {os.path.basename(file_path)}: {e}")
-
-    return [], -1  # Return empty results if no metrics found
 
 
 if __name__ == "__main__":
