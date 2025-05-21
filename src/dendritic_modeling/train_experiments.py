@@ -75,6 +75,7 @@ from dendritic_modeling.utils import (
     save_dict,
 )
 from dendritic_modeling.visualization_manager import PlotManager
+from dendritic_modeling.analysis import AnalysisManager
 
 
 def initialize_model(model_cfg, visualization_enabled=False):
@@ -264,7 +265,7 @@ def setup_training_environment(config, args=None):
 
     optimizer = CustomWeightDecayOptimizer(
         model=model,
-        optimizer=torch.optim.Adam(model.parameters(), lr=train_cfg.lr),
+        optimizer=torch.optim.Adam(model.get_param_groups(train_cfg.optim_dict)),
         weight_decay=train_cfg.weight_decay_rate,
     )
 
@@ -456,7 +457,6 @@ def train_and_evaluate(
             )
         else:
             raise ValueError(f"Invalid task: {train_cfg.task}")
-
     return results
 
 
@@ -536,7 +536,7 @@ def train_independent_input_nets(
         test_ds=test_ds,
         epochs=input_net_epochs,
         batch_size=train_cfg.batch_size,
-        lr=train_cfg.lr,
+        lr=train_cfg.optim_dict.get('input_net_lr', 0.001),
         run_save_path=excit_head_dir,
     )
     save_model(excit_feature_extractor, run_save_path, "excit_feature_extractor.pt")
@@ -564,7 +564,7 @@ def train_independent_input_nets(
         test_ds=test_ds,
         epochs=input_net_epochs,
         batch_size=train_cfg.batch_size,
-        lr=train_cfg.lr,
+        lr=train_cfg.optim_dict.get('input_net_lr', 0.001),
         run_save_path=inhib_head_dir,
     )
     save_model(inhib_feature_extractor, run_save_path, "inhib_feature_extractor.pt")
@@ -603,7 +603,7 @@ def train_independent_input_nets(
     logger.info("Training full model with pretrained input networks")
     optimizer = CustomWeightDecayOptimizer(
         model=model,
-        optimizer=torch.optim.Adam(model.parameters(), lr=train_cfg.lr),
+        optimizer=torch.optim.Adam(model.get_param_groups(train_cfg.optim_dict)),
         weight_decay=train_cfg.weight_decay_rate,
     )
     trainer = get_trainer(train_cfg.learning_strategy, optimizer)
@@ -649,7 +649,7 @@ def train_single_input_net(
         test_ds=test_ds,
         epochs=input_net_epochs,
         batch_size=train_cfg.batch_size,
-        lr=train_cfg.lr,
+        lr=train_cfg.optim_dict.get('input_net_lr', 0.001),
         run_save_path=mlp_model_dir,
     )
     save_model(feature_extractor, run_save_path, "feature_extractor.pt")
@@ -688,7 +688,7 @@ def train_single_input_net(
     logger.info("Training full model with pretrained input network")
     optimizer = CustomWeightDecayOptimizer(
         model=model,
-        optimizer=torch.optim.Adam(model.parameters(), lr=train_cfg.lr),
+        optimizer=torch.optim.Adam(model.get_param_groups(train_cfg.optim_dict)),
         weight_decay=train_cfg.weight_decay_rate,
     )
     trainer = get_trainer(train_cfg.learning_strategy, optimizer)
@@ -709,8 +709,17 @@ def train_single_input_net(
 
 
 def run_analysis(
-    model, train_ds, valid_ds, test_ds, outputs_cfg, visualization_cfg, run_save_path
+    model, 
+    train_ds, 
+    valid_ds, 
+    test_ds, 
+    visualization_cfg, 
+    analysis_cfg,
+    run_save_path
 ):
+    data = {"train": train_ds, "valid": valid_ds, "test": test_ds}
+    device = "cuda" if torch.cuda.is_available() else "cpu"
+
     is_visualization_enabled = (
         visualization_cfg
         and hasattr(visualization_cfg, "enabled")
@@ -730,10 +739,8 @@ def run_analysis(
 
         # Create args and data dictionary for PlotManager
         args = Args(visualization_cfg, run_save_path)
-        data = {"train": train_ds, "valid": valid_ds, "test": test_ds}
 
         # Create PlotManager instance
-        device = "cuda" if torch.cuda.is_available() else "cpu"
         plot_manager = PlotManager(model, data, args, device=device)
 
         # Get the list of plots to generate
@@ -750,6 +757,16 @@ def run_analysis(
                 logger.error(traceback.format_exc())
     else:
         logger.info("Visualization is disabled. Skipping plot generation.")
+    
+    logger.info("Running analyses...")
+    analysis_manager = AnalysisManager(
+        model=model,
+        data=data,
+        analysis_config=analysis_cfg,
+        save_root=run_save_path,
+        device=device
+    )
+    analysis_manager.run_analysis()
 
 
 def train_and_evaluate_main(config_path, args=None):
@@ -773,7 +790,7 @@ def train_and_evaluate_main(config_path, args=None):
     wandb_cfg = config.wandb
     outputs_cfg = config.outputs
     visualization_cfg = config.visualization
-
+    analysis_cfg = config.analysis
     (
         run_save_path,
         model,
@@ -839,13 +856,13 @@ def train_and_evaluate_main(config_path, args=None):
         )
 
     run_analysis(
-        model,
-        train_ds,
-        valid_ds,
-        test_ds,
-        outputs_cfg,
-        visualization_cfg,
-        run_save_path,
+        model=model,
+        train_ds=train_ds,
+        valid_ds=valid_ds,
+        test_ds=test_ds,
+        visualization_cfg=visualization_cfg,
+        analysis_cfg=analysis_cfg,
+        run_save_path=run_save_path,
     )
 
     if (

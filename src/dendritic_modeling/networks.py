@@ -46,57 +46,60 @@ class InputNetTransform(nn.Module):
     """
 
     def __init__(
-        self, input_dim, hidden_dims, output_dim, network_type="MLPInputTransform"
+        self, 
+        input_dim: Optional[int] = None, 
+        hidden_dims: Optional[List[int]] = None, 
+        excitatory_dim: Optional[int] = None, 
+        inhibitory_dim: Optional[int] = None, 
+        input_shape: Optional[Tuple[int, int, int]] = None,
+        excitatory_hidden_dims: Optional[List[int]] = None,
+        inhibitory_hidden_dims: Optional[List[int]] = None,
+        excitatory_kernel_sizes: Optional[List[int]] = None,
+        inhibitory_kernel_sizes: Optional[List[int]] = None,
+        excitatory_strides: Optional[List[int]] = None,
+        inhibitory_strides: Optional[List[int]] = None,
+        network_type: str = "MLPInputTransform"
     ):
         super().__init__()
         self.network_type = network_type
 
-        if network_type == "MLPInputTransform":
-            # Build MLP backbone
-            layers = []
-            in_features = input_dim
-            for hdim in hidden_dims:
-                layers.append(nn.Linear(in_features, hdim))
-                layers.append(nn.ReLU())
-                in_features = hdim
-            self.shared = nn.Sequential(*layers)
-
-            # Create excitatory and inhibitory heads
-            self.head_exc = nn.Sequential(
-                nn.Linear(in_features, output_dim), nn.Sigmoid()
-            )
-            self.head_inh = nn.Sequential(
-                nn.Linear(in_features, output_dim), nn.Sigmoid()
+        if network_type == "IndexInputTransform":
+            self.input_transform = IndexInputTransform(
+                input_dim = input_dim,
+                excitatory_dim = excitatory_dim,
+                inhibitory_dim = inhibitory_dim
             )
 
-            # Initialize weights using Kaiming initialization
-            for m in self.modules():
-                if isinstance(m, nn.Linear):
-                    nn.init.kaiming_normal_(m.weight)
-                    if m.bias is not None:
-                        nn.init.zeros_(m.bias)
+        elif network_type == "MLPInputTransform":
+            self.input_transform = MLPInputTransform(
+                input_dim = input_dim,
+                hidden_dims = hidden_dims,
+                excitatory_dim = excitatory_dim,
+                inhibitory_dim = inhibitory_dim
+            )
 
         elif network_type == "AlexNetTransform":
-            # Example of using a pre-trained model like AlexNet
-            import torchvision.models as models
-
-            # Load AlexNet without classifier
-            alexnet = models.alexnet(pretrained=True)
-            self.shared = nn.Sequential(
-                *list(alexnet.features), nn.AdaptiveAvgPool2d((6, 6)), nn.Flatten()
+            self.input_transform = AlexNetInputTransform(
+                excitatory_dim = excitatory_dim,
+                inhibitory_dim = inhibitory_dim
             )
 
-            # Create new heads for excitatory and inhibitory outputs
-            self.head_exc = nn.Sequential(nn.Linear(9216, output_dim), nn.Sigmoid())
-            self.head_inh = nn.Sequential(nn.Linear(9216, output_dim), nn.Sigmoid())
+        elif network_type == "CNNInputTransform":
+            self.input_transform = CNNInputTransform(
+                input_shape = input_shape,
+                excitatory_hidden_dims = excitatory_hidden_dims,
+                inhibitory_hidden_dims = inhibitory_hidden_dims,
+                excitatory_kernel_sizes = excitatory_kernel_sizes,
+                inhibitory_kernel_sizes = inhibitory_kernel_sizes,
+                excitatory_strides = excitatory_strides,
+                inhibitory_strides = inhibitory_strides
+            )
 
         else:
             raise ValueError(f"Unknown network type: {network_type}")
 
     def forward(self, x):
-        x = self.shared(x)
-        excitatory_input = self.head_exc(x)
-        inhibitory_input = self.head_inh(x)
+        excitatory_input, inhibitory_input = self.input_transform(x)
         return excitatory_input, inhibitory_input
 
     def load_pretrained_weights(self, source, weights_path=None, pytorch_model=None):
@@ -148,9 +151,13 @@ class InputNetTransform(nn.Module):
 class IndexInputTransform(nn.Module):
     def __init__(self, input_dim: int, excitatory_dim: int, inhibitory_dim: int):
         super().__init__()
-        assert excitatory_dim + inhibitory_dim == input_dim, \
-            'error in IndexInputTransform: excitatory_dim + inhibitory_dim must ' \
-            f'equal input_dim, got {excitatory_dim} + {inhibitory_dim} != {input_dim}'
+        try:
+            assert excitatory_dim + inhibitory_dim == input_dim, \
+                'error in IndexInputTransform: excitatory_dim + inhibitory_dim must ' \
+                f'equal input_dim, got {excitatory_dim} + {inhibitory_dim} != {input_dim}'
+        except AssertionError as e:
+            logger.error(e)
+            inhibitory_dim = int(input_dim - excitatory_dim)
         
         dims = torch.randperm(input_dim)
         exc_dims = dims[:excitatory_dim]
@@ -160,6 +167,9 @@ class IndexInputTransform(nn.Module):
         self.register_buffer('exc_dims', exc_dims)
         self.inh_dims : torch.Tensor
         self.register_buffer('inh_dims', inh_dims)
+
+        self.excitatory_dim = excitatory_dim
+        self.inhibitory_dim = inhibitory_dim
 
     def forward(self, x):
         if x.dim() == 1:
@@ -221,6 +231,9 @@ class MLPInputTransform(nn.Module):
         self.exc_encoding = nn.Sequential(*exc_layers)
         self.inh_encoding = nn.Sequential(*inh_layers)
 
+        self.excitatory_dim = excitatory_dim
+        self.inhibitory_dim = inhibitory_dim
+
     def forward(self, x):
         excitatory_input = self.exc_encoding(x)
         inhibitory_input = self.inh_encoding(x)
@@ -236,87 +249,87 @@ class CNNInputTransform(nn.Module):
     def __init__(
         self, 
         input_shape: Tuple[int, int, int],  # (channels, height, width)
-        conv_channels: List[int],           # List of channel sizes for each conv layer
-        kernel_size: int = 3,               # Kernel size for all conv layers
-        excitatory_dim: int = 128,          # Output dimension for excitatory pathway
-        inhibitory_dim: int = 128,          # Output dimension for inhibitory pathway
-        pool_type: str = 'max'              # Type of pooling: 'max' or 'avg'
+        excitatory_hidden_dims: List[int],           # List of channel sizes for each conv layer
+        inhibitory_hidden_dims: List[int],           # List of channel sizes for each conv layer
+        excitatory_kernel_sizes: List[int],          # Kernel size for all conv layers
+        inhibitory_kernel_sizes: List[int],          # Kernel size for all conv layers
+        excitatory_strides: List[int],               # Stride for all conv layers
+        inhibitory_strides: List[int],               # Stride for all conv layers
     ):
         super().__init__()
         
         # Input validation
-        channels, height, width = input_shape
+        input_dim, height, width = input_shape
         
         # Build CNN backbone for excitatory pathway
         exc_layers = []
-        in_channels = channels
+        in_dim = input_dim
         current_h, current_w = height, width
         
-        for out_channels in conv_channels:
+        for hidden_dim, kernel_size, stride in zip(
+            excitatory_hidden_dims[:-1], excitatory_kernel_sizes[:-1], excitatory_strides[:-1]
+        ):
             # Add convolutional layer
-            exc_conv = nn.Conv2d(in_channels, out_channels, kernel_size, padding=1)
+            exc_conv = nn.Conv2d(in_dim, hidden_dim, kernel_size, stride)
             nn.init.kaiming_normal_(exc_conv.weight)
             nn.init.zeros_(exc_conv.bias)
             exc_layers.append(exc_conv)
             exc_layers.append(nn.ReLU())
             
-            # Add pooling layer
-            if pool_type == 'max':
-                exc_layers.append(nn.MaxPool2d(2, 2))
-            else:  # avg pooling
-                exc_layers.append(nn.AvgPool2d(2, 2))
-                
-            # Update dimensions
-            current_h //= 2
-            current_w //= 2
-            in_channels = out_channels
+            in_dim = hidden_dim
+            current_h = ((current_h - kernel_size) // stride) + 1
+            current_w = ((current_w - kernel_size) // stride) + 1
         
+        # Add final convolutional layer
+        exc_conv = nn.Conv2d(in_dim, excitatory_hidden_dims[-1], excitatory_kernel_sizes[-1], excitatory_strides[-1])
+        nn.init.xavier_normal_(exc_conv.weight)
+        nn.init.zeros_(exc_conv.bias)
+        exc_layers.append(exc_conv)
+        exc_layers.append(nn.Sigmoid())
+
+        current_h = ((current_h - excitatory_kernel_sizes[-1]) // excitatory_strides[-1]) + 1
+        current_w = ((current_w - excitatory_kernel_sizes[-1]) // excitatory_strides[-1]) + 1
+
         # Flatten layer
-        exc_layers.append(nn.Flatten())
+        exc_layers.append(nn.Flatten(start_dim = -3))
         
         # Calculate flattened dimension
-        flattened_dim = in_channels * current_h * current_w
+        self.excitatory_dim = excitatory_hidden_dims[-1] * current_h * current_w
         
-        # Add fully connected layer to get to desired output dimension
-        exc_fc = nn.Linear(flattened_dim, excitatory_dim)
-        nn.init.xavier_normal_(exc_fc.weight)
-        nn.init.zeros_(exc_fc.bias)
-        exc_layers.append(exc_fc)
-        exc_layers.append(nn.Sigmoid())
-        
-        # Build CNN backbone for inhibitory pathway (same architecture)
+        # Build CNN backbone for inhibitory pathway
         inh_layers = []
-        in_channels = channels
+        in_dim = input_dim
         current_h, current_w = height, width
         
-        for out_channels in conv_channels:
+        for hidden_dim, kernel_size, stride in zip(
+            inhibitory_hidden_dims[:-1], inhibitory_kernel_sizes[:-1], inhibitory_strides[:-1]
+        ):
             # Add convolutional layer
-            inh_conv = nn.Conv2d(in_channels, out_channels, kernel_size, padding=1)
+            inh_conv = nn.Conv2d(in_dim, hidden_dim, kernel_size, stride)
             nn.init.kaiming_normal_(inh_conv.weight)
             nn.init.zeros_(inh_conv.bias)
             inh_layers.append(inh_conv)
             inh_layers.append(nn.ReLU())
             
-            # Add pooling layer
-            if pool_type == 'max':
-                inh_layers.append(nn.MaxPool2d(2, 2))
-            else:  # avg pooling
-                inh_layers.append(nn.AvgPool2d(2, 2))
-                
-            # Update dimensions
-            current_h //= 2
-            current_w //= 2
-            in_channels = out_channels
+            in_dim = hidden_dim
+            current_h = ((current_h - kernel_size) // stride) + 1
+            current_w = ((current_w - kernel_size) // stride) + 1
         
-        # Flatten layer
-        inh_layers.append(nn.Flatten())
-        
-        # Add fully connected layer to get to desired output dimension
-        inh_fc = nn.Linear(flattened_dim, inhibitory_dim)
-        nn.init.xavier_normal_(inh_fc.weight)
-        nn.init.zeros_(inh_fc.bias)
-        inh_layers.append(inh_fc)
+        # Add final convolutional layer
+        inh_conv = nn.Conv2d(in_dim, inhibitory_hidden_dims[-1], inhibitory_kernel_sizes[-1], inhibitory_strides[-1])
+        nn.init.xavier_normal_(inh_conv.weight)
+        nn.init.zeros_(inh_conv.bias)
+        inh_layers.append(inh_conv)
         inh_layers.append(nn.Sigmoid())
+
+        current_h = ((current_h - inhibitory_kernel_sizes[-1]) // inhibitory_strides[-1]) + 1
+        current_w = ((current_w - inhibitory_kernel_sizes[-1]) // inhibitory_strides[-1]) + 1
+
+        # Flatten layer
+        inh_layers.append(nn.Flatten(start_dim = -3))
+        
+        # Calculate flattened dimension
+        self.inhibitory_dim = inhibitory_hidden_dims[-1] * current_h * current_w
         
         # Create sequential models
         self.exc_encoding = nn.Sequential(*exc_layers)
@@ -332,9 +345,39 @@ class CNNInputTransform(nn.Module):
         return excitatory_input, inhibitory_input
 
 
+class AlexNetInputTransform(nn.Module):
+    """
+    A transform that maps the raw input x to (excitatory_input, inhibitory_input)
+    using convolutional layers.
+    """
+    def __init__(self, excitatory_dim: int, inhibitory_dim: int):
+        super().__init__()
+        import torchvision.models as models
+
+        # Load AlexNet without classifier
+        alexnet = models.alexnet(pretrained=True)
+        self.shared = nn.Sequential(
+            *list(alexnet.features), nn.AdaptiveAvgPool2d((6, 6)), nn.Flatten()
+        )
+
+        # Create new heads for excitatory and inhibitory outputs
+        self.head_exc = nn.Sequential(nn.Linear(9216, excitatory_dim), nn.Sigmoid())
+        self.head_inh = nn.Sequential(nn.Linear(9216, inhibitory_dim), nn.Sigmoid())
+
+        self.excitatory_dim = excitatory_dim
+        self.inhibitory_dim = inhibitory_dim
+
+    def forward(self, x):
+        x = self.shared(x)
+        excitatory_input = self.head_exc(x)
+        inhibitory_input = self.head_inh(x)
+        return excitatory_input, inhibitory_input
+
+
 ###############################################################################
 # SigmoidInputNetTransform
 ###############################################################################
+
 class SigmoidInputNetTransform(InputNetTransform):
     """
     Extension of InputNetTransform that applies a sigmoid activation to the output,
@@ -342,9 +385,9 @@ class SigmoidInputNetTransform(InputNetTransform):
     """
 
     def __init__(
-        self, input_dim, hidden_dims, output_dim, network_type="MLPInputTransform"
+        self, input_dim, hidden_dims, excitatory_dim, inhibitory_dim, network_type="MLPInputTransform"
     ):
-        super().__init__(input_dim, hidden_dims, output_dim, network_type)
+        super().__init__(input_dim, hidden_dims, excitatory_dim, inhibitory_dim, network_type)
 
     def forward(self, x):
         # Call the parent's forward method to get outputs
@@ -355,7 +398,6 @@ class SigmoidInputNetTransform(InputNetTransform):
         inhib_out = torch.sigmoid(inhib_out)
 
         return excit_out, inhib_out
-
 
 ###############################################################################
 # ExcitationInhibitionLayer
@@ -370,6 +412,7 @@ class ExcitationInhibitionLayer(nn.Module):
         excitatory_input_dim,
         ee_synapses_per_branch,
         ei_synapses_per_branch,
+        ii_connectivity=False,
         inhibitory_input_dim=None,
         ie_synapses_per_branch=None,
         ii_synapses_per_branch=None,
@@ -415,7 +458,9 @@ class ExcitationInhibitionLayer(nn.Module):
                     branch_factors=inhibitory_branch_factors,
                     excitatory_input_dim=excitatory_input_dim,
                     excitatory_synapses_per_branch=ei_synapses_per_branch,
-                    inhibitory_input_dim=inhibitory_input_dim,
+                    inhibitory_input_dim=inhibitory_input_dim
+                    if ii_connectivity
+                    else None,
                     inhibitory_synapses_per_branch=ii_synapses_per_branch,
                     reactivate=reactivate,
                     somatic_synapses=somatic_synapses,
@@ -448,7 +493,9 @@ class ExcitationInhibitionLayer(nn.Module):
                     branch_factors=inhibitory_branch_factors,
                     excitatory_input_dim=excitatory_input_dim,
                     excitatory_synapses_per_branch=ei_synapses_per_branch,
-                    inhibitory_input_dim=inhibitory_input_dim,
+                    inhibitory_input_dim=inhibitory_input_dim
+                    if ii_connectivity
+                    else None,
                     inhibitory_synapses_per_branch=ii_synapses_per_branch,
                     reactivate=reactivate,
                     reactivation_init_m=reactivation_init_m,
@@ -484,9 +531,7 @@ class ExcitationInhibitionLayer(nn.Module):
                 branch_factors=excitatory_branch_factors,
                 excitatory_input_dim=excitatory_input_dim,
                 excitatory_synapses_per_branch=ee_synapses_per_branch,
-                inhibitory_input_dim=n_inhibitory_cells
-                if self.has_inhib_subnet
-                else None,
+                inhibitory_input_dim=inhibitory_input_dim,
                 inhibitory_synapses_per_branch=ie_synapses_per_branch,
                 reactivate=reactivate,
                 reactivation_init_m=reactivation_init_m,
@@ -519,9 +564,7 @@ class ExcitationInhibitionLayer(nn.Module):
                 branch_factors=excitatory_branch_factors,
                 excitatory_input_dim=excitatory_input_dim,
                 excitatory_synapses_per_branch=ee_synapses_per_branch,
-                inhibitory_input_dim=n_inhibitory_cells
-                if self.has_inhib_subnet
-                else None,
+                inhibitory_input_dim=inhibitory_input_dim,
                 inhibitory_synapses_per_branch=ie_synapses_per_branch,
                 reactivate=reactivate,
                 reactivation_init_m=reactivation_init_m,
@@ -759,8 +802,16 @@ class ExcitationInhibitionNetwork(nn.Module):
         self.input_net = InputNetTransform(
             input_dim=self.input_dim,
             hidden_dims=self.input_net_dict.get("hidden_dims", []),
-            output_dim=self.input_net_dict.get("output_dim", 128),
-            network_type=self.input_net_dict.get("type", "MLPInputTransform"),
+            excitatory_dim=self.input_net_dict.get("excitatory_dim", 128),
+            inhibitory_dim=self.input_net_dict.get("inhibitory_dim", 128),
+            input_shape=self.input_net_dict.get("input_shape", None),
+            excitatory_hidden_dims=self.input_net_dict.get("excitatory_hidden_dims", []),
+            inhibitory_hidden_dims=self.input_net_dict.get("inhibitory_hidden_dims", []),
+            excitatory_kernel_sizes=self.input_net_dict.get("excitatory_kernel_sizes", []),
+            inhibitory_kernel_sizes=self.input_net_dict.get("inhibitory_kernel_sizes", []),
+            excitatory_strides=self.input_net_dict.get("excitatory_strides", []),
+            inhibitory_strides=self.input_net_dict.get("inhibitory_strides", []),
+            network_type=self.input_net_dict.get("type", "MLPInputTransform")
         )
 
     def setup_network_layers(self):
@@ -795,8 +846,8 @@ class ExcitationInhibitionNetwork(nn.Module):
 
         # Initialize input_net if using input_mode=2
         if self.input_mode == 2 and self.input_net is not None:
-            net_out_dim = self.input_net_dict.get("output_dim", 64)
-            excitatory_layer_sizes[0] = net_out_dim
+            input_net_exc_dim = self.input_net.input_transform.excitatory_dim
+            excitatory_layer_sizes[0] = input_net_exc_dim
 
         # Build each layer
         for i in range(num_layers):
@@ -817,10 +868,15 @@ class ExcitationInhibitionNetwork(nn.Module):
                 n_inh = inhibitory_layer_sizes[i + 1]
 
             # Determine inhibitory input size
-            inhibitory_input_size = inhibitory_layer_sizes[i]
-            if i == 0 and self.input_mode == 2:
-                # For input_mode=2, use net_out_dim as inhibitory_input_dim
-                inhibitory_input_size = self.input_net_dict.get("output_dim", 64)
+            inhibitory_input_size = n_inh
+            ii_connectivity = True
+            if i == 0:
+                ii_connectivity = False                    
+                if self.input_mode == 1:
+                    inhibitory_input_size = excitatory_layer_sizes[i]
+                elif self.input_mode == 2:
+                    # For input_mode=2, use net_out_dim as inhibitory_input_dim
+                    inhibitory_input_size = self.input_net.input_transform.inhibitory_dim
 
             # Create ExcitationInhibitionLayer
             layer = ExcitationInhibitionLayer(
@@ -835,6 +891,7 @@ class ExcitationInhibitionNetwork(nn.Module):
                     if i == 0 and self.input_mode == 2 and inhibitory_input_size
                     else ei_syn[i]
                 ),
+                ii_connectivity=ii_connectivity,
                 inhibitory_input_dim=inhibitory_input_size,
                 ie_synapses_per_branch=ie_syn[i],
                 ii_synapses_per_branch=ii_syn[i],

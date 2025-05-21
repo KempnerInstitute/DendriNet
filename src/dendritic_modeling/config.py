@@ -97,7 +97,9 @@ class TrainConfig(BaseConfig):
     run_name: str = "exp_run"
     seed: int = 0
     train_valid_split: float = 0.8
-    lr: float = 0.01
+    optim_dict: Dict[str, Any] = field(
+        default_factory=dict
+    )  # Optimizer / param group settings
     weight_decay_rate: float = 0.1
     epochs: int = 50
     early_stopping: bool = True
@@ -122,6 +124,12 @@ class VisualizationConfig(BaseConfig):
     visualize_epochs: List[int] = field(default_factory=lambda: [])
     plots: List[str] = field(default_factory=lambda: ["branch_info", "ablation"])
     parameters: Dict = field(default_factory=dict)
+
+
+@dataclass
+class AnalysisConfig(BaseConfig):
+    ei_mi_analysis_enabled: bool = False
+    ei_mi_analysis_params: Dict = field(default_factory=dict)
 
 
 @dataclass
@@ -151,6 +159,7 @@ class Config:
     train: TrainConfig = field(default_factory=TrainConfig)
     wandb: WandbConfig = field(default_factory=WandbConfig)
     visualization: VisualizationConfig = field(default_factory=VisualizationConfig)
+    analysis: AnalysisConfig = field(default_factory=AnalysisConfig)
     task: TaskConfig = field(default_factory=TaskConfig)
     outputs: OutputsConfig = field(default_factory=OutputsConfig)
 
@@ -164,6 +173,7 @@ def load_config(path: str = None) -> Config:
             train=TrainConfig(**raw_conf.get("train", {})),
             wandb=WandbConfig(**raw_conf.get("wandb", {})),
             visualization=VisualizationConfig(**raw_conf.get("visualization", {})),
+            analysis=AnalysisConfig(**raw_conf.get("analysis", {})),
             task=TaskConfig(**raw_conf.get("task", {})),
             outputs=OutputsConfig(**raw_conf.get("outputs", {})),
         )

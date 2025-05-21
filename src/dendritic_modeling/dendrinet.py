@@ -145,13 +145,14 @@ class TopKLinear(nn.Module):
                 f"Choose from {list(TOPK_INIT_METHODS.keys())}",
             )
 
-    def decay_weights(self, weight_decay=0.1):
+    def decay_weights(self, weight_decay=0.1, weight_boost=False):
         with torch.no_grad():
             weight_mask = self.weight_mask()
             log_decay = log(1 - weight_decay) * weight_mask
             self.pre_w.data += log_decay # suppress active synapses
-            log_boost = log(1 + weight_decay) * (1 - weight_mask)
-            self.pre_w.data -= log_boost # boost inactive synapses
+            if weight_boost:
+                log_boost = log(1 + weight_decay) * (1 - weight_mask)
+                self.pre_w.data -= log_boost # boost inactive synapses
 
     def forward(self, x):
         pruned_weight = self.pruned_weight()
@@ -1161,15 +1162,17 @@ class DendriticBranchLayer(nn.Module):
                 init_b=reactivation_init_b if use_shunting else 0.1,
                 **kwargs
             )
-            gradient_scaler.register_reactivation_inverse(self.reactivation)
+            if use_shunting:
+                gradient_scaler.register_reactivation_inverse(self.reactivation)
         else:
             self.reactivation = nn.Identity()
         self.reactivate = reactivate
 
-        if topk_type == 'deepst':
-            initialize_dendritic_branch_layer(self)
-        else:
-            self.initialize()
+        # if topk_type == 'deepst':
+        #     initialize_dendritic_branch_layer(self)
+        # else:
+        #     self.initialize()
+        initialize_dendritic_branch_layer(self)
 
     def _create_topk_layer(
         self,
@@ -1272,9 +1275,9 @@ class DendriticBranchLayer(nn.Module):
 
     def decay_weights(self, weight_decay):
         if self.input_excitatory and self.branch_excitation is not None:
-            self.branch_excitation.decay_weights(weight_decay)
+            self.branch_excitation.decay_weights(weight_decay, weight_boost=False)
         if self.input_inhibitory and self.branch_inhibition is not None:
-            self.branch_inhibition.decay_weights(weight_decay)
+            self.branch_inhibition.decay_weights(weight_decay, weight_boost=False)
         # if self.input_branches:
         #     self.branches_to_output.decay_weights(weight_decay)
 
@@ -1372,11 +1375,11 @@ class DendriticBranchLayer(nn.Module):
                     self.branch_inhibition.param_scale_vec = g_total[:, None]
 
             else:
-                input_scale_vec = 1 / self.branches_to_output.log_weight.exp().flatten()
                 if (
                     hasattr(self, "branches_to_output")
                     and self.blocklinear_strategy == "conductance_dynamic"
                 ):
+                    input_scale_vec = 1 / self.branches_to_output.log_weight.exp().flatten()
                     self.branches_to_output.input_scale_vec = input_scale_vec
 
     def get_weights(self):
