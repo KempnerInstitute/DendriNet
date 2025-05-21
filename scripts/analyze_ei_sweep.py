@@ -29,8 +29,8 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 
-# Temporarily comment out seaborn to avoid import error
-# import seaborn as sns
+# Uncomment seaborn import which is needed for heatmaps
+import seaborn as sns
 from matplotlib.colors import LinearSegmentedColormap
 from omegaconf import OmegaConf
 
@@ -54,6 +54,11 @@ def parse_args():
         type=str,
         nargs="+",
         help="List of timestamps or folder paths to analyze together",
+    )
+    parser.add_argument(
+        "--output",
+        type=str,
+        help="Directory to save output files (default: same as experiment folder)",
     )
     parser.add_argument(
         "--output-base",
@@ -127,6 +132,18 @@ def collect_params_data(exp_dir):
                     config.model.network.parameters.ie_synapses_per_branch_per_layer
                 )
 
+                # Also try to extract use_shunting parameter
+                use_shunting = None
+                try:
+                    if hasattr(config.model.network, "use_shunting"):
+                        use_shunting = config.model.network.use_shunting
+                    elif hasattr(config.model.network.parameters, "use_shunting"):
+                        use_shunting = config.model.network.parameters.use_shunting
+                    elif hasattr(config, "use_shunting"):
+                        use_shunting = config.model.use_shunting
+                except:
+                    use_shunting = None
+
                 # If we get here, we found the values
                 # Handle cases where values might be lists
                 if isinstance(ee_values, list) and len(ee_values) == 1:
@@ -149,6 +166,7 @@ def collect_params_data(exp_dir):
                         "ee_value": ee_value,
                         "ie_value": ie_value,
                         "seed": seed,
+                        "use_shunting": use_shunting,
                         "config_file": config_file,
                     }
                 )
@@ -178,6 +196,18 @@ def collect_params_data(exp_dir):
                         # Default if not found
                         ie_value = "unknown"
 
+                    # Try to extract use_shunting
+                    use_shunting = None
+                    try:
+                        if hasattr(config, "use_shunting"):
+                            use_shunting = config.use_shunting
+                        elif hasattr(config.model, "use_shunting"):
+                            use_shunting = config.model.use_shunting
+                        elif hasattr(config.model.network, "use_shunting"):
+                            use_shunting = config.model.network.use_shunting
+                    except:
+                        use_shunting = None
+
                     # Get seed if available
                     seed = config.train.seed if hasattr(config.train, "seed") else 0
 
@@ -188,6 +218,7 @@ def collect_params_data(exp_dir):
                             "ee_value": ee_value,
                             "ie_value": ie_value,
                             "seed": seed,
+                            "use_shunting": use_shunting,
                             "config_file": config_file,
                         }
                     )
@@ -214,10 +245,14 @@ def find_performance_directories(results_dir):
     performance_dirs = []
 
     # Look for the standard performance directories
-    for root, dirs, _ in os.walk(results_dir):
+    for root, dirs, files in os.walk(results_dir):
         if "performance" in dirs:
             perf_dir = os.path.join(root, "performance")
             performance_dirs.append(perf_dir)
+        # Also check if "final" file exists in any subdirectory
+        elif "final" in files:
+            # If a directory has a "final" file, consider it a performance directory
+            performance_dirs.append(root)
 
     return performance_dirs
 
@@ -304,6 +339,17 @@ def process_performance_directory(perf_dir, exp_timestamp, params_df, has_task_i
         task_match = re.search(r"task_(\d+)", run_dir)
         if task_match:
             task_id = int(task_match.group(1))
+        else:
+            # If still not found, try looking for config_XXX in perf_dir itself
+            config_match = re.search(r"config_(\d+)", perf_dir)
+            if config_match:
+                task_id = int(config_match.group(1))
+            else:
+                # Try one more level up in the directory path
+                parent_dir = os.path.dirname(run_dir)
+                config_match = re.search(r"config_(\d+)", parent_dir)
+                if config_match:
+                    task_id = int(config_match.group(1))
 
     # FOR DEBUGGING: For specific tasks, show detailed info
     if task_id in [1, 100, 200, 300, 400]:  # Check a few specific tasks for debugging
@@ -325,7 +371,7 @@ def process_performance_directory(perf_dir, exp_timestamp, params_df, has_task_i
 
     if metrics:
         # Get parameter values from params_df
-        params = {"ee_value": None, "ie_value": None, "seed": 0}
+        params = {"ee_value": None, "ie_value": None, "seed": 0, "use_shunting": None}
         found_task_id = -1
 
         if has_task_ids and task_id >= 0 and not params_df.empty:
@@ -334,6 +380,8 @@ def process_performance_directory(perf_dir, exp_timestamp, params_df, has_task_i
                 params["ee_value"] = task_params["ee_value"].iloc[0]
                 params["ie_value"] = task_params["ie_value"].iloc[0]
                 params["seed"] = task_params["seed"].iloc[0]
+                if "use_shunting" in task_params.columns:
+                    params["use_shunting"] = task_params["use_shunting"].iloc[0]
                 found_task_id = task_id
 
         # Add to results
@@ -347,6 +395,7 @@ def process_performance_directory(perf_dir, exp_timestamp, params_df, has_task_i
                 "experiment": exp_timestamp,
                 "task_id": task_id,
                 "seed": params["seed"],
+                "use_shunting": params["use_shunting"],
                 "job_dir": os.path.basename(run_dir),
                 "source": "final_file",
             }
@@ -425,7 +474,12 @@ def check_final_directory_for_metrics(
                 }
 
             # Get parameter values from params_df if we have a task_id
-            params = {"ee_value": None, "ie_value": None, "seed": 0}
+            params = {
+                "ee_value": None,
+                "ie_value": None,
+                "seed": 0,
+                "use_shunting": None,
+            }
             found_task_id = -1
 
             if has_task_ids and task_id >= 0 and not params_df.empty:
@@ -434,6 +488,8 @@ def check_final_directory_for_metrics(
                     params["ee_value"] = task_params["ee_value"].iloc[0]
                     params["ie_value"] = task_params["ie_value"].iloc[0]
                     params["seed"] = task_params["seed"].iloc[0]
+                    if "use_shunting" in task_params.columns:
+                        params["use_shunting"] = task_params["use_shunting"].iloc[0]
                     found_task_id = task_id
 
             # Add to results if we found at least one metric
@@ -448,6 +504,7 @@ def check_final_directory_for_metrics(
                         "experiment": exp_timestamp,
                         "task_id": task_id,
                         "seed": params["seed"],
+                        "use_shunting": params["use_shunting"],
                         "job_dir": os.path.basename(run_dir),
                         "source": "final_file",
                     }
@@ -479,244 +536,199 @@ def check_final_directory_for_metrics(
 
 
 def collect_results(exp_dir, params_df):
-    """Collect results from the experiment directory"""
+    """Collect results from the experiment directory using a simple, direct approach"""
     results_dir = os.path.join(exp_dir, "results")
+    configs_dir = os.path.join(exp_dir, "configs")
     exp_timestamp = os.path.basename(exp_dir)  # Get folder name for identification
-
-    # If results_dir doesn't exist, try using the exp_dir directly
-    if not os.path.exists(results_dir):
-        print(f"Results directory not found: {results_dir}")
-        print(f"Trying to use the experiment directory directly: {exp_dir}")
-        results_dir = exp_dir
-
-    # If still doesn't exist, return empty dataframes
-    if not os.path.exists(results_dir):
-        print(f"Warning: Directory not found: {results_dir}")
-        return pd.DataFrame(), pd.DataFrame()
 
     # Initialize results storage
     results_data = []
     missing_data = []
 
-    # Check if we can track missing runs using task_ids
-    has_task_ids = not params_df.empty and "task_id" in params_df.columns
+    # Check if the directories exist
+    if not os.path.exists(results_dir):
+        print(f"Results directory not found: {results_dir}")
+        return pd.DataFrame(), pd.DataFrame()
 
-    # Create a set of all task IDs from params_df for tracking missing runs (if possible)
-    all_task_ids = set(params_df["task_id"].tolist()) if has_task_ids else set()
-    found_task_ids = set()
+    # Get all config folders in results directory
+    config_folders = [d for d in os.listdir(results_dir) if d.startswith("config_")]
+    total_configs = len(config_folders)
+    print(f"Found {total_configs} config folders to process.")
 
-    # First, find all performance directories
-    print("Searching for performance directories...")
-    performance_dirs = find_performance_directories(results_dir)
+    # Process each config folder one by one
+    for i, config_folder in enumerate(config_folders):
+        if i % 50 == 0:  # Print progress every 50 folders
+            print(f"Processing config folder {i+1}/{total_configs}...")
 
-    # Limit the number of directories to process for efficiency
-    max_dirs_to_process = 100  # Increase from 30 to 100 to get better coverage
+        # Extract task_id from the folder name
+        task_id_match = re.search(r"config_(\d+)", config_folder)
+        if not task_id_match:
+            continue
 
-    if len(performance_dirs) > max_dirs_to_process:
-        print(
-            f"Found {len(performance_dirs)} performance directories. Processing a sample of {max_dirs_to_process}..."
-        )
+        task_id = int(task_id_match.group(1))
+        config_path = os.path.join(results_dir, config_folder)
 
-        # Get a representative sample: Take directories with evenly spaced indices
-        sample_indices = np.linspace(
-            0, len(performance_dirs) - 1, max_dirs_to_process, dtype=int
-        )
-        sample_dirs = [performance_dirs[i] for i in sample_indices]
-        performance_dirs = sample_dirs
-    else:
-        print(
-            f"Found {len(performance_dirs)} performance directories. Processing all of them..."
-        )
+        # Load config parameters
+        config_yaml = os.path.join(configs_dir, f"ei_sweep_config_{task_id}.yaml")
+        if not os.path.exists(config_yaml):
+            print(f"Config YAML not found for task {task_id}")
+            continue
 
-    # Process performance directories
-    for i, perf_dir in enumerate(performance_dirs):
-        if i % 20 == 0:  # Print progress every 20 directories
-            print(f"Processing performance directory {i+1}/{len(performance_dirs)}...")
+        try:
+            config = OmegaConf.load(config_yaml)
+            # Extract parameters from config
+            params = {
+                "ee_value": None,
+                "ie_value": None,
+                "use_shunting": None,
+                "seed": 42,  # Default seed
+            }
 
-        perf_results, found_task_id = process_performance_directory(
-            perf_dir, exp_timestamp, params_df, has_task_ids
-        )
+            # Extract EE and IE values
+            try:
+                ee_values = (
+                    config.model.network.parameters.ee_synapses_per_branch_per_layer
+                )
+                if isinstance(ee_values, list) and len(ee_values) == 1:
+                    params["ee_value"] = ee_values[0]
+                else:
+                    params["ee_value"] = ee_values
 
-        if perf_results:
-            results_data.extend(perf_results)
-            if found_task_id >= 0:
-                found_task_ids.add(found_task_id)
+                ie_values = (
+                    config.model.network.parameters.ie_synapses_per_branch_per_layer
+                )
+                if isinstance(ie_values, list) and len(ie_values) == 1:
+                    params["ie_value"] = ie_values[0]
+                else:
+                    params["ie_value"] = ie_values
 
-    print("Finished processing performance directories.")
+                # Extract use_shunting
+                if hasattr(config.model.network.parameters, "use_shunting"):
+                    params[
+                        "use_shunting"
+                    ] = config.model.network.parameters.use_shunting
 
-    # If we have no results yet, look for performance data in non-standard locations
-    if not results_data:
-        print(
-            "No results found in standard performance directories. Looking for non-standard performance files..."
-        )
+                # Extract seed
+                if hasattr(config.train, "seed"):
+                    params["seed"] = config.train.seed
+            except Exception as e:
+                print(
+                    f"Error extracting parameters from config for task {task_id}: {e}"
+                )
+                continue
 
-        # Look for any JSON files with "performance" or "metrics" in the name throughout the experiment directory
-        all_performance_files = []
-        for root, _, files in os.walk(results_dir):
-            for file in files:
-                if file.endswith(".json") and (
-                    "performance" in file.lower()
-                    or "accuracy" in file.lower()
-                    or "metrics" in file.lower()
-                    or "results" in file.lower()
-                ):
-                    all_performance_files.append(os.path.join(root, file))
+            # Look for a final file in the performance directory
+            final_file = None
 
-        if all_performance_files:
-            print(
-                f"Found {len(all_performance_files)} potential performance files outside standard directories."
-            )
+            # First look for the standard path pattern
+            for root, dirs, files in os.walk(config_path):
+                if "performance" in dirs:
+                    perf_dir = os.path.join(root, "performance")
+                    if os.path.exists(os.path.join(perf_dir, "final")):
+                        final_file = os.path.join(perf_dir, "final")
+                        break
 
-            # Process the first few files as a sample
-            for i, file_path in enumerate(all_performance_files[:5]):
+            # If not found, look for any final file
+            if not final_file:
+                for root, dirs, files in os.walk(config_path):
+                    if "final" in files:
+                        final_file = os.path.join(root, "final")
+                        break
+
+            # Extract metrics if final file was found
+            if final_file:
                 try:
-                    # Extract task_id from path if possible
-                    config_match = re.search(r"config_(\d+)", file_path)
-                    task_id = int(config_match.group(1)) if config_match else -1
+                    with open(final_file, "r") as f:
+                        content = f.read()
 
-                    # Get parent directory as run_dir
-                    run_dir = os.path.dirname(file_path)
+                    # Add closing brace if missing
+                    if not content.strip().endswith("}"):
+                        content += "}"
 
-                    print(
-                        f"Checking non-standard performance file: {os.path.basename(file_path)}"
+                    # Try to parse as JSON
+                    try:
+                        data = json.loads(content)
+                        metrics = {
+                            "train_acc": data.get("train accuracy", float("nan")),
+                            "val_acc": data.get("valid accuracy", float("nan")),
+                            "test_acc": data.get("test accuracy", float("nan")),
+                        }
+                    except json.JSONDecodeError:
+                        # If JSON parsing fails, try regex extraction
+                        train_match = re.search(
+                            r"train accuracy[\":]?\s*([\d\.]+)", content
+                        )
+                        valid_match = re.search(
+                            r"valid accuracy[\":]?\s*([\d\.]+)", content
+                        )
+                        test_match = re.search(
+                            r"test accuracy[\":]?\s*([\d\.]+)", content
+                        )
+
+                        metrics = {
+                            "train_acc": float(train_match.group(1))
+                            if train_match
+                            else float("nan"),
+                            "val_acc": float(valid_match.group(1))
+                            if valid_match
+                            else float("nan"),
+                            "test_acc": float(test_match.group(1))
+                            if test_match
+                            else float("nan"),
+                        }
+
+                    # Add to results
+                    results_data.append(
+                        {
+                            "ee_value": params["ee_value"],
+                            "ie_value": params["ie_value"],
+                            "use_shunting": params["use_shunting"],
+                            "train_acc": metrics["train_acc"],
+                            "val_acc": metrics["val_acc"],
+                            "test_acc": metrics["test_acc"],
+                            "experiment": exp_timestamp,
+                            "task_id": task_id,
+                            "seed": params["seed"],
+                            "job_dir": os.path.basename(os.path.dirname(final_file)),
+                        }
                     )
 
-                    with open(file_path, "r") as f:
-                        try:
-                            data = json.load(f)
-
-                            # Process this file similarly to check_final_directory_for_metrics
-                            metrics = {
-                                "train_acc": float("nan"),
-                                "val_acc": float("nan"),
-                                "test_acc": float("nan"),
-                            }
-
-                            # Quick check for top-level accuracy keys
-                            for key in data.keys():
-                                if "train" in key.lower() and "acc" in key.lower():
-                                    metrics["train_acc"] = float(data[key])
-                                elif (
-                                    "val" in key.lower() or "valid" in key.lower()
-                                ) and "acc" in key.lower():
-                                    metrics["val_acc"] = float(data[key])
-                                elif "test" in key.lower() and "acc" in key.lower():
-                                    metrics["test_acc"] = float(data[key])
-
-                            # If we found metrics, add to results
-                            if not all(pd.isna(val) for val in metrics.values()):
-                                # Get parameter values if possible
-                                params = {"ee_value": None, "ie_value": None, "seed": 0}
-                                if has_task_ids and task_id >= 0:
-                                    task_params = params_df[
-                                        params_df["task_id"] == task_id
-                                    ]
-                                    if not task_params.empty:
-                                        params["ee_value"] = task_params[
-                                            "ee_value"
-                                        ].iloc[0]
-                                        params["ie_value"] = task_params[
-                                            "ie_value"
-                                        ].iloc[0]
-                                        params["seed"] = task_params["seed"].iloc[0]
-                                        found_task_ids.add(task_id)
-
-                                results_data.append(
-                                    {
-                                        "ee_value": params["ee_value"],
-                                        "ie_value": params["ie_value"],
-                                        "train_acc": metrics["train_acc"],
-                                        "val_acc": metrics["val_acc"],
-                                        "test_acc": metrics["test_acc"],
-                                        "experiment": exp_timestamp,
-                                        "task_id": task_id,
-                                        "seed": params["seed"],
-                                        "job_dir": os.path.basename(run_dir),
-                                        "source": "non_standard_performance",
-                                    }
-                                )
-                                print(f"Added result from non-standard file: {metrics}")
-
-                        except json.JSONDecodeError:
-                            print(f"File is not valid JSON: {file_path}")
-                            continue
+                    if task_id < 5:  # Debug output for sample tasks
+                        print(
+                            f"Added result for task {task_id}: E={params['ee_value']}, I={params['ie_value']}, shunting={params['use_shunting']}, train_acc={metrics['train_acc']:.4f}"
+                        )
 
                 except Exception as e:
-                    print(f"Error processing non-standard file {file_path}: {e}")
-
-    # Continue with the original collection logic only for task_ids not found in performance dirs
-    if has_task_ids:
-        remaining_task_ids = all_task_ids - found_task_ids
-        if remaining_task_ids:
-            print(
-                f"Looking for {len(remaining_task_ids)} remaining tasks from other sources."
-            )
-
-            # Search for other result sources for these remaining task_ids
-            # ... (rest of the original function to find configs for remaining tasks)
-
-    # Find completely missing task IDs (no directory found)
-    if has_task_ids:
-        missing_ids = all_task_ids - found_task_ids
-        for task_id in missing_ids:
-            task_params = params_df[params_df["task_id"] == task_id]
-            if not task_params.empty:
-                ee_value = task_params["ee_value"].iloc[0]
-                ie_value = task_params["ie_value"].iloc[0]
-                seed = task_params["seed"].iloc[0]
-
-                # Record as completely missing
+                    print(f"Error processing final file for task {task_id}: {e}")
+                    missing_data.append(
+                        {
+                            "task_id": task_id,
+                            "reason": f"Error processing final file: {str(e)}",
+                            "status": "error",
+                        }
+                    )
+            else:
+                # No final file found
                 missing_data.append(
                     {
                         "task_id": task_id,
-                        "ee_value": ee_value,
-                        "ie_value": ie_value,
-                        "seed": seed,
-                        "reason": "No task directory or performance data found",
+                        "reason": "No final file found",
                         "status": "missing",
                     }
                 )
 
-                # Add NaN entries to results for complete parameter grid
-                results_data.append(
-                    {
-                        "ee_value": ee_value,
-                        "ie_value": ie_value,
-                        "train_acc": float("nan"),
-                        "val_acc": float("nan"),
-                        "test_acc": float("nan"),
-                        "experiment": exp_timestamp,
-                        "task_id": task_id,
-                        "seed": seed,
-                    }
-                )
+        except Exception as e:
+            print(f"Error processing config folder for task {task_id}: {e}")
+            missing_data.append(
+                {"task_id": task_id, "reason": f"Error: {str(e)}", "status": "error"}
+            )
 
-    # Add this section before returning:
-    # Special handling: Process high E/I ratio directories directly to ensure we get those results
-    find_and_process_high_ei_ratio_directories(
-        exp_dir, params_df, exp_timestamp, has_task_ids, results_data
-    )
+    print(f"Finished processing all config folders.")
+    print(f"Collected results for {len(results_data)} tasks.")
 
-    # Create DataFrame
+    # Create DataFrames
     results_df = pd.DataFrame(results_data)
     missing_df = pd.DataFrame(missing_data)
-
-    # Drop duplicates if any (might happen with multiple result sources)
-    if "task_id" in results_df.columns and not results_df.empty:
-        results_df = results_df.drop_duplicates(
-            subset=["task_id", "ee_value", "ie_value", "seed"]
-        )
-
-    # Print sample of results
-    if not results_df.empty:
-        # Check if certain important columns are all NaN
-        nan_cols = []
-        for col in ["train_acc", "val_acc", "test_acc"]:
-            if col in results_df.columns and results_df[col].isna().all():
-                nan_cols.append(col)
-
-        if nan_cols:
-            print(f"Warning: The following columns are all NaN: {', '.join(nan_cols)}")
 
     return results_df, missing_df
 
@@ -788,6 +800,11 @@ def find_and_process_high_ei_ratio_directories(
                 # Extract metrics
                 metrics = extract_metrics_from_final_file(perf_dir, task_id)
                 if metrics:
+                    # Get use_shunting value if available
+                    use_shunting = (
+                        row.get("use_shunting", None) if "use_shunting" in row else None
+                    )
+
                     results_data.append(
                         {
                             "ee_value": row["ee_value"],
@@ -798,6 +815,7 @@ def find_and_process_high_ei_ratio_directories(
                             "experiment": exp_timestamp,
                             "task_id": task_id,
                             "seed": row["seed"],
+                            "use_shunting": use_shunting,
                             "job_dir": os.path.basename(os.path.dirname(perf_dir)),
                             "source": "high_ei_ratio_direct",
                         }
@@ -1071,13 +1089,14 @@ def extract_param(config_data, possible_keys, default=float("nan")):
 
 
 def generate_plots(results_df, params_df, output_dir, base_name):
-    """Generate plots from the results dataframe"""
-    # Check if the dataframe is empty
+    """Generate plots from the results dataframe, focusing on:
+    1) accuracy vs E/I ratio curves for different network types (shunting, non-shunting, MLP)
+    2) colormaps of accuracy over all E/I combinations
+    """
     if results_df.empty:
         print("No results to plot.")
         return
 
-    # Create output directory if it doesn't exist
     plot_dir = os.path.join(output_dir, "plots")
     os.makedirs(plot_dir, exist_ok=True)
 
@@ -1086,89 +1105,270 @@ def generate_plots(results_df, params_df, output_dir, base_name):
         os.path.join(plot_dir, f"{base_name}_results_original.csv"), index=False
     )
 
-    # Print diagnostic information before processing
-    print("\nDiagnostic information before processing:")
-    for col in ["ee_value", "ie_value", "train_acc", "val_acc", "test_acc"]:
+    # Print diagnostic information
+    print("\nDiagnostic information before plotting:")
+    for col in [
+        "ee_value",
+        "ie_value",
+        "train_acc",
+        "val_acc",
+        "test_acc",
+        "network_category",
+    ]:
         if col in results_df.columns:
-            nan_count = results_df[col].isna().sum()
-            total = len(results_df)
-            print(
-                f"  - {col}: {nan_count}/{total} NaN values ({nan_count/total*100:.1f}%)"
-            )
-            print(f"    Data types: {results_df[col].apply(type).unique()}")
+            if pd.api.types.is_numeric_dtype(results_df[col]):
+                print(
+                    f"{col}: range [{results_df[col].min()}, {results_df[col].max()}], mean {results_df[col].mean():.4f}"
+                )
+            else:
+                print(f"{col}: unique values: {results_df[col].unique()}")
+        else:
+            print(f"{col}: column not found")
 
-    # Ensure all values are numeric
-    try:
-        # Handle ListConfig objects that might be in ee_value or ie_value columns
-        for col in ["ee_value", "ie_value"]:
-            if col in results_df.columns:
-                # First convert any 'unknown' values to NaN
-                results_df[col] = results_df[col].replace("unknown", np.nan)
+    # Print the accuracies for the last config as a control
+    if len(results_df) > 0:
+        last_row = results_df.iloc[-1]
+        task_id = last_row.get("task_id", "unknown")
+        config_name = f"config_{task_id}" if task_id != "unknown" else "unknown"
 
-                # Then convert remaining values to float, handling ListConfig objects
-                results_df[col] = results_df[col].apply(
-                    lambda x: float(x)
-                    if isinstance(x, (int, float, str)) and not pd.isna(x)
-                    else (
-                        float(x[0])
-                        if hasattr(x, "__getitem__") and len(x) > 0
-                        else float("nan")
-                    )
+        print("\nAccuracies for the last config (control):")
+        print(f"  Config: {config_name} (Task ID: {task_id})")
+        print(
+            f"  EE: {last_row.get('ee_value', 'N/A')}, IE: {last_row.get('ie_value', 'N/A')}, Shunting: {last_row.get('use_shunting', 'N/A')}"
+        )
+        print(f"  Train accuracy: {last_row.get('train_acc', 'N/A'):.4f}")
+        print(f"  Validation accuracy: {last_row.get('val_acc', 'N/A'):.4f}")
+        print(f"  Test accuracy: {last_row.get('test_acc', 'N/A'):.4f}")
+
+    # 1. PLOT ACCURACY VS E/I RATIO CURVES FOR DIFFERENT NETWORK TYPES
+
+    # Filter for valid data
+    valid_data = results_df.dropna(subset=["ei_ratio", "train_acc", "val_acc"])
+
+    if not valid_data.empty:
+        # List of metrics to plot
+        metrics = ["train_acc", "val_acc", "test_acc"]
+        metric_names = {
+            "train_acc": "Training Accuracy",
+            "val_acc": "Validation Accuracy",
+            "test_acc": "Test Accuracy",
+        }
+
+        for metric in metrics:
+            if metric not in valid_data.columns or valid_data[metric].isna().all():
+                print(f"Skipping {metric} plot - no valid data")
+                continue
+
+            # Generate plot for this metric
+            fig, ax = plt.subplots(figsize=(10, 6))
+
+            # Make sure we have a network_category column
+            if "network_category" not in results_df.columns:
+                results_df["network_category"] = "default"
+
+            # Get unique categories
+            categories = valid_data["network_category"].unique()
+
+            # Define a consistent color scheme for categories
+            colors = {
+                "shunting": "blue",
+                "no_shunting": "red",
+                "unknown": "gray",
+                "default": "green",
+            }
+            markers = {
+                "shunting": "o",
+                "no_shunting": "s",
+                "unknown": "x",
+                "default": "^",
+            }
+
+            for category in categories:
+                category_data = valid_data[valid_data["network_category"] == category]
+
+                if category_data.empty or category_data[metric].isna().all():
+                    continue
+
+                # Group by ei_ratio for aggregation
+                agg_dict = {metric: ["mean", "std", "count"]}
+                grouped = category_data.groupby("ei_ratio").agg(agg_dict).reset_index()
+
+                # Sort by ei_ratio for proper line plotting
+                grouped = grouped.sort_values("ei_ratio")
+
+                # Plot with error bars
+                color = colors.get(category, "black")
+                marker = markers.get(category, "o")
+
+                ax.errorbar(
+                    grouped["ei_ratio"],
+                    grouped[(metric, "mean")],
+                    yerr=grouped[(metric, "std")],
+                    label=f"{category} (n={len(category_data)})",
+                    marker=marker,
+                    color=color,
+                    linestyle="-",
+                    alpha=0.8,
+                    capsize=3,
                 )
 
-        # Convert potential string columns to float if they contain numbers
-        for col in ["train_acc", "val_acc", "test_acc"]:
-            if col in results_df.columns:
-                results_df[col] = pd.to_numeric(results_df[col], errors="coerce")
+            ax.set_xlabel("E/I Ratio")
+            ax.set_ylabel(metric_names[metric])
+            ax.set_title(f"{metric_names[metric]} vs E/I Ratio by Network Type")
+            ax.legend()
+            ax.grid(True, alpha=0.3)
 
-    except Exception as e:
-        print(f"Error converting values to numeric: {e}")
-        print(f"Data types: {results_df.dtypes}")
+            # Save the plot
+            fig.tight_layout()
+            fig.savefig(os.path.join(plot_dir, f"{base_name}_{metric}_vs_ei_ratio.png"))
+            plt.close(fig)
 
-        # Print problematic rows for debugging
-        for col in ["ee_value", "ie_value", "train_acc", "val_acc", "test_acc"]:
-            if col in results_df.columns:
-                problem_rows = results_df[
-                    ~pd.to_numeric(results_df[col], errors="coerce").notna()
-                ]
-                if not problem_rows.empty:
-                    print(f"Problematic {col} values:")
-                    for idx, row in problem_rows.iterrows():
-                        print(f"  Row {idx}: {col}={row[col]} (type: {type(row[col])})")
-
-    # Print diagnostic information after type conversion
-    print("\nDiagnostic information after type conversion:")
-    for col in ["ee_value", "ie_value", "train_acc", "val_acc", "test_acc"]:
-        if col in results_df.columns:
-            nan_count = results_df[col].isna().sum()
-            total = len(results_df)
-            print(
-                f"  - {col}: {nan_count}/{total} NaN values ({nan_count/total*100:.1f}%)"
-            )
-            if not results_df[col].isna().all():
-                print(f"    Min: {results_df[col].min()}, Max: {results_df[col].max()}")
-
-    # Remove rows where both ee_value and ie_value are NaN
-    valid_rows = ~(pd.isna(results_df["ee_value"]) & pd.isna(results_df["ie_value"]))
-    if valid_rows.sum() < len(results_df):
         print(
-            f"Removing {len(results_df) - valid_rows.sum()} rows with both ee_value and ie_value as NaN"
+            f"Created accuracy vs E/I ratio plots for {len(categories)} network categories."
         )
-        results_df = results_df[valid_rows].copy()
+    else:
+        print("No valid data for accuracy vs E/I ratio curves.")
 
-    # Save a raw CSV of all collected data before any further filtering
-    results_df.to_csv(
-        os.path.join(plot_dir, f"{base_name}_all_results_raw.csv"), index=False
+    # 2. PLOT HEATMAPS OF ACCURACY OVER E/I COMBINATIONS
+
+    # For heatmap, we need to filter rows where both ee_value and ie_value are present
+    valid_grid_data = results_df.dropna(
+        subset=["ee_value", "ie_value", "train_acc", "val_acc"]
     )
 
-    # Save a clean version without NaN values for plotting
-    clean_results = results_df.dropna(subset=["ee_value", "ie_value"]).copy()
-    if len(clean_results) > 0:
-        clean_results.to_csv(
-            os.path.join(plot_dir, f"{base_name}_clean_results.csv"), index=False
-        )
+    if not valid_grid_data.empty:
+        # Define metrics to plot
+        metrics_to_plot = ["train_acc", "val_acc", "test_acc"]
 
-    print(f"Results saved to {plot_dir}")
+        # Create a custom colormap with better contrast
+        cmap = sns.diverging_palette(250, 15, s=75, l=40, sep=10, n=9, as_cmap=True)
+
+        # For shunting networks
+        if "network_category" in valid_grid_data.columns:
+            for category in valid_grid_data["network_category"].unique():
+                category_data = valid_grid_data[
+                    valid_grid_data["network_category"] == category
+                ]
+
+                if category_data.empty:
+                    continue
+
+                # Create separate heatmaps for each network category and metric
+                for metric in metrics_to_plot:
+                    if (
+                        metric not in category_data.columns
+                        or category_data[metric].isna().all()
+                    ):
+                        print(
+                            f"Skipping {metric} heatmap for {category} - no valid data"
+                        )
+                        continue
+
+                    # Pivot the data to create a grid format suitable for heatmap
+                    try:
+                        pivot_data = category_data.pivot_table(
+                            index="ee_value",
+                            columns="ie_value",
+                            values=metric,
+                            aggfunc="mean",
+                        )
+
+                        # Skip if pivot table is empty
+                        if pivot_data.empty:
+                            continue
+
+                        # Create the plot
+                        fig, ax = plt.subplots(figsize=(10, 8))
+
+                        # Calculate vmin and vmax for better contrast
+                        vmin = max(0.0, pivot_data.min().min() - 0.05)  # Floor at 0.0
+                        vmax = min(1.0, pivot_data.max().max() + 0.05)  # Ceiling at 1.0
+
+                        heatmap = sns.heatmap(
+                            pivot_data,
+                            cmap=cmap,
+                            annot=True,
+                            fmt=".3f",
+                            linewidths=0.5,
+                            ax=ax,
+                            vmin=vmin,
+                            vmax=vmax,
+                            cbar_kws={"label": f"{metric}"},
+                        )
+
+                        metric_name = metric_names.get(
+                            metric, metric.replace("_", " ").title()
+                        )
+                        ax.set_title(f"{metric_name} Heatmap for {category} Networks")
+                        ax.set_xlabel("IE Value")
+                        ax.set_ylabel("EE Value")
+
+                        # Save the plot
+                        fig.tight_layout()
+                        fig.savefig(
+                            os.path.join(
+                                plot_dir, f"{base_name}_{category}_{metric}_heatmap.png"
+                            )
+                        )
+                        plt.close(fig)
+
+                    except Exception as e:
+                        print(f"Error creating heatmap for {category} {metric}: {e}")
+
+        # Create a combined heatmap across all network types
+        for metric in metrics_to_plot:
+            if (
+                metric not in valid_grid_data.columns
+                or valid_grid_data[metric].isna().all()
+            ):
+                print(f"Skipping combined {metric} heatmap - no valid data")
+                continue
+
+            # Pivot the data to create a grid format suitable for heatmap
+            try:
+                pivot_data = valid_grid_data.pivot_table(
+                    index="ee_value", columns="ie_value", values=metric, aggfunc="mean"
+                )
+
+                # Skip if pivot table is empty
+                if pivot_data.empty:
+                    continue
+
+                # Create the plot
+                fig, ax = plt.subplots(figsize=(10, 8))
+
+                # Calculate vmin and vmax for better contrast
+                vmin = max(0.0, pivot_data.min().min() - 0.05)  # Floor at 0.0
+                vmax = min(1.0, pivot_data.max().max() + 0.05)  # Ceiling at 1.0
+
+                heatmap = sns.heatmap(
+                    pivot_data,
+                    cmap=cmap,
+                    annot=True,
+                    fmt=".3f",
+                    linewidths=0.5,
+                    ax=ax,
+                    vmin=vmin,
+                    vmax=vmax,
+                    cbar_kws={"label": f"{metric}"},
+                )
+
+                metric_name = metric_names.get(metric, metric.replace("_", " ").title())
+                ax.set_title(f"{metric_name} Heatmap (All Networks)")
+                ax.set_xlabel("IE Value")
+                ax.set_ylabel("EE Value")
+
+                # Save the plot
+                fig.tight_layout()
+                fig.savefig(
+                    os.path.join(plot_dir, f"{base_name}_all_{metric}_heatmap.png")
+                )
+                plt.close(fig)
+
+            except Exception as e:
+                print(f"Error creating combined heatmap for {metric}: {e}")
+    else:
+        print("No valid grid data for heatmaps.")
 
 
 def compare_multiple_experiments(exp_results, summary_dir):
@@ -1796,269 +1996,44 @@ def extract_metrics_and_params(data, metrics_dict, params_dict, source=""):
 
 
 def main():
+    """Main function"""
     args = parse_args()
+    exp_dir = args.folder
 
-    # Create timestamp for summary directory if analyzing multiple experiments
-    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-
-    # If analyzing a single experiment
-    if args.timestamp or args.folder:
-        # Determine the experiment directory
-        if args.folder:
-            exp_dir = args.folder
-            print(f"Analyzing folder: {exp_dir}")
-
-            # Verify the directory exists
-            if not os.path.exists(exp_dir):
-                print(f"Error: Directory {exp_dir} not found!")
-                print(
-                    "Usage: python scripts/analyze_ei_sweep.py --folder /path/to/experiment/folder"
-                )
-                return
-        else:
-            exp_dir = find_experiment_directory(
-                args.timestamp, args.output_base, args.prefix
-            )
-            print(f"Analyzing experiment with timestamp {args.timestamp}: {exp_dir}")
-
-        # Process the experiment
-        results_df, _ = process_single_experiment(
-            exp_dir, show_plots=args.show_plots, report_missing=args.report_missing
-        )
-
-        # Print summary with focus on highest E/I ratio results
-        if results_df is not None and not results_df.empty:
-            # Convert ee_value and ie_value to numeric if they're not already
-            for col in ["ee_value", "ie_value"]:
-                if col in results_df.columns:
-                    results_df[col] = pd.to_numeric(results_df[col], errors="coerce")
-
-            # Calculate E/I ratio
-            clean_results = results_df.dropna(subset=["ee_value", "ie_value"]).copy()
-            if not clean_results.empty:
-                # Make sure we don't divide by zero
-                clean_results = clean_results[clean_results["ie_value"] > 0].copy()
-                if not clean_results.empty:
-                    clean_results["ei_ratio"] = (
-                        clean_results["ee_value"] / clean_results["ie_value"]
-                    )
-
-                    # Find the results with the largest E/I ratio
-                    max_ei_ratio = clean_results["ei_ratio"].max()
-                    max_ei_results = clean_results[
-                        clean_results["ei_ratio"] == max_ei_ratio
-                    ]
-
-                    print("\n=========================================")
-                    print(f"RESULTS FOR LARGEST E/I RATIO: {max_ei_ratio:.2f}")
-                    print("=========================================")
-                    for _, row in max_ei_results.iterrows():
-                        print(
-                            f"EE Value: {row['ee_value']}, IE Value: {row['ie_value']}"
-                        )
-                        print(
-                            f"Train Accuracy: {row['train_acc']:.4f}"
-                            if not pd.isna(row["train_acc"])
-                            else "Train Accuracy: N/A"
-                        )
-                        print(
-                            f"Val Accuracy: {row['val_acc']:.4f}"
-                            if not pd.isna(row["val_acc"])
-                            else "Val Accuracy: N/A"
-                        )
-                        print(
-                            f"Test Accuracy: {row['test_acc']:.4f}"
-                            if not pd.isna(row["test_acc"])
-                            else "Test Accuracy: N/A"
-                        )
-                        print("-----------------------------------------")
-        else:
-            print(
-                "\nNo valid results found. Check if the directory structure is correct."
-            )
-
-    # If analyzing multiple experiments
-    elif args.multiple:
-        # Process each experiment
-        exp_results = []
-        for exp_id in args.multiple:
-            if os.path.isdir(exp_id):
-                exp_dir = exp_id
-            else:
-                try:
-                    exp_dir = find_experiment_directory(
-                        exp_id, args.output_base, args.prefix
-                    )
-                except ValueError as e:
-                    print(f"Error: {e}")
-                    continue
-
-            print(f"Analyzing experiment in: {exp_dir}")
-            results_df, _ = process_single_experiment(
-                exp_dir, show_plots=args.show_plots, report_missing=args.report_missing
-            )
-
-            # Print results for this experiment focusing on highest E/I ratio
-            if results_df is not None and not results_df.empty:
-                # Convert ee_value and ie_value to numeric if they're not already
-                for col in ["ee_value", "ie_value"]:
-                    if col in results_df.columns:
-                        results_df[col] = pd.to_numeric(
-                            results_df[col], errors="coerce"
-                        )
-
-                # Calculate E/I ratio
-                clean_results = results_df.dropna(
-                    subset=["ee_value", "ie_value"]
-                ).copy()
-                if not clean_results.empty:
-                    # Make sure we don't divide by zero
-                    clean_results = clean_results[clean_results["ie_value"] > 0].copy()
-                    if not clean_results.empty:
-                        clean_results["ei_ratio"] = (
-                            clean_results["ee_value"] / clean_results["ie_value"]
-                        )
-
-                        # Find the results with the largest E/I ratio
-                        max_ei_ratio = clean_results["ei_ratio"].max()
-                        max_ei_results = clean_results[
-                            clean_results["ei_ratio"] == max_ei_ratio
-                        ]
-
-                        print(f"\n=== Experiment: {os.path.basename(exp_dir)} ===")
-                        print(f"LARGEST E/I RATIO: {max_ei_ratio:.2f}")
-                        for _, row in max_ei_results.iterrows():
-                            print(f"EE: {row['ee_value']}, IE: {row['ie_value']}")
-                            print(
-                                f"Train: {row['train_acc']:.4f}"
-                                if not pd.isna(row["train_acc"])
-                                else "Train: N/A"
-                            )
-                            print(
-                                f"Val: {row['val_acc']:.4f}"
-                                if not pd.isna(row["val_acc"])
-                                else "Val: N/A"
-                            )
-                            print(
-                                f"Test: {row['test_acc']:.4f}"
-                                if not pd.isna(row["test_acc"])
-                                else "Test: N/A"
-                            )
-                            print("-----------------------------------------")
-
-                exp_name = os.path.basename(exp_dir)
-                exp_results.append((exp_name, results_df, exp_dir))
-
-        # Create comparison directory
-        if exp_results:
-            comparison_dir = os.path.join(
-                args.output_base, f"ei_comparison_{timestamp}"
-            )
-            os.makedirs(comparison_dir, exist_ok=True)
-            print(f"Creating comparison plots in: {comparison_dir}")
-
-            # Generate comparison plots
-            compare_multiple_experiments(exp_results, comparison_dir)
-        else:
-            print("No valid results found in any of the specified experiments.")
-
-    # If analyzing all ei_ folders
-    elif args.all:
-        # Find all ei_ folders
-        ei_folders = glob.glob(os.path.join(args.output_base, f"{args.prefix}*"))
-        if not ei_folders:
-            print(f"No {args.prefix}* folders found in {args.output_base}")
-            return
-
-        # Process each experiment
-        exp_results = []
-        for folder in ei_folders:
-            print(f"Analyzing experiment in: {folder}")
-            results_df, _ = process_single_experiment(
-                folder, show_plots=args.show_plots, report_missing=args.report_missing
-            )
-
-            # Print results for this experiment focusing on highest E/I ratio
-            if results_df is not None and not results_df.empty:
-                # Convert ee_value and ie_value to numeric if they're not already
-                for col in ["ee_value", "ie_value"]:
-                    if col in results_df.columns:
-                        results_df[col] = pd.to_numeric(
-                            results_df[col], errors="coerce"
-                        )
-
-                # Calculate E/I ratio
-                clean_results = results_df.dropna(
-                    subset=["ee_value", "ie_value"]
-                ).copy()
-                if not clean_results.empty:
-                    # Make sure we don't divide by zero
-                    clean_results = clean_results[clean_results["ie_value"] > 0].copy()
-                    if not clean_results.empty:
-                        clean_results["ei_ratio"] = (
-                            clean_results["ee_value"] / clean_results["ie_value"]
-                        )
-
-                        # Find the results with the largest E/I ratio
-                        max_ei_ratio = clean_results["ei_ratio"].max()
-                        max_ei_results = clean_results[
-                            clean_results["ei_ratio"] == max_ei_ratio
-                        ]
-
-                        print(f"\n=== Experiment: {os.path.basename(folder)} ===")
-                        print(f"LARGEST E/I RATIO: {max_ei_ratio:.2f}")
-                        for _, row in max_ei_results.iterrows():
-                            print(f"EE: {row['ee_value']}, IE: {row['ie_value']}")
-                            print(
-                                f"Train: {row['train_acc']:.4f}"
-                                if not pd.isna(row["train_acc"])
-                                else "Train: N/A"
-                            )
-                            print(
-                                f"Val: {row['val_acc']:.4f}"
-                                if not pd.isna(row["val_acc"])
-                                else "Val: N/A"
-                            )
-                            print(
-                                f"Test: {row['test_acc']:.4f}"
-                                if not pd.isna(row["test_acc"])
-                                else "Test: N/A"
-                            )
-                            print("-----------------------------------------")
-
-                exp_name = os.path.basename(folder)
-                exp_results.append((exp_name, results_df, folder))
-
-        # Create comparison directory
-        if exp_results:
-            comparison_dir = os.path.join(
-                args.output_base, f"ei_comparison_{timestamp}"
-            )
-            os.makedirs(comparison_dir, exist_ok=True)
-            print(f"Creating comparison plots in: {comparison_dir}")
-
-            # Generate comparison plots
-            compare_multiple_experiments(exp_results, comparison_dir)
-        else:
-            print("No valid results found in any of the folders.")
-
+    # Set up output directory
+    if args.output:
+        output_dir = args.output
     else:
-        print(
-            "No action specified. Use one of: --timestamp, --folder, --multiple, or --all"
-        )
-        print("\nUsage examples:")
-        print("  Process a single experiment by timestamp:")
-        print("    python scripts/analyze_ei_sweep.py --timestamp 20230615123456")
-        print("\n  Process a specific folder:")
-        print(
-            "    python scripts/analyze_ei_sweep.py --folder /path/to/experiment/folder"
-        )
-        print("\n  Process multiple experiments:")
-        print(
-            "    python scripts/analyze_ei_sweep.py --multiple 20230615123456 20230615234567"
-        )
-        print("\n  Process all ei_ folders in output directory:")
-        print("    python scripts/analyze_ei_sweep.py --all")
+        output_dir = exp_dir
+
+    # Step 1: Get parameter data from config files
+    print("Collecting parameter data from config files...")
+    params_df = collect_params_data(exp_dir)
+
+    # Step 2: Collect results from performance directories
+    print("Collecting results from performance directories...")
+    results_df, missing_df = collect_results(exp_dir, params_df)
+
+    if results_df.empty:
+        print("No results found. Check if the experiment directory is correct.")
+        return
+
+    # Clean and process the results data
+    print("Processing results data...")
+    clean_results = clean_results_data(results_df)
+
+    # Step 3: Generate plots
+    print("Generating plots...")
+    generate_plots(clean_results, params_df, output_dir, "ei_sweep")
+
+    # Save results data
+    plot_dir = os.path.join(output_dir, "plots")
+    os.makedirs(plot_dir, exist_ok=True)
+    clean_results.to_csv(
+        os.path.join(plot_dir, "ei_sweep_clean_results.csv"), index=False
+    )
+
+    print(f"Analysis complete. Plot files saved to {plot_dir}")
 
 
 # Define the print_sample_keys function if it's not already defined
@@ -2121,6 +2096,110 @@ if "print_sample_keys" not in globals():
                 print(f"  {key} = {value}")
         else:
             print(f"{source}: No parameter-related keys found")
+
+
+def clean_results_data(results_df):
+    """Clean and process the results data for plotting"""
+    if results_df.empty:
+        return results_df
+
+    # Make a copy to avoid modifying the original
+    clean_df = results_df.copy()
+
+    # Print initial data diagnostic
+    print(f"\nInitial data in clean_results_data:")
+    print(f"Total rows: {len(clean_df)}")
+    print(
+        f"Data types: ee_value: {clean_df['ee_value'].dtype}, ie_value: {clean_df['ie_value'].dtype}"
+    )
+
+    # Show type and data of first few values for debugging
+    for i in range(min(5, len(clean_df))):
+        ee_val = clean_df["ee_value"].iloc[i]
+        ie_val = clean_df["ie_value"].iloc[i]
+        print(
+            f"Row {i}: ee_value: {type(ee_val)}, {ee_val}, ie_value: {type(ie_val)}, {ie_val}"
+        )
+
+    # Convert ee_value and ie_value from complex objects to numeric values
+    for col in ["ee_value", "ie_value"]:
+        if col in clean_df.columns:
+            # More robust extraction function that handles different types
+            def extract_first(x):
+                try:
+                    # If it has __getitem__ method (like lists, arrays, etc.)
+                    if (
+                        hasattr(x, "__getitem__")
+                        and hasattr(x, "__len__")
+                        and len(x) > 0
+                    ):
+                        return float(x[0])
+                    # For scalar values
+                    elif isinstance(x, (int, float)):
+                        return float(x)
+                    # For string representation of a number
+                    elif isinstance(x, str) and x.strip().replace(".", "", 1).isdigit():
+                        return float(x)
+                    # For any other case that might be convertible to float
+                    else:
+                        return float(x)
+                except (TypeError, ValueError, IndexError):
+                    # Debug output for failed conversions
+                    print(f"Could not convert {x} of type {type(x)} to float")
+                    return None
+
+            # Apply the extraction function
+            clean_df[col] = clean_df[col].apply(extract_first)
+
+    # Print after conversion
+    print(f"\nAfter conversion:")
+    print(
+        f"Data types: ee_value: {clean_df['ee_value'].dtype}, ie_value: {clean_df['ie_value'].dtype}"
+    )
+    print(f"First few ee_values: {clean_df['ee_value'].iloc[:5].tolist()}")
+    print(f"First few ie_values: {clean_df['ie_value'].iloc[:5].tolist()}")
+
+    # Count NaN values
+    ee_nans = clean_df["ee_value"].isna().sum()
+    ie_nans = clean_df["ie_value"].isna().sum()
+    print(f"NaN counts: ee_value: {ee_nans}, ie_value: {ie_nans}")
+
+    # Calculate E/I ratio
+    clean_df = clean_df.dropna(subset=["ee_value", "ie_value"]).copy()
+    print(f"After dropping NaNs: {len(clean_df)} rows")
+
+    if not clean_df.empty:
+        # Make sure we don't divide by zero
+        clean_df = clean_df[clean_df["ie_value"] > 0].copy()
+        print(f"After removing zero/negative IE values: {len(clean_df)} rows")
+
+        if not clean_df.empty:
+            clean_df["ei_ratio"] = clean_df["ee_value"] / clean_df["ie_value"]
+            print(
+                f"E/I ratio range: {clean_df['ei_ratio'].min()} to {clean_df['ei_ratio'].max()}"
+            )
+
+    # Create a network category based on use_shunting
+    clean_df["network_category"] = "unknown"
+
+    # Update network category based on use_shunting
+    if "use_shunting" in clean_df.columns:
+        # For True values
+        clean_df.loc[clean_df["use_shunting"] == True, "network_category"] = "shunting"
+        # For False values
+        clean_df.loc[
+            clean_df["use_shunting"] == False, "network_category"
+        ] = "no_shunting"
+
+    # Print diagnostics about the cleaned data
+    print(f"\nCleaned data summary:")
+    print(f"Total rows: {len(clean_df)}")
+    if "network_category" in clean_df.columns and len(clean_df) > 0:
+        for category in clean_df["network_category"].unique():
+            count = len(clean_df[clean_df["network_category"] == category])
+            print(f"  {category}: {count} rows")
+
+    return clean_df
 
 
 if __name__ == "__main__":
