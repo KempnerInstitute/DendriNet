@@ -18,6 +18,8 @@ import numpy as np
 import pandas as pd
 import torch
 import torch.nn as nn
+from torch.distributions import Categorical
+
 from omegaconf import DictConfig, ListConfig
 from sklearn.metrics import accuracy_score
 from torch.nn import functional as F
@@ -166,6 +168,102 @@ def evaluate_accuracy(
         )
 
     return train_acc, valid_acc, test_acc
+
+
+def categorical_loglikelihood_score(
+    classifier: torch.nn.Module,
+    inputs: torch.Tensor,
+    labels: torch.Tensor,
+    reduce_dim: int = 0,
+    move_device: bool = True,
+    device: str = "cuda" if torch.cuda.is_available() else "cpu",
+):
+    if move_device:
+        classifier = classifier.to(device)
+        inputs = inputs.to(device)
+        labels = labels.to(device)
+    with torch.no_grad():
+        logits = classifier(inputs)
+        loglikelihood = torch.mean(
+            Categorical(logits=logits).log_prob(labels),
+            dim=reduce_dim
+        )
+    return loglikelihood
+
+
+def evaluate_categorical_loglikelihood(
+    classifier: torch.nn.Module,
+    train_ds: Optional[torch.utils.data.Dataset] = None,
+    valid_ds: Optional[torch.utils.data.Dataset] = None,
+    test_ds: Optional[torch.utils.data.Dataset] = None,
+    reduce_dim: int = 0,
+    move_device: bool = True,
+    device: str = "cuda" if torch.cuda.is_available() else "cpu",
+    save_path: Optional[str] = None,
+    filename: Optional[str] = "accuracy",
+):
+    train_ll = (
+        categorical_loglikelihood_score(
+            classifier,
+            *train_ds[:],
+            reduce_dim=reduce_dim,
+            move_device=move_device,
+            device=device,
+        )
+        if train_ds
+        else None
+    )
+    valid_ll = (
+        categorical_loglikelihood_score(
+            classifier,
+            *valid_ds[:],
+            reduce_dim=reduce_dim,
+            move_device=move_device,
+            device=device,
+        )
+        if valid_ds
+        else None
+    )
+    test_ll = (
+        categorical_loglikelihood_score(
+            classifier,
+            *test_ds[:],
+            reduce_dim=reduce_dim,
+            move_device=move_device,
+            device=device,
+        )
+        if test_ds
+        else None
+    )
+
+    if train_ll is not None:
+        if train_ll.numel() == 1:
+            train_ll = train_ll.item()
+    if valid_ll is not None:
+        if valid_ll.numel() == 1:
+            valid_ll = valid_ll.item()
+    if test_ll is not None:
+        if test_ll.numel() == 1:
+            test_ll = test_ll.item()
+
+    if save_path is not None:
+        save_dict(
+            {
+                "train loglikelihood": train_ll.tolist()
+                if isinstance(train_ll, torch.Tensor)
+                else train_ll,
+                "valid loglikelihood": valid_ll.tolist()
+                if isinstance(valid_ll, torch.Tensor)
+                else valid_ll,
+                "test loglikelihood": test_ll.tolist()
+                if isinstance(test_ll, torch.Tensor)
+                else test_ll,
+            },
+            save_path,
+            filename,
+        )
+
+    return train_ll, valid_ll, test_ll
 
 
 def mse_score(
