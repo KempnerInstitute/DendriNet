@@ -128,9 +128,9 @@ class VisualizationConfig(BaseConfig):
 
 @dataclass
 class AnalysisConfig(BaseConfig):
-    ei_mi_analysis_enabled: bool = False
-    ei_mi_analysis_params: Dict = field(default_factory=dict)
-
+    ei_info_analysis: Dict = field(default_factory=dict)
+    synapse_turnover_analysis: Dict = field(default_factory=dict)
+    noise_perturbation_analysis: Dict = field(default_factory=dict)
 
 @dataclass
 class WandbConfig(BaseConfig):

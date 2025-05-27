@@ -166,10 +166,10 @@ class TopKLinear(nn.Module):
             x = x.unsqueeze(0)
 
         # If x is not 2D at this point, we can't do matrix multiplication
-        if x.dim() != 2:
-            raise ValueError(
-                f"Expected input to be a 2D tensor, got shape {x.shape} with {x.dim()} dimensions"
-            )
+        # if x.dim() != 2:
+        #     raise ValueError(
+        #         f"Expected input to be a 2D tensor, got shape {x.shape} with {x.dim()} dimensions"
+        #     )
 
         return torch.matmul(x, pruned_weight.t())
 
@@ -1006,10 +1006,10 @@ class BlockLinear(nn.Module):
             x = x.unsqueeze(0)
 
         # If x is not 2D at this point, we can't do matrix multiplication
-        if x.dim() != 2:
-            raise ValueError(
-                f"Expected input to be a 2D tensor, got shape {x.shape} with {x.dim()} dimensions"
-            )
+        # if x.dim() != 2:
+        #     raise ValueError(
+        #         f"Expected input to be a 2D tensor, got shape {x.shape} with {x.dim()} dimensions"
+        #     )
 
         return torch.matmul(x, self.block().t())
 
