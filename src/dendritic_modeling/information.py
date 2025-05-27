@@ -247,7 +247,7 @@ def compute_pairwise_sr(
 
     redundancy = max(0.0, mi_x + mi_y - mi_xy)
     synergy = max(0.0, mi_xy - mi_x - mi_y)
-    return synergy, redundancy
+    return synergy, redundancy, mi_xy, mi_x, mi_y
 
 
 def build_sr_matrix(sources: np.ndarray, target: np.ndarray, n_neighbors: int = 10):
