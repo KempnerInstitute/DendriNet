@@ -252,6 +252,15 @@ def compute_pairwise_sr(
     return synergy, redundancy, mi_xy, mi_x, mi_y
 
 
+def compute_pairwise_sr_with_mi(
+    x: np.ndarray,
+    y: np.ndarray,
+    target: np.ndarray,
+    n_neighbors: int = 10,
+):
+    return compute_pairwise_sr(x, y, target, n_neighbors)
+
+
 def build_sr_matrix(sources: np.ndarray, target: np.ndarray, n_neighbors: int = 10):
     """Build pairwise synergy and redundancy matrices.
 
