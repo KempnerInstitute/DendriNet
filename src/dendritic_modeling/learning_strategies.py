@@ -16,7 +16,7 @@ A factory function get_trainer(...) returns the chosen strategy based on a strin
 import os
 import time
 from copy import deepcopy
-
+from typing import Optional
 import matplotlib.pyplot as plt
 import torch
 import torch.nn.functional as F
@@ -28,6 +28,7 @@ from torch.optim.lr_scheduler import CosineAnnealingLR
 import wandb
 from dendritic_modeling import logger
 from dendritic_modeling.plot_utils import plot_NLL_loss_curves
+from dendritic_modeling.analysis import AnalysisManager
 
 
 def compute_metrics_classification(preds, labels):
@@ -104,6 +105,7 @@ class TrainerMLE(BaseTrainer):
         best_loss=float("inf"),
         early_stopping=False,
         patience=10,
+        analysis_manager: Optional[AnalysisManager] = None,
         plot_losses=False,
         save_path=None,
         **kwargs,
@@ -158,6 +160,9 @@ class TrainerMLE(BaseTrainer):
                     torch.save(best_state, os.path.join(save_path, "best_model.pt"))
             else:
                 patience_counter += 1
+            
+            if analysis_manager is not None:
+                analysis_manager.run_analysis(filename=f'epoch{epoch}', training=True)
 
             # Early stopping check
             if early_stopping and patience_counter >= patience:
@@ -936,10 +941,25 @@ class TrainerRegression(BaseTrainer):
                 total_mse += mse.item()
         return total_loss / len(loader), total_mse / len(loader)
 
-    def train(self, model, train_data, valid_data=None, grad_clip_value=5, epochs=100,
-              early_stopping=False, patience=10,
-              batch_size=256, shuffle=True, load_best_state_dict=True, best_loss=float('inf'),
-              plot_losses=False, save_path=None, seed=None, **kwargs):
+    def train(
+        self, 
+        model, 
+        train_data, 
+        valid_data=None, 
+        grad_clip_value=5, 
+        epochs=100,
+        early_stopping=False, 
+        patience=10,
+        batch_size=256, 
+        shuffle=True, 
+        load_best_state_dict=True, 
+        best_loss=float('inf'),
+        analysis_manager: Optional[AnalysisManager] = None,
+        plot_losses=False, 
+        save_path=None, 
+        seed=None, 
+        **kwargs
+    ):
         device = 'cuda' if torch.cuda.is_available() else 'cpu'
         if seed is not None:
             model.set_seed(seed)
@@ -1025,6 +1045,9 @@ class TrainerRegression(BaseTrainer):
             else:
                 patience_counter += 1
             
+            if analysis_manager is not None:
+                analysis_manager.run_analysis(filename=f'epoch{epoch}', training=True)
+                
             if early_stopping and patience_counter >= patience:
                 if not self.suppress:
                     logger.info(f"Early stopping triggered after {epoch} epochs.")
@@ -1061,6 +1084,7 @@ class LocalCreditAssignment(BaseTrainer):
         batch_size=256,
         shuffle=True,
         load_best_state_dict=True,
+        analysis_manager: Optional[AnalysisManager] = None,
         plot_losses=False,
         save_path=None,
         **kwargs,
@@ -1144,6 +1168,8 @@ class LocalCreditAssignment(BaseTrainer):
                     f"train_acc={train_acc:.3f}, valid_loss={val_loss:.4f}, valid_acc={val_acc:.3f}, "
                     f"elapsed={elapsed:.1f}s"
                 )
+            if analysis_manager is not None:
+                analysis_manager.run_analysis(filename=f'epoch{epoch}', training=True)
             if wandb.run is not None:
                 wandb.log(
                     {
@@ -1180,6 +1206,7 @@ class TrainOnlyMReactivation(BaseTrainer):
         batch_size=256,
         shuffle=True,
         load_best_state_dict=True,
+        analysis_manager: Optional[AnalysisManager] = None,
         plot_losses=False,
         save_path=None,
         **kwargs,
@@ -1240,6 +1267,8 @@ class TrainOnlyMReactivation(BaseTrainer):
                     f"train_acc={train_acc:.3f}, valid_loss={val_loss:.4f}, valid_acc={val_acc:.3f}, "
                     f"elapsed={elapsed:.1f}s"
                 )
+            if analysis_manager is not None:
+                analysis_manager.run_analysis(filename=f'epoch{epoch}', training=True)
             if wandb.run is not None:
                 wandb.log(
                     {
@@ -1277,6 +1306,7 @@ class TwoStepTrainer(BaseTrainer):
         grad_clip_value=5,
         shuffle=True,
         load_best_state_dict=True,
+        analysis_manager: Optional[AnalysisManager] = None,
         plot_losses=False,
         save_path=None,
         **kwargs,
@@ -1329,6 +1359,7 @@ class TwoStepTrainer(BaseTrainer):
                 batch_size=batch_size,
                 shuffle=shuffle,
                 load_best_state_dict=load_best_state_dict,
+                analysis_manager=analysis_manager,
                 plot_losses=plot_losses,
                 save_path=save_path,
             )
@@ -1401,6 +1432,8 @@ class TwoStepTrainer(BaseTrainer):
                     f"[TwoStep: Stage1] epoch={epoch}/{pretrain_epochs}, train_loss={epoch_train_loss:.4f}, "
                     f"valid_loss={val_loss:.4f}, valid_acc={val_acc:.3f}, elapsed={elapsed:.1f}s"
                 )
+            if analysis_manager is not None:
+                analysis_manager.run_analysis(filename=f'step1_epoch{epoch}', training=True)
             if wandb.run is not None:
                 wandb.log(
                     {
@@ -1456,6 +1489,8 @@ class TwoStepTrainer(BaseTrainer):
                     f"train_acc={train_acc:.3f}, valid_loss={val_loss:.4f}, valid_acc={val_acc:.3f}, "
                     f"elapsed={elapsed:.1f}s"
                 )
+            if analysis_manager is not None:
+                analysis_manager.run_analysis(filename=f'step2_epoch{epoch}', training=True)
             if wandb.run is not None:
                 wandb.log(
                     {
@@ -1492,6 +1527,7 @@ class TwoStepTrainerWithKL(BaseTrainer):
         grad_clip_value=5,
         shuffle=True,
         load_best_state_dict=True,
+        analysis_manager: Optional[AnalysisManager] = None,
         plot_losses=False,
         save_path=None,
         **kwargs,
@@ -1545,6 +1581,7 @@ class TwoStepTrainerWithKL(BaseTrainer):
                 batch_size=batch_size,
                 shuffle=shuffle,
                 load_best_state_dict=load_best_state_dict,
+                analysis_manager=analysis_manager,
                 plot_losses=plot_losses,
                 save_path=save_path,
             )
@@ -1628,6 +1665,8 @@ class TwoStepTrainerWithKL(BaseTrainer):
                     f"[TwoStepWithKL: Stage1] epoch={epoch}/{pretrain_epochs}, train_loss={epoch_train_loss:.4f}, "
                     f"valid_loss={val_loss:.4f}, valid_acc={val_acc:.3f}, elapsed={elapsed:.1f}s"
                 )
+            if analysis_manager is not None:
+                analysis_manager.run_analysis(filename=f'step1_epoch{epoch}', training=True)
             if wandb.run is not None:
                 wandb.log(
                     {
@@ -1683,6 +1722,8 @@ class TwoStepTrainerWithKL(BaseTrainer):
                     f"train_acc={train_acc:.3f}, valid_loss={val_loss:.4f}, valid_acc={val_acc:.3f}, "
                     f"elapsed={elapsed:.1f}s"
                 )
+            if analysis_manager is not None:
+                analysis_manager.run_analysis(filename=f'step2_epoch{epoch}', training=True)
             if wandb.run is not None:
                 wandb.log(
                     {
@@ -1738,12 +1779,6 @@ def generate_warmup_report(
     Returns:
         report_data: Dictionary with report metrics
     """
-    import os
-    from copy import deepcopy
-
-    import matplotlib.pyplot as plt
-    import numpy as np
-    import torch
 
     report_data = {}
 
@@ -1975,6 +2010,7 @@ class VoltageStabilizationTrainer(BaseTrainer):
         epochs=100,
         batch_size=256,
         shuffle=True,
+        analysis_manager: Optional[AnalysisManager] = None,
         plot_losses=False,
         save_path=None,
         **kwargs,
@@ -2018,6 +2054,8 @@ class VoltageStabilizationTrainer(BaseTrainer):
                 logger.info(
                     f"[VoltageWarmup] epoch={epoch}/{self.warmup_epochs}, warmup_loss={epoch_train_loss:.4f}, valid_loss={val_loss:.4f}, elapsed={elapsed:.1f}s"
                 )
+            if analysis_manager is not None:
+                analysis_manager.run_analysis(filename=f"warmup_epoch_{epoch}", training=True)
             if wandb.run is not None:
                 wandb.log(
                     {
@@ -2121,6 +2159,8 @@ class VoltageStabilizationTrainer(BaseTrainer):
                     f"[VoltageStab Main] epoch={epoch}/{remaining_epochs}, train_loss={epoch_train_loss:.4f}, "
                     f"train_acc={train_acc:.3f}, valid_loss={val_loss:.4f}, valid_acc={val_acc:.3f}, elapsed={elapsed:.1f}s"
                 )
+            if analysis_manager is not None:
+                analysis_manager.run_analysis(filename=f"main_epoch_{epoch}", training=True)
             if wandb.run is not None:
                 wandb.log(
                     {

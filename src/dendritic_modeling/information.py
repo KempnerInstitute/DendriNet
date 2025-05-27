@@ -218,6 +218,7 @@ def compute_pairwise_sr(
     y: np.ndarray,
     target: np.ndarray,
     n_neighbors: int = 10,
+    mi_xy: Optional[float] = None,
 ):
     """Compute simple synergy and redundancy between ``x`` and ``y``.
 
@@ -241,13 +242,14 @@ def compute_pairwise_sr(
         (synergy, redundancy)
     """
 
-    mi_xy = compute_mi_cc(np.hstack((x, y)), target, n_neighbors)
+    if mi_xy is None:
+        mi_xy = compute_mi_cc(np.hstack((x, y)), target, n_neighbors)
     mi_x = compute_mi_cc(x, target, n_neighbors)
     mi_y = compute_mi_cc(y, target, n_neighbors)
 
     redundancy = max(0.0, mi_x + mi_y - mi_xy)
     synergy = max(0.0, mi_xy - mi_x - mi_y)
-    return synergy, redundancy
+    return synergy, redundancy, mi_xy, mi_x, mi_y
 
 
 def build_sr_matrix(sources: np.ndarray, target: np.ndarray, n_neighbors: int = 10):
