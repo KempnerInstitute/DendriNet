@@ -28,7 +28,7 @@ from copy import deepcopy
 from dataclasses import asdict
 from datetime import datetime
 from pathlib import Path
-
+from typing import Optional
 import matplotlib.pyplot as plt
 import numpy as np
 import torch
@@ -287,6 +287,7 @@ def train_and_evaluate(
     train_cfg,
     visualization_cfg,
     run_save_path,
+    analysis_manager=None
 ):
     learning_strategy = train_cfg.learning_strategy.lower()
     if learning_strategy in ["two_step", "two_step_kl"]:
@@ -303,6 +304,7 @@ def train_and_evaluate(
             grad_clip_value=train_cfg.grad_clip_value,
             shuffle=True,
             load_best_state_dict=True,
+            analysis_manager=analysis_manager,
             plot_losses=True,
             save_path=run_save_path,
         )
@@ -384,6 +386,7 @@ def train_and_evaluate(
                 batch_size=train_cfg.batch_size,
                 grad_clip_value=train_cfg.grad_clip_value,
                 shuffle=True,
+                analysis_manager=analysis_manager,
                 plot_losses=True,
                 save_path=run_save_path,
             )
@@ -399,6 +402,7 @@ def train_and_evaluate(
                 load_best_state_dict=True,
                 early_stopping=train_cfg.early_stopping,
                 patience=train_cfg.patience,
+                analysis_manager=analysis_manager,
                 plot_losses=True,
                 save_path=run_save_path,
             )
@@ -461,7 +465,14 @@ def train_and_evaluate(
 
 
 def train_sequential_input_net(
-    model_cfg, train_cfg, task_cfg, train_ds, valid_ds, test_ds, run_save_path
+    model_cfg, 
+    train_cfg, 
+    task_cfg, 
+    train_ds, 
+    valid_ds, 
+    test_ds, 
+    run_save_path, 
+    analysis_manager=None
 ):
     logger.info("Starting sequential input network training")
     if hasattr(train_ds, "data"):
@@ -493,6 +504,7 @@ def train_sequential_input_net(
             output_dim,
             input_net_epochs,
             run_save_path,
+            analysis_manager=analysis_manager,
         )
     else:
         logger.info("Training a single input network for both heads")
@@ -507,6 +519,7 @@ def train_sequential_input_net(
             output_dim,
             input_net_epochs,
             run_save_path,
+            analysis_manager=analysis_manager,
         )
 
 
@@ -521,6 +534,7 @@ def train_independent_input_nets(
     output_dim,
     input_net_epochs,
     run_save_path,
+    analysis_manager=None
 ):
     final_output_dim = 10
     excit_head_dir = os.path.join(run_save_path, "excit_head_model")
@@ -616,6 +630,7 @@ def train_independent_input_nets(
         grad_clip_value=train_cfg.grad_clip_value,
         shuffle=True,
         load_best_state_dict=True,
+        analysis_manager=analysis_manager,
         plot_losses=True,
         save_path=run_save_path,
     )
@@ -634,6 +649,7 @@ def train_single_input_net(
     output_dim,
     input_net_epochs,
     run_save_path,
+    analysis_manager=None
 ):
     final_output_dim = 10
     mlp_model_dir = os.path.join(run_save_path, "mlp_model")
@@ -701,6 +717,7 @@ def train_single_input_net(
         grad_clip_value=train_cfg.grad_clip_value,
         shuffle=True,
         load_best_state_dict=True,
+        analysis_manager=analysis_manager,
         plot_losses=True,
         save_path=run_save_path,
     )
@@ -714,8 +731,8 @@ def run_analysis(
     valid_ds, 
     test_ds, 
     visualization_cfg, 
-    analysis_cfg,
-    run_save_path
+    run_save_path,
+    analysis_manager: Optional[AnalysisManager] = None
 ):
     data = {"train": train_ds, "valid": valid_ds, "test": test_ds}
     device = "cuda" if torch.cuda.is_available() else "cpu"
@@ -759,14 +776,8 @@ def run_analysis(
         logger.info("Visualization is disabled. Skipping plot generation.")
     
     logger.info("Running analyses...")
-    analysis_manager = AnalysisManager(
-        model=model,
-        data=data,
-        analysis_config=analysis_cfg,
-        save_root=run_save_path,
-        device=device
-    )
-    analysis_manager.run_analysis()
+    if analysis_manager is not None:
+        analysis_manager.run_analysis()
 
 
 def train_and_evaluate_main(config_path, args=None):
@@ -826,6 +837,14 @@ def train_and_evaluate_main(config_path, args=None):
 
     save_dict(asdict(config), run_save_path, "config.json")
 
+    analysis_manager = AnalysisManager(
+        model=model,
+        data={"train": train_ds, "valid": valid_ds, "test": test_ds},
+        analysis_config=analysis_cfg,
+        save_root=run_save_path,
+        device="cuda" if torch.cuda.is_available() else "cpu"
+    )
+
     input_mode = getattr(model_cfg.network.parameters, "input_mode", 0)
     input_net_training = getattr(train_cfg, "input_net_training", {})
     training_mode = input_net_training.get("training_mode", "joint")
@@ -834,7 +853,10 @@ def train_and_evaluate_main(config_path, args=None):
     if sequential_training:
         logger.info("Using sequential training mode")
         model = train_sequential_input_net(
-            model_cfg, train_cfg, task_cfg, train_ds, valid_ds, test_ds, run_save_path
+            model_cfg, train_cfg, task_cfg, 
+            train_ds, valid_ds, test_ds, 
+            run_save_path, 
+            analysis_manager=analysis_manager
         )
         results = {
             "train_acc": evaluate_accuracy(model, train_ds),
@@ -853,6 +875,7 @@ def train_and_evaluate_main(config_path, args=None):
             train_cfg,
             visualization_cfg,
             run_save_path,
+            analysis_manager=analysis_manager,
         )
 
     run_analysis(
@@ -861,8 +884,8 @@ def train_and_evaluate_main(config_path, args=None):
         valid_ds=valid_ds,
         test_ds=test_ds,
         visualization_cfg=visualization_cfg,
-        analysis_cfg=analysis_cfg,
         run_save_path=run_save_path,
+        analysis_manager=analysis_manager
     )
 
     if (
