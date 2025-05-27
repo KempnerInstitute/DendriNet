@@ -136,12 +136,29 @@ train_config:
       - layer_ablation
   
   analysis:
-    ei_mi_analysis_enabled: false
-    ei_mi_analysis_params:
-      compute_mi_E_I: true
-      compute_mi_EI_Vout: true
-      compute_mi_EI_label: true
-      n_neighbors: 10
+    ei_info_analysis:
+      enabled: false
+      training: false
+      params:
+        compute_mi_E_I: true
+        compute_mi_EI_Vout: true
+        compute_sr_EI_Vout: true
+        compute_mi_EI_label: true
+        n_neighbors: 10
+    synapse_turnover_analysis:
+      enabled: false
+      training: false
+    noise_perturbation_analysis:
+      enabled: false
+      training: false
+      params:
+        uniform_noise: true
+        uniform_magnitudes: [0.1, 0.2]
+        gaussian_noise: true
+        gaussian_sdevs: [0.1, 0.2]
+        n_samples: 10
+        accuracy: true
+        categorical_loglikelihood: true
 
 sweep_config:
   model.network.type: ["EINet", "MLP"]
