@@ -131,6 +131,10 @@ class AnalysisConfig(BaseConfig):
     ei_info_analysis: Dict = field(default_factory=dict)
     synapse_turnover_analysis: Dict = field(default_factory=dict)
     noise_perturbation_analysis: Dict = field(default_factory=dict)
+    ablation_analysis: Dict = field(default_factory=dict)
+    weight_analysis: Dict = field(default_factory=dict)
+    activation_analysis: Dict = field(default_factory=dict)
+
 
 @dataclass
 class WandbConfig(BaseConfig):

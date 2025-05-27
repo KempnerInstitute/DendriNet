@@ -174,6 +174,22 @@ analysis:
       n_samples: 10
       accuracy: true
       categorical_loglikelihood: true
-
+  ablation_analysis:
+    enabled: false
+    training: false
+    params:
+      ablate_synapses: true
+      ablate_inhibition: true
+      ablate_branches: true
+      accuracy: true
+      categorical_loglikelihood: true
+  weight_analysis:
+    enabled: false
+    training: false
+    params:
+      synapse_weights: true
+      branch_weights: true
+    
+    
 outputs:
   dir: ./outputs/
