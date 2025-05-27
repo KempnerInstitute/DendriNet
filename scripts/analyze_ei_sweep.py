@@ -33,6 +33,7 @@ from datetime import datetime
 from pathlib import Path
 
 import matplotlib.pyplot as plt
+from matplotlib.ticker import ScalarFormatter
 import numpy as np
 import pandas as pd
 
@@ -1224,6 +1225,20 @@ def generate_plots(results_df, params_df, output_dir, base_name):
             ax.set_title(f"{metric_names[metric]} vs E/I Ratio by Network Type")
             ax.legend()
             ax.grid(True, alpha=0.3)
+
+            ax.set_xscale("log")
+            formatter = ScalarFormatter()
+            formatter.set_scientific(False)
+            ax.xaxis.set_major_formatter(formatter)
+
+            ei_ratios = valid_data["ei_ratio"].dropna()
+            if not ei_ratios.empty:
+                min_ratio = ei_ratios.min()
+                max_ratio = ei_ratios.max()
+
+                tick_positions = np.logspace(np.log10(min_ratio), np.log10(max_ratio), 8)
+                ax.set_xticks(tick_positions)
+                ax.set_xticklabels([f"{x:.1f}" for x in tick_positions])
 
             # Save the plot
             fig.tight_layout()
