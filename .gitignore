@@ -17,7 +17,6 @@ configs/*.txt
 src/data/*
 cifar-10-*
 wandb/*
-mnist*
 mnist*/*
 notebooks/*
 None/*
