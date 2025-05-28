@@ -29,6 +29,7 @@ from dataclasses import asdict
 from datetime import datetime
 from pathlib import Path
 from typing import Optional
+
 import matplotlib.pyplot as plt
 import numpy as np
 import torch
@@ -39,6 +40,7 @@ from tqdm import tqdm
 
 import wandb
 from dendritic_modeling import logger
+from dendritic_modeling.analysis import AnalysisManager
 from dendritic_modeling.config import EINetParameters, load_config
 from dendritic_modeling.learning_strategies import (
     CustomWeightDecayOptimizer,
@@ -51,18 +53,18 @@ from dendritic_modeling.learning_strategies import (
 )
 from dendritic_modeling.models import (
     Classifier,
+    DeepstRegressor,
     MLPWithClassificationHead,
     ProbabilisticClassifier,
+    Regressor,
     SimpleClassifier,
     SimpleMLP,
-    Regressor,
-    DeepstRegressor,
 )
 from dendritic_modeling.networks import (
     ExcitationInhibitionNetwork,
     InputNetTransform,
     MatchedParamMLP,
-    SigmoidInputNetTransform
+    SigmoidInputNetTransform,
 )
 from dendritic_modeling.plot_utils import plot_NLL_loss_curves
 from dendritic_modeling.synthetic_datasets import get_unified_datasets
@@ -75,7 +77,6 @@ from dendritic_modeling.utils import (
     save_dict,
 )
 from dendritic_modeling.visualization_manager import PlotManager
-from dendritic_modeling.analysis import AnalysisManager
 
 
 def initialize_model(model_cfg, visualization_enabled=False):
@@ -126,9 +127,7 @@ def initialize_model(model_cfg, visualization_enabled=False):
             raise ValueError(f"Invalid network type: {net_type}")
     elif task == "regression":
         if net_type == "MLP":
-            logger.info(
-                f"Running feedforward with regressor"
-            )
+            logger.info(f"Running feedforward with regressor")
             net_params_dict = OmegaConf.to_container(net_params, resolve=True)
             net = MatchedParamMLP(**net_params_dict)
             output_dim = net_params_dict.get("output_dim", 10)
@@ -137,9 +136,7 @@ def initialize_model(model_cfg, visualization_enabled=False):
             # safe_register_hooks(model)
             return model
         elif net_type == "EINet":
-            logger.info(
-                f"Running EINet with regressor"
-            )
+            logger.info(f"Running EINet with regressor")
             net_params_dict = OmegaConf.to_container(net_params, resolve=True)
             net_params_dict["enable_branch_outputs"] = enable_branch_outputs
             net_params_dict["learning_strategy"] = learning_strategy
@@ -287,7 +284,7 @@ def train_and_evaluate(
     train_cfg,
     visualization_cfg,
     run_save_path,
-    analysis_manager=None
+    analysis_manager=None,
 ):
     learning_strategy = train_cfg.learning_strategy.lower()
     if learning_strategy in ["two_step", "two_step_kl"]:
@@ -446,9 +443,9 @@ def train_and_evaluate(
         if train_cfg.task == "classification":
             wandb.log(
                 {
-                "final_train_acc": train_acc,
-                "final_valid_acc": valid_acc,
-                "final_test_acc": test_acc,
+                    "final_train_acc": train_acc,
+                    "final_valid_acc": valid_acc,
+                    "final_test_acc": test_acc,
                 }
             )
         elif train_cfg.task == "regression":
@@ -465,14 +462,14 @@ def train_and_evaluate(
 
 
 def train_sequential_input_net(
-    model_cfg, 
-    train_cfg, 
-    task_cfg, 
-    train_ds, 
-    valid_ds, 
-    test_ds, 
-    run_save_path, 
-    analysis_manager=None
+    model_cfg,
+    train_cfg,
+    task_cfg,
+    train_ds,
+    valid_ds,
+    test_ds,
+    run_save_path,
+    analysis_manager=None,
 ):
     logger.info("Starting sequential input network training")
     if hasattr(train_ds, "data"):
@@ -534,7 +531,7 @@ def train_independent_input_nets(
     output_dim,
     input_net_epochs,
     run_save_path,
-    analysis_manager=None
+    analysis_manager=None,
 ):
     final_output_dim = 10
     excit_head_dir = os.path.join(run_save_path, "excit_head_model")
@@ -550,7 +547,7 @@ def train_independent_input_nets(
         test_ds=test_ds,
         epochs=input_net_epochs,
         batch_size=train_cfg.batch_size,
-        lr=train_cfg.optim_dict.get('input_net_lr', 0.001),
+        lr=train_cfg.optim_dict.get("input_net_lr", 0.001),
         run_save_path=excit_head_dir,
     )
     save_model(excit_feature_extractor, run_save_path, "excit_feature_extractor.pt")
@@ -578,7 +575,7 @@ def train_independent_input_nets(
         test_ds=test_ds,
         epochs=input_net_epochs,
         batch_size=train_cfg.batch_size,
-        lr=train_cfg.optim_dict.get('input_net_lr', 0.001),
+        lr=train_cfg.optim_dict.get("input_net_lr", 0.001),
         run_save_path=inhib_head_dir,
     )
     save_model(inhib_feature_extractor, run_save_path, "inhib_feature_extractor.pt")
@@ -649,7 +646,7 @@ def train_single_input_net(
     output_dim,
     input_net_epochs,
     run_save_path,
-    analysis_manager=None
+    analysis_manager=None,
 ):
     final_output_dim = 10
     mlp_model_dir = os.path.join(run_save_path, "mlp_model")
@@ -665,7 +662,7 @@ def train_single_input_net(
         test_ds=test_ds,
         epochs=input_net_epochs,
         batch_size=train_cfg.batch_size,
-        lr=train_cfg.optim_dict.get('input_net_lr', 0.001),
+        lr=train_cfg.optim_dict.get("input_net_lr", 0.001),
         run_save_path=mlp_model_dir,
     )
     save_model(feature_extractor, run_save_path, "feature_extractor.pt")
@@ -726,13 +723,13 @@ def train_single_input_net(
 
 
 def run_analysis(
-    model, 
-    train_ds, 
-    valid_ds, 
-    test_ds, 
-    visualization_cfg, 
+    model,
+    train_ds,
+    valid_ds,
+    test_ds,
+    visualization_cfg,
     run_save_path,
-    analysis_manager: Optional[AnalysisManager] = None
+    analysis_manager: Optional[AnalysisManager] = None,
 ):
     data = {"train": train_ds, "valid": valid_ds, "test": test_ds}
     device = "cuda" if torch.cuda.is_available() else "cpu"
@@ -774,7 +771,7 @@ def run_analysis(
                 logger.error(traceback.format_exc())
     else:
         logger.info("Visualization is disabled. Skipping plot generation.")
-    
+
     logger.info("Running analyses...")
     if analysis_manager is not None:
         analysis_manager.run_analysis()
@@ -842,7 +839,8 @@ def train_and_evaluate_main(config_path, args=None):
         data={"train": train_ds, "valid": valid_ds, "test": test_ds},
         analysis_config=analysis_cfg,
         save_root=run_save_path,
-        device="cuda" if torch.cuda.is_available() else "cpu"
+        device="cuda" if torch.cuda.is_available() else "cpu",
+        train_config=asdict(train_cfg),
     )
 
     input_mode = getattr(model_cfg.network.parameters, "input_mode", 0)
@@ -853,10 +851,14 @@ def train_and_evaluate_main(config_path, args=None):
     if sequential_training:
         logger.info("Using sequential training mode")
         model = train_sequential_input_net(
-            model_cfg, train_cfg, task_cfg, 
-            train_ds, valid_ds, test_ds, 
-            run_save_path, 
-            analysis_manager=analysis_manager
+            model_cfg,
+            train_cfg,
+            task_cfg,
+            train_ds,
+            valid_ds,
+            test_ds,
+            run_save_path,
+            analysis_manager=analysis_manager,
         )
         results = {
             "train_acc": evaluate_accuracy(model, train_ds),
@@ -885,7 +887,7 @@ def train_and_evaluate_main(config_path, args=None):
         test_ds=test_ds,
         visualization_cfg=visualization_cfg,
         run_save_path=run_save_path,
-        analysis_manager=analysis_manager
+        analysis_manager=analysis_manager,
     )
 
     if (
