@@ -47,11 +47,13 @@ class InputNetTransform(nn.Module):
     """
 
     def __init__(
-        self,
-        input_dim: Optional[int] = None,
-        hidden_dims: Optional[List[int]] = None,
-        excitatory_dim: Optional[int] = None,
-        inhibitory_dim: Optional[int] = None,
+        self, 
+        input_dim: Optional[int] = None, 
+        hidden_dims: Optional[List[int]] = None, 
+        independent_heads: bool = False,
+        excitatory_dim: Optional[int] = None, 
+        inhibitory_dim: Optional[int] = None, 
+        output_dim: Optional[int] = None,
         input_shape: Optional[Tuple[int, int, int]] = None,
         excitatory_hidden_dims: Optional[List[int]] = None,
         inhibitory_hidden_dims: Optional[List[int]] = None,
@@ -78,7 +80,15 @@ class InputNetTransform(nn.Module):
                 excitatory_dim=excitatory_dim,
                 inhibitory_dim=inhibitory_dim,
             )
-
+        
+        elif network_type == "FeatureExtractorMLP":
+            self.input_transform = FeatureExtractorMLP(
+                input_dim = input_dim,
+                hidden_dims = hidden_dims,
+                output_dim = output_dim
+            )
+            self.input_transform.set_readout(False)
+            self.input_transform.disable_grad()
         elif network_type == "AlexNetTransform":
             self.input_transform = AlexNetInputTransform(
                 excitatory_dim=excitatory_dim, inhibitory_dim=inhibitory_dim
@@ -190,55 +200,87 @@ class MLPInputTransform(nn.Module):
     """
 
     def __init__(
-        self,
-        input_dim: int,
-        hidden_dims: List[int],
-        excitatory_dim: int,
-        inhibitory_dim: int,
+        self, 
+        input_dim: int, 
+        hidden_dims: List[int], 
+        independent_heads: bool = False,
+        excitatory_dim: int = None, 
+        inhibitory_dim: int = None,
+        output_dim: int = None
     ):
         super().__init__()
 
-        # Build MLP backbone
-        exc_layers = []
-        inh_layers = []
-        in_features = input_dim
-        for hdim in hidden_dims:
-            exc_layer = nn.Linear(in_features, hdim)
-            nn.init.kaiming_normal_(exc_layer.weight)
-            nn.init.zeros_(exc_layer.bias)
+        if independent_heads:
+            # Build MLP backbone
+            exc_layers = []
+            inh_layers = []
+            in_features = input_dim
+            for hdim in hidden_dims:
+                exc_layer = nn.Linear(in_features, hdim)
+                nn.init.kaiming_normal_(exc_layer.weight)
+                nn.init.zeros_(exc_layer.bias)
+                
+                exc_layers.append(exc_layer)
+                exc_layers.append(nn.ReLU())
 
-            exc_layers.append(exc_layer)
-            exc_layers.append(nn.ReLU())
+                inh_layer = nn.Linear(in_features, hdim)
+                nn.init.kaiming_normal_(inh_layer.weight)
+                nn.init.zeros_(inh_layer.bias)
+                inh_layers.append(inh_layer)
+                inh_layers.append(nn.ReLU())
 
-            inh_layer = nn.Linear(in_features, hdim)
-            nn.init.kaiming_normal_(inh_layer.weight)
-            nn.init.zeros_(inh_layer.bias)
-            inh_layers.append(inh_layer)
-            inh_layers.append(nn.ReLU())
+                in_features = hdim
+            
+            exc_head = nn.Linear(in_features, excitatory_dim)
+            nn.init.xavier_normal_(exc_head.weight)
+            nn.init.zeros_(exc_head.bias)
+            exc_layers.append(exc_head)
+            exc_layers.append(nn.Sigmoid())
+            
+            inh_head = nn.Linear(in_features, inhibitory_dim)
+            nn.init.xavier_normal_(inh_head.weight)
+            nn.init.zeros_(inh_head.bias)
+            inh_layers.append(inh_head)
+            inh_layers.append(nn.Sigmoid())
 
-            in_features = hdim
+            self.exc_encoding = nn.Sequential(*exc_layers)
+            self.inh_encoding = nn.Sequential(*inh_layers)
 
-        exc_head = nn.Linear(in_features, excitatory_dim)
-        nn.init.xavier_normal_(exc_head.weight)
-        nn.init.zeros_(exc_head.bias)
-        exc_layers.append(exc_head)
-        exc_layers.append(nn.Sigmoid())
+            self.excitatory_dim = excitatory_dim
+            self.inhibitory_dim = inhibitory_dim
+        
+        else:
+            encoding_layers = []
+            in_features = input_dim
+            for hdim in hidden_dims:
+                layer = nn.Linear(in_features, hdim)
+                nn.init.kaiming_normal_(layer.weight)
+                nn.init.zeros_(layer.bias)
+                encoding_layers.append(layer)
+                encoding_layers.append(nn.ReLU())
+                in_features = hdim
+            
+            head = nn.Linear(in_features, output_dim)
+            nn.init.xavier_normal_(head.weight)
+            nn.init.zeros_(head.bias)
+            encoding_layers.append(head)
+            encoding_layers.append(nn.Sigmoid())
 
-        inh_head = nn.Linear(in_features, inhibitory_dim)
-        nn.init.xavier_normal_(inh_head.weight)
-        nn.init.zeros_(inh_head.bias)
-        inh_layers.append(inh_head)
-        inh_layers.append(nn.Sigmoid())
+            self.encoding = nn.Sequential(*encoding_layers)
 
-        self.exc_encoding = nn.Sequential(*exc_layers)
-        self.inh_encoding = nn.Sequential(*inh_layers)
-
-        self.excitatory_dim = excitatory_dim
-        self.inhibitory_dim = inhibitory_dim
+            self.excitatory_dim = output_dim
+            self.inhibitory_dim = output_dim
+        
+        self.independent_heads = independent_heads
 
     def forward(self, x):
-        excitatory_input = self.exc_encoding(x)
-        inhibitory_input = self.inh_encoding(x)
+        if self.independent_heads:
+            excitatory_input = self.exc_encoding(x)
+            inhibitory_input = self.inh_encoding(x)
+        else:
+            x = self.encoding(x)
+            excitatory_input = x
+            inhibitory_input = x
         return excitatory_input, inhibitory_input
 
 
@@ -431,6 +473,58 @@ class SigmoidInputNetTransform(InputNetTransform):
         inhib_out = torch.sigmoid(inhib_out)
 
         return excit_out, inhib_out
+
+
+###############################################################################
+# FeatureExtractorMLP
+###############################################################################
+
+class FeatureExtractorMLP(nn.Module):
+    def __init__(self, input_dim: int, hidden_dims: List[int], output_dim: int):
+        super().__init__()
+        
+        layers = []
+        in_features = input_dim
+        for hdim in hidden_dims[:-1]:
+            layer = nn.Linear(in_features, hdim)
+            nn.init.kaiming_normal_(layer.weight)
+            nn.init.zeros_(layer.bias)
+            layers.append(layer)
+            layers.append(nn.ReLU())
+            in_features = hdim
+        
+        encoding_head = nn.Linear(in_features, hidden_dims[-1])
+        nn.init.xavier_normal_(encoding_head.weight)
+        nn.init.zeros_(encoding_head.bias)
+        layers.append(encoding_head)
+        layers.append(nn.Sigmoid())
+
+        self.encoding = nn.Sequential(*layers)
+
+        self.excitatory_dim = hidden_dims[-1]
+        self.inhibitory_dim = hidden_dims[-1]
+
+        self.readout = True
+        self.final = nn.Sequential(
+            nn.Linear(hidden_dims[-1], output_dim),
+            nn.LogSoftmax(dim=-1)
+        )
+
+    def forward(self, x):
+        x = self.encoding(x)
+        if self.readout:
+            return self.final(x)
+        else:
+            excitatory_input = x
+            inhibitory_input = x
+            return excitatory_input, inhibitory_input
+    
+    def set_readout(self, readout: bool):
+        self.readout = readout
+
+    def disable_grad(self):
+        for param in self.parameters():
+            param.requires_grad = False
 
 
 ###############################################################################
@@ -838,6 +932,7 @@ class ExcitationInhibitionNetwork(nn.Module):
             hidden_dims=self.input_net_dict.get("hidden_dims", []),
             excitatory_dim=self.input_net_dict.get("excitatory_dim", 128),
             inhibitory_dim=self.input_net_dict.get("inhibitory_dim", 128),
+            output_dim=self.input_net_dict.get("output_dim", 128),
             input_shape=self.input_net_dict.get("input_shape", None),
             excitatory_hidden_dims=self.input_net_dict.get(
                 "excitatory_hidden_dims", []
