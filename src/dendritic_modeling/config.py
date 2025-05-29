@@ -128,12 +128,14 @@ class VisualizationConfig(BaseConfig):
 
 @dataclass
 class AnalysisConfig(BaseConfig):
+    performance_analysis: Dict = field(default_factory=dict)
     ei_info_analysis: Dict = field(default_factory=dict)
     synapse_turnover_analysis: Dict = field(default_factory=dict)
     noise_perturbation_analysis: Dict = field(default_factory=dict)
     ablation_analysis: Dict = field(default_factory=dict)
     weight_analysis: Dict = field(default_factory=dict)
-    activation_analysis: Dict = field(default_factory=dict)
+    synaptic_activation_analysis: Dict = field(default_factory=dict)
+    branch_activation_analysis: Dict = field(default_factory=dict)
 
 
 @dataclass

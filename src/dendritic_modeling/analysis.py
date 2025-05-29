@@ -10,7 +10,8 @@ from dendritic_modeling.utils import (
     add_uniform_noise, 
     add_gaussian_noise, 
     evaluate_accuracy,
-    evaluate_categorical_loglikelihood
+    evaluate_categorical_loglikelihood,
+    evaluate_mse
 )
 from dendritic_modeling.information import (
     compute_mi_cc, 
@@ -23,6 +24,82 @@ from typing import Tuple, Optional, List, Dict
 import os
 from copy import deepcopy
 import logging
+
+
+class PerformanceAnalyzer:
+    def __init__(
+        self,
+        accuracy: bool = False,
+        categorical_loglikelihood: bool = False,
+        mse: bool = False
+    ):
+        self.accuracy = accuracy
+        self.categorical_loglikelihood = categorical_loglikelihood
+        self.mse = mse
+
+    def analyze(
+        self,
+        model: BaseModel,
+        train_ds: Optional[torch.utils.data.Dataset] = None,
+        valid_ds: Optional[torch.utils.data.Dataset] = None,
+        test_ds: Optional[torch.utils.data.Dataset] = None,
+        device: str = 'cpu',
+        save_path: Optional[str] = None,
+        filename: str = 'final'
+    ):
+        results = {}
+        if self.accuracy:
+            results['accuracy'] = {}
+            train_acc, valid_acc, test_acc = evaluate_accuracy(
+                classifier=model,
+                train_ds=train_ds,
+                valid_ds=valid_ds,
+                test_ds=test_ds,
+                device=device
+            )
+            if train_ds is not None:
+                results['accuracy']['train'] = train_acc
+            if valid_ds is not None:
+                results['accuracy']['valid'] = valid_acc
+            if test_ds is not None:
+                results['accuracy']['test'] = test_acc
+
+        if self.categorical_loglikelihood:
+            results['categorical_loglikelihood'] = {}
+            train_catll, valid_catll, test_catll = evaluate_categorical_loglikelihood(
+                classifier=model,
+                train_ds=train_ds,
+                valid_ds=valid_ds,
+                test_ds=test_ds,
+                device=device
+            )
+            if train_ds is not None:
+                results['categorical_loglikelihood']['train'] = train_catll
+            if valid_ds is not None:
+                results['categorical_loglikelihood']['valid'] = valid_catll
+            if test_ds is not None:
+                results['categorical_loglikelihood']['test'] = test_catll
+
+        if self.mse:
+            results['mse'] = {}
+            train_mse, valid_mse, test_mse = evaluate_mse(
+                classifier=model,
+                train_ds=train_ds,
+                valid_ds=valid_ds,
+                test_ds=test_ds,
+                device=device
+            )
+            if train_ds is not None:
+                results['mse']['train'] = train_mse
+            if valid_ds is not None:
+                results['mse']['valid'] = valid_mse
+            if test_ds is not None:
+                results['mse']['test'] = test_mse
+        
+        if save_path is not None:
+            save_dict(results, save_path, filename)
+        else:
+            return results
 
 
 class EIInformationAnalyzer:
@@ -101,9 +178,7 @@ class EIInformationAnalyzer:
         filename: str = 'final'
     ):
         try:
-            assert isinstance(model.net, ExcitationInhibitionNetwork), \
-                "model.net must be an instance of ExcitationInhibitionNetwork. " + \
-                f"Got model.net type: {type(model.net)}"
+            assert isinstance(model.net, ExcitationInhibitionNetwork)
         except AssertionError:
             return
 
@@ -201,6 +276,11 @@ class SynapticTurnoverAnalyzer:
         save_path: Optional[str] = None, 
         filename: str = 'final'
     ):
+        try:
+            assert isinstance(model.net, ExcitationInhibitionNetwork)
+        except AssertionError:
+            return
+        
         if training:
             data_dict = {}
             for name, module in model.named_modules():
@@ -230,7 +310,11 @@ class SynapticTurnoverAnalyzer:
                 total_transient += curr_transient
                 return total_active, total_stable, total_transient
 
-            turnover_dict = {}
+            turnover_dict = {
+                'exc': {'active': [], 'stable': [], 'transient': []},
+                'inh': {'active': [], 'stable': [], 'transient': []},
+                'both': {'active': [], 'stable': [], 'transient': []}
+            }
             for i in range(1, len(self.data_dict_list)):
                 prev_data_dict: dict = self.data_dict_list[i - 1]
                 curr_data_dict: dict = self.data_dict_list[i]
@@ -267,22 +351,34 @@ class SynapticTurnoverAnalyzer:
                             inh_total_active, inh_total_stable, inh_total_transient
                         )
 
-                turnover_dict[i] = {}
-                turnover_dict[i]['exc'] = {
-                    'active': exc_total_active,
-                    'stable': exc_total_stable,
-                    'transient': exc_total_transient
-                }
-                turnover_dict[i]['inh'] = {
-                    'active': inh_total_active,
-                    'stable': inh_total_stable,
-                    'transient': inh_total_transient
-                }
-                turnover_dict[i]['both'] = {
-                    'active': exc_total_active + inh_total_active,
-                    'stable': exc_total_stable + inh_total_stable,
-                    'transient': exc_total_transient + inh_total_transient
-                }
+                turnover_dict['exc']['active'].append(exc_total_active)
+                turnover_dict['exc']['stable'].append(exc_total_stable)
+                turnover_dict['exc']['transient'].append(exc_total_transient)
+
+                turnover_dict['inh']['active'].append(inh_total_active)
+                turnover_dict['inh']['stable'].append(inh_total_stable)
+                turnover_dict['inh']['transient'].append(inh_total_transient)
+
+                turnover_dict['both']['active'].append(exc_total_active + inh_total_active)
+                turnover_dict['both']['stable'].append(exc_total_stable + inh_total_stable)
+                turnover_dict['both']['transient'].append(exc_total_transient + inh_total_transient)
+
+                # turnover_dict[i] = {}
+                # turnover_dict[i]['exc'] = {
+                #     'active': exc_total_active,
+                #     'stable': exc_total_stable,
+                #     'transient': exc_total_transient
+                # }
+                # turnover_dict[i]['inh'] = {
+                #     'active': inh_total_active,
+                #     'stable': inh_total_stable,
+                #     'transient': inh_total_transient
+                # }
+                # turnover_dict[i]['both'] = {
+                #     'active': exc_total_active + inh_total_active,
+                #     'stable': exc_total_stable + inh_total_stable,
+                #     'transient': exc_total_transient + inh_total_transient
+                # }
             
             if save_path is not None:
                 save_dict(turnover_dict, save_path, filename)
@@ -382,13 +478,15 @@ class NoisePerturbationAnalyzer:
 class AblationAnalyzer:
     def __init__(
         self,
-        ablate_synapses: bool = True,
+        ablate_all_synapses: bool = True,
+        ablate_excitation: bool = True,
         ablate_inhibition: bool = True,
         ablate_branches: bool = True,
         accuracy: bool = True,
         categorical_loglikelihood: bool = True
     ):
-        self.ablate_synapses = ablate_synapses
+        self.ablate_all_synapses = ablate_all_synapses
+        self.ablate_excitation = ablate_excitation
         self.ablate_inhibition = ablate_inhibition
         self.ablate_branches = ablate_branches
         self.accuracy = accuracy
@@ -402,6 +500,11 @@ class AblationAnalyzer:
         save_path: Optional[str] = None,
         filename: str = 'final'
     ):
+        try:
+            assert isinstance(model.net, ExcitationInhibitionNetwork)
+        except AssertionError:
+            return
+        
         model = model.to(device)
         inputs, labels = test_dataset[:]
         inputs: torch.Tensor = inputs.to(device)
@@ -411,8 +514,10 @@ class AblationAnalyzer:
         state_dict = deepcopy(model.state_dict())
 
         results = {}
-        if self.ablate_synapses:
+        if self.ablate_all_synapses:
             results['all synapses'] = {}
+        if self.ablate_excitation:
+            results['excitation'] = {}
         if self.ablate_inhibition:
             results['inhibition'] = {}
         if self.ablate_branches:
@@ -421,7 +526,7 @@ class AblationAnalyzer:
         for name, module in model.named_modules():
             if isinstance(module, DendriticBranchLayer):
                 if (
-                    self.ablate_synapses 
+                    self.ablate_all_synapses 
                     and module.branch_excitation is not None 
                     and module.branch_inhibition is not None
                 ):
@@ -448,6 +553,32 @@ class AblationAnalyzer:
                     
                     model.load_state_dict(state_dict)
                 
+                if (
+                    self.ablate_excitation
+                    and module.branch_excitation is not None
+                ):
+                    results['excitation'][name] = {}
+                    results['excitation'][name]['layer_idx'] = module.layer_idx
+                    
+                    module.branch_excitation.pre_w.data.fill_(-100)
+
+                    if self.accuracy:
+                        accuracy = evaluate_accuracy(
+                            classifier=model,
+                            test_ds=test_dataset,
+                            move_device=False
+                        )[-1]
+                        results['excitation'][name]['accuracy'] = accuracy
+                    if self.categorical_ll:
+                        loglikelihood = evaluate_categorical_loglikelihood(
+                            classifier=model,
+                            test_ds=test_dataset,
+                            move_device=False
+                        )[-1]
+                        results['excitation'][name]['log likelihood'] = loglikelihood
+                    
+                    model.load_state_dict(state_dict)
+
                 if (
                     self.ablate_inhibition
                     and module.branch_inhibition is not None
@@ -521,6 +652,11 @@ class WeightAnalyzer:
         save_path: Optional[str] = None,
         filename: str = 'final'
     ):
+        try:
+            assert isinstance(model.net, ExcitationInhibitionNetwork)
+        except AssertionError:
+            return
+        
         exc_weights = []
         inh_weights = []
         branch_weights = []
@@ -580,7 +716,227 @@ class WeightAnalyzer:
             return weights
 
 
-class ActivationAnalyzer:
+class SynapticActivationAnalyzer:
+    def __init__(
+        self,
+        network_summary: bool = True,
+        layer_summary: bool = True,
+        branch_summary: bool = True,
+        raw_summary: bool = True,
+        logspace: bool = False,
+        downsample: bool = False,
+        samples: int = 1000
+    ):
+        self.network_summary = network_summary
+        self.layer_summary = layer_summary
+        self.branch_summary = branch_summary
+        self.raw_summary = raw_summary
+        self.logspace = logspace
+        self.downsample = downsample
+        self.samples = samples
+
+    def attach_forward_hooks(self, model: BaseModel):
+        handles = []
+        for name, module in model.named_modules():
+            if isinstance(module, DendriticBranchLayer):
+                if name not in self.data_dict.keys():
+                    self.data_dict[name] = {}
+                    module._name = name
+                    handle = module.register_forward_hook(self.forward_hook)
+                    handles.append(handle)
+        return handles
+    
+    def remove_forward_hooks(self, handles: List[torch.utils.hooks.RemovableHandle]):
+        for handle in handles:
+            handle.remove()
+    
+    def forward_hook(
+        self, 
+        module: DendriticBranchLayer, 
+        input: Tuple[torch.Tensor, torch.Tensor, Optional[torch.Tensor]], 
+        output: torch.Tensor
+    ):
+        excitatory_input, inhibitory_input, _ = input
+        excitatory_input = excitatory_input[..., None]
+        inhibitory_input = inhibitory_input[..., None]
+
+        key = module._name
+
+        if module.branch_excitation is not None:
+            pruned_exc_syn = module.branch_excitation.pruned_weight().t()
+            for _ in range(excitatory_input.ndim - 2):
+                pruned_exc_syn = pruned_exc_syn[None, ...]
+            self.data_dict[key]['exc'] = excitatory_input * pruned_exc_syn
+
+        if module.branch_inhibition is not None:
+            pruned_inh_syn = module.branch_inhibition.pruned_weight().t()
+            for _ in range(inhibitory_input.ndim - 2):
+                pruned_inh_syn = pruned_inh_syn[None, ...]
+            self.data_dict[key]['inh'] = inhibitory_input * pruned_inh_syn
+        
+    def analyze(
+        self,
+        model: BaseModel,
+        test_dataset: torch.utils.data.Dataset,
+        device: str = 'cpu',
+        save_path: Optional[str] = None,
+        filename: str = 'final'
+    ):
+        try:
+            assert isinstance(model.net, ExcitationInhibitionNetwork)
+        except AssertionError:
+            return
+        
+        self.data_dict = {}
+
+        model = model.to(device)
+        model.eval()
+
+        inputs, _ = test_dataset[:]
+        inputs: torch.Tensor = inputs.to(device)
+
+        if self.downsample:
+            ixs = torch.randperm(inputs.shape[0])[:self.samples]
+            inputs = inputs[ixs]
+
+        handles = self.attach_forward_hooks(model)
+
+        _ = model(inputs)
+
+        if self.network_summary:
+            exc_net = []
+            inh_net = []
+        
+        if self.layer_summary:
+            layer_summary = {}
+        
+        if self.branch_summary:
+            branch_summary = {}
+
+        for name, module_dict in self.data_dict.items():
+            module_dict: dict
+            if self.layer_summary:
+                layer_summary[name] = {}
+            if self.branch_summary:
+                branch_summary[name] = {}
+
+            if 'exc' in module_dict.keys():
+                exc: torch.Tensor = module_dict['exc']
+                if self.logspace:
+                    exc = torch.log(exc+1e-9)
+                
+                if self.network_summary or self.layer_summary:
+                    exc_flat = exc.flatten()
+                    if self.logspace:
+                        exc_flat = exc_flat[exc_flat > -20]
+                    else:
+                        exc_flat = exc_flat[exc_flat > 0]
+
+                if self.network_summary:
+                    exc_net.append(exc_flat)
+                
+                if self.layer_summary:
+                    layer_summary[name]['exc'] = {}
+                    layer_summary[name]['exc']['mean'] = exc_flat.mean().item()
+                    layer_summary[name]['exc']['std'] = exc_flat.std().item()
+                    # layer_summary[name]['exc']['min'] = exc_flat.min().item()
+                    # layer_summary[name]['exc']['max'] = exc_flat.max().item()
+                    # layer_summary[name]['exc']['median'] = exc_flat.median().item()
+                    # layer_summary[name]['exc']['q1'] = exc_flat.quantile(q=0.25).item()
+                    # layer_summary[name]['exc']['q3'] = exc_flat.quantile(q=0.75).item()
+                
+                if self.branch_summary:
+                    branch_summary[name]['exc'] = {}
+                    branch_summary[name]['exc']['mean'] = exc.mean(dim=0).tolist()
+                    branch_summary[name]['exc']['std'] = exc.std(dim=0).tolist()
+                    # branch_summary[name]['exc']['min'] = exc.min(dim=0).tolist()
+                    # branch_summary[name]['exc']['max'] = exc.max(dim=0).tolist()
+                    # branch_summary[name]['exc']['median'] = exc.median(dim=0).tolist()
+                    # branch_summary[name]['exc']['q1'] = exc.quantile(q=0.25, dim=0).tolist()
+                    # branch_summary[name]['exc']['q3'] = exc.quantile(q=0.75, dim=0).tolist()
+
+                if self.raw_summary:
+                    self.data_dict[name]['exc'] = exc.tolist()
+            
+            if 'inh' in module_dict.keys():
+                inh: torch.Tensor = module_dict['inh']
+                if self.logspace:
+                    inh = torch.log(inh+1e-9)
+                
+                if self.network_summary or self.layer_summary:
+                    inh_flat = inh.flatten()
+                    if self.logspace:
+                        inh_flat = inh_flat[inh_flat > -20]
+                    else:
+                        inh_flat = inh_flat[inh_flat > 0]
+
+                if self.network_summary:
+                    inh_net.append(inh_flat)
+                
+                if self.layer_summary:
+                    layer_summary[name]['inh'] = {}
+                    layer_summary[name]['inh']['mean'] = inh_flat.mean().item()
+                    layer_summary[name]['inh']['std'] = inh_flat.std().item()
+                    # layer_summary[name]['inh']['min'] = inh_flat.min().item()
+                    # layer_summary[name]['inh']['max'] = inh_flat.max().item()
+                    # layer_summary[name]['inh']['median'] = inh_flat.median().item()
+                    # layer_summary[name]['inh']['q1'] = inh_flat.quantile(q=0.25).item()
+                    # layer_summary[name]['inh']['q3'] = inh_flat.quantile(q=0.75).item()
+                
+                if self.branch_summary:
+                    branch_summary[name]['inh'] = {}
+                    branch_summary[name]['inh']['mean'] = inh.mean(dim=0).tolist()
+                    branch_summary[name]['inh']['std'] = inh.std(dim=0).tolist()
+                    # branch_summary[name]['inh']['min'] = inh.min(dim=0).tolist()
+                    # branch_summary[name]['inh']['max'] = inh.max(dim=0).tolist()
+                    # branch_summary[name]['inh']['median'] = inh.median(dim=0).tolist()
+                    # branch_summary[name]['inh']['q1'] = inh.quantile(q=0.25, dim=0).tolist()
+                    # branch_summary[name]['inh']['q3'] = inh.quantile(q=0.75, dim=0).tolist()
+                
+                if self.raw_summary:
+                    self.data_dict[name]['inh'] = inh.tolist()
+
+        results = {'logspace': self.logspace}
+
+        if self.network_summary:
+            network_summary = {}
+            network_summary['exc'] = {}
+            network_summary['inh'] = {}
+            network_summary['exc']['mean'] = torch.cat(exc_net).mean().item()
+            network_summary['inh']['mean'] = torch.cat(inh_net).mean().item()
+            network_summary['exc']['std'] = torch.cat(exc_net).std().item()
+            network_summary['inh']['std'] = torch.cat(inh_net).std().item()
+            # network_summary['exc']['min'] = torch.cat(exc_net).min().item()
+            # network_summary['inh']['min'] = torch.cat(inh_net).min().item()
+            # network_summary['exc']['max'] = torch.cat(exc_net).max().item()
+            # network_summary['inh']['max'] = torch.cat(inh_net).max().item()
+            # network_summary['exc']['median'] = torch.cat(exc_net).median().item()
+            # network_summary['inh']['median'] = torch.cat(inh_net).median().item()
+            # network_summary['exc']['q1'] = torch.cat(exc_net).quantile(q=0.25).item()
+            # network_summary['inh']['q1'] = torch.cat(inh_net).quantile(q=0.25).item()
+            # network_summary['exc']['q3'] = torch.cat(exc_net).quantile(q=0.75).item()
+            # network_summary['inh']['q3'] = torch.cat(inh_net).quantile(q=0.75).item()
+            
+            results['network_summary'] = network_summary
+
+        if self.layer_summary:
+            results['layer_summary'] = layer_summary
+        
+        if self.branch_summary:
+            results['branch_summary'] = branch_summary
+
+        if self.raw_summary:
+            results['raw_summary'] = self.data_dict
+
+        self.remove_forward_hooks(handles)
+
+        if save_path is not None:
+            save_dict(results, save_path, filename)
+        else:
+            return results
+
+
+class BranchActivationAnalyzer:
     def __init__(
         self,
         synapse_activations: bool = True,
@@ -588,6 +944,8 @@ class ActivationAnalyzer:
         network_summary: bool = True,
         layer_summary: bool = True,
         branch_summary: bool = True,
+        raw_summary: bool = True,
+        logspace: bool = False,
         downsample: bool = False,
         samples: int = 1000
     ):
@@ -596,6 +954,8 @@ class ActivationAnalyzer:
         self.network_summary = network_summary
         self.layer_summary = layer_summary
         self.branch_summary = branch_summary
+        self.raw_summary = raw_summary
+        self.logspace = logspace
         self.downsample = downsample
         self.samples = samples
 
@@ -641,6 +1001,11 @@ class ActivationAnalyzer:
         save_path: Optional[str] = None,
         filename: str = 'final'
     ):
+        try:
+            assert isinstance(model.net, ExcitationInhibitionNetwork)
+        except AssertionError:
+            return
+        
         self.data_dict = {}
 
         model = model.to(device)
@@ -682,153 +1047,157 @@ class ActivationAnalyzer:
             if 'exc' in module_dict.keys():
                 print('exc', flush=True)
                 exc: torch.Tensor = module_dict['exc']
-                # exc = exc.cpu()
+                
+                if self.logspace:
+                    exc = torch.log(exc)
 
                 if self.network_summary:
                     print('network summary', flush=True)
-                    if self.synapse_activations:
-                        exc_net.append(exc.flatten())                
+                    exc_net.append(exc.flatten())                
                 
                 if self.layer_summary:
                     print('layer summary', flush=True)
                     layer_summary[name]['exc'] = {}
-                    if self.synapse_activations:
-                        layer_summary[name]['exc']['individual'] = {}
-                        layer_summary[name]['exc']['individual']['mean'] = exc_ind.mean().item()
-                        layer_summary[name]['exc']['individual']['std'] = exc_ind.std().item()
-                        # layer_summary[name]['exc']['individual']['min'] = exc_ind.min().item()
-                        # layer_summary[name]['exc']['individual']['max'] = exc_ind.max().item()
-                        # layer_summary[name]['exc']['individual']['median'] = exc_ind.median().item()
-                        # layer_summary[name]['exc']['individual']['q1'] = exc_ind.quantile(q=0.25).item()
-                        # layer_summary[name]['exc']['individual']['q3'] = exc_ind.quantile(q=0.75).item()
-                    if self.aggregate_synapse_activations:
-                        layer_summary[name]['exc']['aggregate'] = {}
-                        layer_summary[name]['exc']['aggregate']['mean'] = exc_agg.mean().item()
-                        layer_summary[name]['exc']['aggregate']['std'] = exc_agg.std().item()
-                        # layer_summary[name]['exc']['aggregate']['min'] = exc_agg.min().item()
-                        # layer_summary[name]['exc']['aggregate']['max'] = exc_agg.max().item()
-                        # layer_summary[name]['exc']['aggregate']['median'] = exc_agg.median().item()
-                        # layer_summary[name]['exc']['aggregate']['q1'] = exc_agg.quantile(q=0.25).item()
-                        # layer_summary[name]['exc']['aggregate']['q3'] = exc_agg.quantile(q=0.75).item()
+                    layer_summary[name]['exc']['mean'] = torch.mean(exc).item()
+                    layer_summary[name]['exc']['std'] = torch.std(exc).item()
+                    # layer_summary[name]['exc']['min'] = exc.min().item()
+                    # layer_summary[name]['exc']['max'] = exc.max().item()
+                    # layer_summary[name]['exc']['median'] = exc.median().item()
+                    # layer_summary[name]['exc']['q1'] = exc.quantile(q=0.25).item()
+                    # layer_summary[name]['exc']['q3'] = exc.quantile(q=0.75).item()
+                
+                if self.branch_summary:
+                    print('branch summary', flush=True)
+                    branch_summary[name]['exc'] = {}
+                    branch_summary[name]['exc']['mean'] = torch.mean(exc, dim=0).tolist()
+                    branch_summary[name]['exc']['std'] = torch.std(exc, dim=0).tolist()
+                    # branch_summary[name]['exc']['min'] = torch.min(exc, dim=0).tolist()
+                    # branch_summary[name]['exc']['max'] = torch.max(exc, dim=0).tolist()
+                    # branch_summary[name]['exc']['median'] = torch.median(exc, dim=0).tolist()
+                    # branch_summary[name]['exc']['q1'] = torch.quantile(exc, q=0.25, dim=0).tolist()
+                    # branch_summary[name]['exc']['q3'] = torch.quantile(exc, q=0.75, dim=0).tolist()
                 
                 if self.raw_summary:
-                    print('raw summary', flush=True)
                     self.data_dict[name]['exc'] = exc.tolist()
-            
             if 'inh' in module_dict.keys():
                 print('inh', flush=True)
                 inh: torch.Tensor = module_dict['inh']
-                # inh = inh.cpu()
-
-                if self.network_summary or self.layer_summary:
-                    if self.individual_synapse_activations:
-                        inh_ind = inh.flatten()
-                        inh_ind = inh_ind[inh_ind > 1e-3]
-                    if self.aggregate_synapse_activations:
-                        inh_agg = inh.sum(dim=-2)
-                        inh_agg = inh_agg.flatten()
+                
+                if self.logspace:
+                    inh = torch.log(inh)
 
                 if self.network_summary:
-                    if self.individual_synapse_activations:
-                        inh_ind_net.append(inh_ind)
-                    if self.aggregate_synapse_activations:
-                        inh_agg_net.append(inh_agg)
+                    print('network summary', flush=True)
+                    inh_net.append(inh.flatten())
                 
                 if self.layer_summary:
+                    print('layer summary', flush=True)
                     layer_summary[name]['inh'] = {}
-                    if self.individual_synapse_activations:
-                        layer_summary[name]['inh']['individual'] = {}
-                        layer_summary[name]['inh']['individual']['mean'] = inh_ind.mean().item()
-                        layer_summary[name]['inh']['individual']['std'] = inh_ind.std().item()
-                        # layer_summary[name]['inh']['individual']['min'] = inh_ind.min().item()
-                        # layer_summary[name]['inh']['individual']['max'] = inh_ind.max().item()
-                        # layer_summary[name]['inh']['individual']['median'] = inh_ind.median().item()
-                        # layer_summary[name]['inh']['individual']['q1'] = inh_ind.quantile(q=0.25).item()
-                        # layer_summary[name]['inh']['individual']['q3'] = inh_ind.quantile(q=0.75).item()
-                    if self.aggregate_synapse_activations:
-                        layer_summary[name]['inh']['aggregate'] = {}
-                        layer_summary[name]['inh']['aggregate']['mean'] = inh_agg.mean().item()
-                        layer_summary[name]['inh']['aggregate']['std'] = inh_agg.std().item()
-                        # layer_summary[name]['inh']['aggregate']['min'] = inh_agg.min().item()
-                        # layer_summary[name]['inh']['aggregate']['max'] = inh_agg.max().item()
-                        # layer_summary[name]['inh']['aggregate']['median'] = inh_agg.median().item()
-                        # layer_summary[name]['inh']['aggregate']['q1'] = inh_agg.quantile(q=0.25).item()
-                        # layer_summary[name]['inh']['aggregate']['q3'] = inh_agg.quantile(q=0.75).item()
+                    layer_summary[name]['inh']['mean'] = torch.mean(inh).item()
+                    layer_summary[name]['inh']['std'] = torch.std(inh).item()
+                    # layer_summary[name]['inh']['min'] = inh.min().item()
+                    # layer_summary[name]['inh']['max'] = inh.max().item()
+                    # layer_summary[name]['inh']['median'] = inh.median().item()
+                    # layer_summary[name]['inh']['q1'] = inh.quantile(q=0.25).item()
+                    # layer_summary[name]['inh']['q3'] = inh.quantile(q=0.75).item()
                     
-                    if self.raw_summary:
-                        self.data_dict[name]['inh'] = inh.tolist()
+                if self.branch_summary:
+                    print('branch summary', flush=True)
+                    branch_summary[name]['inh'] = {}
+                    branch_summary[name]['inh']['mean'] = torch.mean(inh, dim=0).tolist()
+                    branch_summary[name]['inh']['std'] = torch.std(inh, dim=0).tolist()
+                    # branch_summary[name]['inh']['min'] = torch.min(inh, dim=0).tolist()
+                    # branch_summary[name]['inh']['max'] = torch.max(inh, dim=0).tolist()
+                    # branch_summary[name]['inh']['median'] = torch.median(inh, dim=0).tolist()
+                    # branch_summary[name]['inh']['q1'] = torch.quantile(inh, q=0.25, dim=0).tolist()
+                    # branch_summary[name]['inh']['q3'] = torch.quantile(inh, q=0.75, dim=0).tolist()
+                
+                if self.raw_summary:
+                    self.data_dict[name]['inh'] = inh.tolist()
 
             if 'Vout' in module_dict.keys():
                 print('Vout', flush=True)
                 Vout: torch.Tensor = module_dict['Vout']
-                # Vout = Vout.cpu()
 
-                if self.network_summary or self.layer_summary:
-                    Vout_flat = Vout.flatten()
-                
+                if self.logspace:
+                    Vout = torch.log(Vout)
+
                 if self.network_summary:
-                    branch_net.append(Vout_flat)
+                    print('network summary', flush=True)
+                    Vout_net.append(Vout.flatten())
                 
                 if self.layer_summary:
+                    print('layer summary', flush=True)
                     layer_summary[name]['Vout'] = {}
-                    layer_summary[name]['Vout']['mean'] = Vout_flat.mean().item()
-                    layer_summary[name]['Vout']['std'] = Vout_flat.std().item()
-                    # layer_summary[name]['Vout']['min'] = Vout_flat.min().item()
-                    # layer_summary[name]['Vout']['max'] = Vout_flat.max().item()
-                    # layer_summary[name]['Vout']['median'] = Vout_flat.median().item()
-                    # layer_summary[name]['Vout']['q1'] = Vout_flat.quantile(q=0.25).item()
-                    # layer_summary[name]['Vout']['q3'] = Vout_flat.quantile(q=0.75).item()
-            
+                    layer_summary[name]['Vout']['mean'] = torch.mean(Vout).item()
+                    layer_summary[name]['Vout']['std'] = torch.std(Vout).item()
+                    # layer_summary[name]['Vout']['min'] = Vout.min().item()
+                    # layer_summary[name]['Vout']['max'] = Vout.max().item()
+                    # layer_summary[name]['Vout']['median'] = Vout.median().item()
+                    # layer_summary[name]['Vout']['q1'] = Vout.quantile(q=0.25).item()
+                    # layer_summary[name]['Vout']['q3'] = Vout.quantile(q=0.75).item()
+                
+                if self.branch_summary:
+                    print('branch summary', flush=True)
+                    branch_summary[name]['Vout'] = {}
+                    branch_summary[name]['Vout']['mean'] = torch.mean(Vout, dim=0).tolist()
+                    branch_summary[name]['Vout']['std'] = torch.std(Vout, dim=0).tolist()
+                    # branch_summary[name]['Vout']['min'] = torch.min(Vout, dim=0).tolist()
+                    # branch_summary[name]['Vout']['max'] = torch.max(Vout, dim=0).tolist()
+                    # branch_summary[name]['Vout']['median'] = torch.median(Vout, dim=0).tolist()
+                    # branch_summary[name]['Vout']['q1'] = torch.quantile(Vout, q=0.25, dim=0).tolist()
+                    # branch_summary[name]['Vout']['q3'] = torch.quantile(Vout, q=0.75, dim=0).tolist()
+                
                 if self.raw_summary:
                     self.data_dict[name]['Vout'] = Vout.tolist()
 
+        results = {'logspace': self.logspace}
+
         if self.network_summary:
             network_summary = {}
+
             if self.synapse_activations:
+                exc_net = torch.cat(exc_net, dim=0)
                 network_summary['exc'] = {}
+                network_summary['exc']['mean'] = torch.mean(exc_net).item()
+                network_summary['exc']['std'] = torch.std(exc_net).item()
+                # network_summary['exc']['min'] = torch.min(exc_net).item()
+                # network_summary['exc']['max'] = torch.max(exc_net).item()
+                # network_summary['exc']['median'] = torch.median(exc_net).item()
+                # network_summary['exc']['q1'] = torch.quantile(exc_net, q=0.25).item()
+                # network_summary['exc']['q3'] = torch.quantile(exc_net, q=0.75).item()
+
+                inh_net = torch.cat(inh_net, dim=0)
                 network_summary['inh'] = {}
+                network_summary['inh']['mean'] = torch.mean(inh_net).item()
+                network_summary['inh']['std'] = torch.std(inh_net).item()
+                # network_summary['inh']['min'] = torch.min(inh_net).item()
+                # network_summary['inh']['max'] = torch.max(inh_net).item()
+                # network_summary['inh']['median'] = torch.median(inh_net).item()
+                # network_summary['inh']['q1'] = torch.quantile(inh_net, q=0.25).item()
+                # network_summary['inh']['q3'] = torch.quantile(inh_net, q=0.75).item()
+
             if self.branch_activations:
+                Vout_net = torch.cat(Vout_net, dim=0)
                 network_summary['Vout'] = {}
-            if self.individual_synapse_activations:
-                network_summary['exc']['individual'] = {}
-                network_summary['inh']['individual'] = {}
-                network_summary['exc']['individual']['mean'] = torch.cat(exc_ind_net).mean().item()
-                network_summary['inh']['individual']['mean'] = torch.cat(inh_ind_net).mean().item()
-                network_summary['exc']['individual']['std'] = torch.cat(exc_ind_net).std().item()
-                network_summary['inh']['individual']['std'] = torch.cat(inh_ind_net).std().item()
-                # network_summary['exc']['individual']['min'] = torch.cat(exc_ind_net).min().item()
-                # network_summary['inh']['individual']['min'] = torch.cat(inh_ind_net).min().item()
-                # network_summary['exc']['individual']['max'] = torch.cat(exc_ind_net).max().item()
-                # network_summary['inh']['individual']['max'] = torch.cat(inh_ind_net).max().item()
-                # network_summary['exc']['individual']['median'] = torch.cat(exc_ind_net).median().item()
-                # network_summary['inh']['individual']['median'] = torch.cat(inh_ind_net).median().item()
-                # network_summary['exc']['individual']['q1'] = torch.cat(exc_ind_net).quantile(q=0.25).item()
-                # network_summary['inh']['individual']['q1'] = torch.cat(inh_ind_net).quantile(q=0.25).item()
-                # network_summary['exc']['individual']['q3'] = torch.cat(exc_ind_net).quantile(q=0.75).item()
-                # network_summary['inh']['individual']['q3'] = torch.cat(inh_ind_net).quantile(q=0.75).item()
-            if self.aggregate_synapse_activations:
-                network_summary['exc']['aggregate'] = {}
-                network_summary['inh']['aggregate'] = {}
-                network_summary['exc']['aggregate']['mean'] = torch.cat(exc_agg_net).mean().item()
-                network_summary['inh']['aggregate']['mean'] = torch.cat(inh_agg_net).mean().item()
-                network_summary['exc']['aggregate']['std'] = torch.cat(exc_agg_net).std().item()
-                network_summary['inh']['aggregate']['std'] = torch.cat(inh_agg_net).std().item()
-                # network_summary['exc']['aggregate']['min'] = torch.cat(exc_agg_net).min().item()
-                # network_summary['inh']['aggregate']['min'] = torch.cat(inh_agg_net).min().item()
-                # network_summary['exc']['aggregate']['max'] = torch.cat(exc_agg_net).max().item()
-                # network_summary['inh']['aggregate']['max'] = torch.cat(inh_agg_net).max().item()
-                # network_summary['exc']['aggregate']['median'] = torch.cat(exc_agg_net).median().item()
-                # network_summary['inh']['aggregate']['median'] = torch.cat(inh_agg_net).median().item()
-                # network_summary['exc']['aggregate']['q1'] = torch.cat(exc_agg_net).quantile(q=0.25).item()
-                # network_summary['inh']['aggregate']['q1'] = torch.cat(inh_agg_net).quantile(q=0.25).item()
-                # network_summary['exc']['aggregate']['q3'] = torch.cat(exc_agg_net).quantile(q=0.75).item()
-                # network_summary['inh']['aggregate']['q3'] = torch.cat(inh_agg_net).quantile(q=0.75).item()
+                network_summary['Vout']['mean'] = torch.mean(Vout_net).item()
+                network_summary['Vout']['std'] = torch.std(Vout_net).item()
+                # network_summary['Vout']['min'] = torch.min(Vout_net).item()
+                # network_summary['Vout']['max'] = torch.max(Vout_net).item()
+                # network_summary['Vout']['median'] = torch.median(Vout_net).item()
+                # network_summary['Vout']['q1'] = torch.quantile(Vout_net, q=0.25).item()
+                # network_summary['Vout']['q3'] = torch.quantile(Vout_net, q=0.75).item()
             
-        results = {
-            'network_summary': network_summary,
-            'layer_summary': layer_summary,
-            'data_dict': self.data_dict
-        }
+            results['network_summary'] = network_summary
+
+        if self.layer_summary:
+            results['layer_summary'] = layer_summary
+
+        if self.branch_summary:
+            results['branch_summary'] = branch_summary
+
+        if self.raw_summary:
+            results['raw_summary'] = self.data_dict
 
         self.remove_forward_hooks(handles)
 
@@ -836,285 +1205,6 @@ class ActivationAnalyzer:
             save_dict(results, save_path, filename)
         else:
             return results
-
-
-
-# class ActivationAnalyzer:
-#     def __init__(
-#         self,
-#         individual_synapse_activations: bool = True,
-#         aggregate_synapse_activations: bool = True,
-#         branch_activations: bool = True,
-#         network_summary: bool = True,
-#         layer_summary: bool = True,
-#         raw_summary: bool = True,
-#         downsample: bool = False,
-#         samples: int = 1000
-#     ):
-#         self.synapse_activations = (
-#             individual_synapse_activations or aggregate_synapse_activations
-#         )
-#         self.individual_synapse_activations = individual_synapse_activations
-#         self.aggregate_synapse_activations = aggregate_synapse_activations
-#         self.branch_activations = branch_activations
-#         self.network_summary = network_summary
-#         self.layer_summary = layer_summary
-#         self.raw_summary = raw_summary
-#         self.downsample = downsample
-#         self.samples = samples
-
-#     def attach_forward_hooks(self, model: BaseModel):
-#         handles = []
-#         for name, module in model.named_modules():
-#             if isinstance(module, DendriticBranchLayer):
-#                 if name not in self.data_dict.keys():
-#                     self.data_dict[name] = {}
-#                     module._name = name
-#                     handle = module.register_forward_hook(self.forward_hook)
-#                     handles.append(handle)
-#         return handles
-    
-#     def remove_forward_hooks(self, handles: List[torch.utils.hooks.RemovableHandle]):
-#         for handle in handles:
-#             handle.remove()
-    
-#     def forward_hook(
-#         self, 
-#         module: DendriticBranchLayer, 
-#         input: Tuple[torch.Tensor, torch.Tensor, Optional[torch.Tensor]], 
-#         output: torch.Tensor
-#     ):
-#         excitatory_input, inhibitory_input, _ = input
-#         excitatory_input = excitatory_input[..., None]
-#         inhibitory_input = inhibitory_input[..., None]
-
-#         key = module._name
-
-#         if self.synapse_activations and module.branch_excitation is not None:
-#             pruned_exc_syn = module.branch_excitation.pruned_weight().t()
-#             for _ in range(excitatory_input.ndim - 2):
-#                 pruned_exc_syn = pruned_exc_syn[None, ...]
-#             self.data_dict[key]['exc'] = excitatory_input * pruned_exc_syn
-
-#         if self.synapse_activations and module.branch_inhibition is not None:
-#             pruned_inh_syn = module.branch_inhibition.pruned_weight().t()
-#             for _ in range(inhibitory_input.ndim - 2):
-#                 pruned_inh_syn = pruned_inh_syn[None, ...]
-#             self.data_dict[key]['inh'] = inhibitory_input * pruned_inh_syn
-        
-#         if self.branch_activations:
-#             self.data_dict[key]['Vout'] = output
-
-#     def analyze(
-#         self,
-#         model: BaseModel,
-#         test_dataset: torch.utils.data.Dataset,
-#         device: str = 'cpu',
-#         save_path: Optional[str] = None,
-#         filename: str = 'final'
-#     ):
-#         self.data_dict = {}
-
-#         model = model.to(device)
-#         model.eval()
-
-#         inputs, _ = test_dataset[:]
-#         inputs: torch.Tensor = inputs.to(device)
-
-#         if self.downsample:
-#             ixs = torch.randperm(inputs.shape[0])[:self.samples]
-#             inputs = inputs[ixs]
-
-#         handles = self.attach_forward_hooks(model)
-
-#         _ = model(inputs)
-
-#         if self.network_summary:
-#             if self.individual_synapse_activations:
-#                 exc_ind_net = []
-#                 inh_ind_net = []
-#             if self.aggregate_synapse_activations:
-#                 exc_agg_net = []
-#                 inh_agg_net = []
-#             if self.branch_activations:
-#                 branch_net = []
-        
-#         if self.layer_summary:
-#             layer_summary = {}
-        
-#         for name, module_dict in self.data_dict.items():
-#             print(name, flush=True)
-#             module_dict: dict
-#             if self.layer_summary:
-#                 layer_summary[name] = {}
-
-#             if 'exc' in module_dict.keys():
-#                 print('exc', flush=True)
-#                 exc: torch.Tensor = module_dict['exc']
-#                 # exc = exc.cpu()
-
-#                 if self.network_summary or self.layer_summary:
-#                     if self.individual_synapse_activations:
-#                         exc_ind = exc.flatten()
-#                         exc_ind = exc_ind[exc_ind > 1e-3]
-#                     if self.aggregate_synapse_activations:
-#                         exc_agg = exc.sum(dim=-2)
-#                         exc_agg = exc_agg.flatten()
-
-#                 if self.network_summary:
-#                     print('network summary', flush=True)
-#                     if self.individual_synapse_activations:
-#                         exc_ind_net.append(exc_ind)
-#                     if self.aggregate_synapse_activations:
-#                         exc_agg_net.append(exc_agg)
-                
-#                 if self.layer_summary:
-#                     print('layer summary', flush=True)
-#                     layer_summary[name]['exc'] = {}
-#                     if self.individual_synapse_activations:
-#                         layer_summary[name]['exc']['individual'] = {}
-#                         layer_summary[name]['exc']['individual']['mean'] = exc_ind.mean().item()
-#                         layer_summary[name]['exc']['individual']['std'] = exc_ind.std().item()
-#                         # layer_summary[name]['exc']['individual']['min'] = exc_ind.min().item()
-#                         # layer_summary[name]['exc']['individual']['max'] = exc_ind.max().item()
-#                         # layer_summary[name]['exc']['individual']['median'] = exc_ind.median().item()
-#                         # layer_summary[name]['exc']['individual']['q1'] = exc_ind.quantile(q=0.25).item()
-#                         # layer_summary[name]['exc']['individual']['q3'] = exc_ind.quantile(q=0.75).item()
-#                     if self.aggregate_synapse_activations:
-#                         layer_summary[name]['exc']['aggregate'] = {}
-#                         layer_summary[name]['exc']['aggregate']['mean'] = exc_agg.mean().item()
-#                         layer_summary[name]['exc']['aggregate']['std'] = exc_agg.std().item()
-#                         # layer_summary[name]['exc']['aggregate']['min'] = exc_agg.min().item()
-#                         # layer_summary[name]['exc']['aggregate']['max'] = exc_agg.max().item()
-#                         # layer_summary[name]['exc']['aggregate']['median'] = exc_agg.median().item()
-#                         # layer_summary[name]['exc']['aggregate']['q1'] = exc_agg.quantile(q=0.25).item()
-#                         # layer_summary[name]['exc']['aggregate']['q3'] = exc_agg.quantile(q=0.75).item()
-                
-#                 if self.raw_summary:
-#                     print('raw summary', flush=True)
-#                     self.data_dict[name]['exc'] = exc.tolist()
-            
-#             if 'inh' in module_dict.keys():
-#                 print('inh', flush=True)
-#                 inh: torch.Tensor = module_dict['inh']
-#                 # inh = inh.cpu()
-
-#                 if self.network_summary or self.layer_summary:
-#                     if self.individual_synapse_activations:
-#                         inh_ind = inh.flatten()
-#                         inh_ind = inh_ind[inh_ind > 1e-3]
-#                     if self.aggregate_synapse_activations:
-#                         inh_agg = inh.sum(dim=-2)
-#                         inh_agg = inh_agg.flatten()
-
-#                 if self.network_summary:
-#                     if self.individual_synapse_activations:
-#                         inh_ind_net.append(inh_ind)
-#                     if self.aggregate_synapse_activations:
-#                         inh_agg_net.append(inh_agg)
-                
-#                 if self.layer_summary:
-#                     layer_summary[name]['inh'] = {}
-#                     if self.individual_synapse_activations:
-#                         layer_summary[name]['inh']['individual'] = {}
-#                         layer_summary[name]['inh']['individual']['mean'] = inh_ind.mean().item()
-#                         layer_summary[name]['inh']['individual']['std'] = inh_ind.std().item()
-#                         # layer_summary[name]['inh']['individual']['min'] = inh_ind.min().item()
-#                         # layer_summary[name]['inh']['individual']['max'] = inh_ind.max().item()
-#                         # layer_summary[name]['inh']['individual']['median'] = inh_ind.median().item()
-#                         # layer_summary[name]['inh']['individual']['q1'] = inh_ind.quantile(q=0.25).item()
-#                         # layer_summary[name]['inh']['individual']['q3'] = inh_ind.quantile(q=0.75).item()
-#                     if self.aggregate_synapse_activations:
-#                         layer_summary[name]['inh']['aggregate'] = {}
-#                         layer_summary[name]['inh']['aggregate']['mean'] = inh_agg.mean().item()
-#                         layer_summary[name]['inh']['aggregate']['std'] = inh_agg.std().item()
-#                         # layer_summary[name]['inh']['aggregate']['min'] = inh_agg.min().item()
-#                         # layer_summary[name]['inh']['aggregate']['max'] = inh_agg.max().item()
-#                         # layer_summary[name]['inh']['aggregate']['median'] = inh_agg.median().item()
-#                         # layer_summary[name]['inh']['aggregate']['q1'] = inh_agg.quantile(q=0.25).item()
-#                         # layer_summary[name]['inh']['aggregate']['q3'] = inh_agg.quantile(q=0.75).item()
-                    
-#                     if self.raw_summary:
-#                         self.data_dict[name]['inh'] = inh.tolist()
-
-#             if 'Vout' in module_dict.keys():
-#                 print('Vout', flush=True)
-#                 Vout: torch.Tensor = module_dict['Vout']
-#                 # Vout = Vout.cpu()
-
-#                 if self.network_summary or self.layer_summary:
-#                     Vout_flat = Vout.flatten()
-                
-#                 if self.network_summary:
-#                     branch_net.append(Vout_flat)
-                
-#                 if self.layer_summary:
-#                     layer_summary[name]['Vout'] = {}
-#                     layer_summary[name]['Vout']['mean'] = Vout_flat.mean().item()
-#                     layer_summary[name]['Vout']['std'] = Vout_flat.std().item()
-#                     # layer_summary[name]['Vout']['min'] = Vout_flat.min().item()
-#                     # layer_summary[name]['Vout']['max'] = Vout_flat.max().item()
-#                     # layer_summary[name]['Vout']['median'] = Vout_flat.median().item()
-#                     # layer_summary[name]['Vout']['q1'] = Vout_flat.quantile(q=0.25).item()
-#                     # layer_summary[name]['Vout']['q3'] = Vout_flat.quantile(q=0.75).item()
-            
-#                 if self.raw_summary:
-#                     self.data_dict[name]['Vout'] = Vout.tolist()
-
-#         if self.network_summary:
-#             network_summary = {}
-#             if self.synapse_activations:
-#                 network_summary['exc'] = {}
-#                 network_summary['inh'] = {}
-#             if self.branch_activations:
-#                 network_summary['Vout'] = {}
-#             if self.individual_synapse_activations:
-#                 network_summary['exc']['individual'] = {}
-#                 network_summary['inh']['individual'] = {}
-#                 network_summary['exc']['individual']['mean'] = torch.cat(exc_ind_net).mean().item()
-#                 network_summary['inh']['individual']['mean'] = torch.cat(inh_ind_net).mean().item()
-#                 network_summary['exc']['individual']['std'] = torch.cat(exc_ind_net).std().item()
-#                 network_summary['inh']['individual']['std'] = torch.cat(inh_ind_net).std().item()
-#                 # network_summary['exc']['individual']['min'] = torch.cat(exc_ind_net).min().item()
-#                 # network_summary['inh']['individual']['min'] = torch.cat(inh_ind_net).min().item()
-#                 # network_summary['exc']['individual']['max'] = torch.cat(exc_ind_net).max().item()
-#                 # network_summary['inh']['individual']['max'] = torch.cat(inh_ind_net).max().item()
-#                 # network_summary['exc']['individual']['median'] = torch.cat(exc_ind_net).median().item()
-#                 # network_summary['inh']['individual']['median'] = torch.cat(inh_ind_net).median().item()
-#                 # network_summary['exc']['individual']['q1'] = torch.cat(exc_ind_net).quantile(q=0.25).item()
-#                 # network_summary['inh']['individual']['q1'] = torch.cat(inh_ind_net).quantile(q=0.25).item()
-#                 # network_summary['exc']['individual']['q3'] = torch.cat(exc_ind_net).quantile(q=0.75).item()
-#                 # network_summary['inh']['individual']['q3'] = torch.cat(inh_ind_net).quantile(q=0.75).item()
-#             if self.aggregate_synapse_activations:
-#                 network_summary['exc']['aggregate'] = {}
-#                 network_summary['inh']['aggregate'] = {}
-#                 network_summary['exc']['aggregate']['mean'] = torch.cat(exc_agg_net).mean().item()
-#                 network_summary['inh']['aggregate']['mean'] = torch.cat(inh_agg_net).mean().item()
-#                 network_summary['exc']['aggregate']['std'] = torch.cat(exc_agg_net).std().item()
-#                 network_summary['inh']['aggregate']['std'] = torch.cat(inh_agg_net).std().item()
-#                 # network_summary['exc']['aggregate']['min'] = torch.cat(exc_agg_net).min().item()
-#                 # network_summary['inh']['aggregate']['min'] = torch.cat(inh_agg_net).min().item()
-#                 # network_summary['exc']['aggregate']['max'] = torch.cat(exc_agg_net).max().item()
-#                 # network_summary['inh']['aggregate']['max'] = torch.cat(inh_agg_net).max().item()
-#                 # network_summary['exc']['aggregate']['median'] = torch.cat(exc_agg_net).median().item()
-#                 # network_summary['inh']['aggregate']['median'] = torch.cat(inh_agg_net).median().item()
-#                 # network_summary['exc']['aggregate']['q1'] = torch.cat(exc_agg_net).quantile(q=0.25).item()
-#                 # network_summary['inh']['aggregate']['q1'] = torch.cat(inh_agg_net).quantile(q=0.25).item()
-#                 # network_summary['exc']['aggregate']['q3'] = torch.cat(exc_agg_net).quantile(q=0.75).item()
-#                 # network_summary['inh']['aggregate']['q3'] = torch.cat(inh_agg_net).quantile(q=0.75).item()
-            
-#         results = {
-#             'network_summary': network_summary,
-#             'layer_summary': layer_summary,
-#             'data_dict': self.data_dict
-#         }
-
-#         self.remove_forward_hooks(handles)
-
-#         if save_path is not None:
-#             save_dict(results, save_path, filename)
-#         else:
-#             return results
 
 
 class AnalysisManager:
@@ -1135,6 +1225,17 @@ class AnalysisManager:
         # Note: Logging should be configured externally at the application startup.
         self.logger = logging.getLogger(__name__)
 
+        performance_config = self.config.performance_analysis
+        self.performance_enabled = performance_config.get('enabled', False)
+        self.performance_training = performance_config.get('training', False)
+        if self.performance_enabled:
+            performance_params: dict = performance_config.get('params', {})
+            self.performance_analyzer = PerformanceAnalyzer(
+                accuracy=performance_params.get('accuracy', False),
+                categorical_loglikelihood=performance_params.get('categorical_loglikelihood', False),
+                mse=performance_params.get('mse', False)
+            )
+                
         ei_info_config = self.config.ei_info_analysis
         self.ei_info_enabled = ei_info_config.get('enabled', False)
         self.ei_info_training = ei_info_config.get('training', False)
@@ -1175,7 +1276,8 @@ class AnalysisManager:
         if self.ablation_enabled:
             ablation_params: dict = ablation_config.get('params', {})
             self.ablation_analyzer = AblationAnalyzer(
-                ablate_synapses=ablation_params.get('ablate_synapses', True),
+                ablate_all_synapses=ablation_params.get('ablate_all_synapses', True),
+                ablate_excitation=ablation_params.get('ablate_excitation', True),
                 ablate_inhibition=ablation_params.get('ablate_inhibition', True),
                 ablate_branches=ablation_params.get('ablate_branches', True),
                 accuracy=ablation_params.get('accuracy', True),
@@ -1192,22 +1294,53 @@ class AnalysisManager:
                 branch_weights=weight_params.get('branch_weights', True)
             )
 
-        activation_config = self.config.activation_analysis
-        self.activation_enabled = activation_config.get('enabled', False)
-        self.activation_training = activation_config.get('training', False)
-        if self.activation_enabled:
-            self.activation_analyzer = ActivationAnalyzer(
-                individual_synapse_activations=activation_config.get('individual_synapse_activations', True),
-                aggregate_synapse_activations=activation_config.get('aggregate_synapse_activations', True),
-                branch_activations=activation_config.get('branch_activations', True),
-                network_summary=activation_config.get('network_summary', True),
-                layer_summary=activation_config.get('layer_summary', True),
-                raw_summary=activation_config.get('raw_summary', True),
-                downsample=activation_config.get('downsample', False),
-                samples=activation_config.get('samples', 1000)
+        synaptic_activation_config = self.config.synaptic_activation_analysis
+        self.synaptic_activation_enabled = synaptic_activation_config.get('enabled', False)
+        self.synaptic_activation_training = synaptic_activation_config.get('training', False)
+        if self.synaptic_activation_enabled:
+            synaptic_activation_params: dict = synaptic_activation_config.get('params', {})
+            self.synaptic_activation_analyzer = SynapticActivationAnalyzer(
+                network_summary=synaptic_activation_params.get('network_summary', True),
+                layer_summary=synaptic_activation_params.get('layer_summary', True),
+                branch_summary=synaptic_activation_params.get('branch_summary', True),
+                raw_summary=synaptic_activation_params.get('raw_summary', True),
+                logspace=synaptic_activation_params.get('logspace', False),
+                downsample=synaptic_activation_params.get('downsample', False),
+                samples=synaptic_activation_params.get('samples', 1000)
+            )
+        
+        branch_activation_config = self.config.branch_activation_analysis
+        self.branch_activation_enabled = branch_activation_config.get('enabled', False)
+        self.branch_activation_training = branch_activation_config.get('training', False)
+        if self.branch_activation_enabled:
+            branch_activation_params: dict = branch_activation_config.get('params', {})
+            self.branch_activation_analyzer = BranchActivationAnalyzer(
+                synapse_activations=branch_activation_params.get('synapse_activations', True),
+                branch_activations=branch_activation_params.get('branch_activations', True),
+                network_summary=branch_activation_params.get('network_summary', True),
+                layer_summary=branch_activation_params.get('layer_summary', True),
+                branch_summary=branch_activation_params.get('branch_summary', True),
+                raw_summary=branch_activation_params.get('raw_summary', True),
+                logspace=branch_activation_params.get('logspace', False),
+                downsample=branch_activation_params.get('downsample', False),
+                samples=branch_activation_params.get('samples', 1000)
             )
     
     def run_analysis(self, filename: str='final', training: bool=False):
+        if (
+            self.performance_enabled and
+            ((self.performance_training and training) or not training)
+        ):
+            self.performance_analyzer.analyze(
+                model=self.model,
+                train_ds=self.data['train'],
+                valid_ds=self.data['valid'],
+                test_ds=self.data['test'],
+                device=self.device,
+                save_path=os.path.join(self.save_root, 'performance'),
+                filename=filename
+            )
+        
         if (
             self.ei_info_enabled and 
             ((self.ei_info_training and training) or not training)
@@ -1266,16 +1399,29 @@ class AnalysisManager:
             )
         
         if (
-            self.activation_enabled and
-            ((self.activation_training and training) or not training)
+            self.synaptic_activation_enabled and
+            ((self.synaptic_activation_training and training) or not training)
         ):
-            self.activation_analyzer.analyze(
+            self.synaptic_activation_analyzer.analyze(
                 model=self.model,
                 test_dataset=self.data['test'],
                 device='cpu',
-                save_path=os.path.join(self.save_root, 'activation_analysis'),
+                save_path=os.path.join(self.save_root, 'synaptic_activation_analysis'),
                 filename=filename
             )
+        
+        if (
+            self.branch_activation_enabled and
+            ((self.branch_activation_training and training) or not training)
+        ):
+            self.branch_activation_analyzer.analyze(
+                model=self.model,
+                test_dataset=self.data['test'],
+                device='cpu',
+                save_path=os.path.join(self.save_root, 'branch_activation_analysis'),
+                filename=filename
+            )
+
 
         # TODO: add other analysis classes here implemented same as above
                 
