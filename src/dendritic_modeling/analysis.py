@@ -439,21 +439,75 @@ class SingleLayerContributionAnalyzer:
 
         # Ensure model is on the correct device
         model = model.to(self.device)
-        net = model.net if hasattr(model, "net") else model
+        # Get the underlying network
+        if hasattr(model, "net"):
+            net = model.net
+        else:
+            net = model
+
+        # Debug logging
+        self.logger.info(f"Model type: {type(model)}")
+        self.logger.info(f"Net type: {type(net)}")
+        self.logger.info(
+            f"Net attributes: {[attr for attr in dir(net) if 'branch' in attr]}"
+        )
+
+        # Check layers structure
+        if hasattr(net, "layers"):
+            self.logger.info(f"Number of EI layers: {len(net.layers)}")
+            for i, layer in enumerate(net.layers):
+                self.logger.info(
+                    f"Layer {i}: has excitatory_cells={hasattr(layer, 'excitatory_cells')}, has inhibitory_cells={hasattr(layer, 'inhibitory_cells')}"
+                )
+                if (
+                    hasattr(layer, "excitatory_cells")
+                    and layer.excitatory_cells is not None
+                ):
+                    self.logger.info(
+                        f"  Excitatory cells type: {type(layer.excitatory_cells)}"
+                    )
+                    self.logger.info(
+                        f"  Excitatory has branch_layers: {hasattr(layer.excitatory_cells, 'branch_layers')}"
+                    )
+                if (
+                    hasattr(layer, "inhibitory_cells")
+                    and layer.inhibitory_cells is not None
+                ):
+                    self.logger.info(
+                        f"  Inhibitory cells type: {type(layer.inhibitory_cells)}"
+                    )
+                    self.logger.info(
+                        f"  Inhibitory has branch_layers: {hasattr(layer.inhibitory_cells, 'branch_layers')}"
+                    )
+
+        # Get branch layers
+        try:
+            branch_layers = net.branch_layers
+            self.logger.info(
+                f"Successfully got branch_layers: {len(branch_layers)} layers"
+            )
+        except Exception as e:
+            self.logger.error(f"Error accessing branch_layers: {type(e).__name__}: {e}")
+            return
 
         # Get baseline performance with all layers active
         baseline_acc = measure_performance(net, test_dataset, device=self.device)
         self.logger.info(f"Baseline accuracy: {baseline_acc:.4f}")
 
-        # Get number of layers
-        if hasattr(net, "branch_layers"):
-            branch_layers = net.branch_layers
-        else:
-            self.logger.error("Model does not have branch_layers attribute")
-            return {}
-
-        num_layers = len(branch_layers)
-        self.logger.info(f"Model has {num_layers} branch layers")
+        # Log layer structure for debugging
+        self.logger.info(f"Total branch layers: {len(branch_layers)}")
+        for i, layer in enumerate(branch_layers):
+            has_exc = (
+                hasattr(layer, "branch_excitation")
+                and layer.branch_excitation is not None
+            )
+            has_inh = (
+                hasattr(layer, "branch_inhibition")
+                and layer.branch_inhibition is not None
+            )
+            self.logger.info(
+                f"Layer {i}: has_excitation={has_exc}, has_inhibition={has_inh}"
+            )
 
         # Store original parameters
         original_params = {}
@@ -470,11 +524,11 @@ class SingleLayerContributionAnalyzer:
         }
 
         # Analyze each layer in isolation
-        for layer_idx in range(num_layers):
+        for layer_idx in range(len(branch_layers)):
             self.logger.info(f"Analyzing layer {layer_idx} in isolation...")
 
             # First, ablate all OTHER layers (set to very negative values)
-            for i in range(num_layers):
+            for i in range(len(branch_layers)):
                 if i != layer_idx:
                     if (
                         hasattr(branch_layers[i], "branch_excitation")
@@ -621,7 +675,13 @@ class SingleLayerContributionAnalyzer:
                     label=f"Full network baseline ({baseline_acc:.3f})",
                 )
 
-                ax1.set_xlabel("Layer (0=Soma, higher=more distal)", fontsize=14)
+                # Set x-axis ticks and labels
+                ax1.set_xticks(x)
+                # Create labels where 0=soma and higher numbers=more distal
+                x_labels = ["Soma" if pos == 0 else f"{pos}" for pos in x]
+                ax1.set_xticklabels(x_labels)
+
+                ax1.set_xlabel("Layer (Soma → Distal)", fontsize=14)
                 ax1.set_ylabel("Classification Accuracy", fontsize=14)
                 ax1.set_title(
                     "Single Layer Contribution Analysis\n(Each layer tested in isolation)",
@@ -660,10 +720,29 @@ class SingleLayerContributionAnalyzer:
                     )
                 ]
 
+                # Debug: Print contributions before reversal
+                self.logger.info(
+                    f"Before reversal - Excitatory contributions: {exc_contrib}"
+                )
+                self.logger.info(
+                    f"Before reversal - Inhibitory contributions: {inh_contrib}"
+                )
+                self.logger.info(f"Before reversal - Synergy: {synergy}")
+
                 # Reverse the contributions too
                 exc_contrib = [exc_contrib[i] for i in range(num_layers - 1, -1, -1)]
                 inh_contrib = [inh_contrib[i] for i in range(num_layers - 1, -1, -1)]
                 synergy = [synergy[i] for i in range(num_layers - 1, -1, -1)]
+
+                # Debug: Print contributions after reversal
+                self.logger.info(
+                    f"After reversal - Excitatory contributions: {exc_contrib}"
+                )
+                self.logger.info(
+                    f"After reversal - Inhibitory contributions: {inh_contrib}"
+                )
+                self.logger.info(f"After reversal - Synergy: {synergy}")
+                self.logger.info(f"Plotting x positions: {x.tolist()}")
 
                 ax2.bar(
                     x - width,
@@ -690,7 +769,13 @@ class SingleLayerContributionAnalyzer:
                     alpha=0.7,
                 )
 
-                ax2.set_xlabel("Layer (0=Soma, higher=more distal)", fontsize=14)
+                # Set x-axis ticks and labels
+                ax2.set_xticks(x)
+                # Create labels where 0=soma and higher numbers=more distal
+                x_labels = ["Soma" if pos == 0 else f"{pos}" for pos in x]
+                ax2.set_xticklabels(x_labels)
+
+                ax2.set_xlabel("Layer (Soma → Distal)", fontsize=14)
                 ax2.set_ylabel("Accuracy Contribution", fontsize=14)
                 ax2.set_title(
                     "Layer Contributions Breakdown\n(When tested in isolation)",
@@ -754,18 +839,75 @@ class SynapticAblationAnalyzer:
 
         # Ensure model is on the correct device
         model = model.to(self.device)
-        net = model.net if hasattr(model, "net") else model
+        # Get the underlying network
+        if hasattr(model, "net"):
+            net = model.net
+        else:
+            net = model
+
+        # Debug logging
+        self.logger.info(f"Model type: {type(model)}")
+        self.logger.info(f"Net type: {type(net)}")
+        self.logger.info(
+            f"Net attributes: {[attr for attr in dir(net) if 'branch' in attr]}"
+        )
+
+        # Check layers structure
+        if hasattr(net, "layers"):
+            self.logger.info(f"Number of EI layers: {len(net.layers)}")
+            for i, layer in enumerate(net.layers):
+                self.logger.info(
+                    f"Layer {i}: has excitatory_cells={hasattr(layer, 'excitatory_cells')}, has inhibitory_cells={hasattr(layer, 'inhibitory_cells')}"
+                )
+                if (
+                    hasattr(layer, "excitatory_cells")
+                    and layer.excitatory_cells is not None
+                ):
+                    self.logger.info(
+                        f"  Excitatory cells type: {type(layer.excitatory_cells)}"
+                    )
+                    self.logger.info(
+                        f"  Excitatory has branch_layers: {hasattr(layer.excitatory_cells, 'branch_layers')}"
+                    )
+                if (
+                    hasattr(layer, "inhibitory_cells")
+                    and layer.inhibitory_cells is not None
+                ):
+                    self.logger.info(
+                        f"  Inhibitory cells type: {type(layer.inhibitory_cells)}"
+                    )
+                    self.logger.info(
+                        f"  Inhibitory has branch_layers: {hasattr(layer.inhibitory_cells, 'branch_layers')}"
+                    )
+
+        # Get branch layers
+        try:
+            branch_layers = net.branch_layers
+            self.logger.info(
+                f"Successfully got branch_layers: {len(branch_layers)} layers"
+            )
+        except Exception as e:
+            self.logger.error(f"Error accessing branch_layers: {type(e).__name__}: {e}")
+            return
 
         # Get baseline performance
         baseline_acc = measure_performance(net, test_dataset, device=self.device)
         self.logger.info(f"Baseline accuracy: {baseline_acc:.4f}")
 
-        # Get branch layers
-        if hasattr(net, "branch_layers"):
-            branch_layers = net.branch_layers
-        else:
-            self.logger.error("Model does not have branch_layers attribute")
-            return {}
+        # Log layer structure for debugging
+        self.logger.info(f"Total branch layers: {len(branch_layers)}")
+        for i, layer in enumerate(branch_layers):
+            has_exc = (
+                hasattr(layer, "branch_excitation")
+                and layer.branch_excitation is not None
+            )
+            has_inh = (
+                hasattr(layer, "branch_inhibition")
+                and layer.branch_inhibition is not None
+            )
+            self.logger.info(
+                f"Layer {i}: has_excitation={has_exc}, has_inhibition={has_inh}"
+            )
 
         # Determine which layers to analyze
         if self.layers_to_analyze:
@@ -1053,7 +1195,13 @@ class SynapticAblationAnalyzer:
                     alpha=0.7,
                 )
 
-                ax1.set_xlabel("Layer (0=Soma, higher=more distal)", fontsize=14)
+                # Set x-axis ticks and labels
+                ax1.set_xticks(x)
+                # Create labels where 0=soma and higher numbers=more distal
+                x_labels = ["Soma" if pos == 0 else f"{pos}" for pos in x]
+                ax1.set_xticklabels(x_labels)
+
+                ax1.set_xlabel("Layer (Soma → Distal)", fontsize=14)
                 ax1.set_ylabel("Accuracy Drop", fontsize=14)
                 ax1.set_title(
                     f"Synaptic Ablation Analysis - Whole Layers\n(Baseline accuracy: {baseline_acc:.3f})",
@@ -1112,7 +1260,13 @@ class SynapticAblationAnalyzer:
                     color="blue",
                 )
 
-                ax2.set_xlabel("Layer (0=Soma, higher=more distal)", fontsize=14)
+                # Set x-axis ticks and labels
+                ax2.set_xticks(x)
+                # Create labels where 0=soma and higher numbers=more distal
+                x_labels = ["Soma" if pos == 0 else f"{pos}" for pos in x]
+                ax2.set_xticklabels(x_labels)
+
+                ax2.set_xlabel("Layer (Soma → Distal)", fontsize=14)
                 ax2.set_ylabel("Classification Accuracy", fontsize=14)
                 ax2.set_title("Remaining Accuracy After Layer Ablation", fontsize=16)
                 ax2.legend(fontsize=12)
@@ -1207,7 +1361,7 @@ class SynapticAblationAnalyzer:
                     capsize=5,
                 )
 
-                ax1.set_xlabel("Layer (0=Soma, higher=more distal)", fontsize=14)
+                ax1.set_xlabel("Layer (Soma → Distal)", fontsize=14)
                 ax1.set_ylabel("Mean Accuracy Drop (± std)", fontsize=14)
                 ax1.set_title(
                     f"Synaptic Ablation - Single Branches\n(Baseline: {baseline_acc:.3f})",
@@ -1251,7 +1405,7 @@ class SynapticAblationAnalyzer:
                 # Set x-axis
                 ax2.set_xticks([i * 3 for i in range(len(reversed_layer_idx))])
                 ax2.set_xticklabels(reversed_layer_idx)
-                ax2.set_xlabel("Layer (0=Soma, higher=more distal)", fontsize=14)
+                ax2.set_xlabel("Layer (Soma → Distal)", fontsize=14)
                 ax2.set_ylabel("Accuracy Drop Distribution", fontsize=14)
                 ax2.set_title("Branch-wise Accuracy Drop Distribution", fontsize=16)
                 ax2.grid(True, axis="y", alpha=0.3)
