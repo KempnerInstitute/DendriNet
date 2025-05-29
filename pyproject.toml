@@ -22,7 +22,10 @@ dependencies = [
     "wandb",
     "pandas",
     "omegaconf>=2.3.0",
-    "scikit-learn"
+    "scikit-learn",
+    "tensorflow>=2.16.0",
+    "tensorflow_probability",
+    "tf-keras"
 ]
 
 [tool.setuptools]
