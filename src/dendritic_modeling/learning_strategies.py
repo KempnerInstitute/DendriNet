@@ -2363,6 +2363,7 @@ def train_mlp_with_classification_head(
     valid_ds,
     test_ds,
     epochs=20,
+    patience=10,
     batch_size=128,
     lr=0.001,
     run_save_path=None,
@@ -2406,6 +2407,8 @@ def train_mlp_with_classification_head(
     best_valid_acc = 0.0
     best_state = None
     best_epoch = 0
+
+    patience_counter = 0
 
     # Create the save directory if it doesn't exist
     if run_save_path:
@@ -2465,9 +2468,15 @@ def train_mlp_with_classification_head(
             best_valid_acc = valid_acc
             best_state = deepcopy(model.state_dict())
             best_epoch = epoch
+            patience_counter = 0
             logger.info(
                 f"New best model found at epoch {epoch} with validation accuracy: {valid_acc:.4f}"
             )
+        else:
+            patience_counter += 1
+            if patience_counter >= patience:
+                logger.info(f"Early stopping at epoch {epoch} due to no improvement in validation accuracy")
+                break
 
         # Log progress
         logger.info(

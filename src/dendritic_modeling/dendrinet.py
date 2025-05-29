@@ -1524,7 +1524,7 @@ class DendriNet(nn.Module):
             if excitatory_synapses_per_branch < 1:
                 raise ValueError("excitatory_synapses_per_branch must be >= 1")
 
-        branch_factors = deepcopy(branch_factors)
+        branch_factors: list = deepcopy(branch_factors)
         self.n_branch_layers = len(branch_factors)
         for i in range(self.n_branch_layers):
             layer_sizes.append(layer_sizes[i] * branch_factors[i])
@@ -1553,7 +1553,7 @@ class DendriNet(nn.Module):
                 reactivation_type=reactivation_type,
                 reactivation_strategy=reactivation_strategy,
                 blocklinear_strategy=blocklinear_strategy,
-                layer_idx=i,
+                layer_idx=self.n_branch_layers - i,
                 print_hooks=print_hooks,
                 use_noise=use_noise,
                 rewiring_mode=rewiring_mode,
@@ -1590,7 +1590,7 @@ class DendriNet(nn.Module):
                     reactivation_type=reactivation_type,
                     reactivation_strategy=reactivation_strategy,
                     blocklinear_strategy=blocklinear_strategy,
-                    layer_idx=self.n_branch_layers,
+                    layer_idx=0,
                     print_hooks=print_hooks,
                     use_noise=use_noise,
                     rewiring_mode=rewiring_mode,
@@ -1626,7 +1626,7 @@ class DendriNet(nn.Module):
                     reactivation_type=reactivation_type,
                     reactivation_strategy=reactivation_strategy,
                     blocklinear_strategy=blocklinear_strategy,
-                    layer_idx=self.n_branch_layers,
+                    layer_idx=0,
                     print_hooks=print_hooks,
                     use_noise=use_noise,
                     rewiring_mode=rewiring_mode,
