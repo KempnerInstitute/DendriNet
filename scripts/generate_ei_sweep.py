@@ -502,7 +502,13 @@ def generate_sweep_configs_manually(
                             if hasattr(param_value, "__len__") and not isinstance(
                                 param_value, str
                             ):
-                                if len(param_value) > 0:
+                                if (
+                                    len(param_value) > 0
+                                    and param_name not in [
+                                        "model.network.parameters.excitatory_branch_factors",
+                                        "model.network.parameters.inhibitory_branch_factors",
+                                    ]
+                                ):
                                     param_value = param_value[0]
                             set_nested_value(new_config, param_name, param_value)
                     else:
@@ -516,7 +522,13 @@ def generate_sweep_configs_manually(
                             if hasattr(param_value, "__len__") and not isinstance(
                                 param_value, str
                             ):
-                                if len(param_value) > 0:
+                                if (
+                                    len(param_value) > 0
+                                    and param_name not in [
+                                        "model.network.parameters.excitatory_branch_factors",
+                                        "model.network.parameters.inhibitory_branch_factors",
+                                    ]
+                                ):
                                     param_value = param_value[0]
                             set_nested_value(new_config, param_name, param_value)
                 else:
@@ -533,7 +545,13 @@ def generate_sweep_configs_manually(
                         if hasattr(param_value, "__len__") and not isinstance(
                             param_value, str
                         ):
-                            if len(param_value) > 0:
+                            if (
+                                len(param_value) > 0
+                                and param_name not in [
+                                    "model.network.parameters.excitatory_branch_factors",
+                                    "model.network.parameters.inhibitory_branch_factors",
+                                ]
+                            ):
                                 param_value = param_value[0]
                         set_nested_value(new_config, param_name, param_value)
 
