@@ -151,6 +151,13 @@ visualization:
     #- branch_info  # mutual information
 
 analysis:
+  performance_analysis:
+    enabled: true
+    training: false
+    params:
+      accuracy: true
+      categorical_loglikelihood: true
+      mse: false
   ei_info_analysis:
     enabled: false  # Whether to enable EI mutual information analysis
     training: false  # Whether to enable EI mutual information analysis during training
@@ -189,6 +196,30 @@ analysis:
     params:
       synapse_weights: true
       branch_weights: true
+  synaptic_activation_analysis:
+    enabled: false
+    training: false
+    params:
+      network_summary: true
+      layer_summary: true
+      branch_summary: true
+      raw_summary: true
+      logspace: false
+      downsample: true
+      samples: 5
+  branch_activation_analysis:
+    enabled: false
+    training: false
+    params:
+      synapse_activations: true
+      branch_activations: true
+      network_summary: true
+      layer_summary: true
+      branch_summary: true
+      raw_summary: true
+      logspace: false
+      downsample: true
+      samples: 5
     
     
 outputs:

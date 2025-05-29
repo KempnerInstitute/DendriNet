@@ -120,6 +120,13 @@ train_config:
       - layer_ablation
   
   analysis:
+    performance_analysis:
+      enabled: true
+      training: false
+      params:
+        accuracy: true
+        categorical_loglikelihood: true
+        mse: false
     ei_info_analysis:
       enabled: false
       training: false
@@ -143,6 +150,47 @@ train_config:
         n_samples: 10
         accuracy: true
         categorical_loglikelihood: true
+    ablation_analysis:
+      enabled: false
+      training: false
+      params:
+        ablate_all_synapses: true
+        ablate_excitation: true
+        ablate_inhibition: true
+        ablate_branches: true
+        accuracy: true
+        categorical_loglikelihood: true
+    weight_analysis:
+      enabled: false
+      training: false
+      params:
+        synapse_weights: true
+        branch_weights: true
+    synaptic_activation_analysis:
+      enabled: false
+      training: false
+      params:
+        network_summary: true
+        layer_summary: true
+        branch_summary: true
+        raw_summary: true
+        logspace: false
+        downsample: true
+        samples: 5
+    branch_activation_analysis:
+      enabled: false
+      training: false
+      params:
+        synapse_activations: true
+        branch_activations: true
+        network_summary: true
+        layer_summary: true
+        branch_summary: true
+        raw_summary: true
+        logspace: false
+        downsample: true
+        samples: 5
+
 
   outputs:
     dir:
