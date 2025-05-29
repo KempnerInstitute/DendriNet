@@ -1,14 +1,14 @@
 import logging
 import os
 from copy import deepcopy
-from typing import Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import torch
 from matplotlib.patches import Patch
-from torch.utils.data import TensorDataset
+from torch.utils.data import DataLoader, TensorDataset
 
 from dendritic_modeling.config import AnalysisConfig
 from dendritic_modeling.dendrinet import DendriticBranchLayer
@@ -402,6 +402,503 @@ class NoisePerturbationAnalyzer:
             return noise_results
 
 
+class BranchInformationAnalyzer:
+    """
+    Analyzes mutual information between branch components (E, I, V_O, C).
+    Uses copula entropy from DVC_tensorflow package for MI computation.
+    """
+
+    def __init__(
+        self,
+        n_neighbors: int = 10,
+        use_dvc: bool = True,  # Whether to use DVC_tensorflow or fallback to sklearn
+        save_plots: bool = True,
+        save_csv: bool = True,
+        copula_params: Dict = None,  # Additional parameters for copula MI estimation
+    ):
+        self.n_neighbors = n_neighbors
+        self.use_dvc = use_dvc
+        self.save_plots = save_plots
+        self.save_csv = save_csv
+        self.logger = logging.getLogger(__name__)
+
+        # Default copula parameters
+        self.copula_params = copula_params or {
+            "cases": 1000,  # Number of samples for entropy estimation
+            "iterations": 10,  # Number of iterations
+            "alpha": 0.05,  # Confidence level
+            "vine_type": "c-vine",  # Type of vine copula
+            "families": "kercop",  # Copula families
+            "knots": 30,  # Number of knots for non-parametric copula
+        }
+
+        # Initialize DVC components if requested
+        if self.use_dvc:
+            try:
+                import os
+                import sys
+
+                # Get the path to the external/DVC_tensorflow directory
+                current_dir = os.path.dirname(os.path.abspath(__file__))
+                project_root = os.path.dirname(os.path.dirname(current_dir))
+                dvc_path = os.path.join(project_root, "external", "DVC_tensorflow")
+
+                # Add DVC_tensorflow to path
+                sys.path.insert(0, dvc_path)
+
+                # Import required modules
+                import tensorflow as tf
+                from classes.objects import margin_obj, vine_obj_bin
+                from info.info_estimation import vine_entropy
+                from pre_proc.preparation import prep_cop
+
+                self.vine_entropy = vine_entropy
+                self.vine_obj_bin = vine_obj_bin
+                self.margin_obj = margin_obj
+                self.prep_cop = prep_cop
+                self.tf = tf
+
+                # Initialize vine parameters
+                self.copula_params = copula_params or {}
+
+                self.logger.info(
+                    "Successfully loaded DVC_tensorflow for copula-based MI"
+                )
+
+            except ImportError as e:
+                self.logger.error(f"Failed to import DVC_tensorflow: {e}")
+                raise
+        else:
+            self.vine_entropy = None
+            self.vine_obj_bin = None
+            self.margin_obj = None
+            self.prep_cop = None
+            self.tf = None
+
+    def compute_mi_continuous(self, x: np.ndarray, y: np.ndarray) -> float:
+        """Compute MI between continuous variables"""
+        if self.use_dvc:
+            # Use copula entropy approach
+            mi = self._compute_copula_mi(x, y)
+            return mi
+
+        # Fallback to sklearn
+        return compute_mi_cc(x, y, self.n_neighbors)
+
+    def compute_mi_discrete(self, x: np.ndarray, c: np.ndarray) -> float:
+        """Compute MI between continuous and discrete variables"""
+        # Add uniform noise to discrete labels as suggested
+        c_noisy = c + np.random.uniform(-0.5, 0.5, size=c.shape)
+
+        if self.use_dvc:
+            # Use copula entropy approach with noisy labels
+            mi = self._compute_copula_mi(x, c_noisy)
+            return mi
+
+        # Fallback to sklearn
+        return compute_mi_cc(x, c_noisy, self.n_neighbors)
+
+    def compute_cmi(self, x: np.ndarray, y: np.ndarray, c: np.ndarray) -> float:
+        """Compute conditional MI: I(X;Y|C)"""
+        # Add uniform noise to discrete condition variable
+        c_noisy = c + np.random.uniform(-0.5, 0.5, size=c.shape)
+
+        if self.use_dvc:
+            # Use copula approach for conditional MI
+            # I(X;Y|C) = H(X|C) + H(Y|C) - H(X,Y|C)
+            # We compute this per class and average
+            unique_classes = np.unique(c)
+            cmi_values = []
+
+            for class_val in unique_classes:
+                mask = c == class_val
+                if np.sum(mask) < 10:  # Skip if too few samples
+                    continue
+
+                x_class = x[mask]
+                y_class = y[mask]
+
+                # Compute MI for this class
+                mi_class = self._compute_copula_mi(x_class, y_class)
+                cmi_values.append(mi_class)
+
+            # Average over classes
+            return np.mean(cmi_values) if cmi_values else 0.0
+
+        # Fallback approach: compute per class and average
+        unique_classes = np.unique(c)
+        cmi_values = []
+
+        for class_val in unique_classes:
+            mask = c == class_val
+            if np.sum(mask) < self.n_neighbors + 1:
+                continue
+
+            x_class = x[mask]
+            y_class = y[mask]
+
+            # Compute MI for this class
+            mi_class = compute_mi_cc(x_class, y_class, self.n_neighbors)
+            cmi_values.append(mi_class)
+
+        return np.mean(cmi_values) if cmi_values else 0.0
+
+    def _compute_copula_mi(self, x: np.ndarray, y: np.ndarray) -> float:
+        """
+        Compute MI using copula entropy estimation from DVC_tensorflow
+        MI(X,Y) = H(X) + H(Y) - H(X,Y)
+        """
+        tf = self.tf
+
+        # Ensure inputs are 2D
+        if x.ndim == 1:
+            x = x.reshape(-1, 1)
+        if y.ndim == 1:
+            y = y.reshape(-1, 1)
+
+        # Combine data for joint distribution
+        data_joint = np.hstack([x, y])
+        n_samples, n_dims = data_joint.shape
+
+        # Convert to float32 for tensorflow
+        data_joint = data_joint.astype(np.float32)
+        x = x.astype(np.float32)
+        y = y.astype(np.float32)
+
+        # Parameters for vine copula
+        vine_type = self.copula_params["vine_type"]
+        families = self.copula_params["families"]
+        knots = self.copula_params["knots"]
+
+        # Create vines for joint and marginal distributions
+        try:
+            # Joint distribution H(X,Y)
+            r_matrix_joint, _, _, _ = self.prep_cop(
+                data_joint, vine_type, n_dims, knots, families
+            )
+
+            # Create margin objects
+            margin_vine_joint = []
+            for i in range(n_dims):
+                mar_p = self.margin_obj("norm", [0, 1], True)
+                margin_vine_joint.append(mar_p)
+
+            # Create vine object for joint distribution
+            vine_joint = self.vine_obj_bin(
+                vine_type,
+                families,
+                n_dims,
+                margin_vine_joint,
+                knots,
+                "matrix",
+                r_matrix_joint,
+            )
+
+            # Prepare copula
+            _ = self.prep_cop(data_joint, vine_joint, "rand")
+
+            # Fit the vine copula
+            gen_dict = {
+                "parallel": False,
+                "binning": False,
+                "param": False,
+                "vine_depth": n_dims,
+                "fitted": False,
+            }
+            par_dict = {"param_families": ["ind", "gaussian"]}
+            npc_dict = {"opt_method": "LL1", "batch_paral": 4}
+            bin_dict = {"n_bin": 3}
+
+            vine_joint.fit(data_joint, gen_dict, npc_dict, par_dict, bin_dict)
+
+            # Compute entropy H(X,Y)
+            info_dict = {
+                "cases": self.copula_params["cases"],
+                "iterations": self.copula_params["iterations"],
+                "alpha": self.copula_params["alpha"],
+            }
+            h_joint = self.vine_entropy(vine_joint, info_dict)
+
+            # Marginal distribution H(X)
+            r_matrix_x, _, _, _ = self.prep_cop(
+                x, vine_type, x.shape[1], knots, families
+            )
+            margin_vine_x = []
+            for i in range(x.shape[1]):
+                mar_p = self.margin_obj("norm", [0, 1], True)
+                margin_vine_x.append(mar_p)
+
+            vine_x = self.vine_obj_bin(
+                vine_type,
+                families,
+                x.shape[1],
+                margin_vine_x,
+                knots,
+                "matrix",
+                r_matrix_x,
+            )
+            _ = self.prep_cop(x, vine_x, "rand")
+            vine_x.fit(x, gen_dict, npc_dict, par_dict, bin_dict)
+            h_x = self.vine_entropy(vine_x, info_dict)
+
+            # Marginal distribution H(Y)
+            r_matrix_y, _, _, _ = self.prep_cop(
+                y, vine_type, y.shape[1], knots, families
+            )
+            margin_vine_y = []
+            for i in range(y.shape[1]):
+                mar_p = self.margin_obj("norm", [0, 1], True)
+                margin_vine_y.append(mar_p)
+
+            vine_y = self.vine_obj_bin(
+                vine_type,
+                families,
+                y.shape[1],
+                margin_vine_y,
+                knots,
+                "matrix",
+                r_matrix_y,
+            )
+            _ = self.prep_cop(y, vine_y, "rand")
+            vine_y.fit(y, gen_dict, npc_dict, par_dict, bin_dict)
+            h_y = self.vine_entropy(vine_y, info_dict)
+
+            # Compute MI = H(X) + H(Y) - H(X,Y)
+            mi = h_x + h_y - h_joint
+
+            # Ensure non-negative MI
+            mi = max(0.0, mi)
+
+            return mi
+
+        except Exception as e:
+            self.logger.error(f"Copula MI computation failed: {e}")
+            raise  # Let the error propagate
+
+    def analyze(
+        self, model: BaseModel, test_loader: DataLoader, output_dir: str, epoch: int
+    ) -> Dict[str, Any]:
+        """Analyze branch information metrics"""
+        self.logger.info("Starting branch information analysis...")
+
+        # Make sure output directory exists
+        os.makedirs(output_dir, exist_ok=True)
+
+        # Store all collected data
+        all_data = {
+            "E": [],  # Excitatory inputs
+            "I": [],  # Inhibitory inputs
+            "V": [],  # Branch outputs
+            "C": [],  # Class labels
+            "layer_idx": [],  # Layer indices
+        }
+
+        model.eval()
+        with torch.no_grad():
+            for batch_idx, (inputs, targets) in enumerate(test_loader):
+                if batch_idx >= 10:  # Limit samples for efficiency
+                    break
+
+                inputs = inputs.to(next(model.parameters()).device)
+
+                # Run forward pass
+                _ = model(inputs)
+
+                # Get branch data from model
+                branch_data = self._get_branch_data(model)
+
+                # Process each layer's data
+                for layer_idx, layer_data in branch_data.items():
+                    n_samples = layer_data["excitatory"].shape[0]
+
+                    # Store data - compute total E and I per branch
+                    # E = sum of excitatory weights * inputs
+                    E_total = layer_data["excitatory"].sum(dim=-1)  # Sum over synapses
+                    I_total = layer_data["inhibitory"].sum(dim=-1)  # Sum over synapses
+                    V_output = layer_data["output"]  # Branch outputs
+
+                    # Flatten across branches
+                    n_branches = E_total.shape[1]
+                    for branch_idx in range(n_branches):
+                        all_data["E"].extend(E_total[:, branch_idx].cpu().numpy())
+                        all_data["I"].extend(I_total[:, branch_idx].cpu().numpy())
+                        all_data["V"].extend(V_output[:, branch_idx].cpu().numpy())
+                        all_data["C"].extend(targets.cpu().numpy())
+                        all_data["layer_idx"].extend([layer_idx] * n_samples)
+
+        # Convert to numpy arrays
+        for key in all_data:
+            all_data[key] = np.array(all_data[key])
+
+        # Check if we have data
+        if len(all_data["E"]) == 0:
+            self.logger.warning("No branch data collected. Skipping analysis.")
+            return {}
+
+        # Compute information metrics
+        results = {
+            "layer": [],
+            "I_E_C": [],  # I(E;C)
+            "I_I_C": [],  # I(I;C)
+            "I_V_C": [],  # I(V;C)
+            "I_E_I": [],  # I(E;I)
+            "I_E_V": [],  # I(E;V)
+            "I_I_V": [],  # I(I;V)
+            "I_E_I_given_C": [],  # I(E;I|C)
+            "I_E_V_given_C": [],  # I(E;V|C)
+            "I_I_V_given_C": [],  # I(I;V|C)
+        }
+
+        # Compute metrics per layer
+        unique_layers = np.unique(all_data["layer_idx"])
+        for layer_idx in unique_layers:
+            mask = all_data["layer_idx"] == layer_idx
+
+            E_layer = all_data["E"][mask]
+            I_layer = all_data["I"][mask]
+            V_layer = all_data["V"][mask]
+            C_layer = all_data["C"][mask[: len(all_data["C"])]]
+
+            # Skip if insufficient data
+            if len(E_layer) < 100:
+                self.logger.warning(
+                    f"Insufficient data for layer {layer_idx}, skipping"
+                )
+                continue
+
+            self.logger.info(f"Computing MI metrics for layer {layer_idx}")
+
+            # Compute mutual information metrics
+            results["layer"].append(int(layer_idx))
+
+            # MI with class labels
+            results["I_E_C"].append(self.compute_mi_discrete(E_layer, C_layer))
+            results["I_I_C"].append(self.compute_mi_discrete(I_layer, C_layer))
+            results["I_V_C"].append(self.compute_mi_discrete(V_layer, C_layer))
+
+            # MI between branch components
+            results["I_E_I"].append(self.compute_mi_continuous(E_layer, I_layer))
+            results["I_E_V"].append(self.compute_mi_continuous(E_layer, V_layer))
+            results["I_I_V"].append(self.compute_mi_continuous(I_layer, V_layer))
+
+            # Conditional MI given class
+            results["I_E_I_given_C"].append(self.compute_cmi(E_layer, I_layer, C_layer))
+            results["I_E_V_given_C"].append(self.compute_cmi(E_layer, V_layer, C_layer))
+            results["I_I_V_given_C"].append(self.compute_cmi(I_layer, V_layer, C_layer))
+
+        # Create plots
+        if self.save_plots and results["layer"]:
+            self._plot_results(results, output_dir, epoch)
+
+        # Save CSV
+        if self.save_csv and results["layer"]:
+            self._save_csv(results, output_dir, epoch)
+
+        return results
+
+    def _get_branch_data(self, model):
+        """Extract branch data from the model"""
+        branch_data = {}
+
+        # Get the network
+        if hasattr(model, "network"):
+            network = model.network
+        else:
+            network = model
+
+        # Find branch layers
+        layer_idx = 0
+        for module in network.modules():
+            if hasattr(module, "excitation") and hasattr(module, "inhibition"):
+                # This is a branch layer
+                if (
+                    hasattr(module, "_excitatory_data")
+                    and module._excitatory_data is not None
+                ):
+                    branch_data[layer_idx] = {
+                        "excitatory": module._excitatory_data,
+                        "inhibitory": module._inhibitory_data,
+                        "output": module._output_data,
+                    }
+                    layer_idx += 1
+
+        # If no data was collected via hooks, try to get it from stored outputs
+        if not branch_data:
+            # Try to get from ei_layers if available
+            if hasattr(network, "ei_layers"):
+                for layer_idx, layer in enumerate(network.ei_layers):
+                    if (
+                        hasattr(layer, "last_excitatory")
+                        and layer.last_excitatory is not None
+                    ):
+                        branch_data[layer_idx] = {
+                            "excitatory": layer.last_excitatory,
+                            "inhibitory": layer.last_inhibitory,
+                            "output": layer.last_output,
+                        }
+
+        return branch_data
+
+    def _plot_results(self, results: Dict, output_dir: str, epoch: int):
+        """Create plots for branch information metrics"""
+        import matplotlib.pyplot as plt
+
+        fig, axes = plt.subplots(3, 3, figsize=(15, 12))
+        fig.suptitle(f"Branch Information Analysis - Epoch {epoch}", fontsize=16)
+
+        # Flatten axes for easier indexing
+        axes = axes.flatten()
+
+        # Define metrics to plot
+        metrics = [
+            ("I_E_C", "I(E;C)", "Excitatory-Class MI"),
+            ("I_I_C", "I(I;C)", "Inhibitory-Class MI"),
+            ("I_V_C", "I(V;C)", "Output-Class MI"),
+            ("I_E_I", "I(E;I)", "Excitatory-Inhibitory MI"),
+            ("I_E_V", "I(E;V)", "Excitatory-Output MI"),
+            ("I_I_V", "I(I;V)", "Inhibitory-Output MI"),
+            ("I_E_I_given_C", "I(E;I|C)", "Conditional E-I MI"),
+            ("I_E_V_given_C", "I(E;V|C)", "Conditional E-V MI"),
+            ("I_I_V_given_C", "I(I;V|C)", "Conditional I-V MI"),
+        ]
+
+        # Create plots
+        for idx, (key, ylabel, title) in enumerate(metrics):
+            ax = axes[idx]
+            if key in results and results[key]:
+                ax.plot(results["layer"], results[key], "o-", linewidth=2, markersize=8)
+                ax.set_xlabel("Layer")
+                ax.set_ylabel(ylabel)
+                ax.set_title(title)
+                ax.grid(True, alpha=0.3)
+            else:
+                ax.text(
+                    0.5,
+                    0.5,
+                    "No data",
+                    ha="center",
+                    va="center",
+                    transform=ax.transAxes,
+                )
+                ax.set_title(title)
+
+        plt.tight_layout()
+
+        # Save plot
+        plot_path = os.path.join(output_dir, f"branch_information_epoch_{epoch}.png")
+        plt.savefig(plot_path, dpi=150, bbox_inches="tight")
+        plt.close()
+
+        self.logger.info(f"Saved branch information plot to {plot_path}")
+
+    def _save_csv(self, results: Dict, output_dir: str, epoch: int):
+        """Save results to CSV"""
+        df = pd.DataFrame(results)
+        csv_path = os.path.join(output_dir, f"branch_information_epoch_{epoch}.csv")
+        df.to_csv(csv_path, index=False)
+        self.logger.info(f"Saved branch information data to {csv_path}")
+
+
 class SingleLayerContributionAnalyzer:
     """
     Analyzes the contribution of individual layers by isolating them.
@@ -631,9 +1128,28 @@ class SingleLayerContributionAnalyzer:
 
                 # Left plot: Absolute accuracy values
                 x = np.array(reversed_layer_idx)
+
+                # Reverse the data to match the x positions
+                baseline_acc_reversed = [
+                    results["isolated_baseline_acc"][i]
+                    for i in range(num_layers - 1, -1, -1)
+                ]
+                exc_only_acc_reversed = [
+                    results["isolated_exc_only_acc"][i]
+                    for i in range(num_layers - 1, -1, -1)
+                ]
+                inh_only_acc_reversed = [
+                    results["isolated_inh_only_acc"][i]
+                    for i in range(num_layers - 1, -1, -1)
+                ]
+                neither_acc_reversed = [
+                    results["isolated_neither_acc"][i]
+                    for i in range(num_layers - 1, -1, -1)
+                ]
+
                 ax1.plot(
                     x,
-                    results["isolated_baseline_acc"],
+                    baseline_acc_reversed,
                     "o-",
                     label="Both E+I",
                     linewidth=3,
@@ -642,7 +1158,7 @@ class SingleLayerContributionAnalyzer:
                 )
                 ax1.plot(
                     x,
-                    results["isolated_exc_only_acc"],
+                    exc_only_acc_reversed,
                     "s-",
                     label="Excitatory only",
                     linewidth=3,
@@ -651,7 +1167,7 @@ class SingleLayerContributionAnalyzer:
                 )
                 ax1.plot(
                     x,
-                    results["isolated_inh_only_acc"],
+                    inh_only_acc_reversed,
                     "^-",
                     label="Inhibitory only",
                     linewidth=3,
@@ -660,7 +1176,7 @@ class SingleLayerContributionAnalyzer:
                 )
                 ax1.plot(
                     x,
-                    results["isolated_neither_acc"],
+                    neither_acc_reversed,
                     "v-",
                     label="Neither",
                     linewidth=3,
@@ -677,8 +1193,8 @@ class SingleLayerContributionAnalyzer:
 
                 # Set x-axis ticks and labels
                 ax1.set_xticks(x)
-                # Create labels where 0=soma and higher numbers=more distal
-                x_labels = ["Soma" if pos == 0 else f"{pos}" for pos in x]
+                # Create labels based on position, not value
+                x_labels = ["Soma" if i == 0 else f"{i}" for i in range(len(x))]
                 ax1.set_xticklabels(x_labels)
 
                 ax1.set_xlabel("Layer (Soma → Distal)", fontsize=14)
@@ -769,13 +1285,15 @@ class SingleLayerContributionAnalyzer:
                     alpha=0.7,
                 )
 
-                # Set x-axis ticks and labels
-                ax2.set_xticks(x)
-                # Create labels where 0=soma and higher numbers=more distal
-                x_labels = ["Soma" if pos == 0 else f"{pos}" for pos in x]
+                # Set x-axis
+                ax2.set_xticks([i * 3 for i in range(len(reversed_layer_idx))])
+                # Create position-based labels
+                x_labels = [
+                    "Soma" if i == 0 else f"{i}" for i in range(len(reversed_layer_idx))
+                ]
                 ax2.set_xticklabels(x_labels)
-
                 ax2.set_xlabel("Layer (Soma → Distal)", fontsize=14)
+
                 ax2.set_ylabel("Accuracy Contribution", fontsize=14)
                 ax2.set_title(
                     "Layer Contributions Breakdown\n(When tested in isolation)",
@@ -1197,8 +1715,8 @@ class SynapticAblationAnalyzer:
 
                 # Set x-axis ticks and labels
                 ax1.set_xticks(x)
-                # Create labels where 0=soma and higher numbers=more distal
-                x_labels = ["Soma" if pos == 0 else f"{pos}" for pos in x]
+                # Create labels based on position, not value
+                x_labels = ["Soma" if i == 0 else f"{i}" for i in range(len(x))]
                 ax1.set_xticklabels(x_labels)
 
                 ax1.set_xlabel("Layer (Soma → Distal)", fontsize=14)
@@ -1262,8 +1780,8 @@ class SynapticAblationAnalyzer:
 
                 # Set x-axis ticks and labels
                 ax2.set_xticks(x)
-                # Create labels where 0=soma and higher numbers=more distal
-                x_labels = ["Soma" if pos == 0 else f"{pos}" for pos in x]
+                # Create labels based on position, not value
+                x_labels = ["Soma" if i == 0 else f"{i}" for i in range(len(x))]
                 ax2.set_xticklabels(x_labels)
 
                 ax2.set_xlabel("Layer (Soma → Distal)", fontsize=14)
@@ -1404,7 +1922,11 @@ class SynapticAblationAnalyzer:
 
                 # Set x-axis
                 ax2.set_xticks([i * 3 for i in range(len(reversed_layer_idx))])
-                ax2.set_xticklabels(reversed_layer_idx)
+                # Create position-based labels
+                x_labels = [
+                    "Soma" if i == 0 else f"{i}" for i in range(len(reversed_layer_idx))
+                ]
+                ax2.set_xticklabels(x_labels)
                 ax2.set_xlabel("Layer (Soma → Distal)", fontsize=14)
                 ax2.set_ylabel("Accuracy Drop Distribution", fontsize=14)
                 ax2.set_title("Branch-wise Accuracy Drop Distribution", fontsize=16)
@@ -1538,6 +2060,20 @@ class AnalysisManager:
                 save_csv=params.get("save_csv", True),
             )
 
+        # Branch information analysis
+        branch_info_config = self.config.branch_information
+        self.branch_info_enabled = branch_info_config.get("enabled", False)
+        self.branch_info_training = branch_info_config.get("training", False)
+        if self.branch_info_enabled:
+            params = branch_info_config.get("params", {})
+            self.branch_info_analyzer = BranchInformationAnalyzer(
+                n_neighbors=params.get("n_neighbors", 10),
+                use_dvc=params.get("use_dvc", True),
+                save_plots=params.get("save_plots", True),
+                save_csv=params.get("save_csv", True),
+                copula_params=params.get("copula_params", None),
+            )
+
     def run_analysis(self, filename: str = "final", training: bool = False):
         if self.ei_info_enabled and (
             (self.ei_info_training and training) or not training
@@ -1587,6 +2123,32 @@ class AnalysisManager:
                 test_dataset=self.data["test"],
                 save_path=os.path.join(self.save_root, "synaptic_ablation"),
                 filename=filename,
+            )
+
+        if self.branch_info_enabled and (
+            (self.branch_info_training and training) or not training
+        ):
+            # Create a DataLoader from the test dataset
+            from torch.utils.data import DataLoader
+
+            test_loader = DataLoader(
+                self.data["test"],
+                batch_size=self.train_config.get("batch_size", 32),
+                shuffle=False,
+                num_workers=0,
+            )
+
+            # Extract epoch number from filename if possible
+            try:
+                epoch = int(filename.split("_")[-1]) if "_" in filename else 0
+            except:
+                epoch = 0
+
+            self.branch_info_analyzer.analyze(
+                model=self.model,
+                test_loader=test_loader,
+                output_dir=os.path.join(self.save_root, "branch_information"),
+                epoch=epoch,
             )
 
         # TODO: add other analysis classes here implemented same as above
