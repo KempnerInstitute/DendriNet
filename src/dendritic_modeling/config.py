@@ -133,6 +133,7 @@ class AnalysisConfig(BaseConfig):
     noise_perturbation_analysis: Dict = field(default_factory=dict)
     single_layer_contribution: Dict = field(default_factory=dict)
     synaptic_ablation: Dict = field(default_factory=dict)
+    branch_information: Dict = field(default_factory=dict)
 
 
 @dataclass
