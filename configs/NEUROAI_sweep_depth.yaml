@@ -136,7 +136,7 @@ train_config:
       - gradients
       - branch_ablation
       - layer_ablation
-  
+
   analysis:
     performance_analysis:
       enabled: true
@@ -209,6 +209,57 @@ train_config:
         downsample: true
         samples: 5
 
+
+    # Synaptic ablation analysis (formerly branch_ablation)
+    # Removes specific synapses while keeping the rest of the network intact
+    synaptic_ablation:
+      enabled: true  # Whether to enable synaptic ablation analysis
+      training: false  # Whether to run during training
+      params:
+        ablation_type: "whole_layer"  # Options: "whole_layer" or "single_branch"
+        layers_to_analyze: []  # Empty list means analyze all layers, or specify [0, 1, 2]
+        mode: "direct"  # Options: "direct" (zero weights) or "full"
+        save_plots: true
+        save_csv: true
+
+    # Branch information analysis
+    # Computes mutual information between branch components (E, I, V, C)
+    branch_information:
+      enabled: true  # Whether to enable branch information analysis
+      training: false  # Whether to run during training
+      params:
+        n_neighbors: 10  # Number of neighbors for MI estimation
+        use_dvc: true  # Enable DVC_tensorflow for better MI computation
+        save_plots: true
+        save_csv: true
+        # Configurable metrics to compute
+        compute_metrics:
+          #- "I_E_C"    # I(E;C) - Excitatory inputs and class
+          #- "I_I_C"    # I(I;C) - Inhibitory inputs and class
+          #- "I_V_C"    # I(V;C) - Branch outputs and class
+          # - "I_E_I"    # I(E;I) - Excitatory and inhibitory inputs
+          # - "I_E_V"    # I(E;V) - Excitatory inputs and branch outputs
+          # - "I_I_V"    # I(I;V) - Inhibitory inputs and branch outputs
+          # - "I_E_I_given_C" # I(E;I|C) - E and I given class
+          # - "I_E_V_given_C" # I(E;V|C) - E and V given class
+          # - "I_I_V_given_C" # I(I;V|C) - I and V given class
+
+        # Per-branch vs pooled computation
+        compute_per_branch: true  # If true, compute MI per branch and average; if false, pool all branches
+
+        # Copula parameters for DVC_tensorflow
+        copula_params:
+          cases: 1000         # Number of samples for entropy estimation
+          iterations: 10      # Number of iterations for convergence
+          alpha: 0.05         # Confidence level
+          vine_type: c-vine   # Type of vine copula: "d-vine", "c-vine", "r-vine"
+          use_nonparametric: false  # Whether to use non-parametric kernel copula (true) or parametric Gaussian (false)
+          knots: 30           # Number of knots for non-parametric copula (only used when use_nonparametric=true)
+          opt_method: LL1     # Optimization method for non-parametric: "LL1", "LL2", etc.
+          batch_paral: 1      # Batch parallelization for non-parametric fitting
+
+
+
 sweep_config:
   # model.network.type: ["EINet"]
   # EE and IE synapse parameters - both sweep from 0 to 50 in steps of 5
@@ -216,4 +267,3 @@ sweep_config:
     [1, 5], [1, 1, 5], [1, 1, 1, 5], [1, 1, 1, 1, 5], [1, 1, 1, 1, 1, 5], [1, 1, 1, 1, 1, 1, 5], [1, 1, 1, 1, 1, 1, 1, 5], [1, 1, 1, 1, 1, 1, 1, 1, 5], [1, 1, 1, 1, 1, 1, 1, 1, 1, 5], [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 5]
   ]
   model.network.parameters.use_shunting: [true, false]
-
