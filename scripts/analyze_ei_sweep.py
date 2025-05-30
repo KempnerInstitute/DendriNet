@@ -33,12 +33,24 @@ from datetime import datetime
 from pathlib import Path
 
 import matplotlib.pyplot as plt
-from matplotlib.ticker import ScalarFormatter
 import numpy as np
 import pandas as pd
+from matplotlib.ticker import ScalarFormatter
 
 # Uncomment seaborn import which is needed for heatmaps
-import seaborn as sns
+try:
+    import seaborn as sns
+except AttributeError:
+    # Handle seaborn version compatibility issue
+    import matplotlib
+
+    if hasattr(matplotlib.cm, "register_cmap"):
+        import seaborn as sns
+    else:
+        # For newer matplotlib versions, patch the issue
+        matplotlib.cm.register_cmap = matplotlib.colormaps.register
+        import seaborn as sns
+
 from matplotlib.colors import LinearSegmentedColormap
 from omegaconf import OmegaConf
 
@@ -1236,7 +1248,9 @@ def generate_plots(results_df, params_df, output_dir, base_name):
                 min_ratio = ei_ratios.min()
                 max_ratio = ei_ratios.max()
 
-                tick_positions = np.logspace(np.log10(min_ratio), np.log10(max_ratio), 8)
+                tick_positions = np.logspace(
+                    np.log10(min_ratio), np.log10(max_ratio), 8
+                )
                 ax.set_xticks(tick_positions)
                 ax.set_xticklabels([f"{x:.1f}" for x in tick_positions])
 
@@ -2006,7 +2020,54 @@ def main():
         os.path.join(plot_dir, "ei_sweep_clean_results.csv"), index=False
     )
 
-    print(f"Analysis complete. Plot files saved to {plot_dir}")
+    # Step 4: Collect and analyze ablation/contribution results
+    print("\nCollecting ablation and contribution results...")
+    ablation_df, contribution_df = collect_ablation_results(exp_dir)
+
+    if not ablation_df.empty or not contribution_df.empty:
+        print(
+            f"Found {len(ablation_df)} ablation results and {len(contribution_df)} contribution results"
+        )
+
+        # Clean params_df for merging
+        params_df_clean = params_df.copy()
+        for col in ["ee_value", "ie_value"]:
+            if col in params_df_clean.columns:
+                params_df_clean[col] = params_df_clean[col].apply(
+                    lambda x: float(x[0])
+                    if hasattr(x, "__getitem__") and len(x) > 0
+                    else float(x)
+                    if not pd.isna(x)
+                    else None
+                )
+
+        # Merge with parameters
+        ablation_df, contribution_df = merge_ablation_with_params(
+            ablation_df, contribution_df, params_df_clean
+        )
+
+        # Generate ablation and contribution plots
+        if not ablation_df.empty:
+            print("Generating ablation plots...")
+            plot_ablation_vs_ei_ratio(ablation_df, plot_dir)
+
+        if not contribution_df.empty:
+            print("Generating contribution plots...")
+            plot_contribution_vs_ei_ratio(contribution_df, plot_dir)
+
+        # Save the data
+        if not ablation_df.empty:
+            ablation_df.to_csv(
+                os.path.join(plot_dir, "ablation_results.csv"), index=False
+            )
+        if not contribution_df.empty:
+            contribution_df.to_csv(
+                os.path.join(plot_dir, "contribution_results.csv"), index=False
+            )
+    else:
+        print("No ablation or contribution data found.")
+
+    print(f"\nAnalysis complete. Plot files saved to {plot_dir}")
 
 
 # Define the print_sample_keys function if it's not already defined
@@ -2173,6 +2234,415 @@ def clean_results_data(results_df):
             print(f"  {category}: {count} rows")
 
     return clean_df
+
+
+def collect_ablation_results(exp_dir):
+    """Collect synaptic ablation and single layer contribution results from the experiment directory"""
+    ablation_data = []
+    contribution_data = []
+    results_dir = os.path.join(exp_dir, "results")
+
+    # Find all config folders
+    config_folders = glob.glob(os.path.join(results_dir, "config_*"))
+
+    for config_folder in config_folders:
+        # Extract task_id
+        task_id_match = re.search(r"config_(\d+)", os.path.basename(config_folder))
+        if not task_id_match:
+            continue
+        task_id = int(task_id_match.group(1))
+
+        # Find the experiment run folder (usually there's only one per config)
+        run_folders = glob.glob(os.path.join(config_folder, "*"))
+        for run_folder in run_folders:
+            if not os.path.isdir(run_folder):
+                continue
+
+            # Look for synaptic ablation results
+            ablation_csv = os.path.join(
+                run_folder, "synaptic_ablation", "final_whole_layer.csv"
+            )
+            if os.path.exists(ablation_csv):
+                try:
+                    df = pd.read_csv(ablation_csv)
+                    # Add task_id to each row
+                    df["task_id"] = task_id
+                    ablation_data.append(df)
+                except Exception as e:
+                    print(f"Error reading ablation data for task {task_id}: {e}")
+
+            # Look for single layer contribution results
+            contribution_csv = os.path.join(
+                run_folder, "single_layer_contribution", "final.csv"
+            )
+            if os.path.exists(contribution_csv):
+                try:
+                    df = pd.read_csv(contribution_csv)
+                    # Add task_id to each row
+                    df["task_id"] = task_id
+                    contribution_data.append(df)
+                except Exception as e:
+                    print(f"Error reading contribution data for task {task_id}: {e}")
+
+    # Combine all dataframes
+    ablation_df = (
+        pd.concat(ablation_data, ignore_index=True) if ablation_data else pd.DataFrame()
+    )
+    contribution_df = (
+        pd.concat(contribution_data, ignore_index=True)
+        if contribution_data
+        else pd.DataFrame()
+    )
+
+    return ablation_df, contribution_df
+
+
+def merge_ablation_with_params(ablation_df, contribution_df, params_df):
+    """Merge ablation/contribution data with parameter information"""
+    # Merge ablation data with parameters
+    if not ablation_df.empty:
+        ablation_df = ablation_df.merge(
+            params_df[["task_id", "ee_value", "ie_value", "use_shunting"]],
+            on="task_id",
+            how="left",
+        )
+        # Calculate E/I ratio
+        ablation_df["ei_ratio"] = ablation_df["ee_value"] / (
+            ablation_df["ie_value"] + 1e-6
+        )
+
+    # Merge contribution data with parameters
+    if not contribution_df.empty:
+        contribution_df = contribution_df.merge(
+            params_df[["task_id", "ee_value", "ie_value", "use_shunting"]],
+            on="task_id",
+            how="left",
+        )
+        # Calculate E/I ratio
+        contribution_df["ei_ratio"] = contribution_df["ee_value"] / (
+            contribution_df["ie_value"] + 1e-6
+        )
+
+    return ablation_df, contribution_df
+
+
+def plot_ablation_vs_ei_ratio(ablation_df, output_dir):
+    """Plot synaptic ablation results vs E/I ratio"""
+    if ablation_df.empty:
+        print("No ablation data to plot")
+        return
+
+    # Create output directory for ablation plots
+    ablation_dir = os.path.join(output_dir, "ablation_analysis")
+    os.makedirs(ablation_dir, exist_ok=True)
+
+    # Get unique layers
+    layers = sorted(ablation_df["layer_idx"].unique())
+
+    # Plot 1: Accuracy drop vs E/I ratio for each layer
+    fig, axes = plt.subplots(2, 3, figsize=(18, 12))
+    axes = axes.flatten()
+
+    for i, layer_idx in enumerate(layers[:6]):  # Plot up to 6 layers
+        ax = axes[i]
+        layer_data = ablation_df[ablation_df["layer_idx"] == layer_idx]
+
+        # Separate by shunting
+        shunting_data = layer_data[layer_data["use_shunting"] == True]
+        no_shunting_data = layer_data[layer_data["use_shunting"] == False]
+
+        # Plot lines for different ablation types
+        for data, label_suffix, linestyle in [
+            (shunting_data, " (Shunting)", "-"),
+            (no_shunting_data, " (No Shunting)", "--"),
+        ]:
+            if not data.empty:
+                # Group by E/I ratio and calculate mean
+                grouped = data.groupby("ei_ratio").mean()
+
+                ax.plot(
+                    grouped.index,
+                    grouped["both_drop"],
+                    "o-",
+                    color="purple",
+                    linestyle=linestyle,
+                    label=f"Both E+I{label_suffix}",
+                    markersize=6,
+                )
+                ax.plot(
+                    grouped.index,
+                    grouped["exc_drop"],
+                    "s-",
+                    color="red",
+                    linestyle=linestyle,
+                    label=f"Excitatory{label_suffix}",
+                    markersize=6,
+                )
+                ax.plot(
+                    grouped.index,
+                    grouped["inh_drop"],
+                    "^-",
+                    color="blue",
+                    linestyle=linestyle,
+                    label=f"Inhibitory{label_suffix}",
+                    markersize=6,
+                )
+
+        ax.set_xlabel("E/I Ratio")
+        ax.set_ylabel("Accuracy Drop")
+        ax.set_title(f"Layer {layer_idx} Ablation")
+        ax.set_xscale("log")
+        ax.grid(True, alpha=0.3)
+        if i == 0:
+            ax.legend(fontsize=8)
+
+    plt.suptitle("Synaptic Ablation: Accuracy Drop vs E/I Ratio", fontsize=16)
+    plt.tight_layout()
+    plt.savefig(
+        os.path.join(ablation_dir, "ablation_vs_ei_ratio_by_layer.png"), dpi=300
+    )
+    plt.close()
+
+    # Plot 2: Average ablation effects across layers
+    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(16, 6))
+
+    # Average across all layers
+    avg_by_ei = ablation_df.groupby(["ei_ratio", "use_shunting"]).mean()
+
+    # Plot shunting
+    for use_shunting, ax, title_suffix in [
+        (True, ax1, "Shunting"),
+        (False, ax2, "No Shunting"),
+    ]:
+        if (use_shunting,) in avg_by_ei.index.get_level_values("use_shunting"):
+            data = avg_by_ei.xs(use_shunting, level="use_shunting")
+
+            ax.plot(
+                data.index,
+                data["both_drop"],
+                "o-",
+                color="purple",
+                label="Both E+I",
+                linewidth=2,
+                markersize=8,
+            )
+            ax.plot(
+                data.index,
+                data["exc_drop"],
+                "s-",
+                color="red",
+                label="Excitatory only",
+                linewidth=2,
+                markersize=8,
+            )
+            ax.plot(
+                data.index,
+                data["inh_drop"],
+                "^-",
+                color="blue",
+                label="Inhibitory only",
+                linewidth=2,
+                markersize=8,
+            )
+
+            ax.set_xlabel("E/I Ratio", fontsize=12)
+            ax.set_ylabel("Average Accuracy Drop", fontsize=12)
+            ax.set_title(
+                f"Average Synaptic Ablation Effect - {title_suffix}", fontsize=14
+            )
+            ax.set_xscale("log")
+            ax.grid(True, alpha=0.3)
+            ax.legend()
+
+    plt.tight_layout()
+    plt.savefig(os.path.join(ablation_dir, "average_ablation_vs_ei_ratio.png"), dpi=300)
+    plt.close()
+
+    print(f"Saved ablation plots to {ablation_dir}")
+
+
+def plot_contribution_vs_ei_ratio(contribution_df, output_dir):
+    """Plot single layer contribution results vs E/I ratio"""
+    if contribution_df.empty:
+        print("No contribution data to plot")
+        return
+
+    # Create output directory for contribution plots
+    contribution_dir = os.path.join(output_dir, "contribution_analysis")
+    os.makedirs(contribution_dir, exist_ok=True)
+
+    # Get unique layers
+    layers = sorted(contribution_df["layer_idx"].unique())
+
+    # Plot 1: Individual layer contributions vs E/I ratio
+    fig, axes = plt.subplots(2, 3, figsize=(18, 12))
+    axes = axes.flatten()
+
+    for i, layer_idx in enumerate(layers[:6]):  # Plot up to 6 layers
+        ax = axes[i]
+        layer_data = contribution_df[contribution_df["layer_idx"] == layer_idx]
+
+        # Separate by shunting
+        shunting_data = layer_data[layer_data["use_shunting"] == True]
+        no_shunting_data = layer_data[layer_data["use_shunting"] == False]
+
+        # Plot lines for different contribution types
+        for data, label_suffix, linestyle in [
+            (shunting_data, " (Shunting)", "-"),
+            (no_shunting_data, " (No Shunting)", "--"),
+        ]:
+            if not data.empty:
+                # Group by E/I ratio and calculate mean
+                grouped = data.groupby("ei_ratio").mean()
+
+                ax.plot(
+                    grouped.index,
+                    grouped["isolated_baseline_acc"],
+                    "o-",
+                    color="purple",
+                    linestyle=linestyle,
+                    label=f"Both E+I{label_suffix}",
+                    markersize=6,
+                )
+                ax.plot(
+                    grouped.index,
+                    grouped["isolated_exc_only_acc"],
+                    "s-",
+                    color="red",
+                    linestyle=linestyle,
+                    label=f"Excitatory only{label_suffix}",
+                    markersize=6,
+                )
+                ax.plot(
+                    grouped.index,
+                    grouped["isolated_inh_only_acc"],
+                    "^-",
+                    color="blue",
+                    linestyle=linestyle,
+                    label=f"Inhibitory only{label_suffix}",
+                    markersize=6,
+                )
+
+        ax.set_xlabel("E/I Ratio")
+        ax.set_ylabel("Isolated Layer Accuracy")
+        ax.set_title(f"Layer {layer_idx} Contribution")
+        ax.set_xscale("log")
+        ax.grid(True, alpha=0.3)
+        if i == 0:
+            ax.legend(fontsize=8)
+
+    plt.suptitle(
+        "Single Layer Contribution: Isolated Performance vs E/I Ratio", fontsize=16
+    )
+    plt.tight_layout()
+    plt.savefig(
+        os.path.join(contribution_dir, "contribution_vs_ei_ratio_by_layer.png"), dpi=300
+    )
+    plt.close()
+
+    # Plot 2: Average contribution across layers
+    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(16, 6))
+
+    # Average across all layers
+    avg_by_ei = contribution_df.groupby(["ei_ratio", "use_shunting"]).mean()
+
+    # Plot shunting
+    for use_shunting, ax, title_suffix in [
+        (True, ax1, "Shunting"),
+        (False, ax2, "No Shunting"),
+    ]:
+        if (use_shunting,) in avg_by_ei.index.get_level_values("use_shunting"):
+            data = avg_by_ei.xs(use_shunting, level="use_shunting")
+
+            ax.plot(
+                data.index,
+                data["isolated_baseline_acc"],
+                "o-",
+                color="purple",
+                label="Both E+I",
+                linewidth=2,
+                markersize=8,
+            )
+            ax.plot(
+                data.index,
+                data["isolated_exc_only_acc"],
+                "s-",
+                color="red",
+                label="Excitatory only",
+                linewidth=2,
+                markersize=8,
+            )
+            ax.plot(
+                data.index,
+                data["isolated_inh_only_acc"],
+                "^-",
+                color="blue",
+                label="Inhibitory only",
+                linewidth=2,
+                markersize=8,
+            )
+
+            # Add baseline reference
+            if "full_network_baseline" in data.columns:
+                ax.axhline(
+                    data["full_network_baseline"].mean(),
+                    color="black",
+                    linestyle="--",
+                    label="Full network baseline",
+                )
+
+            ax.set_xlabel("E/I Ratio", fontsize=12)
+            ax.set_ylabel("Average Isolated Layer Accuracy", fontsize=12)
+            ax.set_title(
+                f"Average Single Layer Contribution - {title_suffix}", fontsize=14
+            )
+            ax.set_xscale("log")
+            ax.grid(True, alpha=0.3)
+            ax.legend()
+
+    plt.tight_layout()
+    plt.savefig(
+        os.path.join(contribution_dir, "average_contribution_vs_ei_ratio.png"), dpi=300
+    )
+    plt.close()
+
+    # Plot 3: Layer-wise contribution heatmap
+    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(16, 6))
+
+    for use_shunting, ax, title_suffix in [
+        (True, ax1, "Shunting"),
+        (False, ax2, "No Shunting"),
+    ]:
+        data = contribution_df[contribution_df["use_shunting"] == use_shunting]
+        if not data.empty:
+            # Create pivot table for heatmap
+            pivot = data.pivot_table(
+                values="isolated_baseline_acc",
+                index="layer_idx",
+                columns="ei_ratio",
+                aggfunc="mean",
+            )
+
+            # Plot heatmap
+            sns.heatmap(
+                pivot,
+                cmap="viridis",
+                annot=True,
+                fmt=".3f",
+                cbar_kws={"label": "Isolated Accuracy"},
+                ax=ax,
+            )
+            ax.set_xlabel("E/I Ratio")
+            ax.set_ylabel("Layer Index")
+            ax.set_title(f"Layer Contribution Heatmap - {title_suffix}")
+
+    plt.tight_layout()
+    plt.savefig(
+        os.path.join(contribution_dir, "layer_contribution_heatmap.png"), dpi=300
+    )
+    plt.close()
+
+    print(f"Saved contribution plots to {contribution_dir}")
 
 
 if __name__ == "__main__":
