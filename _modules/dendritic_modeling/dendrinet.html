@@ -1707,7 +1707,7 @@
             <span class="k">if</span> <span class="n">excitatory_synapses_per_branch</span> <span class="o">&lt;</span> <span class="mi">1</span><span class="p">:</span>
                 <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;excitatory_synapses_per_branch must be &gt;= 1&quot;</span><span class="p">)</span>
 
-        <span class="n">branch_factors</span> <span class="o">=</span> <span class="n">deepcopy</span><span class="p">(</span><span class="n">branch_factors</span><span class="p">)</span>
+        <span class="n">branch_factors</span><span class="p">:</span> <span class="nb">list</span> <span class="o">=</span> <span class="n">deepcopy</span><span class="p">(</span><span class="n">branch_factors</span><span class="p">)</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">n_branch_layers</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">branch_factors</span><span class="p">)</span>
         <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">n_branch_layers</span><span class="p">):</span>
             <span class="n">layer_sizes</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">layer_sizes</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="o">*</span> <span class="n">branch_factors</span><span class="p">[</span><span class="n">i</span><span class="p">])</span>
@@ -1736,7 +1736,7 @@
                 <span class="n">reactivation_type</span><span class="o">=</span><span class="n">reactivation_type</span><span class="p">,</span>
                 <span class="n">reactivation_strategy</span><span class="o">=</span><span class="n">reactivation_strategy</span><span class="p">,</span>
                 <span class="n">blocklinear_strategy</span><span class="o">=</span><span class="n">blocklinear_strategy</span><span class="p">,</span>
-                <span class="n">layer_idx</span><span class="o">=</span><span class="n">i</span><span class="p">,</span>
+                <span class="n">layer_idx</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">n_branch_layers</span> <span class="o">-</span> <span class="n">i</span><span class="p">,</span>
                 <span class="n">print_hooks</span><span class="o">=</span><span class="n">print_hooks</span><span class="p">,</span>
                 <span class="n">use_noise</span><span class="o">=</span><span class="n">use_noise</span><span class="p">,</span>
                 <span class="n">rewiring_mode</span><span class="o">=</span><span class="n">rewiring_mode</span><span class="p">,</span>
@@ -1773,7 +1773,7 @@
                     <span class="n">reactivation_type</span><span class="o">=</span><span class="n">reactivation_type</span><span class="p">,</span>
                     <span class="n">reactivation_strategy</span><span class="o">=</span><span class="n">reactivation_strategy</span><span class="p">,</span>
                     <span class="n">blocklinear_strategy</span><span class="o">=</span><span class="n">blocklinear_strategy</span><span class="p">,</span>
-                    <span class="n">layer_idx</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">n_branch_layers</span><span class="p">,</span>
+                    <span class="n">layer_idx</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span>
                     <span class="n">print_hooks</span><span class="o">=</span><span class="n">print_hooks</span><span class="p">,</span>
                     <span class="n">use_noise</span><span class="o">=</span><span class="n">use_noise</span><span class="p">,</span>
                     <span class="n">rewiring_mode</span><span class="o">=</span><span class="n">rewiring_mode</span><span class="p">,</span>
@@ -1809,7 +1809,7 @@
                     <span class="n">reactivation_type</span><span class="o">=</span><span class="n">reactivation_type</span><span class="p">,</span>
                     <span class="n">reactivation_strategy</span><span class="o">=</span><span class="n">reactivation_strategy</span><span class="p">,</span>
                     <span class="n">blocklinear_strategy</span><span class="o">=</span><span class="n">blocklinear_strategy</span><span class="p">,</span>
-                    <span class="n">layer_idx</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">n_branch_layers</span><span class="p">,</span>
+                    <span class="n">layer_idx</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span>
                     <span class="n">print_hooks</span><span class="o">=</span><span class="n">print_hooks</span><span class="p">,</span>
                     <span class="n">use_noise</span><span class="o">=</span><span class="n">use_noise</span><span class="p">,</span>
                     <span class="n">rewiring_mode</span><span class="o">=</span><span class="n">rewiring_mode</span><span class="p">,</span>

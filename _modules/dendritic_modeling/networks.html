@@ -128,6 +128,7 @@
 <span class="kn">from</span><span class="w"> </span><span class="nn">torch</span><span class="w"> </span><span class="kn">import</span> <span class="n">nn</span>
 
 <span class="kn">from</span><span class="w"> </span><span class="nn">dendritic_modeling</span><span class="w"> </span><span class="kn">import</span> <span class="n">logger</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">dendritic_modeling.activation_functions</span><span class="w"> </span><span class="kn">import</span> <span class="n">ActivationFactory</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">dendritic_modeling.dendrinet</span><span class="w"> </span><span class="kn">import</span> <span class="n">DendriNet</span><span class="p">,</span> <span class="n">DendriNetWithOutputs</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">dendritic_modeling.utils</span><span class="w"> </span><span class="kn">import</span> <span class="n">SafeHookModule</span><span class="p">,</span> <span class="n">safe_register_hooks</span>
 
@@ -148,8 +149,10 @@
         <span class="bp">self</span><span class="p">,</span> 
         <span class="n">input_dim</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">int</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span> 
         <span class="n">hidden_dims</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n">List</span><span class="p">[</span><span class="nb">int</span><span class="p">]]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span> 
+        <span class="n">independent_heads</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span>
         <span class="n">excitatory_dim</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">int</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span> 
         <span class="n">inhibitory_dim</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">int</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span> 
+        <span class="n">output_dim</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">int</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
         <span class="n">input_shape</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n">Tuple</span><span class="p">[</span><span class="nb">int</span><span class="p">,</span> <span class="nb">int</span><span class="p">,</span> <span class="nb">int</span><span class="p">]]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
         <span class="n">excitatory_hidden_dims</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n">List</span><span class="p">[</span><span class="nb">int</span><span class="p">]]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
         <span class="n">inhibitory_hidden_dims</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n">List</span><span class="p">[</span><span class="nb">int</span><span class="p">]]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
@@ -157,41 +160,48 @@
         <span class="n">inhibitory_kernel_sizes</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n">List</span><span class="p">[</span><span class="nb">int</span><span class="p">]]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
         <span class="n">excitatory_strides</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n">List</span><span class="p">[</span><span class="nb">int</span><span class="p">]]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
         <span class="n">inhibitory_strides</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n">List</span><span class="p">[</span><span class="nb">int</span><span class="p">]]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
-        <span class="n">network_type</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;MLPInputTransform&quot;</span>
+        <span class="n">network_type</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;MLPInputTransform&quot;</span><span class="p">,</span>
     <span class="p">):</span>
         <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="fm">__init__</span><span class="p">()</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">network_type</span> <span class="o">=</span> <span class="n">network_type</span>
 
         <span class="k">if</span> <span class="n">network_type</span> <span class="o">==</span> <span class="s2">&quot;IndexInputTransform&quot;</span><span class="p">:</span>
             <span class="bp">self</span><span class="o">.</span><span class="n">input_transform</span> <span class="o">=</span> <span class="n">IndexInputTransform</span><span class="p">(</span>
-                <span class="n">input_dim</span> <span class="o">=</span> <span class="n">input_dim</span><span class="p">,</span>
-                <span class="n">excitatory_dim</span> <span class="o">=</span> <span class="n">excitatory_dim</span><span class="p">,</span>
-                <span class="n">inhibitory_dim</span> <span class="o">=</span> <span class="n">inhibitory_dim</span>
+                <span class="n">input_dim</span><span class="o">=</span><span class="n">input_dim</span><span class="p">,</span>
+                <span class="n">excitatory_dim</span><span class="o">=</span><span class="n">excitatory_dim</span><span class="p">,</span>
+                <span class="n">inhibitory_dim</span><span class="o">=</span><span class="n">inhibitory_dim</span><span class="p">,</span>
             <span class="p">)</span>
 
         <span class="k">elif</span> <span class="n">network_type</span> <span class="o">==</span> <span class="s2">&quot;MLPInputTransform&quot;</span><span class="p">:</span>
             <span class="bp">self</span><span class="o">.</span><span class="n">input_transform</span> <span class="o">=</span> <span class="n">MLPInputTransform</span><span class="p">(</span>
+                <span class="n">input_dim</span><span class="o">=</span><span class="n">input_dim</span><span class="p">,</span>
+                <span class="n">hidden_dims</span><span class="o">=</span><span class="n">hidden_dims</span><span class="p">,</span>
+                <span class="n">excitatory_dim</span><span class="o">=</span><span class="n">excitatory_dim</span><span class="p">,</span>
+                <span class="n">inhibitory_dim</span><span class="o">=</span><span class="n">inhibitory_dim</span><span class="p">,</span>
+            <span class="p">)</span>
+        
+        <span class="k">elif</span> <span class="n">network_type</span> <span class="o">==</span> <span class="s2">&quot;FeatureExtractorMLP&quot;</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">input_transform</span> <span class="o">=</span> <span class="n">FeatureExtractorMLP</span><span class="p">(</span>
                 <span class="n">input_dim</span> <span class="o">=</span> <span class="n">input_dim</span><span class="p">,</span>
                 <span class="n">hidden_dims</span> <span class="o">=</span> <span class="n">hidden_dims</span><span class="p">,</span>
-                <span class="n">excitatory_dim</span> <span class="o">=</span> <span class="n">excitatory_dim</span><span class="p">,</span>
-                <span class="n">inhibitory_dim</span> <span class="o">=</span> <span class="n">inhibitory_dim</span>
+                <span class="n">output_dim</span> <span class="o">=</span> <span class="n">output_dim</span>
             <span class="p">)</span>
-
+            <span class="bp">self</span><span class="o">.</span><span class="n">input_transform</span><span class="o">.</span><span class="n">set_readout</span><span class="p">(</span><span class="kc">False</span><span class="p">)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">input_transform</span><span class="o">.</span><span class="n">disable_grad</span><span class="p">()</span>
         <span class="k">elif</span> <span class="n">network_type</span> <span class="o">==</span> <span class="s2">&quot;AlexNetTransform&quot;</span><span class="p">:</span>
             <span class="bp">self</span><span class="o">.</span><span class="n">input_transform</span> <span class="o">=</span> <span class="n">AlexNetInputTransform</span><span class="p">(</span>
-                <span class="n">excitatory_dim</span> <span class="o">=</span> <span class="n">excitatory_dim</span><span class="p">,</span>
-                <span class="n">inhibitory_dim</span> <span class="o">=</span> <span class="n">inhibitory_dim</span>
+                <span class="n">excitatory_dim</span><span class="o">=</span><span class="n">excitatory_dim</span><span class="p">,</span> <span class="n">inhibitory_dim</span><span class="o">=</span><span class="n">inhibitory_dim</span>
             <span class="p">)</span>
 
         <span class="k">elif</span> <span class="n">network_type</span> <span class="o">==</span> <span class="s2">&quot;CNNInputTransform&quot;</span><span class="p">:</span>
             <span class="bp">self</span><span class="o">.</span><span class="n">input_transform</span> <span class="o">=</span> <span class="n">CNNInputTransform</span><span class="p">(</span>
-                <span class="n">input_shape</span> <span class="o">=</span> <span class="n">input_shape</span><span class="p">,</span>
-                <span class="n">excitatory_hidden_dims</span> <span class="o">=</span> <span class="n">excitatory_hidden_dims</span><span class="p">,</span>
-                <span class="n">inhibitory_hidden_dims</span> <span class="o">=</span> <span class="n">inhibitory_hidden_dims</span><span class="p">,</span>
-                <span class="n">excitatory_kernel_sizes</span> <span class="o">=</span> <span class="n">excitatory_kernel_sizes</span><span class="p">,</span>
-                <span class="n">inhibitory_kernel_sizes</span> <span class="o">=</span> <span class="n">inhibitory_kernel_sizes</span><span class="p">,</span>
-                <span class="n">excitatory_strides</span> <span class="o">=</span> <span class="n">excitatory_strides</span><span class="p">,</span>
-                <span class="n">inhibitory_strides</span> <span class="o">=</span> <span class="n">inhibitory_strides</span>
+                <span class="n">input_shape</span><span class="o">=</span><span class="n">input_shape</span><span class="p">,</span>
+                <span class="n">excitatory_hidden_dims</span><span class="o">=</span><span class="n">excitatory_hidden_dims</span><span class="p">,</span>
+                <span class="n">inhibitory_hidden_dims</span><span class="o">=</span><span class="n">inhibitory_hidden_dims</span><span class="p">,</span>
+                <span class="n">excitatory_kernel_sizes</span><span class="o">=</span><span class="n">excitatory_kernel_sizes</span><span class="p">,</span>
+                <span class="n">inhibitory_kernel_sizes</span><span class="o">=</span><span class="n">inhibitory_kernel_sizes</span><span class="p">,</span>
+                <span class="n">excitatory_strides</span><span class="o">=</span><span class="n">excitatory_strides</span><span class="p">,</span>
+                <span class="n">inhibitory_strides</span><span class="o">=</span><span class="n">inhibitory_strides</span><span class="p">,</span>
             <span class="p">)</span>
 
         <span class="k">else</span><span class="p">:</span>
@@ -247,6 +257,7 @@
 </div>
 
 
+
 <span class="c1"># For backward compatibility</span>
 <span class="c1"># MLPInputTransform = InputNetTransform</span>
 
@@ -257,21 +268,22 @@
     <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">input_dim</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span> <span class="n">excitatory_dim</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span> <span class="n">inhibitory_dim</span><span class="p">:</span> <span class="nb">int</span><span class="p">):</span>
         <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="fm">__init__</span><span class="p">()</span>
         <span class="k">try</span><span class="p">:</span>
-            <span class="k">assert</span> <span class="n">excitatory_dim</span> <span class="o">+</span> <span class="n">inhibitory_dim</span> <span class="o">==</span> <span class="n">input_dim</span><span class="p">,</span> \
-                <span class="s1">&#39;error in IndexInputTransform: excitatory_dim + inhibitory_dim must &#39;</span> \
-                <span class="sa">f</span><span class="s1">&#39;equal input_dim, got </span><span class="si">{</span><span class="n">excitatory_dim</span><span class="si">}</span><span class="s1"> + </span><span class="si">{</span><span class="n">inhibitory_dim</span><span class="si">}</span><span class="s1"> != </span><span class="si">{</span><span class="n">input_dim</span><span class="si">}</span><span class="s1">&#39;</span>
+            <span class="k">assert</span> <span class="n">excitatory_dim</span> <span class="o">+</span> <span class="n">inhibitory_dim</span> <span class="o">==</span> <span class="n">input_dim</span><span class="p">,</span> <span class="p">(</span>
+                <span class="s2">&quot;error in IndexInputTransform: excitatory_dim + inhibitory_dim must &quot;</span>
+                <span class="sa">f</span><span class="s2">&quot;equal input_dim, got </span><span class="si">{</span><span class="n">excitatory_dim</span><span class="si">}</span><span class="s2"> + </span><span class="si">{</span><span class="n">inhibitory_dim</span><span class="si">}</span><span class="s2"> != </span><span class="si">{</span><span class="n">input_dim</span><span class="si">}</span><span class="s2">&quot;</span>
+            <span class="p">)</span>
         <span class="k">except</span> <span class="ne">AssertionError</span> <span class="k">as</span> <span class="n">e</span><span class="p">:</span>
             <span class="n">logger</span><span class="o">.</span><span class="n">error</span><span class="p">(</span><span class="n">e</span><span class="p">)</span>
             <span class="n">inhibitory_dim</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">input_dim</span> <span class="o">-</span> <span class="n">excitatory_dim</span><span class="p">)</span>
-        
+
         <span class="n">dims</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">randperm</span><span class="p">(</span><span class="n">input_dim</span><span class="p">)</span>
         <span class="n">exc_dims</span> <span class="o">=</span> <span class="n">dims</span><span class="p">[:</span><span class="n">excitatory_dim</span><span class="p">]</span>
         <span class="n">inh_dims</span> <span class="o">=</span> <span class="n">dims</span><span class="p">[</span><span class="n">excitatory_dim</span><span class="p">:]</span>
 
-        <span class="bp">self</span><span class="o">.</span><span class="n">exc_dims</span> <span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">register_buffer</span><span class="p">(</span><span class="s1">&#39;exc_dims&#39;</span><span class="p">,</span> <span class="n">exc_dims</span><span class="p">)</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">inh_dims</span> <span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">register_buffer</span><span class="p">(</span><span class="s1">&#39;inh_dims&#39;</span><span class="p">,</span> <span class="n">inh_dims</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">exc_dims</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">register_buffer</span><span class="p">(</span><span class="s2">&quot;exc_dims&quot;</span><span class="p">,</span> <span class="n">exc_dims</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">inh_dims</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">register_buffer</span><span class="p">(</span><span class="s2">&quot;inh_dims&quot;</span><span class="p">,</span> <span class="n">inh_dims</span><span class="p">)</span>
 
         <span class="bp">self</span><span class="o">.</span><span class="n">excitatory_dim</span> <span class="o">=</span> <span class="n">excitatory_dim</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">inhibitory_dim</span> <span class="o">=</span> <span class="n">inhibitory_dim</span>
@@ -279,7 +291,7 @@
     <span class="k">def</span><span class="w"> </span><span class="nf">forward</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">x</span><span class="p">):</span>
         <span class="k">if</span> <span class="n">x</span><span class="o">.</span><span class="n">dim</span><span class="p">()</span> <span class="o">==</span> <span class="mi">1</span><span class="p">:</span>
             <span class="n">x</span> <span class="o">=</span> <span class="n">x</span><span class="p">[</span><span class="kc">None</span><span class="p">,</span> <span class="p">:]</span>
-        
+
         <span class="n">excitatory_input</span> <span class="o">=</span> <span class="n">x</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">exc_dims</span><span class="p">]</span>
         <span class="n">inhibitory_input</span> <span class="o">=</span> <span class="n">x</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">inh_dims</span><span class="p">]</span>
         <span class="k">return</span> <span class="n">excitatory_input</span><span class="p">,</span> <span class="n">inhibitory_input</span></div>
@@ -299,52 +311,84 @@
         <span class="bp">self</span><span class="p">,</span> 
         <span class="n">input_dim</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span> 
         <span class="n">hidden_dims</span><span class="p">:</span> <span class="n">List</span><span class="p">[</span><span class="nb">int</span><span class="p">],</span> 
-        <span class="n">excitatory_dim</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span> 
-        <span class="n">inhibitory_dim</span><span class="p">:</span> <span class="nb">int</span>
+        <span class="n">independent_heads</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span>
+        <span class="n">excitatory_dim</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span> 
+        <span class="n">inhibitory_dim</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+        <span class="n">output_dim</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="kc">None</span>
     <span class="p">):</span>
         <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="fm">__init__</span><span class="p">()</span>
 
-        <span class="c1"># Build MLP backbone</span>
-        <span class="n">exc_layers</span> <span class="o">=</span> <span class="p">[]</span>
-        <span class="n">inh_layers</span> <span class="o">=</span> <span class="p">[]</span>
-        <span class="n">in_features</span> <span class="o">=</span> <span class="n">input_dim</span>
-        <span class="k">for</span> <span class="n">hdim</span> <span class="ow">in</span> <span class="n">hidden_dims</span><span class="p">:</span>
-            <span class="n">exc_layer</span> <span class="o">=</span> <span class="n">nn</span><span class="o">.</span><span class="n">Linear</span><span class="p">(</span><span class="n">in_features</span><span class="p">,</span> <span class="n">hdim</span><span class="p">)</span>
-            <span class="n">nn</span><span class="o">.</span><span class="n">init</span><span class="o">.</span><span class="n">kaiming_normal_</span><span class="p">(</span><span class="n">exc_layer</span><span class="o">.</span><span class="n">weight</span><span class="p">)</span>
-            <span class="n">nn</span><span class="o">.</span><span class="n">init</span><span class="o">.</span><span class="n">zeros_</span><span class="p">(</span><span class="n">exc_layer</span><span class="o">.</span><span class="n">bias</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">independent_heads</span><span class="p">:</span>
+            <span class="c1"># Build MLP backbone</span>
+            <span class="n">exc_layers</span> <span class="o">=</span> <span class="p">[]</span>
+            <span class="n">inh_layers</span> <span class="o">=</span> <span class="p">[]</span>
+            <span class="n">in_features</span> <span class="o">=</span> <span class="n">input_dim</span>
+            <span class="k">for</span> <span class="n">hdim</span> <span class="ow">in</span> <span class="n">hidden_dims</span><span class="p">:</span>
+                <span class="n">exc_layer</span> <span class="o">=</span> <span class="n">nn</span><span class="o">.</span><span class="n">Linear</span><span class="p">(</span><span class="n">in_features</span><span class="p">,</span> <span class="n">hdim</span><span class="p">)</span>
+                <span class="n">nn</span><span class="o">.</span><span class="n">init</span><span class="o">.</span><span class="n">kaiming_normal_</span><span class="p">(</span><span class="n">exc_layer</span><span class="o">.</span><span class="n">weight</span><span class="p">)</span>
+                <span class="n">nn</span><span class="o">.</span><span class="n">init</span><span class="o">.</span><span class="n">zeros_</span><span class="p">(</span><span class="n">exc_layer</span><span class="o">.</span><span class="n">bias</span><span class="p">)</span>
+                
+                <span class="n">exc_layers</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">exc_layer</span><span class="p">)</span>
+                <span class="n">exc_layers</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">nn</span><span class="o">.</span><span class="n">ReLU</span><span class="p">())</span>
+
+                <span class="n">inh_layer</span> <span class="o">=</span> <span class="n">nn</span><span class="o">.</span><span class="n">Linear</span><span class="p">(</span><span class="n">in_features</span><span class="p">,</span> <span class="n">hdim</span><span class="p">)</span>
+                <span class="n">nn</span><span class="o">.</span><span class="n">init</span><span class="o">.</span><span class="n">kaiming_normal_</span><span class="p">(</span><span class="n">inh_layer</span><span class="o">.</span><span class="n">weight</span><span class="p">)</span>
+                <span class="n">nn</span><span class="o">.</span><span class="n">init</span><span class="o">.</span><span class="n">zeros_</span><span class="p">(</span><span class="n">inh_layer</span><span class="o">.</span><span class="n">bias</span><span class="p">)</span>
+                <span class="n">inh_layers</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">inh_layer</span><span class="p">)</span>
+                <span class="n">inh_layers</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">nn</span><span class="o">.</span><span class="n">ReLU</span><span class="p">())</span>
+
+                <span class="n">in_features</span> <span class="o">=</span> <span class="n">hdim</span>
             
-            <span class="n">exc_layers</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">exc_layer</span><span class="p">)</span>
-            <span class="n">exc_layers</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">nn</span><span class="o">.</span><span class="n">ReLU</span><span class="p">())</span>
+            <span class="n">exc_head</span> <span class="o">=</span> <span class="n">nn</span><span class="o">.</span><span class="n">Linear</span><span class="p">(</span><span class="n">in_features</span><span class="p">,</span> <span class="n">excitatory_dim</span><span class="p">)</span>
+            <span class="n">nn</span><span class="o">.</span><span class="n">init</span><span class="o">.</span><span class="n">xavier_normal_</span><span class="p">(</span><span class="n">exc_head</span><span class="o">.</span><span class="n">weight</span><span class="p">)</span>
+            <span class="n">nn</span><span class="o">.</span><span class="n">init</span><span class="o">.</span><span class="n">zeros_</span><span class="p">(</span><span class="n">exc_head</span><span class="o">.</span><span class="n">bias</span><span class="p">)</span>
+            <span class="n">exc_layers</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">exc_head</span><span class="p">)</span>
+            <span class="n">exc_layers</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">nn</span><span class="o">.</span><span class="n">Sigmoid</span><span class="p">())</span>
+            
+            <span class="n">inh_head</span> <span class="o">=</span> <span class="n">nn</span><span class="o">.</span><span class="n">Linear</span><span class="p">(</span><span class="n">in_features</span><span class="p">,</span> <span class="n">inhibitory_dim</span><span class="p">)</span>
+            <span class="n">nn</span><span class="o">.</span><span class="n">init</span><span class="o">.</span><span class="n">xavier_normal_</span><span class="p">(</span><span class="n">inh_head</span><span class="o">.</span><span class="n">weight</span><span class="p">)</span>
+            <span class="n">nn</span><span class="o">.</span><span class="n">init</span><span class="o">.</span><span class="n">zeros_</span><span class="p">(</span><span class="n">inh_head</span><span class="o">.</span><span class="n">bias</span><span class="p">)</span>
+            <span class="n">inh_layers</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">inh_head</span><span class="p">)</span>
+            <span class="n">inh_layers</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">nn</span><span class="o">.</span><span class="n">Sigmoid</span><span class="p">())</span>
 
-            <span class="n">inh_layer</span> <span class="o">=</span> <span class="n">nn</span><span class="o">.</span><span class="n">Linear</span><span class="p">(</span><span class="n">in_features</span><span class="p">,</span> <span class="n">hdim</span><span class="p">)</span>
-            <span class="n">nn</span><span class="o">.</span><span class="n">init</span><span class="o">.</span><span class="n">kaiming_normal_</span><span class="p">(</span><span class="n">inh_layer</span><span class="o">.</span><span class="n">weight</span><span class="p">)</span>
-            <span class="n">nn</span><span class="o">.</span><span class="n">init</span><span class="o">.</span><span class="n">zeros_</span><span class="p">(</span><span class="n">inh_layer</span><span class="o">.</span><span class="n">bias</span><span class="p">)</span>
-            <span class="n">inh_layers</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">inh_layer</span><span class="p">)</span>
-            <span class="n">inh_layers</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">nn</span><span class="o">.</span><span class="n">ReLU</span><span class="p">())</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">exc_encoding</span> <span class="o">=</span> <span class="n">nn</span><span class="o">.</span><span class="n">Sequential</span><span class="p">(</span><span class="o">*</span><span class="n">exc_layers</span><span class="p">)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">inh_encoding</span> <span class="o">=</span> <span class="n">nn</span><span class="o">.</span><span class="n">Sequential</span><span class="p">(</span><span class="o">*</span><span class="n">inh_layers</span><span class="p">)</span>
 
-            <span class="n">in_features</span> <span class="o">=</span> <span class="n">hdim</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">excitatory_dim</span> <span class="o">=</span> <span class="n">excitatory_dim</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">inhibitory_dim</span> <span class="o">=</span> <span class="n">inhibitory_dim</span>
         
-        <span class="n">exc_head</span> <span class="o">=</span> <span class="n">nn</span><span class="o">.</span><span class="n">Linear</span><span class="p">(</span><span class="n">in_features</span><span class="p">,</span> <span class="n">excitatory_dim</span><span class="p">)</span>
-        <span class="n">nn</span><span class="o">.</span><span class="n">init</span><span class="o">.</span><span class="n">xavier_normal_</span><span class="p">(</span><span class="n">exc_head</span><span class="o">.</span><span class="n">weight</span><span class="p">)</span>
-        <span class="n">nn</span><span class="o">.</span><span class="n">init</span><span class="o">.</span><span class="n">zeros_</span><span class="p">(</span><span class="n">exc_head</span><span class="o">.</span><span class="n">bias</span><span class="p">)</span>
-        <span class="n">exc_layers</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">exc_head</span><span class="p">)</span>
-        <span class="n">exc_layers</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">nn</span><span class="o">.</span><span class="n">Sigmoid</span><span class="p">())</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">encoding_layers</span> <span class="o">=</span> <span class="p">[]</span>
+            <span class="n">in_features</span> <span class="o">=</span> <span class="n">input_dim</span>
+            <span class="k">for</span> <span class="n">hdim</span> <span class="ow">in</span> <span class="n">hidden_dims</span><span class="p">:</span>
+                <span class="n">layer</span> <span class="o">=</span> <span class="n">nn</span><span class="o">.</span><span class="n">Linear</span><span class="p">(</span><span class="n">in_features</span><span class="p">,</span> <span class="n">hdim</span><span class="p">)</span>
+                <span class="n">nn</span><span class="o">.</span><span class="n">init</span><span class="o">.</span><span class="n">kaiming_normal_</span><span class="p">(</span><span class="n">layer</span><span class="o">.</span><span class="n">weight</span><span class="p">)</span>
+                <span class="n">nn</span><span class="o">.</span><span class="n">init</span><span class="o">.</span><span class="n">zeros_</span><span class="p">(</span><span class="n">layer</span><span class="o">.</span><span class="n">bias</span><span class="p">)</span>
+                <span class="n">encoding_layers</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">layer</span><span class="p">)</span>
+                <span class="n">encoding_layers</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">nn</span><span class="o">.</span><span class="n">ReLU</span><span class="p">())</span>
+                <span class="n">in_features</span> <span class="o">=</span> <span class="n">hdim</span>
+            
+            <span class="n">head</span> <span class="o">=</span> <span class="n">nn</span><span class="o">.</span><span class="n">Linear</span><span class="p">(</span><span class="n">in_features</span><span class="p">,</span> <span class="n">output_dim</span><span class="p">)</span>
+            <span class="n">nn</span><span class="o">.</span><span class="n">init</span><span class="o">.</span><span class="n">xavier_normal_</span><span class="p">(</span><span class="n">head</span><span class="o">.</span><span class="n">weight</span><span class="p">)</span>
+            <span class="n">nn</span><span class="o">.</span><span class="n">init</span><span class="o">.</span><span class="n">zeros_</span><span class="p">(</span><span class="n">head</span><span class="o">.</span><span class="n">bias</span><span class="p">)</span>
+            <span class="n">encoding_layers</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">head</span><span class="p">)</span>
+            <span class="n">encoding_layers</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">nn</span><span class="o">.</span><span class="n">Sigmoid</span><span class="p">())</span>
+
+            <span class="bp">self</span><span class="o">.</span><span class="n">encoding</span> <span class="o">=</span> <span class="n">nn</span><span class="o">.</span><span class="n">Sequential</span><span class="p">(</span><span class="o">*</span><span class="n">encoding_layers</span><span class="p">)</span>
+
+            <span class="bp">self</span><span class="o">.</span><span class="n">excitatory_dim</span> <span class="o">=</span> <span class="n">output_dim</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">inhibitory_dim</span> <span class="o">=</span> <span class="n">output_dim</span>
         
-        <span class="n">inh_head</span> <span class="o">=</span> <span class="n">nn</span><span class="o">.</span><span class="n">Linear</span><span class="p">(</span><span class="n">in_features</span><span class="p">,</span> <span class="n">inhibitory_dim</span><span class="p">)</span>
-        <span class="n">nn</span><span class="o">.</span><span class="n">init</span><span class="o">.</span><span class="n">xavier_normal_</span><span class="p">(</span><span class="n">inh_head</span><span class="o">.</span><span class="n">weight</span><span class="p">)</span>
-        <span class="n">nn</span><span class="o">.</span><span class="n">init</span><span class="o">.</span><span class="n">zeros_</span><span class="p">(</span><span class="n">inh_head</span><span class="o">.</span><span class="n">bias</span><span class="p">)</span>
-        <span class="n">inh_layers</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">inh_head</span><span class="p">)</span>
-        <span class="n">inh_layers</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">nn</span><span class="o">.</span><span class="n">Sigmoid</span><span class="p">())</span>
-
-        <span class="bp">self</span><span class="o">.</span><span class="n">exc_encoding</span> <span class="o">=</span> <span class="n">nn</span><span class="o">.</span><span class="n">Sequential</span><span class="p">(</span><span class="o">*</span><span class="n">exc_layers</span><span class="p">)</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">inh_encoding</span> <span class="o">=</span> <span class="n">nn</span><span class="o">.</span><span class="n">Sequential</span><span class="p">(</span><span class="o">*</span><span class="n">inh_layers</span><span class="p">)</span>
-
-        <span class="bp">self</span><span class="o">.</span><span class="n">excitatory_dim</span> <span class="o">=</span> <span class="n">excitatory_dim</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">inhibitory_dim</span> <span class="o">=</span> <span class="n">inhibitory_dim</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">independent_heads</span> <span class="o">=</span> <span class="n">independent_heads</span>
 
     <span class="k">def</span><span class="w"> </span><span class="nf">forward</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">x</span><span class="p">):</span>
-        <span class="n">excitatory_input</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">exc_encoding</span><span class="p">(</span><span class="n">x</span><span class="p">)</span>
-        <span class="n">inhibitory_input</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">inh_encoding</span><span class="p">(</span><span class="n">x</span><span class="p">)</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">independent_heads</span><span class="p">:</span>
+            <span class="n">excitatory_input</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">exc_encoding</span><span class="p">(</span><span class="n">x</span><span class="p">)</span>
+            <span class="n">inhibitory_input</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">inh_encoding</span><span class="p">(</span><span class="n">x</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">x</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">encoding</span><span class="p">(</span><span class="n">x</span><span class="p">)</span>
+            <span class="n">excitatory_input</span> <span class="o">=</span> <span class="n">x</span>
+            <span class="n">inhibitory_input</span> <span class="o">=</span> <span class="n">x</span>
         <span class="k">return</span> <span class="n">excitatory_input</span><span class="p">,</span> <span class="n">inhibitory_input</span></div>
 
 
@@ -358,27 +402,29 @@
 <span class="sd">    &quot;&quot;&quot;</span>
 
     <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span>
-        <span class="bp">self</span><span class="p">,</span> 
+        <span class="bp">self</span><span class="p">,</span>
         <span class="n">input_shape</span><span class="p">:</span> <span class="n">Tuple</span><span class="p">[</span><span class="nb">int</span><span class="p">,</span> <span class="nb">int</span><span class="p">,</span> <span class="nb">int</span><span class="p">],</span>  <span class="c1"># (channels, height, width)</span>
-        <span class="n">excitatory_hidden_dims</span><span class="p">:</span> <span class="n">List</span><span class="p">[</span><span class="nb">int</span><span class="p">],</span>           <span class="c1"># List of channel sizes for each conv layer</span>
-        <span class="n">inhibitory_hidden_dims</span><span class="p">:</span> <span class="n">List</span><span class="p">[</span><span class="nb">int</span><span class="p">],</span>           <span class="c1"># List of channel sizes for each conv layer</span>
-        <span class="n">excitatory_kernel_sizes</span><span class="p">:</span> <span class="n">List</span><span class="p">[</span><span class="nb">int</span><span class="p">],</span>          <span class="c1"># Kernel size for all conv layers</span>
-        <span class="n">inhibitory_kernel_sizes</span><span class="p">:</span> <span class="n">List</span><span class="p">[</span><span class="nb">int</span><span class="p">],</span>          <span class="c1"># Kernel size for all conv layers</span>
-        <span class="n">excitatory_strides</span><span class="p">:</span> <span class="n">List</span><span class="p">[</span><span class="nb">int</span><span class="p">],</span>               <span class="c1"># Stride for all conv layers</span>
-        <span class="n">inhibitory_strides</span><span class="p">:</span> <span class="n">List</span><span class="p">[</span><span class="nb">int</span><span class="p">],</span>               <span class="c1"># Stride for all conv layers</span>
+        <span class="n">excitatory_hidden_dims</span><span class="p">:</span> <span class="n">List</span><span class="p">[</span><span class="nb">int</span><span class="p">],</span>  <span class="c1"># List of channel sizes for each conv layer</span>
+        <span class="n">inhibitory_hidden_dims</span><span class="p">:</span> <span class="n">List</span><span class="p">[</span><span class="nb">int</span><span class="p">],</span>  <span class="c1"># List of channel sizes for each conv layer</span>
+        <span class="n">excitatory_kernel_sizes</span><span class="p">:</span> <span class="n">List</span><span class="p">[</span><span class="nb">int</span><span class="p">],</span>  <span class="c1"># Kernel size for all conv layers</span>
+        <span class="n">inhibitory_kernel_sizes</span><span class="p">:</span> <span class="n">List</span><span class="p">[</span><span class="nb">int</span><span class="p">],</span>  <span class="c1"># Kernel size for all conv layers</span>
+        <span class="n">excitatory_strides</span><span class="p">:</span> <span class="n">List</span><span class="p">[</span><span class="nb">int</span><span class="p">],</span>  <span class="c1"># Stride for all conv layers</span>
+        <span class="n">inhibitory_strides</span><span class="p">:</span> <span class="n">List</span><span class="p">[</span><span class="nb">int</span><span class="p">],</span>  <span class="c1"># Stride for all conv layers</span>
     <span class="p">):</span>
         <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="fm">__init__</span><span class="p">()</span>
-        
+
         <span class="c1"># Input validation</span>
         <span class="n">input_dim</span><span class="p">,</span> <span class="n">height</span><span class="p">,</span> <span class="n">width</span> <span class="o">=</span> <span class="n">input_shape</span>
-        
+
         <span class="c1"># Build CNN backbone for excitatory pathway</span>
         <span class="n">exc_layers</span> <span class="o">=</span> <span class="p">[]</span>
         <span class="n">in_dim</span> <span class="o">=</span> <span class="n">input_dim</span>
         <span class="n">current_h</span><span class="p">,</span> <span class="n">current_w</span> <span class="o">=</span> <span class="n">height</span><span class="p">,</span> <span class="n">width</span>
-        
+
         <span class="k">for</span> <span class="n">hidden_dim</span><span class="p">,</span> <span class="n">kernel_size</span><span class="p">,</span> <span class="n">stride</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span>
-            <span class="n">excitatory_hidden_dims</span><span class="p">[:</span><span class="o">-</span><span class="mi">1</span><span class="p">],</span> <span class="n">excitatory_kernel_sizes</span><span class="p">[:</span><span class="o">-</span><span class="mi">1</span><span class="p">],</span> <span class="n">excitatory_strides</span><span class="p">[:</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span>
+            <span class="n">excitatory_hidden_dims</span><span class="p">[:</span><span class="o">-</span><span class="mi">1</span><span class="p">],</span>
+            <span class="n">excitatory_kernel_sizes</span><span class="p">[:</span><span class="o">-</span><span class="mi">1</span><span class="p">],</span>
+            <span class="n">excitatory_strides</span><span class="p">[:</span><span class="o">-</span><span class="mi">1</span><span class="p">],</span>
         <span class="p">):</span>
             <span class="c1"># Add convolutional layer</span>
             <span class="n">exc_conv</span> <span class="o">=</span> <span class="n">nn</span><span class="o">.</span><span class="n">Conv2d</span><span class="p">(</span><span class="n">in_dim</span><span class="p">,</span> <span class="n">hidden_dim</span><span class="p">,</span> <span class="n">kernel_size</span><span class="p">,</span> <span class="n">stride</span><span class="p">)</span>
@@ -386,34 +432,45 @@
             <span class="n">nn</span><span class="o">.</span><span class="n">init</span><span class="o">.</span><span class="n">zeros_</span><span class="p">(</span><span class="n">exc_conv</span><span class="o">.</span><span class="n">bias</span><span class="p">)</span>
             <span class="n">exc_layers</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">exc_conv</span><span class="p">)</span>
             <span class="n">exc_layers</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">nn</span><span class="o">.</span><span class="n">ReLU</span><span class="p">())</span>
-            
+
             <span class="n">in_dim</span> <span class="o">=</span> <span class="n">hidden_dim</span>
             <span class="n">current_h</span> <span class="o">=</span> <span class="p">((</span><span class="n">current_h</span> <span class="o">-</span> <span class="n">kernel_size</span><span class="p">)</span> <span class="o">//</span> <span class="n">stride</span><span class="p">)</span> <span class="o">+</span> <span class="mi">1</span>
             <span class="n">current_w</span> <span class="o">=</span> <span class="p">((</span><span class="n">current_w</span> <span class="o">-</span> <span class="n">kernel_size</span><span class="p">)</span> <span class="o">//</span> <span class="n">stride</span><span class="p">)</span> <span class="o">+</span> <span class="mi">1</span>
-        
+
         <span class="c1"># Add final convolutional layer</span>
-        <span class="n">exc_conv</span> <span class="o">=</span> <span class="n">nn</span><span class="o">.</span><span class="n">Conv2d</span><span class="p">(</span><span class="n">in_dim</span><span class="p">,</span> <span class="n">excitatory_hidden_dims</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">],</span> <span class="n">excitatory_kernel_sizes</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">],</span> <span class="n">excitatory_strides</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">])</span>
+        <span class="n">exc_conv</span> <span class="o">=</span> <span class="n">nn</span><span class="o">.</span><span class="n">Conv2d</span><span class="p">(</span>
+            <span class="n">in_dim</span><span class="p">,</span>
+            <span class="n">excitatory_hidden_dims</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">],</span>
+            <span class="n">excitatory_kernel_sizes</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">],</span>
+            <span class="n">excitatory_strides</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">],</span>
+        <span class="p">)</span>
         <span class="n">nn</span><span class="o">.</span><span class="n">init</span><span class="o">.</span><span class="n">xavier_normal_</span><span class="p">(</span><span class="n">exc_conv</span><span class="o">.</span><span class="n">weight</span><span class="p">)</span>
         <span class="n">nn</span><span class="o">.</span><span class="n">init</span><span class="o">.</span><span class="n">zeros_</span><span class="p">(</span><span class="n">exc_conv</span><span class="o">.</span><span class="n">bias</span><span class="p">)</span>
         <span class="n">exc_layers</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">exc_conv</span><span class="p">)</span>
         <span class="n">exc_layers</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">nn</span><span class="o">.</span><span class="n">Sigmoid</span><span class="p">())</span>
 
-        <span class="n">current_h</span> <span class="o">=</span> <span class="p">((</span><span class="n">current_h</span> <span class="o">-</span> <span class="n">excitatory_kernel_sizes</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">])</span> <span class="o">//</span> <span class="n">excitatory_strides</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">])</span> <span class="o">+</span> <span class="mi">1</span>
-        <span class="n">current_w</span> <span class="o">=</span> <span class="p">((</span><span class="n">current_w</span> <span class="o">-</span> <span class="n">excitatory_kernel_sizes</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">])</span> <span class="o">//</span> <span class="n">excitatory_strides</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">])</span> <span class="o">+</span> <span class="mi">1</span>
+        <span class="n">current_h</span> <span class="o">=</span> <span class="p">(</span>
+            <span class="p">(</span><span class="n">current_h</span> <span class="o">-</span> <span class="n">excitatory_kernel_sizes</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">])</span> <span class="o">//</span> <span class="n">excitatory_strides</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span>
+        <span class="p">)</span> <span class="o">+</span> <span class="mi">1</span>
+        <span class="n">current_w</span> <span class="o">=</span> <span class="p">(</span>
+            <span class="p">(</span><span class="n">current_w</span> <span class="o">-</span> <span class="n">excitatory_kernel_sizes</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">])</span> <span class="o">//</span> <span class="n">excitatory_strides</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span>
+        <span class="p">)</span> <span class="o">+</span> <span class="mi">1</span>
 
         <span class="c1"># Flatten layer</span>
-        <span class="n">exc_layers</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">nn</span><span class="o">.</span><span class="n">Flatten</span><span class="p">(</span><span class="n">start_dim</span> <span class="o">=</span> <span class="o">-</span><span class="mi">3</span><span class="p">))</span>
-        
+        <span class="n">exc_layers</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">nn</span><span class="o">.</span><span class="n">Flatten</span><span class="p">(</span><span class="n">start_dim</span><span class="o">=-</span><span class="mi">3</span><span class="p">))</span>
+
         <span class="c1"># Calculate flattened dimension</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">excitatory_dim</span> <span class="o">=</span> <span class="n">excitatory_hidden_dims</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span> <span class="o">*</span> <span class="n">current_h</span> <span class="o">*</span> <span class="n">current_w</span>
-        
+
         <span class="c1"># Build CNN backbone for inhibitory pathway</span>
         <span class="n">inh_layers</span> <span class="o">=</span> <span class="p">[]</span>
         <span class="n">in_dim</span> <span class="o">=</span> <span class="n">input_dim</span>
         <span class="n">current_h</span><span class="p">,</span> <span class="n">current_w</span> <span class="o">=</span> <span class="n">height</span><span class="p">,</span> <span class="n">width</span>
-        
+
         <span class="k">for</span> <span class="n">hidden_dim</span><span class="p">,</span> <span class="n">kernel_size</span><span class="p">,</span> <span class="n">stride</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span>
-            <span class="n">inhibitory_hidden_dims</span><span class="p">[:</span><span class="o">-</span><span class="mi">1</span><span class="p">],</span> <span class="n">inhibitory_kernel_sizes</span><span class="p">[:</span><span class="o">-</span><span class="mi">1</span><span class="p">],</span> <span class="n">inhibitory_strides</span><span class="p">[:</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span>
+            <span class="n">inhibitory_hidden_dims</span><span class="p">[:</span><span class="o">-</span><span class="mi">1</span><span class="p">],</span>
+            <span class="n">inhibitory_kernel_sizes</span><span class="p">[:</span><span class="o">-</span><span class="mi">1</span><span class="p">],</span>
+            <span class="n">inhibitory_strides</span><span class="p">[:</span><span class="o">-</span><span class="mi">1</span><span class="p">],</span>
         <span class="p">):</span>
             <span class="c1"># Add convolutional layer</span>
             <span class="n">inh_conv</span> <span class="o">=</span> <span class="n">nn</span><span class="o">.</span><span class="n">Conv2d</span><span class="p">(</span><span class="n">in_dim</span><span class="p">,</span> <span class="n">hidden_dim</span><span class="p">,</span> <span class="n">kernel_size</span><span class="p">,</span> <span class="n">stride</span><span class="p">)</span>
@@ -421,27 +478,36 @@
             <span class="n">nn</span><span class="o">.</span><span class="n">init</span><span class="o">.</span><span class="n">zeros_</span><span class="p">(</span><span class="n">inh_conv</span><span class="o">.</span><span class="n">bias</span><span class="p">)</span>
             <span class="n">inh_layers</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">inh_conv</span><span class="p">)</span>
             <span class="n">inh_layers</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">nn</span><span class="o">.</span><span class="n">ReLU</span><span class="p">())</span>
-            
+
             <span class="n">in_dim</span> <span class="o">=</span> <span class="n">hidden_dim</span>
             <span class="n">current_h</span> <span class="o">=</span> <span class="p">((</span><span class="n">current_h</span> <span class="o">-</span> <span class="n">kernel_size</span><span class="p">)</span> <span class="o">//</span> <span class="n">stride</span><span class="p">)</span> <span class="o">+</span> <span class="mi">1</span>
             <span class="n">current_w</span> <span class="o">=</span> <span class="p">((</span><span class="n">current_w</span> <span class="o">-</span> <span class="n">kernel_size</span><span class="p">)</span> <span class="o">//</span> <span class="n">stride</span><span class="p">)</span> <span class="o">+</span> <span class="mi">1</span>
-        
+
         <span class="c1"># Add final convolutional layer</span>
-        <span class="n">inh_conv</span> <span class="o">=</span> <span class="n">nn</span><span class="o">.</span><span class="n">Conv2d</span><span class="p">(</span><span class="n">in_dim</span><span class="p">,</span> <span class="n">inhibitory_hidden_dims</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">],</span> <span class="n">inhibitory_kernel_sizes</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">],</span> <span class="n">inhibitory_strides</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">])</span>
+        <span class="n">inh_conv</span> <span class="o">=</span> <span class="n">nn</span><span class="o">.</span><span class="n">Conv2d</span><span class="p">(</span>
+            <span class="n">in_dim</span><span class="p">,</span>
+            <span class="n">inhibitory_hidden_dims</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">],</span>
+            <span class="n">inhibitory_kernel_sizes</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">],</span>
+            <span class="n">inhibitory_strides</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">],</span>
+        <span class="p">)</span>
         <span class="n">nn</span><span class="o">.</span><span class="n">init</span><span class="o">.</span><span class="n">xavier_normal_</span><span class="p">(</span><span class="n">inh_conv</span><span class="o">.</span><span class="n">weight</span><span class="p">)</span>
         <span class="n">nn</span><span class="o">.</span><span class="n">init</span><span class="o">.</span><span class="n">zeros_</span><span class="p">(</span><span class="n">inh_conv</span><span class="o">.</span><span class="n">bias</span><span class="p">)</span>
         <span class="n">inh_layers</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">inh_conv</span><span class="p">)</span>
         <span class="n">inh_layers</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">nn</span><span class="o">.</span><span class="n">Sigmoid</span><span class="p">())</span>
 
-        <span class="n">current_h</span> <span class="o">=</span> <span class="p">((</span><span class="n">current_h</span> <span class="o">-</span> <span class="n">inhibitory_kernel_sizes</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">])</span> <span class="o">//</span> <span class="n">inhibitory_strides</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">])</span> <span class="o">+</span> <span class="mi">1</span>
-        <span class="n">current_w</span> <span class="o">=</span> <span class="p">((</span><span class="n">current_w</span> <span class="o">-</span> <span class="n">inhibitory_kernel_sizes</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">])</span> <span class="o">//</span> <span class="n">inhibitory_strides</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">])</span> <span class="o">+</span> <span class="mi">1</span>
+        <span class="n">current_h</span> <span class="o">=</span> <span class="p">(</span>
+            <span class="p">(</span><span class="n">current_h</span> <span class="o">-</span> <span class="n">inhibitory_kernel_sizes</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">])</span> <span class="o">//</span> <span class="n">inhibitory_strides</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span>
+        <span class="p">)</span> <span class="o">+</span> <span class="mi">1</span>
+        <span class="n">current_w</span> <span class="o">=</span> <span class="p">(</span>
+            <span class="p">(</span><span class="n">current_w</span> <span class="o">-</span> <span class="n">inhibitory_kernel_sizes</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">])</span> <span class="o">//</span> <span class="n">inhibitory_strides</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span>
+        <span class="p">)</span> <span class="o">+</span> <span class="mi">1</span>
 
         <span class="c1"># Flatten layer</span>
-        <span class="n">inh_layers</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">nn</span><span class="o">.</span><span class="n">Flatten</span><span class="p">(</span><span class="n">start_dim</span> <span class="o">=</span> <span class="o">-</span><span class="mi">3</span><span class="p">))</span>
-        
+        <span class="n">inh_layers</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">nn</span><span class="o">.</span><span class="n">Flatten</span><span class="p">(</span><span class="n">start_dim</span><span class="o">=-</span><span class="mi">3</span><span class="p">))</span>
+
         <span class="c1"># Calculate flattened dimension</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">inhibitory_dim</span> <span class="o">=</span> <span class="n">inhibitory_hidden_dims</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span> <span class="o">*</span> <span class="n">current_h</span> <span class="o">*</span> <span class="n">current_w</span>
-        
+
         <span class="c1"># Create sequential models</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">exc_encoding</span> <span class="o">=</span> <span class="n">nn</span><span class="o">.</span><span class="n">Sequential</span><span class="p">(</span><span class="o">*</span><span class="n">exc_layers</span><span class="p">)</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">inh_encoding</span> <span class="o">=</span> <span class="n">nn</span><span class="o">.</span><span class="n">Sequential</span><span class="p">(</span><span class="o">*</span><span class="n">inh_layers</span><span class="p">)</span>
@@ -450,7 +516,7 @@
         <span class="c1"># Ensure input has correct shape (add batch dimension if needed)</span>
         <span class="k">if</span> <span class="n">x</span><span class="o">.</span><span class="n">dim</span><span class="p">()</span> <span class="o">==</span> <span class="mi">3</span><span class="p">:</span>  <span class="c1"># (C, H, W)</span>
             <span class="n">x</span> <span class="o">=</span> <span class="n">x</span><span class="o">.</span><span class="n">unsqueeze</span><span class="p">(</span><span class="mi">0</span><span class="p">)</span>  <span class="c1"># Add batch dimension: (1, C, H, W)</span>
-            
+
         <span class="n">excitatory_input</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">exc_encoding</span><span class="p">(</span><span class="n">x</span><span class="p">)</span>
         <span class="n">inhibitory_input</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">inh_encoding</span><span class="p">(</span><span class="n">x</span><span class="p">)</span>
         <span class="k">return</span> <span class="n">excitatory_input</span><span class="p">,</span> <span class="n">inhibitory_input</span></div>
@@ -464,6 +530,7 @@
 <span class="sd">    A transform that maps the raw input x to (excitatory_input, inhibitory_input)</span>
 <span class="sd">    using convolutional layers.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
+
     <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">excitatory_dim</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span> <span class="n">inhibitory_dim</span><span class="p">:</span> <span class="nb">int</span><span class="p">):</span>
         <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="fm">__init__</span><span class="p">()</span>
         <span class="kn">import</span><span class="w"> </span><span class="nn">torchvision.models</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">models</span>
@@ -493,6 +560,7 @@
 <span class="c1"># SigmoidInputNetTransform</span>
 <span class="c1">###############################################################################</span>
 
+
 <div class="viewcode-block" id="SigmoidInputNetTransform">
 <a class="viewcode-back" href="../../source/api/dendritic_modeling.html#dendritic_modeling.networks.SigmoidInputNetTransform">[docs]</a>
 <span class="k">class</span><span class="w"> </span><span class="nc">SigmoidInputNetTransform</span><span class="p">(</span><span class="n">InputNetTransform</span><span class="p">):</span>
@@ -502,9 +570,16 @@
 <span class="sd">    &quot;&quot;&quot;</span>
 
     <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span>
-        <span class="bp">self</span><span class="p">,</span> <span class="n">input_dim</span><span class="p">,</span> <span class="n">hidden_dims</span><span class="p">,</span> <span class="n">excitatory_dim</span><span class="p">,</span> <span class="n">inhibitory_dim</span><span class="p">,</span> <span class="n">network_type</span><span class="o">=</span><span class="s2">&quot;MLPInputTransform&quot;</span>
+        <span class="bp">self</span><span class="p">,</span>
+        <span class="n">input_dim</span><span class="p">,</span>
+        <span class="n">hidden_dims</span><span class="p">,</span>
+        <span class="n">excitatory_dim</span><span class="p">,</span>
+        <span class="n">inhibitory_dim</span><span class="p">,</span>
+        <span class="n">network_type</span><span class="o">=</span><span class="s2">&quot;MLPInputTransform&quot;</span><span class="p">,</span>
     <span class="p">):</span>
-        <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span><span class="n">input_dim</span><span class="p">,</span> <span class="n">hidden_dims</span><span class="p">,</span> <span class="n">excitatory_dim</span><span class="p">,</span> <span class="n">inhibitory_dim</span><span class="p">,</span> <span class="n">network_type</span><span class="p">)</span>
+        <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span>
+            <span class="n">input_dim</span><span class="p">,</span> <span class="n">hidden_dims</span><span class="p">,</span> <span class="n">excitatory_dim</span><span class="p">,</span> <span class="n">inhibitory_dim</span><span class="p">,</span> <span class="n">network_type</span>
+        <span class="p">)</span>
 
     <span class="k">def</span><span class="w"> </span><span class="nf">forward</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">x</span><span class="p">):</span>
         <span class="c1"># Call the parent&#39;s forward method to get outputs</span>
@@ -515,6 +590,62 @@
         <span class="n">inhib_out</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">sigmoid</span><span class="p">(</span><span class="n">inhib_out</span><span class="p">)</span>
 
         <span class="k">return</span> <span class="n">excit_out</span><span class="p">,</span> <span class="n">inhib_out</span></div>
+
+
+
+<span class="c1">###############################################################################</span>
+<span class="c1"># FeatureExtractorMLP</span>
+<span class="c1">###############################################################################</span>
+
+<div class="viewcode-block" id="FeatureExtractorMLP">
+<a class="viewcode-back" href="../../source/api/dendritic_modeling.html#dendritic_modeling.networks.FeatureExtractorMLP">[docs]</a>
+<span class="k">class</span><span class="w"> </span><span class="nc">FeatureExtractorMLP</span><span class="p">(</span><span class="n">nn</span><span class="o">.</span><span class="n">Module</span><span class="p">):</span>
+    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">input_dim</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span> <span class="n">hidden_dims</span><span class="p">:</span> <span class="n">List</span><span class="p">[</span><span class="nb">int</span><span class="p">],</span> <span class="n">output_dim</span><span class="p">:</span> <span class="nb">int</span><span class="p">):</span>
+        <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="fm">__init__</span><span class="p">()</span>
+        
+        <span class="n">layers</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="n">in_features</span> <span class="o">=</span> <span class="n">input_dim</span>
+        <span class="k">for</span> <span class="n">hdim</span> <span class="ow">in</span> <span class="n">hidden_dims</span><span class="p">[:</span><span class="o">-</span><span class="mi">1</span><span class="p">]:</span>
+            <span class="n">layer</span> <span class="o">=</span> <span class="n">nn</span><span class="o">.</span><span class="n">Linear</span><span class="p">(</span><span class="n">in_features</span><span class="p">,</span> <span class="n">hdim</span><span class="p">)</span>
+            <span class="n">nn</span><span class="o">.</span><span class="n">init</span><span class="o">.</span><span class="n">kaiming_normal_</span><span class="p">(</span><span class="n">layer</span><span class="o">.</span><span class="n">weight</span><span class="p">)</span>
+            <span class="n">nn</span><span class="o">.</span><span class="n">init</span><span class="o">.</span><span class="n">zeros_</span><span class="p">(</span><span class="n">layer</span><span class="o">.</span><span class="n">bias</span><span class="p">)</span>
+            <span class="n">layers</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">layer</span><span class="p">)</span>
+            <span class="n">layers</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">nn</span><span class="o">.</span><span class="n">ReLU</span><span class="p">())</span>
+            <span class="n">in_features</span> <span class="o">=</span> <span class="n">hdim</span>
+        
+        <span class="n">encoding_head</span> <span class="o">=</span> <span class="n">nn</span><span class="o">.</span><span class="n">Linear</span><span class="p">(</span><span class="n">in_features</span><span class="p">,</span> <span class="n">hidden_dims</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">])</span>
+        <span class="n">nn</span><span class="o">.</span><span class="n">init</span><span class="o">.</span><span class="n">xavier_normal_</span><span class="p">(</span><span class="n">encoding_head</span><span class="o">.</span><span class="n">weight</span><span class="p">)</span>
+        <span class="n">nn</span><span class="o">.</span><span class="n">init</span><span class="o">.</span><span class="n">zeros_</span><span class="p">(</span><span class="n">encoding_head</span><span class="o">.</span><span class="n">bias</span><span class="p">)</span>
+        <span class="n">layers</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">encoding_head</span><span class="p">)</span>
+        <span class="n">layers</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">nn</span><span class="o">.</span><span class="n">Sigmoid</span><span class="p">())</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">encoding</span> <span class="o">=</span> <span class="n">nn</span><span class="o">.</span><span class="n">Sequential</span><span class="p">(</span><span class="o">*</span><span class="n">layers</span><span class="p">)</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">excitatory_dim</span> <span class="o">=</span> <span class="n">hidden_dims</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">inhibitory_dim</span> <span class="o">=</span> <span class="n">hidden_dims</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">readout</span> <span class="o">=</span> <span class="kc">True</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">final</span> <span class="o">=</span> <span class="n">nn</span><span class="o">.</span><span class="n">Sequential</span><span class="p">(</span>
+            <span class="n">nn</span><span class="o">.</span><span class="n">Linear</span><span class="p">(</span><span class="n">hidden_dims</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">],</span> <span class="n">output_dim</span><span class="p">),</span>
+            <span class="n">nn</span><span class="o">.</span><span class="n">LogSoftmax</span><span class="p">(</span><span class="n">dim</span><span class="o">=-</span><span class="mi">1</span><span class="p">)</span>
+        <span class="p">)</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">forward</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">x</span><span class="p">):</span>
+        <span class="n">x</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">encoding</span><span class="p">(</span><span class="n">x</span><span class="p">)</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">readout</span><span class="p">:</span>
+            <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">final</span><span class="p">(</span><span class="n">x</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">excitatory_input</span> <span class="o">=</span> <span class="n">x</span>
+            <span class="n">inhibitory_input</span> <span class="o">=</span> <span class="n">x</span>
+            <span class="k">return</span> <span class="n">excitatory_input</span><span class="p">,</span> <span class="n">inhibitory_input</span>
+    
+    <span class="k">def</span><span class="w"> </span><span class="nf">set_readout</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">readout</span><span class="p">:</span> <span class="nb">bool</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">readout</span> <span class="o">=</span> <span class="n">readout</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">disable_grad</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">for</span> <span class="n">param</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">parameters</span><span class="p">():</span>
+            <span class="n">param</span><span class="o">.</span><span class="n">requires_grad</span> <span class="o">=</span> <span class="kc">False</span></div>
+
 
 
 <span class="c1">###############################################################################</span>
@@ -560,7 +691,7 @@
         <span class="n">freeze_inhibitory_connectivity</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span>
         <span class="n">init_method</span><span class="o">=</span><span class="s2">&quot;xavier_normal&quot;</span><span class="p">,</span>
         <span class="n">weight_threshold</span><span class="o">=</span><span class="mf">1e-6</span><span class="p">,</span>
-        <span class="o">**</span><span class="n">kwargs</span>
+        <span class="o">**</span><span class="n">kwargs</span><span class="p">,</span>
     <span class="p">):</span>
         <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="fm">__init__</span><span class="p">()</span>
 
@@ -605,7 +736,7 @@
                     <span class="n">freeze_inhibitory_connectivity</span><span class="o">=</span><span class="n">freeze_inhibitory_connectivity</span><span class="p">,</span>
                     <span class="n">init_method</span><span class="o">=</span><span class="n">init_method</span><span class="p">,</span>
                     <span class="n">weight_threshold</span><span class="o">=</span><span class="n">weight_threshold</span><span class="p">,</span>
-                    <span class="o">**</span><span class="n">kwargs</span>
+                    <span class="o">**</span><span class="n">kwargs</span><span class="p">,</span>
                 <span class="p">)</span>
             <span class="k">else</span><span class="p">:</span>
                 <span class="bp">self</span><span class="o">.</span><span class="n">inhibitory_cells</span> <span class="o">=</span> <span class="n">DendriNet</span><span class="p">(</span>
@@ -640,7 +771,7 @@
                     <span class="n">freeze_inhibitory_connectivity</span><span class="o">=</span><span class="n">freeze_inhibitory_connectivity</span><span class="p">,</span>
                     <span class="n">init_method</span><span class="o">=</span><span class="n">init_method</span><span class="p">,</span>
                     <span class="n">weight_threshold</span><span class="o">=</span><span class="n">weight_threshold</span><span class="p">,</span>
-                    <span class="o">**</span><span class="n">kwargs</span>
+                    <span class="o">**</span><span class="n">kwargs</span><span class="p">,</span>
                 <span class="p">)</span>
         <span class="k">else</span><span class="p">:</span>
             <span class="bp">self</span><span class="o">.</span><span class="n">inhibitory_cells</span> <span class="o">=</span> <span class="kc">None</span>
@@ -676,7 +807,7 @@
                 <span class="n">freeze_inhibitory_connectivity</span><span class="o">=</span><span class="n">freeze_inhibitory_connectivity</span><span class="p">,</span>
                 <span class="n">init_method</span><span class="o">=</span><span class="n">init_method</span><span class="p">,</span>
                 <span class="n">weight_threshold</span><span class="o">=</span><span class="n">weight_threshold</span><span class="p">,</span>
-                <span class="o">**</span><span class="n">kwargs</span>
+                <span class="o">**</span><span class="n">kwargs</span><span class="p">,</span>
             <span class="p">)</span>
         <span class="k">else</span><span class="p">:</span>
             <span class="bp">self</span><span class="o">.</span><span class="n">excitatory_cells</span> <span class="o">=</span> <span class="n">DendriNet</span><span class="p">(</span>
@@ -709,7 +840,7 @@
                 <span class="n">freeze_inhibitory_connectivity</span><span class="o">=</span><span class="n">freeze_inhibitory_connectivity</span><span class="p">,</span>
                 <span class="n">init_method</span><span class="o">=</span><span class="n">init_method</span><span class="p">,</span>
                 <span class="n">weight_threshold</span><span class="o">=</span><span class="n">weight_threshold</span><span class="p">,</span>
-                <span class="o">**</span><span class="n">kwargs</span>
+                <span class="o">**</span><span class="n">kwargs</span><span class="p">,</span>
             <span class="p">)</span>
 
     <span class="k">def</span><span class="w"> </span><span class="nf">decay_weights</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">weight_decay</span><span class="p">):</span>
@@ -929,14 +1060,23 @@
             <span class="n">hidden_dims</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">input_net_dict</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;hidden_dims&quot;</span><span class="p">,</span> <span class="p">[]),</span>
             <span class="n">excitatory_dim</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">input_net_dict</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;excitatory_dim&quot;</span><span class="p">,</span> <span class="mi">128</span><span class="p">),</span>
             <span class="n">inhibitory_dim</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">input_net_dict</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;inhibitory_dim&quot;</span><span class="p">,</span> <span class="mi">128</span><span class="p">),</span>
+            <span class="n">output_dim</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">input_net_dict</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;output_dim&quot;</span><span class="p">,</span> <span class="mi">128</span><span class="p">),</span>
             <span class="n">input_shape</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">input_net_dict</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;input_shape&quot;</span><span class="p">,</span> <span class="kc">None</span><span class="p">),</span>
-            <span class="n">excitatory_hidden_dims</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">input_net_dict</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;excitatory_hidden_dims&quot;</span><span class="p">,</span> <span class="p">[]),</span>
-            <span class="n">inhibitory_hidden_dims</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">input_net_dict</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;inhibitory_hidden_dims&quot;</span><span class="p">,</span> <span class="p">[]),</span>
-            <span class="n">excitatory_kernel_sizes</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">input_net_dict</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;excitatory_kernel_sizes&quot;</span><span class="p">,</span> <span class="p">[]),</span>
-            <span class="n">inhibitory_kernel_sizes</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">input_net_dict</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;inhibitory_kernel_sizes&quot;</span><span class="p">,</span> <span class="p">[]),</span>
+            <span class="n">excitatory_hidden_dims</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">input_net_dict</span><span class="o">.</span><span class="n">get</span><span class="p">(</span>
+                <span class="s2">&quot;excitatory_hidden_dims&quot;</span><span class="p">,</span> <span class="p">[]</span>
+            <span class="p">),</span>
+            <span class="n">inhibitory_hidden_dims</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">input_net_dict</span><span class="o">.</span><span class="n">get</span><span class="p">(</span>
+                <span class="s2">&quot;inhibitory_hidden_dims&quot;</span><span class="p">,</span> <span class="p">[]</span>
+            <span class="p">),</span>
+            <span class="n">excitatory_kernel_sizes</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">input_net_dict</span><span class="o">.</span><span class="n">get</span><span class="p">(</span>
+                <span class="s2">&quot;excitatory_kernel_sizes&quot;</span><span class="p">,</span> <span class="p">[]</span>
+            <span class="p">),</span>
+            <span class="n">inhibitory_kernel_sizes</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">input_net_dict</span><span class="o">.</span><span class="n">get</span><span class="p">(</span>
+                <span class="s2">&quot;inhibitory_kernel_sizes&quot;</span><span class="p">,</span> <span class="p">[]</span>
+            <span class="p">),</span>
             <span class="n">excitatory_strides</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">input_net_dict</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;excitatory_strides&quot;</span><span class="p">,</span> <span class="p">[]),</span>
             <span class="n">inhibitory_strides</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">input_net_dict</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;inhibitory_strides&quot;</span><span class="p">,</span> <span class="p">[]),</span>
-            <span class="n">network_type</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">input_net_dict</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;type&quot;</span><span class="p">,</span> <span class="s2">&quot;MLPInputTransform&quot;</span><span class="p">)</span>
+            <span class="n">network_type</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">input_net_dict</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;type&quot;</span><span class="p">,</span> <span class="s2">&quot;MLPInputTransform&quot;</span><span class="p">),</span>
         <span class="p">)</span></div>
 
 
@@ -999,12 +1139,14 @@
             <span class="n">inhibitory_input_size</span> <span class="o">=</span> <span class="n">n_inh</span>
             <span class="n">ii_connectivity</span> <span class="o">=</span> <span class="kc">True</span>
             <span class="k">if</span> <span class="n">i</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
-                <span class="n">ii_connectivity</span> <span class="o">=</span> <span class="kc">False</span>                    
+                <span class="n">ii_connectivity</span> <span class="o">=</span> <span class="kc">False</span>
                 <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">input_mode</span> <span class="o">==</span> <span class="mi">1</span><span class="p">:</span>
                     <span class="n">inhibitory_input_size</span> <span class="o">=</span> <span class="n">excitatory_layer_sizes</span><span class="p">[</span><span class="n">i</span><span class="p">]</span>
                 <span class="k">elif</span> <span class="bp">self</span><span class="o">.</span><span class="n">input_mode</span> <span class="o">==</span> <span class="mi">2</span><span class="p">:</span>
                     <span class="c1"># For input_mode=2, use net_out_dim as inhibitory_input_dim</span>
-                    <span class="n">inhibitory_input_size</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">input_net</span><span class="o">.</span><span class="n">input_transform</span><span class="o">.</span><span class="n">inhibitory_dim</span>
+                    <span class="n">inhibitory_input_size</span> <span class="o">=</span> <span class="p">(</span>
+                        <span class="bp">self</span><span class="o">.</span><span class="n">input_net</span><span class="o">.</span><span class="n">input_transform</span><span class="o">.</span><span class="n">inhibitory_dim</span>
+                    <span class="p">)</span>
 
             <span class="c1"># Create ExcitationInhibitionLayer</span>
             <span class="n">layer</span> <span class="o">=</span> <span class="n">ExcitationInhibitionLayer</span><span class="p">(</span>
@@ -1046,7 +1188,7 @@
                 <span class="n">freeze_excitatory_connectivity</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">freeze_excitatory_connectivity</span><span class="p">,</span>
                 <span class="n">freeze_inhibitory_connectivity</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">freeze_inhibitory_connectivity</span><span class="p">,</span>
                 <span class="n">init_method</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">init_method</span><span class="p">,</span>
-                <span class="n">weight_threshold</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">weight_threshold</span>
+                <span class="n">weight_threshold</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">weight_threshold</span><span class="p">,</span>
             <span class="p">)</span>
             <span class="n">layers</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">layer</span><span class="p">)</span>
 
@@ -1233,8 +1375,10 @@
     <span class="k">def</span><span class="w"> </span><span class="nf">branch_layers</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
         <span class="n">all_branch_layers</span> <span class="o">=</span> <span class="p">[]</span>
         <span class="k">for</span> <span class="n">ei_layer</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">layers</span><span class="p">:</span>
-            <span class="n">all_branch_layers</span><span class="o">.</span><span class="n">extend</span><span class="p">(</span><span class="n">ei_layer</span><span class="o">.</span><span class="n">excitatory_cells</span><span class="o">.</span><span class="n">branch_layers</span><span class="p">)</span>
-            <span class="n">all_branch_layers</span><span class="o">.</span><span class="n">extend</span><span class="p">(</span><span class="n">ei_layer</span><span class="o">.</span><span class="n">inhibitory_cells</span><span class="o">.</span><span class="n">branch_layers</span><span class="p">)</span>
+            <span class="k">if</span> <span class="n">ei_layer</span><span class="o">.</span><span class="n">excitatory_cells</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+                <span class="n">all_branch_layers</span><span class="o">.</span><span class="n">extend</span><span class="p">(</span><span class="n">ei_layer</span><span class="o">.</span><span class="n">excitatory_cells</span><span class="o">.</span><span class="n">branch_layers</span><span class="p">)</span>
+            <span class="k">if</span> <span class="n">ei_layer</span><span class="o">.</span><span class="n">inhibitory_cells</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+                <span class="n">all_branch_layers</span><span class="o">.</span><span class="n">extend</span><span class="p">(</span><span class="n">ei_layer</span><span class="o">.</span><span class="n">inhibitory_cells</span><span class="o">.</span><span class="n">branch_layers</span><span class="p">)</span>
         <span class="k">return</span> <span class="n">all_branch_layers</span>
 
     <span class="nd">@property</span>
@@ -1417,7 +1561,7 @@
             <span class="n">somatic_synapses</span><span class="o">=</span><span class="n">somatic_synapses</span><span class="p">,</span>
             <span class="n">output_layer</span><span class="o">=</span><span class="n">output_layer</span><span class="p">,</span>
             <span class="n">output_dim</span><span class="o">=</span><span class="n">output_dim</span><span class="p">,</span>
-            <span class="o">**</span><span class="n">kwargs</span>
+            <span class="o">**</span><span class="n">kwargs</span><span class="p">,</span>
         <span class="p">)</span>
 
         <span class="n">summary</span> <span class="o">=</span> <span class="n">torchinfo</span><span class="o">.</span><span class="n">summary</span><span class="p">(</span><span class="n">einet</span><span class="p">,</span> <span class="n">verbose</span><span class="o">=</span><span class="mi">0</span><span class="p">)</span>
@@ -1488,54 +1632,72 @@
 <span class="sd">    A single layer of a simple MLP with configurable activation function.</span>
 <span class="sd">    Supports all activation functions from ActivationFactory.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
-    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">in_features</span><span class="p">,</span> <span class="n">out_features</span><span class="p">,</span> <span class="n">activation_type</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">trainable_activation</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> 
-                 <span class="n">activation_wrapper</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">positive_weights</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">init_m</span><span class="o">=</span><span class="mf">4.0</span><span class="p">,</span> <span class="n">use_batch_norm</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span>
-                 <span class="n">weight_init</span><span class="o">=</span><span class="s2">&quot;kaiming_uniform&quot;</span><span class="p">):</span>  <span class="c1"># Updated default to be more explicit</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span>
+        <span class="n">in_features</span><span class="p">,</span>
+        <span class="n">out_features</span><span class="p">,</span>
+        <span class="n">activation_type</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+        <span class="n">trainable_activation</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+        <span class="n">activation_wrapper</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+        <span class="n">positive_weights</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span>
+        <span class="n">init_m</span><span class="o">=</span><span class="mf">4.0</span><span class="p">,</span>
+        <span class="n">use_batch_norm</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span>
+        <span class="n">weight_init</span><span class="o">=</span><span class="s2">&quot;kaiming_uniform&quot;</span><span class="p">,</span>
+    <span class="p">):</span>  <span class="c1"># Updated default to be more explicit</span>
         <span class="nb">super</span><span class="p">(</span><span class="n">SimpleMLPLayer</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="fm">__init__</span><span class="p">()</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">in_features</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">in_features</span><span class="p">)</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">out_features</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">out_features</span><span class="p">)</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">init_m</span> <span class="o">=</span> <span class="n">init_m</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">use_batch_norm</span> <span class="o">=</span> <span class="n">use_batch_norm</span>
-        
+
         <span class="c1"># Linear layer</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">linear</span> <span class="o">=</span> <span class="n">nn</span><span class="o">.</span><span class="n">Linear</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">in_features</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">out_features</span><span class="p">)</span>
 
         <span class="c1"># Initialize weights using selected method</span>
         <span class="n">weight_init</span> <span class="o">=</span> <span class="n">weight_init</span><span class="o">.</span><span class="n">lower</span><span class="p">()</span>  <span class="c1"># Normalize to lowercase for comparison</span>
-        
+
         <span class="c1"># Kaiming/He initialization variants</span>
-        <span class="k">if</span> <span class="n">weight_init</span> <span class="o">==</span> <span class="s2">&quot;kaiming_normal&quot;</span> <span class="ow">or</span> <span class="n">weight_init</span> <span class="o">==</span> <span class="s2">&quot;kaiming&quot;</span> <span class="ow">or</span> <span class="n">weight_init</span> <span class="o">==</span> <span class="s2">&quot;he_normal&quot;</span><span class="p">:</span>
+        <span class="k">if</span> <span class="p">(</span>
+            <span class="n">weight_init</span> <span class="o">==</span> <span class="s2">&quot;kaiming_normal&quot;</span>
+            <span class="ow">or</span> <span class="n">weight_init</span> <span class="o">==</span> <span class="s2">&quot;kaiming&quot;</span>
+            <span class="ow">or</span> <span class="n">weight_init</span> <span class="o">==</span> <span class="s2">&quot;he_normal&quot;</span>
+        <span class="p">):</span>
             <span class="n">nn</span><span class="o">.</span><span class="n">init</span><span class="o">.</span><span class="n">kaiming_normal_</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">linear</span><span class="o">.</span><span class="n">weight</span><span class="p">)</span>
         <span class="k">elif</span> <span class="n">weight_init</span> <span class="o">==</span> <span class="s2">&quot;kaiming_uniform&quot;</span> <span class="ow">or</span> <span class="n">weight_init</span> <span class="o">==</span> <span class="s2">&quot;he_uniform&quot;</span><span class="p">:</span>
             <span class="n">nn</span><span class="o">.</span><span class="n">init</span><span class="o">.</span><span class="n">kaiming_uniform_</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">linear</span><span class="o">.</span><span class="n">weight</span><span class="p">)</span>
-            
+
         <span class="c1"># Xavier/Glorot initialization variants</span>
-        <span class="k">elif</span> <span class="n">weight_init</span> <span class="o">==</span> <span class="s2">&quot;xavier_normal&quot;</span> <span class="ow">or</span> <span class="n">weight_init</span> <span class="o">==</span> <span class="s2">&quot;xavier&quot;</span> <span class="ow">or</span> <span class="n">weight_init</span> <span class="o">==</span> <span class="s2">&quot;glorot_normal&quot;</span><span class="p">:</span>
+        <span class="k">elif</span> <span class="p">(</span>
+            <span class="n">weight_init</span> <span class="o">==</span> <span class="s2">&quot;xavier_normal&quot;</span>
+            <span class="ow">or</span> <span class="n">weight_init</span> <span class="o">==</span> <span class="s2">&quot;xavier&quot;</span>
+            <span class="ow">or</span> <span class="n">weight_init</span> <span class="o">==</span> <span class="s2">&quot;glorot_normal&quot;</span>
+        <span class="p">):</span>
             <span class="n">nn</span><span class="o">.</span><span class="n">init</span><span class="o">.</span><span class="n">xavier_normal_</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">linear</span><span class="o">.</span><span class="n">weight</span><span class="p">)</span>
         <span class="k">elif</span> <span class="n">weight_init</span> <span class="o">==</span> <span class="s2">&quot;xavier_uniform&quot;</span> <span class="ow">or</span> <span class="n">weight_init</span> <span class="o">==</span> <span class="s2">&quot;glorot_uniform&quot;</span><span class="p">:</span>
             <span class="n">nn</span><span class="o">.</span><span class="n">init</span><span class="o">.</span><span class="n">xavier_uniform_</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">linear</span><span class="o">.</span><span class="n">weight</span><span class="p">)</span>
-            
+
         <span class="c1"># Standard normal and uniform initialization</span>
         <span class="k">elif</span> <span class="n">weight_init</span> <span class="o">==</span> <span class="s2">&quot;normal&quot;</span><span class="p">:</span>
             <span class="n">nn</span><span class="o">.</span><span class="n">init</span><span class="o">.</span><span class="n">normal_</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">linear</span><span class="o">.</span><span class="n">weight</span><span class="p">,</span> <span class="n">mean</span><span class="o">=</span><span class="mf">0.0</span><span class="p">,</span> <span class="n">std</span><span class="o">=</span><span class="mf">0.01</span><span class="p">)</span>
         <span class="k">elif</span> <span class="n">weight_init</span> <span class="o">==</span> <span class="s2">&quot;uniform&quot;</span><span class="p">:</span>
             <span class="n">nn</span><span class="o">.</span><span class="n">init</span><span class="o">.</span><span class="n">uniform_</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">linear</span><span class="o">.</span><span class="n">weight</span><span class="p">,</span> <span class="o">-</span><span class="mf">0.01</span><span class="p">,</span> <span class="mf">0.01</span><span class="p">)</span>
-            
+
         <span class="c1"># Default to kaiming_normal if unrecognized</span>
         <span class="k">else</span><span class="p">:</span>
             <span class="n">nn</span><span class="o">.</span><span class="n">init</span><span class="o">.</span><span class="n">kaiming_uniform_</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">linear</span><span class="o">.</span><span class="n">weight</span><span class="p">)</span>
-            
+
         <span class="c1"># Scale weights to [0,1] if positive_weights is True</span>
         <span class="k">if</span> <span class="n">positive_weights</span><span class="p">:</span>
             <span class="k">with</span> <span class="n">torch</span><span class="o">.</span><span class="n">no_grad</span><span class="p">():</span>
                 <span class="bp">self</span><span class="o">.</span><span class="n">linear</span><span class="o">.</span><span class="n">weight</span><span class="o">.</span><span class="n">data</span> <span class="o">=</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">linear</span><span class="o">.</span><span class="n">weight</span><span class="o">.</span><span class="n">data</span> <span class="o">+</span> <span class="mi">1</span><span class="p">)</span> <span class="o">/</span> <span class="mi">2</span>
-                
+
         <span class="n">nn</span><span class="o">.</span><span class="n">init</span><span class="o">.</span><span class="n">zeros_</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">linear</span><span class="o">.</span><span class="n">bias</span><span class="p">)</span>
-        
+
         <span class="c1"># Batch normalization layer</span>
         <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">use_batch_norm</span><span class="p">:</span>
             <span class="bp">self</span><span class="o">.</span><span class="n">batch_norm</span> <span class="o">=</span> <span class="n">nn</span><span class="o">.</span><span class="n">BatchNorm1d</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">out_features</span><span class="p">)</span>
-        
+
         <span class="c1"># Activation function from factory</span>
         <span class="k">if</span> <span class="n">activation_type</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
             <span class="bp">self</span><span class="o">.</span><span class="n">activation</span> <span class="o">=</span> <span class="n">ActivationFactory</span><span class="o">.</span><span class="n">create</span><span class="p">(</span>
@@ -1544,7 +1706,7 @@
                 <span class="n">init_m</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">init_m</span><span class="p">,</span>
                 <span class="n">init_b</span><span class="o">=</span><span class="mf">2.0</span><span class="p">,</span>
                 <span class="n">trainable</span><span class="o">=</span><span class="n">trainable_activation</span><span class="p">,</span>
-                <span class="n">activation_wrapper</span><span class="o">=</span><span class="n">activation_wrapper</span>
+                <span class="n">activation_wrapper</span><span class="o">=</span><span class="n">activation_wrapper</span><span class="p">,</span>
             <span class="p">)</span>
         <span class="k">else</span><span class="p">:</span>
             <span class="bp">self</span><span class="o">.</span><span class="n">activation</span> <span class="o">=</span> <span class="kc">None</span>
@@ -1562,15 +1724,15 @@
     <span class="k">def</span><span class="w"> </span><span class="nf">forward</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">x</span><span class="p">):</span>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;Forward pass through the layer.&quot;&quot;&quot;</span>
         <span class="n">x</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">linear</span><span class="p">(</span><span class="n">x</span><span class="p">)</span>
-        
+
         <span class="c1"># Apply batch normalization if enabled</span>
         <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">use_batch_norm</span><span class="p">:</span>
             <span class="n">x</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">batch_norm</span><span class="p">(</span><span class="n">x</span><span class="p">)</span>
-            
+
         <span class="c1"># Apply activation if present</span>
         <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">activation</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
             <span class="n">x</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">activation</span><span class="p">(</span><span class="n">x</span><span class="p">)</span>
-            
+
         <span class="k">return</span> <span class="n">x</span></div>
 
 
@@ -1582,12 +1744,13 @@
 <span class="sd">    A modular MLP implementation that uses SimpleMLPLayer.</span>
 <span class="sd">    Supports all activation functions from ActivationFactory.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
+
     <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span>
         <span class="bp">self</span><span class="p">,</span>
         <span class="n">input_dim</span><span class="p">,</span>
         <span class="n">hidden_dim</span><span class="p">,</span>
         <span class="n">output_dim</span><span class="p">,</span>
-        <span class="n">nb_layers</span> <span class="o">=</span> <span class="mi">2</span><span class="p">,</span>  <span class="c1"># default to 2-layer network</span>
+        <span class="n">nb_layers</span><span class="o">=</span><span class="mi">2</span><span class="p">,</span>  <span class="c1"># default to 2-layer network</span>
         <span class="n">activation_type</span><span class="o">=</span><span class="s2">&quot;param_linear_sigmoid&quot;</span><span class="p">,</span>
         <span class="n">weight_decay_rate</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
         <span class="n">learning_strategy</span><span class="o">=</span><span class="s2">&quot;regression&quot;</span><span class="p">,</span>
@@ -1598,7 +1761,7 @@
         <span class="n">seed</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
         <span class="n">use_batch_norm</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span>  <span class="c1"># Batch normalization parameter</span>
         <span class="n">weight_init</span><span class="o">=</span><span class="s2">&quot;kaiming_uniform&quot;</span><span class="p">,</span>  <span class="c1"># Updated default value with more options</span>
-        <span class="o">**</span><span class="n">kwargs</span>
+        <span class="o">**</span><span class="n">kwargs</span><span class="p">,</span>
     <span class="p">):</span>
         <span class="nb">super</span><span class="p">(</span><span class="n">SimpleMLPNet</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="fm">__init__</span><span class="p">()</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">weight_decay_rate</span> <span class="o">=</span> <span class="n">weight_decay_rate</span>
@@ -1611,47 +1774,53 @@
 
         <span class="k">if</span> <span class="n">seed</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
             <span class="bp">self</span><span class="o">.</span><span class="n">set_seed</span><span class="p">(</span><span class="n">seed</span><span class="p">)</span>
-            
+
         <span class="c1"># Build multi-layer network</span>
         <span class="n">layers</span> <span class="o">=</span> <span class="p">[]</span>
-        
+
         <span class="c1"># First layer: input_dim -&gt; hidden_dim</span>
-        <span class="n">layers</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">SimpleMLPLayer</span><span class="p">(</span>
-            <span class="n">in_features</span><span class="o">=</span><span class="n">input_dim</span><span class="p">,</span>
-            <span class="n">out_features</span><span class="o">=</span><span class="n">hidden_dim</span><span class="p">,</span>
-            <span class="n">activation_type</span><span class="o">=</span><span class="n">activation_type</span><span class="p">,</span>
-            <span class="n">trainable_activation</span><span class="o">=</span><span class="n">trainable_activation</span><span class="p">,</span>
-            <span class="n">activation_wrapper</span><span class="o">=</span><span class="n">activation_wrapper</span><span class="p">,</span>
-            <span class="n">init_m</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">init_m</span><span class="p">,</span>
-            <span class="n">use_batch_norm</span><span class="o">=</span><span class="n">use_batch_norm</span><span class="p">,</span>
-            <span class="n">weight_init</span><span class="o">=</span><span class="n">weight_init</span>
-        <span class="p">))</span>
-        
-        <span class="c1"># Hidden layers: hidden_dim -&gt; hidden_dim</span>
-        <span class="k">for</span> <span class="n">_</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">nb_layers</span> <span class="o">-</span> <span class="mi">2</span><span class="p">):</span>
-            <span class="n">layers</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">SimpleMLPLayer</span><span class="p">(</span>
-                <span class="n">in_features</span><span class="o">=</span><span class="n">hidden_dim</span><span class="p">,</span>
+        <span class="n">layers</span><span class="o">.</span><span class="n">append</span><span class="p">(</span>
+            <span class="n">SimpleMLPLayer</span><span class="p">(</span>
+                <span class="n">in_features</span><span class="o">=</span><span class="n">input_dim</span><span class="p">,</span>
                 <span class="n">out_features</span><span class="o">=</span><span class="n">hidden_dim</span><span class="p">,</span>
                 <span class="n">activation_type</span><span class="o">=</span><span class="n">activation_type</span><span class="p">,</span>
                 <span class="n">trainable_activation</span><span class="o">=</span><span class="n">trainable_activation</span><span class="p">,</span>
                 <span class="n">activation_wrapper</span><span class="o">=</span><span class="n">activation_wrapper</span><span class="p">,</span>
                 <span class="n">init_m</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">init_m</span><span class="p">,</span>
                 <span class="n">use_batch_norm</span><span class="o">=</span><span class="n">use_batch_norm</span><span class="p">,</span>
-                <span class="n">weight_init</span><span class="o">=</span><span class="n">weight_init</span>
-            <span class="p">))</span>
-            
+                <span class="n">weight_init</span><span class="o">=</span><span class="n">weight_init</span><span class="p">,</span>
+            <span class="p">)</span>
+        <span class="p">)</span>
+
+        <span class="c1"># Hidden layers: hidden_dim -&gt; hidden_dim</span>
+        <span class="k">for</span> <span class="n">_</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">nb_layers</span> <span class="o">-</span> <span class="mi">2</span><span class="p">):</span>
+            <span class="n">layers</span><span class="o">.</span><span class="n">append</span><span class="p">(</span>
+                <span class="n">SimpleMLPLayer</span><span class="p">(</span>
+                    <span class="n">in_features</span><span class="o">=</span><span class="n">hidden_dim</span><span class="p">,</span>
+                    <span class="n">out_features</span><span class="o">=</span><span class="n">hidden_dim</span><span class="p">,</span>
+                    <span class="n">activation_type</span><span class="o">=</span><span class="n">activation_type</span><span class="p">,</span>
+                    <span class="n">trainable_activation</span><span class="o">=</span><span class="n">trainable_activation</span><span class="p">,</span>
+                    <span class="n">activation_wrapper</span><span class="o">=</span><span class="n">activation_wrapper</span><span class="p">,</span>
+                    <span class="n">init_m</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">init_m</span><span class="p">,</span>
+                    <span class="n">use_batch_norm</span><span class="o">=</span><span class="n">use_batch_norm</span><span class="p">,</span>
+                    <span class="n">weight_init</span><span class="o">=</span><span class="n">weight_init</span><span class="p">,</span>
+                <span class="p">)</span>
+            <span class="p">)</span>
+
         <span class="c1"># Output layer: hidden_dim -&gt; output_dim (no activation)</span>
-        <span class="n">layers</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">SimpleMLPLayer</span><span class="p">(</span>
-            <span class="n">in_features</span><span class="o">=</span><span class="n">hidden_dim</span><span class="p">,</span>
-            <span class="n">out_features</span><span class="o">=</span><span class="n">output_dim</span><span class="p">,</span>
-            <span class="n">activation_type</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
-            <span class="n">trainable_activation</span><span class="o">=</span><span class="n">trainable_activation</span><span class="p">,</span>
-            <span class="n">activation_wrapper</span><span class="o">=</span><span class="n">activation_wrapper</span><span class="p">,</span>
-            <span class="n">init_m</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">init_m</span><span class="p">,</span>
-            <span class="n">use_batch_norm</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span>  <span class="c1"># No batch norm on output layer</span>
-            <span class="n">weight_init</span><span class="o">=</span><span class="n">weight_init</span>
-        <span class="p">))</span>
-        
+        <span class="n">layers</span><span class="o">.</span><span class="n">append</span><span class="p">(</span>
+            <span class="n">SimpleMLPLayer</span><span class="p">(</span>
+                <span class="n">in_features</span><span class="o">=</span><span class="n">hidden_dim</span><span class="p">,</span>
+                <span class="n">out_features</span><span class="o">=</span><span class="n">output_dim</span><span class="p">,</span>
+                <span class="n">activation_type</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+                <span class="n">trainable_activation</span><span class="o">=</span><span class="n">trainable_activation</span><span class="p">,</span>
+                <span class="n">activation_wrapper</span><span class="o">=</span><span class="n">activation_wrapper</span><span class="p">,</span>
+                <span class="n">init_m</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">init_m</span><span class="p">,</span>
+                <span class="n">use_batch_norm</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span>  <span class="c1"># No batch norm on output layer</span>
+                <span class="n">weight_init</span><span class="o">=</span><span class="n">weight_init</span><span class="p">,</span>
+            <span class="p">)</span>
+        <span class="p">)</span>
+
         <span class="bp">self</span><span class="o">.</span><span class="n">layers</span> <span class="o">=</span> <span class="n">nn</span><span class="o">.</span><span class="n">ModuleList</span><span class="p">(</span><span class="n">layers</span><span class="p">)</span>
 
 <div class="viewcode-block" id="SimpleMLPNet.decay_weights">
@@ -1663,21 +1832,23 @@
             <span class="k">for</span> <span class="n">layer</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">layers</span><span class="p">:</span>
                 <span class="n">layer</span><span class="o">.</span><span class="n">decay_weights</span><span class="p">(</span><span class="n">weight_decay</span><span class="p">)</span></div>
 
-    
+
 <div class="viewcode-block" id="SimpleMLPNet.clip_gradients">
 <a class="viewcode-back" href="../../source/api/dendritic_modeling.html#dendritic_modeling.networks.SimpleMLPNet.clip_gradients">[docs]</a>
     <span class="k">def</span><span class="w"> </span><span class="nf">clip_gradients</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;Apply gradient clipping to all parameters.&quot;&quot;&quot;</span>
         <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">grad_clip_value</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">:</span>
-            <span class="n">torch</span><span class="o">.</span><span class="n">nn</span><span class="o">.</span><span class="n">utils</span><span class="o">.</span><span class="n">clip_grad_norm_</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">parameters</span><span class="p">(),</span> <span class="n">max_norm</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">grad_clip_value</span><span class="p">)</span></div>
+            <span class="n">torch</span><span class="o">.</span><span class="n">nn</span><span class="o">.</span><span class="n">utils</span><span class="o">.</span><span class="n">clip_grad_norm_</span><span class="p">(</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">parameters</span><span class="p">(),</span> <span class="n">max_norm</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">grad_clip_value</span>
+            <span class="p">)</span></div>
 
-                
+
     <span class="k">def</span><span class="w"> </span><span class="nf">forward</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">x</span><span class="p">):</span>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;Forward pass through the network.&quot;&quot;&quot;</span>
         <span class="k">for</span> <span class="n">layer</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">layers</span><span class="p">:</span>
             <span class="n">x</span> <span class="o">=</span> <span class="n">layer</span><span class="p">(</span><span class="n">x</span><span class="p">)</span>
         <span class="k">return</span> <span class="n">x</span>
-    
+
 <div class="viewcode-block" id="SimpleMLPNet.set_seed">
 <a class="viewcode-back" href="../../source/api/dendritic_modeling.html#dendritic_modeling.networks.SimpleMLPNet.set_seed">[docs]</a>
     <span class="k">def</span><span class="w"> </span><span class="nf">set_seed</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">seed</span><span class="p">):</span>
@@ -1697,7 +1868,6 @@
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;Compatibility with existing codebase expectations.&quot;&quot;&quot;</span>
         <span class="k">return</span> <span class="mi">0</span></div>
 
-    
 </pre></div>
 
            </div>
