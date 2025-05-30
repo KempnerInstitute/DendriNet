@@ -237,6 +237,18 @@ train_config:
         use_dvc: false  # Whether to use DVC_tensorflow copula entropy (if false, uses sklearn)
         save_plots: true
         save_csv: true
+        compute_metrics:
+          - "I_E_C"    # I(E;C) - Excitatory inputs and class
+          - "I_I_C"    # I(I;C) - Inhibitory inputs and class
+          - "I_V_C"    # I(V;C) - Branch outputs and class
+          - "I_E_I"    # I(E;I) - Excitatory and inhibitory inputs
+          - "I_E_V"    # I(E;V) - Excitatory inputs and branch outputs
+          - "I_I_V"    # I(I;V) - Inhibitory inputs and branch outputs
+          - "I_E_I_given_C"      # E-I interactions given class
+          - "I_E_V_given_C"      # E-V interactions given class
+          - "I_I_V_given_C"      # I-V interactions given class
+        # If compute_metrics is omitted, all 9 metrics are computed by default
+
         # Copula parameters for DVC_tensorflow
         copula_params:
           cases: 1000         # Number of samples for entropy estimation
