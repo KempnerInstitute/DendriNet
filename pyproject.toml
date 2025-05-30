@@ -25,7 +25,11 @@ dependencies = [
     "scikit-learn",
     "tensorflow>=2.16.0",
     "tensorflow_probability",
-    "tf-keras"
+    "tf-keras",
+    "python-dateutil",
+    "PyYAML",
+    "tqdm",
+    "scipy",
 ]
 
 [tool.setuptools]
@@ -50,7 +54,11 @@ dev = [
 ]
 
 train = [
-
+    "jupyter",  # For training notebooks and analysis
+    "ipykernel",  # Jupyter kernel support
+    "plotly",  # Interactive plotting for analysis
+    "seaborn",  # Additional plotting capabilities
+    "tensorboard",  # TensorFlow/PyTorch logging and visualization
 ]
 
 docs = [
