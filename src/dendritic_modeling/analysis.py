@@ -591,6 +591,10 @@ class BranchInformationAnalyzer:
         excitatory_input, inhibitory_input, _ = input
         key = module._name
 
+        # Ensure the key exists in data_dict (might be cleared between batches)
+        if key not in self.data_dict:
+            self.data_dict[key] = {}
+
         # Collect the same data as EIInformationAnalyzer
         self.data_dict[key]["excitation"] = module.branch_excitation(excitatory_input)
         self.data_dict[key]["inhibition"] = module.branch_inhibition(inhibitory_input)
