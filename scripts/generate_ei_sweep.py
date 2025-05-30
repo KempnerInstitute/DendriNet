@@ -750,7 +750,13 @@ def generate_custom_run_script(
         lines.append(f"module load {module}")
 
     lines.append("")
-    lines.append(f"conda activate {slurm_config.conda_env_path}")
+
+    # Handle conda activation - simplified approach
+    conda_env = slurm_config.conda_env_path
+    lines.append("# Initialize conda and activate environment")
+    lines.append("source $(conda info --base)/etc/profile.d/conda.sh")
+    lines.append(f"conda activate {conda_env}")
+
     lines.append("")
 
     # Set up all the path variables
@@ -772,7 +778,18 @@ def generate_custom_run_script(
     lines.append(f"TRAINING_SCRIPT={slurm_config.training_script}")
     lines.append("")
     lines.append("#Python path: ")
-    lines.append(f"PYTHON={slurm_config.conda_env_path}/bin/python")
+
+    # Handle Python path - check if conda_env_path is a path or environment name
+    conda_env = slurm_config.conda_env_path
+    if conda_env.startswith("/"):
+        # It's a full path, use it directly
+        lines.append(f"PYTHON={conda_env}/bin/python")
+    else:
+        # It's an environment name, use conda to find the path or just use python from PATH
+        lines.append(
+            "PYTHON=python"
+        )  # Will use the python from the activated environment
+
     lines.append("")
 
     # Get the specific config file based on the array job ID

@@ -1,0 +1,47 @@
+name: dendritic_env
+channels:
+  - conda-forge
+  - pytorch
+  - nvidia
+dependencies:
+  # Core Python
+  - python=3.12
+
+  # PyTorch ecosystem
+  - pytorch
+  - torchvision
+  - pytorch-cuda=12.1  # Adjust CUDA version as needed
+
+  # Core scientific computing
+  - numpy
+  - scipy
+  - pandas
+  - matplotlib
+  - scikit-learn
+
+  # Configuration and utilities
+  - omegaconf>=2.3.0
+  - pyyaml
+  - python-dateutil
+  - tqdm
+
+  # Machine learning and experiment tracking
+  - wandb
+  - tensorboard
+  - seaborn
+  - plotly
+
+  # TensorFlow (for DVC integration)
+  - tensorflow>=2.16.0
+  - tensorflow-probability
+
+  # Development and analysis
+  - jupyter
+  - ipykernel
+
+  # Install via pip (packages not available in conda)
+  - pip
+  - pip:
+    - torchinfo
+    - tf-keras
+    - omegaconf>=2.3.0  # Ensure latest version via pip if conda version is old
