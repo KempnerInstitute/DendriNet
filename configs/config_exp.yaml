@@ -32,12 +32,11 @@ model:
       blocklinear_strategy: conductance_dynamic # "none", "distal_upweight_by_idx", "conductance_dynamic"
       print_hooks: false # Whether to print gradient statistics in hooks
       # output parameters
-      enable_branch_outputs: false   ### alows DendriNetWithOutputs to keep activations etc
       output_layer: false  ### adding an output classifier layer FC to final dendrinet layer
       output_dim: 10
 
       # input mode (0=original, 1=exc=x+inh=x, 2=input_net)
-      input_mode: 0
+      input_mode: 1
       # If we set input_mode=2, the following get used for input network:
       input_net_dict:
         type: "CNNInputTransform"  # Type of input network: "IndexInputTransform", "MLPInputTransform", "AlexNetTransform", etc.
@@ -82,7 +81,7 @@ train:
   epochs: 50
   early_stopping: false
   patience: 10
-  batch_size: 1024  # Smaller batch size for better generalization
+  batch_size: 512  # Smaller batch size for better generalization
   grad_clip_value: 5  # Reasonable gradient clipping
   epochs_per_layer: 50  ## this is only for "freeze_layers" and any other method which has sequential single layer training
   final_tune_epochs: 10  ## Number of epochs for final fine-tuning after layer-by-layer training
@@ -113,7 +112,7 @@ train:
       pytorch_model: ""        # Name of PyTorch model if source is "pytorch"
 
 task:
-  dataset: random_flip_mnist #mnist, cifar10, mnist_modulo10, random_flip_mnist
+  dataset: cifar10 #mnist, cifar10, mnist_modulo10, random_flip_mnist
   data_path:
   parameters: {}
   # dataset: "line", "center_surround", "orientation_bars", "multi_xor", "mnist", "mnist_modulo10", "mnist_switch2",
