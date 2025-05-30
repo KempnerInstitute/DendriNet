@@ -134,7 +134,7 @@ train_config:
       - gradients
       - branch_ablation
       - layer_ablation
-  
+
   analysis:
     performance_analysis:
       enabled: true
@@ -207,6 +207,45 @@ train_config:
         downsample: true
         samples: 5
 
+    # Single layer contribution analysis (formerly layer_ablation)
+    # Isolates each layer to test what it can achieve on its own
+    single_layer_contribution:
+      enabled: true  # whether to enable single layer contribution analysis
+      training: false  # Whether to run during training
+      params:
+        save_plots: true
+        save_csv: true
+
+    # Synaptic ablation analysis (formerly branch_ablation)
+    # Removes specific synapses while keeping the rest of the network intact
+    synaptic_ablation:
+      enabled: true  # Whether to enable synaptic ablation analysis
+      training: false  # Whether to run during training
+      params:
+        ablation_type: "whole_layer"  # Options: "whole_layer" or "single_branch"
+        layers_to_analyze: []  # Empty list means analyze all layers, or specify [0, 1, 2]
+        mode: "direct"  # Options: "direct" (zero weights) or "full"
+        save_plots: true
+        save_csv: true
+
+    # Branch information analysis
+    # Computes mutual information between branch components (E, I, V, C)
+    branch_information:
+      enabled: true  # Whether to enable branch information analysis
+      training: false  # Whether to run during training
+      params:
+        n_neighbors: 10  # Number of neighbors for MI estimation
+        use_dvc: false  # Whether to use DVC_tensorflow copula entropy (if false, uses sklearn)
+        save_plots: true
+        save_csv: true
+        # Copula parameters for DVC_tensorflow
+        copula_params:
+          cases: 1000         # Number of samples for entropy estimation
+          iterations: 10      # Number of iterations for convergence
+          alpha: 0.05         # Confidence level
+          vine_type: c-vine   # Type of vine copula: "d-vine", "c-vine", "r-vine"
+          families: kercop    # Copula families to use
+          knots: 30           # Number of knots for non-parametric copula
 sweep_config:
   model.network.type: ["EINet", "MLP"]
   # EE and IE synapse parameters - both sweep from 0 to 50 in steps of 5
