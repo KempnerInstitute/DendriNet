@@ -232,7 +232,7 @@ analysis:
   # Synaptic ablation analysis (formerly branch_ablation)
   # Removes specific synapses while keeping the rest of the network intact
   synaptic_ablation:
-    enabled: false  # Whether to enable synaptic ablation analysis
+    enabled: true  # Whether to enable synaptic ablation analysis
     training: false  # Whether to run during training
     params:
       ablation_type: "whole_layer"  # Options: "whole_layer" or "single_branch"
@@ -244,18 +244,18 @@ analysis:
   # Branch information analysis
   # Computes mutual information between branch components (E, I, V, C)
   branch_information:
-    enabled: false  # Whether to enable branch information analysis
+    enabled: true  # Whether to enable branch information analysis
     training: false  # Whether to run during training
     params:
       n_neighbors: 10  # Number of neighbors for MI estimation
-      use_dvc: false  # Whether to use DVC_tensorflow copula entropy (if false, uses sklearn)
+      use_dvc: true  # Enable DVC_tensorflow for better MI computation
       save_plots: true
       save_csv: true
       # Configurable metrics to compute
       compute_metrics:
-        - "I_E_C"    # I(E;C) - Excitatory inputs and class
-        - "I_I_C"    # I(I;C) - Inhibitory inputs and class
-        - "I_V_C"    # I(V;C) - Branch outputs and class
+        #- "I_E_C"    # I(E;C) - Excitatory inputs and class
+        #- "I_I_C"    # I(I;C) - Inhibitory inputs and class
+        #- "I_V_C"    # I(V;C) - Branch outputs and class
         # - "I_E_I"    # I(E;I) - Excitatory and inhibitory inputs
         # - "I_E_V"    # I(E;V) - Excitatory inputs and branch outputs
         # - "I_I_V"    # I(I;V) - Inhibitory inputs and branch outputs
@@ -264,7 +264,7 @@ analysis:
         # - "I_I_V_given_C" # I(I;V|C) - I and V given class
 
       # Per-branch vs pooled computation
-      compute_per_branch: false  # If true, compute MI per branch and average; if false, pool all branches
+      compute_per_branch: true  # If true, compute MI per branch and average; if false, pool all branches
 
       # Copula parameters for DVC_tensorflow
       copula_params:

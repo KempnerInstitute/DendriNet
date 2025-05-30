@@ -1275,6 +1275,15 @@ class BranchInformationAnalyzer:
             self.logger.warning("No computed metrics to plot")
             return
 
+        # Reverse layer indices so soma (last layer) becomes 0 (rightmost)
+        num_layers = len(results["layer"])
+        reversed_layer_idx = [num_layers - 1 - idx for idx in range(num_layers)]
+
+        # Reverse all the data to match the new x-axis positions
+        layer_data_reversed = [
+            results["layer"][num_layers - 1 - i] for i in range(num_layers)
+        ]
+
         # Calculate dynamic subplot layout - we need 2 columns (mean, variance) for each metric
         n_metrics = len(metrics_to_plot)
         if n_metrics <= 2:
@@ -1320,35 +1329,51 @@ class BranchInformationAnalyzer:
                 mean_ax = axes[metric_row, metric_col]
                 var_ax = axes[metric_row + 1, metric_col]
 
-            # Get data
-            mean_data = results[f"{key}_mean"]
-            std_data = results[f"{key}_std"]
-            var_data = [s**2 for s in std_data]  # Convert std to variance
-            n_branches_data = results[f"{key}_n_branches"]
+            # Get data and reverse it to match new x-axis ordering
+            mean_data_reversed = [
+                results[f"{key}_mean"][num_layers - 1 - i] for i in range(num_layers)
+            ]
+            std_data_reversed = [
+                results[f"{key}_std"][num_layers - 1 - i] for i in range(num_layers)
+            ]
+            var_data_reversed = [
+                s**2 for s in std_data_reversed
+            ]  # Convert std to variance
+            n_branches_data_reversed = [
+                results[f"{key}_n_branches"][num_layers - 1 - i]
+                for i in range(num_layers)
+            ]
 
             # Plot mean
             mean_ax.plot(
-                results["layer"],
-                mean_data,
+                reversed_layer_idx,
+                mean_data_reversed,
                 "o-",
                 linewidth=2,
                 markersize=8,
                 color="blue",
                 alpha=0.8,
             )
-            mean_ax.set_xlabel("Layer")
+            mean_ax.set_xlabel("Layer (Soma → Distal)")
             mean_ax.set_ylabel(f"{ylabel} (mean)")
             mean_ax.set_title(f"{title}\nMean across branches")
             mean_ax.grid(True, alpha=0.3)
 
+            # Set x-axis ticks and labels
+            mean_ax.set_xticks(reversed_layer_idx)
+            x_labels = [
+                "Soma" if i == 0 else f"{i}" for i in range(len(reversed_layer_idx))
+            ]
+            mean_ax.set_xticklabels(x_labels)
+
             # Add number of branches annotation to mean plot
-            for i, (layer, n_branches) in enumerate(
-                zip(results["layer"], n_branches_data)
+            for i, (layer_pos, n_branches) in enumerate(
+                zip(reversed_layer_idx, n_branches_data_reversed)
             ):
                 if n_branches > 0:
                     mean_ax.annotate(
                         f"n={n_branches}",
-                        xy=(layer, mean_data[i]),
+                        xy=(layer_pos, mean_data_reversed[i]),
                         xytext=(5, 5),
                         textcoords="offset points",
                         fontsize=8,
@@ -1357,18 +1382,22 @@ class BranchInformationAnalyzer:
 
             # Plot variance
             var_ax.plot(
-                results["layer"],
-                var_data,
+                reversed_layer_idx,
+                var_data_reversed,
                 "s-",
                 linewidth=2,
                 markersize=8,
                 color="red",
                 alpha=0.8,
             )
-            var_ax.set_xlabel("Layer")
+            var_ax.set_xlabel("Layer (Soma → Distal)")
             var_ax.set_ylabel(f"{ylabel} (variance)")
             var_ax.set_title(f"{title}\nVariance across branches")
             var_ax.grid(True, alpha=0.3)
+
+            # Set x-axis ticks and labels
+            var_ax.set_xticks(reversed_layer_idx)
+            var_ax.set_xticklabels(x_labels)
 
             # Set y-axis to start from 0 for variance (since variance is always non-negative)
             var_ax.set_ylim(bottom=0)
@@ -1432,6 +1461,10 @@ class BranchInformationAnalyzer:
             self.logger.warning("No computed metrics to plot")
             return
 
+        # Reverse layer indices so soma (last layer) becomes 0 (rightmost)
+        num_layers = len(results["layer"])
+        reversed_layer_idx = [num_layers - 1 - idx for idx in range(num_layers)]
+
         # Calculate dynamic subplot layout
         n_metrics = len(metrics_to_plot)
         if n_metrics <= 3:
@@ -1458,11 +1491,24 @@ class BranchInformationAnalyzer:
         # Create plots for computed metrics
         for idx, (key, ylabel, title) in enumerate(metrics_to_plot):
             ax = axes[idx]
-            ax.plot(results["layer"], results[key], "o-", linewidth=2, markersize=8)
-            ax.set_xlabel("Layer")
+
+            # Reverse the data to match new x-axis ordering
+            data_reversed = [
+                results[key][num_layers - 1 - i] for i in range(num_layers)
+            ]
+
+            ax.plot(reversed_layer_idx, data_reversed, "o-", linewidth=2, markersize=8)
+            ax.set_xlabel("Layer (Soma → Distal)")
             ax.set_ylabel(ylabel)
             ax.set_title(title)
             ax.grid(True, alpha=0.3)
+
+            # Set x-axis ticks and labels
+            ax.set_xticks(reversed_layer_idx)
+            x_labels = [
+                "Soma" if i == 0 else f"{i}" for i in range(len(reversed_layer_idx))
+            ]
+            ax.set_xticklabels(x_labels)
 
         # Hide unused subplots
         for idx in range(len(metrics_to_plot), len(axes)):
@@ -1484,6 +1530,18 @@ class BranchInformationAnalyzer:
     def _save_csv(self, results: Dict, output_dir: str, epoch: int):
         """Save results to CSV"""
         df = pd.DataFrame(results)
+
+        # Add layer mapping information for clarity (similar to synaptic ablation)
+        if "layer" in results and results["layer"]:
+            num_layers = len(results["layer"])
+            # Add columns showing the mapping between network layers and plot positions
+            df["network_layer_idx"] = results["layer"]  # Original network layer indices
+            df["plot_position"] = [
+                num_layers - 1 - idx for idx in range(num_layers)
+            ]  # Plot positions (0=soma)
+            df["layer_label"] = [
+                "Soma" if i == 0 else f"{i}" for i in range(num_layers)
+            ]  # X-axis labels
 
         if self.compute_per_branch:
             csv_path = os.path.join(
