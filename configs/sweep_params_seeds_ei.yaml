@@ -50,7 +50,7 @@ train_config:
         ie_synapses_per_branch_per_layer: [10]
         ii_synapses_per_branch_per_layer: [0]
         topk_init_method: "xavier_normal"
-        topk_noise_level: 0.2
+        topk_noise_level: 0.0
         topk_type: "standard"
         topk_temperature: 0.5
         topk_ultrafast: true
@@ -219,7 +219,7 @@ train_config:
     # Synaptic ablation analysis (formerly branch_ablation)
     # Removes specific synapses while keeping the rest of the network intact
     synaptic_ablation:
-      enabled: true  # Whether to enable synaptic ablation analysis
+      enabled: false  # Whether to enable synaptic ablation analysis
       training: false  # Whether to run during training
       params:
         ablation_type: "whole_layer"  # Options: "whole_layer" or "single_branch"
@@ -231,7 +231,7 @@ train_config:
     # Branch information analysis
     # Computes mutual information between branch components (E, I, V, C)
     branch_information:
-      enabled: true  # Whether to enable branch information analysis
+      enabled: families  # Whether to enable branch information analysis
       training: false  # Whether to run during training
       params:
         n_neighbors: 10  # Number of neighbors for MI estimation
