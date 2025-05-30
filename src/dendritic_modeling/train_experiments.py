@@ -497,7 +497,7 @@ def train_independent_input_nets(
     output_dim,
     input_net_epochs,
     run_save_path,
-    analysis_manager=None,
+    analysis_manager: Optional[AnalysisManager] = None,
 ):
     final_output_dim = 10
     excit_head_dir = os.path.join(run_save_path, "excit_head_model")
@@ -557,6 +557,7 @@ def train_independent_input_nets(
             }
         )
     model = initialize_model(model_cfg, visualization_enabled=False)
+    analysis_manager.model = model
     logger.info("Creating input network with sigmoid activation")
     new_input_net = SigmoidInputNetTransform(
         input_dim=input_dim,
@@ -597,7 +598,7 @@ def train_independent_input_nets(
         plot_losses=True,
         save_path=run_save_path,
     )
-    save_model(model, run_save_path, "full_model.pt")
+    save_model(model, run_save_path, "final_model.pt")
     return model
 
 
@@ -613,7 +614,7 @@ def train_single_input_net(
     input_net_epochs,
     input_net_patience,
     run_save_path,
-    analysis_manager=None,
+    analysis_manager: Optional[AnalysisManager] = None,
 ):
     final_output_dim = 10
     mlp_model_dir = os.path.join(run_save_path, "mlp_model")
@@ -668,6 +669,7 @@ def train_single_input_net(
     #         }
     #     )
     model = initialize_model(model_cfg, visualization_enabled=False)
+    analysis_manager.model = model
     logger.info("Creating input network with sigmoid activation")
     # new_input_net = SigmoidInputNetTransform(
     #     input_dim=input_dim,

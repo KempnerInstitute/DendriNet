@@ -1,0 +1,219 @@
+# sweep_params_seeds_ei.yaml
+# This config demonstrates a sweep of EE and IE synapse counts with multiple seeds
+
+slurm_config:
+  account: kempner_bsabatini_lab
+  run_name: dendritic_ei_sweep
+  output_dir: /n/netscratch/bsabatini_lab/Everyone/mrichards/depth_sweeps
+  create_subdir_with_timestamp: true  # This will create a subdirectory with ei_timestamp
+  subdir_prefix: "depth_"  # Prefix for the timestamped subdirectory
+  run_subfolders:  # Create these subdirectories within the timestamped directory
+    - configs
+    - results
+    - plots
+  nodes: 1
+  ntasks_per_node: 1
+  gpus_per_node: 1
+  cpus_per_task: 10
+  time: 4:00:00
+  mem: 240GB
+  partition: kempner_eng
+  max_concurrent_jobs: 12
+  modules_to_load:
+    - python/3.12.5-fasrc01
+    - cuda/12.4.1-fasrc01
+    - cudnn/8.9.2.26_cuda12-fasrc01
+  conda_env_path: /n/home03/maceor22/.conda/envs/.venv
+  training_script: src/dendritic_modeling/train_experiments.py
+  config_filename_init: ei_sweep_config
+
+experiment_settings:
+  # Use 5 seeds per parameter combination
+  seeds_per_condition: 5
+  base_seed: 42
+
+train_config:
+  model:
+    task: "classification"
+    probabilistic: true
+    network:
+      type: "EINet"
+      parameters:
+        excitatory_layer_sizes: [20]
+        inhibitory_layer_sizes: [40]
+        excitatory_branch_factors: [2,2]
+        inhibitory_branch_factors: [1]
+        reactivate: true
+        somatic_synapses: false
+        ee_synapses_per_branch_per_layer: [40]
+        ei_synapses_per_branch_per_layer: [200]
+        ie_synapses_per_branch_per_layer: [4]
+        ii_synapses_per_branch_per_layer: [0]
+        topk_init_method: "xavier_normal"
+        topk_noise_level: 0.0
+        topk_type: "standard"
+        topk_temperature: 0.0
+        topk_ultrafast: true
+        topk_strategy: "conductance_dynamic"
+        use_shunting: true
+        reactivation_type: "param_tanh"
+        reactivation_strategy: "inverse"
+        blocklinear_strategy: "conductance_dynamic"
+        print_hooks: false
+        enable_branch_outputs: false
+        output_layer: true
+        output_dim: 10
+        input_mode: 2
+        input_net_dict:
+          type: "FeatureExtractorMLP"  # Type of input network: "IndexInputTransform", "MLPInputTransform", "AlexNetTransform", etc.
+          hidden_dims: [128] #[512, 256, 128]     # Hidden layer dimensions for better capacity
+          excitatory_dim: 256             # Output dimension for excitatory input network
+          inhibitory_dim: 64             # Output dimension for inhibitory input network
+          output_dim: 10
+          # CNNInputTransform arguments
+          input_shape: [3, 32, 32]
+          excitatory_hidden_dims: [8]
+          inhibitory_hidden_dims: [4]
+          excitatory_kernel_sizes: [5]
+          inhibitory_kernel_sizes: [9]
+          excitatory_strides: [1]
+          inhibitory_strides: [1]
+
+  train:
+    learning_strategy: "mle"
+    run_name: "dendritic_ei_sweep"
+    seed: 0  # This will be overridden for each run
+    train_valid_split: 0.8
+    optim_dict:
+      lr: 0.01  # default learning rate if split_params is false
+      split_params: true  # whether to split parameters into groups (only used for EINet)
+      input_net_lr: 0.0001  # learning rate for input network
+      topk_lr: 0.01  # learning rate for topk layers
+      blocklinear_lr: 0.001  # learning rate for blocklinear layers
+      reactivation_lr: 0.001  # learning rate for reactivation layers
+      output_layer_lr: 0.0001  # learning rate for output layer
+    epochs: 1000
+    early_stopping: true
+    patience: 200
+    batch_size: 1024
+    grad_clip_value: 5
+    epochs_per_layer: 50
+    final_tune_epochs: 10
+    warmup_epochs: 1
+    stability_target_voltage: 0.5
+    weight_decay_rate: 0.1
+    input_net_training:
+      training_mode: "sequential"
+      train_input_net: true
+      input_net_epochs: 1000
+      input_net_patience: 200
+      train_heads_independently: false
+      inhibitory_head_objective: "classification"
+      diversity_weight: 0.5
+      pretrained_options:
+        source: "file"
+        weights_path: ""
+        pytorch_model: ""
+
+  task:
+    dataset: "cifar10"
+    data_path:
+    parameters: {flatten: true, normalize: false}
+
+  wandb:
+    entity:
+    project: "dendritic_modeling_sweeps_ei"
+    group: "ei_sweep"
+    tags: [sweep, ei, multiple_seeds]
+    use_wandb: false
+
+  visualization:
+    enabled: false
+    visualize_epochs: [10, 30]
+    plots:
+      - weights
+      - activations
+      - gradients
+      - branch_ablation
+      - layer_ablation
+  
+  analysis:
+    performance_analysis:
+      enabled: true
+      training: false
+      params:
+        accuracy: true
+        categorical_loglikelihood: true
+        mse: false
+    ei_info_analysis:
+      enabled: true
+      training: false
+      params:
+        compute_mi_E_I: true
+        compute_mi_EI_Vout: true
+        compute_sr_EI_Vout: true
+        compute_mi_EI_label: true
+        n_neighbors: 8
+    synapse_turnover_analysis:
+      enabled: true
+      training: true
+    noise_perturbation_analysis:
+      enabled: true
+      training: false
+      params:
+        uniform_noise: true
+        uniform_magnitudes: [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0]
+        gaussian_noise: true
+        gaussian_sdevs: [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0]
+        n_samples: 20
+        accuracy: true
+        categorical_loglikelihood: true
+    ablation_analysis:
+      enabled: true
+      training: false
+      params:
+        ablate_all_synapses: true
+        ablate_excitation: true
+        ablate_inhibition: true
+        ablate_branches: true
+        accuracy: true
+        categorical_loglikelihood: true
+    weight_analysis:
+      enabled: false
+      training: false
+      params:
+        synapse_weights: true
+        branch_weights: true
+    synaptic_activation_analysis:
+      enabled: false
+      training: false
+      params:
+        network_summary: true
+        layer_summary: true
+        branch_summary: true
+        raw_summary: true
+        logspace: true
+        downsample: true
+        samples: 5
+    branch_activation_analysis:
+      enabled: false
+      training: false
+      params:
+        synapse_activations: true
+        branch_activations: true
+        network_summary: true
+        layer_summary: true
+        branch_summary: true
+        raw_summary: true
+        logspace: true
+        downsample: true
+        samples: 5
+
+sweep_config:
+  # model.network.type: ["EINet"]
+  # EE and IE synapse parameters - both sweep from 0 to 50 in steps of 5
+  model.network.parameters.excitatory_branch_factors: [
+    [1, 5], [1, 1, 5], [1, 1, 1, 5], [1, 1, 1, 1, 5], [1, 1, 1, 1, 1, 5], [1, 1, 1, 1, 1, 1, 5], [1, 1, 1, 1, 1, 1, 1, 5], [1, 1, 1, 1, 1, 1, 1, 1, 5], [1, 1, 1, 1, 1, 1, 1, 1, 1, 5], [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 5]
+  ]
+  model.network.parameters.use_shunting: [true, false]
+
