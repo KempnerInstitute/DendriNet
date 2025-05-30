@@ -2,7 +2,7 @@
 # This config demonstrates a sweep of EE and IE synapse counts with multiple seeds
 
 slurm_config:
-  account: kempner_bsabatini_lab
+  account: kempner_dev
   run_name: dendritic_ei_sweep
   output_dir: /n/netscratch/bsabatini_lab/Everyone/mrichards/ei_sweeps
   create_subdir_with_timestamp: true  # This will create a subdirectory with ei_timestamp
@@ -17,8 +17,8 @@ slurm_config:
   cpus_per_task: 10
   time: 4:00:00
   mem: 240GB
-  partition: kempner_requeue
-  max_concurrent_jobs: 12
+  partition: kempner_eng
+  max_concurrent_jobs: 30
   modules_to_load:
     - python/3.12.5-fasrc01
     - cuda/12.4.1-fasrc01
@@ -41,7 +41,7 @@ train_config:
       parameters:
         excitatory_layer_sizes: [20]
         inhibitory_layer_sizes: [40]
-        excitatory_branch_factors: [5,5]
+        excitatory_branch_factors: [2,2,2,2,2]
         inhibitory_branch_factors: [1]
         reactivate: true
         somatic_synapses: false
@@ -63,7 +63,7 @@ train_config:
         enable_branch_outputs: false
         output_layer: true
         output_dim: 10
-        input_mode: 2
+        input_mode: 1
         input_net_dict:
           type: "FeatureExtractorMLP"  # Type of input network: "IndexInputTransform", "MLPInputTransform", "AlexNetTransform", etc.
           hidden_dims: [128] #[512, 256, 128]     # Hidden layer dimensions for better capacity
