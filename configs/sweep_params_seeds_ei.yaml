@@ -60,7 +60,6 @@ train_config:
         reactivation_strategy: "inverse"
         blocklinear_strategy: "conductance_dynamic"
         print_hooks: false
-        enable_branch_outputs: false
         output_layer: false
         output_dim: 10
         input_mode: 0
@@ -210,7 +209,7 @@ train_config:
     # Single layer contribution analysis (formerly layer_ablation)
     # Isolates each layer to test what it can achieve on its own
     single_layer_contribution:
-      enabled: true  # whether to enable single layer contribution analysis
+      enabled: false  # whether to enable single layer contribution analysis
       training: false  # Whether to run during training
       params:
         save_plots: true
@@ -231,7 +230,7 @@ train_config:
     # Branch information analysis
     # Computes mutual information between branch components (E, I, V, C)
     branch_information:
-      enabled: families  # Whether to enable branch information analysis
+      enabled: false  # Whether to enable branch information analysis
       training: false  # Whether to run during training
       params:
         n_neighbors: 10  # Number of neighbors for MI estimation
@@ -247,7 +246,6 @@ train_config:
           families: kercop    # Copula families to use
           knots: 30           # Number of knots for non-parametric copula
 sweep_config:
-  model.network.type: ["EINet", "MLP"]
   # EE and IE synapse parameters - both sweep from 0 to 50 in steps of 5
   model.network.parameters.ee_synapses_per_branch_per_layer: [
     [1], [6], [11], [16], [21], [26], [31], [36], [41], [46], [51]

@@ -36,7 +36,8 @@ def initialize_model(model_cfg):
     probabilistic = model_cfg.probabilistic
     net_type = model_cfg.network.type
     net_params = model_cfg.network.parameters
-    enable_branch_outputs = net_params.pop("enable_branch_outputs", False)
+    # Branch outputs are now automatically enabled when needed for analysis
+    enable_branch_outputs = False
     learning_strategy = net_params.pop("learning_strategy", "mle")
 
     if task == "classification":
