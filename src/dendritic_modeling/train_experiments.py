@@ -44,29 +44,29 @@ from dendritic_modeling.analysis import AnalysisManager
 from dendritic_modeling.config import EINetParameters, load_config
 from dendritic_modeling.learning_strategies import (
     CustomWeightDecayOptimizer,
+    TrainerMLE,
     VoltageStabilizationTrainer,
     extract_weights_from_simple_mlp,
     get_trainer,
     train_mlp_with_classification_head,
     train_simple_mlp,
     transfer_mlp_weights_to_input_net,
-    TrainerMLE
 )
 from dendritic_modeling.models import (
     Classifier,
     DeepstRegressor,
     MLPWithClassificationHead,
     ProbabilisticClassifier,
+    Regressor,
     SimpleClassifier,
     SimpleMLP,
-    Regressor
 )
 from dendritic_modeling.networks import (
     ExcitationInhibitionNetwork,
+    FeatureExtractorMLP,
     InputNetTransform,
     MatchedParamMLP,
     SigmoidInputNetTransform,
-    FeatureExtractorMLP
 )
 from dendritic_modeling.plot_utils import plot_NLL_loss_curves
 from dendritic_modeling.synthetic_datasets import get_unified_datasets
@@ -86,11 +86,12 @@ def initialize_model(model_cfg, visualization_enabled=False):
     probabilistic = model_cfg.probabilistic
     net_type = model_cfg.network.type
     net_params = model_cfg.network.parameters
-    config_branch_outputs = getattr(net_params, "enable_branch_outputs", False)
-    enable_branch_outputs = config_branch_outputs or visualization_enabled
+    # Branch outputs are now automatically enabled when needed for analysis
+    enable_branch_outputs = visualization_enabled
     learning_strategy = getattr(net_params, "learning_strategy", "mle")
 
-    logger.info(f"EINet branch outputs enabled: {enable_branch_outputs}")
+    if enable_branch_outputs:
+        logger.info("EINet branch outputs enabled for visualization/analysis")
 
     if task == "classification":
         if net_type == "MLP":
@@ -619,17 +620,15 @@ def train_single_input_net(
     os.makedirs(mlp_model_dir, exist_ok=True)
     logger.info("Training MLP feature extractor")
     feature_extractor = FeatureExtractorMLP(
-        input_dim=input_dim,
-        hidden_dims=hidden_dims,
-        output_dim=final_output_dim
+        input_dim=input_dim, hidden_dims=hidden_dims, output_dim=final_output_dim
     )
     clf = ProbabilisticClassifier(
-        net=feature_extractor,
-        output_dim=final_output_dim,
-        use_output_layer=False
+        net=feature_extractor, output_dim=final_output_dim, use_output_layer=False
     )
     trainer = TrainerMLE(
-        optimizer=torch.optim.Adam(clf.parameters(), lr=train_cfg.optim_dict.get('input_net_lr', 0.001))
+        optimizer=torch.optim.Adam(
+            clf.parameters(), lr=train_cfg.optim_dict.get("input_net_lr", 0.001)
+        )
     )
     trainer.train(
         model=clf,
@@ -640,7 +639,7 @@ def train_single_input_net(
         early_stopping=True,
         patience=input_net_patience,
         plot_losses=True,
-        save_path=mlp_model_dir
+        save_path=mlp_model_dir,
     )
 
     # feature_extractor = SimpleMLP(input_dim, hidden_dims, output_dim)
@@ -682,7 +681,9 @@ def train_single_input_net(
     if hasattr(model, "net"):
         if hasattr(model.net, "input_net"):
             if hasattr(model.net.input_net, "input_transform"):
-                model.net.input_net.input_transform.load_state_dict(clf.net.state_dict())
+                model.net.input_net.input_transform.load_state_dict(
+                    clf.net.state_dict()
+                )
                 model.net.input_net.input_transform.set_readout(False)
                 model.net.input_net.input_transform.disable_grad()
     # # extract_weights_from_simple_mlp(feature_extractor, new_input_net)
@@ -876,14 +877,13 @@ def train_and_evaluate_main(config_path, args=None):
             run_save_path,
             analysis_manager=analysis_manager,
         )
-    
+
     nparams = 0
     for param in model.parameters():
         nparams += param.numel()
     if wandb.run is not None:
         wandb.log({"nparams": nparams})
     save_dict({"nparams": nparams}, run_save_path, "nparams")
-    
 
     run_analysis(
         model=model,

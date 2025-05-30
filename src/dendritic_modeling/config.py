@@ -54,7 +54,6 @@ class EINetParameters(BaseConfig):
     input_net_dict: Dict[str, Any] = field(
         default_factory=dict
     )  # Input network configuration
-    enable_branch_outputs: bool = True
     output_layer: bool = False
     output_dim: int = 10
     excitatory_target_density: float = 0.1
