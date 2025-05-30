@@ -69,8 +69,68 @@ task:
 
 For detailed documentation on all configuration options and examples, see the [Documentation](https://kempnerinstitute.github.io/dendritic-modeling/index.html).
 
-## Setting Up a Mamba Virtual Environment
-To ensure a consistent and isolated development environment, we recommend using Mamba for managing dependencies. Follow the steps below to set up a Mamba virtual environment for this project:
+## Installation
+
+### Quick Start (Recommended)
+
+The easiest way to install all dependencies is using conda with our provided environment file:
+
+```sh
+# Create and activate a conda environment with all dependencies
+conda env create -f environment.yml
+conda activate dendritic_env
+
+# Install the package in development mode
+pip install -e .
+```
+
+### Alternative Installation Methods
+
+#### Option 1: Using pip with requirements.txt
+```sh
+# Create a virtual environment
+python -m venv dendritic_env
+source dendritic_env/bin/activate  # On Windows: dendritic_env\Scripts\activate
+
+# Install all dependencies
+pip install -r requirements.txt
+
+# Install the package
+pip install -e .
+```
+
+#### Option 2: Using conda/mamba step by step
+```sh
+# Create environment with conda/mamba
+conda create -n dendritic_env python=3.12
+conda activate dendritic_env
+
+# Install dependencies from requirements.txt
+pip install -r requirements.txt
+
+# Install the package
+pip install -e .
+```
+
+#### Option 3: Using only pyproject.toml
+```sh
+# Install with all dependencies (including optional ones)
+pip install -e ".[all]"
+
+# Or install with only core dependencies
+pip install -e .
+```
+
+### Verifying Installation
+
+Test that all key dependencies are working:
+
+```sh
+python -c "import torch; import tensorflow; import matplotlib; import pandas; import dendritic_modeling; print('All dependencies successfully installed!')"
+```
+
+## Setting Up a Mamba Virtual Environment (Legacy Instructions)
+If you prefer to use Mamba specifically, follow these steps:
 
 ### Install Mamba
 If you haven't installed Mamba yet, you can do so by using Conda:

@@ -1,0 +1,35 @@
+# Core dependencies for dendritic modeling
+torch
+numpy
+torchvision
+torchinfo
+matplotlib
+wandb
+pandas
+omegaconf>=2.3.0
+scikit-learn
+tensorflow>=2.16.0
+tensorflow_probability
+tf-keras
+
+# Dependencies discovered during runtime testing
+python-dateutil  # Required by matplotlib
+PyYAML  # Required for yaml module in training scripts
+tqdm  # Progress bars in training
+scipy  # Scientific computing utilities
+
+# Optional but useful for training and analysis
+jupyter  # For training notebooks and analysis
+ipykernel  # Jupyter kernel support
+plotly  # Interactive plotting for analysis
+seaborn  # Additional plotting capabilities
+tensorboard  # TensorFlow/PyTorch logging and visualization
+
+# Development dependencies (optional)
+ruff
+mypy>=1.0,<1.4
+black>=23.1,<24.0
+isort>=5.12,<5.13
+pytest
+pytest-cov
+pytest-sphinx
