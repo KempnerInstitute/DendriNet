@@ -502,13 +502,10 @@ def generate_sweep_configs_manually(
                             if hasattr(param_value, "__len__") and not isinstance(
                                 param_value, str
                             ):
-                                if (
-                                    len(param_value) > 0
-                                    and param_name not in [
-                                        "model.network.parameters.excitatory_branch_factors",
-                                        "model.network.parameters.inhibitory_branch_factors",
-                                    ]
-                                ):
+                                if len(param_value) > 0 and param_name not in [
+                                    "model.network.parameters.excitatory_branch_factors",
+                                    "model.network.parameters.inhibitory_branch_factors",
+                                ]:
                                     param_value = param_value[0]
                             set_nested_value(new_config, param_name, param_value)
                     else:
@@ -522,13 +519,10 @@ def generate_sweep_configs_manually(
                             if hasattr(param_value, "__len__") and not isinstance(
                                 param_value, str
                             ):
-                                if (
-                                    len(param_value) > 0
-                                    and param_name not in [
-                                        "model.network.parameters.excitatory_branch_factors",
-                                        "model.network.parameters.inhibitory_branch_factors",
-                                    ]
-                                ):
+                                if len(param_value) > 0 and param_name not in [
+                                    "model.network.parameters.excitatory_branch_factors",
+                                    "model.network.parameters.inhibitory_branch_factors",
+                                ]:
                                     param_value = param_value[0]
                             set_nested_value(new_config, param_name, param_value)
                 else:
@@ -545,13 +539,10 @@ def generate_sweep_configs_manually(
                         if hasattr(param_value, "__len__") and not isinstance(
                             param_value, str
                         ):
-                            if (
-                                len(param_value) > 0
-                                and param_name not in [
-                                    "model.network.parameters.excitatory_branch_factors",
-                                    "model.network.parameters.inhibitory_branch_factors",
-                                ]
-                            ):
+                            if len(param_value) > 0 and param_name not in [
+                                "model.network.parameters.excitatory_branch_factors",
+                                "model.network.parameters.inhibitory_branch_factors",
+                            ]:
                                 param_value = param_value[0]
                         set_nested_value(new_config, param_name, param_value)
 
@@ -801,13 +792,12 @@ def generate_custom_run_script(
     # Set up output folders with config-based directories instead of job/task based
     lines.append(f"# Path to the config-specific results folder")
     lines.append(f"CONFIG_FOLDER_PATH=${{RESULTS_DIR}}/config_${{CONFIG_IDX}}")
-    lines.append(f"PLOT_FOLDER_PATH=${{PLOTS_DIR}}/config_${{CONFIG_IDX}}")
+    lines.append(f"PLOT_FOLDER_PATH=${{PLOTS_DIR}}")
     lines.append("")
 
     # Create output directory
     lines.append("# Create output directory")
     lines.append("mkdir -p ${CONFIG_FOLDER_PATH}")
-    lines.append("mkdir -p ${PLOT_FOLDER_PATH}")
     lines.append("")
 
     # Run the job - Fix the srun command to avoid memory specification conflicts
