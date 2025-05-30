@@ -251,17 +251,20 @@ analysis:
       use_dvc: false  # Whether to use DVC_tensorflow copula entropy (if false, uses sklearn)
       save_plots: true
       save_csv: true
+      # Configurable metrics to compute
       compute_metrics:
         - "I_E_C"    # I(E;C) - Excitatory inputs and class
         - "I_I_C"    # I(I;C) - Inhibitory inputs and class
         - "I_V_C"    # I(V;C) - Branch outputs and class
-        - "I_E_I"    # I(E;I) - Excitatory and inhibitory inputs
-        - "I_E_V"    # I(E;V) - Excitatory inputs and branch outputs
-        - "I_I_V"    # I(I;V) - Inhibitory inputs and branch outputs
-        - "I_E_I_given_C"      # E-I interactions given class
-        - "I_E_V_given_C"      # E-V interactions given class
-        - "I_I_V_given_C"      # I-V interactions given class
-      # If compute_metrics is omitted, all 9 metrics are computed by default
+        # - "I_E_I"    # I(E;I) - Excitatory and inhibitory inputs
+        # - "I_E_V"    # I(E;V) - Excitatory inputs and branch outputs
+        # - "I_I_V"    # I(I;V) - Inhibitory inputs and branch outputs
+        # - "I_E_I_given_C" # I(E;I|C) - E and I given class
+        # - "I_E_V_given_C" # I(E;V|C) - E and V given class
+        # - "I_I_V_given_C" # I(I;V|C) - I and V given class
+
+      # Per-branch vs pooled computation
+      compute_per_branch: false  # If true, compute MI per branch and average; if false, pool all branches
 
       # Copula parameters for DVC_tensorflow
       copula_params:
@@ -269,7 +272,9 @@ analysis:
         iterations: 10      # Number of iterations for convergence
         alpha: 0.05         # Confidence level
         vine_type: c-vine   # Type of vine copula: "d-vine", "c-vine", "r-vine"
-        families: kercop    # Copula families to use
-        knots: 30           # Number of knots for non-parametric copula
+        use_nonparametric: false  # Whether to use non-parametric kernel copula (true) or parametric Gaussian (false)
+        knots: 30           # Number of knots for non-parametric copula (only used when use_nonparametric=true)
+        opt_method: LL1     # Optimization method for non-parametric: "LL1", "LL2", etc.
+        batch_paral: 1      # Batch parallelization for non-parametric fitting
 outputs:
   dir: ./outputs/
