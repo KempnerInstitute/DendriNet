@@ -1,4 +1,5 @@
 import logging
+import math
 import os
 from copy import deepcopy
 from typing import Any, Dict, List, Optional, Tuple
@@ -500,12 +501,47 @@ class BranchInformationAnalyzer:
         save_plots: bool = True,
         save_csv: bool = True,
         copula_params: Dict = None,  # Additional parameters for copula MI estimation
+        # Configurable MI metrics to compute
+        compute_metrics: List[str] = None,  # List of metrics to compute
     ):
         self.n_neighbors = n_neighbors
         self.use_dvc = use_dvc
         self.save_plots = save_plots
         self.save_csv = save_csv
         self.logger = logging.getLogger(__name__)
+
+        # Define all available metrics
+        self.available_metrics = {
+            # Information with Class Labels
+            "I_E_C": "I(E;C) - Excitatory inputs and class",
+            "I_I_C": "I(I;C) - Inhibitory inputs and class",
+            "I_V_C": "I(V;C) - Branch outputs and class",
+            # Information Between Branch Components
+            "I_E_I": "I(E;I) - Excitatory and inhibitory inputs",
+            "I_E_V": "I(E;V) - Excitatory inputs and branch outputs",
+            "I_I_V": "I(I;V) - Inhibitory inputs and branch outputs",
+            # Conditional Information (Given Class)
+            "I_E_I_given_C": "I(E;I|C) - E and I given class",
+            "I_E_V_given_C": "I(E;V|C) - E and V given class",
+            "I_I_V_given_C": "I(I;V|C) - I and V given class",
+        }
+
+        # Set which metrics to compute (default: all)
+        if compute_metrics is None:
+            self.compute_metrics = list(self.available_metrics.keys())
+        else:
+            # Validate requested metrics
+            invalid_metrics = set(compute_metrics) - set(self.available_metrics.keys())
+            if invalid_metrics:
+                raise ValueError(
+                    f"Invalid metrics requested: {invalid_metrics}. "
+                    f"Available metrics: {list(self.available_metrics.keys())}"
+                )
+            self.compute_metrics = compute_metrics
+
+        self.logger.info(
+            f"BranchInformationAnalyzer will compute {len(self.compute_metrics)} metrics: {self.compute_metrics}"
+        )
 
         # Default copula parameters
         self.copula_params = copula_params or {
@@ -944,18 +980,11 @@ class BranchInformationAnalyzer:
             return {}
 
         # Compute information metrics
-        results = {
-            "layer": [],
-            "I_E_C": [],  # I(E;C)
-            "I_I_C": [],  # I(I;C)
-            "I_V_C": [],  # I(V;C)
-            "I_E_I": [],  # I(E;I)
-            "I_E_V": [],  # I(E;V)
-            "I_I_V": [],  # I(I;V)
-            "I_E_I_given_C": [],  # I(E;I|C)
-            "I_E_V_given_C": [],  # I(E;V|C)
-            "I_I_V_given_C": [],  # I(I;V|C)
-        }
+        results = {"layer": []}
+
+        # Initialize only requested metrics
+        for metric in self.compute_metrics:
+            results[metric] = []
 
         # Compute metrics per layer
         unique_layers = np.unique(all_data["layer_idx"])
@@ -979,20 +1008,35 @@ class BranchInformationAnalyzer:
             # Compute mutual information metrics
             results["layer"].append(int(layer_idx))
 
-            # MI with class labels
-            results["I_E_C"].append(self.compute_mi_discrete(E_layer, C_layer))
-            results["I_I_C"].append(self.compute_mi_discrete(I_layer, C_layer))
-            results["I_V_C"].append(self.compute_mi_discrete(V_layer, C_layer))
+            # Only compute requested metrics
+            if "I_E_C" in self.compute_metrics:
+                results["I_E_C"].append(self.compute_mi_discrete(E_layer, C_layer))
+            if "I_I_C" in self.compute_metrics:
+                results["I_I_C"].append(self.compute_mi_discrete(I_layer, C_layer))
+            if "I_V_C" in self.compute_metrics:
+                results["I_V_C"].append(self.compute_mi_discrete(V_layer, C_layer))
 
             # MI between branch components
-            results["I_E_I"].append(self.compute_mi_continuous(E_layer, I_layer))
-            results["I_E_V"].append(self.compute_mi_continuous(E_layer, V_layer))
-            results["I_I_V"].append(self.compute_mi_continuous(I_layer, V_layer))
+            if "I_E_I" in self.compute_metrics:
+                results["I_E_I"].append(self.compute_mi_continuous(E_layer, I_layer))
+            if "I_E_V" in self.compute_metrics:
+                results["I_E_V"].append(self.compute_mi_continuous(E_layer, V_layer))
+            if "I_I_V" in self.compute_metrics:
+                results["I_I_V"].append(self.compute_mi_continuous(I_layer, V_layer))
 
             # Conditional MI given class
-            results["I_E_I_given_C"].append(self.compute_cmi(E_layer, I_layer, C_layer))
-            results["I_E_V_given_C"].append(self.compute_cmi(E_layer, V_layer, C_layer))
-            results["I_I_V_given_C"].append(self.compute_cmi(I_layer, V_layer, C_layer))
+            if "I_E_I_given_C" in self.compute_metrics:
+                results["I_E_I_given_C"].append(
+                    self.compute_cmi(E_layer, I_layer, C_layer)
+                )
+            if "I_E_V_given_C" in self.compute_metrics:
+                results["I_E_V_given_C"].append(
+                    self.compute_cmi(E_layer, V_layer, C_layer)
+                )
+            if "I_I_V_given_C" in self.compute_metrics:
+                results["I_I_V_given_C"].append(
+                    self.compute_cmi(I_layer, V_layer, C_layer)
+                )
 
         # Create plots
         if self.save_plots and results["layer"]:
@@ -1006,16 +1050,12 @@ class BranchInformationAnalyzer:
 
     def _plot_results(self, results: Dict, output_dir: str, epoch: int):
         """Create plots for branch information metrics"""
+        import math
+
         import matplotlib.pyplot as plt
 
-        fig, axes = plt.subplots(3, 3, figsize=(15, 12))
-        fig.suptitle(f"Branch Information Analysis - Epoch {epoch}", fontsize=16)
-
-        # Flatten axes for easier indexing
-        axes = axes.flatten()
-
-        # Define metrics to plot
-        metrics = [
+        # Filter metrics to only those that were computed
+        all_metrics = [
             ("I_E_C", "I(E;C)", "Excitatory-Class MI"),
             ("I_I_C", "I(I;C)", "Inhibitory-Class MI"),
             ("I_V_C", "I(V;C)", "Output-Class MI"),
@@ -1027,25 +1067,52 @@ class BranchInformationAnalyzer:
             ("I_I_V_given_C", "I(I;V|C)", "Conditional I-V MI"),
         ]
 
-        # Create plots
-        for idx, (key, ylabel, title) in enumerate(metrics):
+        # Only include metrics that were computed
+        metrics_to_plot = [
+            (key, ylabel, title)
+            for key, ylabel, title in all_metrics
+            if key in self.compute_metrics and key in results and results[key]
+        ]
+
+        if not metrics_to_plot:
+            self.logger.warning("No computed metrics to plot")
+            return
+
+        # Calculate dynamic subplot layout
+        n_metrics = len(metrics_to_plot)
+        if n_metrics <= 3:
+            nrows, ncols = 1, n_metrics
+        elif n_metrics <= 6:
+            nrows, ncols = 2, 3
+        else:
+            nrows, ncols = 3, 3
+
+        fig, axes = plt.subplots(nrows, ncols, figsize=(5 * ncols, 4 * nrows))
+        fig.suptitle(
+            f"Branch Information Analysis - Epoch {epoch}\n({len(self.compute_metrics)} metrics computed)",
+            fontsize=16,
+        )
+
+        # Handle single subplot case
+        if n_metrics == 1:
+            axes = [axes]
+        elif nrows == 1:
+            axes = list(axes) if hasattr(axes, "__iter__") else [axes]
+        else:
+            axes = axes.flatten()
+
+        # Create plots for computed metrics
+        for idx, (key, ylabel, title) in enumerate(metrics_to_plot):
             ax = axes[idx]
-            if key in results and results[key]:
-                ax.plot(results["layer"], results[key], "o-", linewidth=2, markersize=8)
-                ax.set_xlabel("Layer")
-                ax.set_ylabel(ylabel)
-                ax.set_title(title)
-                ax.grid(True, alpha=0.3)
-            else:
-                ax.text(
-                    0.5,
-                    0.5,
-                    "No data",
-                    ha="center",
-                    va="center",
-                    transform=ax.transAxes,
-                )
-                ax.set_title(title)
+            ax.plot(results["layer"], results[key], "o-", linewidth=2, markersize=8)
+            ax.set_xlabel("Layer")
+            ax.set_ylabel(ylabel)
+            ax.set_title(title)
+            ax.grid(True, alpha=0.3)
+
+        # Hide unused subplots
+        for idx in range(len(metrics_to_plot), len(axes)):
+            axes[idx].set_visible(False)
 
         plt.tight_layout()
 
@@ -1054,7 +1121,9 @@ class BranchInformationAnalyzer:
         plt.savefig(plot_path, dpi=150, bbox_inches="tight")
         plt.close()
 
-        self.logger.info(f"Saved branch information plot to {plot_path}")
+        self.logger.info(
+            f"Saved branch information plot to {plot_path} with {len(metrics_to_plot)} metrics"
+        )
 
     def _save_csv(self, results: Dict, output_dir: str, epoch: int):
         """Save results to CSV"""
@@ -1062,6 +1131,24 @@ class BranchInformationAnalyzer:
         csv_path = os.path.join(output_dir, f"branch_information_epoch_{epoch}.csv")
         df.to_csv(csv_path, index=False)
         self.logger.info(f"Saved branch information data to {csv_path}")
+
+    @classmethod
+    def list_available_metrics(cls) -> Dict[str, str]:
+        """Return a dictionary of all available MI metrics and their descriptions"""
+        return {
+            # Information with Class Labels
+            "I_E_C": "I(E;C) - Excitatory inputs and class",
+            "I_I_C": "I(I;C) - Inhibitory inputs and class",
+            "I_V_C": "I(V;C) - Branch outputs and class",
+            # Information Between Branch Components
+            "I_E_I": "I(E;I) - Excitatory and inhibitory inputs",
+            "I_E_V": "I(E;V) - Excitatory inputs and branch outputs",
+            "I_I_V": "I(I;V) - Inhibitory inputs and branch outputs",
+            # Conditional Information (Given Class)
+            "I_E_I_given_C": "I(E;I|C) - E and I given class",
+            "I_E_V_given_C": "I(E;V|C) - E and V given class",
+            "I_I_V_given_C": "I(I;V|C) - I and V given class",
+        }
 
 
 class SingleLayerContributionAnalyzer:
@@ -2958,6 +3045,8 @@ class AnalysisManager:
                 save_plots=params.get("save_plots", True),
                 save_csv=params.get("save_csv", True),
                 copula_params=params.get("copula_params", None),
+                # Configurable MI metrics to compute
+                compute_metrics=params.get("compute_metrics", None),
             )
 
         ablation_config = self.config.ablation_analysis
