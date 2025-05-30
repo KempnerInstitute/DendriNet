@@ -31,6 +31,7 @@ import torchinfo
 from torch import nn
 
 from dendritic_modeling import logger
+from dendritic_modeling.activation_functions import ActivationFactory
 from dendritic_modeling.dendrinet import DendriNet, DendriNetWithOutputs
 from dendritic_modeling.utils import SafeHookModule, safe_register_hooks
 
@@ -49,8 +50,10 @@ class InputNetTransform(nn.Module):
         self, 
         input_dim: Optional[int] = None, 
         hidden_dims: Optional[List[int]] = None, 
+        independent_heads: bool = False,
         excitatory_dim: Optional[int] = None, 
         inhibitory_dim: Optional[int] = None, 
+        output_dim: Optional[int] = None,
         input_shape: Optional[Tuple[int, int, int]] = None,
         excitatory_hidden_dims: Optional[List[int]] = None,
         inhibitory_hidden_dims: Optional[List[int]] = None,
@@ -58,41 +61,48 @@ class InputNetTransform(nn.Module):
         inhibitory_kernel_sizes: Optional[List[int]] = None,
         excitatory_strides: Optional[List[int]] = None,
         inhibitory_strides: Optional[List[int]] = None,
-        network_type: str = "MLPInputTransform"
+        network_type: str = "MLPInputTransform",
     ):
         super().__init__()
         self.network_type = network_type
 
         if network_type == "IndexInputTransform":
             self.input_transform = IndexInputTransform(
-                input_dim = input_dim,
-                excitatory_dim = excitatory_dim,
-                inhibitory_dim = inhibitory_dim
+                input_dim=input_dim,
+                excitatory_dim=excitatory_dim,
+                inhibitory_dim=inhibitory_dim,
             )
 
         elif network_type == "MLPInputTransform":
             self.input_transform = MLPInputTransform(
+                input_dim=input_dim,
+                hidden_dims=hidden_dims,
+                excitatory_dim=excitatory_dim,
+                inhibitory_dim=inhibitory_dim,
+            )
+        
+        elif network_type == "FeatureExtractorMLP":
+            self.input_transform = FeatureExtractorMLP(
                 input_dim = input_dim,
                 hidden_dims = hidden_dims,
-                excitatory_dim = excitatory_dim,
-                inhibitory_dim = inhibitory_dim
+                output_dim = output_dim
             )
-
+            self.input_transform.set_readout(False)
+            self.input_transform.disable_grad()
         elif network_type == "AlexNetTransform":
             self.input_transform = AlexNetInputTransform(
-                excitatory_dim = excitatory_dim,
-                inhibitory_dim = inhibitory_dim
+                excitatory_dim=excitatory_dim, inhibitory_dim=inhibitory_dim
             )
 
         elif network_type == "CNNInputTransform":
             self.input_transform = CNNInputTransform(
-                input_shape = input_shape,
-                excitatory_hidden_dims = excitatory_hidden_dims,
-                inhibitory_hidden_dims = inhibitory_hidden_dims,
-                excitatory_kernel_sizes = excitatory_kernel_sizes,
-                inhibitory_kernel_sizes = inhibitory_kernel_sizes,
-                excitatory_strides = excitatory_strides,
-                inhibitory_strides = inhibitory_strides
+                input_shape=input_shape,
+                excitatory_hidden_dims=excitatory_hidden_dims,
+                inhibitory_hidden_dims=inhibitory_hidden_dims,
+                excitatory_kernel_sizes=excitatory_kernel_sizes,
+                inhibitory_kernel_sizes=inhibitory_kernel_sizes,
+                excitatory_strides=excitatory_strides,
+                inhibitory_strides=inhibitory_strides,
             )
 
         else:
@@ -144,6 +154,7 @@ class InputNetTransform(nn.Module):
         else:
             raise ValueError(f"Unknown source: {source}")
 
+
 # For backward compatibility
 # MLPInputTransform = InputNetTransform
 
@@ -152,21 +163,22 @@ class IndexInputTransform(nn.Module):
     def __init__(self, input_dim: int, excitatory_dim: int, inhibitory_dim: int):
         super().__init__()
         try:
-            assert excitatory_dim + inhibitory_dim == input_dim, \
-                'error in IndexInputTransform: excitatory_dim + inhibitory_dim must ' \
-                f'equal input_dim, got {excitatory_dim} + {inhibitory_dim} != {input_dim}'
+            assert excitatory_dim + inhibitory_dim == input_dim, (
+                "error in IndexInputTransform: excitatory_dim + inhibitory_dim must "
+                f"equal input_dim, got {excitatory_dim} + {inhibitory_dim} != {input_dim}"
+            )
         except AssertionError as e:
             logger.error(e)
             inhibitory_dim = int(input_dim - excitatory_dim)
-        
+
         dims = torch.randperm(input_dim)
         exc_dims = dims[:excitatory_dim]
         inh_dims = dims[excitatory_dim:]
 
-        self.exc_dims : torch.Tensor
-        self.register_buffer('exc_dims', exc_dims)
-        self.inh_dims : torch.Tensor
-        self.register_buffer('inh_dims', inh_dims)
+        self.exc_dims: torch.Tensor
+        self.register_buffer("exc_dims", exc_dims)
+        self.inh_dims: torch.Tensor
+        self.register_buffer("inh_dims", inh_dims)
 
         self.excitatory_dim = excitatory_dim
         self.inhibitory_dim = inhibitory_dim
@@ -174,7 +186,7 @@ class IndexInputTransform(nn.Module):
     def forward(self, x):
         if x.dim() == 1:
             x = x[None, :]
-        
+
         excitatory_input = x[..., self.exc_dims]
         inhibitory_input = x[..., self.inh_dims]
         return excitatory_input, inhibitory_input
@@ -191,52 +203,84 @@ class MLPInputTransform(nn.Module):
         self, 
         input_dim: int, 
         hidden_dims: List[int], 
-        excitatory_dim: int, 
-        inhibitory_dim: int
+        independent_heads: bool = False,
+        excitatory_dim: int = None, 
+        inhibitory_dim: int = None,
+        output_dim: int = None
     ):
         super().__init__()
 
-        # Build MLP backbone
-        exc_layers = []
-        inh_layers = []
-        in_features = input_dim
-        for hdim in hidden_dims:
-            exc_layer = nn.Linear(in_features, hdim)
-            nn.init.kaiming_normal_(exc_layer.weight)
-            nn.init.zeros_(exc_layer.bias)
+        if independent_heads:
+            # Build MLP backbone
+            exc_layers = []
+            inh_layers = []
+            in_features = input_dim
+            for hdim in hidden_dims:
+                exc_layer = nn.Linear(in_features, hdim)
+                nn.init.kaiming_normal_(exc_layer.weight)
+                nn.init.zeros_(exc_layer.bias)
+                
+                exc_layers.append(exc_layer)
+                exc_layers.append(nn.ReLU())
+
+                inh_layer = nn.Linear(in_features, hdim)
+                nn.init.kaiming_normal_(inh_layer.weight)
+                nn.init.zeros_(inh_layer.bias)
+                inh_layers.append(inh_layer)
+                inh_layers.append(nn.ReLU())
+
+                in_features = hdim
             
-            exc_layers.append(exc_layer)
-            exc_layers.append(nn.ReLU())
+            exc_head = nn.Linear(in_features, excitatory_dim)
+            nn.init.xavier_normal_(exc_head.weight)
+            nn.init.zeros_(exc_head.bias)
+            exc_layers.append(exc_head)
+            exc_layers.append(nn.Sigmoid())
+            
+            inh_head = nn.Linear(in_features, inhibitory_dim)
+            nn.init.xavier_normal_(inh_head.weight)
+            nn.init.zeros_(inh_head.bias)
+            inh_layers.append(inh_head)
+            inh_layers.append(nn.Sigmoid())
 
-            inh_layer = nn.Linear(in_features, hdim)
-            nn.init.kaiming_normal_(inh_layer.weight)
-            nn.init.zeros_(inh_layer.bias)
-            inh_layers.append(inh_layer)
-            inh_layers.append(nn.ReLU())
+            self.exc_encoding = nn.Sequential(*exc_layers)
+            self.inh_encoding = nn.Sequential(*inh_layers)
 
-            in_features = hdim
+            self.excitatory_dim = excitatory_dim
+            self.inhibitory_dim = inhibitory_dim
         
-        exc_head = nn.Linear(in_features, excitatory_dim)
-        nn.init.xavier_normal_(exc_head.weight)
-        nn.init.zeros_(exc_head.bias)
-        exc_layers.append(exc_head)
-        exc_layers.append(nn.Sigmoid())
+        else:
+            encoding_layers = []
+            in_features = input_dim
+            for hdim in hidden_dims:
+                layer = nn.Linear(in_features, hdim)
+                nn.init.kaiming_normal_(layer.weight)
+                nn.init.zeros_(layer.bias)
+                encoding_layers.append(layer)
+                encoding_layers.append(nn.ReLU())
+                in_features = hdim
+            
+            head = nn.Linear(in_features, output_dim)
+            nn.init.xavier_normal_(head.weight)
+            nn.init.zeros_(head.bias)
+            encoding_layers.append(head)
+            encoding_layers.append(nn.Sigmoid())
+
+            self.encoding = nn.Sequential(*encoding_layers)
+
+            self.excitatory_dim = output_dim
+            self.inhibitory_dim = output_dim
         
-        inh_head = nn.Linear(in_features, inhibitory_dim)
-        nn.init.xavier_normal_(inh_head.weight)
-        nn.init.zeros_(inh_head.bias)
-        inh_layers.append(inh_head)
-        inh_layers.append(nn.Sigmoid())
-
-        self.exc_encoding = nn.Sequential(*exc_layers)
-        self.inh_encoding = nn.Sequential(*inh_layers)
-
-        self.excitatory_dim = excitatory_dim
-        self.inhibitory_dim = inhibitory_dim
+        self.independent_heads = independent_heads
 
     def forward(self, x):
-        excitatory_input = self.exc_encoding(x)
-        inhibitory_input = self.inh_encoding(x)
+        if self.independent_heads:
+            excitatory_input = self.exc_encoding(x)
+            inhibitory_input = self.inh_encoding(x)
+        else:
+            x = self.encoding(x)
+            excitatory_input = x
+            inhibitory_input = x
         return excitatory_input, inhibitory_input
 
 
@@ -247,27 +291,29 @@ class CNNInputTransform(nn.Module):
     """
 
     def __init__(
-        self, 
+        self,
         input_shape: Tuple[int, int, int],  # (channels, height, width)
-        excitatory_hidden_dims: List[int],           # List of channel sizes for each conv layer
-        inhibitory_hidden_dims: List[int],           # List of channel sizes for each conv layer
-        excitatory_kernel_sizes: List[int],          # Kernel size for all conv layers
-        inhibitory_kernel_sizes: List[int],          # Kernel size for all conv layers
-        excitatory_strides: List[int],               # Stride for all conv layers
-        inhibitory_strides: List[int],               # Stride for all conv layers
+        excitatory_hidden_dims: List[int],  # List of channel sizes for each conv layer
+        inhibitory_hidden_dims: List[int],  # List of channel sizes for each conv layer
+        excitatory_kernel_sizes: List[int],  # Kernel size for all conv layers
+        inhibitory_kernel_sizes: List[int],  # Kernel size for all conv layers
+        excitatory_strides: List[int],  # Stride for all conv layers
+        inhibitory_strides: List[int],  # Stride for all conv layers
     ):
         super().__init__()
-        
+
         # Input validation
         input_dim, height, width = input_shape
-        
+
         # Build CNN backbone for excitatory pathway
         exc_layers = []
         in_dim = input_dim
         current_h, current_w = height, width
-        
+
         for hidden_dim, kernel_size, stride in zip(
-            excitatory_hidden_dims[:-1], excitatory_kernel_sizes[:-1], excitatory_strides[:-1]
+            excitatory_hidden_dims[:-1],
+            excitatory_kernel_sizes[:-1],
+            excitatory_strides[:-1],
         ):
             # Add convolutional layer
             exc_conv = nn.Conv2d(in_dim, hidden_dim, kernel_size, stride)
@@ -275,34 +321,45 @@ class CNNInputTransform(nn.Module):
             nn.init.zeros_(exc_conv.bias)
             exc_layers.append(exc_conv)
             exc_layers.append(nn.ReLU())
-            
+
             in_dim = hidden_dim
             current_h = ((current_h - kernel_size) // stride) + 1
             current_w = ((current_w - kernel_size) // stride) + 1
-        
+
         # Add final convolutional layer
-        exc_conv = nn.Conv2d(in_dim, excitatory_hidden_dims[-1], excitatory_kernel_sizes[-1], excitatory_strides[-1])
+        exc_conv = nn.Conv2d(
+            in_dim,
+            excitatory_hidden_dims[-1],
+            excitatory_kernel_sizes[-1],
+            excitatory_strides[-1],
+        )
         nn.init.xavier_normal_(exc_conv.weight)
         nn.init.zeros_(exc_conv.bias)
         exc_layers.append(exc_conv)
         exc_layers.append(nn.Sigmoid())
 
-        current_h = ((current_h - excitatory_kernel_sizes[-1]) // excitatory_strides[-1]) + 1
-        current_w = ((current_w - excitatory_kernel_sizes[-1]) // excitatory_strides[-1]) + 1
+        current_h = (
+            (current_h - excitatory_kernel_sizes[-1]) // excitatory_strides[-1]
+        ) + 1
+        current_w = (
+            (current_w - excitatory_kernel_sizes[-1]) // excitatory_strides[-1]
+        ) + 1
 
         # Flatten layer
-        exc_layers.append(nn.Flatten(start_dim = -3))
-        
+        exc_layers.append(nn.Flatten(start_dim=-3))
+
         # Calculate flattened dimension
         self.excitatory_dim = excitatory_hidden_dims[-1] * current_h * current_w
-        
+
         # Build CNN backbone for inhibitory pathway
         inh_layers = []
         in_dim = input_dim
         current_h, current_w = height, width
-        
+
         for hidden_dim, kernel_size, stride in zip(
-            inhibitory_hidden_dims[:-1], inhibitory_kernel_sizes[:-1], inhibitory_strides[:-1]
+            inhibitory_hidden_dims[:-1],
+            inhibitory_kernel_sizes[:-1],
+            inhibitory_strides[:-1],
         ):
             # Add convolutional layer
             inh_conv = nn.Conv2d(in_dim, hidden_dim, kernel_size, stride)
@@ -310,27 +367,36 @@ class CNNInputTransform(nn.Module):
             nn.init.zeros_(inh_conv.bias)
             inh_layers.append(inh_conv)
             inh_layers.append(nn.ReLU())
-            
+
             in_dim = hidden_dim
             current_h = ((current_h - kernel_size) // stride) + 1
             current_w = ((current_w - kernel_size) // stride) + 1
-        
+
         # Add final convolutional layer
-        inh_conv = nn.Conv2d(in_dim, inhibitory_hidden_dims[-1], inhibitory_kernel_sizes[-1], inhibitory_strides[-1])
+        inh_conv = nn.Conv2d(
+            in_dim,
+            inhibitory_hidden_dims[-1],
+            inhibitory_kernel_sizes[-1],
+            inhibitory_strides[-1],
+        )
         nn.init.xavier_normal_(inh_conv.weight)
         nn.init.zeros_(inh_conv.bias)
         inh_layers.append(inh_conv)
         inh_layers.append(nn.Sigmoid())
 
-        current_h = ((current_h - inhibitory_kernel_sizes[-1]) // inhibitory_strides[-1]) + 1
-        current_w = ((current_w - inhibitory_kernel_sizes[-1]) // inhibitory_strides[-1]) + 1
+        current_h = (
+            (current_h - inhibitory_kernel_sizes[-1]) // inhibitory_strides[-1]
+        ) + 1
+        current_w = (
+            (current_w - inhibitory_kernel_sizes[-1]) // inhibitory_strides[-1]
+        ) + 1
 
         # Flatten layer
-        inh_layers.append(nn.Flatten(start_dim = -3))
-        
+        inh_layers.append(nn.Flatten(start_dim=-3))
+
         # Calculate flattened dimension
         self.inhibitory_dim = inhibitory_hidden_dims[-1] * current_h * current_w
-        
+
         # Create sequential models
         self.exc_encoding = nn.Sequential(*exc_layers)
         self.inh_encoding = nn.Sequential(*inh_layers)
@@ -339,7 +405,7 @@ class CNNInputTransform(nn.Module):
         # Ensure input has correct shape (add batch dimension if needed)
         if x.dim() == 3:  # (C, H, W)
             x = x.unsqueeze(0)  # Add batch dimension: (1, C, H, W)
-            
+
         excitatory_input = self.exc_encoding(x)
         inhibitory_input = self.inh_encoding(x)
         return excitatory_input, inhibitory_input
@@ -350,6 +416,7 @@ class AlexNetInputTransform(nn.Module):
     A transform that maps the raw input x to (excitatory_input, inhibitory_input)
     using convolutional layers.
     """
+
     def __init__(self, excitatory_dim: int, inhibitory_dim: int):
         super().__init__()
         import torchvision.models as models
@@ -378,6 +445,7 @@ class AlexNetInputTransform(nn.Module):
 # SigmoidInputNetTransform
 ###############################################################################
 
+
 class SigmoidInputNetTransform(InputNetTransform):
     """
     Extension of InputNetTransform that applies a sigmoid activation to the output,
@@ -385,9 +453,16 @@ class SigmoidInputNetTransform(InputNetTransform):
     """
 
     def __init__(
-        self, input_dim, hidden_dims, excitatory_dim, inhibitory_dim, network_type="MLPInputTransform"
+        self,
+        input_dim,
+        hidden_dims,
+        excitatory_dim,
+        inhibitory_dim,
+        network_type="MLPInputTransform",
     ):
-        super().__init__(input_dim, hidden_dims, excitatory_dim, inhibitory_dim, network_type)
+        super().__init__(
+            input_dim, hidden_dims, excitatory_dim, inhibitory_dim, network_type
+        )
 
     def forward(self, x):
         # Call the parent's forward method to get outputs
@@ -398,6 +473,59 @@ class SigmoidInputNetTransform(InputNetTransform):
         inhib_out = torch.sigmoid(inhib_out)
 
         return excit_out, inhib_out
+
+
+###############################################################################
+# FeatureExtractorMLP
+###############################################################################
+
+class FeatureExtractorMLP(nn.Module):
+    def __init__(self, input_dim: int, hidden_dims: List[int], output_dim: int):
+        super().__init__()
+        
+        layers = []
+        in_features = input_dim
+        for hdim in hidden_dims[:-1]:
+            layer = nn.Linear(in_features, hdim)
+            nn.init.kaiming_normal_(layer.weight)
+            nn.init.zeros_(layer.bias)
+            layers.append(layer)
+            layers.append(nn.ReLU())
+            in_features = hdim
+        
+        encoding_head = nn.Linear(in_features, hidden_dims[-1])
+        nn.init.xavier_normal_(encoding_head.weight)
+        nn.init.zeros_(encoding_head.bias)
+        layers.append(encoding_head)
+        layers.append(nn.Sigmoid())
+
+        self.encoding = nn.Sequential(*layers)
+
+        self.excitatory_dim = hidden_dims[-1]
+        self.inhibitory_dim = hidden_dims[-1]
+
+        self.readout = True
+        self.final = nn.Sequential(
+            nn.Linear(hidden_dims[-1], output_dim),
+            nn.LogSoftmax(dim=-1)
+        )
+
+    def forward(self, x):
+        x = self.encoding(x)
+        if self.readout:
+            return self.final(x)
+        else:
+            excitatory_input = x
+            inhibitory_input = x
+            return excitatory_input, inhibitory_input
+    
+    def set_readout(self, readout: bool):
+        self.readout = readout
+
+    def disable_grad(self):
+        for param in self.parameters():
+            param.requires_grad = False
+
 
 ###############################################################################
 # ExcitationInhibitionLayer
@@ -440,7 +568,7 @@ class ExcitationInhibitionLayer(nn.Module):
         freeze_inhibitory_connectivity=False,
         init_method="xavier_normal",
         weight_threshold=1e-6,
-        **kwargs
+        **kwargs,
     ):
         super().__init__()
 
@@ -485,7 +613,7 @@ class ExcitationInhibitionLayer(nn.Module):
                     freeze_inhibitory_connectivity=freeze_inhibitory_connectivity,
                     init_method=init_method,
                     weight_threshold=weight_threshold,
-                    **kwargs
+                    **kwargs,
                 )
             else:
                 self.inhibitory_cells = DendriNet(
@@ -520,7 +648,7 @@ class ExcitationInhibitionLayer(nn.Module):
                     freeze_inhibitory_connectivity=freeze_inhibitory_connectivity,
                     init_method=init_method,
                     weight_threshold=weight_threshold,
-                    **kwargs
+                    **kwargs,
                 )
         else:
             self.inhibitory_cells = None
@@ -556,7 +684,7 @@ class ExcitationInhibitionLayer(nn.Module):
                 freeze_inhibitory_connectivity=freeze_inhibitory_connectivity,
                 init_method=init_method,
                 weight_threshold=weight_threshold,
-                **kwargs
+                **kwargs,
             )
         else:
             self.excitatory_cells = DendriNet(
@@ -589,7 +717,7 @@ class ExcitationInhibitionLayer(nn.Module):
                 freeze_inhibitory_connectivity=freeze_inhibitory_connectivity,
                 init_method=init_method,
                 weight_threshold=weight_threshold,
-                **kwargs
+                **kwargs,
             )
 
     def decay_weights(self, weight_decay):
@@ -804,14 +932,23 @@ class ExcitationInhibitionNetwork(nn.Module):
             hidden_dims=self.input_net_dict.get("hidden_dims", []),
             excitatory_dim=self.input_net_dict.get("excitatory_dim", 128),
             inhibitory_dim=self.input_net_dict.get("inhibitory_dim", 128),
+            output_dim=self.input_net_dict.get("output_dim", 128),
             input_shape=self.input_net_dict.get("input_shape", None),
-            excitatory_hidden_dims=self.input_net_dict.get("excitatory_hidden_dims", []),
-            inhibitory_hidden_dims=self.input_net_dict.get("inhibitory_hidden_dims", []),
-            excitatory_kernel_sizes=self.input_net_dict.get("excitatory_kernel_sizes", []),
-            inhibitory_kernel_sizes=self.input_net_dict.get("inhibitory_kernel_sizes", []),
+            excitatory_hidden_dims=self.input_net_dict.get(
+                "excitatory_hidden_dims", []
+            ),
+            inhibitory_hidden_dims=self.input_net_dict.get(
+                "inhibitory_hidden_dims", []
+            ),
+            excitatory_kernel_sizes=self.input_net_dict.get(
+                "excitatory_kernel_sizes", []
+            ),
+            inhibitory_kernel_sizes=self.input_net_dict.get(
+                "inhibitory_kernel_sizes", []
+            ),
             excitatory_strides=self.input_net_dict.get("excitatory_strides", []),
             inhibitory_strides=self.input_net_dict.get("inhibitory_strides", []),
-            network_type=self.input_net_dict.get("type", "MLPInputTransform")
+            network_type=self.input_net_dict.get("type", "MLPInputTransform"),
         )
 
     def setup_network_layers(self):
@@ -871,12 +1008,14 @@ class ExcitationInhibitionNetwork(nn.Module):
             inhibitory_input_size = n_inh
             ii_connectivity = True
             if i == 0:
-                ii_connectivity = False                    
+                ii_connectivity = False
                 if self.input_mode == 1:
                     inhibitory_input_size = excitatory_layer_sizes[i]
                 elif self.input_mode == 2:
                     # For input_mode=2, use net_out_dim as inhibitory_input_dim
-                    inhibitory_input_size = self.input_net.input_transform.inhibitory_dim
+                    inhibitory_input_size = (
+                        self.input_net.input_transform.inhibitory_dim
+                    )
 
             # Create ExcitationInhibitionLayer
             layer = ExcitationInhibitionLayer(
@@ -918,7 +1057,7 @@ class ExcitationInhibitionNetwork(nn.Module):
                 freeze_excitatory_connectivity=self.freeze_excitatory_connectivity,
                 freeze_inhibitory_connectivity=self.freeze_inhibitory_connectivity,
                 init_method=self.init_method,
-                weight_threshold=self.weight_threshold
+                weight_threshold=self.weight_threshold,
             )
             layers.append(layer)
 
@@ -1095,8 +1234,10 @@ class ExcitationInhibitionNetwork(nn.Module):
     def branch_layers(self):
         all_branch_layers = []
         for ei_layer in self.layers:
-            all_branch_layers.extend(ei_layer.excitatory_cells.branch_layers)
-            all_branch_layers.extend(ei_layer.inhibitory_cells.branch_layers)
+            if ei_layer.excitatory_cells is not None:
+                all_branch_layers.extend(ei_layer.excitatory_cells.branch_layers)
+            if ei_layer.inhibitory_cells is not None:
+                all_branch_layers.extend(ei_layer.inhibitory_cells.branch_layers)
         return all_branch_layers
 
     @property
@@ -1267,7 +1408,7 @@ class MatchedParamMLP(nn.Module):
             somatic_synapses=somatic_synapses,
             output_layer=output_layer,
             output_dim=output_dim,
-            **kwargs
+            **kwargs,
         )
 
         summary = torchinfo.summary(einet, verbose=0)
@@ -1335,54 +1476,72 @@ class SimpleMLPLayer(nn.Module):
     A single layer of a simple MLP with configurable activation function.
     Supports all activation functions from ActivationFactory.
     """
-    def __init__(self, in_features, out_features, activation_type=None, trainable_activation=True, 
-                 activation_wrapper=None, positive_weights=False, init_m=4.0, use_batch_norm=False,
-                 weight_init="kaiming_uniform"):  # Updated default to be more explicit
+
+    def __init__(
+        self,
+        in_features,
+        out_features,
+        activation_type=None,
+        trainable_activation=True,
+        activation_wrapper=None,
+        positive_weights=False,
+        init_m=4.0,
+        use_batch_norm=False,
+        weight_init="kaiming_uniform",
+    ):  # Updated default to be more explicit
         super(SimpleMLPLayer, self).__init__()
         self.in_features = int(in_features)
         self.out_features = int(out_features)
         self.init_m = init_m
         self.use_batch_norm = use_batch_norm
-        
+
         # Linear layer
         self.linear = nn.Linear(self.in_features, self.out_features)
 
         # Initialize weights using selected method
         weight_init = weight_init.lower()  # Normalize to lowercase for comparison
-        
+
         # Kaiming/He initialization variants
-        if weight_init == "kaiming_normal" or weight_init == "kaiming" or weight_init == "he_normal":
+        if (
+            weight_init == "kaiming_normal"
+            or weight_init == "kaiming"
+            or weight_init == "he_normal"
+        ):
             nn.init.kaiming_normal_(self.linear.weight)
         elif weight_init == "kaiming_uniform" or weight_init == "he_uniform":
             nn.init.kaiming_uniform_(self.linear.weight)
-            
+
         # Xavier/Glorot initialization variants
-        elif weight_init == "xavier_normal" or weight_init == "xavier" or weight_init == "glorot_normal":
+        elif (
+            weight_init == "xavier_normal"
+            or weight_init == "xavier"
+            or weight_init == "glorot_normal"
+        ):
             nn.init.xavier_normal_(self.linear.weight)
         elif weight_init == "xavier_uniform" or weight_init == "glorot_uniform":
             nn.init.xavier_uniform_(self.linear.weight)
-            
+
         # Standard normal and uniform initialization
         elif weight_init == "normal":
             nn.init.normal_(self.linear.weight, mean=0.0, std=0.01)
         elif weight_init == "uniform":
             nn.init.uniform_(self.linear.weight, -0.01, 0.01)
-            
+
         # Default to kaiming_normal if unrecognized
         else:
             nn.init.kaiming_uniform_(self.linear.weight)
-            
+
         # Scale weights to [0,1] if positive_weights is True
         if positive_weights:
             with torch.no_grad():
                 self.linear.weight.data = (self.linear.weight.data + 1) / 2
-                
+
         nn.init.zeros_(self.linear.bias)
-        
+
         # Batch normalization layer
         if self.use_batch_norm:
             self.batch_norm = nn.BatchNorm1d(self.out_features)
-        
+
         # Activation function from factory
         if activation_type is not None:
             self.activation = ActivationFactory.create(
@@ -1391,7 +1550,7 @@ class SimpleMLPLayer(nn.Module):
                 init_m=self.init_m,
                 init_b=2.0,
                 trainable=trainable_activation,
-                activation_wrapper=activation_wrapper
+                activation_wrapper=activation_wrapper,
             )
         else:
             self.activation = None
@@ -1406,15 +1565,15 @@ class SimpleMLPLayer(nn.Module):
     def forward(self, x):
         """Forward pass through the layer."""
         x = self.linear(x)
-        
+
         # Apply batch normalization if enabled
         if self.use_batch_norm:
             x = self.batch_norm(x)
-            
+
         # Apply activation if present
         if self.activation is not None:
             x = self.activation(x)
-            
+
         return x
 
 
@@ -1423,12 +1582,13 @@ class SimpleMLPNet(nn.Module):
     A modular MLP implementation that uses SimpleMLPLayer.
     Supports all activation functions from ActivationFactory.
     """
+
     def __init__(
         self,
         input_dim,
         hidden_dim,
         output_dim,
-        nb_layers = 2,  # default to 2-layer network
+        nb_layers=2,  # default to 2-layer network
         activation_type="param_linear_sigmoid",
         weight_decay_rate=None,
         learning_strategy="regression",
@@ -1439,7 +1599,7 @@ class SimpleMLPNet(nn.Module):
         seed=None,
         use_batch_norm=False,  # Batch normalization parameter
         weight_init="kaiming_uniform",  # Updated default value with more options
-        **kwargs
+        **kwargs,
     ):
         super(SimpleMLPNet, self).__init__()
         self.weight_decay_rate = weight_decay_rate
@@ -1452,47 +1612,53 @@ class SimpleMLPNet(nn.Module):
 
         if seed is not None:
             self.set_seed(seed)
-            
+
         # Build multi-layer network
         layers = []
-        
+
         # First layer: input_dim -> hidden_dim
-        layers.append(SimpleMLPLayer(
-            in_features=input_dim,
-            out_features=hidden_dim,
-            activation_type=activation_type,
-            trainable_activation=trainable_activation,
-            activation_wrapper=activation_wrapper,
-            init_m=self.init_m,
-            use_batch_norm=use_batch_norm,
-            weight_init=weight_init
-        ))
-        
-        # Hidden layers: hidden_dim -> hidden_dim
-        for _ in range(nb_layers - 2):
-            layers.append(SimpleMLPLayer(
-                in_features=hidden_dim,
+        layers.append(
+            SimpleMLPLayer(
+                in_features=input_dim,
                 out_features=hidden_dim,
                 activation_type=activation_type,
                 trainable_activation=trainable_activation,
                 activation_wrapper=activation_wrapper,
                 init_m=self.init_m,
                 use_batch_norm=use_batch_norm,
-                weight_init=weight_init
-            ))
-            
+                weight_init=weight_init,
+            )
+        )
+
+        # Hidden layers: hidden_dim -> hidden_dim
+        for _ in range(nb_layers - 2):
+            layers.append(
+                SimpleMLPLayer(
+                    in_features=hidden_dim,
+                    out_features=hidden_dim,
+                    activation_type=activation_type,
+                    trainable_activation=trainable_activation,
+                    activation_wrapper=activation_wrapper,
+                    init_m=self.init_m,
+                    use_batch_norm=use_batch_norm,
+                    weight_init=weight_init,
+                )
+            )
+
         # Output layer: hidden_dim -> output_dim (no activation)
-        layers.append(SimpleMLPLayer(
-            in_features=hidden_dim,
-            out_features=output_dim,
-            activation_type=None,
-            trainable_activation=trainable_activation,
-            activation_wrapper=activation_wrapper,
-            init_m=self.init_m,
-            use_batch_norm=False,  # No batch norm on output layer
-            weight_init=weight_init
-        ))
-        
+        layers.append(
+            SimpleMLPLayer(
+                in_features=hidden_dim,
+                out_features=output_dim,
+                activation_type=None,
+                trainable_activation=trainable_activation,
+                activation_wrapper=activation_wrapper,
+                init_m=self.init_m,
+                use_batch_norm=False,  # No batch norm on output layer
+                weight_init=weight_init,
+            )
+        )
+
         self.layers = nn.ModuleList(layers)
 
     def decay_weights(self, weight_decay=None):
@@ -1501,18 +1667,20 @@ class SimpleMLPNet(nn.Module):
             weight_decay = self.weight_decay_rate
             for layer in self.layers:
                 layer.decay_weights(weight_decay)
-    
+
     def clip_gradients(self):
         """Apply gradient clipping to all parameters."""
         if self.grad_clip_value > 0:
-            torch.nn.utils.clip_grad_norm_(self.parameters(), max_norm=self.grad_clip_value)
-                
+            torch.nn.utils.clip_grad_norm_(
+                self.parameters(), max_norm=self.grad_clip_value
+            )
+
     def forward(self, x):
         """Forward pass through the network."""
         for layer in self.layers:
             x = layer(x)
         return x
-    
+
     def set_seed(self, seed):
         """Set the seed for the network."""
         torch.manual_seed(seed)
@@ -1528,4 +1696,3 @@ class SimpleMLPNet(nn.Module):
     def n_branch_layers(self):
         """Compatibility with existing codebase expectations."""
         return 0
-    

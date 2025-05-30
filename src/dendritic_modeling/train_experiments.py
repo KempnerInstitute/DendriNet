@@ -29,6 +29,7 @@ from dataclasses import asdict
 from datetime import datetime
 from pathlib import Path
 from typing import Optional
+
 import matplotlib.pyplot as plt
 import numpy as np
 import torch
@@ -39,9 +40,11 @@ from tqdm import tqdm
 
 import wandb
 from dendritic_modeling import logger
+from dendritic_modeling.analysis import AnalysisManager
 from dendritic_modeling.config import EINetParameters, load_config
 from dendritic_modeling.learning_strategies import (
     CustomWeightDecayOptimizer,
+    TrainerMLE,
     VoltageStabilizationTrainer,
     extract_weights_from_simple_mlp,
     get_trainer,
@@ -51,18 +54,19 @@ from dendritic_modeling.learning_strategies import (
 )
 from dendritic_modeling.models import (
     Classifier,
+    DeepstRegressor,
     MLPWithClassificationHead,
     ProbabilisticClassifier,
+    Regressor,
     SimpleClassifier,
     SimpleMLP,
-    Regressor,
-    DeepstRegressor,
 )
 from dendritic_modeling.networks import (
     ExcitationInhibitionNetwork,
+    FeatureExtractorMLP,
     InputNetTransform,
     MatchedParamMLP,
-    SigmoidInputNetTransform
+    SigmoidInputNetTransform,
 )
 from dendritic_modeling.plot_utils import plot_NLL_loss_curves
 from dendritic_modeling.synthetic_datasets import get_unified_datasets
@@ -75,7 +79,6 @@ from dendritic_modeling.utils import (
     save_dict,
 )
 from dendritic_modeling.visualization_manager import PlotManager
-from dendritic_modeling.analysis import AnalysisManager
 
 
 def initialize_model(model_cfg, visualization_enabled=False):
@@ -83,11 +86,12 @@ def initialize_model(model_cfg, visualization_enabled=False):
     probabilistic = model_cfg.probabilistic
     net_type = model_cfg.network.type
     net_params = model_cfg.network.parameters
-    config_branch_outputs = getattr(net_params, "enable_branch_outputs", False)
-    enable_branch_outputs = config_branch_outputs or visualization_enabled
+    # Branch outputs are now automatically enabled when needed for analysis
+    enable_branch_outputs = visualization_enabled
     learning_strategy = getattr(net_params, "learning_strategy", "mle")
 
-    logger.info(f"EINet branch outputs enabled: {enable_branch_outputs}")
+    if enable_branch_outputs:
+        logger.info("EINet branch outputs enabled for visualization/analysis")
 
     if task == "classification":
         if net_type == "MLP":
@@ -126,9 +130,7 @@ def initialize_model(model_cfg, visualization_enabled=False):
             raise ValueError(f"Invalid network type: {net_type}")
     elif task == "regression":
         if net_type == "MLP":
-            logger.info(
-                f"Running feedforward with regressor"
-            )
+            logger.info(f"Running feedforward with regressor")
             net_params_dict = OmegaConf.to_container(net_params, resolve=True)
             net = MatchedParamMLP(**net_params_dict)
             output_dim = net_params_dict.get("output_dim", 10)
@@ -137,9 +139,7 @@ def initialize_model(model_cfg, visualization_enabled=False):
             # safe_register_hooks(model)
             return model
         elif net_type == "EINet":
-            logger.info(
-                f"Running EINet with regressor"
-            )
+            logger.info(f"Running EINet with regressor")
             net_params_dict = OmegaConf.to_container(net_params, resolve=True)
             net_params_dict["enable_branch_outputs"] = enable_branch_outputs
             net_params_dict["learning_strategy"] = learning_strategy
@@ -287,7 +287,7 @@ def train_and_evaluate(
     train_cfg,
     visualization_cfg,
     run_save_path,
-    analysis_manager=None
+    analysis_manager=None,
 ):
     learning_strategy = train_cfg.learning_strategy.lower()
     if learning_strategy in ["two_step", "two_step_kl"]:
@@ -422,69 +422,31 @@ def train_and_evaluate(
             plot_epochs = train_cfg.epochs
         plot_NLL_loss_curves(train_losses, valid_losses, plot_epochs, run_save_path)
 
-    logger.info("Evaluating final model performance")
-    if train_cfg.task == "classification":
-        train_acc, valid_acc, test_acc = evaluate_accuracy(
-            model,
-            train_ds,
-            valid_ds,
-            test_ds,
-            save_path=os.path.join(run_save_path, "performance"),
-            filename="final",
-        )
-    elif train_cfg.task == "regression":
-        train_mse, valid_mse, test_mse = evaluate_mse(
-            model,
-            train_ds,
-            valid_ds,
-            test_ds,
-            save_path=os.path.join(run_save_path, "performance"),
-            filename="final",
-        )
-
-    if wandb.run is not None:
-        if train_cfg.task == "classification":
-            wandb.log(
-                {
-                "final_train_acc": train_acc,
-                "final_valid_acc": valid_acc,
-                "final_test_acc": test_acc,
-                }
-            )
-        elif train_cfg.task == "regression":
-            wandb.log(
-                {
-                    "final_train_mse": train_mse,
-                    "final_valid_mse": valid_mse,
-                    "final_test_mse": test_mse,
-                }
-            )
-        else:
-            raise ValueError(f"Invalid task: {train_cfg.task}")
     return results
 
 
 def train_sequential_input_net(
-    model_cfg, 
-    train_cfg, 
-    task_cfg, 
-    train_ds, 
-    valid_ds, 
-    test_ds, 
-    run_save_path, 
-    analysis_manager=None
+    model_cfg,
+    train_cfg,
+    task_cfg,
+    train_ds,
+    valid_ds,
+    test_ds,
+    run_save_path,
+    analysis_manager=None,
 ):
     logger.info("Starting sequential input network training")
     if hasattr(train_ds, "data"):
         input_dim = np.prod(train_ds.data[0].shape)
     else:
-        input_dim = 784
+        input_dim = train_ds[:][0].shape[-1]
     input_net_dict = getattr(model_cfg.network.parameters, "input_net_dict", {})
     hidden_dims = input_net_dict.get("hidden_dims", [128, 64])
     output_dim = input_net_dict.get("output_dim", 64)
     input_net_training = getattr(train_cfg, "input_net_training", {})
     train_input_net = input_net_training.get("train_input_net", True)
     input_net_epochs = input_net_training.get("input_net_epochs", 20)
+    input_net_patience = input_net_training.get("input_net_patience", 10)
     if not train_input_net:
         logger.info("Skipping input network training (train_input_net=False)")
         return initialize_model(model_cfg, visualization_enabled=False)
@@ -518,6 +480,7 @@ def train_sequential_input_net(
             hidden_dims,
             output_dim,
             input_net_epochs,
+            input_net_patience,
             run_save_path,
             analysis_manager=analysis_manager,
         )
@@ -534,7 +497,7 @@ def train_independent_input_nets(
     output_dim,
     input_net_epochs,
     run_save_path,
-    analysis_manager=None
+    analysis_manager=None,
 ):
     final_output_dim = 10
     excit_head_dir = os.path.join(run_save_path, "excit_head_model")
@@ -550,7 +513,7 @@ def train_independent_input_nets(
         test_ds=test_ds,
         epochs=input_net_epochs,
         batch_size=train_cfg.batch_size,
-        lr=train_cfg.optim_dict.get('input_net_lr', 0.001),
+        lr=train_cfg.optim_dict.get("input_net_lr", 0.001),
         run_save_path=excit_head_dir,
     )
     save_model(excit_feature_extractor, run_save_path, "excit_feature_extractor.pt")
@@ -578,7 +541,7 @@ def train_independent_input_nets(
         test_ds=test_ds,
         epochs=input_net_epochs,
         batch_size=train_cfg.batch_size,
-        lr=train_cfg.optim_dict.get('input_net_lr', 0.001),
+        lr=train_cfg.optim_dict.get("input_net_lr", 0.001),
         run_save_path=inhib_head_dir,
     )
     save_model(inhib_feature_extractor, run_save_path, "inhib_feature_extractor.pt")
@@ -648,59 +611,91 @@ def train_single_input_net(
     hidden_dims,
     output_dim,
     input_net_epochs,
+    input_net_patience,
     run_save_path,
-    analysis_manager=None
+    analysis_manager=None,
 ):
     final_output_dim = 10
     mlp_model_dir = os.path.join(run_save_path, "mlp_model")
     os.makedirs(mlp_model_dir, exist_ok=True)
     logger.info("Training MLP feature extractor")
-    feature_extractor = SimpleMLP(input_dim, hidden_dims, output_dim)
-    feature_extractor, metrics = train_mlp_with_classification_head(
-        feature_extractor,
-        num_features=output_dim,
-        num_classes=final_output_dim,
-        train_ds=train_ds,
-        valid_ds=valid_ds,
-        test_ds=test_ds,
+    feature_extractor = FeatureExtractorMLP(
+        input_dim=input_dim, hidden_dims=hidden_dims, output_dim=final_output_dim
+    )
+    clf = ProbabilisticClassifier(
+        net=feature_extractor, output_dim=final_output_dim, use_output_layer=False
+    )
+    trainer = TrainerMLE(
+        optimizer=torch.optim.Adam(
+            clf.parameters(), lr=train_cfg.optim_dict.get("input_net_lr", 0.001)
+        )
+    )
+    trainer.train(
+        model=clf,
+        train_data=train_ds,
+        valid_data=valid_ds,
         epochs=input_net_epochs,
         batch_size=train_cfg.batch_size,
-        lr=train_cfg.optim_dict.get('input_net_lr', 0.001),
-        run_save_path=mlp_model_dir,
+        early_stopping=True,
+        patience=input_net_patience,
+        plot_losses=True,
+        save_path=mlp_model_dir,
     )
-    save_model(feature_extractor, run_save_path, "feature_extractor.pt")
-    logger.info(
-        f"Feature extractor metrics: train={metrics[0]:.4f}, valid={metrics[1]:.4f}, test={metrics[2]:.4f}"
-    )
-    if wandb.run is not None:
-        wandb.log(
-            {
-                "feature_extractor_train_acc": metrics[0],
-                "feature_extractor_valid_acc": metrics[1],
-                "feature_extractor_test_acc": metrics[2],
-            }
-        )
+
+    # feature_extractor = SimpleMLP(input_dim, hidden_dims, output_dim)
+    # feature_extractor, metrics = train_mlp_with_classification_head(
+    #     feature_extractor,
+    #     num_features=output_dim,
+    #     num_classes=final_output_dim,
+    #     train_ds=train_ds,
+    #     valid_ds=valid_ds,
+    #     test_ds=test_ds,
+    #     epochs=input_net_epochs,
+    #     batch_size=train_cfg.batch_size,
+    #     lr=train_cfg.optim_dict.get('input_net_lr', 0.001),
+    #     run_save_path=mlp_model_dir,
+    # )
+    save_model(clf.net, run_save_path, "feature_extractor.pt")
+    # logger.info(
+    #     f"Feature extractor metrics: train={metrics[0]:.4f}, valid={metrics[1]:.4f}, test={metrics[2]:.4f}"
+    # )
+    # if wandb.run is not None:
+    #     wandb.log(
+    #         {
+    #             "feature_extractor_train_acc": metrics[0],
+    #             "feature_extractor_valid_acc": metrics[1],
+    #             "feature_extractor_test_acc": metrics[2],
+    #         }
+    #     )
     model = initialize_model(model_cfg, visualization_enabled=False)
     logger.info("Creating input network with sigmoid activation")
-    new_input_net = SigmoidInputNetTransform(
-        input_dim=input_dim,
-        hidden_dims=hidden_dims,
-        output_dim=output_dim,
-        network_type=model_cfg.network.parameters.input_net_dict.get(
-            "type", "MLPInputTransform"
-        ),
-    )
+    # new_input_net = SigmoidInputNetTransform(
+    #     input_dim=input_dim,
+    #     hidden_dims=hidden_dims,
+    #     output_dim=output_dim,
+    #     network_type=model_cfg.network.parameters.input_net_dict.get(
+    #         "type", "MLPInputTransform"
+    #     ),
+    # )
     logger.info("Transferring weights to input network")
-    extract_weights_from_simple_mlp(feature_extractor, new_input_net)
-    if hasattr(model, "net") and hasattr(model.net, "input_net"):
-        model.net.input_net = new_input_net
-    elif hasattr(model, "network") and hasattr(model.network, "input_net"):
-        model.network.input_net = new_input_net
+    if hasattr(model, "net"):
+        if hasattr(model.net, "input_net"):
+            if hasattr(model.net.input_net, "input_transform"):
+                model.net.input_net.input_transform.load_state_dict(
+                    clf.net.state_dict()
+                )
+                model.net.input_net.input_transform.set_readout(False)
+                model.net.input_net.input_transform.disable_grad()
+    # # extract_weights_from_simple_mlp(feature_extractor, new_input_net)
+    # if hasattr(model, "net") and hasattr(model.net, "input_net"):
+    #     model.net.input_net = new_input_net
+    # elif hasattr(model, "network") and hasattr(model.network, "input_net"):
+    #     model.network.input_net = new_input_net
     else:
         logger.warning(
             "Could not set input network in model - model structure may be incompatible"
         )
-    save_model(new_input_net, run_save_path, "input_net_with_sigmoid.pt")
+    # save_model(new_input_net, run_save_path, "input_net_with_sigmoid.pt")
     logger.info("Training full model with pretrained input network")
     optimizer = CustomWeightDecayOptimizer(
         model=model,
@@ -721,18 +716,18 @@ def train_single_input_net(
         plot_losses=True,
         save_path=run_save_path,
     )
-    save_model(model, run_save_path, "full_model.pt")
+    save_model(model, run_save_path, "final_model.pt")
     return model
 
 
 def run_analysis(
-    model, 
-    train_ds, 
-    valid_ds, 
-    test_ds, 
-    visualization_cfg, 
+    model,
+    train_ds,
+    valid_ds,
+    test_ds,
+    visualization_cfg,
     run_save_path,
-    analysis_manager: Optional[AnalysisManager] = None
+    analysis_manager: Optional[AnalysisManager] = None,
 ):
     data = {"train": train_ds, "valid": valid_ds, "test": test_ds}
     device = "cuda" if torch.cuda.is_available() else "cpu"
@@ -774,7 +769,7 @@ def run_analysis(
                 logger.error(traceback.format_exc())
     else:
         logger.info("Visualization is disabled. Skipping plot generation.")
-    
+
     logger.info("Running analyses...")
     if analysis_manager is not None:
         analysis_manager.run_analysis()
@@ -802,6 +797,7 @@ def train_and_evaluate_main(config_path, args=None):
     outputs_cfg = config.outputs
     visualization_cfg = config.visualization
     analysis_cfg = config.analysis
+    train_cfg.task = model_cfg.task
     (
         run_save_path,
         model,
@@ -842,7 +838,8 @@ def train_and_evaluate_main(config_path, args=None):
         data={"train": train_ds, "valid": valid_ds, "test": test_ds},
         analysis_config=analysis_cfg,
         save_root=run_save_path,
-        device="cuda" if torch.cuda.is_available() else "cpu"
+        device="cuda" if torch.cuda.is_available() else "cpu",
+        train_config=asdict(train_cfg),
     )
 
     input_mode = getattr(model_cfg.network.parameters, "input_mode", 0)
@@ -853,10 +850,14 @@ def train_and_evaluate_main(config_path, args=None):
     if sequential_training:
         logger.info("Using sequential training mode")
         model = train_sequential_input_net(
-            model_cfg, train_cfg, task_cfg, 
-            train_ds, valid_ds, test_ds, 
-            run_save_path, 
-            analysis_manager=analysis_manager
+            model_cfg,
+            train_cfg,
+            task_cfg,
+            train_ds,
+            valid_ds,
+            test_ds,
+            run_save_path,
+            analysis_manager=analysis_manager,
         )
         results = {
             "train_acc": evaluate_accuracy(model, train_ds),
@@ -865,7 +866,6 @@ def train_and_evaluate_main(config_path, args=None):
         }
     else:
         logger.info("Using standard training mode")
-        train_cfg.task = model_cfg.task
         results = train_and_evaluate(
             model,
             train_ds,
@@ -878,6 +878,13 @@ def train_and_evaluate_main(config_path, args=None):
             analysis_manager=analysis_manager,
         )
 
+    nparams = 0
+    for param in model.parameters():
+        nparams += param.numel()
+    if wandb.run is not None:
+        wandb.log({"nparams": nparams})
+    save_dict({"nparams": nparams}, run_save_path, "nparams")
+
     run_analysis(
         model=model,
         train_ds=train_ds,
@@ -885,7 +892,7 @@ def train_and_evaluate_main(config_path, args=None):
         test_ds=test_ds,
         visualization_cfg=visualization_cfg,
         run_save_path=run_save_path,
-        analysis_manager=analysis_manager
+        analysis_manager=analysis_manager,
     )
 
     if (
