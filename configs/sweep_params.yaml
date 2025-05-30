@@ -45,7 +45,6 @@ train_config:
         reactivation_strategy: "inverse"
         blocklinear_strategy: "block_conductance_dynamic"
 
-        enable_branch_outputs: false
         output_layer: false
         output_dim: 10
 
@@ -76,7 +75,7 @@ train_config:
       topk_lr: 0.01  # learning rate for topk layers
       blocklinear_lr: 0.001  # learning rate for blocklinear layers
       reactivation_lr: 0.001  # learning rate for reactivation layers
-      output_layer_lr: 0.001  # learning rate for output layer  
+      output_layer_lr: 0.001  # learning rate for output layer
     epochs: 50
     batch_size: 1024
     grad_clip_value: 5
@@ -118,8 +117,15 @@ train_config:
       - gradients
       - branch_ablation
       - layer_ablation
-  
+
   analysis:
+    performance_analysis:
+      enabled: true
+      training: false
+      params:
+        accuracy: true
+        categorical_loglikelihood: true
+        mse: false
     ei_info_analysis:
       enabled: false
       training: false
@@ -143,6 +149,47 @@ train_config:
         n_samples: 10
         accuracy: true
         categorical_loglikelihood: true
+    ablation_analysis:
+      enabled: false
+      training: false
+      params:
+        ablate_all_synapses: true
+        ablate_excitation: true
+        ablate_inhibition: true
+        ablate_branches: true
+        accuracy: true
+        categorical_loglikelihood: true
+    weight_analysis:
+      enabled: false
+      training: false
+      params:
+        synapse_weights: true
+        branch_weights: true
+    synaptic_activation_analysis:
+      enabled: false
+      training: false
+      params:
+        network_summary: true
+        layer_summary: true
+        branch_summary: true
+        raw_summary: true
+        logspace: false
+        downsample: true
+        samples: 5
+    branch_activation_analysis:
+      enabled: false
+      training: false
+      params:
+        synapse_activations: true
+        branch_activations: true
+        network_summary: true
+        layer_summary: true
+        branch_summary: true
+        raw_summary: true
+        logspace: false
+        downsample: true
+        samples: 5
+
 
   outputs:
     dir:

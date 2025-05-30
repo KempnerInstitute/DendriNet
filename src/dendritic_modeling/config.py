@@ -54,7 +54,6 @@ class EINetParameters(BaseConfig):
     input_net_dict: Dict[str, Any] = field(
         default_factory=dict
     )  # Input network configuration
-    enable_branch_outputs: bool = True
     output_layer: bool = False
     output_dim: int = 10
     excitatory_target_density: float = 0.1
@@ -128,12 +127,17 @@ class VisualizationConfig(BaseConfig):
 
 @dataclass
 class AnalysisConfig(BaseConfig):
+    performance_analysis: Dict = field(default_factory=dict)
     ei_info_analysis: Dict = field(default_factory=dict)
     synapse_turnover_analysis: Dict = field(default_factory=dict)
     noise_perturbation_analysis: Dict = field(default_factory=dict)
+    single_layer_contribution: Dict = field(default_factory=dict)
+    synaptic_ablation: Dict = field(default_factory=dict)
+    branch_information: Dict = field(default_factory=dict)
     ablation_analysis: Dict = field(default_factory=dict)
     weight_analysis: Dict = field(default_factory=dict)
-    activation_analysis: Dict = field(default_factory=dict)
+    synaptic_activation_analysis: Dict = field(default_factory=dict)
+    branch_activation_analysis: Dict = field(default_factory=dict)
 
 
 @dataclass
