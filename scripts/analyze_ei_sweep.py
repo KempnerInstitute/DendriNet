@@ -299,12 +299,31 @@ def extract_metrics_from_final_file(perf_dir, task_id=-1):
         try:
             data = json.loads(content)
 
-            # Extract metrics
-            metrics = {
-                "train_acc": data.get("train accuracy", float("nan")),
-                "val_acc": data.get("valid accuracy", float("nan")),
-                "test_acc": data.get("test accuracy", float("nan")),
-            }
+            # Handle both old and new formats
+            metrics = {}
+
+            # New nested format: {"accuracy": {"train": 0.4, "valid": 0.39, "test": 0.39}}
+            if "accuracy" in data and isinstance(data["accuracy"], dict):
+                metrics = {
+                    "train_acc": data["accuracy"].get("train", float("nan")),
+                    "val_acc": data["accuracy"].get("valid", float("nan")),
+                    "test_acc": data["accuracy"].get("test", float("nan")),
+                }
+                if task_id < 5:  # Debug output for sample tasks
+                    print(
+                        f"Task {task_id}: Using new nested format, extracted metrics: {metrics}"
+                    )
+            # Old flat format: {"train accuracy": 0.4, "valid accuracy": 0.39, "test accuracy": 0.39}
+            else:
+                metrics = {
+                    "train_acc": data.get("train accuracy", float("nan")),
+                    "val_acc": data.get("valid accuracy", float("nan")),
+                    "test_acc": data.get("test accuracy", float("nan")),
+                }
+                if task_id < 5:  # Debug output for sample tasks
+                    print(
+                        f"Task {task_id}: Using old flat format, extracted metrics: {metrics}"
+                    )
 
             if task_id < 5:  # Debug output for sample tasks
                 print(f"Successfully extracted metrics from final file: {metrics}")
@@ -646,6 +665,8 @@ def collect_results(exp_dir, params_df):
                     perf_dir = os.path.join(root, "performance")
                     if os.path.exists(os.path.join(perf_dir, "final")):
                         final_file = os.path.join(perf_dir, "final")
+                        if task_id < 5:  # Debug output for sample tasks
+                            print(f"Task {task_id}: Found final file at {final_file}")
                         break
 
             # If not found, look for any final file
@@ -653,10 +674,16 @@ def collect_results(exp_dir, params_df):
                 for root, dirs, files in os.walk(config_path):
                     if "final" in files:
                         final_file = os.path.join(root, "final")
+                        if task_id < 5:  # Debug output for sample tasks
+                            print(
+                                f"Task {task_id}: Found final file (fallback) at {final_file}"
+                            )
                         break
 
             # Extract metrics if final file was found
             if final_file:
+                if task_id < 5:  # Debug output for sample tasks
+                    print(f"Task {task_id}: About to extract metrics from {final_file}")
                 try:
                     with open(final_file, "r") as f:
                         content = f.read()
@@ -668,11 +695,32 @@ def collect_results(exp_dir, params_df):
                     # Try to parse as JSON
                     try:
                         data = json.loads(content)
-                        metrics = {
-                            "train_acc": data.get("train accuracy", float("nan")),
-                            "val_acc": data.get("valid accuracy", float("nan")),
-                            "test_acc": data.get("test accuracy", float("nan")),
-                        }
+
+                        # Handle both old and new formats
+                        # New nested format: {"accuracy": {"train": 0.4, "valid": 0.39, "test": 0.39}}
+                        if "accuracy" in data and isinstance(data["accuracy"], dict):
+                            metrics = {
+                                "train_acc": data["accuracy"].get(
+                                    "train", float("nan")
+                                ),
+                                "val_acc": data["accuracy"].get("valid", float("nan")),
+                                "test_acc": data["accuracy"].get("test", float("nan")),
+                            }
+                            if task_id < 5:  # Debug output for sample tasks
+                                print(
+                                    f"Task {task_id}: Using new nested format, extracted metrics: {metrics}"
+                                )
+                        # Old flat format: {"train accuracy": 0.4, "valid accuracy": 0.39, "test accuracy": 0.39}
+                        else:
+                            metrics = {
+                                "train_acc": data.get("train accuracy", float("nan")),
+                                "val_acc": data.get("valid accuracy", float("nan")),
+                                "test_acc": data.get("test accuracy", float("nan")),
+                            }
+                            if task_id < 5:  # Debug output for sample tasks
+                                print(
+                                    f"Task {task_id}: Using old flat format, extracted metrics: {metrics}"
+                                )
                     except json.JSONDecodeError:
                         # If JSON parsing fails, try regex extraction
                         train_match = re.search(
@@ -1604,7 +1652,9 @@ def process_single_experiment(exp_dir, show_plots=False, report_missing=False):
 
     # 3. Generate plots and analysis
     try:
-        generate_plots(results_df, params_df, exp_dir, "ei_sweep")
+        # Clean the results data before plotting to ensure ei_ratio column exists
+        clean_results = clean_results_data(results_df)
+        generate_plots(clean_results, params_df, exp_dir, "ei_sweep")
     except Exception as e:
         print(f"Error generating plots: {e}")
         traceback.print_exc()
@@ -2363,7 +2413,7 @@ def plot_ablation_vs_ei_ratio(ablation_df, output_dir):
                 ax.plot(
                     grouped.index,
                     grouped["both_drop"],
-                    "o-",
+                    marker="o",
                     color="purple",
                     linestyle=linestyle,
                     label=f"Both E+I{label_suffix}",
@@ -2372,7 +2422,7 @@ def plot_ablation_vs_ei_ratio(ablation_df, output_dir):
                 ax.plot(
                     grouped.index,
                     grouped["exc_drop"],
-                    "s-",
+                    marker="s",
                     color="red",
                     linestyle=linestyle,
                     label=f"Excitatory{label_suffix}",
@@ -2381,7 +2431,7 @@ def plot_ablation_vs_ei_ratio(ablation_df, output_dir):
                 ax.plot(
                     grouped.index,
                     grouped["inh_drop"],
-                    "^-",
+                    marker="^",
                     color="blue",
                     linestyle=linestyle,
                     label=f"Inhibitory{label_suffix}",
@@ -2420,7 +2470,7 @@ def plot_ablation_vs_ei_ratio(ablation_df, output_dir):
             ax.plot(
                 data.index,
                 data["both_drop"],
-                "o-",
+                marker="o",
                 color="purple",
                 label="Both E+I",
                 linewidth=2,
@@ -2429,7 +2479,7 @@ def plot_ablation_vs_ei_ratio(ablation_df, output_dir):
             ax.plot(
                 data.index,
                 data["exc_drop"],
-                "s-",
+                marker="s",
                 color="red",
                 label="Excitatory only",
                 linewidth=2,
@@ -2438,7 +2488,7 @@ def plot_ablation_vs_ei_ratio(ablation_df, output_dir):
             ax.plot(
                 data.index,
                 data["inh_drop"],
-                "^-",
+                marker="^",
                 color="blue",
                 label="Inhibitory only",
                 linewidth=2,
@@ -2498,7 +2548,7 @@ def plot_contribution_vs_ei_ratio(contribution_df, output_dir):
                 ax.plot(
                     grouped.index,
                     grouped["isolated_baseline_acc"],
-                    "o-",
+                    marker="o",
                     color="purple",
                     linestyle=linestyle,
                     label=f"Both E+I{label_suffix}",
@@ -2507,7 +2557,7 @@ def plot_contribution_vs_ei_ratio(contribution_df, output_dir):
                 ax.plot(
                     grouped.index,
                     grouped["isolated_exc_only_acc"],
-                    "s-",
+                    marker="s",
                     color="red",
                     linestyle=linestyle,
                     label=f"Excitatory only{label_suffix}",
@@ -2516,7 +2566,7 @@ def plot_contribution_vs_ei_ratio(contribution_df, output_dir):
                 ax.plot(
                     grouped.index,
                     grouped["isolated_inh_only_acc"],
-                    "^-",
+                    marker="^",
                     color="blue",
                     linestyle=linestyle,
                     label=f"Inhibitory only{label_suffix}",
@@ -2557,8 +2607,9 @@ def plot_contribution_vs_ei_ratio(contribution_df, output_dir):
             ax.plot(
                 data.index,
                 data["isolated_baseline_acc"],
-                "o-",
+                marker="o",
                 color="purple",
+                linestyle=linestyle,
                 label="Both E+I",
                 linewidth=2,
                 markersize=8,
@@ -2566,8 +2617,9 @@ def plot_contribution_vs_ei_ratio(contribution_df, output_dir):
             ax.plot(
                 data.index,
                 data["isolated_exc_only_acc"],
-                "s-",
+                marker="s",
                 color="red",
+                linestyle=linestyle,
                 label="Excitatory only",
                 linewidth=2,
                 markersize=8,
@@ -2575,8 +2627,9 @@ def plot_contribution_vs_ei_ratio(contribution_df, output_dir):
             ax.plot(
                 data.index,
                 data["isolated_inh_only_acc"],
-                "^-",
+                marker="^",
                 color="blue",
+                linestyle=linestyle,
                 label="Inhibitory only",
                 linewidth=2,
                 markersize=8,

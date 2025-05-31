@@ -209,6 +209,14 @@ train_config:
         downsample: true
         samples: 5
 
+    # Single layer contribution analysis (formerly layer_ablation)
+    # Isolates each layer to test what it can achieve on its own
+    single_layer_contribution:
+      enabled: true  # whether to enable single layer contribution analysis
+      training: false  # Whether to run during training
+      params:
+        save_plots: true
+        save_csv: true
 
     # Synaptic ablation analysis (formerly branch_ablation)
     # Removes specific synapses while keeping the rest of the network intact
