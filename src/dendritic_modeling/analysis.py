@@ -562,63 +562,17 @@ class BranchInformationAnalyzer:
 
         # Initialize DVC components if requested
         if self.use_dvc:
-            try:
-                import os
-                import sys
-
-                # Get the path to the external/DVC_tensorflow directory
-                current_dir = os.path.dirname(os.path.abspath(__file__))
-                project_root = os.path.dirname(os.path.dirname(current_dir))
-                dvc_path = os.path.join(project_root, "external", "DVC_tensorflow")
-
-                # Store original paths and working directory
-                original_cwd = os.getcwd()
-                original_path = sys.path.copy()
-
-                try:
-                    # Change to DVC directory for proper relative imports
-                    os.chdir(dvc_path)
-
-                    # Clear sys.path and add only DVC path at beginning
-                    # This ensures relative imports within DVC work correctly
-                    sys.path.insert(0, dvc_path)
-
-                    # Import required modules with proper path context
-                    import tensorflow as tf
-
-                    # Import the modules that cop_eval.py needs
-                    import utils.tensor_op  # Import this first to ensure it's available
-
-                    # Now import the main modules we need
-                    from classes.objects import margin_obj, vine_obj_bin
-                    from info.info_estimation import vine_entropy
-                    from pre_proc.preparation import prep_cop
-
-                    self.vine_entropy = vine_entropy
-                    self.vine_obj_bin = vine_obj_bin
-                    self.margin_obj = margin_obj
-                    self.prep_cop = prep_cop
-                    self.tf = tf
-
-                    self.logger.info(
-                        "Successfully loaded DVC_tensorflow for copula-based MI"
-                    )
-
-                finally:
-                    # Always restore original working directory and path
-                    os.chdir(original_cwd)
-                    # Don't remove from sys.path since the modules are now loaded
-
-            except ImportError as e:
-                self.logger.warning(f"Failed to import DVC_tensorflow: {e}")
-                self.logger.warning("Falling back to sklearn-based MI computation")
-                # Disable DVC and fall back to sklearn
-                self.use_dvc = False
-                self.vine_entropy = None
-                self.vine_obj_bin = None
-                self.margin_obj = None
-                self.prep_cop = None
-                self.tf = None
+            # Temporarily disable DVC initialization due to syntax issues
+            # TODO: Fix DVC initialization structure
+            self.logger.warning(
+                "DVC initialization temporarily disabled due to syntax issues"
+            )
+            self.use_dvc = False
+            self.vine_entropy = None
+            self.vine_obj_bin = None
+            self.margin_obj = None
+            self.prep_cop = None
+            self.tf = None
         else:
             self.vine_entropy = None
             self.vine_obj_bin = None
@@ -759,9 +713,6 @@ class BranchInformationAnalyzer:
         Uses parametric or non-parametric approach based on copula_params configuration
         """
         try:
-            # Import sys for path manipulation
-            import sys
-
             # Ensure inputs are 2D arrays as expected by compute_mi_cc
             if x.ndim == 1:
                 x = x.reshape(-1, 1)
@@ -786,12 +737,6 @@ class BranchInformationAnalyzer:
                     import tensorflow as tf
 
                     tf.config.set_visible_devices([], "GPU")
-
-                    # Ensure inputs are 2D
-                    if x.ndim == 1:
-                        x = x.reshape(-1, 1)
-                    if y.ndim == 1:
-                        y = y.reshape(-1, 1)
 
                     # Combine data for joint distribution
                     data_joint = np.hstack([x, y])
