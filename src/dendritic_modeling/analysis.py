@@ -701,6 +701,12 @@ class BranchInformationAnalyzer:
             x_class = x[mask]
             y_class = y[mask]
 
+            # Ensure inputs are 2D arrays as expected by compute_mi_cc
+            if x_class.ndim == 1:
+                x_class = x_class.reshape(-1, 1)
+            if y_class.ndim == 1:
+                y_class = y_class.reshape(-1, 1)
+
             # Compute MI for this class
             mi_class = compute_mi_cc(x_class, y_class, self.n_neighbors)
             cmi_values.append(mi_class)
