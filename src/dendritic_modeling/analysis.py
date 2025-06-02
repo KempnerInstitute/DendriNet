@@ -986,9 +986,9 @@ class BranchInformationAnalyzer:
             for key in all_data:
                 all_data[key] = np.array(all_data[key])
 
-            if len(all_data["E"]) == 0:
-                self.logger.warning("No branch data collected. Skipping analysis.")
-                return {}
+        if len(all_data["E"]) == 0:
+            self.logger.warning("No branch data collected. Skipping analysis.")
+            return {}
 
         # Compute information metrics
         if self.compute_per_branch:
