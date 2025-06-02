@@ -12,6 +12,7 @@ This script:
     - Line plots showing metric vs. IE (with up to 5 representative EE value lines) per network category.
     - Line plots showing metric vs. EE (with up to 5 representative IE value lines) per network category.
     - Line plots showing metric vs. E/I Ratio per network category.
+    - Branch information analysis plots showing E/I information content vs. E/I ratio.
 4. Reports missing or unfinished runs.
 5. Creates a `network_comparison_summary.txt` detailing generated comparison plots.
 
@@ -1310,6 +1311,69 @@ def generate_plots(results_df, params_df, output_dir, base_name):
         print(
             f"Created accuracy vs E/I ratio plots for {len(categories)} network categories."
         )
+
+        # 1b. PLOT ACCURACY VS E/I RATIO CURVES WITH LINEAR SCALE
+        for metric in metrics:
+            if metric not in valid_data.columns or valid_data[metric].isna().all():
+                print(f"Skipping linear {metric} plot - no valid data")
+                continue
+
+            # Generate linear scale plot for this metric
+            fig, ax = plt.subplots(figsize=(10, 6))
+
+            # Get unique categories
+            categories = valid_data["network_category"].unique()
+
+            for category in categories:
+                category_data = valid_data[valid_data["network_category"] == category]
+
+                if category_data.empty or category_data[metric].isna().all():
+                    continue
+
+                # Group by ei_ratio for aggregation
+                agg_dict = {metric: ["mean", "std", "count"]}
+                grouped = category_data.groupby("ei_ratio").agg(agg_dict).reset_index()
+
+                # Sort by ei_ratio for proper line plotting
+                grouped = grouped.sort_values("ei_ratio")
+
+                # Plot with error bars
+                color = colors.get(category, "black")
+                marker = markers.get(category, "o")
+
+                ax.errorbar(
+                    grouped["ei_ratio"],
+                    grouped[(metric, "mean")],
+                    yerr=grouped[(metric, "std")],
+                    label=f"{category} (n={len(category_data)})",
+                    marker=marker,
+                    color=color,
+                    linestyle="-",
+                    alpha=0.8,
+                    capsize=3,
+                )
+
+            ax.set_xlabel("E/I Ratio")
+            ax.set_ylabel(metric_names[metric])
+            ax.set_title(
+                f"{metric_names[metric]} vs E/I Ratio by Network Type (Linear Scale)"
+            )
+            ax.legend()
+            ax.grid(True, alpha=0.3)
+
+            # Use linear scale instead of log scale
+            # No ax.set_xscale("log")
+
+            # Save the linear scale plot
+            fig.tight_layout()
+            fig.savefig(
+                os.path.join(plot_dir, f"{base_name}_{metric}_vs_ei_ratio_linear.png")
+            )
+            plt.close(fig)
+
+        print(
+            f"Created linear scale accuracy vs E/I ratio plots for {len(categories)} network categories."
+        )
     else:
         print("No valid data for accuracy vs E/I ratio curves.")
 
@@ -2035,13 +2099,23 @@ def extract_metrics_and_params(data, metrics_dict, params_dict, source=""):
 def main():
     """Main function"""
     args = parse_args()
-    exp_dir = args.folder
+
+    # Handle the experiment directory input
+    if args.folder:
+        exp_dir = args.folder
+    elif args.timestamp:
+        exp_dir = find_experiment_directory(args.timestamp, args.output_base)
+    else:
+        print("Error: Must provide either --folder or --timestamp")
+        return
 
     # Set up output directory
     if args.output:
         output_dir = args.output
     else:
         output_dir = exp_dir
+
+    print(f"Analyzing experiment directory: {exp_dir}")
 
     # Step 1: Get parameter data from config files
     print("Collecting parameter data from config files...")
@@ -2116,6 +2190,30 @@ def main():
             )
     else:
         print("No ablation or contribution data found.")
+
+    # Step 5: Collect and analyze branch information results
+    print("\nCollecting branch information results...")
+    branch_info_df = collect_branch_information_results(exp_dir)
+
+    if not branch_info_df.empty:
+        print(f"Found {len(branch_info_df)} branch information results")
+
+        # Merge with parameters
+        branch_info_df = merge_branch_information_with_params(
+            branch_info_df,
+            params_df_clean if "params_df_clean" in locals() else params_df,
+        )
+
+        # Generate branch information plots
+        print("Generating branch information plots...")
+        plot_branch_information_vs_ei_ratio(branch_info_df, plot_dir)
+
+        # Save the data
+        branch_info_df.to_csv(
+            os.path.join(plot_dir, "branch_information_results.csv"), index=False
+        )
+    else:
+        print("No branch information data found.")
 
     print(f"\nAnalysis complete. Plot files saved to {plot_dir}")
 
@@ -2696,6 +2794,665 @@ def plot_contribution_vs_ei_ratio(contribution_df, output_dir):
     plt.close()
 
     print(f"Saved contribution plots to {contribution_dir}")
+
+
+def collect_branch_information_results(exp_dir):
+    """Collect branch information analysis results from the experiment directory"""
+    branch_info_data = []
+    results_dir = os.path.join(exp_dir, "results")
+
+    # Find all config folders
+    config_folders = glob.glob(os.path.join(results_dir, "config_*"))
+
+    for config_folder in config_folders:
+        # Extract task_id
+        task_id_match = re.search(r"config_(\d+)", os.path.basename(config_folder))
+        if not task_id_match:
+            continue
+        task_id = int(task_id_match.group(1))
+
+        # Find the experiment run folder (usually there's only one per config)
+        run_folders = glob.glob(os.path.join(config_folder, "*"))
+        for run_folder in run_folders:
+            if not os.path.isdir(run_folder):
+                continue
+
+            # Look for branch information results (both per-branch and pooled)
+            branch_info_dir = os.path.join(run_folder, "branch_information")
+            if os.path.exists(branch_info_dir):
+                # Try to find CSV files
+                csv_files = glob.glob(os.path.join(branch_info_dir, "*.csv"))
+
+                for csv_file in csv_files:
+                    try:
+                        df = pd.read_csv(csv_file)
+                        # Add task_id and source info
+                        df["task_id"] = task_id
+
+                        # Determine analysis type from filename
+                        filename = os.path.basename(csv_file)
+                        if "per_branch" in filename:
+                            df["analysis_type"] = "per_branch"
+                        elif "pooled" in filename:
+                            df["analysis_type"] = "pooled"
+                        else:
+                            df["analysis_type"] = "unknown"
+
+                        # Extract epoch if available
+                        epoch_match = re.search(r"epoch_(\d+)", filename)
+                        if epoch_match:
+                            df["epoch"] = int(epoch_match.group(1))
+                        else:
+                            df["epoch"] = 0  # Default epoch
+
+                        branch_info_data.append(df)
+
+                    except Exception as e:
+                        print(
+                            f"Error reading branch information data for task {task_id} from {csv_file}: {e}"
+                        )
+
+    # Combine all dataframes
+    branch_info_df = (
+        pd.concat(branch_info_data, ignore_index=True)
+        if branch_info_data
+        else pd.DataFrame()
+    )
+
+    return branch_info_df
+
+
+def merge_branch_information_with_params(branch_info_df, params_df):
+    """Merge branch information data with parameter information"""
+    if branch_info_df.empty:
+        return branch_info_df
+
+    # Merge with parameters
+    branch_info_df = branch_info_df.merge(
+        params_df[["task_id", "ee_value", "ie_value", "use_shunting"]],
+        on="task_id",
+        how="left",
+    )
+
+    # Calculate E/I ratio
+    branch_info_df["ei_ratio"] = branch_info_df["ee_value"] / (
+        branch_info_df["ie_value"] + 1e-6
+    )
+
+    return branch_info_df
+
+
+def plot_branch_information_vs_ei_ratio(branch_info_df, output_dir):
+    """Plot branch information analysis results vs E/I ratio"""
+    if branch_info_df.empty:
+        print("No branch information data to plot")
+        return
+
+    # Create output directory for branch information plots
+    branch_info_dir = os.path.join(output_dir, "branch_information_analysis")
+    os.makedirs(branch_info_dir, exist_ok=True)
+
+    # Color schemes for consistent plotting
+    colors = {
+        "excitatory": "#FF6B6B",  # Red for excitatory
+        "inhibitory": "#4ECDC4",  # Teal for inhibitory
+        "combined": "#45B7D1",  # Blue for combined/output
+        "conditional": "#96CEB4",  # Green for conditional
+    }
+
+    # Define information metrics to plot
+    metric_groups = {
+        "class_information": {
+            "metrics": ["I_E_C", "I_I_C", "I_V_C"],
+            "labels": ["Excitatory-Class MI", "Inhibitory-Class MI", "Output-Class MI"],
+            "colors": [colors["excitatory"], colors["inhibitory"], colors["combined"]],
+            "title": "Information with Class Labels vs E/I Ratio",
+        },
+        "component_information": {
+            "metrics": ["I_E_I", "I_E_V", "I_I_V"],
+            "labels": [
+                "Excitatory-Inhibitory MI",
+                "Excitatory-Output MI",
+                "Inhibitory-Output MI",
+            ],
+            "colors": ["purple", "orange", "brown"],
+            "title": "Component Information vs E/I Ratio",
+        },
+        "conditional_information": {
+            "metrics": ["I_E_I_given_C", "I_E_V_given_C", "I_I_V_given_C"],
+            "labels": [
+                "E-I given Class MI",
+                "E-V given Class MI",
+                "I-V given Class MI",
+            ],
+            "colors": [colors["conditional"], "darkgreen", "forestgreen"],
+            "title": "Conditional Information vs E/I Ratio",
+        },
+        "information_difference": {
+            "metrics": ["I_E_I_diff", "I_E_V_diff", "I_I_V_diff"],
+            "labels": ["E-I Info Loss", "E-V Info Loss", "I-V Info Loss"],
+            "colors": ["darkred", "darkorange", "darkblue"],
+            "title": "Information Loss (Non-conditional - Conditional) vs E/I Ratio",
+        },
+        "dendritic_output_ratio": {
+            "metrics": ["dendritic_output_ratio"],
+            "labels": ["(I(E;C)+I(I;C))/I(V;C)"],
+            "colors": ["darkmagenta"],
+            "title": "Dendritic-to-Output Information Ratio vs E/I Ratio",
+        },
+    }
+
+    # First, let's examine what columns we have and clean the data
+    print(f"Branch information data columns: {list(branch_info_df.columns)}")
+    print(f"Branch information data shape: {branch_info_df.shape}")
+
+    # Identify numeric columns for aggregation
+    numeric_cols = branch_info_df.select_dtypes(include=[np.number]).columns.tolist()
+    print(f"Numeric columns: {numeric_cols}")
+
+    # Calculate information difference metrics (non-conditional - conditional)
+    print("Computing information difference metrics...")
+    for analysis_type in branch_info_df["analysis_type"].unique():
+        mask = branch_info_df["analysis_type"] == analysis_type
+
+        if analysis_type == "per_branch":
+            # For per-branch data with _mean suffix
+            info_pairs = [
+                ("I_E_I_mean", "I_E_I_given_C_mean", "I_E_I_diff"),
+                ("I_E_V_mean", "I_E_V_given_C_mean", "I_E_V_diff"),
+                ("I_I_V_mean", "I_I_V_given_C_mean", "I_I_V_diff"),
+            ]
+        else:
+            # For pooled data without _mean suffix
+            info_pairs = [
+                ("I_E_I", "I_E_I_given_C", "I_E_I_diff"),
+                ("I_E_V", "I_E_V_given_C", "I_E_V_diff"),
+                ("I_I_V", "I_I_V_given_C", "I_I_V_diff"),
+            ]
+
+        for non_cond, cond, diff_name in info_pairs:
+            if non_cond in branch_info_df.columns and cond in branch_info_df.columns:
+                branch_info_df.loc[mask, diff_name] = (
+                    branch_info_df.loc[mask, non_cond] - branch_info_df.loc[mask, cond]
+                )
+                print(f"  Computed {diff_name} for {analysis_type}")
+
+    # Calculate combined dendritic information ratio: (I(E;C)+I(I;C))/I(output;C)
+    print("Computing combined dendritic information ratio...")
+    for analysis_type in branch_info_df["analysis_type"].unique():
+        mask = branch_info_df["analysis_type"] == analysis_type
+
+        if analysis_type == "per_branch":
+            # For per-branch data with _mean suffix
+            e_class_col = "I_E_C_mean"
+            i_class_col = "I_I_C_mean"
+            output_class_col = "I_V_C_mean"
+            ratio_col = "dendritic_output_ratio"
+        else:
+            # For pooled data without _mean suffix
+            e_class_col = "I_E_C"
+            i_class_col = "I_I_C"
+            output_class_col = "I_V_C"
+            ratio_col = "dendritic_output_ratio"
+
+        if (
+            e_class_col in branch_info_df.columns
+            and i_class_col in branch_info_df.columns
+            and output_class_col in branch_info_df.columns
+        ):
+            # Compute (I(E;C) + I(I;C)) / I(output;C)
+            # Add small epsilon to avoid division by zero
+            branch_info_df.loc[mask, ratio_col] = (
+                branch_info_df.loc[mask, e_class_col]
+                + branch_info_df.loc[mask, i_class_col]
+            ) / (branch_info_df.loc[mask, output_class_col] + 1e-10)
+            print(f"  Computed {ratio_col} for {analysis_type}")
+
+    # Update numeric columns list to include new difference metrics
+    numeric_cols = branch_info_df.select_dtypes(include=[np.number]).columns.tolist()
+
+    # Filter out extreme E/I ratios (remove lowest and highest values)
+    ei_ratios = sorted(branch_info_df["ei_ratio"].unique())
+    if len(ei_ratios) > 2:
+        # Remove the lowest and highest E/I ratios
+        ei_ratios_filtered = ei_ratios[1:-1]  # Remove first and last
+        branch_info_df_filtered = branch_info_df[
+            branch_info_df["ei_ratio"].isin(ei_ratios_filtered)
+        ]
+        print(
+            f"Filtered E/I ratios from {ei_ratios[0]:.3f}-{ei_ratios[-1]:.3f} to {ei_ratios_filtered[0]:.3f}-{ei_ratios_filtered[-1]:.3f}"
+        )
+    else:
+        branch_info_df_filtered = branch_info_df
+        print("Not enough E/I ratios to filter extremes")
+
+    # Process different analysis types separately
+    analysis_types = branch_info_df_filtered["analysis_type"].unique()
+
+    for analysis_type in analysis_types:
+        analysis_data = branch_info_df_filtered[
+            branch_info_df_filtered["analysis_type"] == analysis_type
+        ]
+
+        if analysis_data.empty:
+            continue
+
+        print(f"Plotting {analysis_type} branch information analysis...")
+
+        # Get unique layers and epochs
+        layers = (
+            sorted(analysis_data["layer"].unique())
+            if "layer" in analysis_data.columns
+            else [0]
+        )
+        epochs = (
+            sorted(analysis_data["epoch"].unique())
+            if "epoch" in analysis_data.columns
+            else [0]
+        )
+
+        # Use the latest epoch for main analysis
+        latest_epoch = max(epochs)
+        latest_data = analysis_data[analysis_data["epoch"] == latest_epoch]
+
+        # Plot 1: E/I Class Information vs E/I Ratio
+        for group_name, group_info in metric_groups.items():
+            metrics = group_info["metrics"]
+            labels = group_info["labels"]
+            metric_colors = group_info["colors"]
+            group_title = group_info["title"]
+
+            # Check if we have the required metrics
+            available_metrics = []
+            available_labels = []
+            available_colors = []
+
+            for metric, label, color in zip(metrics, labels, metric_colors):
+                # Check for both direct metric and _mean version (for per-branch data)
+                metric_col = (
+                    f"{metric}_mean"
+                    if analysis_type == "per_branch"
+                    and f"{metric}_mean" in latest_data.columns
+                    else metric
+                )
+
+                if metric_col in latest_data.columns and metric_col in numeric_cols:
+                    available_metrics.append(metric_col)
+                    available_labels.append(label)
+                    available_colors.append(color)
+
+            if not available_metrics:
+                print(f"No {group_name} metrics found for {analysis_type} analysis")
+                continue
+
+            # Create both linear and logarithmic scale plots
+            for scale_type, scale_suffix in [("linear", ""), ("log", "_log")]:
+                # Create separate plots for shunting vs no shunting
+                fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(16, 6))
+
+                for use_shunting, ax, title_suffix in [
+                    (True, ax1, "Shunting"),
+                    (False, ax2, "No Shunting"),
+                ]:
+                    shunt_data = latest_data[
+                        latest_data["use_shunting"] == use_shunting
+                    ]
+
+                    if shunt_data.empty:
+                        ax.text(
+                            0.5,
+                            0.5,
+                            f"No {analysis_type} data\nfor {title_suffix}",
+                            transform=ax.transAxes,
+                            ha="center",
+                            va="center",
+                        )
+                        ax.set_title(f"{group_title}\n{title_suffix} Networks")
+                        continue
+
+                    # Group by E/I ratio and calculate statistics - only for numeric columns
+                    if analysis_type == "per_branch":
+                        # For per-branch data, we already have means - no error bars
+                        for metric, label, color in zip(
+                            available_metrics, available_labels, available_colors
+                        ):
+                            # Only group numeric columns
+                            grouped = shunt_data.groupby("ei_ratio")[metric].mean()
+
+                            ax.plot(
+                                grouped.index,
+                                grouped.values,
+                                marker="o",
+                                color=color,
+                                label=label,
+                                linewidth=2,
+                                markersize=6,
+                            )
+                    else:
+                        # For pooled data, calculate means across E/I ratios - no error bars
+                        for metric, label, color in zip(
+                            available_metrics, available_labels, available_colors
+                        ):
+                            grouped = shunt_data.groupby("ei_ratio")[metric].mean()
+
+                            ax.plot(
+                                grouped.index,
+                                grouped.values,
+                                marker="o",
+                                color=color,
+                                label=label,
+                                linewidth=2,
+                                markersize=6,
+                            )
+
+                    ax.set_xlabel("E/I Ratio", fontsize=12)
+                    ax.set_ylabel("Mutual Information (bits)", fontsize=12)
+
+                    # Set scale and title based on scale_type
+                    if scale_type == "log":
+                        ax.set_xscale("log")
+                        ax.set_title(
+                            f"{group_title}\n{title_suffix} Networks (Log Scale)",
+                            fontsize=14,
+                        )
+
+                        # Add nice tick formatting for log scale
+                        from matplotlib.ticker import ScalarFormatter
+
+                        formatter = ScalarFormatter()
+                        formatter.set_scientific(False)
+                        ax.xaxis.set_major_formatter(formatter)
+
+                        # Set nice tick positions
+                        ei_ratios = shunt_data["ei_ratio"].dropna()
+                        if not ei_ratios.empty:
+                            min_ratio = ei_ratios.min()
+                            max_ratio = ei_ratios.max()
+                            tick_positions = np.logspace(
+                                np.log10(min_ratio), np.log10(max_ratio), 6
+                            )
+                            ax.set_xticks(tick_positions)
+                            ax.set_xticklabels([f"{x:.1f}" for x in tick_positions])
+                    else:
+                        ax.set_title(
+                            f"{group_title}\n{title_suffix} Networks", fontsize=14
+                        )
+
+                    ax.grid(True, alpha=0.3)
+                    ax.legend()
+
+                plt.suptitle(
+                    f"{group_title} - {analysis_type.replace('_', ' ').title()} Analysis ({scale_type.title()} Scale)",
+                    fontsize=16,
+                )
+                plt.tight_layout()
+                plt.savefig(
+                    os.path.join(
+                        branch_info_dir,
+                        f"{group_name}_{analysis_type}_vs_ei_ratio{scale_suffix}.png",
+                    ),
+                    dpi=300,
+                )
+                plt.close()
+
+        # Plot 2: E/I Ratio Analysis (Information Balance)
+        for scale_type, scale_suffix in [("linear", ""), ("log", "_log")]:
+            fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(16, 6))
+
+            for use_shunting, ax, title_suffix in [
+                (True, ax1, "Shunting"),
+                (False, ax2, "No Shunting"),
+            ]:
+                shunt_data = latest_data[latest_data["use_shunting"] == use_shunting]
+
+                if shunt_data.empty:
+                    continue
+
+                # Calculate E/I ratios for information metrics
+                exc_col = (
+                    "I_E_C_mean"
+                    if analysis_type == "per_branch"
+                    and "I_E_C_mean" in shunt_data.columns
+                    else "I_E_C"
+                )
+                inh_col = (
+                    "I_I_C_mean"
+                    if analysis_type == "per_branch"
+                    and "I_I_C_mean" in shunt_data.columns
+                    else "I_I_C"
+                )
+
+                if (
+                    exc_col in shunt_data.columns
+                    and inh_col in shunt_data.columns
+                    and exc_col in numeric_cols
+                    and inh_col in numeric_cols
+                ):
+                    # Group by E/I ratio and calculate information ratio - only for specific columns
+                    grouped_exc = shunt_data.groupby("ei_ratio")[exc_col].mean()
+                    grouped_inh = shunt_data.groupby("ei_ratio")[inh_col].mean()
+                    info_ratio = grouped_exc / (grouped_inh + 1e-10)
+
+                    ax.plot(
+                        grouped_exc.index,
+                        info_ratio.values,
+                        marker="o",
+                        color="red",
+                        linewidth=2,
+                        markersize=8,
+                        label="E/I Information Ratio",
+                    )
+
+                    # Add reference line at ratio = 1
+                    ax.axhline(
+                        y=1.0,
+                        color="black",
+                        linestyle="--",
+                        alpha=0.5,
+                        label="Equal E/I Information",
+                    )
+
+                    ax.set_xlabel("E/I Ratio", fontsize=12)
+                    ax.set_ylabel("E/I Information Ratio", fontsize=12)
+
+                    # Set scale and title based on scale_type
+                    if scale_type == "log":
+                        ax.set_xscale("log")
+                        ax.set_title(
+                            f"E/I Information Balance - {title_suffix} (Log Scale)",
+                            fontsize=14,
+                        )
+
+                        # Add nice tick formatting for log scale
+                        formatter = ScalarFormatter()
+                        formatter.set_scientific(False)
+                        ax.xaxis.set_major_formatter(formatter)
+
+                        # Set nice tick positions
+                        ei_ratios = shunt_data["ei_ratio"].dropna()
+                        if not ei_ratios.empty:
+                            min_ratio = ei_ratios.min()
+                            max_ratio = ei_ratios.max()
+                            tick_positions = np.logspace(
+                                np.log10(min_ratio), np.log10(max_ratio), 6
+                            )
+                            ax.set_xticks(tick_positions)
+                            ax.set_xticklabels([f"{x:.1f}" for x in tick_positions])
+                    else:
+                        ax.set_title(
+                            f"E/I Information Balance - {title_suffix}", fontsize=14
+                        )
+
+                    ax.grid(True, alpha=0.3)
+                    ax.legend()
+
+            plt.suptitle(
+                f"E/I Information Balance - {analysis_type.replace('_', ' ').title()} Analysis ({scale_type.title()} Scale)",
+                fontsize=16,
+            )
+            plt.tight_layout()
+            plt.savefig(
+                os.path.join(
+                    branch_info_dir,
+                    f"ei_information_balance_{analysis_type}_vs_ei_ratio{scale_suffix}.png",
+                ),
+                dpi=300,
+            )
+            plt.close()
+
+        # Plot 3: Layer-wise Information Heatmap
+        if len(layers) > 1:
+            fig, ((ax1, ax2), (ax3, ax4)) = plt.subplots(2, 2, figsize=(16, 12))
+
+            # Create heatmaps for key metrics
+            key_metrics = [
+                ("I_E_C", "Excitatory-Class MI", ax1),
+                ("I_I_C", "Inhibitory-Class MI", ax2),
+                ("I_E_I", "Excitatory-Inhibitory MI", ax3),
+                ("I_V_C", "Output-Class MI", ax4),
+            ]
+
+            for metric_base, metric_name, ax in key_metrics:
+                metric_col = (
+                    f"{metric_base}_mean"
+                    if analysis_type == "per_branch"
+                    and f"{metric_base}_mean" in latest_data.columns
+                    else metric_base
+                )
+
+                if (
+                    metric_col not in latest_data.columns
+                    or metric_col not in numeric_cols
+                ):
+                    ax.text(
+                        0.5,
+                        0.5,
+                        f"No {metric_name}\ndata available",
+                        transform=ax.transAxes,
+                        ha="center",
+                        va="center",
+                    )
+                    ax.set_title(metric_name)
+                    continue
+
+                # Create pivot table for heatmap
+                try:
+                    pivot = latest_data.pivot_table(
+                        values=metric_col,
+                        index="layer",
+                        columns="ei_ratio",
+                        aggfunc="mean",
+                    )
+
+                    if not pivot.empty:
+                        sns.heatmap(
+                            pivot,
+                            cmap="viridis",
+                            annot=True,
+                            fmt=".3f",
+                            cbar_kws={"label": "MI (bits)"},
+                            ax=ax,
+                        )
+                        ax.set_xlabel("E/I Ratio")
+                        ax.set_ylabel("Layer Index")
+                        ax.set_title(metric_name)
+                    else:
+                        ax.text(
+                            0.5,
+                            0.5,
+                            f"Insufficient data\nfor {metric_name}",
+                            transform=ax.transAxes,
+                            ha="center",
+                            va="center",
+                        )
+                        ax.set_title(metric_name)
+
+                except Exception as e:
+                    print(f"Error creating heatmap for {metric_name}: {e}")
+                    ax.text(
+                        0.5,
+                        0.5,
+                        f"Error creating\n{metric_name} heatmap",
+                        transform=ax.transAxes,
+                        ha="center",
+                        va="center",
+                    )
+                    ax.set_title(metric_name)
+
+            plt.suptitle(
+                f"Branch Information Heatmaps - {analysis_type.replace('_', ' ').title()} Analysis",
+                fontsize=16,
+            )
+            plt.tight_layout()
+            plt.savefig(
+                os.path.join(
+                    branch_info_dir, f"information_heatmaps_{analysis_type}.png"
+                ),
+                dpi=300,
+            )
+            plt.close()
+
+    # Plot 4: Evolution over epochs (if multiple epochs available)
+    if len(epochs) > 1:
+        print("Creating training evolution plots...")
+
+        # Plot evolution of key metrics
+        fig, axes = plt.subplots(2, 2, figsize=(16, 12))
+        axes = axes.flatten()
+
+        key_metrics = ["I_E_C", "I_I_C", "I_V_C", "I_E_I"]
+
+        for idx, metric_base in enumerate(key_metrics):
+            ax = axes[idx]
+
+            for analysis_type in analysis_types:
+                analysis_data = branch_info_df_filtered[
+                    branch_info_df_filtered["analysis_type"] == analysis_type
+                ]
+
+                if analysis_data.empty:
+                    continue
+
+                metric_col = (
+                    f"{metric_base}_mean"
+                    if analysis_type == "per_branch"
+                    and f"{metric_base}_mean" in analysis_data.columns
+                    else metric_base
+                )
+
+                if (
+                    metric_col not in analysis_data.columns
+                    or metric_col not in numeric_cols
+                ):
+                    continue
+
+                # Average across layers and E/I ratios for each epoch
+                epoch_avg = analysis_data.groupby("epoch")[metric_col].mean()
+
+                ax.plot(
+                    epoch_avg.index,
+                    epoch_avg.values,
+                    marker="o",
+                    label=f"{analysis_type.replace('_', ' ').title()}",
+                    linewidth=2,
+                    markersize=6,
+                )
+
+            ax.set_xlabel("Training Epoch")
+            ax.set_ylabel("Average MI (bits)")
+            ax.set_title(f"{metric_base} Evolution")
+            ax.legend()
+            ax.grid(True, alpha=0.3)
+
+        plt.suptitle("Branch Information Evolution During Training", fontsize=16)
+        plt.tight_layout()
+        plt.savefig(
+            os.path.join(branch_info_dir, "training_evolution_branch_information.png"),
+            dpi=300,
+        )
+        plt.close()
+
+    print(f"Saved branch information plots to {branch_info_dir}")
 
 
 if __name__ == "__main__":
