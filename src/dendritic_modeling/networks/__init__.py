@@ -1,12 +1,98 @@
 """
-Networks package for dendritic modeling.
+Networks module.
 
-This package contains network architectures:
-- dendritic: Dendritic network implementations
-- synaptic: Synaptic layer implementations
-- classical: Classical network architectures (MLP, CNN)
-- composite: Composite network layers and architectures
-- input_transforms: Input transformation networks
+This module contains various neural network components including layers,
+architectures, activations, and input transforms.
 """
 
-# Placeholder - will be populated with imports after refactoring 
+# Activations
+from .activations import (
+    ActivationFactory,
+    ParametricTanh,
+    ParametricTanhOnlyM,
+    ParametricLinearSigmoid,
+    ParametricLinearTanh,
+    ParametricLinearTanhTransition,
+    SimpleReLU,
+    SimpleSigmoid,
+    SimpleTanh,
+)
+
+# Input transforms
+from .input_transforms import (
+    InputNetTransform,
+    IndexInputTransform,
+    MLPInputTransform,
+    CNNInputTransform,
+    AlexNetInputTransform,
+    SigmoidInputNetTransform,
+)
+
+# Layers
+from .layers import (
+    # Linear layers
+    BranchLayer,
+    StochasticSynapseLinear,
+    BlockLinear,
+    BlockLinearDeepST,
+    BlockLinearVariance,
+    # Dendritic layers
+    DendriticBranchLayer,
+    ExcitationInhibitionLayer,
+)
+
+# Architectures
+from .architectures import (
+    # Dendritic
+    DendriNet,
+    # Excitation-Inhibition
+    ExcitationInhibitionNetwork,
+    MLPExcInhNetwork,
+    # MLP
+    MatchedParamMLP,
+    SimpleMLPNet,
+)
+
+# MLP components
+from .mlp import (
+    FeatureExtractorMLP,
+    SimpleMLPLayer,
+)
+
+__all__ = [
+    # Activations
+    "ActivationFactory",
+    "ParametricTanh",
+    "ParametricTanhOnlyM",
+    "ParametricLinearSigmoid",
+    "ParametricLinearTanh",
+    "ParametricLinearTanhTransition",
+    "SimpleReLU",
+    "SimpleSigmoid",
+    "SimpleTanh",
+    # Input transforms
+    "InputNetTransform",
+    "IndexInputTransform",
+    "MLPInputTransform",
+    "CNNInputTransform",
+    "AlexNetInputTransform",
+    "SigmoidInputNetTransform",
+    # Linear layers
+    "BranchLayer",
+    "StochasticSynapseLinear",
+    "BlockLinear",
+    "BlockLinearDeepST",
+    "BlockLinearVariance",
+    # Dendritic layers
+    "DendriticBranchLayer",
+    "ExcitationInhibitionLayer",
+    # Architectures
+    "DendriNet",
+    "ExcitationInhibitionNetwork",
+    "MLPExcInhNetwork",
+    "MatchedParamMLP",
+    "SimpleMLPNet",
+    # MLP components
+    "FeatureExtractorMLP",
+    "SimpleMLPLayer",
+] 
