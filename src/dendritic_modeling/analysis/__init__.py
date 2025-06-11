@@ -1,38 +1,50 @@
 """
 Analysis package for dendritic modeling.
 
-This package contains various analysis modules:
-- performance: Performance metrics and evaluation
-- information: Information theory and mutual information analysis
-- synaptic: Synaptic analysis including activation, turnover, and ablation
-- manager: Analysis coordination and management
+This package provides comprehensive analysis tools for evaluating model performance,
+synaptic properties, ablation studies, and information flow in dendritic networks.
 """
 
-# Import from new structure
-from .performance import PerformanceAnalyzer, NoisePerturbationAnalyzer, AblationAnalyzer
-from .information import EIInformationAnalyzer
-from .synaptic import SynapticTurnoverAnalyzer, WeightAnalyzer, SynapticActivationAnalyzer
+# Performance analysis
+from .performance.metrics import PerformanceAnalyzer
+from .performance.noise import NoisePerturbationAnalyzer
+from .performance.ablation import AblationAnalyzer
 
-# Backward compatibility - import remaining classes from original analysis.py
-from ..analysis import (
+# Information analysis
+from .information.mutual_info import EIInformationAnalyzer
+
+# Synaptic analysis
+from .synaptic.turnover import SynapticTurnoverAnalyzer
+from .synaptic.weights import WeightAnalyzer
+from .synaptic.activations import SynapticActivationAnalyzer
+from .synaptic.branch_activations import BranchActivationAnalyzer
+
+# Main analysis classes from the analysis module
+from .analysis import (
     BranchInformationAnalyzer,
-    SingleLayerContributionAnalyzer,
-    BranchActivationAnalyzer,
+    SingleLayerContributionAnalyzer, 
     SynapticAblationAnalyzer,
     AnalysisManager,
 )
 
 __all__ = [
-    'PerformanceAnalyzer',
-    'NoisePerturbationAnalyzer',
-    'AblationAnalyzer',
-    'EIInformationAnalyzer',
-    'SynapticTurnoverAnalyzer', 
-    'BranchInformationAnalyzer',
-    'SingleLayerContributionAnalyzer',
-    'WeightAnalyzer',
-    'SynapticActivationAnalyzer',
-    'BranchActivationAnalyzer',
-    'SynapticAblationAnalyzer',
-    'AnalysisManager',
+    # Performance analysis
+    "PerformanceAnalyzer",
+    "NoisePerturbationAnalyzer", 
+    "AblationAnalyzer",
+    
+    # Information analysis
+    "EIInformationAnalyzer",
+    
+    # Synaptic analysis
+    "SynapticTurnoverAnalyzer",
+    "WeightAnalyzer",
+    "SynapticActivationAnalyzer",
+    "BranchActivationAnalyzer",
+    
+    # Main analysis classes
+    "BranchInformationAnalyzer",
+    "SingleLayerContributionAnalyzer",
+    "SynapticAblationAnalyzer", 
+    "AnalysisManager",
 ] 
