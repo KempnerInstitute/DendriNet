@@ -11,10 +11,10 @@ This package contains various analysis modules:
 # Import from new structure
 from .performance import PerformanceAnalyzer, NoisePerturbationAnalyzer, AblationAnalyzer
 from .information import EIInformationAnalyzer
+from .synaptic import SynapticTurnoverAnalyzer
 
 # Backward compatibility - import remaining classes from original analysis.py
 from ..analysis import (
-    SynapticTurnoverAnalyzer,
     BranchInformationAnalyzer,
     SingleLayerContributionAnalyzer,
     WeightAnalyzer,
