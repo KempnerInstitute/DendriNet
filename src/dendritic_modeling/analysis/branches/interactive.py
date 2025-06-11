@@ -320,9 +320,44 @@ class InteractiveBranchAnalyzer:
             "save_dir": save_dir
         }
 
+    def analyze_branch_ablation(self, model, data, save_path, args=None):
+        """
+        Perform ablation studies on individual branches and layers.
+        
+        This method systematically ablates (zeros out) different branches and measures
+        the impact on model performance to understand their functional importance.
+        
+        Args:
+            model: The trained dendritic network model
+            data: Dictionary containing 'train', 'valid', 'test' datasets
+            save_path: Directory to save analysis results
+            args: Configuration arguments for ablation settings
+            
+        Returns:
+            Dictionary containing ablation results
+        """
+        print("\n" + "=" * 80)
+        print("STARTING BRANCH ABLATION ANALYSIS") 
+        print("=" * 80)
+        
+        os.makedirs(save_path, exist_ok=True)
+        
+        if not hasattr(model, "net"):
+            print("ERROR: No 'net' attribute found on model. Skipping branch_ablation analysis.")
+            logging.error("No 'net' attribute found on model. Skipping branch_ablation analysis.")
+            return {}
+            
+        # TODO: Extract complete implementation from PlotManager._branch_ablation
+        # For now, return placeholder to establish module structure
+        print("Branch ablation analysis implementation pending...")
+        return {"status": "branch_ablation_analysis_structure_created"}
+        
     def _train_mlp_classifier(self, train_dataset, valid_dataset, hidden_dim=100, lr=0.001, epochs=20):
         """
         Train a simple MLP classifier for branch information analysis.
+        
+        This utility method trains a small neural network to decode task information
+        from branch activations, providing a measure of information content.
         
         Args:
             train_dataset: Training dataset (TensorDataset)
