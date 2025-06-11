@@ -1,0 +1,10 @@
+"""
+Training strategies for dendritic models.
+
+This module contains various training strategies and algorithms
+for dendritic network models.
+"""
+
+from .base import BaseTrainer, compute_metrics_classification
+
+__all__ = ["BaseTrainer", "compute_metrics_classification"] 

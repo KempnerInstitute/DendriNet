@@ -30,54 +30,16 @@ from dendritic_modeling import logger
 from dendritic_modeling.plot_utils import plot_NLL_loss_curves
 from dendritic_modeling.analysis import AnalysisManager
 from dendritic_modeling.training.optimizers import CustomWeightDecayOptimizer
+from dendritic_modeling.training.strategies import BaseTrainer, compute_metrics_classification
 
 
-def compute_metrics_classification(preds, labels):
-    preds_np = preds.cpu().numpy()
-    labels_np = labels.cpu().numpy()
-    return {
-        "accuracy": accuracy_score(labels_np, preds_np),
-        "precision": precision_score(
-            labels_np, preds_np, average="weighted", zero_division=0
-        ),
-        "recall": recall_score(
-            labels_np, preds_np, average="weighted", zero_division=0
-        ),
-        "f1_score": f1_score(labels_np, preds_np, average="weighted", zero_division=0),
-    }
+# compute_metrics_classification has been moved to training/strategies/base.py
 
 
 # CustomWeightDecayOptimizer has been moved to training/optimizers/custom.py
 
 
-class BaseTrainer:
-    def __init__(self, optimizer, suppress_prints=False, print_every=10):
-        self.optimizer = optimizer
-        self.suppress = suppress_prints
-        self.print_every = print_every
-
-    def _eval_dataset(self, model, dataset, device, batch_size=256):
-        if dataset is None or len(dataset) == 0:
-            return 0.0, 0.0
-        loader = DataLoader(dataset, batch_size=batch_size, shuffle=False)
-        total_loss = 0.0
-        preds_list = []
-        labels_list = []
-        model.eval()
-        with torch.no_grad():
-            for xb, yb in loader:
-                xb = xb.to(device)
-                yb = yb.to(device)
-                nll = model.compute_loss(xb, yb)
-                total_loss += nll.item()
-                p = model.predict(xb)
-                preds_list.append(p.cpu())
-                labels_list.append(yb.cpu())
-        total_loss /= len(loader)
-        preds_cat = torch.cat(preds_list, dim=0)
-        labels_cat = torch.cat(labels_list, dim=0)
-        metrics = compute_metrics_classification(preds_cat, labels_cat)
-        return total_loss, metrics["accuracy"]
+# BaseTrainer has been moved to training/strategies/base.py
 
 
 class TrainerMLE(BaseTrainer):
