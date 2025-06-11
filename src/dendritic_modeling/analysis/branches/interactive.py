@@ -37,7 +37,7 @@ class InteractiveBranchAnalyzer:
     def __init__(self, device="cpu"):
         self.device = device
 
-    def analyze_branch_info(self, model, data, save_path, file_name=None):
+    def analyze_branch_info(self, model, data, save_path, file_name=None, batch_size=64):
         """
         Analyze information content of individual branches using MLP decoding.
         
@@ -49,6 +49,7 @@ class InteractiveBranchAnalyzer:
             data: Dictionary containing 'train', 'valid', 'test' datasets
             save_path: Directory to save analysis results
             file_name: Optional filename prefix for saved files
+            batch_size: Batch size for forward passes
             
         Returns:
             Dictionary containing analysis results
@@ -65,7 +66,6 @@ class InteractiveBranchAnalyzer:
             return {}
             
         net = model.net
-        
         if not hasattr(net, "forward_with_branch_outputs"):
             print("ERROR: No forward_with_branch_outputs method found on net. Skipping branch_info analysis.")
             logging.error("No forward_with_branch_outputs method found on net. Skipping branch_info analysis.")
@@ -73,11 +73,9 @@ class InteractiveBranchAnalyzer:
             
         print(f"Model has {len(net.branch_layers)} branch layers")
         logging.info(f"Model has {len(net.branch_layers)} branch layers")
-        
         print("Computing branch info using MLP decoding...")
         logging.info("Computing branch info using MLP decoding...")
         
-        batch_size = 64  # Default batch size for analysis
         save_dir = os.path.join(save_path, "branch_info_plots")
         os.makedirs(save_dir, exist_ok=True)
         print(f"Results will be saved to: {save_dir}")
