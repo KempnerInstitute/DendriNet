@@ -9,10 +9,12 @@ from .metrics import PerformanceAnalyzer
 from .noise import NoisePerturbationAnalyzer
 from .ablation import AblationAnalyzer
 from .layers import SingleLayerContributionAnalyzer
+from .synaptic_ablation import SynapticAblationAnalyzer
 
 __all__ = [
     "PerformanceAnalyzer",
     "NoisePerturbationAnalyzer",
     "AblationAnalyzer",
     "SingleLayerContributionAnalyzer",
+    "SynapticAblationAnalyzer",
 ] 

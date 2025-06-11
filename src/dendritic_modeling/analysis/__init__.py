@@ -10,6 +10,7 @@ from .performance.metrics import PerformanceAnalyzer
 from .performance.noise import NoisePerturbationAnalyzer
 from .performance.ablation import AblationAnalyzer
 from .performance.layers import SingleLayerContributionAnalyzer
+from .performance.synaptic_ablation import SynapticAblationAnalyzer
 
 # Information analysis
 from .information.mutual_info import EIInformationAnalyzer
@@ -25,7 +26,6 @@ from .synaptic.weights import WeightAnalyzer
 
 # Main analysis classes from the analysis module
 from .analysis import (
-    SynapticAblationAnalyzer,
     AnalysisManager,
 )
 
@@ -35,6 +35,7 @@ __all__ = [
     "NoisePerturbationAnalyzer", 
     "AblationAnalyzer",
     "SingleLayerContributionAnalyzer",
+    "SynapticAblationAnalyzer",
     
     # Information analysis
     "EIInformationAnalyzer",
@@ -49,6 +50,5 @@ __all__ = [
     "WeightAnalyzer",
     
     # Main analysis classes
-    "SynapticAblationAnalyzer", 
     "AnalysisManager",
 ] 
