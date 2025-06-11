@@ -29,6 +29,7 @@ import wandb
 from dendritic_modeling import logger
 from dendritic_modeling.plot_utils import plot_NLL_loss_curves
 from dendritic_modeling.analysis import AnalysisManager
+from dendritic_modeling.training.optimizers import CustomWeightDecayOptimizer
 
 
 def compute_metrics_classification(preds, labels):
@@ -46,19 +47,7 @@ def compute_metrics_classification(preds, labels):
     }
 
 
-class CustomWeightDecayOptimizer:
-    def __init__(self, model, optimizer, weight_decay=0.1):
-        self.model = model
-        self.optimizer = optimizer
-        self.weight_decay = weight_decay
-
-    def zero_grad(self):
-        self.optimizer.zero_grad()
-
-    def step(self):
-        lr = self.optimizer.param_groups[0]["lr"]
-        self.model.decay_weights(weight_decay=lr * self.weight_decay)
-        self.optimizer.step()
+# CustomWeightDecayOptimizer has been moved to training/optimizers/custom.py
 
 
 class BaseTrainer:
