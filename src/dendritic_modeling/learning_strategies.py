@@ -30,7 +30,7 @@ from dendritic_modeling import logger
 from dendritic_modeling.plot_utils import plot_NLL_loss_curves
 from dendritic_modeling.analysis import AnalysisManager
 from dendritic_modeling.training.optimizers import CustomWeightDecayOptimizer
-from dendritic_modeling.training.strategies import BaseTrainer, compute_metrics_classification
+from dendritic_modeling.training.strategies import BaseTrainer, compute_metrics_classification, TrainerMLE
 
 
 # compute_metrics_classification has been moved to training/strategies/base.py
@@ -42,7 +42,9 @@ from dendritic_modeling.training.strategies import BaseTrainer, compute_metrics_
 # BaseTrainer has been moved to training/strategies/base.py
 
 
-class TrainerMLE(BaseTrainer):
+# TrainerMLE has been moved to training/strategies/mle.py
+
+class TrainerRegression(BaseTrainer):
     def train(
         self,
         model,
