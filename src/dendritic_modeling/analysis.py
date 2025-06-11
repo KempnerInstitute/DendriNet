@@ -34,6 +34,7 @@ from dendritic_modeling.analysis.performance.metrics import PerformanceAnalyzer
 from dendritic_modeling.analysis.performance.noise import NoisePerturbationAnalyzer
 from dendritic_modeling.analysis.performance.ablation import AblationAnalyzer
 from dendritic_modeling.analysis.information.mutual_info import EIInformationAnalyzer
+from dendritic_modeling.analysis.synaptic.turnover import SynapticTurnoverAnalyzer
 
 
 # PerformanceAnalyzer has been moved to analysis/performance/metrics.py
@@ -41,137 +42,6 @@ from dendritic_modeling.analysis.information.mutual_info import EIInformationAna
 
 
 
-class SynapticTurnoverAnalyzer:
-    def __init__(self, model: BaseModel):
-        assert isinstance(model.net, ExcitationInhibitionNetwork), (
-            "model.net must be an instance of ExcitationInhibitionNetwork. "
-            + f"Got model.net type: {type(model.net)}"
-        )
-
-        self.data_dict_list = []
-        self.analyze(model=model, training=True)
-
-    def analyze(
-        self,
-        model: BaseModel,
-        training: bool = True,
-        save_path: Optional[str] = None,
-        filename: str = "final",
-    ):
-        try:
-            assert isinstance(model.net, ExcitationInhibitionNetwork)
-        except AssertionError:
-            return
-
-        if training:
-            data_dict = {}
-            for name, module in model.named_modules():
-                if isinstance(module, DendriticBranchLayer):
-                    data_dict[name] = {}
-                    if module.branch_excitation is not None:
-                        data_dict[name]["exc_mask"] = (
-                            deepcopy(module.branch_excitation.weight_mask())
-                            .detach()
-                            .cpu()
-                        )
-                    if module.branch_inhibition is not None:
-                        data_dict[name]["inh_mask"] = (
-                            deepcopy(module.branch_inhibition.weight_mask())
-                            .detach()
-                            .cpu()
-                        )
-            self.data_dict_list.append(data_dict)
-        else:
-
-            def turnover_helper(
-                prev_mask: torch.Tensor,
-                curr_mask: torch.Tensor,
-                total_active: int,
-                total_stable: int,
-                total_transient: int,
-            ) -> Tuple[int, int, int]:
-                mask_diff = curr_mask - prev_mask
-                curr_active = torch.sum(curr_mask).item()
-                curr_transient = torch.sum(mask_diff > 1e-3).item()
-                curr_stable = curr_active - curr_transient
-                total_active += curr_active
-                total_stable += curr_stable
-                total_transient += curr_transient
-                return total_active, total_stable, total_transient
-
-            turnover_dict = {
-                "exc": {"active": [], "stable": [], "transient": []},
-                "inh": {"active": [], "stable": [], "transient": []},
-                "both": {"active": [], "stable": [], "transient": []},
-            }
-            for i in range(1, len(self.data_dict_list)):
-                prev_data_dict: dict = self.data_dict_list[i - 1]
-                curr_data_dict: dict = self.data_dict_list[i]
-
-                exc_total_active = 0
-                exc_total_stable = 0
-                exc_total_transient = 0
-
-                inh_total_active = 0
-                inh_total_stable = 0
-                inh_total_transient = 0
-
-                for name in curr_data_dict.keys():
-                    prev_module_dict: dict = prev_data_dict[name]
-                    curr_module_dict: dict = curr_data_dict[name]
-
-                    if "exc_mask" in curr_module_dict.keys():
-                        prev_exc_mask = prev_module_dict["exc_mask"]
-                        curr_exc_mask = curr_module_dict["exc_mask"]
-                        (
-                            exc_total_active,
-                            exc_total_stable,
-                            exc_total_transient,
-                        ) = turnover_helper(
-                            prev_exc_mask,
-                            curr_exc_mask,
-                            exc_total_active,
-                            exc_total_stable,
-                            exc_total_transient,
-                        )
-
-                    if "inh_mask" in curr_module_dict.keys():
-                        prev_inh_mask = prev_module_dict["inh_mask"]
-                        curr_inh_mask = curr_module_dict["inh_mask"]
-                        (
-                            inh_total_active,
-                            inh_total_stable,
-                            inh_total_transient,
-                        ) = turnover_helper(
-                            prev_inh_mask,
-                            curr_inh_mask,
-                            inh_total_active,
-                            inh_total_stable,
-                            inh_total_transient,
-                        )
-
-                turnover_dict["exc"]["active"].append(exc_total_active)
-                turnover_dict["exc"]["stable"].append(exc_total_stable)
-                turnover_dict["exc"]["transient"].append(exc_total_transient)
-
-                turnover_dict["inh"]["active"].append(inh_total_active)
-                turnover_dict["inh"]["stable"].append(inh_total_stable)
-                turnover_dict["inh"]["transient"].append(inh_total_transient)
-
-                turnover_dict["both"]["active"].append(
-                    exc_total_active + inh_total_active
-                )
-                turnover_dict["both"]["stable"].append(
-                    exc_total_stable + inh_total_stable
-                )
-                turnover_dict["both"]["transient"].append(
-                    exc_total_transient + inh_total_transient
-                )
-
-            if save_path is not None:
-                save_dict(turnover_dict, save_path, filename)
-            else:
-                return turnover_dict
 
 
 # NoisePerturbationAnalyzer has been moved to analysis/performance/noise.py
