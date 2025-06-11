@@ -30,7 +30,8 @@ from dendritic_modeling.training.strategies import (
     TrainOnlyMReactivation,
     InhibitoryHeadTrainer,
     voltage_warmup_loss,
-    generate_warmup_report
+    generate_warmup_report,
+    LayerWiseTrainer,
 )
 
 # Import factory functions and utilities
@@ -56,6 +57,7 @@ from .training.strategies import (
     TwoStepTrainerWithKL,
     VoltageStabilizationTrainer,
     InhibitoryHeadTrainer,
+    LayerWiseTrainer,
 )
 
 # Factory functions and training utilities
@@ -78,19 +80,51 @@ from .training.strategies.base import BaseTrainer
 
 # Re-export recovered layer training methods for backward compatibility
 def train_freeze_layers_by_layer(trainer_instance, *args, **kwargs):
-    """Layer-by-layer training from soma to input. Use trainer.train_freeze_layers_by_layer()"""
+    """
+    Layer-by-layer training from soma to input.
+    
+    Note: This is now a method of LayerWiseTrainer. For new code, use:
+    trainer = LayerWiseTrainer(optimizer)
+    trainer.train_freeze_layers_by_layer(model, train_data, ...)
+    """
+    if not isinstance(trainer_instance, LayerWiseTrainer):
+        raise TypeError("train_freeze_layers_by_layer requires a LayerWiseTrainer instance")
     return trainer_instance.train_freeze_layers_by_layer(*args, **kwargs)
 
 def train_freeze_layers_reversed_by_layer(trainer_instance, *args, **kwargs):
-    """Layer-by-layer training from input to soma. Use trainer.train_freeze_layers_reversed_by_layer()"""
+    """
+    Layer-by-layer training from input to soma.
+    
+    Note: This is now a method of LayerWiseTrainer. For new code, use:
+    trainer = LayerWiseTrainer(optimizer)
+    trainer.train_freeze_layers_reversed_by_layer(model, train_data, ...)
+    """
+    if not isinstance(trainer_instance, LayerWiseTrainer):
+        raise TypeError("train_freeze_layers_reversed_by_layer requires a LayerWiseTrainer instance")
     return trainer_instance.train_freeze_layers_reversed_by_layer(*args, **kwargs)
 
 def train_freeze_layers(trainer_instance, *args, **kwargs):
-    """Alias for train_freeze_layers_by_layer. Use trainer.train_freeze_layers()"""
+    """
+    Alias for train_freeze_layers_by_layer.
+    
+    Note: This is now a method of LayerWiseTrainer. For new code, use:
+    trainer = LayerWiseTrainer(optimizer)
+    trainer.train_freeze_layers(model, train_data, ...)
+    """
+    if not isinstance(trainer_instance, LayerWiseTrainer):
+        raise TypeError("train_freeze_layers requires a LayerWiseTrainer instance")
     return trainer_instance.train_freeze_layers(*args, **kwargs)
 
 def train_freeze_layers_reversed(trainer_instance, *args, **kwargs):
-    """Alias for train_freeze_layers_reversed_by_layer. Use trainer.train_freeze_layers_reversed()"""
+    """
+    Alias for train_freeze_layers_reversed_by_layer.
+    
+    Note: This is now a method of LayerWiseTrainer. For new code, use:
+    trainer = LayerWiseTrainer(optimizer)
+    trainer.train_freeze_layers_reversed(model, train_data, ...)
+    """
+    if not isinstance(trainer_instance, LayerWiseTrainer):
+        raise TypeError("train_freeze_layers_reversed requires a LayerWiseTrainer instance")
     return trainer_instance.train_freeze_layers_reversed(*args, **kwargs)
 
 
@@ -102,6 +136,7 @@ __all__ = [
     'TwoStepTrainerWithKL',
     'VoltageStabilizationTrainer',
     'InhibitoryHeadTrainer',
+    'LayerWiseTrainer',
     # Factory functions
     'get_trainer',
     'train_simple_mlp', 
@@ -113,7 +148,7 @@ __all__ = [
     'generate_warmup_report',
     # Base trainer class
     'BaseTrainer',
-    # Recovered layer training methods
+    # Backward compatibility layer training functions
     'train_freeze_layers_by_layer',
     'train_freeze_layers_reversed_by_layer',
     'train_freeze_layers',
