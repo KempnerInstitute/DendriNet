@@ -51,6 +51,11 @@ class SynapticAblationAnalyzer:
         filename: str = "synaptic_ablation",
     ):
         """Perform synaptic ablation analysis"""
+        import matplotlib.pyplot as plt
+        import pandas as pd
+
+        from dendritic_modeling.utils import ablate_branch, measure_performance
+
         self.logger.info(
             f"Starting synaptic ablation analysis (type: {self.ablation_type})..."
         )
@@ -175,6 +180,8 @@ class SynapticAblationAnalyzer:
         test_dataset,
     ):
         """Analyze ablation of whole layers"""
+        from dendritic_modeling.utils import measure_performance
+
         results = {
             "layer_idx": [],
             "both_ablated_acc": [],
@@ -260,6 +267,8 @@ class SynapticAblationAnalyzer:
         test_dataset,
     ):
         """Analyze ablation of individual branches"""
+        from dendritic_modeling.utils import ablate_branch, measure_performance
+
         results = {
             "branch_id": [],
             "layer_idx": [],
@@ -348,6 +357,9 @@ class SynapticAblationAnalyzer:
 
     def _save_results(self, results, baseline_acc, save_path, filename):
         """Save ablation results"""
+        import matplotlib.pyplot as plt
+        import pandas as pd
+
         if self.save_csv:
             df = pd.DataFrame(results)
             df["baseline_acc"] = baseline_acc
@@ -504,112 +516,160 @@ class SynapticAblationAnalyzer:
                     .reset_index()
                 )
 
-                # Flatten column names
-                layer_stats.columns = [
-                    "layer_idx",
-                    "both_drop_mean",
-                    "both_drop_std",
-                    "exc_drop_mean",
-                    "exc_drop_std", 
-                    "inh_drop_mean",
-                    "inh_drop_std",
-                ]
+                # Reverse layer indices
+                num_layers = len(layer_stats)
+                reversed_layer_idx = [num_layers - 1 - idx for idx in range(num_layers)]
 
-                # Create plots
+                # Create figure with two subplots
                 fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(20, 8))
 
-                # Reverse layer order for plotting (soma first)
-                layer_stats_sorted = layer_stats.sort_values("layer_idx", ascending=False)
-                x = range(len(layer_stats_sorted))
+                # Left plot: Mean accuracy drop per layer
+                x = np.array(reversed_layer_idx)
+                width = 0.25
 
-                # Left plot: Mean accuracy drop with error bars
-                ax1.errorbar(
-                    x,
-                    layer_stats_sorted["both_drop_mean"],
-                    yerr=layer_stats_sorted["both_drop_std"],
-                    label="Both E+I ablated",
-                    marker="o",
-                    linewidth=2,
-                    markersize=8,
+                # Reverse the statistics
+                both_mean = [
+                    layer_stats["both_drop"]["mean"].iloc[num_layers - 1 - i]
+                    for i in range(num_layers)
+                ]
+                both_std = [
+                    layer_stats["both_drop"]["std"].iloc[num_layers - 1 - i]
+                    for i in range(num_layers)
+                ]
+                exc_mean = [
+                    layer_stats["exc_drop"]["mean"].iloc[num_layers - 1 - i]
+                    for i in range(num_layers)
+                ]
+                exc_std = [
+                    layer_stats["exc_drop"]["std"].iloc[num_layers - 1 - i]
+                    for i in range(num_layers)
+                ]
+                inh_mean = [
+                    layer_stats["inh_drop"]["mean"].iloc[num_layers - 1 - i]
+                    for i in range(num_layers)
+                ]
+                inh_std = [
+                    layer_stats["inh_drop"]["std"].iloc[num_layers - 1 - i]
+                    for i in range(num_layers)
+                ]
+
+                ax1.bar(
+                    x - width,
+                    both_mean,
+                    width,
+                    yerr=both_std,
+                    label="Both E+I",
                     color="purple",
+                    alpha=0.7,
+                    capsize=5,
                 )
-                ax1.errorbar(
+                ax1.bar(
                     x,
-                    layer_stats_sorted["exc_drop_mean"],
-                    yerr=layer_stats_sorted["exc_drop_std"],
-                    label="Excitatory ablated",
-                    marker="s",
-                    linewidth=2,
-                    markersize=8,
+                    exc_mean,
+                    width,
+                    yerr=exc_std,
+                    label="Excitatory",
                     color="red",
+                    alpha=0.7,
+                    capsize=5,
                 )
-                ax1.errorbar(
-                    x,
-                    layer_stats_sorted["inh_drop_mean"],
-                    yerr=layer_stats_sorted["inh_drop_std"],
-                    label="Inhibitory ablated",
-                    marker="^",
-                    linewidth=2,
-                    markersize=8,
+                ax1.bar(
+                    x + width,
+                    inh_mean,
+                    width,
+                    yerr=inh_std,
+                    label="Inhibitory",
                     color="blue",
+                    alpha=0.7,
+                    capsize=5,
                 )
 
-                # Set x-axis labels (soma first)
-                x_labels = []
-                for idx in layer_stats_sorted["layer_idx"]:
-                    if idx == layer_stats_sorted["layer_idx"].max():
-                        x_labels.append("Soma")
-                    else:
-                        x_labels.append(
-                            str(layer_stats_sorted["layer_idx"].max() - idx)
-                        )
-
-                ax1.set_xticks(x)
-                ax1.set_xticklabels(x_labels)
                 ax1.set_xlabel("Layer (Soma → Distal)", fontsize=14)
-                ax1.set_ylabel("Mean Accuracy Drop", fontsize=14)
+                ax1.set_ylabel("Mean Accuracy Drop (± std)", fontsize=14)
                 ax1.set_title(
-                    f"Synaptic Ablation Analysis - Single Branches\n(Baseline accuracy: {baseline_acc:.3f})",
+                    f"Synaptic Ablation - Single Branches\n(Baseline: {baseline_acc:.3f})",
                     fontsize=16,
                 )
                 ax1.legend(fontsize=12)
-                ax1.grid(True, alpha=0.3)
+                ax1.grid(True, axis="y", alpha=0.3)
 
-                # Right plot: Distribution of accuracy drops for each layer
-                layer_indices = sorted(df["layer_idx"].unique(), reverse=True)
-                colors = ["purple", "red", "blue"]
-                labels = ["Both E+I", "Excitatory", "Inhibitory"]
-                metrics = ["both_drop", "exc_drop", "inh_drop"]
+                # Right plot: Distribution of drops across branches
+                # Create box plots for each layer
+                positions = []
+                data_to_plot = []
+                labels = []
+                colors = []
 
-                width = 0.25
-                for i, (metric, color, label) in enumerate(zip(metrics, colors, labels)):
-                    means = []
-                    for layer_idx in layer_indices:
-                        layer_data = df[df["layer_idx"] == layer_idx][metric]
-                        means.append(layer_data.mean())
+                for i, layer_idx in enumerate(reversed_layer_idx):
+                    original_idx = num_layers - 1 - layer_idx
+                    layer_data = df[df["layer_idx"] == original_idx]
 
-                    x_pos = [j + i * width for j in range(len(layer_indices))]
-                    ax2.bar(x_pos, means, width, label=label, color=color, alpha=0.7)
+                    positions.extend([i * 3 - 0.6, i * 3, i * 3 + 0.6])
+                    data_to_plot.extend(
+                        [
+                            layer_data["both_drop"].values,
+                            layer_data["exc_drop"].values,
+                            layer_data["inh_drop"].values,
+                        ]
+                    )
+                    if i == 0:  # Only add labels once
+                        labels.extend(["Both E+I", "Excitatory", "Inhibitory"])
+                    colors.extend(["purple", "red", "blue"])
 
-                # Set x-axis labels
-                x_labels = []
-                for idx in layer_indices:
-                    if idx == max(layer_indices):
-                        x_labels.append("Soma")
-                    else:
-                        x_labels.append(str(max(layer_indices) - idx))
+                bp = ax2.boxplot(
+                    data_to_plot, positions=positions, widths=0.5, patch_artist=True
+                )
 
-                ax2.set_xticks([j + width for j in range(len(layer_indices))])
+                # Color the boxes
+                for patch, color in zip(bp["boxes"], colors):
+                    patch.set_facecolor(color)
+                    patch.set_alpha(0.7)
+
+                # Set x-axis
+                ax2.set_xticks([i * 3 for i in range(len(reversed_layer_idx))])
+                # Create position-based labels
+                x_labels = [
+                    "Soma" if i == 0 else f"{i}" for i in range(len(reversed_layer_idx))
+                ]
                 ax2.set_xticklabels(x_labels)
                 ax2.set_xlabel("Layer (Soma → Distal)", fontsize=14)
-                ax2.set_ylabel("Mean Accuracy Drop", fontsize=14)
-                ax2.set_title("Mean Branch Ablation Effects by Layer", fontsize=16)
-                ax2.legend(fontsize=12)
+                ax2.set_ylabel("Accuracy Drop Distribution", fontsize=14)
+                ax2.set_title("Branch-wise Accuracy Drop Distribution", fontsize=16)
                 ax2.grid(True, axis="y", alpha=0.3)
+
+                # Add a custom legend
+                legend_elements = [
+                    Patch(facecolor="purple", alpha=0.7, label="Both E+I"),
+                    Patch(facecolor="red", alpha=0.7, label="Excitatory"),
+                    Patch(facecolor="blue", alpha=0.7, label="Inhibitory"),
+                ]
+                ax2.legend(handles=legend_elements, fontsize=12)
 
                 plt.tight_layout()
                 plot_path = os.path.join(save_path, f"{filename}_single_branch.png")
                 plt.savefig(plot_path, dpi=300, bbox_inches="tight")
                 plt.close()
 
-            self.logger.info(f"Saved plot to {plot_path}") 
+                # Save summary statistics with reversed indices
+                if self.save_csv:
+                    summary_df = pd.DataFrame(
+                        {
+                            "layer_idx_reversed": reversed_layer_idx,
+                            "layer_idx_original": [
+                                num_layers - 1 - idx for idx in reversed_layer_idx
+                            ],
+                            "both_drop_mean": both_mean,
+                            "both_drop_std": both_std,
+                            "exc_drop_mean": exc_mean,
+                            "exc_drop_std": exc_std,
+                            "inh_drop_mean": inh_mean,
+                            "inh_drop_std": inh_std,
+                        }
+                    )
+                    summary_path = os.path.join(
+                        save_path, f"{filename}_single_branch_summary.csv"
+                    )
+                    summary_df.to_csv(summary_path, index=False)
+
+            self.logger.info(f"Saved plots to {save_path}")
+
