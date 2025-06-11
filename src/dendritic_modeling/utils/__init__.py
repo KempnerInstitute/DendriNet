@@ -50,6 +50,20 @@ from .classification import (
     train_and_evaluate_classifier,
 )
 
+# Analysis utilities
+from .analysis import (
+    record_branch_activations,
+    compute_MI,
+    analyze_branch_information,
+    measure_performance,
+    ablate_branch,
+    analyze_branch_ablation,
+    compute_entropy,
+    compute_mutual_information,
+    estimate_hidden_output_MI,
+    analyze_dendritic_information,
+)
+
 __all__ = [
     # Data utilities
     "Shaper",
@@ -86,4 +100,16 @@ __all__ = [
     "get_ablated_activations",
     "analyze_layerwise_ablation",
     "train_and_evaluate_classifier",
+    
+    # Analysis utilities
+    "record_branch_activations",
+    "compute_MI",
+    "analyze_branch_information",
+    "measure_performance",
+    "ablate_branch",
+    "analyze_branch_ablation",
+    "compute_entropy",
+    "compute_mutual_information",
+    "estimate_hidden_output_MI",
+    "analyze_dendritic_information",
 ] 
