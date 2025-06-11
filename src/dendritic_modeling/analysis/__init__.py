@@ -8,4 +8,35 @@ This package contains various analysis modules:
 - manager: Analysis coordination and management
 """
 
-# Placeholder - will be populated with imports after refactoring 
+# Import from new structure
+from .performance import PerformanceAnalyzer
+
+# Backward compatibility - import remaining classes from original analysis.py
+from ..analysis import (
+    EIInformationAnalyzer,
+    SynapticTurnoverAnalyzer,
+    NoisePerturbationAnalyzer,
+    BranchInformationAnalyzer,
+    SingleLayerContributionAnalyzer,
+    AblationAnalyzer,
+    WeightAnalyzer,
+    SynapticActivationAnalyzer,
+    BranchActivationAnalyzer,
+    SynapticAblationAnalyzer,
+    AnalysisManager,
+)
+
+__all__ = [
+    'PerformanceAnalyzer',
+    'EIInformationAnalyzer',
+    'SynapticTurnoverAnalyzer', 
+    'NoisePerturbationAnalyzer',
+    'BranchInformationAnalyzer',
+    'SingleLayerContributionAnalyzer',
+    'AblationAnalyzer',
+    'WeightAnalyzer',
+    'SynapticActivationAnalyzer',
+    'BranchActivationAnalyzer',
+    'SynapticAblationAnalyzer',
+    'AnalysisManager',
+] 
