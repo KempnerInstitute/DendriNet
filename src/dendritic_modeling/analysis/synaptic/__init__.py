@@ -5,5 +5,6 @@ Contains synaptic activation analysis, turnover analysis, weight analysis, and a
 """
 
 from .turnover import SynapticTurnoverAnalyzer
+from .weights import WeightAnalyzer
 
-__all__ = ['SynapticTurnoverAnalyzer'] 
+__all__ = ['SynapticTurnoverAnalyzer', 'WeightAnalyzer'] 
