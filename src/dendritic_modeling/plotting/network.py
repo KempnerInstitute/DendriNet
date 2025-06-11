@@ -7,8 +7,10 @@ import matplotlib.pyplot as plt
 import matplotlib.patches as mpatches
 import numpy as np
 import networkx as nx
-from matplotlib.colors import Normalize
+import torch
+from matplotlib.colors import Normalize, TwoSlopeNorm
 from matplotlib.cm import ScalarMappable
+from matplotlib.gridspec import GridSpec
 
 
 def plotWithColor(x, colors, cmap="viridis", ax=None, colorbar=True, fig=None, **kwargs):
@@ -37,18 +39,31 @@ def plotWithColor(x, colors, cmap="viridis", ax=None, colorbar=True, fig=None, *
     return scatter
 
 
-def add_colorbars(fig, scatters, labels):
+def add_colorbars(
+    fig,
+    ax_iterable,
+    im_iterable,
+    position,
+    size,
+    pad,
+):
     """
     Add multiple colorbars to a figure.
     
     Args:
         fig: Figure object
-        scatters: List of scatter plot objects
-        labels: List of labels for each colorbar
+        ax_iterable: Iterable of axes
+        im_iterable: Iterable of image objects
+        position: Position for colorbar
+        size: Size of colorbar
+        pad: Padding for colorbar
     """
-    for i, (scatter, label) in enumerate(zip(scatters, labels)):
-        cbar = fig.colorbar(scatter, ax=fig.axes, shrink=0.6, aspect=20)
-        cbar.set_label(label)
+    for ax, im in zip(ax_iterable, im_iterable):
+        cbar = fig.colorbar(im, ax=ax, shrink=0.6, aspect=20)
+        
+    # Legacy compatibility - simple version
+    if isinstance(ax_iterable, list) and len(ax_iterable) == 1:
+        fig.colorbar(im_iterable[0], ax=ax_iterable[0])
 
 
 def plot_dendrinet_params(model, save_path=None, show=True):
@@ -440,38 +455,393 @@ def shape_helper(tensor):
     }
 
 
-# Import these functions from plot_utils when creating this module
-def dendrinet_params_todict(model):
+# Actual implementations from plot_utils
+def dendrinet_params_todict(dendrinet, logspace=False):
     """Extract DendriNet parameters to dictionary."""
-    # This would contain the actual implementation from plot_utils
-    # Placeholder for now
-    return {
-        'layer_weights': [],
-        'branch_weights': [],
-        'layer_biases': [],
-        'output_weights': None,
-    }
+    layer_sizes = dendrinet.layer_sizes
+    n_soma = dendrinet.n_soma
+    n_layers = dendrinet.n_branch_layers + 1
+
+    plot_dict = {}
+    for j in range(n_soma):
+        plot_dict[f"soma{j}"] = {}
+
+    for i in range(n_layers):
+        level = (
+            "soma layer"
+            if i == dendrinet.n_branch_layers
+            else f"branch layer {dendrinet.n_branch_layers - i}"
+        )
+
+        layer = dendrinet.branch_layers[i]
+        branches_per_soma = int(layer_sizes[i] / n_soma)
+
+        input_inh = layer.input_inhibitory
+        input_exc = layer.input_excitatory
+
+        if input_inh:
+            if logspace:
+                inhibitory_synapse_pruned = layer.branch_inhibition.log_pruned_weight()
+            else:
+                inhibitory_synapse_pruned = layer.branch_inhibition.pruned_weight()
+            inhibitory_synapse_mask = layer.branch_inhibition.weight_mask()
+
+            inhibitory_synapse_pruned = inhibitory_synapse_pruned.chunk(n_soma, dim=0)
+            inhibitory_synapse_mask = inhibitory_synapse_mask.chunk(n_soma, dim=0)
+
+        if input_exc:
+            if logspace:
+                excitatory_synapse_pruned = layer.branch_excitation.log_pruned_weight()
+            else:
+                excitatory_synapse_pruned = layer.branch_excitation.pruned_weight()
+            excitatory_synapse_mask = layer.branch_excitation.weight_mask()
+
+            excitatory_synapse_pruned = excitatory_synapse_pruned.chunk(n_soma, dim=0)
+            excitatory_synapse_mask = excitatory_synapse_mask.chunk(n_soma, dim=0)
+
+        for j in range(n_soma):
+            plot_dict[f"soma{j}"][level] = {}
+            for k in range(branches_per_soma):
+                plot_dict[f"soma{j}"][level][f"branch{k}"] = {}
+                plot_dict[f"soma{j}"][level][f"branch{k}"]["inh syn"] = {}
+                plot_dict[f"soma{j}"][level][f"branch{k}"]["exc syn"] = {}
+
+                plot_dict[f"soma{j}"][level][f"branch{k}"]["inh syn"]["pruned"] = (
+                    inhibitory_synapse_pruned[j][k] if input_inh else None
+                )
+                plot_dict[f"soma{j}"][level][f"branch{k}"]["inh syn"]["mask"] = (
+                    inhibitory_synapse_mask[j][k] if input_inh else None
+                )
+
+                plot_dict[f"soma{j}"][level][f"branch{k}"]["exc syn"]["pruned"] = (
+                    excitatory_synapse_pruned[j][k] if input_exc else None
+                )
+                plot_dict[f"soma{j}"][level][f"branch{k}"]["exc syn"]["mask"] = (
+                    excitatory_synapse_mask[j][k] if input_exc else None
+                )
+
+    if dendrinet.input_inhibitory:
+        if logspace:
+            (
+                sum_excitatory_synapse_pruned,
+                sum_inhibitory_synapse_pruned,
+            ) = dendrinet.log_sum_weights(pruned=True)
+        else:
+            (
+                sum_excitatory_synapse_pruned,
+                sum_inhibitory_synapse_pruned,
+            ) = dendrinet.sum_weights(pruned=True)
+    else:
+        if logspace:
+            sum_excitatory_synapse_pruned = dendrinet.log_sum_weights(pruned=True)
+        else:
+            sum_excitatory_synapse_pruned = dendrinet.sum_weights(pruned=True)
+        sum_inhibitory_synapse_pruned = [None] * n_soma
+
+    for j in range(n_soma):
+        plot_dict[f"soma{j}"]["sum weights"] = {}
+        plot_dict[f"soma{j}"]["sum weights"]["inh"] = sum_inhibitory_synapse_pruned[j]
+        plot_dict[f"soma{j}"]["sum weights"]["exc"] = sum_excitatory_synapse_pruned[j]
+
+    return plot_dict
 
 
-def einet_params_todict(model):
+def einet_params_todict(einet, logspace=False):
     """Extract EINet parameters to dictionary."""
-    # This would contain the actual implementation from plot_utils
-    # Placeholder for now
-    return {
-        'excitatory_weights': [],
-        'inhibitory_weights': [],
-        'ei_ratios': [],
-        'biases': [],
-    }
+    einet = einet.to("cpu")
+
+    plot_dict = {}
+
+    for i in range(len(einet.layers)):
+        inh_dendrinet = einet.layers[i].inhibitory_cells
+        exc_dendrinet = einet.layers[i].excitatory_cells
+
+        plot_dict[f"eilayer{i+1}"] = {}
+
+        plot_dict[f"eilayer{i+1}"]["inh cells"] = dendrinet_params_todict(
+            dendrinet=inh_dendrinet,
+            logspace=logspace,
+        )
+        plot_dict[f"eilayer{i+1}"]["exc cells"] = dendrinet_params_todict(
+            dendrinet=exc_dendrinet,
+            logspace=logspace,
+        )
+
+    return plot_dict
 
 
-def dendrinet_gradients_todict(model):
+def dendrinet_gradients_todict(dendrinet):
     """Extract DendriNet gradients to dictionary."""
-    # This would contain the actual implementation from plot_utils
-    # Placeholder for now
-    return {
-        'layer_weight_grads': [],
-        'branch_weight_grads': [],
-        'layer_bias_grads': [],
-        'output_weight_grads': None,
-    } 
+    layer_sizes = dendrinet.layer_sizes
+    n_soma = dendrinet.n_soma
+
+    n_layers = dendrinet.n_branch_layers + 1
+
+    plot_dict = {}
+    for n in range(n_soma):
+        plot_dict[f"soma{n}"] = {}
+
+    for i in range(n_layers):
+        level = (
+            "soma layer"
+            if i == dendrinet.n_branch_layers
+            else f"branch layer {dendrinet.n_branch_layers - i}"
+        )
+
+        layer = dendrinet.branch_layers[i]
+        branches_per_soma = int(layer_sizes[i] / n_soma)
+
+        inh_grad = layer.input_inhibitory
+        exc_grad = layer.input_excitatory
+
+        if inh_grad:
+            inhibitory_synapse_grad = layer.branch_inhibition.pre_w.grad
+            inhibitory_synapse_grad = inhibitory_synapse_grad.chunk(n_soma, dim=0)
+
+        if exc_grad:
+            excitatory_synapse_grad = layer.branch_excitation.pre_w.grad
+            excitatory_synapse_grad = excitatory_synapse_grad.chunk(n_soma, dim=0)
+
+        for j in range(n_soma):
+            plot_dict[f"soma{j}"][level] = {}
+            for k in range(branches_per_soma):
+                plot_dict[f"soma{j}"][level][f"branch{k}"] = {}
+                plot_dict[f"soma{j}"][level][f"branch{k}"]["inh syn"] = {}
+                plot_dict[f"soma{j}"][level][f"branch{k}"]["exc syn"] = {}
+
+                plot_dict[f"soma{j}"][level][f"branch{k}"]["inh syn"]["grad"] = (
+                    inhibitory_synapse_grad[j][k] if inh_grad else None
+                )
+                plot_dict[f"soma{j}"][level][f"branch{k}"]["exc syn"]["grad"] = (
+                    excitatory_synapse_grad[j][k] if exc_grad else None
+                )
+
+    return plot_dict
+
+
+def einet_gradients_todict(model, inputs, labels):
+    """Extract EINet gradients to dictionary."""
+    device = "cuda" if torch.cuda.is_available() else "cpu"
+    model = model.to(device)
+    model.train()
+
+    loss = model(inputs.to(device), labels.to(device))
+    loss = loss.mean(dim=0)
+    model.zero_grad()
+    loss.backward()
+
+    einet = model.net
+
+    plot_dict = {}
+
+    for i in range(len(einet.layers)):
+        inh_dendrinet = einet.layers[i].inhibitory_cells
+        exc_dendrinet = einet.layers[i].excitatory_cells
+
+        plot_dict[f"eilayer{i+1}"] = {}
+
+        plot_dict[f"eilayer{i+1}"]["inh cells"] = dendrinet_gradients_todict(
+            dendrinet=inh_dendrinet,
+        )
+        plot_dict[f"eilayer{i+1}"]["exc cells"] = dendrinet_gradients_todict(
+            dendrinet=exc_dendrinet,
+        )
+
+    model.eval()
+
+    return plot_dict
+
+
+def plot_branch_gradients(
+    save_path,
+    branches_to_output,
+    save_in_dir=False,
+    filename="image",
+):
+    """Plot branch gradients."""
+    branch_grad = branches_to_output.grad_block()
+
+    fig, ax = plt.subplots()
+    fig.suptitle("Upstream Branch Gradients")
+    maxabs = torch.max(branch_grad.abs()).item() + 1e-9
+    norm = TwoSlopeNorm(vcenter=0, vmin=-maxabs, vmax=maxabs)
+    im = ax.imshow(
+        branch_grad.detach().cpu().numpy(),
+        cmap="PRGn",
+        norm=norm,
+    )
+
+    add_colorbars(fig, [ax], [im], "right", "5%", 0.05)
+
+    if save_in_dir:
+        save_path = os.path.join(save_path, "branch_grads")
+        file_path = os.path.join(save_path, f"{filename}.jpeg")
+    else:
+        file_path = os.path.join(save_path, "branch_grads.jpeg")
+
+    if not os.path.exists(save_path):
+        os.makedirs(save_path, exist_ok=True)
+
+    fig.savefig(file_path)
+    plt.close(fig)
+
+
+def plot_excitation_inhibition_gradients(
+    soma_branch,
+    save_path,
+    excitatory_synapse_grad,
+    excitatory_synapse_mask,
+    inhibitory_synapse_grad=None,
+    inhibitory_synapse_mask=None,
+    log_m_grad=None,
+    log_b_grad=None,
+    reshape_fn=None,
+    reshape_exc_syn=False,
+    reshape_inh_syn=False,
+    save_in_dir=False,
+    filename="image",
+):
+    """Plot excitatory and inhibitory synapse gradients."""
+    if excitatory_synapse_grad is not None and inhibitory_synapse_grad is not None:
+        return
+
+    nrows, ncols = 0, 3
+    height_ratios = []
+
+    if excitatory_synapse_grad is not None:
+        nrows += 1
+        if reshape_exc_syn:
+            height_ratios.append(10)
+        else:
+            height_ratios.append(1)
+
+    if inhibitory_synapse_grad is not None:
+        nrows += 1
+        if reshape_inh_syn:
+            height_ratios.append(10)
+        else:
+            height_ratios.append(1)
+
+    if log_m_grad is not None:
+        nrows += 1
+        height_ratios.append(1)
+
+    fig = plt.figure(
+        constrained_layout=True,
+    )
+    fig.suptitle(f"Synapses on {soma_branch}")
+    gs = GridSpec(nrows, ncols, height_ratios=height_ratios, figure=fig)
+
+    ax_list = []
+    im_list = []
+
+    if excitatory_synapse_grad is not None:
+        (
+            excitatory_synapse_grad,
+            excitatory_synapse_mask,
+        ) = shape_helper(
+            reshape_exc_syn,
+            reshape_fn,
+            (excitatory_synapse_grad, excitatory_synapse_mask),
+        )
+
+        ax1 = fig.add_subplot(gs[0, 0])
+        ax1.set_title("exc syn grad")
+        maxabs = torch.max(excitatory_synapse_grad.abs()).item() + 1e-9
+        norm = TwoSlopeNorm(vcenter=0, vmin=-maxabs, vmax=maxabs)
+        im1 = ax1.imshow(
+            excitatory_synapse_grad.detach().cpu().numpy(),
+            cmap="PRGn",
+            norm=norm,
+        )
+        ax1.set_xticks([])
+        ax1.set_yticks([])
+
+        ax2 = fig.add_subplot(gs[0, 1])
+        ax2.set_title("exc syn mask")
+        im2 = ax2.imshow(
+            excitatory_synapse_mask.detach().cpu().numpy(),
+            cmap="Greys",
+        )
+        ax2.set_xticks([])
+        ax2.set_yticks([])
+
+        ax_list.append(ax1)
+        im_list.append(im1)
+
+        ax3 = fig.add_subplot(gs[0, 2])
+        ax3.set_title("active exc syn grad dist")
+        ax3.hist(
+            excitatory_synapse_grad[excitatory_synapse_mask > 0]
+            .flatten()
+            .detach()
+            .cpu()
+            .numpy(),
+            bins=20,
+            color="0.4",
+        )
+
+    if inhibitory_synapse_grad is not None:
+        (
+            inhibitory_synapse_grad,
+            inhibitory_synapse_mask,
+        ) = shape_helper(
+            reshape_inh_syn,
+            reshape_fn,
+            (inhibitory_synapse_grad, inhibitory_synapse_mask),
+        )
+
+        ax4 = fig.add_subplot(gs[1, 0])
+        ax4.set_title("inh syn grad")
+        maxabs = torch.max(inhibitory_synapse_grad.abs()).item() + 1e-9
+        norm = TwoSlopeNorm(vcenter=0, vmin=-maxabs, vmax=maxabs)
+        im4 = ax4.imshow(
+            inhibitory_synapse_grad.detach().cpu().numpy(),
+            cmap="PRGn",
+            norm=norm,
+        )
+        ax4.set_xticks([])
+        ax4.set_yticks([])
+
+        ax5 = fig.add_subplot(gs[1, 1])
+        ax5.set_title("inh syn mask")
+        im5 = ax5.imshow(
+            inhibitory_synapse_mask.detach().cpu().numpy(),
+            cmap="Greys",
+        )
+        ax5.set_xticks([])
+        ax5.set_yticks([])
+
+        ax_list.append(ax4)
+        im_list.append(im4)
+
+        ax6 = fig.add_subplot(gs[1, 2])
+        ax6.set_title("active inh syn grad dist")
+        ax6.hist(
+            inhibitory_synapse_grad[inhibitory_synapse_mask > 0]
+            .flatten()
+            .detach()
+            .cpu()
+            .numpy(),
+            bins=20,
+            color="0.4",
+        )
+
+    if len(ax_list) > 0:
+        add_colorbars(fig, ax_list, im_list, "right", "5%", 0.05)
+
+    if log_m_grad is not None:
+        ax5 = fig.add_subplot(gs[-1, 0])
+        # optional param gradient
+
+    if save_in_dir:
+        save_path = os.path.join(save_path, soma_branch)
+        file_path = os.path.join(save_path, f"{filename}.jpeg")
+    else:
+        file_path = os.path.join(save_path, f"{soma_branch}.jpeg")
+
+    if not os.path.exists(save_path):
+        os.makedirs(save_path, exist_ok=True)
+
+    fig.savefig(file_path)
+    plt.close(fig) 

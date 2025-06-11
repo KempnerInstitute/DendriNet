@@ -7,6 +7,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import seaborn as sns
+import torch
 from matplotlib.colors import Normalize
 from matplotlib.cm import ScalarMappable
 
@@ -477,20 +478,91 @@ def plot_depth_info(info_data, save_path=None, show=True):
         plt.close()
 
 
-# Helper functions - these would be imported from the original plot_utils
-def dendrinet_activations_todict(model, x):
+# Actual implementations from plot_utils
+def dendrinet_activations_todict(
+    dendrinet,
+    exc_input_list,
+    inh_input_list,
+):
     """Extract DendriNet activations to dictionary."""
-    # Placeholder implementation - would contain actual extraction logic
-    return {
-        'layer_activations': [],
-        'branch_activations': [],
-    }
+    layer_sizes = dendrinet.layer_sizes
+    n_soma = dendrinet.n_soma
+    n_branch_layers = dendrinet.n_branch_layers
+
+    plot_dict = {}
+    for n in range(n_soma):
+        plot_dict[f"soma{n}"] = {}
+
+    output_list = [None] * len(exc_input_list)
+    for i in range(n_branch_layers + 1):
+        branches_per_soma = int(layer_sizes[i] / n_soma)
+
+        chunk_list = []
+
+        for j in range(len(exc_input_list)):
+            output_list[j] = dendrinet.branch_layers[i](
+                exc_input_list[j], inh_input_list[j], output_list[j]
+            )
+            chunk_list.append(output_list[j].chunk(n_soma, dim=-1))
+
+        level = (
+            "soma layer"
+            if (i == n_branch_layers)
+            else f"branch layer {n_branch_layers - i}"
+        )
+
+        for n in range(n_soma):
+            plot_dict[f"soma{n}"][level] = {}
+            for b in range(branches_per_soma):
+                activation_list = []
+                for k in range(len(exc_input_list)):
+                    chunk = chunk_list[k][n][:, b]
+                    activation_list.append(chunk)
+
+                plot_dict[f"soma{n}"][level][f"branch{b}"] = {}
+                plot_dict[f"soma{n}"][level][f"branch{b}"][
+                    "activation list"
+                ] = activation_list
+
+    return plot_dict
 
 
-def einet_activations_todict(model, x):
+def einet_activations_todict(einet, input_list):
     """Extract EINet activations to dictionary."""
-    # Placeholder implementation - would contain actual extraction logic
-    return {
-        'excitatory_activations': [],
-        'inhibitory_activations': [],
-    } 
+    device = "cuda" if torch.cuda.is_available() else "cpu"
+    einet = einet.to(device)
+
+    exc_input_list = [inputs.to(device) for inputs in input_list]
+    inh_input_list = [None] * len(input_list)
+
+    plot_dict = {}
+
+    for i in range(len(einet.layers)):
+        inh_dendrinet = einet.layers[i].inhibitory_cells
+        exc_dendrinet = einet.layers[i].excitatory_cells
+
+        plot_dict[f"eilayer{i+1}"] = {}
+
+        plot_dict[f"eilayer{i+1}"]["inh cells"] = dendrinet_activations_todict(
+            dendrinet=inh_dendrinet,
+            exc_input_list=exc_input_list,
+            inh_input_list=inh_input_list,
+        )
+
+        inh_temp = []
+        for j in range(len(input_list)):
+            inh_temp.append(inh_dendrinet(exc_input_list[j], inh_input_list[j]))
+        inh_input_list = inh_temp
+
+        plot_dict[f"eilayer{i+1}"]["exc cells"] = dendrinet_activations_todict(
+            dendrinet=exc_dendrinet,
+            exc_input_list=exc_input_list,
+            inh_input_list=inh_input_list,
+        )
+
+        exc_temp = []
+        for j in range(len(input_list)):
+            exc_temp.append(exc_dendrinet(exc_input_list[j], inh_input_list[j]))
+        exc_input_list = exc_temp
+
+    return plot_dict 
