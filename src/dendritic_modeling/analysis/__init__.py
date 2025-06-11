@@ -27,6 +27,11 @@ from .synaptic.weights import WeightAnalyzer
 # Analysis manager
 from .manager import AnalysisManager
 
+# Import new organized analysis classes
+from .branches.interactive import InteractiveBranchAnalyzer
+from .dendritic.comprehensive import ComprehensiveDendriticAnalyzer
+from .managers.plot_manager import PlotManager
+
 __all__ = [
     # Performance analysis
     "PerformanceAnalyzer",
@@ -49,4 +54,9 @@ __all__ = [
     
     # Analysis manager
     "AnalysisManager",
+
+    # New organized analysis classes
+    "InteractiveBranchAnalyzer",
+    "ComprehensiveDendriticAnalyzer",
+    "PlotManager",
 ] 
