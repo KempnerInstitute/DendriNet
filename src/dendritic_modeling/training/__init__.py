@@ -6,5 +6,6 @@ optimizers, and utilities.
 """
 
 from . import optimizers
+from . import strategies
 
-__all__ = ["optimizers"] 
+__all__ = ["optimizers", "strategies"] 
