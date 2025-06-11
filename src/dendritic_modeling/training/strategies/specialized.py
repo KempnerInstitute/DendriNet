@@ -48,6 +48,50 @@ def voltage_warmup_loss(model, x, target_val=0.5):
     return F.mse_loss(voltage_tensor, target_tensor)
 
 
+def generate_warmup_report(model, data_loader, pre_state, post_state, device, save_path):
+    """
+    Generate a report comparing model statistics before and after voltage warm-up.
+    
+    Args:
+        model: The dendritic model
+        data_loader: DataLoader for evaluation
+        pre_state: Model state before warm-up
+        post_state: Model state after warm-up
+        device: Device to run on
+        save_path: Path to save the report
+    """
+    def collect_model_stats(state_dict):
+        """Collect statistics from model state dictionary."""
+        stats = {}
+        for name, param in state_dict.items():
+            if "voltage" in name.lower():
+                stats[f"{name}_mean"] = param.mean().item()
+                stats[f"{name}_std"] = param.std().item()
+        return stats
+    
+    pre_stats = collect_model_stats(pre_state)
+    post_stats = collect_model_stats(post_state)
+    
+    # Create report
+    report = {
+        "pre_warmup": pre_stats,
+        "post_warmup": post_stats,
+        "changes": {}
+    }
+    
+    # Calculate changes
+    for key in pre_stats:
+        if key in post_stats:
+            report["changes"][key] = post_stats[key] - pre_stats[key]
+    
+    if save_path and os.path.exists(save_path):
+        import json
+        with open(os.path.join(save_path, "warmup_report.json"), 'w') as f:
+            json.dump(report, f, indent=2)
+    
+    return report
+
+
 class VoltageStabilizationTrainer(BaseTrainer):
     """
     Voltage Stabilization Training Strategy.
@@ -396,4 +440,238 @@ class TrainOnlyMReactivation(BaseTrainer):
             else:
                 plot_NLL_loss_curves(train_losses, valid_losses, epochs)
                 
+        return results
+
+
+class InhibitoryHeadTrainer:
+    """
+    Custom trainer for the inhibitory head with different objective functions.
+    
+    This specialized trainer supports multiple training objectives including:
+    - Classification: Standard classification loss
+    - Diversity: Encourages inhibitory head to learn different features from excitatory head
+    - Combined: Mix of classification and diversity losses
+    """
+
+    def __init__(
+        self,
+        model,
+        optimizer,
+        objective="classification",
+        excit_head_model=None,
+        alpha=0.5,
+        suppress_prints=False,
+        print_every=10,
+    ):
+        """
+        Initialize the inhibitory head trainer.
+        
+        Args:
+            model: The inhibitory head model to train
+            optimizer: The optimizer to use
+            objective: Training objective ("classification", "diversity", or "combined")
+            excit_head_model: Excitatory head model for diversity loss computation
+            alpha: Weight for the diversity loss component
+            suppress_prints: Whether to suppress print statements
+            print_every: Print frequency for training logs
+        """
+        self.model = model
+        self.optimizer = optimizer
+        self.objective = objective
+        self.excit_head_model = excit_head_model
+        self.alpha = alpha  # Weight for the diversity loss
+        self.suppress = suppress_prints
+        self.print_every = print_every
+
+    def compute_classification_loss(self, x, y):
+        """Standard classification loss"""
+        return self.model.compute_loss(x, y)
+
+    def compute_diversity_loss(self, x):
+        """
+        Diversity loss: encourages inhibitory head to learn features different from excitatory head
+        by maximizing the cosine distance between their representations.
+        
+        Args:
+            x: Input data
+            
+        Returns:
+            Diversity loss value (higher when representations are similar)
+        """
+        if self.excit_head_model is None:
+            return torch.tensor(0.0, device=x.device)
+
+        # Get representations from both heads
+        with torch.no_grad():
+            if hasattr(self.excit_head_model, "net"):
+                excit_repr = self.excit_head_model.net(x)
+            elif hasattr(self.excit_head_model, "network"):
+                excit_repr = self.excit_head_model.network(x)
+            else:
+                excit_repr = self.excit_head_model(x)
+
+        if hasattr(self.model, "net"):
+            inhib_repr = self.model.net(x)
+        elif hasattr(self.model, "network"):
+            inhib_repr = self.model.network(x)
+        else:
+            inhib_repr = self.model(x)
+
+        # Normalize the representations
+        excit_repr = F.normalize(excit_repr, p=2, dim=1)
+        inhib_repr = F.normalize(inhib_repr, p=2, dim=1)
+
+        # Compute cosine similarity (we want to minimize this, or maximize negative)
+        similarity = torch.sum(excit_repr * inhib_repr, dim=1).mean()
+
+        # Return negative similarity to maximize distance
+        return similarity
+
+    def train(
+        self,
+        model,
+        train_data,
+        valid_data=None,
+        epochs=100,
+        batch_size=256,
+        grad_clip_value=5,
+        shuffle=True,
+        load_best_state_dict=True,
+        plot_losses=False,
+        save_path=None,
+    ):
+        """
+        Train the inhibitory head with the specified objective.
+        
+        Args:
+            model: The model to train (will use self.model if provided)
+            train_data: Training dataset
+            valid_data: Validation dataset (optional)
+            epochs: Number of training epochs
+            batch_size: Batch size for training
+            grad_clip_value: Gradient clipping value
+            shuffle: Whether to shuffle training data
+            load_best_state_dict: Whether to load best model state at end
+            plot_losses: Whether to plot loss curves
+            save_path: Path to save results
+            
+        Returns:
+            Dictionary containing training results and metrics
+        """
+        device = "cuda" if torch.cuda.is_available() else "cpu"
+        model = model.to(device)
+        if self.excit_head_model is not None:
+            self.excit_head_model = self.excit_head_model.to(device)
+
+        train_loader = torch.utils.data.DataLoader(
+            train_data, batch_size=batch_size, shuffle=shuffle
+        )
+
+        train_losses = []
+        valid_losses = []
+        best_loss = float("inf")
+        best_state = deepcopy(model.state_dict())
+
+        start_time = time.time()
+
+        for epoch in range(1, epochs + 1):
+            model.train()
+            epoch_train_loss = 0.0
+
+            for xb, yb in train_loader:
+                xb = xb.to(device)
+                yb = yb.to(device)
+
+                # Compute the appropriate loss based on the objective
+                if self.objective == "classification":
+                    loss = self.compute_classification_loss(xb, yb)
+                elif self.objective == "diversity":
+                    class_loss = self.compute_classification_loss(xb, yb)
+                    div_loss = self.compute_diversity_loss(xb)
+                    loss = class_loss + self.alpha * div_loss
+                elif self.objective == "combined":
+                    class_loss = self.compute_classification_loss(xb, yb)
+                    div_loss = self.compute_diversity_loss(xb)
+                    loss = class_loss + self.alpha * div_loss
+                else:
+                    raise ValueError(f"Unknown objective: {self.objective}")
+
+                self.optimizer.zero_grad()
+                loss.backward()
+                torch.nn.utils.clip_grad_value_(model.parameters(), grad_clip_value)
+                self.optimizer.step()
+
+                epoch_train_loss += loss.item()
+
+            epoch_train_loss /= len(train_loader)
+            train_losses.append(epoch_train_loss)
+
+            # Evaluate on validation set
+            model.eval()
+            val_loss = 0.0
+
+            if valid_data is not None:
+                valid_loader = torch.utils.data.DataLoader(
+                    valid_data, batch_size=batch_size
+                )
+                with torch.no_grad():
+                    for xb, yb in valid_loader:
+                        xb = xb.to(device)
+                        yb = yb.to(device)
+
+                        # Use classification loss for validation
+                        loss = self.compute_classification_loss(xb, yb)
+                        val_loss += loss.item()
+
+                val_loss /= len(valid_loader)
+                valid_losses.append(val_loss)
+
+                if val_loss < best_loss:
+                    best_loss = val_loss
+                    best_state = deepcopy(model.state_dict())
+                    if save_path and os.path.exists(save_path):
+                        torch.save(best_state, os.path.join(save_path, "best_model.pt"))
+
+            if (not self.suppress) and (epoch % self.print_every == 0):
+                elapsed = time.time() - start_time
+                if valid_data is not None:
+                    logger.info(
+                        f"[InhibitoryHead-{self.objective}] epoch={epoch}/{epochs}, "
+                        f"train_loss={epoch_train_loss:.4f}, valid_loss={val_loss:.4f}, "
+                        f"elapsed={elapsed:.1f}s"
+                    )
+                else:
+                    logger.info(
+                        f"[InhibitoryHead-{self.objective}] epoch={epoch}/{epochs}, "
+                        f"train_loss={epoch_train_loss:.4f}, elapsed={elapsed:.1f}s"
+                    )
+
+            if wandb.run is not None:
+                log_dict = {
+                    "epoch": epoch,
+                    "train_loss": epoch_train_loss,
+                    "objective": self.objective,
+                }
+                if valid_data is not None:
+                    log_dict["valid_loss"] = val_loss
+                wandb.log(log_dict)
+
+        if load_best_state_dict and valid_data is not None:
+            model.load_state_dict(best_state)
+
+        results = {
+            "train_losses": train_losses,
+            "valid_losses": valid_losses if valid_data is not None else [],
+            "best_loss": best_loss if valid_data is not None else None,
+        }
+
+        if plot_losses and len(train_losses) > 1:
+            if save_path and os.path.exists(save_path):
+                plot_NLL_loss_curves(
+                    train_losses,
+                    valid_losses if valid_data is not None else [],
+                    epochs,
+                    save_path,
+                )
+
         return results
