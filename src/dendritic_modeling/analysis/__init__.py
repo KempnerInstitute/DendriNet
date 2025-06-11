@@ -24,10 +24,8 @@ from .activations.branches import BranchActivationAnalyzer
 from .synaptic.turnover import SynapticTurnoverAnalyzer
 from .synaptic.weights import WeightAnalyzer
 
-# Main analysis classes from the analysis module
-from .analysis import (
-    AnalysisManager,
-)
+# Analysis manager
+from .manager import AnalysisManager
 
 __all__ = [
     # Performance analysis
@@ -49,6 +47,6 @@ __all__ = [
     "SynapticTurnoverAnalyzer",
     "WeightAnalyzer",
     
-    # Main analysis classes
+    # Analysis manager
     "AnalysisManager",
 ] 
