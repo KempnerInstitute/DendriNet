@@ -12,6 +12,7 @@ from .performance.ablation import AblationAnalyzer
 
 # Information analysis
 from .information.mutual_info import EIInformationAnalyzer
+from .information.branch_info import BranchInformationAnalyzer
 
 # Activation analysis
 from .activations.synaptic import SynapticActivationAnalyzer
@@ -23,7 +24,6 @@ from .synaptic.weights import WeightAnalyzer
 
 # Main analysis classes from the analysis module
 from .analysis import (
-    BranchInformationAnalyzer,
     SingleLayerContributionAnalyzer, 
     SynapticAblationAnalyzer,
     AnalysisManager,
@@ -37,6 +37,7 @@ __all__ = [
     
     # Information analysis
     "EIInformationAnalyzer",
+    "BranchInformationAnalyzer",
     
     # Activation analysis
     "SynapticActivationAnalyzer",
@@ -47,7 +48,6 @@ __all__ = [
     "WeightAnalyzer",
     
     # Main analysis classes
-    "BranchInformationAnalyzer",
     "SingleLayerContributionAnalyzer",
     "SynapticAblationAnalyzer", 
     "AnalysisManager",
