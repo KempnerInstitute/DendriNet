@@ -7,4 +7,16 @@ This package contains model wrapper classes:
 - baselines: Baseline models for comparison
 """
 
-# Placeholder - will be populated with imports after refactoring 
+# Import base model class
+from .base import BaseModel
+
+# Backward compatibility - import remaining classes from original models.py
+from ..models import (
+    ProbabilisticClassifier,
+    Classifier, 
+    Regressor,
+    DeepstRegressor,
+    SimpleMLP,
+    SimpleClassifier,
+    MLPWithClassificationHead
+) 

@@ -29,81 +29,11 @@ from dendritic_modeling.utils import (
     save_dict,
 )
 
+# Import PerformanceAnalyzer from new location
+from dendritic_modeling.analysis.performance.metrics import PerformanceAnalyzer
 
-class PerformanceAnalyzer:
-    def __init__(
-        self,
-        accuracy: bool = False,
-        categorical_loglikelihood: bool = False,
-        mse: bool = False,
-    ):
-        self.accuracy = accuracy
-        self.categorical_loglikelihood = categorical_loglikelihood
-        self.mse = mse
 
-    def analyze(
-        self,
-        model: BaseModel,
-        train_ds: Optional[torch.utils.data.Dataset] = None,
-        valid_ds: Optional[torch.utils.data.Dataset] = None,
-        test_ds: Optional[torch.utils.data.Dataset] = None,
-        device: str = "cpu",
-        save_path: Optional[str] = None,
-        filename: str = "final",
-    ):
-        results = {}
-        if self.accuracy:
-            results["accuracy"] = {}
-            train_acc, valid_acc, test_acc = evaluate_accuracy(
-                classifier=model,
-                train_ds=train_ds,
-                valid_ds=valid_ds,
-                test_ds=test_ds,
-                device=device,
-            )
-            if train_ds is not None:
-                results["accuracy"]["train"] = train_acc
-            if valid_ds is not None:
-                results["accuracy"]["valid"] = valid_acc
-            if test_ds is not None:
-                results["accuracy"]["test"] = test_acc
-
-        if self.categorical_loglikelihood:
-            results["categorical_loglikelihood"] = {}
-            train_catll, valid_catll, test_catll = evaluate_categorical_loglikelihood(
-                classifier=model,
-                train_ds=train_ds,
-                valid_ds=valid_ds,
-                test_ds=test_ds,
-                device=device,
-            )
-            if train_ds is not None:
-                results["categorical_loglikelihood"]["train"] = train_catll
-            if valid_ds is not None:
-                results["categorical_loglikelihood"]["valid"] = valid_catll
-            if test_ds is not None:
-                results["categorical_loglikelihood"]["test"] = test_catll
-
-        if self.mse:
-            results["mse"] = {}
-            train_mse, valid_mse, test_mse = evaluate_mse(
-                classifier=model,
-                train_ds=train_ds,
-                valid_ds=valid_ds,
-                test_ds=test_ds,
-                device=device,
-            )
-            if train_ds is not None:
-                results["mse"]["train"] = train_mse
-            if valid_ds is not None:
-                results["mse"]["valid"] = valid_mse
-            if test_ds is not None:
-                results["mse"]["test"] = test_mse
-
-        if save_path is not None:
-            save_dict(results, save_path, filename)
-        else:
-            return results
+# PerformanceAnalyzer has been moved to analysis/performance/metrics.py
 
 
 class EIInformationAnalyzer:
