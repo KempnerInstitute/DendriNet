@@ -29,8 +29,9 @@ from dendritic_modeling.utils import (
     save_dict,
 )
 
-# Import PerformanceAnalyzer from new location
+# Import moved classes from new locations
 from dendritic_modeling.analysis.performance.metrics import PerformanceAnalyzer
+from dendritic_modeling.analysis.performance.noise import NoisePerturbationAnalyzer
 
 
 # PerformanceAnalyzer has been moved to analysis/performance/metrics.py
@@ -329,93 +330,7 @@ class SynapticTurnoverAnalyzer:
                 return turnover_dict
 
 
-class NoisePerturbationAnalyzer:
-    def __init__(
-        self,
-        uniform_noise: bool = False,
-        uniform_magnitudes: List[float] = [0.1],
-        gaussian_noise: bool = False,
-        gaussian_sdevs: List[float] = [0.1],
-        n_samples: int = 10,
-        accuracy: bool = True,
-        categorical_loglikelihood: bool = True,
-    ):
-        self.uniform_noise = uniform_noise
-        self.uniform_magnitudes = uniform_magnitudes
-        self.gaussian_noise = gaussian_noise
-        self.gaussian_sdevs = gaussian_sdevs
-        self.n_samples = n_samples
-        self.accuracy = accuracy
-        self.categorical_ll = categorical_loglikelihood
-
-    def analyze(
-        self,
-        model: BaseModel,
-        test_dataset: torch.utils.data.Dataset,
-        device: str = "cpu",
-        save_path: Optional[str] = None,
-        filename: str = "final",
-    ):
-        model = model.to(device)
-        x, y = test_dataset[:]
-        x: torch.Tensor = x.to(device)
-        y: torch.Tensor = y.to(device)
-        y = y[None, ...].expand(self.n_samples, *y.shape)
-
-        noise_results = {}
-
-        if self.uniform_noise:
-            noise_results["uniform"] = {}
-            for mag in self.uniform_magnitudes:
-                noise_results["uniform"][f"{mag}"] = {}
-                noisy_x = add_uniform_noise(x, spread=mag, n_samples=self.n_samples)
-                if self.accuracy:
-                    accs = evaluate_accuracy(
-                        classifier=model,
-                        test_ds=TensorDataset(noisy_x, y),
-                        reduce_dim=1,
-                        move_device=False,
-                    )[-1]
-                    accs = accs.cpu().tolist()
-                    noise_results["uniform"][f"{mag}"]["accuracy"] = accs
-                if self.categorical_ll:
-                    cat_lls = evaluate_categorical_loglikelihood(
-                        classifier=model,
-                        test_ds=TensorDataset(noisy_x, y),
-                        reduce_dim=1,
-                        move_device=False,
-                    )[-1]
-                    cat_lls = cat_lls.cpu().tolist()
-                    noise_results["uniform"][f"{mag}"]["categorical_ll"] = cat_lls
-
-        if self.gaussian_noise:
-            noise_results["gaussian"] = {}
-            for sdev in self.gaussian_sdevs:
-                noise_results["gaussian"][f"{sdev}"] = {}
-                noisy_x = add_gaussian_noise(x, std=sdev, n_samples=self.n_samples)
-                if self.accuracy:
-                    accs = evaluate_accuracy(
-                        classifier=model,
-                        test_ds=TensorDataset(noisy_x, y),
-                        reduce_dim=1,
-                        move_device=False,
-                    )[-1]
-                    accs = accs.cpu().tolist()
-                    noise_results["gaussian"][f"{sdev}"]["accuracy"] = accs
-                if self.categorical_ll:
-                    cat_lls = evaluate_categorical_loglikelihood(
-                        classifier=model,
-                        test_ds=TensorDataset(noisy_x, y),
-                        reduce_dim=1,
-                        move_device=False,
-                    )[-1]
-                    cat_lls = cat_lls.cpu().tolist()
-                    noise_results["gaussian"][f"{sdev}"]["categorical_ll"] = cat_lls
-
-        if save_path is not None:
-            save_dict(noise_results, save_path, filename)
-        else:
-            return noise_results
+# NoisePerturbationAnalyzer has been moved to analysis/performance/noise.py
 
 
 class BranchInformationAnalyzer:
