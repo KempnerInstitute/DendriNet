@@ -907,13 +907,26 @@ class LocalCreditAssignment(BaseTrainer):
         return final_results
 
 
-class TrainerRegression(BaseTrainer):
-    def __init__(self, optimizer, suppress_prints=False, print_every=10, use_scheduler=True, min_lr=1e-6):
-        super().__init__(optimizer, suppress_prints, print_every)
-        self.use_scheduler = use_scheduler
-        self.min_lr = min_lr
+# TrainerRegression has been moved to training/strategies/regression.py
 
-    def _eval_dataset(self, model, dataset, device, batch_size=256):
+
+class LocalCreditAssignment(BaseTrainer):
+    def train(
+        self,
+        model,
+        train_data,
+        valid_data=None,
+        grad_clip_value=5,
+        epochs=100,
+        batch_size=256,
+        shuffle=True,
+        load_best_state_dict=True,
+        analysis_manager: Optional[AnalysisManager] = None,
+        plot_losses=False,
+        save_path=None,
+        **kwargs,
+    ):
+        device = "cuda" if torch.cuda.is_available() else "cpu"
         if dataset is None or len(dataset) == 0:
             return 0.0, 0.0
         loader = DataLoader(dataset, batch_size=batch_size, shuffle=False)
