@@ -13,11 +13,13 @@ from .performance.ablation import AblationAnalyzer
 # Information analysis
 from .information.mutual_info import EIInformationAnalyzer
 
+# Activation analysis
+from .activations.synaptic import SynapticActivationAnalyzer
+from .activations.branches import BranchActivationAnalyzer
+
 # Synaptic analysis
 from .synaptic.turnover import SynapticTurnoverAnalyzer
 from .synaptic.weights import WeightAnalyzer
-from .synaptic.activations import SynapticActivationAnalyzer
-from .synaptic.branch_activations import BranchActivationAnalyzer
 
 # Main analysis classes from the analysis module
 from .analysis import (
@@ -36,11 +38,13 @@ __all__ = [
     # Information analysis
     "EIInformationAnalyzer",
     
+    # Activation analysis
+    "SynapticActivationAnalyzer",
+    "BranchActivationAnalyzer",
+    
     # Synaptic analysis
     "SynapticTurnoverAnalyzer",
     "WeightAnalyzer",
-    "SynapticActivationAnalyzer",
-    "BranchActivationAnalyzer",
     
     # Main analysis classes
     "BranchInformationAnalyzer",
