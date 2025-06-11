@@ -30,6 +30,26 @@ from .noise import (
     add_frequency_noise,
 )
 
+# Hook utilities
+from .hooks import (
+    safe_backward_hook,
+    safe_register_hooks,
+    register_safe_hook,
+    safe_hook_fn,
+    SafeHookModule,
+)
+
+# Classification utilities
+from .classification import (
+    MLPClassifier,
+    train_classifier,
+    evaluate_classifier,
+    get_layer_activations,
+    get_ablated_activations,
+    analyze_layerwise_ablation,
+    train_and_evaluate_classifier,
+)
+
 __all__ = [
     # Data utilities
     "Shaper",
@@ -50,4 +70,20 @@ __all__ = [
     "add_uniform_noise",
     "add_poisson_noise",
     "add_frequency_noise",
+    
+    # Hook utilities
+    "safe_backward_hook",
+    "safe_register_hooks",
+    "register_safe_hook",
+    "safe_hook_fn",
+    "SafeHookModule",
+    
+    # Classification utilities
+    "MLPClassifier",
+    "train_classifier",
+    "evaluate_classifier",
+    "get_layer_activations",
+    "get_ablated_activations",
+    "analyze_layerwise_ablation",
+    "train_and_evaluate_classifier",
 ] 
