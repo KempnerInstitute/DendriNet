@@ -30,7 +30,7 @@ from dendritic_modeling import logger
 from dendritic_modeling.plot_utils import plot_NLL_loss_curves
 from dendritic_modeling.analysis import AnalysisManager
 from dendritic_modeling.training.optimizers import CustomWeightDecayOptimizer
-from dendritic_modeling.training.strategies import BaseTrainer, compute_metrics_classification, TrainerMLE
+from dendritic_modeling.training.strategies import BaseTrainer, compute_metrics_classification, TrainerMLE, TrainerRegression
 
 
 # compute_metrics_classification has been moved to training/strategies/base.py
@@ -43,8 +43,11 @@ from dendritic_modeling.training.strategies import BaseTrainer, compute_metrics_
 
 
 # TrainerMLE has been moved to training/strategies/mle.py
+# Misplaced TrainerMLE methods have been removed
+# TrainerRegression has been moved to training/strategies/regression.py
 
-class TrainerRegression(BaseTrainer):
+
+class LocalCreditAssignment(BaseTrainer):
     def train(
         self,
         model,
@@ -55,15 +58,49 @@ class TrainerRegression(BaseTrainer):
         batch_size=256,
         shuffle=True,
         load_best_state_dict=True,
-        best_loss=float("inf"),
-        early_stopping=False,
-        patience=10,
         analysis_manager: Optional[AnalysisManager] = None,
         plot_losses=False,
         save_path=None,
         **kwargs,
     ):
         device = "cuda" if torch.cuda.is_available() else "cpu"
+        if dataset is None or len(dataset) == 0:
+            return 0.0, 0.0
+        loader = DataLoader(dataset, batch_size=batch_size, shuffle=False)
+        total_loss = 0.0
+        total_mse = 0.0
+        model.eval()
+        with torch.no_grad():
+            for xb, yb in loader:
+                xb = xb.to(device)
+                yb = yb.to(device)
+                nll = model.compute_loss(xb, yb)
+                total_loss += nll.item()
+                pred = model.predict(xb)
+                mse = F.mse_loss(pred, yb)
+                total_mse += mse.item()
+        return total_loss / len(loader), total_mse / len(loader)
+
+    def train(
+        self, 
+        model, 
+        train_data, 
+        valid_data=None, 
+        grad_clip_value=5, 
+        epochs=100,
+        early_stopping=False, 
+        patience=10,
+        batch_size=256, 
+        shuffle=True, 
+        load_best_state_dict=True, 
+        best_loss=float('inf'),
+        analysis_manager: Optional[AnalysisManager] = None,
+        plot_losses=False, 
+        save_path=None, 
+        seed=None, 
+        **kwargs
+    ):
+        device = 'cuda' if torch.cuda.is_available() else 'cpu'
         model = model.to(device)
         train_loader = DataLoader(train_data, batch_size=batch_size, shuffle=shuffle)
         train_losses = []
