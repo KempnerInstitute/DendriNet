@@ -10,8 +10,5 @@ from .linear import *
 __all__ = [
     # Linear layer variants
     "TopKLinear",
-    "StochasticTopKLinear", 
-    "VarianceTopKLinear",
-    "DeepstLinear",
-    "BlockLinear",
-] 
+    "TOPK_INIT_METHODS",
+]
