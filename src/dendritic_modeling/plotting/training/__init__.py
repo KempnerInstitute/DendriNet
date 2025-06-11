@@ -1,7 +1,19 @@
 """
-Training plotting module.
-
-Contains plotting functions for training curves, loss plots, and convergence analysis.
+Training-related plotting functions.
 """
 
-# Placeholder - will contain training plotting functions 
+from ..training import (
+    plot_NLL_loss_curves,
+    plot_ei_sweep_results,
+    plot_branch_sweep_results,
+    plot_noise_sweep_ei_results,
+    plot_noise_sweep_branch_results,
+)
+
+__all__ = [
+    "plot_NLL_loss_curves",
+    "plot_ei_sweep_results", 
+    "plot_branch_sweep_results",
+    "plot_noise_sweep_ei_results",
+    "plot_noise_sweep_branch_results",
+] 
