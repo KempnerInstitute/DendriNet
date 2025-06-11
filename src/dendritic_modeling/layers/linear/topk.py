@@ -34,60 +34,20 @@ class TopKLinear(nn.Module):
 
     Parameters
     ----------
-
     in_features : int
         The number of input features.
-
     out_features : int
         The number of output features.
-
     K : int
         The number of strongest synapses to keep per dendritic branch.
-
     param_space : str, optional
         The parameter space for the weights. Options are 'log' and 'presigmoid'.
-        If `'log'`, the weights are parameterized as exponentials of `pre_w`.
-        If `'presigmoid'`, the weights are parameterized as sigmoids of `pre_w`.
         Defaults to 'log'.
-
-    Attributes
-    ----------
-
-    pre_w : torch.nn.Parameter
-        The raw weights before applying the exponential or sigmoid
-        transformation. Initialized with small negative values to ensure
-        positive weights after transformation.
-
-    K : int
-        The number of strongest synapses to keep per dendritic branch.
-
-    param_space : str
-        The parameter space for the weights.
-
-    Methods
-    -------
-
-    forward(x)
-        Performs a forward pass through the layer.
-
-    weight()
-        Returns the transformed synaptic weights after applying the exponential
-        or sigmoid.
-
-    weight_mask()
-        Returns a mask tensor indicating the top K synaptic connections per
-        output neuron.
-
-    pruned_weight()
-        Returns the pruned synaptic weights after applying the mask.
-
-    weighted_synapses(cell_weights, prune=False)
-        Returns the weighted synapses for a given set of cell
 
     Notes
     -----
     - All weights are constrained to be positive.
-    - The prunning is done dynamically during the forward pass.
+    - The pruning is done dynamically during the forward pass.
     """
 
     def __init__(
@@ -125,31 +85,33 @@ class TopKLinear(nn.Module):
 
         self.K = K
         self.param_space = param_space
-        self.init_method = init_method
         self.input_scale_vec = None  # may be used for gradient scaling
         self.param_scale_vec = None  # may be used for gradient scaling
 
     def initialize(self):
+        """Initialize the layer weights using the specified method."""
         if self.init_method in TOPK_INIT_METHODS:
             init_func = TOPK_INIT_METHODS[self.init_method]
             init_func(self.pre_w)
             self.pre_w.data.mul_(self.init_gain)  # scale
         else:
             raise ValueError(
-                f"Invalid initialization method: {self.init_method}. ",
-                f"Choose from {list(TOPK_INIT_METHODS.keys())}",
+                f"Invalid initialization method: {self.init_method}. "
+                f"Choose from {list(TOPK_INIT_METHODS.keys())}"
             )
 
     def decay_weights(self, weight_decay=0.1, weight_boost=False):
+        """Apply weight decay to active synapses and optionally boost inactive ones."""
         with torch.no_grad():
             weight_mask = self.weight_mask()
             log_decay = log(1 - weight_decay) * weight_mask
-            self.pre_w.data += log_decay # suppress active synapses
+            self.pre_w.data += log_decay  # suppress active synapses
             if weight_boost:
                 log_boost = log(1 + weight_decay) * (1 - weight_mask)
-                self.pre_w.data -= log_boost # boost inactive synapses
+                self.pre_w.data -= log_boost  # boost inactive synapses
 
     def forward(self, x):
+        """Forward pass through the TopK linear layer."""
         pruned_weight = self.pruned_weight()
 
         # Ensure x is a 2D tensor for matrix multiplication
@@ -163,15 +125,18 @@ class TopKLinear(nn.Module):
         return torch.matmul(x, pruned_weight.t())
 
     def weight(self):
+        """Return the transformed synaptic weights."""
         if self.param_space == "log":
             return self.pre_w.exp()
         elif self.param_space == "presigmoid":
             return torch.sigmoid(self.pre_w)
 
     def log_weight(self):
+        """Return the log of the transformed weights."""
         return self.weight().log()
 
     def weight_mask(self):
+        """Return a mask indicating the top K synaptic connections per output neuron."""
         # Determine which weights to use for topk selection
         weights_for_topk = self.pre_w
         if self.noise_level > 0:
@@ -195,12 +160,15 @@ class TopKLinear(nn.Module):
         return mask
 
     def pruned_weight(self):
+        """Return the pruned synaptic weights after applying the mask."""
         return self.weight_mask() * self.weight()
 
     def log_pruned_weight(self):
+        """Return the log of the pruned weights."""
         return ((self.weight_mask() - 1) * 10) + self.log_weight()
 
     def weighted_synapses(self, cell_weights, prune=False):
+        """Return weighted synapses for a given set of cell weights."""
         if prune:
             synapse_weights = self.pruned_weight()
         else:
@@ -210,4 +178,4 @@ class TopKLinear(nn.Module):
         return weighted_synapses.sum(dim=0)
 
 
-__all__ = ["TopKLinear", "TOPK_INIT_METHODS"] 
+__all__ = ["TopKLinear", "TOPK_INIT_METHODS"]
