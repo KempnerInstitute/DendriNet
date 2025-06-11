@@ -9,13 +9,12 @@ This package contains various analysis modules:
 """
 
 # Import from new structure
-from .performance import PerformanceAnalyzer
+from .performance import PerformanceAnalyzer, NoisePerturbationAnalyzer
 
 # Backward compatibility - import remaining classes from original analysis.py
 from ..analysis import (
     EIInformationAnalyzer,
     SynapticTurnoverAnalyzer,
-    NoisePerturbationAnalyzer,
     BranchInformationAnalyzer,
     SingleLayerContributionAnalyzer,
     AblationAnalyzer,
@@ -28,9 +27,9 @@ from ..analysis import (
 
 __all__ = [
     'PerformanceAnalyzer',
+    'NoisePerturbationAnalyzer',
     'EIInformationAnalyzer',
     'SynapticTurnoverAnalyzer', 
-    'NoisePerturbationAnalyzer',
     'BranchInformationAnalyzer',
     'SingleLayerContributionAnalyzer',
     'AblationAnalyzer',
