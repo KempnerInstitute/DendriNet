@@ -44,6 +44,13 @@ from dendritic_modeling.training.strategies import (
     voltage_warmup_loss,
     generate_warmup_report
 )
+from dendritic_modeling.training import (
+    get_trainer,
+    train_simple_mlp,
+    train_mlp_with_classification_head,
+    transfer_mlp_weights_to_input_net,
+    extract_weights_from_simple_mlp,
+)
 
 
 # compute_metrics_classification has been moved to training/strategies/base.py
