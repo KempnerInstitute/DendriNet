@@ -10,6 +10,7 @@ from .mle import TrainerMLE
 from .regression import TrainerRegression
 from .local_learning import LocalCreditAssignment
 from .two_step import TwoStepTrainer, TwoStepTrainerWithKL
+from .specialized import VoltageStabilizationTrainer, TrainOnlyMReactivation
 
 __all__ = [
     "BaseTrainer", 
@@ -18,5 +19,7 @@ __all__ = [
     "TrainerRegression", 
     "LocalCreditAssignment",
     "TwoStepTrainer",
-    "TwoStepTrainerWithKL"
+    "TwoStepTrainerWithKL",
+    "VoltageStabilizationTrainer",
+    "TrainOnlyMReactivation"
 ] 
