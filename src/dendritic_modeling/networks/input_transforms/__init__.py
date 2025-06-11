@@ -1,7 +1,22 @@
 """
-Input transforms module.
+Input transforms for neural networks.
 
-Contains input transformation networks for converting raw inputs to excitatory/inhibitory inputs.
+This module contains various input transformation classes that map
+raw inputs to excitatory and inhibitory pathways.
 """
 
-# Placeholder - will contain input transform classes 
+from .base import InputNetTransform
+from .index import IndexInputTransform
+from .mlp import MLPInputTransform
+from .cnn import CNNInputTransform
+from .alexnet import AlexNetInputTransform
+from .sigmoid import SigmoidInputNetTransform
+
+__all__ = [
+    "InputNetTransform",
+    "IndexInputTransform",
+    "MLPInputTransform", 
+    "CNNInputTransform",
+    "AlexNetInputTransform",
+    "SigmoidInputNetTransform",
+] 
