@@ -6,5 +6,6 @@ for dendritic network models.
 """
 
 from .base import BaseTrainer, compute_metrics_classification
+from .mle import TrainerMLE
 
-__all__ = ["BaseTrainer", "compute_metrics_classification"] 
+__all__ = ["BaseTrainer", "compute_metrics_classification", "TrainerMLE"] 
