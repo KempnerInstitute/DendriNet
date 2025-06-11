@@ -1,4 +1,21 @@
 """
+⚠️  REFACTORING REQUIRED - Large Monolithic File (1781 lines)
+================================================================
+
+🎯 TARGET FOR REFACTORING: This file contains a large PlotManager class that needs 
+   to be broken down and reorganized into the existing modular structure.
+
+📋 SPECIFICATION: See /src/dendritic_modeling/REFACTORING_SPEC_VISUALIZATION_MANAGER.md
+   for detailed refactoring plan including:
+   - Branch analysis methods → analysis/branches/interactive.py  
+   - Dendritic analysis methods → analysis/dendritic/comprehensive.py
+   - Slimmed down PlotManager → analysis/managers/plot_manager.py
+   - Expected ~90% size reduction via modular organization
+
+🔧 REFACTORING STATUS: ⏳ PENDING
+📅 PRIORITY: HIGH (Large file blocking maintainability)
+================================================================
+
 visualization_manager.py
 ========================
 Contains a PlotManager class that holds references to all visualization
