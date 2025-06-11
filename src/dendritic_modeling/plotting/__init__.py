@@ -5,6 +5,7 @@ This package contains visualization and plotting utilities organized into logica
 - analysis: Analysis-related plotting functions (activations, tuning curves, distributions)
 - training: Training-related plotting functions (loss curves, sweeps, metrics)  
 - network: Network visualization functions (parameters, weights, architecture)
+- utils: Utility functions (CSV export, tree visualization, helper functions)
 
 Each module contains focused plotting functions for specific aspects of dendritic modeling.
 """
@@ -28,10 +29,13 @@ from .network import (
     build_dendritic_tree_graph,
     visualize_dendritic_tree,
     plot_dendrinet_gradients,
+    plot_branch_gradients,
+    plot_excitation_inhibition_gradients,
     shape_helper,
     dendrinet_params_todict,
     einet_params_todict,
     dendrinet_gradients_todict,
+    einet_gradients_todict,
 )
 
 from .analysis import (
@@ -45,6 +49,14 @@ from .analysis import (
     plot_depth_info,
     dendrinet_activations_todict,
     einet_activations_todict,
+)
+
+from .utils import (
+    dendrinet_activations_to_csv,
+    einet_activations_to_csv,
+    build_dendritic_tree_graph,
+    visualize_dendritic_tree,
+    split_MNIST_inputs,
 )
 
 # Export all functions for easy import
@@ -66,10 +78,13 @@ __all__ = [
     "build_dendritic_tree_graph",
     "visualize_dendritic_tree",
     "plot_dendrinet_gradients",
+    "plot_branch_gradients",
+    "plot_excitation_inhibition_gradients",
     "shape_helper",
     "dendrinet_params_todict",
     "einet_params_todict",
     "dendrinet_gradients_todict",
+    "einet_gradients_todict",
     
     # Analysis functions
     "plot_dendrinet_activations",
@@ -82,4 +97,9 @@ __all__ = [
     "plot_depth_info",
     "dendrinet_activations_todict",
     "einet_activations_todict",
+    
+    # Utility functions
+    "dendrinet_activations_to_csv",
+    "einet_activations_to_csv",
+    "split_MNIST_inputs",
 ] 
