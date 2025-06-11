@@ -10,6 +10,7 @@ from .mle import TrainerMLE
 from .regression import TrainerRegression
 from .local_learning import LocalCreditAssignment
 from .two_step import TwoStepTrainer, TwoStepTrainerWithKL
+from .layerwise import LayerWiseTrainer
 from .specialized import (
     VoltageStabilizationTrainer, 
     TrainOnlyMReactivation, 
@@ -29,6 +30,7 @@ __all__ = [
     "LocalCreditAssignment",
     "TwoStepTrainer",
     "TwoStepTrainerWithKL",
+    "LayerWiseTrainer",
     
     # Specialized training strategies
     "VoltageStabilizationTrainer",
