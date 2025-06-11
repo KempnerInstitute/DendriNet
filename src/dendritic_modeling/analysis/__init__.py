@@ -9,7 +9,7 @@ This package contains various analysis modules:
 """
 
 # Import from new structure
-from .performance import PerformanceAnalyzer, NoisePerturbationAnalyzer
+from .performance import PerformanceAnalyzer, NoisePerturbationAnalyzer, AblationAnalyzer
 
 # Backward compatibility - import remaining classes from original analysis.py
 from ..analysis import (
@@ -17,7 +17,6 @@ from ..analysis import (
     SynapticTurnoverAnalyzer,
     BranchInformationAnalyzer,
     SingleLayerContributionAnalyzer,
-    AblationAnalyzer,
     WeightAnalyzer,
     SynapticActivationAnalyzer,
     BranchActivationAnalyzer,
@@ -28,11 +27,11 @@ from ..analysis import (
 __all__ = [
     'PerformanceAnalyzer',
     'NoisePerturbationAnalyzer',
+    'AblationAnalyzer',
     'EIInformationAnalyzer',
     'SynapticTurnoverAnalyzer', 
     'BranchInformationAnalyzer',
     'SingleLayerContributionAnalyzer',
-    'AblationAnalyzer',
     'WeightAnalyzer',
     'SynapticActivationAnalyzer',
     'BranchActivationAnalyzer',
