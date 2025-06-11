@@ -30,7 +30,7 @@ from dendritic_modeling import logger
 from dendritic_modeling.plot_utils import plot_NLL_loss_curves
 from dendritic_modeling.analysis import AnalysisManager
 from dendritic_modeling.training.optimizers import CustomWeightDecayOptimizer
-from dendritic_modeling.training.strategies import BaseTrainer, compute_metrics_classification, TrainerMLE, TrainerRegression, LocalCreditAssignment
+from dendritic_modeling.training.strategies import BaseTrainer, compute_metrics_classification, TrainerMLE, TrainerRegression, LocalCreditAssignment, TwoStepTrainer, TwoStepTrainerWithKL
 
 
 # compute_metrics_classification has been moved to training/strategies/base.py
