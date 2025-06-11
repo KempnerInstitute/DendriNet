@@ -9,6 +9,7 @@ synaptic properties, ablation studies, and information flow in dendritic network
 from .performance.metrics import PerformanceAnalyzer
 from .performance.noise import NoisePerturbationAnalyzer
 from .performance.ablation import AblationAnalyzer
+from .performance.layers import SingleLayerContributionAnalyzer
 
 # Information analysis
 from .information.mutual_info import EIInformationAnalyzer
@@ -24,7 +25,6 @@ from .synaptic.weights import WeightAnalyzer
 
 # Main analysis classes from the analysis module
 from .analysis import (
-    SingleLayerContributionAnalyzer, 
     SynapticAblationAnalyzer,
     AnalysisManager,
 )
@@ -34,6 +34,7 @@ __all__ = [
     "PerformanceAnalyzer",
     "NoisePerturbationAnalyzer", 
     "AblationAnalyzer",
+    "SingleLayerContributionAnalyzer",
     
     # Information analysis
     "EIInformationAnalyzer",
@@ -48,7 +49,6 @@ __all__ = [
     "WeightAnalyzer",
     
     # Main analysis classes
-    "SingleLayerContributionAnalyzer",
     "SynapticAblationAnalyzer", 
     "AnalysisManager",
 ] 
