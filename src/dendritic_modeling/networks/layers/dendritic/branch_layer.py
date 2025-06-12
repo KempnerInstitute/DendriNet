@@ -11,7 +11,7 @@ import torch.nn as nn
 
 from ...activations import ActivationFactory
 from dendritic_modeling.training import GradientScaler
-from dendritic_modeling.networks import initialize_dendritic_branch_layer
+from dendritic_modeling.networks.initialize import initialize_dendritic_branch_layer
 
 # Import linear layer variants
 from ..linear import (
