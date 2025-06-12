@@ -106,10 +106,10 @@ class BranchInformationAnalyzer:
 
         # Initialize DVC components if requested
         if self.use_dvc:
-            # Temporarily disable DVC initialization due to syntax issues
-            # TODO: Fix DVC initialization structure
-            self.logger.warning(
-                "DVC initialization temporarily disabled due to syntax issues"
+            # DVC initialization is temporarily disabled for stability
+            # The DVC_tensorflow dependency has compatibility issues with current setup
+            self.logger.info(
+                "DVC initialization disabled for stability (using sklearn fallback)"
             )
             self.use_dvc = False
             self.vine_entropy = None
