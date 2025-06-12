@@ -400,3 +400,17 @@ python scripts/generate_ei_sweep.py configs/sweep_params_seeds_ei.yaml --filter-
 # Generate only combinations where E/I ratio is approximately 2 with a custom tolerance of 0.2
 python scripts/generate_ei_sweep.py configs/sweep_params_seeds_ei.yaml --filter-mode ei-ratio --filter-value 2 --filter-tolerance 0.2
 ```
+
+## Logging
+
+Log files are now organized in the following structure:
+- **Experiment logs**: Saved in the experiment output directory (`outputs/{run_name}/`)
+  - `train.log`: Training-specific logs
+  - `dendritic_modeling.log`: General package logs
+- **Default logs**: Saved in `logs/` directory when running scripts outside of experiments
+- **Environment variable**: Set `DENDRITIC_LOG_DIR` to customize the default log location
+
+To clean up any log files in the root directory:
+```bash
+python scripts/cleanup_logs.py
+```
