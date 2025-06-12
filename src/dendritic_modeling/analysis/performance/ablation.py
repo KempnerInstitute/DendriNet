@@ -11,7 +11,7 @@ import torch
 from torch.utils.data import TensorDataset
 from dendritic_modeling.models import BaseModel
 from dendritic_modeling.networks import ExcitationInhibitionNetwork
-from dendritic_modeling.dendrinet import DendriticBranchLayer
+from dendritic_modeling.networks.layers.dendritic import DendriticBranchLayer
 from dendritic_modeling.utils import (
     evaluate_accuracy,
     evaluate_categorical_loglikelihood,
