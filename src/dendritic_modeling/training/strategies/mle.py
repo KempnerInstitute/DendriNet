@@ -1,14 +1,17 @@
 """
-Maximum Likelihood Estimation training strategy.
+Maximum Likelihood Estimation trainer with advanced training strategies.
 
-This module contains the classic MLE training strategy for neural networks.
+This module provides the TrainerMLE class which implements various training approaches
+including standard MLE, branch-wise training, and multi-phase training strategies.
 """
+
+from __future__ import annotations
 
 import logging
 import os
 import time
 from copy import deepcopy
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple, TYPE_CHECKING
 
 import numpy as np
 import torch
@@ -18,7 +21,8 @@ import wandb
 
 from dendritic_modeling import logger
 from dendritic_modeling.plotting import plot_NLL_loss_curves
-from dendritic_modeling.analysis import AnalysisManager
+if TYPE_CHECKING:
+    from dendritic_modeling.analysis import AnalysisManager
 from .base import BaseTrainer, compute_metrics_classification
 
 
@@ -48,7 +52,7 @@ class TrainerMLE(BaseTrainer):
         best_loss=float("inf"),
         early_stopping=False,
         patience=10,
-        analysis_manager: Optional[AnalysisManager] = None,
+        analysis_manager: Optional["AnalysisManager"] = None,
         plot_losses=False,
         save_path=None,
         **kwargs,

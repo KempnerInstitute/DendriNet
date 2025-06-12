@@ -7,6 +7,8 @@ neural network activations and performing classification tasks.
 
 import logging
 import os
+import json
+import traceback
 from typing import Dict, List, Optional, Tuple
 
 import numpy as np
@@ -529,10 +531,14 @@ def analyze_layerwise_ablation(
             plt.savefig(os.path.join(save_dir, "layerwise_contributions.png"), dpi=300)
             plt.close()
 
-            # Save as CSV if pandas is available
+            # Save as JSON if pandas is available
             if pd is not None:
                 df = pd.DataFrame(results)
-                df.to_csv(os.path.join(save_dir, "layerwise_results.csv"), index=False)
+                # Save as JSON instead of CSV
+                json_path = os.path.join(save_dir, "layerwise_results.json")
+                results_dict = df.to_dict(orient='records')
+                with open(json_path, 'w') as f:
+                    json.dump(results_dict, f, indent=2)
         except Exception as e:
             logging.error(f"Error creating plots: {e}")
 

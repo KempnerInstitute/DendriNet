@@ -22,11 +22,16 @@ Options:
     --run_analysis: Run post-training analysis
 """
 
+from __future__ import annotations
+
 import argparse
+import json
 import logging
 import os
 import random
+import warnings
 from copy import deepcopy
+from dataclasses import asdict
 from datetime import datetime
 from typing import Any, Dict, List, Optional, Tuple
 
@@ -34,11 +39,7 @@ import numpy as np
 import torch
 from omegaconf import OmegaConf
 from torch.utils.data import DataLoader, TensorDataset
-
-try:
-    from tqdm import tqdm
-except ImportError:
-    tqdm = lambda x: x
+from tqdm import tqdm
 
 import wandb
 from dendritic_modeling import logger

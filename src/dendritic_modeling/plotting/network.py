@@ -6,11 +6,22 @@ import os
 import matplotlib.pyplot as plt
 import matplotlib.patches as mpatches
 import numpy as np
-import networkx as nx
 import torch
+import torch.nn as nn
 from matplotlib.colors import Normalize, TwoSlopeNorm
 from matplotlib.cm import ScalarMappable
 from matplotlib.gridspec import GridSpec
+import logging
+try:
+    import networkx as nx
+    NETWORKX_AVAILABLE = True
+except ImportError:
+    NETWORKX_AVAILABLE = False
+    logging.warning("NetworkX is not available. Some plotting functions will be disabled. "
+                   "To fix this, try: pip install networkx or conda install networkx")
+    nx = None
+from typing import Dict, List, Optional, Tuple, Union, Any
+from torch.utils.data import DataLoader
 
 
 def plotWithColor(x, colors, cmap="viridis", ax=None, colorbar=True, fig=None, **kwargs):
@@ -284,7 +295,7 @@ def plot_excitation_inhibition_weights(model, layer_idx=0, save_path=None, show=
 
 def build_dendritic_tree_graph(model, layer_idx=0):
     """
-    Build a NetworkX graph representing the dendritic tree structure.
+    Build a NetworkX graph representation of the dendritic tree structure.
     
     Args:
         model: Model with dendritic structure
@@ -294,6 +305,10 @@ def build_dendritic_tree_graph(model, layer_idx=0):
         G: NetworkX graph object
         pos: Node positions for plotting
     """
+    if not NETWORKX_AVAILABLE:
+        logging.warning("NetworkX is not available. Cannot build dendritic tree graph.")
+        return None, None
+        
     G = nx.DiGraph()
     
     if hasattr(model, 'net') and hasattr(model.net, 'layers'):
@@ -337,9 +352,13 @@ def visualize_dendritic_tree(model, layer_idx=0, save_path=None, show=True):
         save_path: Path to save the plot (optional)
         show: Whether to display the plot
     """
+    if not NETWORKX_AVAILABLE:
+        logging.warning("NetworkX is not available. Cannot visualize dendritic tree.")
+        return
+        
     G, pos = build_dendritic_tree_graph(model, layer_idx)
     
-    if len(G.nodes) == 0:
+    if G is None or len(G.nodes) == 0:
         print(f"No dendritic structure found in layer {layer_idx}")
         return
     

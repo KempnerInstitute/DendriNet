@@ -7,8 +7,9 @@ to overall model performance.
 """
 
 import os
+import json
 import logging
-from typing import List, Optional
+from typing import List, Optional, Dict, Any
 import numpy as np
 import torch
 import matplotlib.pyplot as plt
@@ -201,12 +202,12 @@ class SynapticAblationAnalyzer:
                 hasattr(layer, "branch_excitation")
                 and layer.branch_excitation is not None
             ):
-                layer.branch_excitation.pre_w.data.zero_()
+                layer.branch_excitation.pre_w.data.fill_(-1000.0)
             if (
                 hasattr(layer, "branch_inhibition")
                 and layer.branch_inhibition is not None
             ):
-                layer.branch_inhibition.pre_w.data.zero_()
+                layer.branch_inhibition.pre_w.data.fill_(-1000.0)
             both_acc = measure_performance(net, test_dataset, device=self.device)
 
             # Restore parameters
@@ -218,7 +219,7 @@ class SynapticAblationAnalyzer:
                 hasattr(layer, "branch_excitation")
                 and layer.branch_excitation is not None
             ):
-                layer.branch_excitation.pre_w.data.zero_()
+                layer.branch_excitation.pre_w.data.fill_(-1000.0)
                 exc_acc = measure_performance(net, test_dataset, device=self.device)
             else:
                 exc_acc = baseline_acc
@@ -232,7 +233,7 @@ class SynapticAblationAnalyzer:
                 hasattr(layer, "branch_inhibition")
                 and layer.branch_inhibition is not None
             ):
-                layer.branch_inhibition.pre_w.data.zero_()
+                layer.branch_inhibition.pre_w.data.fill_(-1000.0)
                 inh_acc = measure_performance(net, test_dataset, device=self.device)
             else:
                 inh_acc = baseline_acc
@@ -318,7 +319,7 @@ class SynapticAblationAnalyzer:
                     hasattr(layer, "branch_excitation")
                     and layer.branch_excitation is not None
                 ):
-                    layer.branch_excitation.pre_w.data[branch_idx].zero_()
+                    layer.branch_excitation.pre_w.data[branch_idx].fill_(-1000.0)
                     exc_acc = measure_performance(net, test_dataset, device=self.device)
                 else:
                     exc_acc = baseline_acc
@@ -332,7 +333,7 @@ class SynapticAblationAnalyzer:
                     hasattr(layer, "branch_inhibition")
                     and layer.branch_inhibition is not None
                 ):
-                    layer.branch_inhibition.pre_w.data[branch_idx].zero_()
+                    layer.branch_inhibition.pre_w.data[branch_idx].fill_(-1000.0)
                     inh_acc = measure_performance(net, test_dataset, device=self.device)
                 else:
                     inh_acc = baseline_acc
@@ -363,9 +364,12 @@ class SynapticAblationAnalyzer:
         if self.save_csv:
             df = pd.DataFrame(results)
             df["baseline_acc"] = baseline_acc
-            csv_path = os.path.join(save_path, f"{filename}_{self.ablation_type}.csv")
-            df.to_csv(csv_path, index=False)
-            self.logger.info(f"Saved results to {csv_path}")
+            json_path = os.path.join(save_path, f"{filename}_{self.ablation_type}.json")
+            # Save as JSON instead of CSV
+            results_dict = df.to_dict(orient='records')
+            with open(json_path, 'w') as f:
+                json.dump(results_dict, f, indent=2)
+            self.logger.info(f"Saved results to {json_path}")
 
         if self.save_plots:
             if self.ablation_type == "whole_layer":
@@ -667,9 +671,12 @@ class SynapticAblationAnalyzer:
                         }
                     )
                     summary_path = os.path.join(
-                        save_path, f"{filename}_single_branch_summary.csv"
+                        save_path, f"{filename}_single_branch_summary.json"
                     )
-                    summary_df.to_csv(summary_path, index=False)
+                    # Save as JSON instead of CSV
+                    summary_dict = summary_df.to_dict(orient='records')
+                    with open(summary_path, 'w') as f:
+                        json.dump(summary_dict, f, indent=2)
 
             self.logger.info(f"Saved plots to {save_path}")
 
