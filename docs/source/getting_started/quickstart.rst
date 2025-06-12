@@ -93,7 +93,7 @@ Run the experiment with:
 
 .. code-block:: bash
 
-    python src/dendritic_modeling/train_experiments.py my_mnist_config.yaml
+    python src/dendritic_modeling/scripts/train_experiments.py my_mnist_config.yaml
 
 This will:
 1. Load the MNIST dataset

@@ -355,7 +355,7 @@ After installation, test with a simple experiment:
 .. code-block:: bash
 
     # Run a basic experiment
-    python src/dendritic_modeling/train_experiments.py configs/config_exp.yaml
+    python src/dendritic_modeling/scripts/train_experiments.py configs/config_exp.yaml
 
     # For interactive exploration
     jupyter notebook examples/quickstart.ipynb

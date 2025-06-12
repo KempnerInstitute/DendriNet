@@ -108,7 +108,7 @@ Then run with:
 
 .. code-block:: bash
 
-    python src/dendritic_modeling/train_experiments.py mnist_config.yaml
+    python src/dendritic_modeling/scripts/train_experiments.py mnist_config.yaml
 
 Synthetic Dataset Example
 ~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -117,7 +117,7 @@ Training a dendritic network on a synthetic dataset designed to test specific co
 
 .. code-block:: python
 
-    from dendritic_modeling.synthetic_datasets import MultiXORDataset
+    from dendritic_modeling.datasets import MultiXORDataset
     from torch.utils.data import random_split
 
     # Create a Multi-XOR dataset
@@ -478,17 +478,17 @@ The framework provides a flexible experiment runner through ``train_experiments.
 
 .. code-block:: bash
 
-    python src/dendritic_modeling/train_experiments.py config_exp.yaml
+    python src/dendritic_modeling/scripts/train_experiments.py config_exp.yaml
 
 **Overriding Configuration Values**:
 
 .. code-block:: bash
 
     # Override learning strategy
-    python src/dendritic_modeling/train_experiments.py config_exp.yaml --train.learning_strategy freeze_branches
+    python src/dendritic_modeling/scripts/train_experiments.py config_exp.yaml --train.learning_strategy freeze_branches
 
     # Enable visualization
-    python src/dendritic_modeling/train_experiments.py config_exp.yaml --visualization.enabled true
+    python src/dendritic_modeling/scripts/train_experiments.py config_exp.yaml --visualization.enabled true
 
 For more information about specific configuration options, see:
 - :doc:`../advanced/network_structures/index` for network architecture options

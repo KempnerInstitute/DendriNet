@@ -92,13 +92,13 @@ Execute the following command to start training:
 
 .. code-block:: bash
 
-    $ python src/dendritic_modeling/train_experiments.py configs/config_cifar10.yaml
+    $ python src/dendritic_modeling/scripts/train_experiments.py configs/config_cifar10.yaml
 
 You can also override specific parameters at runtime:
 
 .. code-block:: bash
 
-    $ python src/dendritic_modeling/train_experiments.py configs/config_cifar10.yaml --train.lr 0.0005 --train.batch_size 64
+    $ python src/dendritic_modeling/scripts/train_experiments.py configs/config_cifar10.yaml --train.lr 0.0005 --train.batch_size 64
 
 This will:
 1. Load the CIFAR10 dataset (downloading it if necessary)
