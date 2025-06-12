@@ -8,7 +8,7 @@ excitatory and inhibitory cell populations.
 import torch
 import torch.nn as nn
 
-from dendritic_modeling.dendrinet import DendriNet, DendriNetWithOutputs
+# Import will be done lazily to avoid circular imports
 
 
 class ExcitationInhibitionLayer(nn.Module):
@@ -53,6 +53,9 @@ class ExcitationInhibitionLayer(nn.Module):
     ):
         super().__init__()
 
+        # Lazy import to avoid circular dependencies
+        from ...architectures.dendritic import DendriNet
+
         # Decide if we build an inhibitory sub-network
         self.has_inhib_subnet = (
             n_inhibitory_cells is not None
@@ -61,145 +64,77 @@ class ExcitationInhibitionLayer(nn.Module):
         )
 
         if self.has_inhib_subnet:
-            if enable_branch_outputs:
-                self.inhibitory_cells = DendriNetWithOutputs(
-                    n_soma=n_inhibitory_cells,
-                    branch_factors=inhibitory_branch_factors,
-                    excitatory_input_dim=excitatory_input_dim,
-                    excitatory_synapses_per_branch=ei_synapses_per_branch,
-                    inhibitory_input_dim=inhibitory_input_dim
-                    if ii_connectivity
-                    else None,
-                    inhibitory_synapses_per_branch=ii_synapses_per_branch,
-                    reactivate=reactivate,
-                    somatic_synapses=somatic_synapses,
-                    topk_init_method=topk_init_method,
-                    use_shunting=use_shunting,
-                    reactivation_type=reactivation_type,
-                    reactivation_init_m=reactivation_init_m,
-                    reactivation_init_b=reactivation_init_b,
-                    reactivation_strategy=reactivation_strategy,
-                    blocklinear_strategy=blocklinear_strategy,
-                    topk_noise_level=topk_noise_level,
-                    topk_strategy=topk_strategy,
-                    topk_type=topk_type,
-                    print_hooks=print_hooks,
-                    excitatory_target_density=excitatory_target_density,
-                    inhibitory_target_density=inhibitory_target_density,
-                    use_noise=use_noise,
-                    sigma=sigma,
-                    rewiring_mode=rewiring_mode,
-                    synapses_per_branch=synapses_per_branch,
-                    freeze_excitatory_connectivity=freeze_excitatory_connectivity,
-                    freeze_inhibitory_connectivity=freeze_inhibitory_connectivity,
-                    init_method=init_method,
-                    weight_threshold=weight_threshold,
-                    **kwargs,
-                )
-            else:
-                self.inhibitory_cells = DendriNet(
-                    n_soma=n_inhibitory_cells,
-                    branch_factors=inhibitory_branch_factors,
-                    excitatory_input_dim=excitatory_input_dim,
-                    excitatory_synapses_per_branch=ei_synapses_per_branch,
-                    inhibitory_input_dim=inhibitory_input_dim
-                    if ii_connectivity
-                    else None,
-                    inhibitory_synapses_per_branch=ii_synapses_per_branch,
-                    reactivate=reactivate,
-                    reactivation_init_m=reactivation_init_m,
-                    reactivation_init_b=reactivation_init_b,
-                    somatic_synapses=somatic_synapses,
-                    topk_init_method=topk_init_method,
-                    use_shunting=use_shunting,
-                    reactivation_type=reactivation_type,
-                    reactivation_strategy=reactivation_strategy,
-                    blocklinear_strategy=blocklinear_strategy,
-                    topk_noise_level=topk_noise_level,
-                    topk_strategy=topk_strategy,
-                    topk_type=topk_type,
-                    print_hooks=print_hooks,
-                    excitatory_target_density=excitatory_target_density,
-                    inhibitory_target_density=inhibitory_target_density,
-                    use_noise=use_noise,
-                    sigma=sigma,
-                    rewiring_mode=rewiring_mode,
-                    synapses_per_branch=synapses_per_branch,
-                    freeze_excitatory_connectivity=freeze_excitatory_connectivity,
-                    freeze_inhibitory_connectivity=freeze_inhibitory_connectivity,
-                    init_method=init_method,
-                    weight_threshold=weight_threshold,
-                    **kwargs,
-                )
+            self.inhibitory_cells = DendriNet(
+                n_soma=n_inhibitory_cells,
+                branch_factors=inhibitory_branch_factors,
+                excitatory_input_dim=excitatory_input_dim,
+                excitatory_synapses_per_branch=ei_synapses_per_branch,
+                inhibitory_input_dim=inhibitory_input_dim
+                if ii_connectivity
+                else None,
+                inhibitory_synapses_per_branch=ii_synapses_per_branch,
+                reactivate=reactivate,
+                reactivation_init_m=reactivation_init_m,
+                reactivation_init_b=reactivation_init_b,
+                somatic_synapses=somatic_synapses,
+                topk_init_method=topk_init_method,
+                use_shunting=use_shunting,
+                reactivation_type=reactivation_type,
+                reactivation_strategy=reactivation_strategy,
+                blocklinear_strategy=blocklinear_strategy,
+                topk_noise_level=topk_noise_level,
+                topk_strategy=topk_strategy,
+                topk_type=topk_type,
+                print_hooks=print_hooks,
+                excitatory_target_density=excitatory_target_density,
+                inhibitory_target_density=inhibitory_target_density,
+                use_noise=use_noise,
+                sigma=sigma,
+                rewiring_mode=rewiring_mode,
+                synapses_per_branch=synapses_per_branch,
+                freeze_excitatory_connectivity=freeze_excitatory_connectivity,
+                freeze_inhibitory_connectivity=freeze_inhibitory_connectivity,
+                init_method=init_method,
+                weight_threshold=weight_threshold,
+                enable_branch_outputs=enable_branch_outputs,
+                **kwargs,
+            )
         else:
             self.inhibitory_cells = None
 
-        if enable_branch_outputs:
-            self.excitatory_cells = DendriNetWithOutputs(
-                n_soma=n_excitatory_cells,
-                branch_factors=excitatory_branch_factors,
-                excitatory_input_dim=excitatory_input_dim,
-                excitatory_synapses_per_branch=ee_synapses_per_branch,
-                inhibitory_input_dim=inhibitory_input_dim,
-                inhibitory_synapses_per_branch=ie_synapses_per_branch,
-                reactivate=reactivate,
-                reactivation_init_m=reactivation_init_m,
-                reactivation_init_b=reactivation_init_b,
-                somatic_synapses=somatic_synapses,
-                topk_init_method=topk_init_method,
-                use_shunting=use_shunting,
-                reactivation_type=reactivation_type,
-                reactivation_strategy=reactivation_strategy,
-                blocklinear_strategy=blocklinear_strategy,
-                topk_noise_level=topk_noise_level,
-                topk_strategy=topk_strategy,
-                topk_type=topk_type,
-                print_hooks=print_hooks,
-                excitatory_target_density=excitatory_target_density,
-                inhibitory_target_density=inhibitory_target_density,
-                use_noise=use_noise,
-                sigma=sigma,
-                rewiring_mode=rewiring_mode,
-                synapses_per_branch=synapses_per_branch,
-                freeze_excitatory_connectivity=freeze_excitatory_connectivity,
-                freeze_inhibitory_connectivity=freeze_inhibitory_connectivity,
-                init_method=init_method,
-                weight_threshold=weight_threshold,
-                **kwargs,
-            )
-        else:
-            self.excitatory_cells = DendriNet(
-                n_soma=n_excitatory_cells,
-                branch_factors=excitatory_branch_factors,
-                excitatory_input_dim=excitatory_input_dim,
-                excitatory_synapses_per_branch=ee_synapses_per_branch,
-                inhibitory_input_dim=inhibitory_input_dim,
-                inhibitory_synapses_per_branch=ie_synapses_per_branch,
-                reactivate=reactivate,
-                reactivation_init_m=reactivation_init_m,
-                reactivation_init_b=reactivation_init_b,
-                somatic_synapses=somatic_synapses,
-                topk_init_method=topk_init_method,
-                use_shunting=use_shunting,
-                reactivation_type=reactivation_type,
-                reactivation_strategy=reactivation_strategy,
-                blocklinear_strategy=blocklinear_strategy,
-                topk_noise_level=topk_noise_level,
-                topk_strategy=topk_strategy,
-                topk_type=topk_type,
-                print_hooks=print_hooks,
-                excitatory_target_density=excitatory_target_density,
-                inhibitory_target_density=inhibitory_target_density,
-                use_noise=use_noise,
-                sigma=sigma,
-                rewiring_mode=rewiring_mode,
-                synapses_per_branch=synapses_per_branch,
-                freeze_excitatory_connectivity=freeze_excitatory_connectivity,
-                freeze_inhibitory_connectivity=freeze_inhibitory_connectivity,
-                init_method=init_method,
-                weight_threshold=weight_threshold,
-                **kwargs,
-            )
+        self.excitatory_cells = DendriNet(
+            n_soma=n_excitatory_cells,
+            branch_factors=excitatory_branch_factors,
+            excitatory_input_dim=excitatory_input_dim,
+            excitatory_synapses_per_branch=ee_synapses_per_branch,
+            inhibitory_input_dim=inhibitory_input_dim,
+            inhibitory_synapses_per_branch=ie_synapses_per_branch,
+            reactivate=reactivate,
+            reactivation_init_m=reactivation_init_m,
+            reactivation_init_b=reactivation_init_b,
+            somatic_synapses=somatic_synapses,
+            topk_init_method=topk_init_method,
+            use_shunting=use_shunting,
+            reactivation_type=reactivation_type,
+            reactivation_strategy=reactivation_strategy,
+            blocklinear_strategy=blocklinear_strategy,
+            topk_noise_level=topk_noise_level,
+            topk_strategy=topk_strategy,
+            topk_type=topk_type,
+            print_hooks=print_hooks,
+            excitatory_target_density=excitatory_target_density,
+            inhibitory_target_density=inhibitory_target_density,
+            use_noise=use_noise,
+            sigma=sigma,
+            rewiring_mode=rewiring_mode,
+            synapses_per_branch=synapses_per_branch,
+            freeze_excitatory_connectivity=freeze_excitatory_connectivity,
+            freeze_inhibitory_connectivity=freeze_inhibitory_connectivity,
+            init_method=init_method,
+            weight_threshold=weight_threshold,
+            enable_branch_outputs=enable_branch_outputs,
+            **kwargs,
+        )
 
     def decay_weights(self, weight_decay):
         if self.inhibitory_cells is not None:

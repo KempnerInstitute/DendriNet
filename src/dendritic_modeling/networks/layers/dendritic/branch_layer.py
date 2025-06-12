@@ -9,7 +9,7 @@ excitatory and inhibitory inputs.
 import torch
 import torch.nn as nn
 
-from dendritic_modeling.activation_functions import ActivationFactory
+from ...activations import ActivationFactory
 from dendritic_modeling.gradient_scaling import GradientScaler
 from dendritic_modeling.initialize import initialize_dendritic_branch_layer
 
