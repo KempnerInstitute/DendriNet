@@ -16,7 +16,7 @@ from dendritic_modeling.plotting import (
     plot_einet_params,
     plot_einet_profiles,
 )
-from dendritic_modeling.synthetic_datasets import split_MNIST_inputs
+from dendritic_modeling.datasets import split_MNIST_inputs
 from dendritic_modeling.utils import Shaper
 from dendritic_modeling.analysis.branches.interactive import InteractiveBranchAnalyzer
 from dendritic_modeling.analysis.dendritic.comprehensive import ComprehensiveDendriticAnalyzer

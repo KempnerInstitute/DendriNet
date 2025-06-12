@@ -1,56 +1,60 @@
 #!/usr/bin/env python
 """
 train_experiments.py
---------------------
-Main script that reads config_exp.yaml, builds the model,
-chooses a training strategy, trains, and evaluates using
-a unified data-loading function from synthetic_datasets.py.
+====================
+Main training script for dendritic modeling experiments.
 
-Learning Strategies:
-- mle: Standard Maximum Likelihood Estimation (default)
-- freeze_layers: Train one layer at a time, freezing others (different ways)
-- two_step: Two-phase training with pretraining and main training
-- mlp_only: Train only the MLP component, then train the full model
-- dendrinet_from_mlp: Train MLP first, then use it to initialize and train the dendrinet
+This script handles:
+- Configuration loading and setup
+- Model initialization and training
+- Input network pretraining (for dendritic models)
+- Visualization and analysis
+- Results saving and logging
 
-Example usage:
-python src/dendritic_modeling/train_experiments.py .vscode/config_exp.yaml --learning_strategy dendrinet_from_mlp
+Usage:
+    python train_experiments.py <config_path> [options]
+
+Options:
+    --device: Device to use (cuda or cpu)
+    --wandb: Enable W&B logging
+    --save_model: Save the trained model
+    --save_results: Save training results
+    --run_analysis: Run post-training analysis
 """
 
 import argparse
-import json
 import logging
 import os
 import random
-import time
-import traceback
 from copy import deepcopy
-from dataclasses import asdict
 from datetime import datetime
-from pathlib import Path
-from typing import Optional
+from typing import Any, Dict, List, Optional, Tuple
 
-import matplotlib.pyplot as plt
 import numpy as np
 import torch
-import torchinfo
-import yaml
 from omegaconf import OmegaConf
-from tqdm import tqdm
+from torch.utils.data import DataLoader, TensorDataset
+
+try:
+    from tqdm import tqdm
+except ImportError:
+    tqdm = lambda x: x
 
 import wandb
 from dendritic_modeling import logger
 from dendritic_modeling.analysis import AnalysisManager
 from dendritic_modeling.config import EINetParameters, load_config
-from dendritic_modeling.learning_strategies import (
+from dendritic_modeling.training import (
     CustomWeightDecayOptimizer,
-    TrainerMLE,
-    VoltageStabilizationTrainer,
-    extract_weights_from_simple_mlp,
     get_trainer,
     train_mlp_with_classification_head,
     train_simple_mlp,
     transfer_mlp_weights_to_input_net,
+    extract_weights_from_simple_mlp,
+)
+from dendritic_modeling.training.strategies import (
+    TrainerMLE,
+    VoltageStabilizationTrainer,
 )
 from dendritic_modeling.models import (
     Classifier,
@@ -68,8 +72,8 @@ from dendritic_modeling.networks import (
     MatchedParamMLP,
     SigmoidInputNetTransform,
 )
-from dendritic_modeling.plot_utils import plot_NLL_loss_curves
-from dendritic_modeling.synthetic_datasets import get_unified_datasets
+from dendritic_modeling.plotting import plot_NLL_loss_curves
+from dendritic_modeling.datasets import get_unified_datasets
 from dendritic_modeling.utils import (
     analyze_branch_ablation,
     analyze_layerwise_ablation,
@@ -78,7 +82,7 @@ from dendritic_modeling.utils import (
     safe_register_hooks,
     save_dict,
 )
-from dendritic_modeling.visualization_manager import PlotManager
+from dendritic_modeling.analysis.managers import PlotManager
 
 
 def initialize_model(model_cfg, visualization_enabled=False):
