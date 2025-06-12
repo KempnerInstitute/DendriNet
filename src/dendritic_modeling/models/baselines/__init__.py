@@ -1,7 +1,13 @@
 """
-Baseline models module.
+Baseline models.
 
-Contains simple baseline models for comparison with dendritic models.
+This module contains baseline models for comparison purposes.
 """
 
-# Placeholder - will contain baseline model classes 
+from .mlp import SimpleMLP, SimpleClassifier, MLPWithClassificationHead
+
+__all__ = [
+    "SimpleMLP",
+    "SimpleClassifier",
+    "MLPWithClassificationHead",
+] 
