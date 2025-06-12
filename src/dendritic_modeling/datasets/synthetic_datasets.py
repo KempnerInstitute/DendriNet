@@ -17,26 +17,41 @@ from torchvision.datasets import MNIST
 
 
 # Create a centralized function to get or create a data directory
-def get_data_directory(data_type, custom_path=None, output_dir=None):
+def get_data_directory(data_type, custom_path=None, output_dir=None, task_data_path=None, outputs_dir=None):
     """
     Get or create a data directory for the specified data type.
 
+    Priority order:
+    1. task_data_path (from task.data_path config)
+    2. outputs_dir (from outputs.dir config)  
+    3. custom_path (legacy parameter)
+    4. output_dir (legacy parameter)
+    5. Default 'data' directory
+
     Args:
         data_type (str): Type of data (e.g., 'mnist', 'cifar')
-        custom_path (str, optional): Custom path provided by the user
-        output_dir (str, optional): Output directory from config to store datasets
+        custom_path (str, optional): Custom path provided by the user (legacy)
+        output_dir (str, optional): Output directory from config to store datasets (legacy)
+        task_data_path (str, optional): Path from task.data_path config (highest priority)
+        outputs_dir (str, optional): Directory from outputs.dir config (second priority)
 
     Returns:
         str: Path to the data directory
     """
-    if custom_path:
-        # Use the custom path if provided
+    # Priority 1: task.data_path
+    if task_data_path and task_data_path.strip():
+        data_path = os.path.join(task_data_path, "datasets", data_type)
+    # Priority 2: outputs.dir  
+    elif outputs_dir and outputs_dir.strip():
+        data_path = os.path.join(outputs_dir, "datasets", data_type)
+    # Priority 3: custom_path (legacy)
+    elif custom_path:
         data_path = os.path.join(custom_path, data_type)
+    # Priority 4: output_dir (legacy)
     elif output_dir:
-        # Use the output directory if provided (from config)
         data_path = os.path.join(output_dir, "datasets", data_type)
     else:
-        # Use 'data' directory in the current working directory
+        # Priority 5: Default fallback to 'data' directory
         data_path = os.path.join("data", data_type)
 
     # Ensure the directory exists
@@ -183,7 +198,9 @@ def load_mnist_as_datasets(
     flatten=False,
     normalize=False,
     data_path=None,
-    output_dir=None
+    output_dir=None,
+    task_data_path=None,
+    outputs_dir=None
 ):
     """
     Load the MNIST dataset and split into train, validation, and test sets.
@@ -196,7 +213,7 @@ def load_mnist_as_datasets(
     Returns:
         tuple: (train_dataset, valid_dataset, test_dataset)
     """
-    mnist_dir = get_data_directory("mnist", data_path, output_dir)
+    mnist_dir = get_data_directory("mnist", data_path, output_dir, task_data_path, outputs_dir)
 
     tf_list = [transforms.ToTensor()]
     if normalize:
@@ -244,14 +261,18 @@ def load_MNIST_modulo10(
     flatten=False,
     normalize=False,
     cache_dir=None,
-    output_dir=None
+    output_dir=None,
+    task_data_path=None,
+    outputs_dir=None
 ):
     train_ds, valid_ds, test_ds = load_mnist_as_datasets(
         train_valid_split=train_valid_split, 
         flatten=flatten, 
         normalize=normalize, 
-        data_path=cache_dir,
-        output_dir=output_dir
+        data_path=cache_dir,  # Legacy parameter
+        output_dir=output_dir,  # Legacy parameter
+        task_data_path=task_data_path,
+        outputs_dir=outputs_dir
     )
     data = {"train": train_ds, "valid": valid_ds, "test": test_ds}
 
@@ -486,7 +507,9 @@ def load_cifar10_as_datasets(
     flatten=False,
     normalize=False,
     data_path=None,
-    output_dir=None
+    output_dir=None,
+    task_data_path=None,
+    outputs_dir=None
 ):
     """
     Load the CIFAR-10 dataset and split into train, validation, and test sets.
@@ -506,7 +529,7 @@ def load_cifar10_as_datasets(
     
     transform = transforms.Compose(tf_list)
 
-    cifar_dir = get_data_directory("cifar", data_path, output_dir)
+    cifar_dir = get_data_directory("cifar", data_path, output_dir, task_data_path, outputs_dir)
 
     train_dataset = datasets.CIFAR10(
         root=cifar_dir, train=True, download=True, transform=transform
@@ -628,6 +651,8 @@ class RandomFlipMNISTDataset(Dataset):
         random_flip=True,
         setAll=None,
         setValue=0,
+        task_data_path=None,
+        outputs_dir=None,
     ):
         """
         split: 'train', 'valid', or 'test'
@@ -641,7 +666,7 @@ class RandomFlipMNISTDataset(Dataset):
         self.setAll = setAll
         self.setValue = setValue
         # load full MNIST or we can do partial
-        mnist_dir = get_data_directory("mnist", data_path, output_dir)
+        mnist_dir = get_data_directory("mnist", data_path, output_dir, task_data_path, outputs_dir)
         if split == "test":
             base_ds = datasets.MNIST(root=mnist_dir, train=False, download=True)
         else:
@@ -721,7 +746,9 @@ def load_poisson_generator_datasets(
     train_valid_split: float = 0.8,
     flatten: bool = False,
     data_path: str = None,
-    output_dir: str = None
+    output_dir: str = None,
+    task_data_path: str = None,
+    outputs_dir: str = None
 ):
     """
     Generate a dataset of Poisson-distributed samples from a base dataset.
@@ -743,16 +770,20 @@ def load_poisson_generator_datasets(
             train_valid_split=train_valid_split,
             flatten=flatten,
             normalize=False,
-            data_path=data_path,
-            output_dir=output_dir
+            data_path=data_path,  # Legacy parameter
+            output_dir=output_dir,  # Legacy parameter
+            task_data_path=task_data_path,
+            outputs_dir=outputs_dir
         )    
     elif base_dataset == "cifar10":
         train_ds, valid_ds, test_ds = load_cifar10_as_datasets(
             train_valid_split=train_valid_split,
             flatten=flatten,
             normalize=False,
-            data_path=data_path,
-            output_dir=output_dir
+            data_path=data_path,  # Legacy parameter
+            output_dir=output_dir,  # Legacy parameter
+            task_data_path=task_data_path,
+            outputs_dir=outputs_dir
         )
     else:
         raise ValueError(f"Unknown base dataset: {base_dataset}")
@@ -892,38 +923,50 @@ class OrthoNetDataset(Dataset):
         return self.data[idx], self.labels[idx]
 
 
-def get_unified_datasets(task_cfg, train_cfg, output_dir=None):
+def get_unified_datasets(task_cfg, train_cfg, output_dir=None, outputs_cfg=None):
     """
     Get datasets based on configuration.
 
     Args:
         task_cfg: Task configuration
-        train_cfg: Training configuration
-        output_dir: Output directory from config to store datasets
+        train_cfg: Training configuration  
+        output_dir: Output directory from config to store datasets (legacy)
+        outputs_cfg: Outputs configuration containing dir
 
     Returns:
         dict: Dictionary with 'train', 'valid', and 'test' datasets
     """
     try:
         dataset_name = task_cfg["dataset"]
-        data_path = task_cfg.get("data_path", None)
+        task_data_path = task_cfg.get("data_path", None)
         p = task_cfg.get("parameters", {})
     except TypeError:
         dataset_name = task_cfg.dataset
-        data_path = getattr(task_cfg, "data_path", None)
+        task_data_path = getattr(task_cfg, "data_path", None)
         p = task_cfg.parameters
 
-    # If data_path is empty string, set it to None
-    if data_path == "":
-        data_path = None
+    # Extract outputs directory from outputs config
+    try:
+        outputs_dir = outputs_cfg.get("dir", None) if outputs_cfg else None
+    except (TypeError, AttributeError):
+        outputs_dir = getattr(outputs_cfg, "dir", None) if outputs_cfg else None
 
-    # If data_path is None and output_dir is not provided, use the outputs directory in project root instead of current working directory
-    if data_path is None and output_dir is None:
+    # If task_data_path is empty string, set it to None
+    if task_data_path == "":
+        task_data_path = None
+        
+    # If outputs_dir is empty string, set it to None
+    if outputs_dir == "":
+        outputs_dir = None
+
+    # Legacy fallback: If both task_data_path and outputs_dir are None, and output_dir is not provided, 
+    # use the outputs directory in project root instead of current working directory
+    if task_data_path is None and outputs_dir is None and output_dir is None:
         project_root = os.path.dirname(
             os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
         )
-        data_path = os.path.join(project_root, "outputs", "data")
-        os.makedirs(data_path, exist_ok=True)
+        outputs_dir = os.path.join(project_root, "outputs")
+        os.makedirs(outputs_dir, exist_ok=True)
 
     train_valid_split = getattr(train_cfg, "train_valid_split", 1.0)
     train_size = p.get("train_size", 8000)
@@ -957,21 +1000,26 @@ def get_unified_datasets(task_cfg, train_cfg, output_dir=None):
             train_valid_split=train_valid_split, 
             flatten=flatten,
             normalize=normalize,
-            data_path=data_path,
-            output_dir=output_dir
+            data_path=None,  # Legacy parameter
+            output_dir=output_dir,  # Legacy parameter
+            task_data_path=task_data_path,
+            outputs_dir=outputs_dir
         )
         return train_ds, valid_ds, test_ds
     elif dataset_name == "random_flip_mnist":
         # Our newly added dataset that uses RandomFlipMNISTDataset
         # We'll treat train vs valid vs test accordingly
         train_dataset = RandomFlipMNISTDataset(
-            split="train", data_path=data_path, output_dir=output_dir, random_flip=True
+            split="train", data_path=None, output_dir=output_dir, random_flip=True,
+            task_data_path=task_data_path, outputs_dir=outputs_dir
         )
         valid_dataset = RandomFlipMNISTDataset(
-            split="valid", data_path=data_path, output_dir=output_dir, random_flip=True
+            split="valid", data_path=None, output_dir=output_dir, random_flip=True,
+            task_data_path=task_data_path, outputs_dir=outputs_dir
         )
         test_dataset = RandomFlipMNISTDataset(
-            split="test", data_path=data_path, output_dir=output_dir, random_flip=True
+            split="test", data_path=None, output_dir=output_dir, random_flip=True,
+            task_data_path=task_data_path, outputs_dir=outputs_dir
         )
         return train_dataset, valid_dataset, test_dataset
     elif dataset_name == "mnist_modulo10":
@@ -979,8 +1027,10 @@ def get_unified_datasets(task_cfg, train_cfg, output_dir=None):
             train_valid_split=train_valid_split, 
             flatten=flatten,
             normalize=normalize,
-            cache_dir=data_path,
-            output_dir=output_dir
+            cache_dir=None,  # Legacy parameter
+            output_dir=output_dir,  # Legacy parameter
+            task_data_path=task_data_path,
+            outputs_dir=outputs_dir
         )
         train_ds = data["train"]
         if "valid" in data:
@@ -998,18 +1048,54 @@ def get_unified_datasets(task_cfg, train_cfg, output_dir=None):
         )
         return random_split(full_ds, [train_size, valid_size, test_size])
     elif dataset_name == "feature_selectivity":
-        base_mnist = MNIST(root=data_path or output_dir, train=True, download=True)
+        # Create temporary directory path for datasets that need direct MNIST access
+        temp_data_path = None
+        if task_data_path and task_data_path.strip():
+            temp_data_path = os.path.join(task_data_path, "datasets", "mnist")
+        elif outputs_dir and outputs_dir.strip():
+            temp_data_path = os.path.join(outputs_dir, "datasets", "mnist")
+        elif output_dir:
+            temp_data_path = os.path.join(output_dir, "datasets", "mnist")
+        else:
+            temp_data_path = os.path.join("data", "mnist")
+        os.makedirs(temp_data_path, exist_ok=True)
+        
+        base_mnist = MNIST(root=temp_data_path, train=True, download=True)
         full_ds = SparseMNISTDataset(base_mnist, threshold=0.3)
         return random_split(full_ds, [train_size, valid_size, test_size])
     elif dataset_name == "context_gating":
-        base_mnist = MNIST(root=data_path or output_dir, train=True, download=True)
+        # Create temporary directory path for datasets that need direct MNIST access
+        temp_data_path = None
+        if task_data_path and task_data_path.strip():
+            temp_data_path = os.path.join(task_data_path, "datasets", "mnist")
+        elif outputs_dir and outputs_dir.strip():
+            temp_data_path = os.path.join(outputs_dir, "datasets", "mnist")
+        elif output_dir:
+            temp_data_path = os.path.join(output_dir, "datasets", "mnist")
+        else:
+            temp_data_path = os.path.join("data", "mnist")
+        os.makedirs(temp_data_path, exist_ok=True)
+        
+        base_mnist = MNIST(root=temp_data_path, train=True, download=True)
         full_ds = ContextualFigureGroundMNIST(base_mnist, noise_level=0.1)
         return random_split(full_ds, [train_size, valid_size, test_size])
     elif dataset_name == "learning_dynamics":
         full_ds = MultiTaskLineDataset(total_size=total, image_size=image_size)
         return random_split(full_ds, [train_size, valid_size, test_size])
     elif dataset_name == "hierarchical_processing":
-        base_mnist = MNIST(root=data_path or output_dir, train=True, download=True)
+        # Create temporary directory path for datasets that need direct MNIST access
+        temp_data_path = None
+        if task_data_path and task_data_path.strip():
+            temp_data_path = os.path.join(task_data_path, "datasets", "mnist")
+        elif outputs_dir and outputs_dir.strip():
+            temp_data_path = os.path.join(outputs_dir, "datasets", "mnist")
+        elif output_dir:
+            temp_data_path = os.path.join(output_dir, "datasets", "mnist")
+        else:
+            temp_data_path = os.path.join("data", "mnist")
+        os.makedirs(temp_data_path, exist_ok=True)
+        
+        base_mnist = MNIST(root=temp_data_path, train=True, download=True)
         full_ds = CompositionalMNIST(base_mnist, n_samples=total)
         return random_split(full_ds, [train_size, valid_size, test_size])
     elif dataset_name == "cifar10":
@@ -1017,8 +1103,10 @@ def get_unified_datasets(task_cfg, train_cfg, output_dir=None):
             train_valid_split=train_valid_split, 
             flatten=flatten,
             normalize=normalize,
-            data_path=data_path,
-            output_dir=output_dir
+            data_path=None,  # Legacy parameter
+            output_dir=output_dir,  # Legacy parameter
+            task_data_path=task_data_path,
+            outputs_dir=outputs_dir
         )
     elif dataset_name == "poisson_generator":
         train_ds, valid_ds, test_ds = load_poisson_generator_datasets(
@@ -1026,8 +1114,10 @@ def get_unified_datasets(task_cfg, train_cfg, output_dir=None):
             rate_multiplier=rate_multiplier,
             train_valid_split=train_valid_split,
             flatten=flatten,
-            data_path=data_path,
-            output_dir=output_dir
+            data_path=None,  # Legacy parameter
+            output_dir=output_dir,  # Legacy parameter
+            task_data_path=task_data_path,
+            outputs_dir=outputs_dir
         )
         return train_ds, valid_ds, test_ds
     elif dataset_name == "orthonet":
