@@ -1,22 +1,33 @@
 """
-Models package for dendritic modeling.
+Models module.
 
-This package contains model wrapper classes:
-- classification: Classification models (probabilistic, standard, simple)
-- regression: Regression models (standard, DEEPST)
-- baselines: Baseline models for comparison
+This module contains various model implementations including
+classification, regression, and baseline models.
 """
 
-# Import base model class
+# Base model
 from .base import BaseModel
 
-# Backward compatibility - import remaining classes from original models.py
-from ..models import (
-    ProbabilisticClassifier,
-    Classifier, 
-    Regressor,
-    DeepstRegressor,
-    SimpleMLP,
-    SimpleClassifier,
-    MLPWithClassificationHead
-) 
+# Classification models
+from .classification import Classifier, ProbabilisticClassifier
+
+# Regression models
+from .regression import Regressor, DeepstRegressor
+
+# Baseline models
+from .baselines import SimpleMLP, SimpleClassifier, MLPWithClassificationHead
+
+__all__ = [
+    # Base
+    "BaseModel",
+    # Classification
+    "Classifier",
+    "ProbabilisticClassifier",
+    # Regression
+    "Regressor",
+    "DeepstRegressor",
+    # Baselines
+    "SimpleMLP",
+    "SimpleClassifier",
+    "MLPWithClassificationHead",
+] 

@@ -1,7 +1,14 @@
 """
-Regression models module.
+Regression models.
 
-Contains various regression model implementations.
+This module contains various regression models including
+standard regression and deep sparse training regression.
 """
 
-# Placeholder - will contain regression model classes 
+from .standard import Regressor
+from .deepst import DeepstRegressor
+
+__all__ = [
+    "Regressor",
+    "DeepstRegressor",
+] 
