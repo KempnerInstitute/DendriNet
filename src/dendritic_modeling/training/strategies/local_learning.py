@@ -6,18 +6,23 @@ This module contains training strategies that implement local learning algorithm
 particularly Local Credit Assignment methods for dendritic networks.
 """
 
+import logging
 import os
 import time
 from copy import deepcopy
-from typing import Optional
+from typing import Any, Dict, List, Optional, Tuple
+
+import matplotlib.pyplot as plt
+import numpy as np
 import torch
 import torch.nn.functional as F
 from torch.nn.utils import clip_grad_value_
-from torch.utils.data import DataLoader
+from torch.utils.data import DataLoader, TensorDataset
+from tqdm import tqdm
 
 import wandb
 from dendritic_modeling import logger
-from dendritic_modeling.plot_utils import plot_NLL_loss_curves
+from dendritic_modeling.plotting import plot_NLL_loss_curves
 from dendritic_modeling.analysis import AnalysisManager
 from dendritic_modeling.training.strategies.base import BaseTrainer, compute_metrics_classification
 
