@@ -344,7 +344,7 @@ class BranchInformationAnalyzer:
                     pass
 
             # Fallback to sklearn
-            from dendritic_modeling.information import compute_mi_cc
+            from dendritic_modeling.analysis.information import compute_mi_cc
 
             return compute_mi_cc(x, y, self.n_neighbors)
 
