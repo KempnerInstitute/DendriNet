@@ -1,18 +1,26 @@
 """
-Plotting utilities and helper functions.
+Plotting utility functions.
 
-This module contains utility functions for exporting data, 
-manipulating tensors, and other helper functions for plotting.
+This module contains utility functions for visualization including CSV export and tree visualization.
 """
 
 import os
 import csv
-import torch
-import numpy as np
 import matplotlib.pyplot as plt
-import networkx as nx
-from matplotlib.gridspec import GridSpec
-from matplotlib.colors import TwoSlopeNorm
+import numpy as np
+import torch
+import logging
+
+try:
+    import networkx as nx
+    NETWORKX_AVAILABLE = True
+except ImportError:
+    NETWORKX_AVAILABLE = False
+    logging.warning("NetworkX is not available. Some plotting functions will be disabled. "
+                   "To fix this, try: pip install networkx or conda install networkx")
+    nx = None
+
+from typing import Dict, List, Optional, Tuple, Any
 
 from .analysis import dendrinet_activations_todict, einet_activations_todict
 from .network import add_colorbars, shape_helper
@@ -139,6 +147,10 @@ def build_dendritic_tree_graph(model, branch_info=None, ablation_info=None):
     Returns:
         G: NetworkX graph object
     """
+    if not NETWORKX_AVAILABLE:
+        logging.warning("NetworkX is not available. Cannot build dendritic tree graph.")
+        return None
+        
     G = nx.DiGraph()
     
     # Add nodes based on model structure
@@ -174,6 +186,14 @@ def visualize_dendritic_tree(G, mode="info"):
         G: NetworkX graph object
         mode: Visualization mode ("info", "simple", etc.)
     """
+    if not NETWORKX_AVAILABLE:
+        logging.warning("NetworkX is not available. Cannot visualize dendritic tree.")
+        return
+        
+    if G is None:
+        logging.warning("No graph provided for visualization.")
+        return
+        
     plt.figure(figsize=(12, 8))
     
     # Create layout

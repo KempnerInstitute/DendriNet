@@ -5,6 +5,7 @@ This module contains the InteractiveBranchAnalyzer class that provides
 comprehensive analysis of branch-level information and ablation studies.
 """
 
+import json
 import logging
 import os
 import traceback
@@ -292,8 +293,12 @@ class InteractiveBranchAnalyzer:
             if file_name:
                 csv_filename = f"{file_name}_{csv_filename}"
             csv_path = os.path.join(save_dir, csv_filename)
-            df.to_csv(csv_path, index=False)
-            print(f"Saved results to {csv_path}")
+            # Save as JSON instead of CSV
+            json_path = csv_path.replace('.csv', '.json')
+            results_dict = df.to_dict(orient='records')
+            with open(json_path, 'w') as f:
+                json.dump(results_dict, f, indent=2)
+            print(f"Saved results to {json_path}")
             
             # Print summary
             print("\nBranch Information Analysis Summary:")

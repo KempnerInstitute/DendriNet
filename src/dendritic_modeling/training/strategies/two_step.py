@@ -6,10 +6,12 @@ This module contains training strategies that implement two-step learning approa
 where models are first pre-trained with local supervision and then fine-tuned end-to-end.
 """
 
+from __future__ import annotations
+
 import os
 import time
 from copy import deepcopy
-from typing import Optional
+from typing import Optional, TYPE_CHECKING
 import torch
 import torch.nn.functional as F
 from torch.nn.utils import clip_grad_value_
@@ -18,7 +20,10 @@ from torch.utils.data import DataLoader
 import wandb
 from dendritic_modeling import logger
 from dendritic_modeling.plotting import plot_NLL_loss_curves
-from dendritic_modeling.analysis import AnalysisManager
+
+if TYPE_CHECKING:
+    from dendritic_modeling.analysis import AnalysisManager
+
 from dendritic_modeling.training.strategies.base import BaseTrainer, compute_metrics_classification
 from dendritic_modeling.training.strategies.mle import TrainerMLE
 
@@ -45,7 +50,7 @@ class TwoStepTrainer(BaseTrainer):
         grad_clip_value=5,
         shuffle=True,
         load_best_state_dict=True,
-        analysis_manager: Optional[AnalysisManager] = None,
+        analysis_manager: Optional["AnalysisManager"] = None,
         plot_losses=False,
         save_path=None,
         **kwargs,
@@ -336,7 +341,7 @@ class TwoStepTrainerWithKL(BaseTrainer):
         grad_clip_value=5,
         shuffle=True,
         load_best_state_dict=True,
-        analysis_manager: Optional[AnalysisManager] = None,
+        analysis_manager: Optional["AnalysisManager"] = None,
         plot_losses=False,
         save_path=None,
         kl_weight=0.1,

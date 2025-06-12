@@ -1,16 +1,16 @@
 """
-Local Learning Strategies
-========================
+Local learning training strategies.
 
-This module contains training strategies that implement local learning algorithms,
-particularly Local Credit Assignment methods for dendritic networks.
+This module implements local learning approaches for training dendritic networks.
 """
+
+from __future__ import annotations
 
 import logging
 import os
 import time
 from copy import deepcopy
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple, TYPE_CHECKING
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -23,8 +23,11 @@ from tqdm import tqdm
 import wandb
 from dendritic_modeling import logger
 from dendritic_modeling.plotting import plot_NLL_loss_curves
-from dendritic_modeling.analysis import AnalysisManager
-from dendritic_modeling.training.strategies.base import BaseTrainer, compute_metrics_classification
+
+if TYPE_CHECKING:
+    from dendritic_modeling.analysis import AnalysisManager
+
+from .base import BaseTrainer, compute_metrics_classification
 
 
 class LocalCreditAssignment(BaseTrainer):
@@ -49,7 +52,7 @@ class LocalCreditAssignment(BaseTrainer):
         shuffle=True,
         load_best_state_dict=True,
         best_loss=float('inf'),
-        analysis_manager: Optional[AnalysisManager] = None,
+        analysis_manager: Optional["AnalysisManager"] = None,
         plot_losses=False,
         save_path=None,
         seed=None,

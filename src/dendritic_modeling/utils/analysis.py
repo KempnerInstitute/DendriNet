@@ -197,31 +197,31 @@ def ablate_branch(model, layer_idx: int, branch_ids: Optional[List[int]] = None,
 
     if branch_ids is None:
         if layer.input_excitatory:
-            layer.branch_excitation.pre_w.data.zero_()
+            layer.branch_excitation.pre_w.data.fill_(-1000.0)
         if layer.input_inhibitory and hasattr(layer, "branch_inhibition"):
-            layer.branch_inhibition.pre_w.data.zero_()
+            layer.branch_inhibition.pre_w.data.fill_(-1000.0)
 
     elif mode == "direct":
         if layer.input_excitatory:
             for b_id in branch_ids:
-                layer.branch_excitation.pre_w.data[b_id, :] = 0.0
+                layer.branch_excitation.pre_w.data[b_id, :] = -1000.0
         if layer.input_inhibitory and hasattr(layer, "branch_inhibition"):
             for b_id in branch_ids:
-                layer.branch_inhibition.pre_w.data[b_id, :] = 0.0
+                layer.branch_inhibition.pre_w.data[b_id, :] = -1000.0
 
     elif mode == "full":
         if layer.input_excitatory:
             if branch_ids is None:
-                layer.branch_excitation.pre_w.data.zero_()
+                layer.branch_excitation.pre_w.data.fill_(-1000.0)
             else:
                 for b_id in branch_ids:
-                    layer.branch_excitation.pre_w.data[b_id, :] = 0.0
+                    layer.branch_excitation.pre_w.data[b_id, :] = -1000.0
         if layer.input_inhibitory and hasattr(layer, "branch_inhibition"):
             if branch_ids is None:
-                layer.branch_inhibition.pre_w.data.zero_()
+                layer.branch_inhibition.pre_w.data.fill_(-1000.0)
             else:
                 for b_id in branch_ids:
-                    layer.branch_inhibition.pre_w.data[b_id, :] = 0.0
+                    layer.branch_inhibition.pre_w.data[b_id, :] = -1000.0
         # We do NOT zero out blockLinear or anything that kills upstream input.
         # That way deeper layers still get signals from earlier layers.
 
@@ -299,7 +299,7 @@ def analyze_branch_ablation(
                     original_weights = layer.branch_excitation.pre_w.data.clone()
 
                     # Ablate
-                    layer.branch_excitation.pre_w.data.zero_()
+                    layer.branch_excitation.pre_w.data.fill_(-1000.0)
                     exc_acc = measure_performance(net, dataset, device=device)
                     exc_drop = baseline_acc - exc_acc
                     results["exc_drop"].append(exc_drop)
@@ -315,7 +315,7 @@ def analyze_branch_ablation(
                         original_weights = layer.branch_inhibition.pre_w.data.clone()
 
                         # Ablate
-                        layer.branch_inhibition.pre_w.data.zero_()
+                        layer.branch_inhibition.pre_w.data.fill_(-1000.0)
                         inh_acc = measure_performance(net, dataset, device=device)
                         inh_drop = baseline_acc - inh_acc
                         results["inh_drop"].append(inh_drop)

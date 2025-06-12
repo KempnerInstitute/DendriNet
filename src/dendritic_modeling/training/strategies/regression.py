@@ -1,14 +1,16 @@
 """
 Regression training strategies.
 
-This module contains training strategies optimized for regression tasks.
+This module implements specialized training strategies for regression tasks.
 """
+
+from __future__ import annotations
 
 import logging
 import os
 import time
 from copy import deepcopy
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple, TYPE_CHECKING
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -23,8 +25,11 @@ from torch.optim.lr_scheduler import CosineAnnealingLR
 from dendritic_modeling import logger
 from dendritic_modeling.utils import evaluate_mse, save_dict
 from dendritic_modeling.plotting import plot_NLL_loss_curves
-from dendritic_modeling.analysis import AnalysisManager
-from .base import BaseTrainer
+
+if TYPE_CHECKING:
+    from dendritic_modeling.analysis import AnalysisManager
+
+from .base import BaseTrainer, compute_metrics_regression
 
 
 class TrainerRegression(BaseTrainer):
@@ -93,7 +98,7 @@ class TrainerRegression(BaseTrainer):
         shuffle=True, 
         load_best_state_dict=True, 
         best_loss=float('inf'),
-        analysis_manager: Optional[AnalysisManager] = None,
+        analysis_manager: Optional["AnalysisManager"] = None,
         plot_losses=False, 
         save_path=None, 
         seed=None, 
