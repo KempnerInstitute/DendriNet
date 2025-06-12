@@ -11,6 +11,7 @@ import os
 from copy import deepcopy
 from typing import Any, Dict, List, Optional, Tuple
 
+import matplotlib
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
@@ -18,9 +19,11 @@ import torch
 from matplotlib.patches import Patch
 from torch.utils.data import DataLoader, TensorDataset
 
+matplotlib.use("Agg")
+
 from dendritic_modeling.config import AnalysisConfig
-from dendritic_modeling.dendritet import DendriticBranchLayer
-from dendritic_modeling.information import (
+from dendritic_modeling.networks.layers.dendritic import DendriticBranchLayer
+from dendritic_modeling.analysis.information import (
     compute_mi_cc,
     compute_mi_cd,
     compute_pairwise_sr,

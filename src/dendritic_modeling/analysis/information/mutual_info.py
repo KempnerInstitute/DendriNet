@@ -10,8 +10,8 @@ import numpy as np
 import torch
 from dendritic_modeling.models import BaseModel
 from dendritic_modeling.networks import ExcitationInhibitionNetwork
-from dendritic_modeling.dendrinet import DendriticBranchLayer
-from dendritic_modeling.information import (
+from dendritic_modeling.networks.layers.dendritic import DendriticBranchLayer
+from dendritic_modeling.analysis.information import (
     compute_mi_cc,
     compute_mi_cd,
     compute_pairwise_sr,

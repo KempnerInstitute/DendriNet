@@ -17,7 +17,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 from torch.utils.data import DataLoader, TensorDataset
 
-from dendritic_modeling.synthetic_datasets import split_MNIST_inputs
+from dendritic_modeling.datasets import split_MNIST_inputs
 
 logger = logging.getLogger(__name__)
 
