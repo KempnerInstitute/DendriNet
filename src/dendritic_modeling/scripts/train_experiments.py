@@ -53,6 +53,7 @@ from tqdm import tqdm
 
 import wandb
 from dendritic_modeling import logger
+from dendritic_modeling import logger_manager
 from dendritic_modeling.analysis import AnalysisManager
 from dendritic_modeling.config import EINetParameters, load_config
 from dendritic_modeling.training import (
@@ -202,6 +203,9 @@ def setup_training_environment(config, args=None):
     run_save_path = os.path.join(outputs_cfg.dir, run_id)
     os.makedirs(run_save_path, exist_ok=True)
     logger.info(f"Created output directory: {run_save_path}")
+    
+    # Set the logger manager to use the same directory for the main log file
+    logger_manager.set_log_directory(run_save_path)
 
     log_file = os.path.join(run_save_path, "train.log")
     file_handler = logging.FileHandler(log_file)
