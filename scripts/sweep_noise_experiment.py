@@ -1,10 +1,16 @@
+#!/usr/bin/env python
 """
-sweep_noise_experiment.py
-------------------------
-Script that evaluates model robustness to different types of noise perturbations.
+Sweep script for noise experiments with EI networks.
+
+This script performs parameter sweeps over noise levels and other hyperparameters
+for EI networks on synthetic datasets.
 """
+import argparse
+import json
 import os
 import sys
+import time
+from pathlib import Path
 from copy import deepcopy
 from typing import Dict
 
@@ -16,17 +22,20 @@ from dendritic_modeling import logger, logger_manager
 from dendritic_modeling.config import load_config
 from dendritic_modeling.models import Classifier, ProbabilisticClassifier
 from dendritic_modeling.networks import ExcitationInhibitionNetwork, MatchedParamMLP
-from dendritic_modeling.plot_utils import (
-    plot_noise_sweep_branch_results,
-    plot_noise_sweep_ei_results,
+from dendritic_modeling.plotting.utils import (
+    plot_accuracy_curves,
+    plot_loss_curves,
+    plot_noise_sweep_results,
 )
-from dendritic_modeling.synthetic_datasets import get_unified_datasets
+from dendritic_modeling.datasets import get_unified_datasets
 from dendritic_modeling.utils import (
     add_frequency_noise,
     add_gaussian_noise,
     add_poisson_noise,
     add_uniform_noise,
     evaluate_accuracy,
+    get_data_directory,
+    save_dict,
     set_seed,
 )
 
@@ -444,13 +453,13 @@ def main():
     logger.info("Plotting results...")
     if is_branch_sweep:
         for noise_type in ["gaussian", "uniform", "poisson", "frequency"]:
-            plot_noise_sweep_branch_results(
+            plot_noise_sweep_results(
                 results_csv_path=output_path,
                 noise_type=noise_type,
             )
     else:
         for noise_type in ["gaussian", "uniform", "poisson", "frequency"]:
-            plot_noise_sweep_ei_results(
+            plot_noise_sweep_results(
                 results_csv_path=output_path,
                 noise_type=noise_type,
             )

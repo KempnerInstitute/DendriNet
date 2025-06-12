@@ -59,7 +59,7 @@ SRC_PATH = os.path.join(PROJECT_ROOT, "src")
 if SRC_PATH not in sys.path:
     sys.path.append(SRC_PATH)
 try:
-    from dendritic_modeling.synthetic_datasets import get_unified_datasets
+    from dendritic_modeling.datasets import get_unified_datasets
 
     # load_config is not strictly necessary if we load yaml directly as planned
     # from dendritic_modeling.utils import load_config
