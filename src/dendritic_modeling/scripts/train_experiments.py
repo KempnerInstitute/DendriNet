@@ -235,7 +235,7 @@ def setup_training_environment(config, args=None):
     if not hasattr(task_cfg, "dataset") or not task_cfg.dataset:
         raise ValueError("No dataset specified in configuration")
 
-    train_ds, valid_ds, test_ds = get_unified_datasets(task_cfg, train_cfg)
+    train_ds, valid_ds, test_ds = get_unified_datasets(task_cfg, train_cfg, output_dir=outputs_cfg.dir)
     logger.info(
         f"Loaded datasets: {len(train_ds)} training, {len(valid_ds)} validation, {len(test_ds)} test samples"
     )
