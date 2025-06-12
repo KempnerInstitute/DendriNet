@@ -98,14 +98,25 @@ def run_specific_tests(test_modules, verbosity=2):
     loader = unittest.TestLoader()
     suite = unittest.TestSuite()
     
+    # Add current directory to path for imports
+    current_dir = os.getcwd()
+    if current_dir not in sys.path:
+        sys.path.insert(0, current_dir)
+    
     for module_name in test_modules:
         try:
-            # Import the test module
-            module = __import__(f"tests.{module_name}", fromlist=[module_name])
-            # Load tests from the module
-            module_suite = loader.loadTestsFromModule(module)
-            suite.addTest(module_suite)
-        except ImportError as e:
+            # Import the test module directly
+            if os.path.exists(f"tests/{module_name}.py"):
+                import importlib.util
+                spec = importlib.util.spec_from_file_location(module_name, f"tests/{module_name}.py")
+                module = importlib.util.module_from_spec(spec)
+                spec.loader.exec_module(module)
+                # Load tests from the module
+                module_suite = loader.loadTestsFromModule(module)
+                suite.addTest(module_suite)
+            else:
+                print(f"Warning: Test file 'tests/{module_name}.py' not found")
+        except Exception as e:
             print(f"Warning: Could not import test module '{module_name}': {e}")
     
     runner = unittest.TextTestRunner(verbosity=verbosity)
