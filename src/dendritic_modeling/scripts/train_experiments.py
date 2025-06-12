@@ -24,10 +24,14 @@ Options:
 
 from __future__ import annotations
 
+# Suppress TensorFlow warnings for cleaner output
+import os
+os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'  # Suppress TensorFlow INFO and WARNING messages
+os.environ['TF_ENABLE_ONEDNN_OPTS'] = '0'  # Disable oneDNN optimizations warnings
+
 import argparse
 import json
 import logging
-import os
 import random
 import warnings
 from copy import deepcopy
@@ -37,6 +41,12 @@ from typing import Any, Dict, List, Optional, Tuple
 
 import numpy as np
 import torch
+try:
+    import torchinfo
+    TORCHINFO_AVAILABLE = True
+except ImportError:
+    TORCHINFO_AVAILABLE = False
+    torchinfo = None
 from omegaconf import OmegaConf
 from torch.utils.data import DataLoader, TensorDataset
 from tqdm import tqdm
@@ -819,22 +829,25 @@ def train_and_evaluate_main(config_path, args=None):
     try:
         sample_input, _ = train_ds[0]
         sample_input_dim = sample_input.numel()
-        summary = torchinfo.summary(
-            model,
-            input_size=(train_cfg.batch_size, sample_input_dim),
-            col_names=["input_size", "output_size", "num_params"],
-            col_width=25,
-            row_settings=["depth"],
-            depth=7,
-        )
-        logger.info("Model summary generated (see console output)")
-        if wandb.run:
-            wandb.log(
-                {
-                    "total_params": summary.total_params,
-                    "trainable_params": summary.trainable_params,
-                }
+        if TORCHINFO_AVAILABLE:
+            summary = torchinfo.summary(
+                model,
+                input_size=(train_cfg.batch_size, sample_input_dim),
+                col_names=["input_size", "output_size", "num_params"],
+                col_width=25,
+                row_settings=["depth"],
+                depth=7,
             )
+            logger.info("Model summary generated (see console output)")
+            if wandb.run:
+                wandb.log(
+                    {
+                        "total_params": summary.total_params,
+                        "trainable_params": summary.trainable_params,
+                    }
+                )
+        else:
+            logger.warning("torchinfo is not available. Model summary not generated.")
     except Exception as e:
         logger.error(f"Failed to generate model summary before training: {e}")
 
