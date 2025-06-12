@@ -17,7 +17,7 @@ from torch.utils.data import DataLoader
 
 import wandb
 from dendritic_modeling import logger
-from dendritic_modeling.plot_utils import plot_NLL_loss_curves
+from dendritic_modeling.plotting import plot_NLL_loss_curves
 from dendritic_modeling.analysis import AnalysisManager
 from dendritic_modeling.training.strategies.base import BaseTrainer, compute_metrics_classification
 from dendritic_modeling.training.strategies.mle import TrainerMLE

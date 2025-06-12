@@ -1,24 +1,28 @@
 """
-Regression training strategy.
+Regression training strategies.
 
-This module contains the TrainerRegression class which implements training 
-strategies specifically designed for regression tasks with dendritic networks.
-Features MSE metrics, learning rate scheduling, and early stopping.
+This module contains training strategies optimized for regression tasks.
 """
 
+import logging
 import os
 import time
 from copy import deepcopy
-from typing import Optional
+from typing import Any, Dict, List, Optional, Tuple
+
+import matplotlib.pyplot as plt
+import numpy as np
 import torch
 import torch.nn.functional as F
 import wandb
 from torch.nn.utils import clip_grad_value_
-from torch.utils.data import DataLoader
+from torch.utils.data import DataLoader, TensorDataset
+from tqdm import tqdm
 from torch.optim.lr_scheduler import CosineAnnealingLR
 
 from dendritic_modeling import logger
-from dendritic_modeling.plot_utils import plot_NLL_loss_curves
+from dendritic_modeling.utils import evaluate_mse, save_dict
+from dendritic_modeling.plotting import plot_NLL_loss_curves
 from dendritic_modeling.analysis import AnalysisManager
 from .base import BaseTrainer
 
