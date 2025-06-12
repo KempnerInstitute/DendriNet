@@ -1,11 +1,14 @@
 
 
 <p align="center">
+  <a href="https://github.com/KempnerInstitute/dendritic_modeling/actions/workflows/ci.yml">
+    <img src="https://github.com/KempnerInstitute/dendritic_modeling/actions/workflows/ci.yml/badge.svg" alt="CI">
+  </a>
+  <a href="https://github.com/KempnerInstitute/dendritic_modeling/actions/workflows/pr-quick-check.yml">
+    <img src="https://github.com/KempnerInstitute/dendritic_modeling/actions/workflows/pr-quick-check.yml/badge.svg" alt="Quick Check">
+  </a>
   <a href="https://github.com/KempnerInstitute/dendritic_modeling/actions/workflows/deploy-docs.yml">
     <img src="https://github.com/KempnerInstitute/dendritic_modeling/actions/workflows/deploy-docs.yml/badge.svg?branch=develop" alt="docs">
-  </a>
-  <a href="https://github.com/KempnerInstitute/dendritic_modeling/actions/workflows/python-package.yml">
-    <img src="https://github.com/KempnerInstitute/dendritic_modeling/actions/workflows/python-package.yml/badge.svg" alt="tests">
   </a>
   <a href="https://codecov.io/gh/KempnerInstitute/dendritic-modeling" >
  <img src="https://codecov.io/gh/KempnerInstitute/dendritic-modeling/graph/badge.svg?token=HUJRFX92DF"/>
@@ -84,6 +87,23 @@ conda activate dendritic_env
 pip install -e .
 ```
 
+### For Development and Testing
+
+If you plan to contribute to the project or run tests, install with development dependencies:
+
+```sh
+# Option 1: Using conda environment (includes testing dependencies)
+conda env create -f environment.yml
+conda activate dendritic_env
+pip install -e ".[dev]"
+
+# Option 2: Using pip with all development dependencies
+pip install -e ".[all]"
+
+# Option 3: Install only testing dependencies
+pip install -e ".[test]"
+```
+
 ### Alternative Installation Methods
 
 #### Option 1: Using pip with requirements.txt
@@ -92,7 +112,7 @@ pip install -e .
 python -m venv dendritic_env
 source dendritic_env/bin/activate  # On Windows: dendritic_env\Scripts\activate
 
-# Install all dependencies
+# Install all dependencies (includes testing and development tools)
 pip install -r requirements.txt
 
 # Install the package
@@ -114,11 +134,16 @@ pip install -e .
 
 #### Option 3: Using only pyproject.toml
 ```sh
-# Install with all dependencies (including optional ones)
+# Install with all dependencies (recommended for development)
 pip install -e ".[all]"
 
 # Or install with only core dependencies
 pip install -e .
+
+# Or install specific dependency groups
+pip install -e ".[test,lint]"  # Testing and code quality tools
+pip install -e ".[train]"      # Training and analysis tools
+pip install -e ".[docs]"       # Documentation tools
 ```
 
 ### Verifying Installation
@@ -127,6 +152,18 @@ Test that all key dependencies are working:
 
 ```sh
 python -c "import torch; import tensorflow; import matplotlib; import pandas; import dendritic_modeling; print('All dependencies successfully installed!')"
+```
+
+### Setting Up Development Environment
+
+For development work, we recommend setting up pre-commit hooks:
+
+```sh
+# Install pre-commit hooks (after installing with dev dependencies)
+pre-commit install
+
+# Run pre-commit on all files to test setup
+pre-commit run --all-files
 ```
 
 ## Setting Up a Mamba Virtual Environment (Legacy Instructions)
@@ -178,18 +215,84 @@ To generate the documentation locally, you can use the following command:
 
 ## Running Tests
 
-To run the tests, you can use the following command:
+We have a comprehensive test suite covering all major components. To run tests:
+
+### Basic Testing
 
 ```sh
-    pip install -e '.[dev]'
-    pytest
+# Install testing dependencies
+pip install -e ".[test]"
+
+# Run all tests
+pytest
+
+# Run tests with coverage report
+pytest --cov=dendritic_modeling --cov-report=html
+open htmlcov/index.html  # View coverage report
 ```
 
-To run the tests with coverage, you can use the following command:
+### Advanced Testing Options
 
 ```sh
-    pytest --cov=dendritic_modeling --cov-report=html
-    open htmlcov/index.html
+# Run specific test categories
+pytest -m unit              # Run only unit tests
+pytest -m integration       # Run only integration tests
+pytest -m "not slow"        # Skip slow tests
+
+# Run tests in parallel (faster)
+pytest -n auto
+
+# Run tests with detailed output
+pytest -v
+
+# Run specific test files
+pytest tests/test_analysis.py
+pytest tests/test_datasets.py
+
+# Run tests with timeout (prevent hanging)
+pytest --timeout=300
+```
+
+### Using the Test Runner
+
+We provide a custom test runner with additional features:
+
+```sh
+# Run basic test suite
+python tests/test_runner.py
+
+# Run with coverage reporting
+python tests/test_runner.py --coverage
+
+# Run only fast tests
+python tests/test_runner.py --mode fast
+
+# Check dependencies and run tests
+python tests/test_runner.py --mode full
+```
+
+### Continuous Integration
+
+The project uses GitHub Actions for automated testing. See our [CI Setup Guide](CI_SETUP.md) for details on:
+
+- Setting up automated testing on pull requests
+- Running tests across multiple Python versions
+- Generating coverage reports
+- Code quality checks with ruff and black
+
+To set up the same checks locally:
+
+```sh
+# Install pre-commit hooks
+pre-commit install
+
+# Run all quality checks
+pre-commit run --all-files
+
+# Or run individual tools
+ruff check src/ tests/     # Linting
+black --check src/ tests/  # Code formatting
+mypy src/                  # Type checking
 ```
 
 ## Running on Kempner Cluster GPUs
@@ -235,6 +338,49 @@ This configuration will:
 - Generate configs with standard MLP models (`model.network.type="MLP"`)
 
 When using the `"MLP"` option, the specified `ee_synapses_per_branch_per_layer` and `ie_synapses_per_branch_per_layer` values from the sweep will be used to define the MLP's structure/parameters. This enables direct comparison between EINet and MLP models with equivalent parameter counts.
+
+## Continuous Integration and Development Workflow
+
+This project uses a comprehensive CI/CD pipeline with GitHub Actions to ensure code quality and reliability.
+
+### Automated Testing
+
+Every pull request triggers:
+- **Quick PR Check** (~2-3 minutes): Basic tests, linting, import validation
+- **Full CI Pipeline** (~10-15 minutes): Complete test suite across multiple Python versions and platforms
+
+### Pull Request Workflow
+
+1. **Create your feature branch**: `git checkout -b feature/amazing-feature`
+2. **Make your changes** with proper tests
+3. **Run local checks**: `pre-commit run --all-files`
+4. **Create pull request** - CI will automatically run
+5. **Review CI results** - Coverage reports and test results are posted as PR comments
+
+### Local Development Setup
+
+```sh
+# Install with all development dependencies
+pip install -e ".[all]"
+
+# Set up pre-commit hooks
+pre-commit install
+
+# Run the same checks as CI locally
+python tests/test_runner.py --mode full
+ruff check src/ tests/
+black --check src/ tests/
+mypy src/
+```
+
+### Code Quality Standards
+
+- **Test Coverage**: Minimum 75% coverage required
+- **Code Style**: Enforced via `black` and `ruff`
+- **Type Hints**: Static type checking with `mypy`
+- **Documentation**: All public APIs must be documented
+
+For detailed CI setup and troubleshooting, see [CI_SETUP.md](CI_SETUP.md).
 
 ### Usage Examples
 
