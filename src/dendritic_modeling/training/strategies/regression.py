@@ -29,7 +29,7 @@ from dendritic_modeling.plotting import plot_NLL_loss_curves
 if TYPE_CHECKING:
     from dendritic_modeling.analysis import AnalysisManager
 
-from .base import BaseTrainer, compute_metrics_regression
+from .base import BaseTrainer
 
 
 class TrainerRegression(BaseTrainer):
