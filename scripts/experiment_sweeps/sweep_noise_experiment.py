@@ -23,9 +23,9 @@ from dendritic_modeling.config import load_config
 from dendritic_modeling.models import Classifier, ProbabilisticClassifier
 from dendritic_modeling.networks import ExcitationInhibitionNetwork, MatchedParamMLP
 from dendritic_modeling.plotting.utils import (
-    plot_accuracy_curves,
-    plot_loss_curves,
-    plot_noise_sweep_results,
+    plot_activation_tuning,
+    plot_voltage_before_activation,
+    split_MNIST_inputs,
 )
 from dendritic_modeling.datasets import get_unified_datasets
 from dendritic_modeling.utils import (

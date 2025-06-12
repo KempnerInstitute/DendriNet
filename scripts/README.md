@@ -1,122 +1,134 @@
 # Scripts Directory - Dendritic Modeling Framework
 
-This directory contains utility scripts for running experiments, parameter sweeps, simulations, and analysis in the dendritic modeling framework. Scripts are organized by functionality below.
+This directory contains utility scripts for running experiments, parameter sweeps, simulations, and analysis in the dendritic modeling framework. Scripts are organized into functional subfolders for better organization and maintainability.
 
-## 📁 Script Categories
+## 📁 Directory Structure
 
-### 🔥 **EI Sweep Scripts** (Excitation-Inhibition Parameter Sweeps)
+```
+scripts/
+├── ei_sweeps/              # Excitation-Inhibition parameter sweeps
+├── general_sweeps/         # General parameter sweep utilities
+├── experiment_sweeps/      # Specialized experimental sweeps
+├── dendrinet_simulations/  # Advanced dendritic simulations
+├── analysis/               # Analysis and visualization tools
+└── README.md              # This file
+```
+
+## 📋 Script Categories
+
+### 🔥 **EI Sweeps** (`ei_sweeps/`)
 
 **Purpose**: Comprehensive parameter sweeps over excitation-inhibition (EI) parameters for dendritic networks.
 
 - **`generate_ei_sweep.py`** (45KB, 1066 lines) - Generate EI sweep configurations
   ```bash
-  python scripts/generate_ei_sweep.py configs/sweep_params_seeds_ei.yaml
-  python scripts/generate_ei_sweep.py configs/sweep_params_seeds_ei.yaml --split-jobs 10
-  python scripts/generate_ei_sweep.py configs/sweep_params_seeds_ei.yaml --filter-mode ei-sum --filter-value 52
+  python scripts/ei_sweeps/generate_ei_sweep.py configs/sweep_params_seeds_ei.yaml
+  python scripts/ei_sweeps/generate_ei_sweep.py configs/sweep_params_seeds_ei.yaml --split-jobs 10
+  python scripts/ei_sweeps/generate_ei_sweep.py configs/sweep_params_seeds_ei.yaml --filter-mode ei-sum --filter-value 52
   ```
 
 - **`analyze_ei_sweep.py`** (162KB, 4209 lines) - Analyze EI sweep results
   ```bash
-  python scripts/analyze_ei_sweep.py --timestamp 20250411144518
-  python scripts/analyze_ei_sweep.py --folder /path/to/results/ei_20250411144518
-  python scripts/analyze_ei_sweep.py --all     # Analyze all ei_ folders
+  python scripts/ei_sweeps/analyze_ei_sweep.py --timestamp 20250411144518
+  python scripts/ei_sweeps/analyze_ei_sweep.py --folder /path/to/results/ei_20250411144518
+  python scripts/ei_sweeps/analyze_ei_sweep.py --all     # Analyze all ei_ folders
   ```
 
 - **`rerun_missing_configs.py`** (24KB, 688 lines) - Rerun failed/missing EI configs
   ```bash
-  python scripts/rerun_missing_configs.py --ei-folder ei_20250411144518
-  python scripts/rerun_missing_configs.py --ei-folder ei_20250411144518 --dry-run
+  python scripts/ei_sweeps/rerun_missing_configs.py --ei-folder ei_20250411144518
+  python scripts/ei_sweeps/rerun_missing_configs.py --ei-folder ei_20250411144518 --dry-run
   ```
 
-### ⚙️ **General Sweep Scripts** (General Parameter Sweeps)
+### ⚙️ **General Sweeps** (`general_sweeps/`)
 
 **Purpose**: General-purpose parameter sweep utilities for any model parameters.
 
 - **`generate_sweep_configs.py`** (21KB, 614 lines) - General sweep configuration generator
   ```bash
-  python scripts/generate_sweep_configs.py configs sweep_params.yaml
-  python scripts/generate_sweep_configs.py --config-dir configs --param-filename sweep_params.yaml
+  python scripts/general_sweeps/generate_sweep_configs.py configs sweep_params.yaml
+  python scripts/general_sweeps/generate_sweep_configs.py --config-dir configs --param-filename sweep_params.yaml
   ```
 
 - **`analyze_sweep_results.py`** (19KB, 610 lines) - General sweep results analyzer
   ```bash
-  python scripts/analyze_sweep_results.py --results-dir output/sweep_results
-  python scripts/analyze_sweep_results.py --results-dir output/sweep_results --output-dir plots
+  python scripts/general_sweeps/analyze_sweep_results.py --results-dir output/sweep_results
+  python scripts/general_sweeps/analyze_sweep_results.py --results-dir output/sweep_results --output-dir plots
   ```
 
-### 🧪 **Specific Experiment Sweeps**
+### 🧪 **Experiment Sweeps** (`experiment_sweeps/`)
 
 **Purpose**: Specialized sweeps for specific experimental conditions (noise, branches, EI variations).
 
 - **`sweep_noise_experiment.py`** (15KB, 462 lines) - Noise experiment sweeps
   ```bash
-  python scripts/sweep_noise_experiment.py --config configs/noise_sweep.yaml --noise-types gaussian uniform
-  python scripts/sweep_noise_experiment.py --config configs/noise_sweep.yaml --branch-sweep
+  python scripts/experiment_sweeps/sweep_noise_experiment.py --config configs/noise_sweep.yaml --noise-types gaussian uniform
+  python scripts/experiment_sweeps/sweep_noise_experiment.py --config configs/noise_sweep.yaml --branch-sweep
   ```
 
 - **`sweep_branch_experiment.py`** (13KB, 364 lines) - Branch experiment sweeps
   ```bash
-  python scripts/sweep_branch_experiment.py --config configs/branch_sweep.yaml
-  python scripts/sweep_branch_experiment.py --config configs/branch_sweep.yaml --seeds 5
+  python scripts/experiment_sweeps/sweep_branch_experiment.py --config configs/branch_sweep.yaml
+  python scripts/experiment_sweeps/sweep_branch_experiment.py --config configs/branch_sweep.yaml --seeds 5
   ```
 
 - **`sweep_ei_experiment.py`** (13KB, 382 lines) - EI experiment sweeps
   ```bash
-  python scripts/sweep_ei_experiment.py --config configs/ei_sweep.yaml
-  python scripts/sweep_ei_experiment.py --config configs/ei_sweep.yaml --output-dir custom_output
+  python scripts/experiment_sweeps/sweep_ei_experiment.py --config configs/ei_sweep.yaml
+  python scripts/experiment_sweeps/sweep_ei_experiment.py --config configs/ei_sweep.yaml --output-dir custom_output
   ```
 
-### 🌿 **Dendrinet Simulation Scripts**
+### 🌿 **Dendrinet Simulations** (`dendrinet_simulations/`)
 
 **Purpose**: Advanced dendritic network simulations with correlation analysis and information theory.
 
 - **`generate_dendrinet_sweep.py`** (28KB, 899 lines) - Generate dendrinet parameter sweeps
   ```bash
-  python scripts/generate_dendrinet_sweep.py --config configs/dendrinet_sweep.yaml
-  python scripts/generate_dendrinet_sweep.py --config configs/dendrinet_sweep.yaml --array-jobs
+  python scripts/dendrinet_simulations/generate_dendrinet_sweep.py --config configs/dendrinet_sweep.yaml
+  python scripts/dendrinet_simulations/generate_dendrinet_sweep.py --config configs/dendrinet_sweep.yaml --array-jobs
   ```
 
 - **`simulate_dendrinet.py`** (54KB, 1651 lines) - Run dendrinet simulations
   ```bash
-  python scripts/simulate_dendrinet.py --D 30 --C 3 --N_E 5 --N_I 5 --rho 0.3
-  python scripts/simulate_dendrinet.py --config configs/dendrinet_sim.yaml --ei-ratio-sweep
+  python scripts/dendrinet_simulations/simulate_dendrinet.py --D 30 --C 3 --N_E 5 --N_I 5 --rho 0.3
+  python scripts/dendrinet_simulations/simulate_dendrinet.py --config configs/dendrinet_sim.yaml --ei-ratio-sweep
   ```
 
 - **`simulate_dendrinet_array.py`** (5.9KB, 183 lines) - Array job version of dendrinet simulation
   ```bash
-  python scripts/simulate_dendrinet_array.py --job-id ${SLURM_ARRAY_TASK_ID}
-  python scripts/simulate_dendrinet_array.py --config configs/dendrinet_array.yaml --job-id 1
+  python scripts/dendrinet_simulations/simulate_dendrinet_array.py --job-id ${SLURM_ARRAY_TASK_ID}
+  python scripts/dendrinet_simulations/simulate_dendrinet_array.py --config configs/dendrinet_array.yaml --job-id 1
   ```
 
 - **`analyze_dendrinet_results.py`** (31KB, 945 lines) - Analyze dendrinet simulation results
   ```bash
-  python scripts/analyze_dendrinet_results.py --results-dir output/dendrinet_results
-  python scripts/analyze_dendrinet_results.py --results-dir output/dendrinet_results --plot-correlations
+  python scripts/dendrinet_simulations/analyze_dendrinet_results.py --results-dir output/dendrinet_results
+  python scripts/dendrinet_simulations/analyze_dendrinet_results.py --results-dir output/dendrinet_results --plot-correlations
   ```
 
-### 📊 **Analysis Scripts**
+### 📊 **Analysis Tools** (`analysis/`)
 
 **Purpose**: Specialized analysis tools for information theory, pixel analysis, and visualization.
 
 - **`analyze_pixel_information.py`** (33KB, 841 lines) - Analyze pixel-level information
   ```bash
-  python scripts/analyze_pixel_information.py --dataset mnist --config configs/analysis.yaml
-  python scripts/analyze_pixel_information.py --dataset cifar10 --pid-mode all_pairs --workers 8
+  python scripts/analysis/analyze_pixel_information.py --dataset mnist --config configs/analysis.yaml
+  python scripts/analysis/analyze_pixel_information.py --dataset cifar10 --pid-mode all_pairs --workers 8
   ```
 
 - **`run_pixel_analysis.sh`** (4.3KB, 113 lines) - Shell script for pixel analysis
   ```bash
-  bash scripts/run_pixel_analysis.sh mnist
-  bash scripts/run_pixel_analysis.sh cifar10 --parallel
+  bash scripts/analysis/run_pixel_analysis.sh mnist
+  bash scripts/analysis/run_pixel_analysis.sh cifar10 --parallel
   ```
 
 ## 🚀 **Common Usage Patterns**
 
-### Basic Workflow
+### Basic EI Sweep Workflow
 
 1. **Generate sweep configurations**:
    ```bash
-   python scripts/generate_ei_sweep.py configs/sweep_params_seeds_ei.yaml
+   python scripts/ei_sweeps/generate_ei_sweep.py configs/sweep_params_seeds_ei.yaml
    ```
 
 2. **Run the sweep** (via SLURM):
@@ -126,32 +138,45 @@ This directory contains utility scripts for running experiments, parameter sweep
 
 3. **Analyze results**:
    ```bash
-   python scripts/analyze_ei_sweep.py --timestamp $(date +%Y%m%d%H%M%S)
+   python scripts/ei_sweeps/analyze_ei_sweep.py --timestamp $(date +%Y%m%d%H%M%S)
    ```
 
 ### Advanced EI Sweep with Filtering
 
 ```bash
 # Generate only E+I=52 combinations 
-python scripts/generate_ei_sweep.py configs/sweep_params_seeds_ei.yaml \
+python scripts/ei_sweeps/generate_ei_sweep.py configs/sweep_params_seeds_ei.yaml \
     --filter-mode ei-sum --filter-value 52
 
 # Generate only E/I ratio ≈ 2.0 combinations
-python scripts/generate_ei_sweep.py configs/sweep_params_seeds_ei.yaml \
+python scripts/ei_sweeps/generate_ei_sweep.py configs/sweep_params_seeds_ei.yaml \
     --filter-mode ei-ratio --filter-value 2.0 --filter-tolerance 0.1
+```
+
+### General Parameter Sweep Workflow
+
+```bash
+# 1. Generate general sweep configurations
+python scripts/general_sweeps/generate_sweep_configs.py configs sweep_params.yaml
+
+# 2. Run the sweep (via generated SLURM script)
+sbatch run.sh
+
+# 3. Analyze results
+python scripts/general_sweeps/analyze_sweep_results.py --results-dir output/sweep_results
 ```
 
 ### Simulation and Analysis Pipeline
 
 ```bash
 # 1. Generate dendrinet sweep
-python scripts/generate_dendrinet_sweep.py --config configs/dendrinet_sweep.yaml
+python scripts/dendrinet_simulations/generate_dendrinet_sweep.py --config configs/dendrinet_sweep.yaml
 
 # 2. Run simulations  
-python scripts/simulate_dendrinet.py --D 50 --C 3 --total-synapses 20 --rho 0.3
+python scripts/dendrinet_simulations/simulate_dendrinet.py --D 50 --C 3 --total-synapses 20 --rho 0.3
 
 # 3. Analyze results
-python scripts/analyze_dendrinet_results.py --results-dir output/dendrinet_results
+python scripts/dendrinet_simulations/analyze_dendrinet_results.py --results-dir output/dendrinet_results
 ```
 
 ## 📋 **Configuration Requirements**
@@ -236,14 +261,15 @@ experiment_settings:
 All scripts have been updated to use the new codebase structure:
 
 - ✅ `from dendritic_modeling.datasets import get_unified_datasets` (updated from `synthetic_datasets`)
-- ✅ `from dendritic_modeling.training.strategies import TrainerMLE, get_trainer` (updated from `learning_strategies`)
+- ✅ `from dendritic_modeling.training.strategies import TrainerMLE` (updated from `learning_strategies`)
+- ✅ `from dendritic_modeling.training.factory import get_trainer` (correct location)
 - ✅ `from dendritic_modeling.plotting.utils import plot_*` (updated from `plot_utils`)
 
 ### Required Packages
 
 Scripts may require additional packages:
 ```bash
-# For PID analysis (analyze_pixel_information.py)
+# For PID analysis (analysis/analyze_pixel_information.py)
 pip install dit broja
 
 # For visualization
@@ -294,10 +320,11 @@ Scripts generate organized output directories:
 output/
 ├── ei_20250411144518/          # EI sweep results
 │   ├── configs/                # Generated configuration files
+│   ├── results/                # Training results
 │   │   ├── config_0/
 │   │   ├── config_1/
 │   │   └── ...
-│   ├── results/                # Training results
+│   ├── plots/                  # Analysis plots
 │   └── run.sh                  # Generated SLURM script
 ├── dendrinet_results/          # Dendrinet simulation results
 │   ├── correlation_analysis/
