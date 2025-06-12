@@ -8,6 +8,25 @@ This quickstart guide will help you get up and running with the Dendritic Modeli
 .. note::
    The recommended way to run experiments is using the configuration-based approach with ``train_experiments.py``. We cover both approaches to help you understand the components, but for production use, the config approach offers better reproducibility and experiment tracking.
 
+Prerequisites
+-------------
+
+Before starting, make sure you have installed the framework. See :doc:`installation` for detailed instructions.
+
+**Quick Installation:**
+
+.. code-block:: bash
+
+    # Create conda environment with all dependencies
+    conda env create -f environment.yml
+    conda activate dendritic_env
+    
+    # Install the package
+    pip install -e .
+    
+    # Verify installation
+    python -c "import dendritic_modeling; print('✓ Ready to go!')"
+
 Option 1: Configuration-based Approach (Recommended)
 ---------------------------------------------------
 

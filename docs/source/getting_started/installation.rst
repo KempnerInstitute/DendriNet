@@ -12,107 +12,199 @@ The dendritic modeling framework is a PyTorch-based library for implementing and
 
 1. Set up a Python environment for the framework
 2. Install the framework and its dependencies
-3. Verify the installation
-4. Configure your environment for different hardware
-5. Troubleshoot common installation issues
+3. Configure development tools and testing
+4. Verify the installation
+5. Configure your environment for different hardware
+6. Troubleshoot common installation issues
 
 System Requirements
 ------------------
 
 Before installing, ensure your system meets the following requirements:
 
-* **Python**: 3.8 or higher
-* **CUDA** (for GPU support): Version 11.0 or higher recommended
+* **Python**: 3.9 or higher (3.12 recommended)
+* **CUDA** (for GPU support): Version 11.8 or higher recommended
 * **Operating System**: Linux (recommended), macOS, or Windows
-* **Disk Space**: At least 5GB for the framework and datasets
+* **Disk Space**: At least 8GB for the framework, dependencies, and datasets
 * **Memory**: At least 8GB RAM (16GB or more recommended)
 * **GPU**: NVIDIA GPU with at least 4GB VRAM (recommended for training)
 
-Installation Methods
-------------------
+Quick Installation (Recommended)
+--------------------------------
 
-There are two main methods to install the framework:
-
-Quick Installation (Recommended for Mamba/Conda Users)
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-For a quick installation using Mamba:
+The fastest way to get started is using our conda environment file:
 
 .. code-block:: bash
 
-    # Create a new environment
-    mamba create -n dendritic python=3.10
-    mamba activate dendritic
+    # Create and activate conda environment with all dependencies
+    conda env create -f environment.yml
+    conda activate dendritic_env
 
-    # Clone the repository
-    git clone https://github.com/KempnerInstitute/dendritic-modeling.git
-    cd dendritic-modeling
+    # Install the package in development mode
+    pip install -e .
 
-    # Install the package
-    pip install .
+    # Verify installation
+    python -c "import dendritic_modeling; print('✓ Installation successful!')"
 
-Development Installation
-~~~~~~~~~~~~~~~~~~~~~~
+This creates a complete development environment with testing, code quality tools, and all optional dependencies.
 
-For development or the latest features, install from source with development dependencies:
+Installation Options
+-------------------
+
+Choose the installation method that best fits your needs:
+
+Full Development Setup (Recommended for Contributors)
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. code-block:: bash
 
-    # Create a new Mamba environment
-    mamba create -n dendritic python=3.10
-    mamba activate dendritic
+    # Option A: Using conda environment file (recommended)
+    conda env create -f environment.yml
+    conda activate dendritic_env
+    pip install -e ".[dev]"
 
-    # Clone the repository
-    git clone https://github.com/KempnerInstitute/dendritic-modeling.git
-    cd dendritic-modeling
+    # Option B: Using pip only
+    python -m venv dendritic_env
+    source dendritic_env/bin/activate  # Windows: dendritic_env\Scripts\activate
+    pip install -r requirements.txt
+    pip install -e .
 
-    # Install in development mode with dev dependencies
-    pip install -e '.[dev]'
+    # Set up pre-commit hooks for code quality
+    pre-commit install
 
-    # Install documentation dependencies (optional)
-    pip install -e '.[docs]'
+    # Verify development setup
+    python tests/test_runner.py --mode full
+
+Core Package Only (Minimal Installation)
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+.. code-block:: bash
+
+    # Create virtual environment
+    python -m venv dendritic_env
+    source dendritic_env/bin/activate  # Windows: dendritic_env\Scripts\activate
+
+    # Install core dependencies only
+    pip install -e .
+
+Specialized Installations
+~~~~~~~~~~~~~~~~~~~~~~~
+
+.. code-block:: bash
+
+    # For testing and CI development
+    pip install -e ".[test]"
+
+    # For training and analysis work
+    pip install -e ".[train]"
+
+    # For documentation building
+    pip install -e ".[docs]"
+
+    # For code quality tools only
+    pip install -e ".[lint]"
+
+    # Everything (development + training + docs)
+    pip install -e ".[all]"
+
+Dependency Groups Explained
+--------------------------
+
+The framework uses a modular dependency system:
+
+.. list-table::
+   :header-rows: 1
+   :widths: 15 25 60
+
+   * - Group
+     - Purpose
+     - Key Packages
+   * - ``core``
+     - Basic functionality
+     - torch, numpy, matplotlib, tensorflow, omegaconf
+   * - ``test``
+     - Testing suite
+     - pytest, pytest-cov, pytest-mock, coverage, networkx
+   * - ``lint``
+     - Code quality
+     - ruff, black, isort, mypy, pre-commit
+   * - ``train``
+     - Training tools
+     - jupyter, plotly, seaborn, tensorboard
+   * - ``docs``
+     - Documentation
+     - sphinx, sphinx-rtd-theme, nbsphinx
+   * - ``dev``
+     - Development
+     - Combines test + lint + build tools
+   * - ``all``
+     - Everything
+     - All dependency groups combined
 
 Detailed Installation Steps
 -------------------------
 
-Here's a more detailed guide to installing the framework from source:
-
 Step 1: Set up the Python environment
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-Using Mamba:
+**Using Conda (Recommended):**
 
 .. code-block:: bash
 
-    # Create and activate a new environment
-    mamba create -n dendritic python=3.10
-    mamba activate dendritic
+    # Create and activate environment with full dependencies
+    conda env create -f environment.yml
+    conda activate dendritic_env
 
+**Using Python venv:**
+
+.. code-block:: bash
+
+    # Create virtual environment
+    python -m venv dendritic_env
+    source dendritic_env/bin/activate  # Windows: dendritic_env\Scripts\activate
+
+**Using Mamba (Faster alternative to conda):**
+
+.. code-block:: bash
+
+    # Install mamba first
+    conda install mamba -n base -c conda-forge
+
+    # Create environment
+    mamba env create -f environment.yml
+    mamba activate dendritic_env
 
 Step 2: Install PyTorch
 ~~~~~~~~~~~~~~~~~~~~~
 
-Install PyTorch with GPU support:
+PyTorch is automatically installed via our environment files, but you can install manually:
 
 .. code-block:: bash
 
+    # For CUDA 12.1 (recommended)
+    conda install pytorch torchvision torchaudio pytorch-cuda=12.1 -c pytorch -c nvidia
+
     # For CUDA 11.8
-    mamba install pytorch torchvision torchaudio pytorch-cuda=11.8 -c pytorch -c nvidia
+    conda install pytorch torchvision torchaudio pytorch-cuda=11.8 -c pytorch -c nvidia
 
     # For CPU only
-    mamba install pytorch torchvision torchaudio cpuonly -c pytorch
+    conda install pytorch torchvision torchaudio cpuonly -c pytorch
 
 Verify PyTorch installation:
 
 .. code-block:: bash
 
-    # Verify PyTorch and CUDA
-    python -c "import torch; print(f'PyTorch version: {torch.__version__}'); print(f'CUDA available: {torch.cuda.is_available()}')"
+    python -c "
+    import torch
+    print(f'PyTorch version: {torch.__version__}')
+    print(f'CUDA available: {torch.cuda.is_available()}')
+    if torch.cuda.is_available():
+        print(f'CUDA version: {torch.version.cuda}')
+        print(f'GPU count: {torch.cuda.device_count()}')
+    "
 
 Step 3: Clone the repository
 ~~~~~~~~~~~~~~~~~~~~~~~~~
-
-Get the source code:
 
 .. code-block:: bash
 
@@ -122,171 +214,115 @@ Get the source code:
 Step 4: Install the package
 ~~~~~~~~~~~~~~~~~~~~~~~~
 
-Install the package and its dependencies:
+Choose your installation method:
 
 .. code-block:: bash
 
-    # Install the basic package (for users)
-    pip install .
-
-    # OR install in development mode (for developers)
+    # Basic installation
     pip install -e .
 
-    # Optional: Install with development dependencies
-    pip install -e '.[dev]'
+    # Development installation (recommended for contributors)
+    pip install -e ".[dev]"
 
-    # Optional: Install with documentation dependencies
-    pip install -e '.[docs]'
+    # Full installation with all optional dependencies
+    pip install -e ".[all]"
 
-The project's dependencies are defined in the pyproject.toml file and include:
+Step 5: Set up development tools (optional)
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-.. code-block:: text
+For development work, set up code quality tools:
 
-    # Core dependencies
-    torch
-    numpy
-    torchvision
-    torchinfo
-    matplotlib
-    wandb
-    pandas
-    omegaconf>=2.3.0
-    scikit-learn
+.. code-block:: bash
 
-    # Development dependencies (optional)
-    ruff
-    mypy
-    black
-    isort
-    pytest
-    pytest-cov
-    etc.
+    # Install pre-commit hooks
+    pre-commit install
 
-Step 5: Verify installation
+    # Test the setup
+    pre-commit run --all-files
+
+    # Run tests to verify everything works
+    pytest tests/ -v
+
+Verification and Testing
+-----------------------
+
+Basic Verification
+~~~~~~~~~~~~~~~~
+
+.. code-block:: bash
+
+    # Test basic functionality
+    python -c "import dendritic_modeling; print('✓ Package imported successfully')"
+
+    # Test all core dependencies
+    python -c "
+    import torch
+    import tensorflow as tf
+    import matplotlib.pyplot as plt
+    import pandas as pd
+    import numpy as np
+    import dendritic_modeling
+    print('✓ All core dependencies working')
+    "
+
+Comprehensive Testing
+~~~~~~~~~~~~~~~~~~
+
+.. code-block:: bash
+
+    # Run the full test suite
+    pytest tests/ -v
+
+    # Run tests with coverage
+    pytest --cov=dendritic_modeling --cov-report=html
+    open htmlcov/index.html  # View coverage report
+
+    # Run specific test categories
+    pytest -m unit              # Unit tests only
+    pytest -m integration       # Integration tests only
+    pytest -m "not slow"        # Skip slow tests
+
+    # Use our custom test runner
+    python tests/test_runner.py --mode full
+
+Code Quality Verification
 ~~~~~~~~~~~~~~~~~~~~~~~
 
-Ensure that the installation was successful:
-
 .. code-block:: bash
 
-    # Run a simple test
-    python -c "from dendritic_modeling.networks import ExcitationInhibitionNetwork; print('Installation successful!')"
+    # Check code style
+    ruff check src/ tests/
+    black --check src/ tests/
+    isort --check-only src/ tests/
 
-    # Run the test suite (if development dependencies were installed)
-    pytest tests/
+    # Type checking
+    mypy src/
 
-Configuring for Different Hardware
--------------------------------
-
-CPU-only configuration
-~~~~~~~~~~~~~~~~~~
-
-For systems without a GPU:
-
-.. code-block:: bash
-
-    # Set this environment variable to disable CUDA
-    export CUDA_VISIBLE_DEVICES=""
-
-    # Install PyTorch for CPU only
-    mamba install pytorch torchvision torchaudio cpuonly -c pytorch
-
-Multi-GPU configuration
-~~~~~~~~~~~~~~~~~~
-
-For systems with multiple GPUs:
-
-.. code-block:: bash
-
-    # Set visible devices (e.g., use only GPUs 0 and 1)
-    export CUDA_VISIBLE_DEVICES="0,1"
-
-    # Check available GPUs
-    python -c "import torch; print(f'Number of GPUs: {torch.cuda.device_count()}'); [print(f'GPU {i}: {torch.cuda.get_device_name(i)}') for i in range(torch.cuda.device_count())]"
-
-    # In your Python code
-    model = model.to('cuda')  # Uses GPU 0
-    # Or for multi-GPU training
-    model = torch.nn.DataParallel(model)
-
-Cluster configuration (SLURM)
-~~~~~~~~~~~~~~~~~~~~~~~~~
-
-For running on a SLURM-managed cluster, such as the Kempner Institute cluster:
-
-.. code-block:: bash
-
-    # Load necessary modules (adjust versions as needed)
-    module load python/3.12.5-fasrc01
-    module load cuda/12.4.1-fasrc01
-    module load cudnn/8.9.2.26_cuda12-fasrc01
-
-    # Clone the repository and enter directory
-    git clone https://github.com/KempnerInstitute/dendritic-modeling.git
-    cd dendritic-modeling
-
-    # Install the package
-    pip install -e .
-
-    # Create a SLURM job submission script (example.sh)
-    cat > example.sh << 'EOL'
-    #!/bin/bash
-    #SBATCH --job-name=dendritic_job
-    #SBATCH --output=dendritic_%j.out
-    #SBATCH --error=dendritic_%j.err
-    #SBATCH --time=04:00:00
-    #SBATCH --gres=gpu:1
-    #SBATCH --mem=16G
-    #SBATCH --cpus-per-task=4
-
-    # Load modules
-    module load python/3.12.5-fasrc01
-    module load cuda/12.4.1-fasrc01
-    module load cudnn/8.9.2.26_cuda12-fasrc01
-
-    # Activate environment if needed
-    # source /path/to/your/env/bin/activate
-
-    # Run the experiment with specified config
-    python src/dendritic_modeling/train_experiments.py configs/config_exp.yaml
-    EOL
-
-    # Submit the job
-    sbatch example.sh
-
-Virtual Environment Configuration
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-If you prefer using venv instead of Conda/Mamba:
-
-.. code-block:: bash
-
-    # Create a virtual environment
-    python -m venv dendritic-env
-
-    # Activate the environment
-    # On Linux/Mac:
-    source dendritic-env/bin/activate
-    # On Windows:
-    # dendritic-env\Scripts\activate
-
-    # Install PyTorch with appropriate CUDA version
-    pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu118
-
-    # Clone the repository
-    git clone https://github.com/KempnerInstitute/dendritic-modeling.git
-    cd dendritic-modeling
-
-    # Install the package
-    pip install -e .
+    # Run all pre-commit hooks
+    pre-commit run --all-files
 
 Troubleshooting
 --------------
 
-CUDA Compatibility Issues
-~~~~~~~~~~~~~~~~~~~~~
+Common Issues and Solutions
+~~~~~~~~~~~~~~~~~~~~~~~~~
 
-If you encounter CUDA compatibility issues:
+**Missing libbz2.so.1.0 (Linux)**
+
+.. code-block:: bash
+
+    # Create symlink to available version
+    ln -sf /lib64/libbz2.so.1.0.6 $CONDA_PREFIX/lib/libbz2.so.1.0
+
+**NetworkX Import Errors**
+
+NetworkX is optional for plotting. Install if needed:
+
+.. code-block:: bash
+
+    pip install networkx
+
+**CUDA Compatibility Issues**
 
 .. code-block:: bash
 
@@ -294,76 +330,67 @@ If you encounter CUDA compatibility issues:
     nvcc --version
 
     # Check PyTorch CUDA compatibility
-    python -c "import torch; print(torch.version.cuda)"
+    python -c "import torch; print(f'PyTorch CUDA: {torch.version.cuda}')"
 
-    # If versions mismatch, reinstall PyTorch with the matching CUDA version
+    # Reinstall PyTorch with matching CUDA version
     pip uninstall torch torchvision torchaudio
-    pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu[version]
-    # Replace [version] with your CUDA version (e.g., cu118 for CUDA 11.8)
+    pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu118
 
-ImportError Issues
-~~~~~~~~~~~~~~
-
-If you encounter import errors:
+**Pre-commit Hook Failures**
 
 .. code-block:: bash
 
-    # Ensure the package is installed
-    pip show dendritic_modeling
+    # Update pre-commit hooks
+    pre-commit autoupdate
 
-    # If not installed or in development mode:
-    pip install -e .
+    # Clear cache and reinstall
+    pre-commit clean
+    pre-commit install
 
-    # Check your PYTHONPATH
-    echo $PYTHONPATH
+Running Your First Experiment
+----------------------------
 
-    # Add the repository to your PYTHONPATH if needed
-    export PYTHONPATH=$PYTHONPATH:/path/to/dendritic-modeling
-
-Memory Issues
-~~~~~~~~~
-
-If you encounter out-of-memory errors during training:
+After installation, test with a simple experiment:
 
 .. code-block:: bash
 
-    # Reduce batch size in your configuration file or training parameters
-    # config.yaml:
-    train:
-      batch_size: 32  # Try smaller batch size
+    # Run a basic experiment
+    python src/dendritic_modeling/train_experiments.py configs/config_exp.yaml
 
-    # Use gradient accumulation
-    # In your code or config:
-    gradient_accumulation_steps: 2  # Accumulate gradients before updating
-
-    # Clean up GPU memory
-    python -c "import torch; torch.cuda.empty_cache()"
-
-Starting Your First Experiment
-------------------------------
-
-To get started with your first experiment:
-
-.. code-block:: bash
-
-    # Create a configuration file (or use an example)
-    cp configs/config_exp.yaml configs/my_experiment.yaml
-
-    # Edit the configuration
-    nano configs/my_experiment.yaml
-
-    # Run the experiment
-    python scripts/train_experiments.py --config configs/my_experiment.yaml
-
-    # For interactive exploration, use a notebook
+    # For interactive exploration
     jupyter notebook examples/quickstart.ipynb
+
+Continuous Integration Setup
+--------------------------
+
+The project includes comprehensive CI/CD with GitHub Actions. Every pull request automatically runs:
+
+- **Quick PR Check** (~2-3 minutes): Basic tests, linting, import validation  
+- **Full CI Pipeline** (~10-15 minutes): Complete test suite across multiple Python versions
+
+**Local CI Simulation**
+
+.. code-block:: bash
+
+    # Run the same checks as CI locally
+    python tests/test_runner.py --mode full
+    pre-commit run --all-files
+    pytest --cov=dendritic_modeling --cov-fail-under=75
+
+For more details, see the :doc:`../../development/contributing` guide.
 
 Next Steps
 ----------
 
 Now that you have installed the framework, you can:
 
-- Explore the [Quickstart Guide](./quickstart.rst)
-- Run through the [Examples](./examples.rst)
-- Learn about the main [Concepts](./concepts.rst)
-- Configure your [Experiments](./configuration.rst)
+- Follow the :doc:`quickstart` guide
+- Explore :doc:`examples` 
+- Learn about :doc:`../user_guide/concepts`
+- Set up your development environment with :doc:`../../development/contributing`
+
+For additional help:
+
+- **Installation Issues**: Check the `INSTALL.md <https://github.com/KempnerInstitute/dendritic-modeling/blob/main/INSTALL.md>`_ file
+- **Development Setup**: See the `CI_SETUP.md <https://github.com/KempnerInstitute/dendritic-modeling/blob/main/CI_SETUP.md>`_ guide
+- **Bug Reports**: Open an issue on `GitHub <https://github.com/KempnerInstitute/dendritic-modeling/issues>`_ 
