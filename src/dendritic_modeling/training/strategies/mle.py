@@ -1,22 +1,23 @@
 """
-Maximum Likelihood Estimation (MLE) training strategy.
+Maximum Likelihood Estimation training strategy.
 
-This module contains the TrainerMLE class which implements various MLE-based 
-training strategies for dendritic networks, including standard training and 
-sophisticated branch-wise training approaches.
+This module contains the classic MLE training strategy for neural networks.
 """
 
+import logging
 import os
 import time
 from copy import deepcopy
-from typing import Optional
+from typing import Any, Dict, List, Optional, Tuple
+
+import numpy as np
 import torch
-import wandb
 from torch.nn.utils import clip_grad_value_
-from torch.utils.data import DataLoader
+from torch.utils.data import DataLoader, TensorDataset
+import wandb
 
 from dendritic_modeling import logger
-from dendritic_modeling.plot_utils import plot_NLL_loss_curves
+from dendritic_modeling.plotting import plot_NLL_loss_curves
 from dendritic_modeling.analysis import AnalysisManager
 from .base import BaseTrainer, compute_metrics_classification
 
