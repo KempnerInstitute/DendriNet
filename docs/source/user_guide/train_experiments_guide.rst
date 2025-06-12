@@ -24,7 +24,7 @@ To run an experiment, you need a configuration file (see :ref:`config_yaml_guide
 
 .. code-block:: bash
 
-    python src/dendritic_modeling/train_experiments.py configs/config_exp.yaml
+    python src/dendritic_modeling/scripts/train_experiments.py configs/config_exp.yaml
 
 This command will:
 
@@ -90,7 +90,7 @@ The ``train_experiments.py`` script supports command-line arguments to override 
 
 .. code-block:: bash
 
-    python src/dendritic_modeling/train_experiments.py configs/config_exp.yaml --train.learning_strategy freeze_branches --train.lr 0.01
+    python src/dendritic_modeling/scripts/train_experiments.py configs/config_exp.yaml --train.learning_strategy freeze_branches --train.lr 0.01
 
 This example overrides the learning strategy and learning rate specified in the configuration file.
 
@@ -98,7 +98,7 @@ You can override any parameter in the configuration using the dotted notation:
 
 .. code-block:: bash
 
-    python src/dendritic_modeling/train_experiments.py configs/config_exp.yaml \
+    python src/dendritic_modeling/scripts/train_experiments.py configs/config_exp.yaml \
       --model.network.parameters.excitatory_layer_sizes "[256]" \
       --train.epochs 100 \
       --visualization.enabled true

@@ -25,7 +25,7 @@ You can run experiments using the provided training script with a configuration 
 
 .. code-block:: bash
 
-    python scripts/train_experiments.py configs/config_exp.yaml
+    python src/dendritic_modeling/scripts/train_experiments.py configs/config_exp.yaml
 
 Configuration Structure
 -----------------------
