@@ -23,13 +23,11 @@ import torch
 
 from dendritic_modeling import logger, logger_manager
 from dendritic_modeling.config import load_config
-from dendritic_modeling.training.strategies import (
-    TrainerMLE,
-    get_trainer,
-)
+from dendritic_modeling.training.factory import get_trainer
+from dendritic_modeling.training.strategies import TrainerMLE
 from dendritic_modeling.models import Classifier, ProbabilisticClassifier
 from dendritic_modeling.networks import ExcitationInhibitionNetwork, MatchedParamMLP
-from dendritic_modeling.plotting.utils import plot_ei_sweep_results
+from dendritic_modeling.plotting.utils import plot_activation_tuning
 from dendritic_modeling.datasets import get_unified_datasets
 from dendritic_modeling.utils import evaluate_accuracy, save_dict, set_seed
 
@@ -375,7 +373,7 @@ def main():
     logger.info("\nParameter sweep completed. Results saved to: " + results_file)
 
     logger.info("Plotting results...")
-    plot_ei_sweep_results(
+    plot_activation_tuning(
         results_csv_path=results_file,
         split="test",
         ei_ratio_range=(0, 30),
