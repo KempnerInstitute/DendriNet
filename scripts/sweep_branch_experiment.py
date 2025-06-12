@@ -1,12 +1,17 @@
+#!/usr/bin/env python
 """
-sweep_ei_experiment.py
----------------------
-Script that performs parameter sweeps over excitatory-excitatory and
-inhibitory-excitatory synaptic connections while keeping other parameters constant.
-Supports multiple random seeds per configuration and shunting/non-shunting variants.
+Branch parameter sweep script.
+
+This script performs parameter sweeps over branch-related parameters
+for dendritic networks on synthetic datasets.
 """
+import argparse
+import csv
+import json
 import os
 import sys
+import warnings
+from pathlib import Path
 from copy import deepcopy
 from dataclasses import asdict
 from datetime import datetime
@@ -16,14 +21,14 @@ import torch
 
 from dendritic_modeling import logger, logger_manager
 from dendritic_modeling.config import load_config
-from dendritic_modeling.learning_strategies import (
-    CustomWeightDecayOptimizer,
+from dendritic_modeling.training.strategies import (
+    TrainerMLE,
     get_trainer,
 )
 from dendritic_modeling.models import Classifier, ProbabilisticClassifier
 from dendritic_modeling.networks import ExcitationInhibitionNetwork, MatchedParamMLP
-from dendritic_modeling.plot_utils import plot_branch_sweep_results
-from dendritic_modeling.synthetic_datasets import get_unified_datasets
+from dendritic_modeling.plotting.utils import plot_branch_sweep_results
+from dendritic_modeling.datasets import get_unified_datasets
 from dendritic_modeling.utils import evaluate_accuracy, save_dict, set_seed
 
 
