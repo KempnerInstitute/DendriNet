@@ -7,6 +7,7 @@ package.
 
 import logging
 import sys
+import os
 
 LOGGER_NAME = "dendritic_modeling"
 
@@ -33,7 +34,15 @@ class LoggerManager:
         console_handler.setFormatter(console_format)
         self.logger.addHandler(console_handler)
 
-        self.file_path = LOGGER_NAME + ".log"
+        # Default log directory - use environment variable or fallback to logs directory
+        default_log_dir = os.environ.get('DENDRITIC_LOG_DIR', 'logs')
+        if not os.path.isabs(default_log_dir):
+            # If relative path, make it relative to project root
+            project_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+            default_log_dir = os.path.join(project_root, default_log_dir)
+        
+        os.makedirs(default_log_dir, exist_ok=True)
+        self.file_path = os.path.join(default_log_dir, LOGGER_NAME + ".log")
         self._set_file_handler(self.file_path)
 
     def _set_file_handler(self, file_path):
@@ -41,6 +50,11 @@ class LoggerManager:
             h for h in self.logger.handlers if not isinstance(h, logging.FileHandler)
         ]
         try:
+            # Ensure the directory exists
+            log_dir = os.path.dirname(file_path)
+            if log_dir:
+                os.makedirs(log_dir, exist_ok=True)
+                
             file_handler = logging.FileHandler(file_path)
             file_handler.setLevel(logging.DEBUG)
             file_format = logging.Formatter(
@@ -58,3 +72,9 @@ class LoggerManager:
 
     def get_logger(self):
         return self.logger
+    
+    def set_log_directory(self, log_dir):
+        """Set the directory where log files should be saved."""
+        os.makedirs(log_dir, exist_ok=True)
+        log_file = os.path.join(log_dir, os.path.basename(self.file_path))
+        self.set_log_file(log_file)
