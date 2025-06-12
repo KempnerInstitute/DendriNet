@@ -13,6 +13,7 @@ from .factory import (
     transfer_mlp_weights_to_input_net,
     extract_weights_from_simple_mlp,
 )
+from .gradient_scaling import GradientScaler
 
 __all__ = [
     "strategies",
@@ -22,4 +23,5 @@ __all__ = [
     "train_mlp_with_classification_head",
     "transfer_mlp_weights_to_input_net",
     "extract_weights_from_simple_mlp",
+    "GradientScaler",
 ] 
