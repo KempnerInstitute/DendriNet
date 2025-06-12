@@ -17,13 +17,14 @@ from torchvision.datasets import MNIST
 
 
 # Create a centralized function to get or create a data directory
-def get_data_directory(data_type, custom_path=None):
+def get_data_directory(data_type, custom_path=None, output_dir=None):
     """
     Get or create a data directory for the specified data type.
 
     Args:
         data_type (str): Type of data (e.g., 'mnist', 'cifar')
         custom_path (str, optional): Custom path provided by the user
+        output_dir (str, optional): Output directory from config to store datasets
 
     Returns:
         str: Path to the data directory
@@ -31,6 +32,9 @@ def get_data_directory(data_type, custom_path=None):
     if custom_path:
         # Use the custom path if provided
         data_path = os.path.join(custom_path, data_type)
+    elif output_dir:
+        # Use the output directory if provided (from config)
+        data_path = os.path.join(output_dir, "datasets", data_type)
     else:
         # Use 'data' directory in the current working directory
         data_path = os.path.join("data", data_type)
@@ -178,7 +182,8 @@ def load_mnist_as_datasets(
     train_valid_split=0.8,
     flatten=False,
     normalize=False,
-    data_path=None
+    data_path=None,
+    output_dir=None
 ):
     """
     Load the MNIST dataset and split into train, validation, and test sets.
@@ -186,11 +191,12 @@ def load_mnist_as_datasets(
     Args:
         train_valid_split (float): Proportion of training data to use for training (vs validation)
         data_path (str, optional): Path to the data directory
+        output_dir (str, optional): Output directory from config to store datasets
 
     Returns:
         tuple: (train_dataset, valid_dataset, test_dataset)
     """
-    mnist_dir = get_data_directory("mnist", data_path)
+    mnist_dir = get_data_directory("mnist", data_path, output_dir)
 
     tf_list = [transforms.ToTensor()]
     if normalize:
@@ -237,13 +243,15 @@ def load_MNIST_modulo10(
     train_valid_split=1, 
     flatten=False,
     normalize=False,
-    cache_dir=None
+    cache_dir=None,
+    output_dir=None
 ):
     train_ds, valid_ds, test_ds = load_mnist_as_datasets(
         train_valid_split=train_valid_split, 
         flatten=flatten, 
         normalize=normalize, 
-        data_path=cache_dir
+        data_path=cache_dir,
+        output_dir=output_dir
     )
     data = {"train": train_ds, "valid": valid_ds, "test": test_ds}
 
@@ -477,7 +485,8 @@ def load_cifar10_as_datasets(
     train_valid_split=1.0,
     flatten=False,
     normalize=False,
-    data_path=None
+    data_path=None,
+    output_dir=None
 ):
     """
     Load the CIFAR-10 dataset and split into train, validation, and test sets.
@@ -485,6 +494,7 @@ def load_cifar10_as_datasets(
     Args:
         train_valid_split (float): Proportion of training data to use for training (vs validation)
         data_path (str, optional): Path to the data directory
+        output_dir (str, optional): Output directory from config to store datasets
 
     Returns:
         tuple: (train_dataset, valid_dataset, test_dataset)
@@ -496,7 +506,7 @@ def load_cifar10_as_datasets(
     
     transform = transforms.Compose(tf_list)
 
-    cifar_dir = get_data_directory("cifar", data_path)
+    cifar_dir = get_data_directory("cifar", data_path, output_dir)
 
     train_dataset = datasets.CIFAR10(
         root=cifar_dir, train=True, download=True, transform=transform
@@ -614,6 +624,7 @@ class RandomFlipMNISTDataset(Dataset):
         split="train",
         transform=None,
         data_path=None,
+        output_dir=None,
         random_flip=True,
         setAll=None,
         setValue=0,
@@ -630,7 +641,7 @@ class RandomFlipMNISTDataset(Dataset):
         self.setAll = setAll
         self.setValue = setValue
         # load full MNIST or we can do partial
-        mnist_dir = get_data_directory("mnist", data_path)
+        mnist_dir = get_data_directory("mnist", data_path, output_dir)
         if split == "test":
             base_ds = datasets.MNIST(root=mnist_dir, train=False, download=True)
         else:
@@ -709,7 +720,8 @@ def load_poisson_generator_datasets(
     rate_multiplier: float = 1,
     train_valid_split: float = 0.8,
     flatten: bool = False,
-    data_path: str = None
+    data_path: str = None,
+    output_dir: str = None
 ):
     """
     Generate a dataset of Poisson-distributed samples from a base dataset.
@@ -720,6 +732,7 @@ def load_poisson_generator_datasets(
         train_valid_split: The proportion of samples to use for training vs validation
         flatten: Whether to flatten the samples
         data_path: The path to save the generated dataset
+        output_dir: The output directory to save the generated dataset
 
     Returns:
         A dataset of Poisson-distributed samples
@@ -730,14 +743,16 @@ def load_poisson_generator_datasets(
             train_valid_split=train_valid_split,
             flatten=flatten,
             normalize=False,
-            data_path=data_path
+            data_path=data_path,
+            output_dir=output_dir
         )    
     elif base_dataset == "cifar10":
         train_ds, valid_ds, test_ds = load_cifar10_as_datasets(
             train_valid_split=train_valid_split,
             flatten=flatten,
             normalize=False,
-            data_path=data_path
+            data_path=data_path,
+            output_dir=output_dir
         )
     else:
         raise ValueError(f"Unknown base dataset: {base_dataset}")
@@ -877,13 +892,14 @@ class OrthoNetDataset(Dataset):
         return self.data[idx], self.labels[idx]
 
 
-def get_unified_datasets(task_cfg, train_cfg):
+def get_unified_datasets(task_cfg, train_cfg, output_dir=None):
     """
     Get datasets based on configuration.
 
     Args:
         task_cfg: Task configuration
         train_cfg: Training configuration
+        output_dir: Output directory from config to store datasets
 
     Returns:
         dict: Dictionary with 'train', 'valid', and 'test' datasets
@@ -901,8 +917,8 @@ def get_unified_datasets(task_cfg, train_cfg):
     if data_path == "":
         data_path = None
 
-    # If data_path is None, use the outputs directory in project root instead of current working directory
-    if data_path is None:
+    # If data_path is None and output_dir is not provided, use the outputs directory in project root instead of current working directory
+    if data_path is None and output_dir is None:
         project_root = os.path.dirname(
             os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
         )
@@ -941,20 +957,21 @@ def get_unified_datasets(task_cfg, train_cfg):
             train_valid_split=train_valid_split, 
             flatten=flatten,
             normalize=normalize,
-            data_path=data_path
+            data_path=data_path,
+            output_dir=output_dir
         )
         return train_ds, valid_ds, test_ds
     elif dataset_name == "random_flip_mnist":
         # Our newly added dataset that uses RandomFlipMNISTDataset
         # We'll treat train vs valid vs test accordingly
         train_dataset = RandomFlipMNISTDataset(
-            split="train", data_path=data_path, random_flip=True
+            split="train", data_path=data_path, output_dir=output_dir, random_flip=True
         )
         valid_dataset = RandomFlipMNISTDataset(
-            split="valid", data_path=data_path, random_flip=True
+            split="valid", data_path=data_path, output_dir=output_dir, random_flip=True
         )
         test_dataset = RandomFlipMNISTDataset(
-            split="test", data_path=data_path, random_flip=True
+            split="test", data_path=data_path, output_dir=output_dir, random_flip=True
         )
         return train_dataset, valid_dataset, test_dataset
     elif dataset_name == "mnist_modulo10":
@@ -962,7 +979,8 @@ def get_unified_datasets(task_cfg, train_cfg):
             train_valid_split=train_valid_split, 
             flatten=flatten,
             normalize=normalize,
-            cache_dir=data_path
+            cache_dir=data_path,
+            output_dir=output_dir
         )
         train_ds = data["train"]
         if "valid" in data:
@@ -980,18 +998,18 @@ def get_unified_datasets(task_cfg, train_cfg):
         )
         return random_split(full_ds, [train_size, valid_size, test_size])
     elif dataset_name == "feature_selectivity":
-        base_mnist = MNIST(root=data_path, train=True, download=True)
+        base_mnist = MNIST(root=data_path or output_dir, train=True, download=True)
         full_ds = SparseMNISTDataset(base_mnist, threshold=0.3)
         return random_split(full_ds, [train_size, valid_size, test_size])
     elif dataset_name == "context_gating":
-        base_mnist = MNIST(root=data_path, train=True, download=True)
+        base_mnist = MNIST(root=data_path or output_dir, train=True, download=True)
         full_ds = ContextualFigureGroundMNIST(base_mnist, noise_level=0.1)
         return random_split(full_ds, [train_size, valid_size, test_size])
     elif dataset_name == "learning_dynamics":
         full_ds = MultiTaskLineDataset(total_size=total, image_size=image_size)
         return random_split(full_ds, [train_size, valid_size, test_size])
     elif dataset_name == "hierarchical_processing":
-        base_mnist = MNIST(root=data_path, train=True, download=True)
+        base_mnist = MNIST(root=data_path or output_dir, train=True, download=True)
         full_ds = CompositionalMNIST(base_mnist, n_samples=total)
         return random_split(full_ds, [train_size, valid_size, test_size])
     elif dataset_name == "cifar10":
@@ -999,7 +1017,8 @@ def get_unified_datasets(task_cfg, train_cfg):
             train_valid_split=train_valid_split, 
             flatten=flatten,
             normalize=normalize,
-            data_path=data_path
+            data_path=data_path,
+            output_dir=output_dir
         )
     elif dataset_name == "poisson_generator":
         train_ds, valid_ds, test_ds = load_poisson_generator_datasets(
@@ -1007,7 +1026,8 @@ def get_unified_datasets(task_cfg, train_cfg):
             rate_multiplier=rate_multiplier,
             train_valid_split=train_valid_split,
             flatten=flatten,
-            data_path=data_path
+            data_path=data_path,
+            output_dir=output_dir
         )
         return train_ds, valid_ds, test_ds
     elif dataset_name == "orthonet":

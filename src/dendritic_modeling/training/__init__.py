@@ -6,6 +6,7 @@ This package provides various training strategies, optimizers, and utilities.
 
 from . import strategies
 from . import optimizers
+from .optimizers import CustomWeightDecayOptimizer
 from .factory import (
     get_trainer,
     train_simple_mlp,
@@ -18,6 +19,7 @@ from .gradient_scaling import GradientScaler
 __all__ = [
     "strategies",
     "optimizers", 
+    "CustomWeightDecayOptimizer",
     "get_trainer",
     "train_simple_mlp",
     "train_mlp_with_classification_head",
