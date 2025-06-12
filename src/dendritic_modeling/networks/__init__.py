@@ -31,7 +31,6 @@ from .input_transforms import (
 # Layers
 from .layers import (
     # Linear layers
-    BranchLayer,
     StochasticSynapseLinear,
     BlockLinear,
     BlockLinearDeepST,
@@ -78,7 +77,6 @@ __all__ = [
     "AlexNetInputTransform",
     "SigmoidInputNetTransform",
     # Linear layers
-    "BranchLayer",
     "StochasticSynapseLinear",
     "BlockLinear",
     "BlockLinearDeepST",
