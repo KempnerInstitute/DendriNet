@@ -29,7 +29,7 @@ except ImportError:
 
 from dendritic_modeling.models import BaseModel
 from dendritic_modeling.networks.layers.dendritic import DendriticBranchLayer
-from dendritic_modeling.analysis.information import compute_mi_cc
+from .information import compute_mi_cc
 
 
 class BranchInformationAnalyzer:
@@ -357,7 +357,7 @@ class BranchInformationAnalyzer:
                     pass
 
             # Fallback to sklearn
-            from dendritic_modeling.analysis.information import compute_mi_cc
+            from .information import compute_mi_cc
 
             return compute_mi_cc(x, y, self.n_neighbors)
 

@@ -5,11 +5,11 @@ This module contains classes for analyzing the statistical distribution of synap
 across the dendritic network, including excitatory weights, inhibitory weights, and branch weights.
 """
 
-from typing import Optional
+from typing import List, Optional
 import torch
 from dendritic_modeling.models import BaseModel
 from dendritic_modeling.networks import ExcitationInhibitionNetwork
-from dendritic_modeling.dendrinet import DendriticBranchLayer
+from dendritic_modeling.networks.layers.dendritic import DendriticBranchLayer
 from dendritic_modeling.utils import save_dict
 
 

@@ -9,7 +9,7 @@ from typing import List, Optional, Tuple
 import torch
 from dendritic_modeling.models import BaseModel
 from dendritic_modeling.networks import ExcitationInhibitionNetwork
-from dendritic_modeling.dendritet import DendriticBranchLayer
+from dendritic_modeling.networks.layers.dendritic import DendriticBranchLayer
 from dendritic_modeling.utils import save_dict
 
 
