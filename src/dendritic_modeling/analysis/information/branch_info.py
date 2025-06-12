@@ -8,9 +8,11 @@ sophisticated copula-based dependence estimation methods.
 
 import os
 import logging
+import json
 from typing import Dict, List, Any, Optional, Tuple
 import numpy as np
 import torch
+import torch.nn.functional as F
 import matplotlib.pyplot as plt
 from torch.utils.data import DataLoader
 from sklearn.feature_selection import mutual_info_regression as compute_mi_cc
@@ -876,7 +878,11 @@ class BranchInformationAnalyzer:
 
                 df = pd.DataFrame(df_data, index=results["metrics_computed"])
                 csv_path = os.path.join(output_dir, f"branch_info_per_branch_epoch_{epoch}.csv")
-                df.to_csv(csv_path)
+                                                # Save as JSON instead of CSV
+                json_path = csv_path.replace('.csv', '.json')
+                results_dict = df.to_dict(orient='records')
+                with open(json_path, 'w') as f:
+                    json.dump(results_dict, f, indent=2)
 
                 # Also save overall averages
                 overall_df = pd.DataFrame(

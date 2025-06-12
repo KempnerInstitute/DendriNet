@@ -6,6 +6,7 @@ model performance by testing each layer in isolation and measuring its individua
 """
 
 import os
+import json
 import logging
 from typing import List, Optional
 import numpy as np
@@ -225,9 +226,12 @@ class SingleLayerContributionAnalyzer:
             if self.save_csv:
                 df = pd.DataFrame(results)
                 df["full_network_baseline"] = baseline_acc
-                csv_path = os.path.join(save_path, f"{filename}.csv")
-                df.to_csv(csv_path, index=False)
-                self.logger.info(f"Saved results to {csv_path}")
+                json_path = os.path.join(save_path, f"{filename}.json")
+                # Save as JSON instead of CSV
+                results_dict = df.to_dict(orient='records')
+                with open(json_path, 'w') as f:
+                    json.dump(results_dict, f, indent=2)
+                self.logger.info(f"Saved results to {json_path}")
 
             if self.save_plots:
                 # Reverse layer indices so soma (last layer) becomes 0

@@ -1,17 +1,18 @@
 """
-Specialized Training Strategies
-===============================
+Specialized training strategies.
 
-This module contains specialized training strategies for dendritic networks,
-including voltage stabilization and M-reactivation specific approaches.
+This module implements specialized training approaches including voltage stabilization
+and other advanced training techniques for dendritic networks.
 """
+
+from __future__ import annotations
 
 import json
 import logging
 import os
 import time
 from copy import deepcopy
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple, TYPE_CHECKING
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -24,8 +25,11 @@ from tqdm import tqdm
 import wandb
 from dendritic_modeling import logger
 from dendritic_modeling.plotting import plot_NLL_loss_curves
-from dendritic_modeling.analysis import AnalysisManager
-from dendritic_modeling.training.strategies.base import BaseTrainer, compute_metrics_classification
+
+if TYPE_CHECKING:
+    from dendritic_modeling.analysis import AnalysisManager
+
+from .base import BaseTrainer, compute_metrics_classification
 
 
 def voltage_warmup_loss(model, x, target_val=0.5):
@@ -137,7 +141,7 @@ class VoltageStabilizationTrainer(BaseTrainer):
         epochs=100,
         batch_size=256,
         shuffle=True,
-        analysis_manager: Optional[AnalysisManager] = None,
+        analysis_manager: Optional["AnalysisManager"] = None,
         plot_losses=False,
         save_path=None,
         **kwargs,
@@ -326,7 +330,7 @@ class TrainOnlyMReactivation(BaseTrainer):
         batch_size=256,
         shuffle=True,
         load_best_state_dict=True,
-        analysis_manager: Optional[AnalysisManager] = None,
+        analysis_manager: Optional["AnalysisManager"] = None,
         plot_losses=False,
         save_path=None,
         **kwargs,
