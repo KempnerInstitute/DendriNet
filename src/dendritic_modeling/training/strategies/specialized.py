@@ -6,6 +6,7 @@ This module contains specialized training strategies for dendritic networks,
 including voltage stabilization and M-reactivation specific approaches.
 """
 
+import json
 import logging
 import os
 import time
@@ -90,7 +91,6 @@ def generate_warmup_report(model, data_loader, pre_state, post_state, device, sa
             report["changes"][key] = post_stats[key] - pre_stats[key]
     
     if save_path and os.path.exists(save_path):
-        import json
         with open(os.path.join(save_path, "warmup_report.json"), 'w') as f:
             json.dump(report, f, indent=2)
     

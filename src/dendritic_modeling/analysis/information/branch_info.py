@@ -14,9 +14,20 @@ import torch
 import matplotlib.pyplot as plt
 from torch.utils.data import DataLoader
 from sklearn.feature_selection import mutual_info_regression as compute_mi_cc
+import pandas as pd
+
+# Optional imports for advanced MI computation
+try:
+    import tensorflow as tf
+    from scipy import stats
+    from scipy.stats import kendalltau, pearsonr
+    HAS_TENSORFLOW = True
+except ImportError:
+    HAS_TENSORFLOW = False
 
 from dendritic_modeling.models import BaseModel
-from dendritic_modeling.dendrinet import DendriticBranchLayer
+from dendritic_modeling.networks.layers.dendritic import DendriticBranchLayer
+from dendritic_modeling.analysis.information import compute_mi_cc
 
 
 class BranchInformationAnalyzer:
@@ -38,7 +49,7 @@ class BranchInformationAnalyzer:
         compute_per_branch: bool = False,  # If true, compute MI per branch and average; if false, pool all branches
     ):
         self.n_neighbors = n_neighbors
-        self.use_dvc = use_dvc
+        self.use_dvc = use_dvc and HAS_TENSORFLOW
         self.save_plots = save_plots
         self.save_csv = save_csv
         self.compute_per_branch = compute_per_branch
@@ -850,8 +861,6 @@ class BranchInformationAnalyzer:
 
     def _save_csv(self, results: Dict, output_dir: str, epoch: int):
         """Save MI results to CSV"""
-        import pandas as pd
-
         if results["computation_mode"] == "per_branch":
             # Save layer averages
             layer_averages = results["layer_averages"]
