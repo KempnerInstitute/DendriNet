@@ -12,7 +12,7 @@ import traceback
 
 from dendritic_modeling.plotting import (
     plot_einet_activations,
-    plot_einet_gradients,
+    plot_dendrinet_gradients,
     plot_einet_params,
     plot_einet_profiles,
 )
@@ -166,7 +166,7 @@ class PlotManager:
             if hasattr(self.args, 'shape') and self.args.shape is not None:
                 shaper = Shaper(shape=self.args.shape)
                 
-            plot_einet_gradients(
+            plot_dendrinet_gradients(
                 model=self.model,
                 inputs=train_input,
                 labels=train_label,
