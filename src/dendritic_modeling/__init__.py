@@ -1,8 +1,58 @@
+"""
+Dendritic Modeling Package
+==========================
+
+A comprehensive library for dendritic neural network modeling and analysis.
+
+Package Structure:
+- analysis/: Analysis tools for network behavior and information flow
+- config/: Configuration management and dataclasses
+- datasets/: Synthetic and real dataset implementations
+- models/: Model wrappers (classification, regression, baselines)
+- networks/: Network architectures, layers, and activations
+- plotting/: Visualization and plotting utilities
+- scripts/: Main training and experiment scripts
+- training/: Training strategies and optimizers
+- utils/: General utility functions
+
+For detailed documentation on each module, see the respective module docstrings.
+"""
+
 # Set up the logging environment
-from dendritic_modeling.logging_config import LoggerManager
+from dendritic_modeling.utils.logging_config import LoggerManager
 
 logger_manager = LoggerManager()
 logger = logger_manager.get_logger()
+
+# Version information
+__version__ = "0.1.0"
+
+# Core imports for convenience
+from . import (
+    analysis,
+    config,
+    datasets,
+    models,
+    networks,
+    plotting,
+    scripts,
+    training,
+    utils,
+)
+
+__all__ = [
+    "analysis",
+    "config", 
+    "datasets",
+    "models",
+    "networks",
+    "plotting",
+    "scripts",
+    "training",
+    "utils",
+    "logger",
+    "__version__",
+]
 
 # from dendritic_modeling import pid_utils
 # from dendritic_modeling.information import (

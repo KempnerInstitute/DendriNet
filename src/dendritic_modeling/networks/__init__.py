@@ -58,6 +58,12 @@ from .mlp import (
     SimpleMLPLayer,
 )
 
+# Initialization utilities
+from .initialize import (
+    compute_expectation_truncated_log_normal,
+    initialize_dendritic_branch_layer,
+)
+
 __all__ = [
     # Activations
     "ActivationFactory",
@@ -93,4 +99,7 @@ __all__ = [
     # MLP components
     "FeatureExtractorMLP",
     "SimpleMLPLayer",
+    # Initialization utilities
+    "compute_expectation_truncated_log_normal",
+    "initialize_dendritic_branch_layer",
 ] 

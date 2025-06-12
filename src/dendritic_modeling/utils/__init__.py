@@ -64,6 +64,12 @@ from .analysis import (
     analyze_dendritic_information,
 )
 
+# Logging utilities
+from .logging_config import (
+    LoggerManager,
+    LOGGER_NAME,
+)
+
 __all__ = [
     # Data utilities
     "Shaper",
@@ -112,4 +118,8 @@ __all__ = [
     "compute_mutual_information",
     "estimate_hidden_output_MI",
     "analyze_dendritic_information",
+    
+    # Logging utilities
+    "LoggerManager",
+    "LOGGER_NAME",
 ] 
