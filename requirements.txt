@@ -25,11 +25,33 @@ plotly  # Interactive plotting for analysis
 seaborn  # Additional plotting capabilities
 tensorboard  # TensorFlow/PyTorch logging and visualization
 
-# Development dependencies (optional)
-ruff
+# Testing dependencies for comprehensive test suite
+pytest>=7.0.0
+pytest-cov>=4.0.0
+pytest-mock>=3.10.0
+pytest-timeout>=2.1.0
+pytest-xdist>=3.0.0
+coverage[toml]>=6.5.0
+
+# Code quality and formatting
+ruff>=0.1.0
 mypy>=1.0,<1.4
 black>=23.1,<24.0
 isort>=5.12,<5.13
-pytest
-pytest-cov
-pytest-sphinx
+
+# Pre-commit hooks for development
+pre-commit>=3.0.0
+
+# Additional testing utilities
+networkx  # For graph/network testing
+mock  # Additional mocking utilities (backup for pytest-mock)
+
+# Documentation dependencies
+sphinx
+sphinx-rtd-theme
+sphinxcontrib-napoleon
+myst-parser
+nbsphinx
+recommonmark
+sphinx-copybutton
+sphinxcontrib-bibtex

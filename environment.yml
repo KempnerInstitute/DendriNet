@@ -39,9 +39,36 @@ dependencies:
   - jupyter
   - ipykernel
 
+  # Testing dependencies
+  - pytest>=7.0.0
+  - pytest-cov>=4.0.0
+  - pytest-mock>=3.10.0
+  - pytest-timeout>=2.1.0
+  - pytest-xdist>=3.0.0
+  - coverage
+  - networkx  # For graph/network testing
+
+  # Code quality and formatting
+  - ruff>=0.1.0
+  - mypy>=1.0,<1.4
+  - black>=23.1,<24.0
+  - isort>=5.12,<5.13
+  - pre-commit>=3.0.0
+
+  # Documentation
+  - sphinx
+  - sphinx-rtd-theme
+
   # Install via pip (packages not available in conda)
   - pip
   - pip:
     - torchinfo
     - tf-keras
     - omegaconf>=2.3.0  # Ensure latest version via pip if conda version is old
+    - mock  # Additional mocking utilities
+    - sphinxcontrib-napoleon
+    - myst-parser
+    - nbsphinx
+    - recommonmark
+    - sphinx-copybutton
+    - sphinxcontrib-bibtex
