@@ -5,55 +5,66 @@ This module contains training strategies that train network layers sequentially,
 either from soma to input or from input to soma.
 """
 
-import time
-import logging
-from copy import deepcopy
-from typing import Optional
+from typing import List, Tuple
+
 import torch
-from torch.utils.data import DataLoader
-from torch.nn.utils import clip_grad_value_
 
-from .base import BaseTrainer, compute_metrics_classification
-
-try:
-    import wandb
-except ImportError:
-    wandb = None
-
-logger = logging.getLogger(__name__)
+from dendritic_modeling import logger
+from dendritic_modeling.models import BaseModel
+from dendritic_modeling.networks import ExcitationInhibitionNetwork
+from dendritic_modeling.training.strategies import Trainer
 
 
-class LayerWiseTrainer(BaseTrainer):
+class LayerWiseTrainer(Trainer):
     """
     Training strategy that trains network layers sequentially.
     
     This trainer provides methods to train layers one at a time, either from
     soma to input or from input to soma, followed by full-network fine-tuning.
-    
-    Args:
-        optimizer: PyTorch optimizer instance
-        suppress_prints: Whether to suppress print statements during training
-        print_every: Print training progress every N epochs
-    """
-    
-    def __init__(self, optimizer, suppress_prints=False, print_every=10):
-        super().__init__(optimizer, suppress_prints, print_every)
 
-    def train_freeze_layers_by_layer(
+    """
+    pretrain_epochs: int = 10
+    reverse_training: bool = False
+    epochs_per_layer: int = 5
+    final_tune_epochs: int = 10
+
+    def _pretrain(
         self,
-        model,
-        train_data,
-        valid_data=None,
-        epochs_per_layer=5,
-        batch_size=256,
-        shuffle=True,
-        grad_clip_value=5,
-        plot_losses=False,
-        save_path=None,
-        final_tune_epochs=10,
+        model: BaseModel,
+        train_data: torch.utils.data.Dataset,
+        valid_data: torch.utils.data.Dataset
+    ) -> Tuple[List[float], List[float]]:
+        """
+        Pretrain the model.
+        """
+        pretrain_train_losses = []
+        pretrain_valid_losses = []
+        
+        if self.pretrain_epochs > 0:
+            logger.info(
+                f"Starting full network pretraining "
+                f"for {self.pretrain_epochs} epochs..."
+            )
+            default_epochs = self.epochs
+            self.epochs = self.pretrain_epochs
+            self.filename_prefix = "pretrain_"
+            pretrain_results = super().train(model, train_data, valid_data)
+            self.epochs = default_epochs
+            self.filename_prefix = ""
+
+            pretrain_train_losses = pretrain_results.get("train_losses", [])
+            pretrain_valid_losses = pretrain_results.get("valid_losses", [])
+
+        return pretrain_train_losses, pretrain_valid_losses
+
+    def train(
+        self,
+        model: BaseModel,
+        train_data: torch.utils.data.Dataset,
+        valid_data: torch.utils.data.Dataset
     ):
         """
-        Train layers sequentially from soma to input (previously named train_freeze_layers).
+        Train layers sequentially from soma to input.
         
         This method trains each layer of the network separately, starting from the layer
         closest to the soma and moving outward toward the input.
@@ -62,342 +73,116 @@ class LayerWiseTrainer(BaseTrainer):
             model: The model to train
             train_data: Training dataset
             valid_data: Validation dataset (optional)
-            epochs_per_layer: Number of epochs to train each layer
-            batch_size: Batch size for training
-            shuffle: Whether to shuffle training data
-            grad_clip_value: Gradient clipping value
-            plot_losses: Whether to plot training curves
-            save_path: Path to save model and plots
-            final_tune_epochs: Number of epochs for final full-network tuning
             
         Returns:
             Training results dictionary
         """
-        device = "cuda" if torch.cuda.is_available() else "cpu"
-        model = model.to(device)
         
-        if not hasattr(model, "net") or not hasattr(model.net, "layers"):
-            logger.info("Model has no 'net.layers'. Falling back to normal train.")
-            return self.train(
-                model,
-                train_data,
-                valid_data,
-                grad_clip_value=grad_clip_value,
-                epochs=epochs_per_layer,
-                batch_size=batch_size,
-                shuffle=shuffle,
-                plot_losses=plot_losses,
-                save_path=save_path,
+        if not isinstance(model.net, ExcitationInhibitionNetwork):
+            logger.info(
+                "Model has no 'net.layers'. "
+                "Falling back to normal train."
             )
-            
-        n_layers = len(model.net.layers)
+            return super().train(model, train_data, valid_data)
+
+        net_obj: ExcitationInhibitionNetwork = model.net
+        n_layers = len(net_obj.layers)
+        
+        total_epochs = (
+            self.pretrain_epochs + 
+            n_layers * self.epochs_per_layer + 
+            self.final_tune_epochs
+        )
+        self._initialize_attributes(model, total_epochs)
+
+        pretrain_train_losses, pretrain_valid_losses = self._pretrain(
+            model, train_data, valid_data
+        )
+
+        layer_modules = []
+        layer_indices = []
+        if self.reverse_training:
+            learning_strategy = "Freeze-Layers-Reversed"
+            for i, layer in enumerate(
+                reversed(list(net_obj.layers))
+            ):
+                layer_modules.append(layer)
+                layer_indices.append(n_layers - i - 1)
+        else:
+            learning_strategy = "Freeze-Layers"
+            for i, layer in enumerate(net_obj.layers):
+                layer_modules.append(layer)
+                layer_indices.append(i)
+        
         logger.info(
-            f"train_freeze_layers_by_layer: found {n_layers} layers. Training them sequentially."
+            f"Training with {learning_strategy} strategy: "
+            f"found {n_layers} layers. "
         )
         
         train_losses = []
         valid_losses = []
-        best_loss = float("inf")
-        best_state = deepcopy(model.state_dict())
-        total_epochs = n_layers * epochs_per_layer
-        epoch_counter = 0
-        start_time = time.time()
+
+        train_loader, valid_loader = self._dataloaders(train_data, valid_data)
+
+        self.filename_prefix = f"{learning_strategy.lower().replace('-', '_')}_"
         
-        for layer_idx in range(n_layers):
+        for layer_idx, layer_module in zip(layer_indices, layer_modules):
             # Freeze all parameters
-            for name, param in model.named_parameters():
+            for param in model.parameters():
                 param.requires_grad = False
-                
-            # Unfreeze only parameters for the current layer
-            target_str = f"layers.{layer_idx}."
-            for name, param in model.named_parameters():
-                if target_str in name:
-                    param.requires_grad = True
-                    
+            layer_module: torch.nn.Module
+            for param in layer_module.parameters():
+                param.requires_grad = True
+
             logger.info(
-                f"Training only layer {layer_idx} for {epochs_per_layer} epochs."
-            )
-            train_loader = DataLoader(
-                train_data, batch_size=batch_size, shuffle=shuffle
+                f"Training only layer {layer_idx} for "
+                f"{self.epochs_per_layer} epochs."
             )
             
-            for e in range(1, epochs_per_layer + 1):
-                epoch_counter += 1
-                model.train()
-                epoch_train_loss = 0.0
-                preds_list = []
-                labels_list = []
-                
-                for xb, yb in train_loader:
-                    xb = xb.to(device)
-                    yb = yb.to(device)
-                    nll = model.compute_loss(xb, yb)
-                    self.optimizer.zero_grad()
-                    nll.backward()
-                    clip_grad_value_(model.parameters(), grad_clip_value)
-                    self.optimizer.step()
-                    epoch_train_loss += nll.item()
-                    p = model.predict(xb)
-                    preds_list.append(p.cpu())
-                    labels_list.append(yb.cpu())
-                    
-                epoch_train_loss /= len(train_loader)
-                preds_cat = torch.cat(preds_list, dim=0)
-                labels_cat = torch.cat(labels_list, dim=0)
-                train_acc = compute_metrics_classification(preds_cat, labels_cat)[
-                    "accuracy"
-                ]
-                train_losses.append(epoch_train_loss)
-                val_loss, val_acc = self._eval_dataset(
-                    model, valid_data, device, batch_size
-                )
-                valid_losses.append(val_loss)
-                
-                if val_loss < best_loss:
-                    best_loss = val_loss
-                    best_state = deepcopy(model.state_dict())
-                    
-                if (not self.suppress) and (epoch_counter % self.print_every == 0):
-                    elapsed = time.time() - start_time
-                    logger.info(
-                        f"[Freeze-layers-by-layer] layer={layer_idx}, epoch={epoch_counter}/{total_epochs}, "
-                        f"train_loss={epoch_train_loss:.4f}, train_acc={train_acc:.3f}, "
-                        f"valid_loss={val_loss:.4f}, valid_acc={val_acc:.3f}, elapsed={elapsed:.1f}s"
-                    )
-                    
-                if wandb and wandb.run is not None:
-                    wandb.log(
-                        {
-                            "epoch": epoch_counter,
-                            "freeze_layer": layer_idx,
-                            "train_loss": epoch_train_loss,
-                            "train_acc": train_acc,
-                            "valid_loss": val_loss,
-                            "valid_acc": val_acc,
-                        }
-                    )
-                    
-        logger.info(
-            "Done freeze-layers-by-layer. Unfreezing all layers and loading best state."
-        )
-        for name, param in model.named_parameters():
-            param.requires_grad = True
-        model.load_state_dict(best_state)
+            train_losses, valid_losses = self._run_training_loop(
+                n_epochs=self.epochs_per_layer,
+                model=model,
+                train_loader=train_loader,
+                valid_loader=valid_loader,
+                train_losses=train_losses,
+                valid_losses=valid_losses,
+                logger_info=f"[{learning_strategy}] layer={layer_idx}, ",
+                wandb_info={"layer": layer_idx}
+            )
+        
+        self._loss_plotting(train_losses, valid_losses)
         
         logger.info(
-            f"Starting final full-network tuning for {final_tune_epochs} epochs."
+            f"Finished {learning_strategy} training. "
+            "Unfreezing all layers and loading best state."
         )
-        final_results = self.train(
-            model,
-            train_data,
-            valid_data,
-            grad_clip_value=grad_clip_value,
-            epochs=final_tune_epochs,
-            batch_size=batch_size,
-            shuffle=shuffle,
-            load_best_state_dict=True,
-            plot_losses=plot_losses,
-            save_path=save_path,
+        model.load_state_dict(self.best_state_dict)
+        for param in model.parameters():
+            param.requires_grad = True
+        
+        train_losses = pretrain_train_losses + train_losses
+        valid_losses = pretrain_valid_losses + valid_losses
+
+        # Final full-network tuning
+        logger.info(
+            f"Starting final full-network tuning "
+            f"for {self.final_tune_epochs} epochs."
+        )
+        default_epochs = self.epochs
+        self.epochs = self.final_tune_epochs
+        self.filename_prefix = "final_tune_"
+        final_results = super().train(model, train_data, valid_data)
+        self.epochs = default_epochs
+        self.filename_prefix = ""
+
+        # Combine all results
+        final_results["train_losses"] = train_losses + final_results.get(
+            "train_losses", []
+        )
+        final_results["valid_losses"] = valid_losses + final_results.get(
+            "valid_losses", []
         )
         return final_results
-
-    def train_freeze_layers_reversed_by_layer(
-        self,
-        model,
-        train_data,
-        valid_data=None,
-        epochs_per_layer=5,
-        batch_size=256,
-        shuffle=True,
-        grad_clip_value=5,
-        plot_losses=False,
-        save_path=None,
-        final_tune_epochs=10,
-    ):
-        """
-        Train layers sequentially from input to soma (previously named train_freeze_layers_reversed).
-        
-        This method trains each layer of the network separately, starting from the layer
-        farthest from the soma and moving inward toward the soma.
-        
-        Args:
-            model: The model to train
-            train_data: Training dataset
-            valid_data: Validation dataset (optional)
-            epochs_per_layer: Number of epochs to train each layer
-            batch_size: Batch size for training
-            shuffle: Whether to shuffle training data
-            grad_clip_value: Gradient clipping value
-            plot_losses: Whether to plot training curves
-            save_path: Path to save model and plots
-            final_tune_epochs: Number of epochs for final full-network tuning
-            
-        Returns:
-            Training results dictionary
-        """
-        device = "cuda" if torch.cuda.is_available() else "cpu"
-        model = model.to(device)
-        
-        if not hasattr(model, "net") or not hasattr(model.net, "layers"):
-            logger.info("Model has no 'net.layers'. Falling back to normal train.")
-            return self.train(
-                model,
-                train_data,
-                valid_data,
-                grad_clip_value=grad_clip_value,
-                epochs=epochs_per_layer,
-                batch_size=batch_size,
-                shuffle=shuffle,
-                plot_losses=plot_losses,
-                save_path=save_path,
-            )
-            
-        n_layers = len(model.net.layers)
-        logger.info(
-            f"train_freeze_layers_reversed_by_layer: found {n_layers} layers. Training them sequentially from input to soma."
-        )
-        
-        train_losses = []
-        valid_losses = []
-        best_loss = float("inf")
-        best_state = deepcopy(model.state_dict())
-        total_epochs = n_layers * epochs_per_layer
-        epoch_counter = 0
-        start_time = time.time()
-        
-        # Iterate in reverse order (n_layers-1 to 0), training from input towards soma
-        for layer_idx in range(n_layers - 1, -1, -1):
-            # Freeze all parameters
-            for name, param in model.named_parameters():
-                param.requires_grad = False
-                
-            # Unfreeze only parameters for the current layer
-            target_str = f"layers.{layer_idx}."
-            for name, param in model.named_parameters():
-                if target_str in name:
-                    param.requires_grad = True
-                    
-            logger.info(
-                f"Training only layer {layer_idx} (farther from soma) for {epochs_per_layer} epochs."
-            )
-            train_loader = DataLoader(
-                train_data, batch_size=batch_size, shuffle=shuffle
-            )
-            
-            for e in range(1, epochs_per_layer + 1):
-                epoch_counter += 1
-                model.train()
-                epoch_train_loss = 0.0
-                preds_list = []
-                labels_list = []
-                
-                for xb, yb in train_loader:
-                    xb = xb.to(device)
-                    yb = yb.to(device)
-                    nll = model.compute_loss(xb, yb)
-                    self.optimizer.zero_grad()
-                    nll.backward()
-                    clip_grad_value_(model.parameters(), grad_clip_value)
-                    self.optimizer.step()
-                    epoch_train_loss += nll.item()
-                    p = model.predict(xb)
-                    preds_list.append(p.cpu())
-                    labels_list.append(yb.cpu())
-                    
-                epoch_train_loss /= len(train_loader)
-                preds_cat = torch.cat(preds_list, dim=0)
-                labels_cat = torch.cat(labels_list, dim=0)
-                train_acc = compute_metrics_classification(preds_cat, labels_cat)[
-                    "accuracy"
-                ]
-                train_losses.append(epoch_train_loss)
-                val_loss, val_acc = self._eval_dataset(
-                    model, valid_data, device, batch_size
-                )
-                valid_losses.append(val_loss)
-                
-                if val_loss < best_loss:
-                    best_loss = val_loss
-                    best_state = deepcopy(model.state_dict())
-                    
-                if (not self.suppress) and (epoch_counter % self.print_every == 0):
-                    elapsed = time.time() - start_time
-                    logger.info(
-                        f"[Freeze-layers-reversed-by-layer] layer={layer_idx}, epoch={epoch_counter}/{total_epochs}, "
-                        f"train_loss={epoch_train_loss:.4f}, train_acc={train_acc:.3f}, "
-                        f"valid_loss={val_loss:.4f}, valid_acc={val_acc:.3f}, elapsed={elapsed:.1f}s"
-                    )
-                    
-                if wandb and wandb.run is not None:
-                    wandb.log(
-                        {
-                            "epoch": epoch_counter,
-                            "freeze_layer_reversed": layer_idx,
-                            "train_loss": epoch_train_loss,
-                            "train_acc": train_acc,
-                            "valid_loss": val_loss,
-                            "valid_acc": val_acc,
-                        }
-                    )
-                    
-        logger.info(
-            "Done freeze-layers-reversed-by-layer. Unfreezing all layers and loading best state."
-        )
-        for name, param in model.named_parameters():
-            param.requires_grad = True
-        model.load_state_dict(best_state)
-        
-        logger.info(
-            f"Starting final full-network tuning for {final_tune_epochs} epochs."
-        )
-        final_results = self.train(
-            model,
-            train_data,
-            valid_data,
-            grad_clip_value=grad_clip_value,
-            epochs=final_tune_epochs,
-            batch_size=batch_size,
-            shuffle=shuffle,
-            load_best_state_dict=True,
-            plot_losses=plot_losses,
-            save_path=save_path,
-        )
-        return final_results
-
-    def train(
-        self,
-        model,
-        train_data,
-        valid_data=None,
-        epochs=100,
-        batch_size=256,
-        shuffle=True,
-        grad_clip_value=5,
-        load_best_state_dict=True,
-        plot_losses=False,
-        save_path=None,
-        **kwargs
-    ):
-        """
-        Standard training method for LayerWiseTrainer.
-        
-        This is a placeholder that should be implemented based on the specific
-        training approach desired (e.g., MLE, regression, etc.).
-        """
-        raise NotImplementedError(
-            "LayerWiseTrainer.train() should be implemented based on the specific "
-            "training objective (MLE, regression, etc.). Use train_freeze_layers_by_layer() "
-            "or train_freeze_layers_reversed_by_layer() for layer-wise training."
-        )
-
-    # Backward compatibility aliases
-    def train_freeze_layers(self, *args, **kwargs):
-        """Alias for train_freeze_layers_by_layer for backward compatibility."""
-        return self.train_freeze_layers_by_layer(*args, **kwargs)
-        
-    def train_freeze_layers_reversed(self, *args, **kwargs):
-        """Alias for train_freeze_layers_reversed_by_layer for backward compatibility."""
-        return self.train_freeze_layers_reversed_by_layer(*args, **kwargs)
-
+    
 
 __all__ = ["LayerWiseTrainer"]

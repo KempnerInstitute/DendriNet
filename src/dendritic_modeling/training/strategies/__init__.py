@@ -5,28 +5,20 @@ This module contains various training strategies and algorithms
 for dendritic network models.
 """
 
-from .base import BaseTrainer, compute_metrics_classification
-from .mle import TrainerMLE
-from .regression import TrainerRegression
-from .local_learning import LocalCreditAssignment
-from .two_step import TwoStepTrainer, TwoStepTrainerWithKL
-from .layerwise import LayerWiseTrainer
-from .specialized import (
+from dendritic_modeling.training.strategies.standard import Trainer
+from dendritic_modeling.training.strategies.local_learning import LocalCreditAssignment
+from dendritic_modeling.training.strategies.two_step import TwoStepTrainer, TwoStepTrainerWithKL
+from dendritic_modeling.training.strategies.layerwise import LayerWiseTrainer
+from dendritic_modeling.training.strategies.specialized import (
     VoltageStabilizationTrainer, 
-    TrainOnlyMReactivation, 
-    InhibitoryHeadTrainer,
-    voltage_warmup_loss,
-    generate_warmup_report
+    TrainOnlyMReactivation
 )
 
 __all__ = [
     # Base classes and utilities
-    "BaseTrainer", 
-    "compute_metrics_classification", 
+    "Trainer", 
     
     # Main training strategies
-    "TrainerMLE", 
-    "TrainerRegression", 
     "LocalCreditAssignment",
     "TwoStepTrainer",
     "TwoStepTrainerWithKL",
@@ -35,9 +27,4 @@ __all__ = [
     # Specialized training strategies
     "VoltageStabilizationTrainer",
     "TrainOnlyMReactivation",
-    "InhibitoryHeadTrainer",
-    
-    # Utility functions
-    "voltage_warmup_loss",
-    "generate_warmup_report"
 ] 
