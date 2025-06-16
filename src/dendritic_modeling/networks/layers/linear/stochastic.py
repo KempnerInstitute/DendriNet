@@ -7,7 +7,7 @@ chance to remain active.
 """
 
 import torch
-from .topk import TopKLinear
+from dendritic_modeling.networks.layers.linear.topk import TopKLinear
 
 
 class StochasticTopKLinear(TopKLinear):

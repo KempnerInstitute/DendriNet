@@ -5,12 +5,12 @@ This module contains various input transformation classes that map
 raw inputs to excitatory and inhibitory pathways.
 """
 
-from .base import InputNetTransform
-from .index import IndexInputTransform
-from .mlp import MLPInputTransform
-from .cnn import CNNInputTransform
-from .alexnet import AlexNetInputTransform
-from .sigmoid import SigmoidInputNetTransform
+from dendritic_modeling.networks.input_transforms.base import InputNetTransform
+from dendritic_modeling.networks.input_transforms.index import IndexInputTransform
+from dendritic_modeling.networks.input_transforms.mlp import MLPInputTransform
+from dendritic_modeling.networks.input_transforms.cnn import CNNInputTransform
+from dendritic_modeling.networks.input_transforms.alexnet import AlexNetInputTransform
+from dendritic_modeling.networks.input_transforms.sigmoid import SigmoidInputNetTransform
 
 __all__ = [
     "InputNetTransform",

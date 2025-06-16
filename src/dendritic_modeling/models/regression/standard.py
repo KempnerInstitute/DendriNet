@@ -7,7 +7,7 @@ This module contains standard regression models using MSE loss.
 import torch
 import torch.nn as nn
 
-from ..base import BaseModel
+from dendritic_modeling.models.base import BaseModel
 
 
 class Regressor(BaseModel):

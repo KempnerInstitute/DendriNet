@@ -7,7 +7,7 @@ This module contains standard classifiers using cross-entropy loss.
 import torch
 import torch.nn as nn
 
-from ..base import BaseModel
+from dendritic_modeling.models.base import BaseModel
 
 
 class Classifier(BaseModel):

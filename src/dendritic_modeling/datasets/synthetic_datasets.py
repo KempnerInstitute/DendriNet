@@ -1,12 +1,9 @@
 # synthetic_datasets.py
 
 import os
-import shutil
-from copy import deepcopy
 
 import numpy as np
 import torch
-import torchvision.transforms as T
 from torch.utils.data import Dataset, TensorDataset, random_split
 from torchvision import datasets, transforms
 from torchvision.datasets import MNIST

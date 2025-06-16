@@ -9,10 +9,7 @@ import os
 from typing import List, Optional, Callable, Any
 
 import matplotlib.pyplot as plt
-import numpy as np
 import torch
-from matplotlib.colors import TwoSlopeNorm
-from matplotlib.gridspec import GridSpec
 from mpl_toolkits.axes_grid1 import make_axes_locatable
 
 

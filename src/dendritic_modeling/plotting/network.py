@@ -4,12 +4,9 @@ Network visualization and plotting functions.
 
 import os
 import matplotlib.pyplot as plt
-import matplotlib.patches as mpatches
 import numpy as np
 import torch
-import torch.nn as nn
-from matplotlib.colors import Normalize, TwoSlopeNorm
-from matplotlib.cm import ScalarMappable
+from matplotlib.colors import TwoSlopeNorm
 from matplotlib.gridspec import GridSpec
 import logging
 try:
@@ -20,8 +17,6 @@ except ImportError:
     logging.warning("NetworkX is not available. Some plotting functions will be disabled. "
                    "To fix this, try: pip install networkx or conda install networkx")
     nx = None
-from typing import Dict, List, Optional, Tuple, Union, Any
-from torch.utils.data import DataLoader
 
 
 def plotWithColor(x, colors, cmap="viridis", ax=None, colorbar=True, fig=None, **kwargs):

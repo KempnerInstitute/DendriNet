@@ -11,15 +11,15 @@ Each module contains focused plotting functions for specific aspects of dendriti
 """
 
 # Import all plotting functions from organized modules
-from .training import (
-    plot_NLL_loss_curves,
+from dendritic_modeling.plotting.training import (
+    plot_loss_curves,
     plot_ei_sweep_results,
     plot_branch_sweep_results, 
     plot_noise_sweep_ei_results,
     plot_noise_sweep_branch_results,
 )
 
-from .network import (
+from dendritic_modeling.plotting.network import (
     plotWithColor,
     add_colorbars,
     plot_dendrinet_params,
@@ -38,7 +38,7 @@ from .network import (
     einet_gradients_todict,
 )
 
-from .analysis import (
+from dendritic_modeling.plotting.analysis import (
     plot_dendrinet_activations,
     plot_einet_activations,
     activation_boxplots,
@@ -51,7 +51,7 @@ from .analysis import (
     einet_activations_todict,
 )
 
-from .utils import (
+from dendritic_modeling.plotting.utils import (
     dendrinet_activations_to_csv,
     einet_activations_to_csv,
     build_dendritic_tree_graph,
@@ -62,7 +62,7 @@ from .utils import (
 # Export all functions for easy import
 __all__ = [
     # Training functions
-    "plot_NLL_loss_curves",
+    "plot_loss_curves",
     "plot_ei_sweep_results",
     "plot_branch_sweep_results",
     "plot_noise_sweep_ei_results", 

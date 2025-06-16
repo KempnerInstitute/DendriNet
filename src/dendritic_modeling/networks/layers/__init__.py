@@ -6,17 +6,20 @@ and MLP layers.
 """
 
 # Linear layers
-from .linear import (
+from dendritic_modeling.networks.layers.linear import (
     TopKLinear,
     StochasticTopKLinear,
     VarianceTopKLinear,
     DeepstLinear,
     BlockLinear,
-    TOPK_INIT_METHODS,
+    TOPK_INIT_METHODS
 )
 
 # Dendritic layers
-from .dendritic import DendriticBranchLayer, ExcitationInhibitionLayer
+from dendritic_modeling.networks.layers.dendritic import (
+    DendriticBranchLayer, 
+    ExcitationInhibitionLayer
+)
 
 # Aliases for backward compatibility
 StochasticSynapseLinear = StochasticTopKLinear

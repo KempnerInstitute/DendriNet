@@ -6,11 +6,11 @@ stochastic selection, variance-based selection, dynamic sparse training,
 and block linear layers.
 """
 
-from .topk import TopKLinear, TOPK_INIT_METHODS
-from .stochastic import StochasticTopKLinear
-from .variance import VarianceTopKLinear
-from .deepst import DeepstLinear
-from .block import BlockLinear
+from dendritic_modeling.networks.layers.linear.topk import TopKLinear, TOPK_INIT_METHODS
+from dendritic_modeling.networks.layers.linear.stochastic import StochasticTopKLinear
+from dendritic_modeling.networks.layers.linear.variance import VarianceTopKLinear
+from dendritic_modeling.networks.layers.linear.deepst import DeepstLinear
+from dendritic_modeling.networks.layers.linear.block import BlockLinear
 
 __all__ = [
     "TopKLinear",

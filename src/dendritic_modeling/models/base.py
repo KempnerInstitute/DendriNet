@@ -5,7 +5,6 @@ This module contains the abstract BaseModel class that provides common functiona
 for all model wrappers including parameter grouping and weight decay.
 """
 
-import torch
 import torch.nn as nn
 from itertools import chain
 

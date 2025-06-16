@@ -9,7 +9,7 @@ import torch
 import torch.nn as nn
 from copy import deepcopy
 
-from ...layers.dendritic import DendriticBranchLayer
+from dendritic_modeling.networks.layers.dendritic import DendriticBranchLayer
 
 
 class DendriNet(nn.Module):

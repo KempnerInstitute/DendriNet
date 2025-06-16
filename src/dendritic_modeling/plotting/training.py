@@ -5,11 +5,16 @@ Training-related plotting functions.
 import os
 import matplotlib.pyplot as plt
 import pandas as pd
-import seaborn as sns
-import numpy as np
+from typing import List, Optional
 
 
-def plot_NLL_loss_curves(Train_losses, Valid_losses, num_epochs, save_dir):
+def plot_loss_curves(
+    train_losses: List[float],
+    valid_losses: List[float],
+    loss_name: str,
+    save_dir: Optional[str] = None,
+    filename_prefix: str = ""
+):
     """
     Plot the negative log-likelihood loss curves for training and validation.
 
@@ -20,49 +25,44 @@ def plot_NLL_loss_curves(Train_losses, Valid_losses, num_epochs, save_dir):
         save_dir: Directory to save the plot
     """
     # Convert to list if numpy array
-    Train_losses = list(Train_losses)
-    Valid_losses = list(Valid_losses)
+    train_losses = list(train_losses)
+    valid_losses = list(valid_losses)
 
     # Create the x-axis values (epochs)
     # Make sure length matches the loss arrays
-    actual_epochs = len(Train_losses)
-    if actual_epochs != num_epochs:
-        print(
-            f"Warning: Actual epochs ({actual_epochs}) != expected epochs ({num_epochs})"
-        )
-        # Use actual number of epochs for x-axis
-        epochs = list(range(1, actual_epochs + 1))
-    else:
-        epochs = list(range(1, num_epochs + 1))
+    epochs = list(range(1, len(train_losses) + 1))
 
     plt.figure(figsize=(10, 8))
-    plt.plot(epochs, Train_losses, "0.4", label="training")
+    plt.plot(epochs, train_losses, "0.4", label="training")
 
-    if Valid_losses:
+    if valid_losses:
         # Make sure valid losses have same length as train losses
-        if len(Valid_losses) != len(Train_losses):
+        if len(valid_losses) != len(train_losses):
             print(
-                f"Warning: Valid losses length ({len(Valid_losses)}) != Train losses length ({len(Train_losses)})"
+                f"Warning: Valid losses length ({len(valid_losses)}) != Train losses length ({len(train_losses)})"
             )
             # Use the shorter length
-            min_len = min(len(Valid_losses), len(Train_losses))
-            Valid_losses = Valid_losses[:min_len]
+            min_len = min(len(valid_losses), len(train_losses))
+            valid_losses = valid_losses[:min_len]
             epochs_valid = epochs[:min_len]
         else:
             epochs_valid = epochs
 
-        plt.plot(epochs_valid, Valid_losses, "r", label="validation")
+        plt.plot(epochs_valid, valid_losses, "r", label="validation")
 
     plt.grid()
-    plt.title("Loss")
+    plt.title("Train and Validation Loss Curves")
     plt.xlabel("Epoch")
-    plt.ylabel("Loss")
+    plt.ylabel(loss_name)
     plt.legend()
 
     # Save the plot
     if save_dir:
         os.makedirs(save_dir, exist_ok=True)
-        plt.savefig(os.path.join(save_dir, "loss_curves.png"))
+        plt.savefig(os.path.join(
+            save_dir, 
+            f"{filename_prefix}loss_curves.png"
+        ))
 
     plt.close()
 

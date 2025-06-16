@@ -8,8 +8,7 @@ uses SimpleMLPLayer and supports all activation functions from ActivationFactory
 import torch
 import torch.nn as nn
 
-from ...mlp import SimpleMLPLayer
-from ...activations import ActivationFactory
+from dendritic_modeling.networks.mlp.simple_layer import SimpleMLPLayer
 
 
 class SimpleMLPNet(nn.Module):

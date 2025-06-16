@@ -6,7 +6,7 @@ architectures, activations, and input transforms.
 """
 
 # Activations
-from .activations import (
+from dendritic_modeling.networks.activations import (
     ActivationFactory,
     ParametricTanh,
     ParametricTanhOnlyM,
@@ -15,21 +15,21 @@ from .activations import (
     ParametricLinearTanhTransition,
     SimpleReLU,
     SimpleSigmoid,
-    SimpleTanh,
+    SimpleTanh
 )
 
 # Input transforms
-from .input_transforms import (
+from dendritic_modeling.networks.input_transforms import (
     InputNetTransform,
     IndexInputTransform,
     MLPInputTransform,
     CNNInputTransform,
     AlexNetInputTransform,
-    SigmoidInputNetTransform,
+    SigmoidInputNetTransform
 )
 
 # Layers
-from .layers import (
+from dendritic_modeling.networks.layers import (
     # Linear layers
     StochasticSynapseLinear,
     BlockLinear,
@@ -37,11 +37,11 @@ from .layers import (
     BlockLinearVariance,
     # Dendritic layers
     DendriticBranchLayer,
-    ExcitationInhibitionLayer,
+    ExcitationInhibitionLayer
 )
 
 # Architectures
-from .architectures import (
+from dendritic_modeling.networks.architectures import (
     # Dendritic
     DendriNet,
     # Excitation-Inhibition
@@ -49,19 +49,19 @@ from .architectures import (
     MLPExcInhNetwork,
     # MLP
     MatchedParamMLP,
-    SimpleMLPNet,
+    SimpleMLPNet
 )
 
 # MLP components
-from .mlp import (
+from dendritic_modeling.networks.mlp import (
     FeatureExtractorMLP,
-    SimpleMLPLayer,
+    SimpleMLPLayer
 )
 
 # Initialization utilities
-from .initialize import (
+from dendritic_modeling.networks.initialize import (
     compute_expectation_truncated_log_normal,
-    initialize_dendritic_branch_layer,
+    initialize_dendritic_branch_layer
 )
 
 __all__ = [

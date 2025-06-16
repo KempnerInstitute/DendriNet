@@ -7,7 +7,7 @@ This module contains regression models that use dynamic sparse training (DeepST)
 import torch
 import torch.nn as nn
 
-from ..base import BaseModel
+from dendritic_modeling.models.base import BaseModel
 
 
 class DeepstRegressor(BaseModel):

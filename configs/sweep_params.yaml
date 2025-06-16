@@ -76,13 +76,6 @@ train_config:
       blocklinear_lr: 0.001  # learning rate for blocklinear layers
       reactivation_lr: 0.001  # learning rate for reactivation layers
       output_layer_lr: 0.001  # learning rate for output layer
-    epochs: 50
-    batch_size: 1024
-    grad_clip_value: 5
-    epochs_per_layer: 50
-    final_tune_epochs: 10
-    warmup_epochs: 1
-    stability_target_voltage: 0.5
     weight_decay_rate: 0.1
     input_net_training:
       training_mode: "sequential"
@@ -95,11 +88,31 @@ train_config:
         source: "file"
         weights_path: ""
         pytorch_model: ""
+    trainer:
+      # for all learning strategies:
+      loss_function: "mse"
+      epochs: 50
+      early_stopping: false
+      patience: 10
+      batch_size: 128
+      shuffle: true
+      grad_clip_value: 5.0
+      load_best_state_dict: true
+      plot_losses: false
+      suppress_prints: false
+      print_every: 10
+      # for learning strategies other than standard:
+      pretrain_epochs: 50
+      target_voltage: 0.5
+      reverse_training: false
+      epochs_per_layer: 50
+      epochs_per_branch: 50
+      final_tune_epochs: 10
 
   task:
-    dataset: "random_flip_mnist"
+    dataset: "cifar10"
     data_path:
-    parameters: {}
+    parameters: {flatten: true, normalize: false}
 
   wandb:
     entity:

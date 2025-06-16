@@ -20,10 +20,7 @@ except ImportError:
                    "To fix this, try: pip install networkx or conda install networkx")
     nx = None
 
-from typing import Dict, List, Optional, Tuple, Any
-
-from .analysis import dendrinet_activations_todict, einet_activations_todict
-from .network import add_colorbars, shape_helper
+from dendritic_modeling.plotting.analysis import einet_activations_todict
 
 
 def dendrinet_activations_to_csv(

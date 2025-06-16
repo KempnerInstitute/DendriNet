@@ -4,10 +4,11 @@ Configuration module for dendritic modeling.
 This module contains configuration dataclasses and utilities.
 """
 
-from .config import (
+from dendritic_modeling.config.config import (
     Config,
     ModelConfig,
     TrainConfig,
+    TrainerConfig,
     TaskConfig,
     AnalysisConfig,
     VisualizationConfig,
@@ -16,14 +17,15 @@ from .config import (
     EINetParameters,
     FeedForwardParameters,
     ModelNetworkConfig,
-    load_config,
     BaseConfig,
+    load_config
 )
 
 __all__ = [
     "Config",
     "ModelConfig", 
     "TrainConfig",
+    "TrainerConfig",
     "TaskConfig",
     "AnalysisConfig",
     "VisualizationConfig",
@@ -32,6 +34,6 @@ __all__ = [
     "EINetParameters",
     "FeedForwardParameters",
     "ModelNetworkConfig",
-    "load_config",
     "BaseConfig",
+    "load_config"
 ] 
