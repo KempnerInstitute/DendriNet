@@ -30,14 +30,11 @@ os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'  # Suppress TensorFlow INFO and WARNING
 os.environ['TF_ENABLE_ONEDNN_OPTS'] = '0'  # Disable oneDNN optimizations warnings
 
 import argparse
-import json
 import logging
-import random
-import warnings
-from copy import deepcopy
+import traceback
 from dataclasses import asdict
 from datetime import datetime
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Optional
 
 import numpy as np
 import torch
@@ -48,56 +45,46 @@ except ImportError:
     TORCHINFO_AVAILABLE = False
     torchinfo = None
 from omegaconf import OmegaConf
-from torch.utils.data import DataLoader, TensorDataset
-from tqdm import tqdm
 
 import wandb
 from dendritic_modeling import logger
 from dendritic_modeling import logger_manager
 from dendritic_modeling.analysis import AnalysisManager
-from dendritic_modeling.config import EINetParameters, load_config
+from dendritic_modeling.config import (
+    load_config, 
+    Config,
+    ModelConfig, 
+    TrainConfig,
+    VisualizationConfig
+)
 from dendritic_modeling.training import (
     CustomWeightDecayOptimizer,
     get_trainer,
-    train_mlp_with_classification_head,
-    train_simple_mlp,
-    transfer_mlp_weights_to_input_net,
-    extract_weights_from_simple_mlp,
-)
-from dendritic_modeling.training.strategies import (
-    TrainerMLE,
-    VoltageStabilizationTrainer,
+    extract_weights_from_simple_mlp
 )
 from dendritic_modeling.models import (
+    BaseModel,
     Classifier,
     DeepstRegressor,
-    MLPWithClassificationHead,
     ProbabilisticClassifier,
     Regressor,
-    SimpleClassifier,
-    SimpleMLP,
+    SimpleMLP
 )
 from dendritic_modeling.networks import (
     ExcitationInhibitionNetwork,
     FeatureExtractorMLP,
-    InputNetTransform,
     MatchedParamMLP,
-    SigmoidInputNetTransform,
+    SigmoidInputNetTransform
 )
-from dendritic_modeling.plotting import plot_NLL_loss_curves
 from dendritic_modeling.datasets import get_unified_datasets
 from dendritic_modeling.utils import (
-    analyze_branch_ablation,
-    analyze_layerwise_ablation,
-    evaluate_accuracy,
-    evaluate_mse,
-    safe_register_hooks,
     save_dict,
+    set_seed
 )
 from dendritic_modeling.analysis.managers import PlotManager
 
 
-def initialize_model(model_cfg, visualization_enabled=False):
+def initialize_model(model_cfg: ModelConfig, visualization_enabled=False):
     task = model_cfg.task
     probabilistic = model_cfg.probabilistic
     net_type = model_cfg.network.type
@@ -174,7 +161,7 @@ def initialize_model(model_cfg, visualization_enabled=False):
         raise ValueError(f"Invalid task: {task}")
 
 
-def save_model(model, save_path, filename):
+def save_model(model: torch.nn.Module, save_path: str, filename: str):
     os.makedirs(save_path, exist_ok=True)
     full_path = os.path.join(save_path, filename)
     torch.save(model.state_dict(), full_path)
@@ -182,19 +169,21 @@ def save_model(model, save_path, filename):
     return full_path
 
 
-def load_model(model, load_path):
+def load_model(model: torch.nn.Module, load_path: str):
     model.load_state_dict(torch.load(load_path))
     logger.info(f"Loaded model from {load_path}")
     return model
 
 
-def setup_training_environment(config, args=None):
+def setup_training_environment(config: Config):
     model_cfg = config.model
     train_cfg = config.train
+    trainer_cfg = train_cfg.trainer
     task_cfg = config.task
     wandb_cfg = config.wandb
     outputs_cfg = config.outputs
     visualization_cfg = config.visualization
+    analysis_cfg = config.analysis
 
     run_name = train_cfg.run_name
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
@@ -216,9 +205,7 @@ def setup_training_environment(config, args=None):
     logger.info(f"Logging to {log_file}")
 
     seed = train_cfg.seed
-    torch.manual_seed(seed)
-    np.random.seed(seed)
-    random.seed(seed)
+    set_seed(seed)
     logger.info(f"Set random seed to {seed}")
 
     if hasattr(wandb_cfg, "use_wandb") and wandb_cfg.use_wandb:
@@ -249,7 +236,16 @@ def setup_training_environment(config, args=None):
     if not hasattr(task_cfg, "dataset") or not task_cfg.dataset:
         raise ValueError("No dataset specified in configuration")
 
-    train_ds, valid_ds, test_ds = get_unified_datasets(task_cfg, train_cfg, output_dir=outputs_cfg.dir, outputs_cfg=outputs_cfg)
+    train_ds, valid_ds, test_ds = get_unified_datasets(
+        task_cfg=task_cfg,
+        train_cfg=train_cfg,
+        output_dir=outputs_cfg.dir,
+        outputs_cfg=outputs_cfg
+    )
+    train_ds: torch.utils.data.Dataset
+    valid_ds: torch.utils.data.Dataset
+    test_ds: torch.utils.data.Dataset
+
     logger.info(
         f"Loaded datasets: {len(train_ds)} training, {len(valid_ds)} validation, {len(test_ds)} test samples"
     )
@@ -282,6 +278,15 @@ def setup_training_environment(config, args=None):
     model = initialize_model(model_cfg, visualization_enabled)
     logger.info(f"Initialized model: {type(model).__name__}")
 
+    analysis_manager = AnalysisManager(
+        model=model,
+        data={"train": train_ds, "valid": valid_ds, "test": test_ds},
+        analysis_config=analysis_cfg,
+        save_root=run_save_path,
+        device="cuda" if torch.cuda.is_available() else "cpu",
+        train_config=asdict(train_cfg),
+    )
+
     optimizer = CustomWeightDecayOptimizer(
         model=model,
         optimizer=torch.optim.Adam(model.get_param_groups(train_cfg.optim_dict)),
@@ -289,170 +294,27 @@ def setup_training_environment(config, args=None):
     )
 
     learning_strategy = train_cfg.learning_strategy.lower()
+    trainer_cfg.save_path = run_save_path
+    trainer_cfg_dict = OmegaConf.to_container(trainer_cfg, resolve=True)
     trainer = get_trainer(
-        learning_strategy, optimizer, suppress_prints=False, print_every=10
+        strategy=learning_strategy,
+        optimizer=optimizer,
+        trainer_config_dict=trainer_cfg_dict,
+        analysis_manager=analysis_manager
     )
     logger.info(f"Created trainer with learning strategy: {learning_strategy}")
 
-    return run_save_path, model, train_ds, valid_ds, test_ds, optimizer, trainer
-
-
-def train_and_evaluate(
-    model,
-    train_ds,
-    valid_ds,
-    test_ds,
-    trainer,
-    train_cfg,
-    visualization_cfg,
-    run_save_path,
-    analysis_manager=None,
-):
-    learning_strategy = train_cfg.learning_strategy.lower()
-    if learning_strategy in ["two_step", "two_step_kl"]:
-        logger.info(
-            f"Training with {learning_strategy} strategy: {train_cfg.pretrain_epochs} pretrain epochs + {train_cfg.epochs - train_cfg.pretrain_epochs} main epochs"
-        )
-        results = trainer.train(
-            model=model,
-            train_data=train_ds,
-            valid_data=valid_ds,
-            pretrain_epochs=train_cfg.pretrain_epochs,
-            maintrain_epochs=train_cfg.epochs - train_cfg.pretrain_epochs,
-            batch_size=train_cfg.batch_size,
-            grad_clip_value=train_cfg.grad_clip_value,
-            shuffle=True,
-            load_best_state_dict=True,
-            analysis_manager=analysis_manager,
-            plot_losses=True,
-            save_path=run_save_path,
-        )
-    elif learning_strategy == "freeze_branches":
-        logger.info(
-            f"Training with freeze_branches strategy: {train_cfg.epochs_per_layer} epochs per branch + {train_cfg.final_tune_epochs} final tuning epochs (from soma to input)"
-        )
-        results = trainer.train_freeze_branches(
-            model=model,
-            train_data=train_ds,
-            valid_data=valid_ds,
-            epochs_per_branch=train_cfg.epochs_per_layer,  # Reuse the epochs_per_layer config param
-            batch_size=train_cfg.batch_size,
-            grad_clip_value=train_cfg.grad_clip_value,
-            shuffle=True,
-            plot_losses=True,
-            save_path=run_save_path,
-            final_tune_epochs=train_cfg.final_tune_epochs,
-        )
-    elif learning_strategy == "freeze_branches_reversed":
-        logger.info(
-            f"Training with freeze_branches_reversed strategy: {train_cfg.epochs_per_layer} epochs per branch + {train_cfg.final_tune_epochs} final tuning epochs (from input to soma)"
-        )
-        results = trainer.train_freeze_branches_reversed(
-            model=model,
-            train_data=train_ds,
-            valid_data=valid_ds,
-            epochs_per_branch=train_cfg.epochs_per_layer,  # Reuse the epochs_per_layer config param
-            batch_size=train_cfg.batch_size,
-            grad_clip_value=train_cfg.grad_clip_value,
-            shuffle=True,
-            plot_losses=True,
-            save_path=run_save_path,
-            final_tune_epochs=train_cfg.final_tune_epochs,
-        )
-    elif learning_strategy == "freeze_branches_with_pretraining":
-        logger.info(
-            f"Training with freeze_branches_with_pretraining strategy: {train_cfg.pretrain_epochs} pretrain epochs + {train_cfg.epochs_per_layer} epochs per branch + {train_cfg.final_tune_epochs} final tuning epochs (from soma to input)"
-        )
-        results = trainer.train_freeze_branches_with_pretraining(
-            model=model,
-            train_data=train_ds,
-            valid_data=valid_ds,
-            pretrain_epochs=train_cfg.pretrain_epochs,
-            epochs_per_branch=train_cfg.epochs_per_layer,  # Reuse the epochs_per_layer config param
-            batch_size=train_cfg.batch_size,
-            grad_clip_value=train_cfg.grad_clip_value,
-            shuffle=True,
-            plot_losses=True,
-            save_path=run_save_path,
-            final_tune_epochs=train_cfg.final_tune_epochs,
-        )
-    elif learning_strategy == "freeze_branches_reversed_with_pretraining":
-        logger.info(
-            f"Training with freeze_branches_reversed_with_pretraining strategy: {train_cfg.pretrain_epochs} pretrain epochs + {train_cfg.epochs_per_layer} epochs per branch + {train_cfg.final_tune_epochs} final tuning epochs (from input to soma)"
-        )
-        results = trainer.train_freeze_branches_reversed_with_pretraining(
-            model=model,
-            train_data=train_ds,
-            valid_data=valid_ds,
-            pretrain_epochs=train_cfg.pretrain_epochs,
-            epochs_per_branch=train_cfg.epochs_per_layer,  # Reuse the epochs_per_layer config param
-            batch_size=train_cfg.batch_size,
-            grad_clip_value=train_cfg.grad_clip_value,
-            shuffle=True,
-            plot_losses=True,
-            save_path=run_save_path,
-            final_tune_epochs=train_cfg.final_tune_epochs,
-        )
-    else:
-        logger.info(f"Training with standard approach: {train_cfg.epochs} epochs")
-        # Check if the trainer is VoltageStabilizationTrainer which doesn't accept load_best_state_dict
-        if isinstance(trainer, VoltageStabilizationTrainer):
-            results = trainer.train(
-                model=model,
-                train_data=train_ds,
-                valid_data=valid_ds,
-                epochs=train_cfg.epochs,
-                batch_size=train_cfg.batch_size,
-                grad_clip_value=train_cfg.grad_clip_value,
-                shuffle=True,
-                analysis_manager=analysis_manager,
-                plot_losses=True,
-                save_path=run_save_path,
-            )
-        else:
-            results = trainer.train(
-                model=model,
-                train_data=train_ds,
-                valid_data=valid_ds,
-                epochs=train_cfg.epochs,
-                batch_size=train_cfg.batch_size,
-                grad_clip_value=train_cfg.grad_clip_value,
-                shuffle=True,
-                load_best_state_dict=True,
-                early_stopping=train_cfg.early_stopping,
-                patience=train_cfg.patience,
-                analysis_manager=analysis_manager,
-                plot_losses=True,
-                save_path=run_save_path,
-            )
-
-    save_model(model, run_save_path, "final_model.pt")
-    train_losses = results.get("train_losses", [])
-    valid_losses = results.get("valid_losses", [])
-
-    if len(train_losses) > 0:
-        logger.info("Plotting loss curves")
-        if len(train_losses) != train_cfg.epochs:
-            logger.warning(
-                f"Number of loss points ({len(train_losses)}) doesn't match epochs ({train_cfg.epochs})"
-            )
-            plot_epochs = len(train_losses)
-        else:
-            plot_epochs = train_cfg.epochs
-        plot_NLL_loss_curves(train_losses, valid_losses, plot_epochs, run_save_path)
-
-    return results
+    return run_save_path, model, train_ds, valid_ds, test_ds, trainer, analysis_manager
 
 
 def train_sequential_input_net(
-    model_cfg,
-    train_cfg,
-    task_cfg,
-    train_ds,
-    valid_ds,
-    test_ds,
-    run_save_path,
-    analysis_manager=None,
+    model_cfg: ModelConfig,
+    train_cfg: TrainConfig,
+    train_ds: torch.utils.data.Dataset,
+    valid_ds: torch.utils.data.Dataset,
+    test_ds: torch.utils.data.Dataset,
+    run_save_path: str,
+    analysis_manager: Optional[AnalysisManager] = None,
 ):
     logger.info("Starting sequential input network training")
     if hasattr(train_ds, "data"):
@@ -742,12 +604,12 @@ def train_single_input_net(
 
 
 def run_analysis(
-    model,
-    train_ds,
-    valid_ds,
-    test_ds,
-    visualization_cfg,
-    run_save_path,
+    model: BaseModel,
+    train_ds: torch.utils.data.Dataset,
+    valid_ds: torch.utils.data.Dataset,
+    test_ds: torch.utils.data.Dataset,
+    visualization_cfg: VisualizationConfig,
+    run_save_path: str,
     analysis_manager: Optional[AnalysisManager] = None,
 ):
     data = {"train": train_ds, "valid": valid_ds, "test": test_ds}
@@ -796,7 +658,7 @@ def run_analysis(
         analysis_manager.run_analysis()
 
 
-def train_and_evaluate_main(config_path, args=None):
+def train_and_evaluate_main(config_path: str, args=None):
     config = load_config(config_path)
     logger.info(f"Loaded configuration from {config_path}")
 
@@ -813,21 +675,20 @@ def train_and_evaluate_main(config_path, args=None):
 
     model_cfg = config.model
     train_cfg = config.train
-    task_cfg = config.task
+    trainer_cfg = train_cfg.trainer
     wandb_cfg = config.wandb
-    outputs_cfg = config.outputs
     visualization_cfg = config.visualization
-    analysis_cfg = config.analysis
     train_cfg.task = model_cfg.task
+
     (
         run_save_path,
         model,
         train_ds,
         valid_ds,
         test_ds,
-        optimizer,
         trainer,
-    ) = setup_training_environment(config, args)
+        analysis_manager
+    ) = setup_training_environment(config)
 
     logger.info("Network architecture summary before training:")
     try:
@@ -836,7 +697,7 @@ def train_and_evaluate_main(config_path, args=None):
         if TORCHINFO_AVAILABLE:
             summary = torchinfo.summary(
                 model,
-                input_size=(train_cfg.batch_size, sample_input_dim),
+                input_size=(trainer_cfg.batch_size, sample_input_dim),
                 col_names=["input_size", "output_size", "num_params"],
                 col_width=25,
                 row_settings=["depth"],
@@ -857,15 +718,6 @@ def train_and_evaluate_main(config_path, args=None):
 
     save_dict(asdict(config), run_save_path, "config.json")
 
-    analysis_manager = AnalysisManager(
-        model=model,
-        data={"train": train_ds, "valid": valid_ds, "test": test_ds},
-        analysis_config=analysis_cfg,
-        save_root=run_save_path,
-        device="cuda" if torch.cuda.is_available() else "cpu",
-        train_config=asdict(train_cfg),
-    )
-
     input_mode = getattr(model_cfg.network.parameters, "input_mode", 0)
     input_net_training = getattr(train_cfg, "input_net_training", {})
     training_mode = input_net_training.get("training_mode", "joint")
@@ -874,33 +726,17 @@ def train_and_evaluate_main(config_path, args=None):
     if sequential_training:
         logger.info("Using sequential training mode")
         model = train_sequential_input_net(
-            model_cfg,
-            train_cfg,
-            task_cfg,
-            train_ds,
-            valid_ds,
-            test_ds,
-            run_save_path,
-            analysis_manager=analysis_manager,
+            model_cfg=model_cfg,
+            train_cfg=train_cfg,
+            train_ds=train_ds,
+            valid_ds=valid_ds,
+            test_ds=test_ds,
+            run_save_path=run_save_path,
+            analysis_manager=analysis_manager
         )
-        results = {
-            "train_acc": evaluate_accuracy(model, train_ds),
-            "valid_acc": evaluate_accuracy(model, valid_ds),
-            "test_acc": evaluate_accuracy(model, test_ds),
-        }
     else:
         logger.info("Using standard training mode")
-        results = train_and_evaluate(
-            model,
-            train_ds,
-            valid_ds,
-            test_ds,
-            trainer,
-            train_cfg,
-            visualization_cfg,
-            run_save_path,
-            analysis_manager=analysis_manager,
-        )
+        trainer.train(model, train_ds, valid_ds)
 
     nparams = 0
     for param in model.parameters():
@@ -927,7 +763,6 @@ def train_and_evaluate_main(config_path, args=None):
         wandb.finish()
 
     logger.info("Training experiment completed successfully")
-    return model, results
 
 
 def main(config_path, args=None):

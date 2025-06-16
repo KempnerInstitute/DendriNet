@@ -8,13 +8,11 @@ neural network activations and performing classification tasks.
 import logging
 import os
 import json
-import traceback
 from typing import Dict, List, Optional, Tuple
 
 import numpy as np
 import torch
 import torch.nn as nn
-import torch.nn.functional as F
 from sklearn.model_selection import train_test_split
 from sklearn.metrics import accuracy_score
 from torch.optim import Adam

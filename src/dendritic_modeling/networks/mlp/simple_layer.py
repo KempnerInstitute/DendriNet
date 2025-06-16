@@ -6,7 +6,6 @@ This module implements a simple MLP layer with configurable activation functions
 
 import torch
 import torch.nn as nn
-from typing import Optional
 
 
 class SimpleMLPLayer(nn.Module):

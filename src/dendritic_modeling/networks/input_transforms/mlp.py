@@ -5,7 +5,6 @@ This module implements MLPInputTransform which uses multilayer perceptrons
 to transform inputs into excitatory and inhibitory pathways.
 """
 
-import torch
 import torch.nn as nn
 from typing import List
 

@@ -7,10 +7,6 @@ comprehensive analysis of dendritic information processing and ablation studies.
 
 import logging
 import os
-import matplotlib.pyplot as plt
-import numpy as np
-import pandas as pd
-import torch
 
 logger = logging.getLogger(__name__)
 

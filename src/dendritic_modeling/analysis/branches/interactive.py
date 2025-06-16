@@ -8,17 +8,13 @@ comprehensive analysis of branch-level information and ablation studies.
 import json
 import logging
 import os
-import traceback
 
 import matplotlib.pyplot as plt
-import numpy as np
 import pandas as pd
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from torch.utils.data import DataLoader, TensorDataset
-
-from dendritic_modeling.datasets import split_MNIST_inputs
+from torch.utils.data import DataLoader
 
 logger = logging.getLogger(__name__)
 

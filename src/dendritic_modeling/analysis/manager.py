@@ -6,40 +6,15 @@ all the different analysis tools in the dendritic modeling package.
 """
 
 import logging
-import math
 import os
-from copy import deepcopy
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Dict, Optional
 
-import matplotlib
-import matplotlib.pyplot as plt
-import numpy as np
-import pandas as pd
 import torch
-from matplotlib.patches import Patch
-from torch.utils.data import DataLoader, TensorDataset
-
-matplotlib.use("Agg")
+from torch.utils.data import DataLoader
 
 from dendritic_modeling.config import AnalysisConfig
-from dendritic_modeling.networks.layers.dendritic import DendriticBranchLayer
-from dendritic_modeling.analysis.information import (
-    compute_mi_cc,
-    compute_mi_cd,
-    compute_pairwise_sr,
-)
 from dendritic_modeling.models import BaseModel
-from dendritic_modeling.networks import ExcitationInhibitionNetwork
-from dendritic_modeling.utils import (
-    add_gaussian_noise,
-    add_uniform_noise,
-    evaluate_accuracy,
-    evaluate_categorical_loglikelihood,
-    evaluate_mse,
-    save_dict,
-)
 
-# Import analyzer classes from their new locations
 from dendritic_modeling.analysis.performance.metrics import PerformanceAnalyzer
 from dendritic_modeling.analysis.performance.noise import NoisePerturbationAnalyzer
 from dendritic_modeling.analysis.performance.ablation import AblationAnalyzer

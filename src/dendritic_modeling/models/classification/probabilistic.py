@@ -8,7 +8,7 @@ import torch
 import torch.nn as nn
 from torch.distributions import Categorical
 
-from ..base import BaseModel
+from dendritic_modeling.models.base import BaseModel
 
 
 class ProbabilisticClassifier(BaseModel):

@@ -5,6 +5,6 @@ This subpackage provides specialized analysis tools for examining
 individual branch behavior, information content, and ablation studies.
 """
 
-from .interactive import InteractiveBranchAnalyzer
+from dendritic_modeling.analysis.branches.interactive import InteractiveBranchAnalyzer
 
 __all__ = ["InteractiveBranchAnalyzer"]

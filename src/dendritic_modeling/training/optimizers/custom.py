@@ -5,6 +5,10 @@ This module contains custom optimizer wrappers and implementations for
 dendritic network training.
 """
 
+from torch.optim import Optimizer
+
+from dendritic_modeling.models import BaseModel
+
 
 class CustomWeightDecayOptimizer:
     """
@@ -21,7 +25,12 @@ class CustomWeightDecayOptimizer:
         weight_decay: Weight decay coefficient
     """
     
-    def __init__(self, model, optimizer, weight_decay=0.1):
+    def __init__(
+        self, 
+        model: BaseModel, 
+        optimizer: Optimizer, 
+        weight_decay: float = 0.1
+    ):
         self.model = model
         self.optimizer = optimizer
         self.weight_decay = weight_decay

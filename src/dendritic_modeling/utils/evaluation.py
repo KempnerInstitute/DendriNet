@@ -8,10 +8,9 @@ using various metrics including accuracy, log-likelihood, and MSE.
 
 from typing import Optional, Union, Tuple
 import torch
-import torch.nn as nn
 from torch.distributions import Categorical
 
-from .data import save_dict
+from dendritic_modeling.utils.data import save_dict
 
 
 def accuracy_score(

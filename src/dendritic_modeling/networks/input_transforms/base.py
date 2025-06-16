@@ -7,13 +7,13 @@ raw inputs to excitatory and inhibitory pathways.
 
 import torch
 import torch.nn as nn
-from typing import Optional, List, Tuple, Any
+from typing import Optional, List, Tuple
 import logging
 
-from .index import IndexInputTransform
-from .mlp import MLPInputTransform
-from .cnn import CNNInputTransform
-from .alexnet import AlexNetInputTransform
+from dendritic_modeling.networks.input_transforms.index import IndexInputTransform
+from dendritic_modeling.networks.input_transforms.mlp import MLPInputTransform
+from dendritic_modeling.networks.input_transforms.cnn import CNNInputTransform
+from dendritic_modeling.networks.input_transforms.alexnet import AlexNetInputTransform
 
 logger = logging.getLogger(__name__)
 

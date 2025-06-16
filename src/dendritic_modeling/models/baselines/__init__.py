@@ -4,7 +4,7 @@ Baseline models.
 This module contains baseline models for comparison purposes.
 """
 
-from .mlp import SimpleMLP, SimpleClassifier, MLPWithClassificationHead
+from dendritic_modeling.models.baselines.mlp import SimpleMLP, SimpleClassifier, MLPWithClassificationHead
 
 __all__ = [
     "SimpleMLP",

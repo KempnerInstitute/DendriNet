@@ -9,12 +9,12 @@ excitatory and inhibitory inputs.
 import torch
 import torch.nn as nn
 
-from ...activations import ActivationFactory
-from dendritic_modeling.training import GradientScaler
+from dendritic_modeling.networks.activations import ActivationFactory
+from dendritic_modeling.networks.layers.dendritic.gradient_scaling import GradientScaler
 from dendritic_modeling.networks.initialize import initialize_dendritic_branch_layer
 
 # Import linear layer variants
-from ..linear import (
+from dendritic_modeling.networks.layers.linear import (
     TopKLinear, 
     StochasticTopKLinear, 
     VarianceTopKLinear, 

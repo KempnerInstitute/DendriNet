@@ -6,31 +6,31 @@ synaptic properties, ablation studies, and information flow in dendritic network
 """
 
 # Performance analysis
-from .performance.metrics import PerformanceAnalyzer
-from .performance.noise import NoisePerturbationAnalyzer
-from .performance.ablation import AblationAnalyzer
-from .performance.layers import SingleLayerContributionAnalyzer
-from .performance.synaptic_ablation import SynapticAblationAnalyzer
+from dendritic_modeling.analysis.performance.metrics import PerformanceAnalyzer
+from dendritic_modeling.analysis.performance.noise import NoisePerturbationAnalyzer
+from dendritic_modeling.analysis.performance.ablation import AblationAnalyzer
+from dendritic_modeling.analysis.performance.layers import SingleLayerContributionAnalyzer
+from dendritic_modeling.analysis.performance.synaptic_ablation import SynapticAblationAnalyzer
 
 # Information analysis
-from .information.mutual_info import EIInformationAnalyzer
-from .information.branch_info import BranchInformationAnalyzer
+from dendritic_modeling.analysis.information.mutual_info import EIInformationAnalyzer
+from dendritic_modeling.analysis.information.branch_info import BranchInformationAnalyzer
 
 # Activation analysis
-from .activations.synaptic import SynapticActivationAnalyzer
-from .activations.branches import BranchActivationAnalyzer
+from dendritic_modeling.analysis.activations.synaptic import SynapticActivationAnalyzer
+from dendritic_modeling.analysis.activations.branches import BranchActivationAnalyzer
 
 # Synaptic analysis
-from .synaptic.turnover import SynapticTurnoverAnalyzer
-from .synaptic.weights import WeightAnalyzer
+from dendritic_modeling.analysis.synaptic.turnover import SynapticTurnoverAnalyzer
+from dendritic_modeling.analysis.synaptic.weights import WeightAnalyzer
 
 # Analysis manager
-from .manager import AnalysisManager
+from dendritic_modeling.analysis.manager import AnalysisManager
 
 # Import new organized analysis classes
-from .branches.interactive import InteractiveBranchAnalyzer
-from .dendritic.comprehensive import ComprehensiveDendriticAnalyzer
-from .managers.plot_manager import PlotManager
+from dendritic_modeling.analysis.branches.interactive import InteractiveBranchAnalyzer
+from dendritic_modeling.analysis.dendritic.comprehensive import ComprehensiveDendriticAnalyzer
+from dendritic_modeling.analysis.managers.plot_manager import PlotManager
 
 __all__ = [
     # Performance analysis

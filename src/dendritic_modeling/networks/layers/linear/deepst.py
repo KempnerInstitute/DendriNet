@@ -8,7 +8,7 @@ with Brownian motion-like weight evolution and dynamic rewiring.
 import math
 import torch
 import torch.nn as nn
-from .topk import TOPK_INIT_METHODS
+from dendritic_modeling.networks.layers.linear.topk import TOPK_INIT_METHODS
 
 
 class DeepstLinear(nn.Module):

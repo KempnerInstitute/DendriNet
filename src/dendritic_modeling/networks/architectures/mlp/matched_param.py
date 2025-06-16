@@ -5,11 +5,10 @@ This module implements MatchedParamMLP which creates an MLP with
 at least as many parameters as an equivalent EINet configuration.
 """
 
-import torch
 import torch.nn as nn
 import torchinfo
 
-from ..excitation_inhibition import ExcitationInhibitionNetwork
+from dendritic_modeling.networks.architectures.excitation_inhibition import ExcitationInhibitionNetwork
 
 
 class MatchedParamMLP(nn.Module):

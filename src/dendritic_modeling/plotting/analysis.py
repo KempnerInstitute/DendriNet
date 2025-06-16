@@ -5,11 +5,7 @@ Analysis-related plotting functions for activation patterns, tuning curves, and 
 import os
 import matplotlib.pyplot as plt
 import numpy as np
-import pandas as pd
-import seaborn as sns
 import torch
-from matplotlib.colors import Normalize
-from matplotlib.cm import ScalarMappable
 
 
 def plot_dendrinet_activations(model, x, layer_idx=None, save_path=None, show=True):

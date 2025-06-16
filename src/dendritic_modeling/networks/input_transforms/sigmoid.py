@@ -6,10 +6,8 @@ a sigmoid activation to ensure values are in [0, 1] range.
 """
 
 import torch
-import torch.nn as nn
-from typing import Optional, List, Tuple, Any
 
-from .base import InputNetTransform
+from dendritic_modeling.networks.input_transforms.base import InputNetTransform
 
 
 class SigmoidInputNetTransform(InputNetTransform):

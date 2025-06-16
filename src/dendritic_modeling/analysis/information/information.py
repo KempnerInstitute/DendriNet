@@ -3,7 +3,6 @@ from typing import Optional
 import numpy as np
 from scipy.special import digamma
 from sklearn.neighbors import KDTree, NearestNeighbors
-from sklearn.utils.parallel import Parallel, delayed
 
 
 def compute_mi_cc(x: np.ndarray, y: np.ndarray, n_neighbors: int) -> float:

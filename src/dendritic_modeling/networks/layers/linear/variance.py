@@ -6,7 +6,7 @@ activation statistics and selects weights based on input variance.
 """
 
 import torch
-from .topk import TopKLinear
+from dendritic_modeling.networks.layers.linear.topk import TopKLinear
 
 
 class VarianceTopKLinear(TopKLinear):

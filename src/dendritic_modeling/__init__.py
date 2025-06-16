@@ -28,7 +28,7 @@ logger = logger_manager.get_logger()
 __version__ = "0.1.0"
 
 # Core imports for convenience
-from . import (
+from dendritic_modeling import (
     analysis,
     config,
     datasets,
@@ -37,7 +37,7 @@ from . import (
     plotting,
     scripts,
     training,
-    utils,
+    utils
 )
 
 __all__ = [

@@ -78,17 +78,6 @@ train:
     blocklinear_lr: 0.001  # learning rate for blocklinear layers
     reactivation_lr: 0.001  # learning rate for reactivation layers
     output_layer_lr: 0.001  # learning rate for output layer
-  epochs: 50
-  early_stopping: false
-  patience: 10
-  batch_size: 512  # Smaller batch size for better generalization
-  grad_clip_value: 5  # Reasonable gradient clipping
-  epochs_per_layer: 50  ## this is only for "freeze_layers" and any other method which has sequential single layer training
-  final_tune_epochs: 10  ## Number of epochs for final fine-tuning after layer-by-layer training
-
-  # Parameters for two_step and voltage_stabilization strategies
-  warmup_epochs: 1  # or however many you want
-  stability_target_voltage: 0.5  # the target "voltage"
 
   weight_decay_rate: 0.1  # Standard weight decay
   # Input network training configuration
@@ -110,6 +99,27 @@ train:
       source: "file"           # "file", "pytorch", "none"
       weights_path: ""         # Path to weights file if source is "file"
       pytorch_model: ""        # Name of PyTorch model if source is "pytorch"
+  
+  trainer:
+    # for all learning strategies:
+    loss_function: "mse"
+    epochs: 50
+    early_stopping: false
+    patience: 10
+    batch_size: 128
+    shuffle: true
+    grad_clip_value: 5.0
+    load_best_state_dict: true
+    plot_losses: false
+    suppress_prints: false
+    print_every: 10
+    # for learning strategies other than standard:
+    pretrain_epochs: 50
+    target_voltage: 0.5
+    reverse_training: false
+    epochs_per_layer: 50
+    epochs_per_branch: 50
+    final_tune_epochs: 10
 
 task:
   dataset: cifar10 #mnist, cifar10, mnist_modulo10, random_flip_mnist

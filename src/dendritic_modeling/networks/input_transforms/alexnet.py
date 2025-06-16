@@ -5,7 +5,6 @@ This module implements AlexNetInputTransform which uses a pre-trained AlexNet
 to transform inputs into excitatory and inhibitory pathways.
 """
 
-import torch
 import torch.nn as nn
 
 
