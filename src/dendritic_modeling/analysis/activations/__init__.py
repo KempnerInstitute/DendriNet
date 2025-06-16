@@ -5,8 +5,8 @@ This subpackage contains analyzers focused on activation patterns at different l
 of the dendritic network, including synaptic activations and branch activations.
 """
 
-from .synaptic import SynapticActivationAnalyzer
-from .branches import BranchActivationAnalyzer
+from dendritic_modeling.analysis.activations.synaptic import SynapticActivationAnalyzer
+from dendritic_modeling.analysis.activations.branches import BranchActivationAnalyzer
 
 __all__ = [
     "SynapticActivationAnalyzer",

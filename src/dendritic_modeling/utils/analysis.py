@@ -13,7 +13,7 @@ import numpy as np
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from torch.utils.data import DataLoader, TensorDataset
+from torch.utils.data import DataLoader
 
 
 def record_branch_activations(model, dataset, batch_size: int = 64, device: str = "cpu") -> Tuple[Dict, torch.Tensor]:

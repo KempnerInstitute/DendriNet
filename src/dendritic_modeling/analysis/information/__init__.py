@@ -5,11 +5,11 @@ This subpackage contains analyzers focused on information theory and mutual info
 analysis for understanding information flow in dendritic networks.
 """
 
-from .mutual_info import EIInformationAnalyzer
-from .branch_info import BranchInformationAnalyzer
+from dendritic_modeling.analysis.information.mutual_info import EIInformationAnalyzer
+from dendritic_modeling.analysis.information.branch_info import BranchInformationAnalyzer
 
 # Import from information.py
-from .information import (
+from dendritic_modeling.analysis.information.information import (
     compute_mi_cc,
     compute_mi_cd,
     compute_EI_MI,
@@ -20,7 +20,7 @@ from .information import (
 )
 
 # Import from pid_utils.py
-from .pid_utils import (
+from dendritic_modeling.analysis.information.pid_utils import (
     check_pid_available,
     pid_synergy_redundancy,
 )

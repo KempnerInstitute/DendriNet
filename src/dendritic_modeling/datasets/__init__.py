@@ -4,7 +4,7 @@ Datasets module for dendritic modeling.
 This module contains various synthetic and real dataset classes and utilities.
 """
 
-from .synthetic_datasets import (
+from dendritic_modeling.datasets.synthetic_datasets import (
     # Dataset classes
     LineDataset,
     CenterSurroundDataset,

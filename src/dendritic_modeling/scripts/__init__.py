@@ -4,12 +4,11 @@ Scripts module for dendritic modeling.
 This module contains main training and experiment scripts.
 """
 
-from .train_experiments import (
+from dendritic_modeling.scripts.train_experiments import (
     initialize_model,
     save_model,
     load_model,
     setup_training_environment,
-    train_and_evaluate,
     train_sequential_input_net,
     train_independent_input_nets,
     train_single_input_net,
@@ -23,7 +22,6 @@ __all__ = [
     "save_model",
     "load_model",
     "setup_training_environment",
-    "train_and_evaluate",
     "train_sequential_input_net",
     "train_independent_input_nets",
     "train_single_input_net",

@@ -7,11 +7,11 @@ excitatory and inhibitory pathways with dendritic computation.
 
 import torch
 import torch.nn as nn
-from typing import List, Dict, Any, Optional
+from typing import List, Dict, Any
 from copy import deepcopy
 
-from ...layers.dendritic import ExcitationInhibitionLayer
-from ...input_transforms import InputNetTransform
+from dendritic_modeling.networks.layers.dendritic import ExcitationInhibitionLayer
+from dendritic_modeling.networks.input_transforms import InputNetTransform
 
 
 class ExcitationInhibitionNetwork(nn.Module):

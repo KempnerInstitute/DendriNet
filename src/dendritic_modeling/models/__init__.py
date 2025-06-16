@@ -6,16 +6,26 @@ classification, regression, and baseline models.
 """
 
 # Base model
-from .base import BaseModel
+from dendritic_modeling.models.base import BaseModel
 
 # Classification models
-from .classification import Classifier, ProbabilisticClassifier
+from dendritic_modeling.models.classification import (
+    Classifier, 
+    ProbabilisticClassifier
+)
 
 # Regression models
-from .regression import Regressor, DeepstRegressor
+from dendritic_modeling.models.regression import (
+    Regressor, 
+    DeepstRegressor
+)
 
 # Baseline models
-from .baselines import SimpleMLP, SimpleClassifier, MLPWithClassificationHead
+from dendritic_modeling.models.baselines import (
+    SimpleMLP, 
+    SimpleClassifier, 
+    MLPWithClassificationHead
+)
 
 __all__ = [
     # Base

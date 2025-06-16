@@ -5,7 +5,7 @@ Contains utility functions for data handling, evaluation, noise addition, and ot
 """
 
 # Data utilities
-from .data import (
+from dendritic_modeling.utils.data import (
     Shaper,
     convert_to_serializable,
     set_seed,
@@ -13,7 +13,7 @@ from .data import (
 )
 
 # Evaluation utilities
-from .evaluation import (
+from dendritic_modeling.utils.evaluation import (
     accuracy_score,
     evaluate_accuracy,
     categorical_loglikelihood_score,
@@ -23,7 +23,7 @@ from .evaluation import (
 )
 
 # Noise utilities
-from .noise import (
+from dendritic_modeling.utils.noise import (
     add_gaussian_noise,
     add_uniform_noise,
     add_poisson_noise,
@@ -31,7 +31,7 @@ from .noise import (
 )
 
 # Hook utilities
-from .hooks import (
+from dendritic_modeling.utils.hooks import (
     safe_backward_hook,
     safe_register_hooks,
     register_safe_hook,
@@ -40,7 +40,7 @@ from .hooks import (
 )
 
 # Classification utilities
-from .classification import (
+from dendritic_modeling.utils.classification import (
     MLPClassifier,
     train_classifier,
     evaluate_classifier,
@@ -51,7 +51,7 @@ from .classification import (
 )
 
 # Analysis utilities
-from .analysis import (
+from dendritic_modeling.utils.analysis import (
     record_branch_activations,
     compute_MI,
     analyze_branch_information,
@@ -65,7 +65,7 @@ from .analysis import (
 )
 
 # Logging utilities
-from .logging_config import (
+from dendritic_modeling.utils.logging_config import (
     LoggerManager,
     LOGGER_NAME,
 )

@@ -4,7 +4,6 @@ Feature Extractor MLP.
 This module implements a feature extractor based on Multi-Layer Perceptron.
 """
 
-import torch
 import torch.nn as nn
 from typing import List
 

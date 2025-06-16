@@ -5,7 +5,6 @@ This module implements CNNInputTransform which uses convolutional neural network
 to transform inputs into excitatory and inhibitory pathways.
 """
 
-import torch
 import torch.nn as nn
 from typing import List, Tuple
 

@@ -5,6 +5,6 @@ This module contains custom optimizer wrappers and implementations
 for dendritic network training.
 """
 
-from .custom import CustomWeightDecayOptimizer
+from dendritic_modeling.training.optimizers.custom import CustomWeightDecayOptimizer
 
 __all__ = ["CustomWeightDecayOptimizer"] 
