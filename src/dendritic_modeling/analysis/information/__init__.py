@@ -3,10 +3,16 @@ Information analysis subpackage.
 
 This subpackage contains analyzers focused on information theory and mutual information
 analysis for understanding information flow in dendritic networks.
+
+The package now provides an integrated framework with multiple estimation methods:
+- Kraskov (k-nearest neighbors)
+- Scikit-learn (various methods)
+- Copula-based estimation
+- PID (Partial Information Decomposition)
 """
 
-from .mutual_info import EIInformationAnalyzer
-from .branch_info import BranchInformationAnalyzer
+# Legacy imports for backward compatibility
+from .legacy import EIInformationAnalyzer, BranchInformationAnalyzer
 
 # Import from information.py
 from .information import (
@@ -25,11 +31,35 @@ from .pid_utils import (
     pid_synergy_redundancy,
 )
 
+# New integrated framework imports
+from .estimators import (
+    BaseInformationEstimator,
+    KraskovEstimator,
+    SklearnEstimator,
+    CopulaEstimator,
+    EstimatorConfig,
+    EstimationMethod,
+    InformationEstimatorFactory,
+)
+
+from .integrated_analyzer import (
+    IntegratedInformationAnalyzer,
+    IntegratedAnalyzerConfig,
+)
+
+from .config import (
+    InformationAnalysisPreset,
+    ConfigBuilder,
+    load_config_from_dict,
+    save_config_to_dict,
+    EXAMPLE_CONFIGS,
+)
+
 __all__ = [
-    # Analyzer classes
+    # Legacy analyzer classes
     "EIInformationAnalyzer",
     "BranchInformationAnalyzer",
-    # Information theory functions
+    # Legacy information theory functions
     "compute_mi_cc",
     "compute_mi_cd",
     "compute_EI_MI",
@@ -40,4 +70,21 @@ __all__ = [
     # PID utilities
     "check_pid_available",
     "pid_synergy_redundancy",
+    # New framework - Estimators
+    "BaseInformationEstimator",
+    "KraskovEstimator",
+    "SklearnEstimator",
+    "CopulaEstimator",
+    "EstimatorConfig",
+    "EstimationMethod",
+    "InformationEstimatorFactory",
+    # New framework - Integrated analyzer
+    "IntegratedInformationAnalyzer",
+    "IntegratedAnalyzerConfig",
+    # New framework - Configuration
+    "InformationAnalysisPreset",
+    "ConfigBuilder",
+    "load_config_from_dict",
+    "save_config_to_dict",
+    "EXAMPLE_CONFIGS",
 ] 
