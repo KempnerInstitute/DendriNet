@@ -9,16 +9,10 @@ classification, regression, and baseline models.
 from dendritic_modeling.models.base import BaseModel
 
 # Classification models
-from dendritic_modeling.models.classification import (
-    Classifier, 
-    ProbabilisticClassifier
-)
+from dendritic_modeling.models.classifier import Classifier
 
 # Regression models
-from dendritic_modeling.models.regression import (
-    Regressor, 
-    DeepstRegressor
-)
+from dendritic_modeling.models.regressor import Regressor
 
 # Baseline models
 from dendritic_modeling.models.baselines import (
@@ -32,10 +26,8 @@ __all__ = [
     "BaseModel",
     # Classification
     "Classifier",
-    "ProbabilisticClassifier",
     # Regression
     "Regressor",
-    "DeepstRegressor",
     # Baselines
     "SimpleMLP",
     "SimpleClassifier",

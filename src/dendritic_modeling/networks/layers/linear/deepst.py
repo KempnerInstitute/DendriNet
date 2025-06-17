@@ -339,7 +339,7 @@ class DeepstLinear(nn.Module):
             'branch_stats': branch_stats
         }
 
-    def decay_weights(self, weight_decay=0.1):
+    def decay_weights(self, weight_decay=0.1, weight_boost=False):
         """
         Apply weight decay to active synaptic connections.
         

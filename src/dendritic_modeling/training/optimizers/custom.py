@@ -48,6 +48,7 @@ class CustomWeightDecayOptimizer:
         """
         lr = self.optimizer.param_groups[0]["lr"]
         self.model.decay_weights(weight_decay=lr * self.weight_decay)
+        self.model.apply_rewiring()
         self.optimizer.step()
 
 

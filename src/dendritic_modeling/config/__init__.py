@@ -16,7 +16,8 @@ from dendritic_modeling.config.config import (
     OutputsConfig,
     EINetParameters,
     FeedForwardParameters,
-    ModelNetworkConfig,
+    NetworkConfig,
+    BaseModelConfig,
     BaseConfig,
     load_config
 )
@@ -33,7 +34,8 @@ __all__ = [
     "OutputsConfig",
     "EINetParameters",
     "FeedForwardParameters",
-    "ModelNetworkConfig",
+    "NetworkConfig",
+    "BaseModelConfig",
     "BaseConfig",
     "load_config"
 ] 

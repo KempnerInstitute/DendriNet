@@ -1,6 +1,8 @@
 model:
   task: classification  # Options: "classification", "regression"
-  probabilistic: true  # This is only for the final EINet model
+  base:
+    output_layer: true
+    output_dim: 10
   network:
     type: EINet #"EINet", "MLP"
     parameters:
@@ -31,9 +33,6 @@ model:
       topk_strategy: conductance_dynamic
       blocklinear_strategy: conductance_dynamic # "none", "distal_upweight_by_idx", "conductance_dynamic"
       print_hooks: false # Whether to print gradient statistics in hooks
-      # output parameters
-      output_layer: false  ### adding an output classifier layer FC to final dendrinet layer
-      output_dim: 10
 
       # input mode (0=original, 1=exc=x+inh=x, 2=input_net)
       input_mode: 1
@@ -67,7 +66,7 @@ model:
 
 train:
   run_name: exp_run
-  learning_strategy: mle # Options: "mle", "freeze_layers", "local_credit_assignment", "two_step", "two_step_kl", "voltage_stabilization", "mse"
+  learning_strategy: standard # Options: "standard", "freeze_layers", "freeze_branches", "voltage_stabilization", "two_step", "two_step_kl"
   seed: 0
   train_valid_split: 0.8
   optim_dict:
@@ -102,7 +101,7 @@ train:
   
   trainer:
     # for all learning strategies:
-    loss_function: "mse"
+    loss_function: categorical_nll
     epochs: 50
     early_stopping: false
     patience: 10
@@ -110,21 +109,22 @@ train:
     shuffle: true
     grad_clip_value: 5.0
     load_best_state_dict: true
-    plot_losses: false
+    plot_losses: true
     suppress_prints: false
     print_every: 10
     # for learning strategies other than standard:
-    pretrain_epochs: 50
+    pretrain_epochs: 10
     target_voltage: 0.5
+    kl_weight: 0.1
     reverse_training: false
-    epochs_per_layer: 50
-    epochs_per_branch: 50
+    epochs_per_layer: 10
+    epochs_per_branch: 10
     final_tune_epochs: 10
 
 task:
   dataset: cifar10 #mnist, cifar10, mnist_modulo10, random_flip_mnist
   data_path:
-  parameters: {}
+  parameters: {flatten: true, normalize: false}
   # dataset: "line", "center_surround", "orientation_bars", "multi_xor", "mnist", "mnist_modulo10", "mnist_switch2",
             #"mnist_switch10", "info_shunting", "noise_resilience", "feature_selectivity", "context_gating",
             #"learning_dynamics", "hierarchical_processing", "cifar10", "poisson_generator", "orthonet"
@@ -286,5 +286,7 @@ analysis:
         knots: 30           # Number of knots for non-parametric copula (only used when use_nonparametric=true)
         opt_method: LL1     # Optimization method for non-parametric: "LL1", "LL2", etc.
         batch_paral: 1      # Batch parallelization for non-parametric fitting
+
+# Output directory
 outputs:
   dir: ./outputs/

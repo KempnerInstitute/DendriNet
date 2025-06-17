@@ -61,6 +61,7 @@ class EINetParameters(BaseConfig):
     use_noise: bool = True
     sigma: float = 0.05
     rewiring_mode: str = "global"
+    rewire_frequency: int = 1
     synapses_per_branch: Optional[int] = None
     freeze_excitatory_connectivity: bool = False
     freeze_inhibitory_connectivity: bool = False
@@ -78,7 +79,13 @@ class FeedForwardParameters(BaseConfig):
 
 
 @dataclass
-class ModelNetworkConfig(BaseConfig):
+class BaseModelConfig(BaseConfig):
+    output_layer: bool = False
+    output_dim: int = 10
+
+
+@dataclass
+class NetworkConfig(BaseConfig):
     type: str = "EINet"
     parameters: EINetParameters = field(default_factory=EINetParameters)
 
@@ -86,9 +93,8 @@ class ModelNetworkConfig(BaseConfig):
 @dataclass
 class ModelConfig(BaseConfig):
     task: str = "classification"
-    probabilistic: bool = True
-    network: ModelNetworkConfig = field(default_factory=ModelNetworkConfig)
-
+    base: BaseModelConfig = field(default_factory=BaseModelConfig)
+    network: NetworkConfig = field(default_factory=NetworkConfig)
 
 
 @dataclass

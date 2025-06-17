@@ -7,20 +7,22 @@ slurm_config:
   max_concurrent_jobs: 8
   training_script: "/" # path of train_experiments.py
   config_filename_init: "test_config"
-  account: "kempner_dev"
+  account: 
   nodes: 1
   ntasks_per_node: 1
   gpus_per_node: 1
   cpus_per_task: 10
   mem: 200GB
   time: "0:30:00"
-  partition: "kempner_h100"
+  partition: 
   run_name: "dendritic_model_sweep_job"
 
 train_config:
   model:
     task: "classification"
-    probabilistic: false  # Updated to match config_exp.yaml
+    base:
+      output_layer: true
+      output_dim: 10
     network:
       type: "EINet"
       parameters:
@@ -45,9 +47,6 @@ train_config:
         reactivation_strategy: "inverse"
         blocklinear_strategy: "block_conductance_dynamic"
 
-        output_layer: false
-        output_dim: 10
-
         input_mode: 0
         input_net_dict:
           type: "CNNInputTransform"  # Type of input network: "IndexInputTransform", "MLPInputTransform", "AlexNetTransform", etc.
@@ -64,7 +63,7 @@ train_config:
           inhibitory_strides: [1]
 
   train:
-    learning_strategy: "mle"
+    learning_strategy: "standard"
     run_name: "dendritic_sweep_run"
     seed: 0
     train_valid_split: 0.8
@@ -90,7 +89,7 @@ train_config:
         pytorch_model: ""
     trainer:
       # for all learning strategies:
-      loss_function: "mse"
+      loss_function: "categorical_nll"
       epochs: 50
       early_stopping: false
       patience: 10
@@ -98,7 +97,7 @@ train_config:
       shuffle: true
       grad_clip_value: 5.0
       load_best_state_dict: true
-      plot_losses: false
+      plot_losses: true
       suppress_prints: false
       print_every: 10
       # for learning strategies other than standard:
