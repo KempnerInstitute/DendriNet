@@ -194,9 +194,12 @@ analysis:
     enabled: false
     training: false
     params:
-      ablate_synapses: true
+      layer_ablation: true
+      compartment_ablation: true
+      ablate_all_synapses: true
+      ablate_excitation: true
       ablate_inhibition: true
-      ablate_branches: true
+      ablate_upstream: true
       accuracy: true
       categorical_loglikelihood: true
   weight_analysis:
@@ -236,18 +239,6 @@ analysis:
     enabled: true  # whether to enable single layer contribution analysis
     training: false  # Whether to run during training
     params:
-      save_plots: true
-      save_csv: true
-
-  # Synaptic ablation analysis (formerly branch_ablation)
-  # Removes specific synapses while keeping the rest of the network intact
-  synaptic_ablation:
-    enabled: true  # Whether to enable synaptic ablation analysis
-    training: false  # Whether to run during training
-    params:
-      ablation_type: "whole_layer"  # Options: "whole_layer" or "single_branch"
-      layers_to_analyze: []  # Empty list means analyze all layers, or specify [0, 1, 2]
-      mode: "direct"  # Options: "direct" (zero weights) or "full"
       save_plots: true
       save_csv: true
 

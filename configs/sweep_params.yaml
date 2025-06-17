@@ -165,10 +165,12 @@ train_config:
       enabled: false
       training: false
       params:
+        layer_ablation: true
+        compartment_ablation: true
         ablate_all_synapses: true
         ablate_excitation: true
         ablate_inhibition: true
-        ablate_branches: true
+        ablate_upstream: true
         accuracy: true
         categorical_loglikelihood: true
     weight_analysis:
