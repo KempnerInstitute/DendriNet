@@ -10,11 +10,11 @@ import torch.nn as nn
 from typing import List, Dict, Any
 from copy import deepcopy
 
-from dendritic_modeling.networks.layers.dendritic import ExcitationInhibitionLayer
 from dendritic_modeling.networks.input_transforms import InputNetTransform
+from dendritic_modeling.networks.layers.dendritic import ExcitationInhibitionLayer
+from dendritic_modeling.networks.base import BaseNetwork
 
-
-class ExcitationInhibitionNetwork(nn.Module):
+class ExcitationInhibitionNetwork(BaseNetwork):
     """
     A neural network model that implements excitatory and inhibitory pathways.
     This is a placeholder implementation based on common patterns.
@@ -27,7 +27,6 @@ class ExcitationInhibitionNetwork(nn.Module):
         inhibitory_layer_sizes: List[int],
         excitatory_branch_factors: List[int],
         inhibitory_branch_factors: List[int],
-        output_dim: int = 10,
         reactivate: bool = True,
         reactivation_init_m: float = 1.5,
         reactivation_init_b: float = 0.5,
@@ -41,10 +40,8 @@ class ExcitationInhibitionNetwork(nn.Module):
         reactivation_strategy: str = "inverse",
         blocklinear_strategy: str = "conductance_dynamic",
         enable_branch_outputs: bool = False,
-        output_layer: bool = False,
         input_mode: int = 0,
         input_net_dict: Dict[str, Any] = None,
-        learning_strategy: str = "mle",
         topk_init_method: str = "xavier_normal",
         topk_strategy: str = "conductance_dynamic",
         topk_type: str = "standard",
@@ -54,6 +51,7 @@ class ExcitationInhibitionNetwork(nn.Module):
         use_noise=True,
         sigma=0.05,
         rewiring_mode="global",
+        rewire_frequency=1,
         synapses_per_branch=None,
         freeze_excitatory_connectivity=False,
         freeze_inhibitory_connectivity=False,
@@ -63,7 +61,7 @@ class ExcitationInhibitionNetwork(nn.Module):
     ):
         super().__init__()
         self.input_dim = input_dim
-        self.output_dim = output_dim
+        self.output_dim = excitatory_layer_sizes[-1]
         self.excitatory_layer_sizes = excitatory_layer_sizes
         self.inhibitory_layer_sizes = inhibitory_layer_sizes
         self.excitatory_branch_factors = excitatory_branch_factors
@@ -89,10 +87,8 @@ class ExcitationInhibitionNetwork(nn.Module):
         self.reactivation_strategy = reactivation_strategy
         self.blocklinear_strategy = blocklinear_strategy
         self.enable_branch_outputs = enable_branch_outputs
-        self.output_layer = output_layer
         self.input_mode = input_mode
         self.input_net_dict = input_net_dict if input_net_dict else {}
-        self.learning_strategy = learning_strategy
         self.topk_init_method = topk_init_method
         self.topk_strategy = topk_strategy
         self.topk_type = topk_type
@@ -103,6 +99,7 @@ class ExcitationInhibitionNetwork(nn.Module):
         self.use_noise = use_noise
         self.sigma = sigma
         self.rewiring_mode = rewiring_mode
+        self.rewire_frequency = rewire_frequency
         self.synapses_per_branch = synapses_per_branch
         self.freeze_excitatory_connectivity = freeze_excitatory_connectivity
         self.freeze_inhibitory_connectivity = freeze_inhibitory_connectivity
@@ -126,10 +123,6 @@ class ExcitationInhibitionNetwork(nn.Module):
 
         # Set up network layers
         self.setup_network_layers()
-
-        # Set up output layer if needed
-        if self.output_layer:
-            self.setup_output_layer()
 
         # Save branch activations if enabled
         self.branch_activations = [] if enable_branch_outputs else None
@@ -264,6 +257,7 @@ class ExcitationInhibitionNetwork(nn.Module):
                 use_noise=self.use_noise,
                 sigma=self.sigma,
                 rewiring_mode=self.rewiring_mode,
+                rewire_frequency=self.rewire_frequency,
                 synapses_per_branch=self.synapses_per_branch,
                 freeze_excitatory_connectivity=self.freeze_excitatory_connectivity,
                 freeze_inhibitory_connectivity=self.freeze_inhibitory_connectivity,
@@ -275,16 +269,13 @@ class ExcitationInhibitionNetwork(nn.Module):
         # Create ModuleList with the layers
         self.layers = nn.ModuleList(layers)
 
-    def setup_output_layer(self):
-        """Set up the output classification layer"""
-        final_exc_size = (
-            self.excitatory_layer_sizes[-1] if self.excitatory_layer_sizes else 0
-        )
-        self.output_classifier = nn.Linear(final_exc_size, self.output_dim)
-
     def decay_weights(self, weight_decay):
         for layer in self.layers:
             layer.decay_weights(weight_decay)
+
+    def apply_rewiring(self):
+        for layer in self.layers:
+            layer.apply_rewiring()
 
     def forward(self, x):
         """
@@ -297,48 +288,37 @@ class ExcitationInhibitionNetwork(nn.Module):
         """
         # Handle the input based on input_mode
         if self.input_mode == 0:
-            excitatory_input = x
-            inhibitory_input = None
+            excitatory_x = x
+            inhibitory_x = None
         elif self.input_mode == 1:
-            excitatory_input = x
-            inhibitory_input = x
+            excitatory_x = x
+            inhibitory_x = x
         elif self.input_mode == 2:
             if self.input_net is not None:
-                excitatory_input, inhibitory_input = self.input_net(x)
+                excitatory_x, inhibitory_x = self.input_net(x)
             else:
                 # Fallback if input_net is not initialized
-                excitatory_input = x
-                inhibitory_input = None
+                excitatory_x = x
+                inhibitory_x = None
         else:
             raise ValueError(f"Unknown input_mode={self.input_mode}")
 
-        # Forward through each layer
-        excitatory_output, inhibitory_output = self.layers[0](
-            excitatory_input, inhibitory_input
-        )
-
-        for i in range(1, len(self.layers)):
+        for i in range(len(self.layers)):
             # Each layer receives the previous layer's outputs
-            excitatory_output, inhibitory_output = self.layers[i](
-                excitatory_output, inhibitory_output
+            excitatory_x, inhibitory_x = self.layers[i](
+                excitatory_x, inhibitory_x
             )
-
-        # Apply output layer if enabled
-        if self.output_layer and hasattr(self, "output_classifier"):
-            output = self.output_classifier(excitatory_output)
-        else:
-            output = excitatory_output
 
         # Store branch activations if enabled
         if self.enable_branch_outputs:
             self.branch_activations = {
-                "excitatory": [excitatory_output],
-                "inhibitory": [inhibitory_output]
-                if inhibitory_output is not None
+                "excitatory": [excitatory_x],
+                "inhibitory": [inhibitory_x]
+                if inhibitory_x is not None
                 else [],
             }
 
-        return output
+        return excitatory_x
 
     def get_branch_activations(self):
         """Return branch activations if enabled"""

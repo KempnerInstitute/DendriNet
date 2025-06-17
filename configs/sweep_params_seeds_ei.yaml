@@ -2,7 +2,7 @@
 # This config demonstrates a sweep of EE and IE synapse counts with multiple seeds
 
 slurm_config:
-  account: kempner_dev
+  account: 
   run_name: dendritic_ei_sweep
   output_dir:
   create_subdir_with_timestamp: true  # This will create a subdirectory with ei_timestamp
@@ -17,7 +17,7 @@ slurm_config:
   cpus_per_task: 10
   time: 0:30:00
   mem: 400GB
-  partition: kempner_h100
+  partition: 
   max_concurrent_jobs: 8
   modules_to_load:
     - python/3.12.5-fasrc01
@@ -35,7 +35,9 @@ experiment_settings:
 train_config:
   model:
     task: "classification"
-    probabilistic: false
+    base:
+      output_layer: true
+      output_dim: 10
     network:
       type: "EINet"
       parameters:
@@ -60,8 +62,6 @@ train_config:
         reactivation_strategy: "inverse"
         blocklinear_strategy: "conductance_dynamic"
         print_hooks: false
-        output_layer: false
-        output_dim: 10
         input_mode: 0
         input_net_dict:
           type: "CNNInputTransform"  # Type of input network: "IndexInputTransform", "MLPInputTransform", "AlexNetTransform", etc.
@@ -78,7 +78,7 @@ train_config:
           inhibitory_strides: [1]
 
   train:
-    learning_strategy: "mle"
+    learning_strategy: "standard"
     run_name: "dendritic_ei_sweep"
     seed: 0  # This will be overridden for each run
     train_valid_split: 0.8
@@ -104,7 +104,7 @@ train_config:
         pytorch_model: ""
     trainer:
       # for all learning strategies:
-      loss_function: "mse"
+      loss_function: "categorical_nll"
       epochs: 50
       early_stopping: false
       patience: 10
@@ -112,7 +112,7 @@ train_config:
       shuffle: true
       grad_clip_value: 5.0
       load_best_state_dict: true
-      plot_losses: false
+      plot_losses: true
       suppress_prints: false
       print_every: 10
       # for learning strategies other than standard:
