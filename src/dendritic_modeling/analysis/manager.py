@@ -45,8 +45,7 @@ from dendritic_modeling.analysis.performance.noise import NoisePerturbationAnaly
 from dendritic_modeling.analysis.performance.ablation import AblationAnalyzer
 from dendritic_modeling.analysis.performance.layers import SingleLayerContributionAnalyzer
 from dendritic_modeling.analysis.performance.synaptic_ablation import SynapticAblationAnalyzer
-from dendritic_modeling.analysis.information.mutual_info import EIInformationAnalyzer
-from dendritic_modeling.analysis.information.branch_info import BranchInformationAnalyzer
+from dendritic_modeling.analysis.information import EIInformationAnalyzer, BranchInformationAnalyzer
 from dendritic_modeling.analysis.synaptic.turnover import SynapticTurnoverAnalyzer
 from dendritic_modeling.analysis.synaptic.weights import WeightAnalyzer
 from dendritic_modeling.analysis.activations.synaptic import SynapticActivationAnalyzer

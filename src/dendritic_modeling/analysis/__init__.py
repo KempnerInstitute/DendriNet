@@ -13,8 +13,7 @@ from .performance.layers import SingleLayerContributionAnalyzer
 from .performance.synaptic_ablation import SynapticAblationAnalyzer
 
 # Information analysis
-from .information.mutual_info import EIInformationAnalyzer
-from .information.branch_info import BranchInformationAnalyzer
+from .information import EIInformationAnalyzer, BranchInformationAnalyzer
 
 # Activation analysis
 from .activations.synaptic import SynapticActivationAnalyzer
