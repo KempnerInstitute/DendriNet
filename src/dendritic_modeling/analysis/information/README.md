@@ -115,14 +115,34 @@ config = ConfigBuilder() \
     .build()
 ```
 
-### From Configuration Dict
+### From Main Config System (Recommended)
+
+```python
+from dendritic_modeling.config import load_config
+from dendritic_modeling.analysis.information import (
+    IntegratedInformationAnalyzer,
+    create_analyzer_config_from_main_config
+)
+
+# Load YAML config
+config = load_config("configs/example_information_analysis.yaml")
+
+# Create analyzer from main config
+info_config = create_analyzer_config_from_main_config(
+    config.analysis.information_analysis
+)
+analyzer = IntegratedInformationAnalyzer(info_config)
+
+# Run analysis
+results = analyzer.analyze(E, I, Vout, C, Vinf)
+```
+
+### From Dictionary
 
 ```python
 config_dict = {
-    "estimator_config": {
-        "method": "sklearn",
-        "n_bins": 30,
-    },
+    "method": "sklearn",
+    "n_bins": 30,
     "compute_basic_mi": True,
     "compute_pairwise_mi": True,
     "compute_conditional_mi": False,
@@ -130,7 +150,13 @@ config_dict = {
     "normalize_mi": True,
 }
 
-analyzer = IntegratedInformationAnalyzer.from_config_dict(config_dict)
+# Convert to analyzer config
+from dendritic_modeling.analysis.information import (
+    create_analyzer_config_from_main_config
+)
+
+info_config = create_analyzer_config_from_main_config(config_dict)
+analyzer = IntegratedInformationAnalyzer(info_config)
 ```
 
 ## Usage Examples
