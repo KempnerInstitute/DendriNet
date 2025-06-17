@@ -47,12 +47,10 @@ from .integrated_analyzer import (
     IntegratedAnalyzerConfig,
 )
 
-from .config import (
+from .config_utils import (
+    create_analyzer_config_from_main_config,
     InformationAnalysisPreset,
-    ConfigBuilder,
-    load_config_from_dict,
-    save_config_to_dict,
-    EXAMPLE_CONFIGS,
+    EXAMPLE_YAML_CONFIGS,
 )
 
 __all__ = [
@@ -82,9 +80,7 @@ __all__ = [
     "IntegratedInformationAnalyzer",
     "IntegratedAnalyzerConfig",
     # New framework - Configuration
+    "create_analyzer_config_from_main_config",
     "InformationAnalysisPreset",
-    "ConfigBuilder",
-    "load_config_from_dict",
-    "save_config_to_dict",
-    "EXAMPLE_CONFIGS",
+    "EXAMPLE_YAML_CONFIGS",
 ] 

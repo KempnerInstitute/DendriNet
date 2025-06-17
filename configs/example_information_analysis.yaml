@@ -1,0 +1,177 @@
+# Example configuration for the integrated information analysis framework
+# This file demonstrates various configurations for computing information-theoretic metrics
+# in dendritic networks using different estimation methods.
+
+model:
+  task: classification
+  probabilistic: true
+  network:
+    type: EINet
+    parameters:
+      excitatory_layer_sizes: [10]
+      inhibitory_layer_sizes: [40]
+      excitatory_branch_factors: [2,2]
+      inhibitory_branch_factors: []
+      ee_synapses_per_branch_per_layer: [100]
+      ei_synapses_per_branch_per_layer: [200]
+      ie_synapses_per_branch_per_layer: [10]
+      ii_synapses_per_branch_per_layer: [0]
+      somatic_synapses: true
+      use_shunting: true
+      reactivate: true
+      input_mode: 1
+
+train:
+  run_name: info_analysis_demo
+  learning_strategy: mle
+  seed: 0
+  epochs: 10
+  batch_size: 128
+
+task:
+  dataset: mnist
+  data_path:
+
+analysis:
+  # Other analysis modules (disabled for this example)
+  performance_analysis:
+    enabled: false
+  
+  # ============================================================
+  # NEW INTEGRATED INFORMATION ANALYSIS
+  # ============================================================
+  information_analysis:
+    # Method selection: "kraskov", "sklearn", "copula", "auto"
+    method: kraskov
+    
+    # Method-specific parameters
+    n_neighbors: 10      # For Kraskov k-NN estimator
+    n_bins: 20          # For sklearn histogram-based estimation
+    copula_type: gaussian  # For copula method: "gaussian", "t", etc.
+    
+    # Which metrics to compute
+    compute_basic_mi: true      # I(E;C), I(I;C), I(Vout;C), I(Vinf;C), I(E,I;C)
+    compute_pairwise_mi: true   # I(E;I), I(E;Vout), I(I;Vout), I(E;Vinf), etc.
+    compute_conditional_mi: true # I(E;I|C), I(E;Vout|C), I(I;Vout|C), etc.
+    compute_pid: false          # Partial Information Decomposition (requires external library)
+    
+    # PID configuration (only used if compute_pid: true)
+    pid_binarize: true          # Whether to binarize data for PID
+    pid_binarize_method: median # "median", "mean", "quantile"
+    pid_binarize_threshold: 0.5 # Threshold for quantile method
+    
+    # Additional options
+    include_vinf: true     # Include soma activation (Vinf) in computations
+    normalize_mi: false    # Normalize MI values by entropy
+    verbose: false         # Enable detailed logging
+
+# ============================================================
+# EXAMPLE CONFIGURATIONS FOR DIFFERENT USE CASES
+# ============================================================
+
+# Example 1: Fast analysis with sklearn
+# Uncomment to use:
+# analysis:
+#   information_analysis:
+#     method: sklearn
+#     n_bins: 20
+#     compute_basic_mi: true
+#     compute_pairwise_mi: true
+#     compute_conditional_mi: false  # Skip for speed
+#     compute_pid: false
+#     normalize_mi: true             # Normalize for interpretability
+
+# Example 2: High-precision Kraskov analysis
+# Uncomment to use:
+# analysis:
+#   information_analysis:
+#     method: kraskov
+#     n_neighbors: 15               # More neighbors for better accuracy
+#     compute_basic_mi: true
+#     compute_pairwise_mi: true
+#     compute_conditional_mi: true
+#     compute_pid: false
+#     include_vinf: true
+
+# Example 3: Copula-based analysis for non-linear dependencies
+# Uncomment to use:
+# analysis:
+#   information_analysis:
+#     method: copula
+#     copula_type: gaussian
+#     compute_basic_mi: false       # Focus on conditional metrics
+#     compute_pairwise_mi: false
+#     compute_conditional_mi: true  # Copula excels at conditional MI
+#     compute_pid: false
+
+# Example 4: PID decomposition focus
+# Uncomment to use:
+# analysis:
+#   information_analysis:
+#     method: kraskov
+#     n_neighbors: 5                # Fewer neighbors for PID stability
+#     compute_basic_mi: true        # Required for PID context
+#     compute_pairwise_mi: false
+#     compute_conditional_mi: false
+#     compute_pid: true
+#     pid_binarize: true
+#     pid_binarize_method: median
+
+# Example 5: Minimal configuration for basic MI only
+# Uncomment to use:
+# analysis:
+#   information_analysis:
+#     method: auto                  # Automatically select best method
+#     compute_basic_mi: true
+#     compute_pairwise_mi: false
+#     compute_conditional_mi: false
+#     compute_pid: false
+
+outputs:
+  dir: ./outputs/information_analysis/
+
+# ============================================================
+# USAGE NOTES
+# ============================================================
+# 
+# The integrated information analysis framework computes various
+# information-theoretic metrics between:
+# - E: Excitatory inputs to branches
+# - I: Inhibitory inputs to branches
+# - Vout: Branch outputs (after shunting inhibition)
+# - C: Class labels
+# - Vinf: Soma activation (optional)
+#
+# Available metrics:
+# 1. Basic MI: I(E;C), I(I;C), I(Vout;C), I(Vinf;C), I(E,I;C)
+# 2. Pairwise MI: I(E;I), I(E;Vout), I(I;Vout), etc.
+# 3. Conditional MI: I(E;I|C), I(E;Vout|C), etc.
+# 4. PID: Synergy, redundancy, and unique information
+#
+# Method selection guide:
+# - kraskov: Best general-purpose, handles multivariate well
+# - sklearn: Fast, good for discrete/mixed data
+# - copula: Captures complex dependencies, slower
+# - auto: Automatically selects based on data properties
+#
+# To use in your code:
+# ```python
+# from dendritic_modeling.config import load_config
+# from dendritic_modeling.analysis.information import (
+#     IntegratedInformationAnalyzer,
+#     create_analyzer_config_from_main_config
+# )
+# 
+# # Load config
+# config = load_config("configs/example_information_analysis.yaml")
+# 
+# # Create analyzer
+# info_config = create_analyzer_config_from_main_config(
+#     config.analysis.information_analysis
+# )
+# analyzer = IntegratedInformationAnalyzer(info_config)
+# 
+# # Analyze your data
+# results = analyzer.analyze(E, I, Vout, C, Vinf)
+# print(analyzer.get_summary(results))
+# ``` 

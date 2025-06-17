@@ -9,13 +9,11 @@ from typing import Dict, Any
 
 # Import the integrated framework
 from .integrated_analyzer import IntegratedInformationAnalyzer
-from .config import (
-    ConfigBuilder,
+from .config_utils import (
+    create_analyzer_config_from_main_config,
     InformationAnalysisPreset,
-    load_config_from_dict,
-    save_config_to_dict
 )
-from .estimators import EstimationMethod
+from .estimators import EstimationMethod, EstimatorConfig
 
 
 def example_basic_usage():
@@ -40,7 +38,8 @@ def example_basic_usage():
     Vinf = np.tanh(np.mean(Vout, axis=1))
     
     # Create analyzer with default configuration
-    config = InformationAnalysisPreset.full_analysis(method="kraskov")
+    preset_dict = InformationAnalysisPreset.full_analysis(method="kraskov")
+    config = create_analyzer_config_from_main_config(preset_dict)
     analyzer = IntegratedInformationAnalyzer(config)
     
     # Run analysis
@@ -70,10 +69,14 @@ def example_method_comparison():
         print(f"\nAnalyzing with {method} method...")
         
         # Create configuration for this method
-        config = ConfigBuilder() \
-            .with_method(method) \
-            .with_metrics(basic=True, pairwise=True, conditional=False, pid=False) \
-            .build()
+        config_dict = {
+            "method": method,
+            "compute_basic_mi": True,
+            "compute_pairwise_mi": True,
+            "compute_conditional_mi": False,
+            "compute_pid": False,
+        }
+        config = create_analyzer_config_from_main_config(config_dict)
         
         # Create analyzer and run
         analyzer = IntegratedInformationAnalyzer(config)
@@ -94,35 +97,40 @@ def example_custom_configuration():
     """Example with custom configuration."""
     print("\n=== Custom Configuration Example ===\n")
     
-    # Build custom configuration using the builder
-    config = ConfigBuilder() \
-        .with_method("kraskov") \
-        .with_metrics(basic=True, pairwise=False, conditional=True, pid=True) \
-        .with_kraskov_params(n_neighbors=5) \
-        .with_pid_params(binarize=True, binarize_method="median") \
-        .with_options(include_vinf=False, normalize_mi=True, verbose=True) \
-        .build()
-    
-    # Or load from dictionary (e.g., from a config file)
+    # Create custom configuration using dictionary
     config_dict = {
-        "estimator_config": {
-            "method": "sklearn",
-            "n_bins": 30,
-        },
+        "method": "kraskov",
+        "n_neighbors": 5,
         "compute_basic_mi": True,
         "compute_pairwise_mi": False,
         "compute_conditional_mi": True,
-        "compute_pid": False,
+        "compute_pid": True,
+        "pid_binarize": True,
+        "pid_binarize_method": "median",
+        "include_vinf": False,
         "normalize_mi": True,
+        "verbose": True,
     }
     
-    config_from_dict = load_config_from_dict(config_dict)
+    config = create_analyzer_config_from_main_config(config_dict)
     
-    # Save configuration for later use
-    saved_config = save_config_to_dict(config)
-    print(f"Saved configuration: {saved_config}")
+    # Alternative: using main config system
+    from dendritic_modeling.config import InformationAnalysisConfig
+    main_config = InformationAnalysisConfig(
+        method="sklearn",
+        n_bins=30,
+        compute_basic_mi=True,
+        compute_pairwise_mi=False,
+        compute_conditional_mi=True,
+        compute_pid=False,
+        normalize_mi=True,
+    )
     
-    return config, config_from_dict
+    config_from_main = create_analyzer_config_from_main_config(main_config)
+    
+    print(f"Created custom configuration with method: {config.estimator_config.method}")
+    
+    return config, config_from_main
 
 
 def example_conditional_mi_analysis():
@@ -146,7 +154,8 @@ def example_conditional_mi_analysis():
     Vout = E + I + 0.1 * np.random.randn(n_samples)
     
     # Use conditional analysis preset
-    config = InformationAnalysisPreset.conditional_analysis(method="kraskov")
+    preset_dict = InformationAnalysisPreset.conditional_analysis(method="kraskov")
+    config = create_analyzer_config_from_main_config(preset_dict)
     analyzer = IntegratedInformationAnalyzer(config)
     
     results = analyzer.analyze(E, I, Vout, C)
@@ -179,7 +188,8 @@ def example_pid_analysis():
     Vout = E + I + synergy_component
     
     # Configure for PID analysis
-    config = InformationAnalysisPreset.pid_analysis(method="kraskov")
+    preset_dict = InformationAnalysisPreset.pid_analysis(method="kraskov")
+    config = create_analyzer_config_from_main_config(preset_dict)
     analyzer = IntegratedInformationAnalyzer(config)
     
     results = analyzer.analyze(E, I, Vout, C)
@@ -206,11 +216,15 @@ def example_batch_analysis():
     }
     
     # Use the same configuration for all
-    config = ConfigBuilder() \
-        .with_method("sklearn") \
-        .with_metrics(basic=True, pairwise=True, conditional=False, pid=False) \
-        .with_sklearn_params(n_bins=20) \
-        .build()
+    config_dict = {
+        "method": "sklearn",
+        "n_bins": 20,
+        "compute_basic_mi": True,
+        "compute_pairwise_mi": True,
+        "compute_conditional_mi": False,
+        "compute_pid": False,
+    }
+    config = create_analyzer_config_from_main_config(config_dict)
     
     analyzer = IntegratedInformationAnalyzer(config)
     
