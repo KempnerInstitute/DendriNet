@@ -19,7 +19,6 @@ from dendritic_modeling.analysis.performance.metrics import PerformanceAnalyzer
 from dendritic_modeling.analysis.performance.noise import NoisePerturbationAnalyzer
 from dendritic_modeling.analysis.performance.ablation import AblationAnalyzer
 from dendritic_modeling.analysis.performance.layers import SingleLayerContributionAnalyzer
-from dendritic_modeling.analysis.performance.synaptic_ablation import SynapticAblationAnalyzer
 from dendritic_modeling.analysis.information.mutual_info import EIInformationAnalyzer
 from dendritic_modeling.analysis.information.branch_info import BranchInformationAnalyzer
 from dendritic_modeling.analysis.synaptic.turnover import SynapticTurnoverAnalyzer
@@ -118,26 +117,6 @@ class AnalysisManager:
             # Get batch_size from train config
             batch_size = self.train_config.get("batch_size", 32)
             self.single_layer_analyzer = SingleLayerContributionAnalyzer(
-                batch_size=batch_size,
-                device=self.device,
-                save_plots=params.get("save_plots", True),
-                save_csv=params.get("save_csv", True),
-            )
-
-        # Initialize Synaptic Ablation Analysis (formerly branch_ablation)
-        synaptic_ablation_config = self.config.synaptic_ablation
-        self.synaptic_ablation_enabled = synaptic_ablation_config.get("enabled", False)
-        self.synaptic_ablation_training = synaptic_ablation_config.get(
-            "training", False
-        )
-        if self.synaptic_ablation_enabled:
-            params = synaptic_ablation_config.get("params", {})
-            # Get batch_size from train config
-            batch_size = self.train_config.get("batch_size", 32)
-            self.synaptic_ablation_analyzer = SynapticAblationAnalyzer(
-                ablation_type=params.get("ablation_type", "whole_layer"),
-                layers_to_analyze=params.get("layers_to_analyze", []),
-                mode=params.get("mode", "direct"),
                 batch_size=batch_size,
                 device=self.device,
                 save_plots=params.get("save_plots", True),
@@ -299,17 +278,6 @@ class AnalysisManager:
                 model=self.model,
                 test_dataset=self.data["test"],
                 save_path=os.path.join(self.save_root, "single_layer_contribution"),
-                filename=filename,
-            )
-
-        # Synaptic Ablation Analysis
-        if self.synaptic_ablation_enabled and (
-            (self.synaptic_ablation_training and training) or not training
-        ):
-            self.synaptic_ablation_analyzer.analyze(
-                model=self.model,
-                test_dataset=self.data["test"],
-                save_path=os.path.join(self.save_root, "synaptic_ablation"),
                 filename=filename,
             )
 
