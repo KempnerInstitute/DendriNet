@@ -1,20 +1,12 @@
 """
 Information analysis subpackage.
 
-This subpackage contains analyzers focused on information theory and mutual information
-analysis for understanding information flow in dendritic networks.
-
-The package now provides an integrated framework with multiple estimation methods:
-- Kraskov (k-nearest neighbors)
-- Scikit-learn (various methods)
-- Copula-based estimation
-- PID (Partial Information Decomposition)
+This subpackage provides unified information-theoretic analysis for dendritic networks,
+including mutual information, conditional mutual information, and partial information decomposition.
+Uses multivariate methods from information.py as the core computation engine.
 """
 
-# Legacy imports for backward compatibility
-from .legacy import EIInformationAnalyzer, BranchInformationAnalyzer
-
-# Import from information.py
+# Core computation functions (multivariate-aware)
 from .information import (
     compute_mi_cc,
     compute_mi_cd,
@@ -25,39 +17,17 @@ from .information import (
     compute_synaptic_information,
 )
 
-# Import from pid_utils.py
+# PID utilities
 from .pid_utils import (
     check_pid_available,
     pid_synergy_redundancy,
 )
 
-# New integrated framework imports
-from .estimators import (
-    BaseInformationEstimator,
-    KraskovEstimator,
-    SklearnEstimator,
-    CopulaEstimator,
-    EstimatorConfig,
-    EstimationMethod,
-    InformationEstimatorFactory,
-)
-
-from .integrated_analyzer import (
-    IntegratedInformationAnalyzer,
-    IntegratedAnalyzerConfig,
-)
-
-from .config_utils import (
-    create_analyzer_config_from_main_config,
-    InformationAnalysisPreset,
-    EXAMPLE_YAML_CONFIGS,
-)
+# Main integrated analyzer
+from .integrated_analyzer import IntegratedInformationAnalyzer
 
 __all__ = [
-    # Legacy analyzer classes
-    "EIInformationAnalyzer",
-    "BranchInformationAnalyzer",
-    # Legacy information theory functions
+    # Core computation functions
     "compute_mi_cc",
     "compute_mi_cd",
     "compute_EI_MI",
@@ -68,19 +38,6 @@ __all__ = [
     # PID utilities
     "check_pid_available",
     "pid_synergy_redundancy",
-    # New framework - Estimators
-    "BaseInformationEstimator",
-    "KraskovEstimator",
-    "SklearnEstimator",
-    "CopulaEstimator",
-    "EstimatorConfig",
-    "EstimationMethod",
-    "InformationEstimatorFactory",
-    # New framework - Integrated analyzer
+    # Main analyzer
     "IntegratedInformationAnalyzer",
-    "IntegratedAnalyzerConfig",
-    # New framework - Configuration
-    "create_analyzer_config_from_main_config",
-    "InformationAnalysisPreset",
-    "EXAMPLE_YAML_CONFIGS",
 ] 

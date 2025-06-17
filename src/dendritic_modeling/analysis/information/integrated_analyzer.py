@@ -1,74 +1,82 @@
 """Integrated information analyzer for dendritic networks.
 
 This module provides a unified interface for computing various information-theoretic
-metrics using different estimation methods. It supports:
-- Multiple mutual information computations
-- Conditional mutual information
-- Partial Information Decomposition (PID)
-- Method selection via configuration
+metrics using the multivariate methods from information.py. It integrates seamlessly
+with the main configuration system.
 """
 
 from typing import Dict, List, Optional, Tuple, Union, Any
 import numpy as np
 import logging
-from dataclasses import dataclass, field
 
 from .estimators import (
     BaseInformationEstimator,
     EstimatorConfig,
-    EstimationMethod,
     InformationEstimatorFactory
 )
 from .pid_utils import check_pid_available, pid_synergy_redundancy
 
 
-@dataclass
-class IntegratedAnalyzerConfig:
-    """Configuration for the integrated information analyzer."""
-    # Estimator configuration
-    estimator_config: Union[EstimatorConfig, Dict] = field(default_factory=lambda: EstimatorConfig())
-    
-    # Which metrics to compute
-    compute_basic_mi: bool = True  # I(E;C), I(I;C), I(Vout;C)
-    compute_pairwise_mi: bool = True  # I(E;I), I(E;Vout), I(I;Vout), etc.
-    compute_conditional_mi: bool = True  # I(E;I|C), I(E;Vout|C), etc.
-    compute_pid: bool = True  # PID decomposition
-    
-    # PID configuration
-    pid_binarize: bool = True  # Whether to binarize data for PID
-    pid_binarize_method: str = "median"  # Method for binarization: "median", "mean", "quantile"
-    pid_binarize_threshold: float = 0.5  # Threshold for quantile method
-    
-    # Additional options
-    include_vinf: bool = True  # Include Vinf (soma activation) in computations
-    normalize_mi: bool = False  # Normalize MI values by entropy
-    verbose: bool = False
-    
-    def __post_init__(self):
-        if isinstance(self.estimator_config, dict):
-            self.estimator_config = EstimatorConfig(**self.estimator_config)
-
-
 class IntegratedInformationAnalyzer:
-    """Unified analyzer for computing information-theoretic metrics in dendritic networks."""
+    """Unified analyzer for computing information-theoretic metrics in dendritic networks.
     
-    def __init__(self, config: Union[IntegratedAnalyzerConfig, Dict]):
-        """Initialize the analyzer with configuration."""
-        if isinstance(config, dict):
-            self.config = IntegratedAnalyzerConfig(**config)
-        else:
-            self.config = config
+    This analyzer uses the multivariate-aware methods from information.py to compute
+    mutual information between excitatory inputs, inhibitory inputs, branch outputs,
+    and class labels. It supports continuous multivariate data natively.
+    """
+    
+    def __init__(self, config: Union[Dict, Any]):
+        """Initialize the analyzer with configuration from main YAML config.
         
+        Parameters
+        ----------
+        config : InformationAnalysisConfig or dict
+            Configuration from the main config system (analysis.information_analysis)
+        """
+        # Handle both dict and dataclass configs
+        if hasattr(config, '__dict__'):
+            # It's a dataclass, convert to dict
+            config_dict = {k: v for k, v in config.__dict__.items()}
+        else:
+            config_dict = config
+            
         self.logger = logging.getLogger(self.__class__.__name__)
-        if self.config.verbose:
+        
+        # Extract configuration parameters
+        self.method = config_dict.get("method", "kraskov")
+        self.n_neighbors = config_dict.get("n_neighbors", 10)
+        self.n_bins = config_dict.get("n_bins", 20)
+        self.copula_type = config_dict.get("copula_type", "gaussian")
+        
+        self.compute_basic_mi = config_dict.get("compute_basic_mi", True)
+        self.compute_pairwise_mi = config_dict.get("compute_pairwise_mi", True)
+        self.compute_conditional_mi = config_dict.get("compute_conditional_mi", True)
+        self.compute_pid = config_dict.get("compute_pid", False)
+        
+        self.pid_binarize = config_dict.get("pid_binarize", True)
+        self.pid_binarize_method = config_dict.get("pid_binarize_method", "median")
+        self.pid_binarize_threshold = config_dict.get("pid_binarize_threshold", 0.5)
+        
+        self.include_vinf = config_dict.get("include_vinf", True)
+        self.normalize_mi = config_dict.get("normalize_mi", False)
+        self.verbose = config_dict.get("verbose", False)
+        
+        if self.verbose:
             self.logger.setLevel(logging.DEBUG)
         
         # Create the estimator
-        self.estimator = InformationEstimatorFactory.create(self.config.estimator_config)
+        estimator_config = EstimatorConfig(
+            method=self.method,
+            n_neighbors=self.n_neighbors,
+            n_bins=self.n_bins,
+            copula_type=self.copula_type,
+            verbose=self.verbose,
+        )
+        self.estimator = InformationEstimatorFactory.create(estimator_config)
         
         # Check if PID is available
         self.pid_available = False
-        if self.config.compute_pid:
+        if self.compute_pid:
             try:
                 check_pid_available()
                 self.pid_available = True
@@ -117,27 +125,27 @@ class IntegratedInformationAnalyzer:
             Vinf = self._ensure_2d(Vinf)
         
         results = {
-            "method": self.config.estimator_config.method.value,
+            "method": self.method,
             "n_samples": len(E),
         }
         
         # 1. Basic mutual information with C
-        if self.config.compute_basic_mi:
+        if self.compute_basic_mi:
             self.logger.info("Computing basic MI metrics...")
             results["basic_mi"] = self._compute_basic_mi(E, I, Vout, C, Vinf)
         
         # 2. Pairwise mutual information
-        if self.config.compute_pairwise_mi:
+        if self.compute_pairwise_mi:
             self.logger.info("Computing pairwise MI metrics...")
             results["pairwise_mi"] = self._compute_pairwise_mi(E, I, Vout, Vinf)
         
         # 3. Conditional mutual information
-        if self.config.compute_conditional_mi:
+        if self.compute_conditional_mi:
             self.logger.info("Computing conditional MI metrics...")
             results["conditional_mi"] = self._compute_conditional_mi(E, I, Vout, C, Vinf)
         
         # 4. PID decomposition
-        if self.config.compute_pid and self.pid_available:
+        if self.compute_pid and self.pid_available:
             self.logger.info("Computing PID metrics...")
             results["pid"] = self._compute_pid(E, I, Vout, C)
         
@@ -164,7 +172,7 @@ class IntegratedInformationAnalyzer:
         metrics["I(Vout;C)"] = self.estimator.mutual_information(Vout, C)
         
         # I(Vinf;C) if available
-        if Vinf is not None and self.config.include_vinf:
+        if Vinf is not None and self.include_vinf:
             metrics["I(Vinf;C)"] = self.estimator.mutual_information(Vinf, C)
         
         # Joint MI: I(E,I;C)
@@ -172,7 +180,7 @@ class IntegratedInformationAnalyzer:
         metrics["I(E,I;C)"] = self.estimator.mutual_information(EI, C)
         
         # Optionally normalize by entropy
-        if self.config.normalize_mi:
+        if self.normalize_mi:
             H_C = self.estimator.entropy(C.reshape(-1, 1))
             # Create a list of keys to avoid modifying dict during iteration
             keys_to_normalize = list(metrics.keys())
@@ -200,7 +208,7 @@ class IntegratedInformationAnalyzer:
         # I(I;Vout)
         metrics["I(I;Vout)"] = self.estimator.mutual_information(I, Vout)
         
-        if Vinf is not None and self.config.include_vinf:
+        if Vinf is not None and self.include_vinf:
             # I(E;Vinf)
             metrics["I(E;Vinf)"] = self.estimator.mutual_information(E, Vinf)
             
@@ -232,7 +240,7 @@ class IntegratedInformationAnalyzer:
         # I(I;Vout|C)
         metrics["I(I;Vout|C)"] = self.estimator.conditional_mutual_information(I, Vout, C.reshape(-1, 1))
         
-        if Vinf is not None and self.config.include_vinf:
+        if Vinf is not None and self.include_vinf:
             # I(E;Vinf|C)
             metrics["I(E;Vinf|C)"] = self.estimator.conditional_mutual_information(E, Vinf, C.reshape(-1, 1))
             
@@ -252,7 +260,7 @@ class IntegratedInformationAnalyzer:
         pid_results = {}
         
         # Prepare data for PID (may need binarization)
-        if self.config.pid_binarize:
+        if self.pid_binarize:
             E_pid = self._binarize(E)
             I_pid = self._binarize(I)
             Vout_pid = self._binarize(Vout)
@@ -315,14 +323,14 @@ class IntegratedInformationAnalyzer:
     
     def _binarize(self, data: np.ndarray) -> np.ndarray:
         """Binarize data for PID computation."""
-        if self.config.pid_binarize_method == "median":
+        if self.pid_binarize_method == "median":
             threshold = np.median(data, axis=0)
-        elif self.config.pid_binarize_method == "mean":
+        elif self.pid_binarize_method == "mean":
             threshold = np.mean(data, axis=0)
-        elif self.config.pid_binarize_method == "quantile":
-            threshold = np.quantile(data, self.config.pid_binarize_threshold, axis=0)
+        elif self.pid_binarize_method == "quantile":
+            threshold = np.quantile(data, self.pid_binarize_threshold, axis=0)
         else:
-            raise ValueError(f"Unknown binarization method: {self.config.pid_binarize_method}")
+            raise ValueError(f"Unknown binarization method: {self.pid_binarize_method}")
         
         return (data > threshold).astype(int)
     
@@ -355,11 +363,6 @@ class IntegratedInformationAnalyzer:
         if arr.ndim == 1:
             return arr.reshape(-1, 1)
         return arr
-    
-    @classmethod
-    def from_config_dict(cls, config: Dict) -> "IntegratedInformationAnalyzer":
-        """Create analyzer from configuration dictionary."""
-        return cls(IntegratedAnalyzerConfig(**config))
     
     def get_summary(self, results: Dict[str, Any]) -> str:
         """Generate a summary string of the results."""

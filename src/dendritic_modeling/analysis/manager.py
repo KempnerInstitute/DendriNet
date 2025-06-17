@@ -23,11 +23,7 @@ matplotlib.use("Agg")
 
 from dendritic_modeling.config import AnalysisConfig
 from dendritic_modeling.networks.layers.dendritic import DendriticBranchLayer
-from dendritic_modeling.analysis.information import (
-    compute_mi_cc,
-    compute_mi_cd,
-    compute_pairwise_sr,
-)
+from dendritic_modeling.analysis.information import IntegratedInformationAnalyzer
 from dendritic_modeling.models import BaseModel
 from dendritic_modeling.networks import ExcitationInhibitionNetwork
 from dendritic_modeling.utils import (
@@ -45,7 +41,6 @@ from dendritic_modeling.analysis.performance.noise import NoisePerturbationAnaly
 from dendritic_modeling.analysis.performance.ablation import AblationAnalyzer
 from dendritic_modeling.analysis.performance.layers import SingleLayerContributionAnalyzer
 from dendritic_modeling.analysis.performance.synaptic_ablation import SynapticAblationAnalyzer
-from dendritic_modeling.analysis.information import EIInformationAnalyzer, BranchInformationAnalyzer
 from dendritic_modeling.analysis.synaptic.turnover import SynapticTurnoverAnalyzer
 from dendritic_modeling.analysis.synaptic.weights import WeightAnalyzer
 from dendritic_modeling.analysis.activations.synaptic import SynapticActivationAnalyzer
@@ -94,19 +89,12 @@ class AnalysisManager:
                 mse=performance_params.get("mse", False),
             )
 
-        # Initialize EI Information Analysis
-        ei_info_config = self.config.ei_info_analysis
-        self.ei_info_enabled = ei_info_config.get("enabled", False)
-        self.ei_info_training = ei_info_config.get("training", False)
-        if self.ei_info_enabled:
-            ei_info_params: dict = ei_info_config.get("params", {})
-            self.ei_info_analyzer = EIInformationAnalyzer(
-                compute_mi_E_I=ei_info_params.get("compute_mi_E_I", True),
-                compute_mi_EI_Vout=ei_info_params.get("compute_mi_EI_Vout", True),
-                compute_sr_EI_Vout=ei_info_params.get("compute_sr_EI_Vout", True),
-                compute_mi_EI_label=ei_info_params.get("compute_mi_EI_label", True),
-                n_neighbors=ei_info_params.get("n_neighbors", 10),
-            )
+        # Initialize Integrated Information Analysis
+        # Uses the InformationAnalysisConfig from the main config
+        info_analysis_config = self.config.information_analysis
+        self.info_analysis_enabled = hasattr(info_analysis_config, 'method') or isinstance(info_analysis_config, dict)
+        if self.info_analysis_enabled:
+            self.information_analyzer = IntegratedInformationAnalyzer(info_analysis_config)
 
         # Initialize Synaptic Turnover Analysis
         syn_turnover_config = self.config.synapse_turnover_analysis
@@ -166,24 +154,6 @@ class AnalysisManager:
                 device=self.device,
                 save_plots=params.get("save_plots", True),
                 save_csv=params.get("save_csv", True),
-            )
-
-        # Initialize Branch Information Analysis
-        branch_info_config = self.config.branch_information
-        self.branch_info_enabled = branch_info_config.get("enabled", False)
-        self.branch_info_training = branch_info_config.get("training", False)
-        if self.branch_info_enabled:
-            params = branch_info_config.get("params", {})
-            self.branch_info_analyzer = BranchInformationAnalyzer(
-                n_neighbors=params.get("n_neighbors", 10),
-                use_dvc=params.get("use_dvc", True),
-                save_plots=params.get("save_plots", True),
-                save_csv=params.get("save_csv", True),
-                copula_params=params.get("copula_params", None),
-                # Configurable MI metrics to compute
-                compute_metrics=params.get("compute_metrics", None),
-                # Per-branch vs pooled computation
-                compute_per_branch=params.get("compute_per_branch", False),
             )
 
         # Initialize Ablation Analysis
@@ -282,17 +252,9 @@ class AnalysisManager:
                 filename=filename,
             )
 
-        # EI Information Analysis
-        if self.ei_info_enabled and (
-            (self.ei_info_training and training) or not training
-        ):
-            self.ei_info_analyzer.analyze(
-                model=self.model,
-                dataset=self.data["test"],
-                device=self.device,
-                save_path=os.path.join(self.save_root, "ei_info_analysis"),
-                filename=filename,
-            )
+        # Information Analysis using Integrated Analyzer
+        if self.info_analysis_enabled and not training:
+            self._run_information_analysis(filename)
 
         # Synaptic Turnover Analysis
         if self.syn_turnover_enabled and (
@@ -335,30 +297,6 @@ class AnalysisManager:
                 test_dataset=self.data["test"],
                 save_path=os.path.join(self.save_root, "synaptic_ablation"),
                 filename=filename,
-            )
-
-        # Branch Information Analysis
-        if self.branch_info_enabled and (
-            (self.branch_info_training and training) or not training
-        ):
-            test_loader = DataLoader(
-                self.data["test"],
-                batch_size=self.train_config.get("batch_size", 32),
-                shuffle=False,
-                num_workers=0,
-            )
-
-            # Extract epoch number from filename if possible
-            try:
-                epoch = int(filename.split("_")[-1]) if "_" in filename else 0
-            except:
-                epoch = 0
-
-            self.branch_info_analyzer.analyze(
-                model=self.model,
-                test_loader=test_loader,
-                output_dir=os.path.join(self.save_root, "branch_information"),
-                epoch=epoch,
             )
 
         # Ablation Analysis
@@ -405,4 +343,107 @@ class AnalysisManager:
                 device="cpu",
                 save_path=os.path.join(self.save_root, "branch_activation_analysis"),
                 filename=filename,
-            ) 
+            )
+
+    def _run_information_analysis(self, filename: str):
+        """Run integrated information analysis on the model."""
+        try:
+            # Check if model has ExcitationInhibitionNetwork
+            if not isinstance(self.model.net, ExcitationInhibitionNetwork):
+                self.logger.warning("Model does not have ExcitationInhibitionNetwork. Skipping information analysis.")
+                return
+
+            self.logger.info("Running integrated information analysis...")
+            
+            # Prepare data
+            self.model = self.model.to(self.device)
+            self.model.eval()
+            
+            inputs, labels = self.data["test"][:]
+            inputs = inputs.to(self.device)
+            
+            # Collect activations from all branches
+            data_dict = {}
+            
+            # Use forward hooks to collect branch data
+            handles = []
+            for name, module in self.model.named_modules():
+                if isinstance(module, DendriticBranchLayer):
+                    if (
+                        module.branch_excitation is not None
+                        and module.branch_inhibition is not None
+                    ):
+                        data_dict[name] = {}
+                        module._name = name
+                        
+                        def make_hook(module_name):
+                            def hook(module, input, output):
+                                excitatory_input, inhibitory_input, _ = input
+                                data_dict[module_name]["excitation"] = module.branch_excitation(excitatory_input)
+                                data_dict[module_name]["inhibition"] = module.branch_inhibition(inhibitory_input)
+                                data_dict[module_name]["output"] = output
+                            return hook
+                        
+                        handle = module.register_forward_hook(make_hook(name))
+                        handles.append(handle)
+            
+            # Forward pass to collect activations
+            with torch.no_grad():
+                _ = self.model(inputs)
+            
+            # Remove hooks
+            for handle in handles:
+                handle.remove()
+            
+            # Aggregate activations across all branches
+            excitation_list = []
+            inhibition_list = []
+            output_list = []
+            
+            for branch_data in data_dict.values():
+                if "excitation" in branch_data:
+                    excitation_list.append(branch_data["excitation"])
+                if "inhibition" in branch_data:
+                    inhibition_list.append(branch_data["inhibition"])
+                if "output" in branch_data:
+                    output_list.append(branch_data["output"])
+            
+            if not excitation_list:
+                self.logger.warning("No excitatory activations collected. Skipping information analysis.")
+                return
+            
+            # Concatenate activations from all branches
+            E = torch.cat(excitation_list, dim=-1).detach().cpu().numpy()
+            I = torch.cat(inhibition_list, dim=-1).detach().cpu().numpy()
+            Vout = torch.cat(output_list, dim=-1).detach().cpu().numpy()
+            C = labels.numpy()
+            
+            # Get soma activation (Vinf) if available
+            Vinf = None
+            # For now, we'll use the final model output as Vinf
+            with torch.no_grad():
+                final_output = self.model(inputs)
+                if hasattr(self.model, 'final_fc'):
+                    # Model has final classification layer
+                    Vinf = final_output.detach().cpu().numpy()
+            
+            # Run information analysis
+            results = self.information_analyzer.analyze(E, I, Vout, C, Vinf)
+            
+            # Save results
+            save_path = os.path.join(self.save_root, "information_analysis")
+            os.makedirs(save_path, exist_ok=True)
+            save_dict(results, save_path, filename)
+            
+            # Also save a summary report
+            summary = self.information_analyzer.get_summary(results)
+            summary_path = os.path.join(save_path, f"{filename}_summary.txt")
+            with open(summary_path, 'w') as f:
+                f.write(summary)
+            
+            self.logger.info(f"Information analysis completed. Results saved to {save_path}")
+            
+        except Exception as e:
+            self.logger.error(f"Error in information analysis: {e}")
+            import traceback
+            traceback.print_exc() 
