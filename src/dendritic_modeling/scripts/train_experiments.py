@@ -65,8 +65,6 @@ from dendritic_modeling.training import (
 from dendritic_modeling.models import (
     BaseModel,
     Classifier,
-    DeepstRegressor,
-    ProbabilisticClassifier,
     Regressor,
     SimpleMLP
 )
@@ -86,79 +84,36 @@ from dendritic_modeling.analysis.managers import PlotManager
 
 def initialize_model(model_cfg: ModelConfig, visualization_enabled=False):
     task = model_cfg.task
-    probabilistic = model_cfg.probabilistic
     net_type = model_cfg.network.type
     net_params = model_cfg.network.parameters
+    base_params = model_cfg.base
     # Branch outputs are now automatically enabled when needed for analysis
     enable_branch_outputs = visualization_enabled
-    learning_strategy = getattr(net_params, "learning_strategy", "mle")
 
     if enable_branch_outputs:
         logger.info("EINet branch outputs enabled for visualization/analysis")
 
+    net_params_dict = OmegaConf.to_container(net_params, resolve=True)
+    base_params_dict = OmegaConf.to_container(base_params, resolve=True)
+
+    logger.info(f"Building {net_type} for {task} task...")
+
+    if net_type == "MLP":
+        net = MatchedParamMLP(**net_params_dict)
+    elif net_type == "EINet":
+        net_params_dict["enable_branch_outputs"] = enable_branch_outputs
+        net = ExcitationInhibitionNetwork(**net_params_dict)
+    else:
+        raise ValueError(f"Invalid network type: {net_type}")
+    
     if task == "classification":
-        if net_type == "MLP":
-            logger.info(
-                f"Running feedforward with {'probabilistic' if probabilistic else 'simple'} classifier"
-            )
-            net_params_dict = OmegaConf.to_container(net_params, resolve=True)
-            net = MatchedParamMLP(**net_params_dict)
-            output_dim = net_params_dict.get("output_dim", 10)
-            if probabilistic:
-                model = ProbabilisticClassifier(net, output_dim)
-            else:
-                model = Classifier(net)
-            # Commenting out to preserve gradient scaling hooks
-            # safe_register_hooks(model)
-            return model
-        elif net_type == "EINet":
-            logger.info(
-                f"Running EINet with {'probabilistic' if probabilistic else 'simple'} classifier"
-            )
-            net_params_dict = OmegaConf.to_container(net_params, resolve=True)
-            net_params_dict["enable_branch_outputs"] = enable_branch_outputs
-            net_params_dict["learning_strategy"] = learning_strategy
-            net = ExcitationInhibitionNetwork(**net_params_dict)
-            # Commenting out to preserve gradient scaling hooks
-            # safe_register_hooks(net)
-            output_dim = net_params_dict.get("output_dim", 10)
-            if probabilistic:
-                model = ProbabilisticClassifier(net, output_dim)
-            else:
-                model = Classifier(net)
-            # Commenting out to preserve gradient scaling hooks
-            # safe_register_hooks(model)
-            return model
-        else:
-            raise ValueError(f"Invalid network type: {net_type}")
+        model = Classifier(net, **base_params_dict)
     elif task == "regression":
-        if net_type == "MLP":
-            logger.info(f"Running feedforward with regressor")
-            net_params_dict = OmegaConf.to_container(net_params, resolve=True)
-            net = MatchedParamMLP(**net_params_dict)
-            output_dim = net_params_dict.get("output_dim", 10)
-            model = Regressor(net, output_dim)
-            # Commenting out to preserve gradient scaling hooks
-            # safe_register_hooks(model)
-            return model
-        elif net_type == "EINet":
-            logger.info(f"Running EINet with regressor")
-            net_params_dict = OmegaConf.to_container(net_params, resolve=True)
-            net_params_dict["enable_branch_outputs"] = enable_branch_outputs
-            net_params_dict["learning_strategy"] = learning_strategy
-            net = ExcitationInhibitionNetwork(**net_params_dict)
-            # Commenting out to preserve gradient scaling hooks
-            # safe_register_hooks(net)
-            output_dim = net_params_dict.get("output_dim", 10)
-            rewire_frequency = net_params_dict.get("rewire_frequency", 1)
-            model = DeepstRegressor(net, output_dim, rewire_frequency=rewire_frequency)
-            # Commenting out to preserve gradient scaling hooks
-            # safe_register_hooks(model)
-            return model
-        else:
-            raise ValueError(f"Invalid network type: {net_type}")
+        model = Regressor(net, **base_params_dict)
     else:
         raise ValueError(f"Invalid task: {task}")
+    
+    return model
 
 
 def save_model(model: torch.nn.Module, save_path: str, filename: str):

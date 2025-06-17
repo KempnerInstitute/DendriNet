@@ -8,8 +8,6 @@ excitatory and inhibitory cell populations.
 import torch
 import torch.nn as nn
 
-# Import will be done lazily to avoid circular imports
-
 
 class ExcitationInhibitionLayer(nn.Module):
     def __init__(
@@ -44,6 +42,7 @@ class ExcitationInhibitionLayer(nn.Module):
         use_noise=True,
         sigma=0.05,
         rewiring_mode="global",
+        rewire_frequency=1,
         synapses_per_branch=None,
         freeze_excitatory_connectivity=False,
         freeze_inhibitory_connectivity=False,
@@ -53,8 +52,7 @@ class ExcitationInhibitionLayer(nn.Module):
     ):
         super().__init__()
 
-        # Lazy import to avoid circular dependencies
-        from ...architectures.dendritic import DendriNet
+        from dendritic_modeling.networks.architectures.dendritic import DendriNet
 
         # Decide if we build an inhibitory sub-network
         self.has_inhib_subnet = (
@@ -91,6 +89,7 @@ class ExcitationInhibitionLayer(nn.Module):
                 use_noise=use_noise,
                 sigma=sigma,
                 rewiring_mode=rewiring_mode,
+                rewire_frequency=rewire_frequency,
                 synapses_per_branch=synapses_per_branch,
                 freeze_excitatory_connectivity=freeze_excitatory_connectivity,
                 freeze_inhibitory_connectivity=freeze_inhibitory_connectivity,
@@ -127,6 +126,7 @@ class ExcitationInhibitionLayer(nn.Module):
             use_noise=use_noise,
             sigma=sigma,
             rewiring_mode=rewiring_mode,
+            rewire_frequency=rewire_frequency,
             synapses_per_branch=synapses_per_branch,
             freeze_excitatory_connectivity=freeze_excitatory_connectivity,
             freeze_inhibitory_connectivity=freeze_inhibitory_connectivity,
@@ -140,6 +140,11 @@ class ExcitationInhibitionLayer(nn.Module):
         if self.inhibitory_cells is not None:
             self.inhibitory_cells.decay_weights(weight_decay)
         self.excitatory_cells.decay_weights(weight_decay)
+
+    def apply_rewiring(self):
+        if self.inhibitory_cells is not None:
+            self.inhibitory_cells.apply_rewiring()
+        self.excitatory_cells.apply_rewiring()
 
     def forward(self, x, inhibitory_input=None):
         """

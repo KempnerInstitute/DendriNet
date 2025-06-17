@@ -81,6 +81,7 @@ class DendriticBranchLayer(nn.Module):
         # DEEPST specific parameters, clean up later
         use_noise=True,
         rewiring_mode='global',
+        rewire_frequency=1,
         synapses_per_branch=None,
         sigma=0.05,
         excitatory_target_density=0.1,
@@ -106,6 +107,7 @@ class DendriticBranchLayer(nn.Module):
         # DEEPST specific parameters, clean up later
         self.use_noise = use_noise
         self.rewiring_mode = rewiring_mode
+        self.rewire_frequency = rewire_frequency
         self.synapses_per_branch = synapses_per_branch
         self.sigma = sigma
         self.excitatory_target_density = excitatory_target_density
@@ -231,6 +233,7 @@ class DendriticBranchLayer(nn.Module):
                 noise_level=noise_level,
             )
         elif self.topk_type == "deepst":
+            self.step_counter = 0
             return DeepstLinear(
                 in_features=in_features,
                 out_features=out_features,
@@ -292,10 +295,19 @@ class DendriticBranchLayer(nn.Module):
         """
         Apply rewiring to all synaptic connections.
         """
-        if hasattr(self.branch_excitation, 'apply_noise_and_enforce_constraints'):
-            self.branch_excitation.apply_noise_and_enforce_constraints()
-        if hasattr(self.branch_inhibition, 'apply_noise_and_enforce_constraints'):
-            self.branch_inhibition.apply_noise_and_enforce_constraints()
+        if hasattr(self, 'step_counter'):
+            self.step_counter += 1
+            rewire_condition = self.step_counter % self.rewire_frequency == 0
+            if (
+                rewire_condition and 
+                hasattr(self.branch_excitation, 'apply_noise_and_enforce_constraints')
+            ):
+                self.branch_excitation.apply_noise_and_enforce_constraints()
+            if (
+                rewire_condition and 
+                hasattr(self.branch_inhibition, 'apply_noise_and_enforce_constraints')
+            ):
+                self.branch_inhibition.apply_noise_and_enforce_constraints()
 
     def forward(self, x, inhibitory_input=None, branch_input=None):
         if self.use_shunting:
