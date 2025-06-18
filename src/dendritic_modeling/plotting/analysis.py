@@ -198,8 +198,8 @@ class LayerAnalysisPlotter:
             color = self.config.colors.get('primary', 'blue')
             ax1.plot(x, y, 'o-', color=color, linewidth=2, markersize=8, label='Accuracy')
             ax1.set_xlabel('Layer (Soma → Distal)' if reverse_layers else 'Layer Index', 
-                          fontsize=self.config.label_fontsize)
-            ax1.set_ylabel('Accuracy', color=color, fontsize=self.config.label_fontsize)
+                          fontsize=self.config.fontsize["label"])
+            ax1.set_ylabel('Accuracy', color=color, fontsize=self.config.fontsize["label"])
             ax1.tick_params(axis='y', labelcolor=color)
             ax1.grid(True, alpha=0.3)
         
@@ -209,11 +209,11 @@ class LayerAnalysisPlotter:
             x, y = plot_data['Loss']
             color = self.config.colors.get('secondary', 'red')
             ax2.plot(x, y, 's-', color=color, linewidth=2, markersize=8, label='Loss')
-            ax2.set_ylabel('Loss', color=color, fontsize=self.config.label_fontsize)
+            ax2.set_ylabel('Loss', color=color, fontsize=self.config.fontsize["label"])
             ax2.tick_params(axis='y', labelcolor=color)
         
         # Customize plot
-        ax1.set_title('Layer-wise Contribution Analysis', fontsize=self.config.title_fontsize)
+        ax1.set_title('Layer-wise Contribution Analysis', fontsize=self.config.fontsize["title"])
         
         # Set x-axis labels
         if reverse_layers:
@@ -676,9 +676,9 @@ class InformationAnalysisPlotter:
             offset = (i - len(metrics)/2 + 0.5) * width
             ax.bar(x + offset, values, width, label=label, color=color, alpha=0.8)
         
-        ax.set_xlabel('Layer (Soma → Distal)', fontsize=self.config.label_fontsize)
-        ax.set_ylabel('Mutual Information (bits)', fontsize=self.config.label_fontsize)
-        ax.set_title('Information Comparison Across Layers', fontsize=self.config.title_fontsize)
+        ax.set_xlabel('Layer (Soma → Distal)', fontsize=self.config.fontsize["label"])
+        ax.set_ylabel('Mutual Information (bits)', fontsize=self.config.fontsize["label"])
+        ax.set_title('Information Comparison Across Layers', fontsize=self.config.fontsize["title"])
         ax.set_xticks(x)
         ax.set_xticklabels([f"L{i}" if i > 0 else "Soma" for i in range(num_layers)])
         ax.legend()
@@ -726,7 +726,7 @@ class ActivationPlotter:
             if len(soma_data) == 1:
                 axes = [axes]
             
-            fig.suptitle(f'DendriNet Activations - {soma_key}', fontsize=self.config.title_fontsize)
+            fig.suptitle(f'DendriNet Activations - {soma_key}', fontsize=self.config.fontsize["title"])
             
             for i, (level_key, level_data) in enumerate(soma_data.items()):
                 # Collect all branch activations for this level
@@ -740,7 +740,7 @@ class ActivationPlotter:
                     # Create heatmap
                     act_array = np.array(all_activations).T
                     im = axes[i].imshow(act_array, aspect='auto', cmap='viridis')
-                    axes[i].set_title(f'{level_key}', fontsize=self.config.label_fontsize)
+                    axes[i].set_title(f'{level_key}', fontsize=self.config.fontsize["label"])
                     axes[i].set_xlabel('Input Sample')
                     axes[i].set_ylabel('Branch Activation')
                     plt.colorbar(im, ax=axes[i])
@@ -765,7 +765,7 @@ class ActivationPlotter:
         # Create visualizations for each layer
         for layer_key, layer_data in plot_dict.items():
             fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(16, 8))
-            fig.suptitle(f'EINet Activations - {layer_key}', fontsize=self.config.title_fontsize)
+            fig.suptitle(f'EINet Activations - {layer_key}', fontsize=self.config.fontsize["title"])
             
             # Plot inhibitory cells
             if 'inh cells' in layer_data:
@@ -781,7 +781,7 @@ class ActivationPlotter:
                     inh_array = np.array(inh_acts).T
                     im1 = ax1.imshow(inh_array, aspect='auto', 
                                      cmap='Blues' if 'Blues' in plt.colormaps() else 'viridis')
-                    ax1.set_title('Inhibitory Cells', fontsize=self.config.label_fontsize)
+                    ax1.set_title('Inhibitory Cells', fontsize=self.config.fontsize["label"])
                     ax1.set_xlabel('Activation Sample')
                     ax1.set_ylabel('Neuron Index')
                     plt.colorbar(im1, ax=ax1)
@@ -800,7 +800,7 @@ class ActivationPlotter:
                     exc_array = np.array(exc_acts).T
                     im2 = ax2.imshow(exc_array, aspect='auto', 
                                      cmap='Reds' if 'Reds' in plt.colormaps() else 'viridis')
-                    ax2.set_title('Excitatory Cells', fontsize=self.config.label_fontsize)
+                    ax2.set_title('Excitatory Cells', fontsize=self.config.fontsize["label"])
                     ax2.set_xlabel('Activation Sample')
                     ax2.set_ylabel('Neuron Index')
                     plt.colorbar(im2, ax=ax2)
@@ -854,6 +854,9 @@ def plot_weight_distributions(weight_data: Dict[str, List[np.ndarray]], **kwargs
 def plot_information_analysis(results: Dict[str, Any], **kwargs):
     """Convenience function for information analysis plotting."""
     plotter = InformationAnalysisPlotter()
+    # Handle the filename/filename_prefix parameter mapping
+    if 'filename' in kwargs and 'filename_prefix' not in kwargs:
+        kwargs['filename_prefix'] = kwargs.pop('filename')
     return plotter.plot_information_metrics(results, **kwargs)
 
 

@@ -541,7 +541,7 @@ class AnalysisManager:
                 os.makedirs(plot_save_path, exist_ok=True)
                 
                 # Generate all plots
-                figs = plot_information_analysis(results, save_path=plot_save_path, filename=filename)
+                figs = plot_information_analysis(results, save_path=plot_save_path, filename_prefix=filename)
                 
                 self.logger.info(f"Generated {len(figs)} information analysis plots in {plot_save_path}")
                 
