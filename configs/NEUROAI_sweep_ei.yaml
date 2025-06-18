@@ -145,15 +145,7 @@ train_config:
         accuracy: true
         categorical_loglikelihood: true
         mse: false
-    ei_info_analysis:
-      enabled: true
-      training: false
-      params:
-        compute_mi_E_I: true
-        compute_mi_EI_Vout: true
-        compute_sr_EI_Vout: true
-        compute_mi_EI_label: true
-        n_neighbors: 8
+
     synapse_turnover_analysis:
       enabled: true
       training: true
@@ -223,41 +215,31 @@ train_config:
         save_plots: true
         save_csv: true
 
-    # Branch information analysis
-    # Computes mutual information between branch components (E, I, V, C)
-    branch_information:
-      enabled: true  # Whether to enable branch information analysis
-      training: false  # Whether to run during training
-      params:
-        n_neighbors: 10  # Number of neighbors for MI estimation
-        use_dvc: true  # Enable DVC_tensorflow for better MI computation
-        save_plots: true
-        save_csv: true
-        # Configurable metrics to compute
-        compute_metrics:
-          #- "I_E_C"    # I(E;C) - Excitatory inputs and class
-          #- "I_I_C"    # I(I;C) - Inhibitory inputs and class
-          #- "I_V_C"    # I(V;C) - Branch outputs and class
-          # - "I_E_I"    # I(E;I) - Excitatory and inhibitory inputs
-          # - "I_E_V"    # I(E;V) - Excitatory inputs and branch outputs
-          # - "I_I_V"    # I(I;V) - Inhibitory inputs and branch outputs
-          # - "I_E_I_given_C" # I(E;I|C) - E and I given class
-          # - "I_E_V_given_C" # I(E;V|C) - E and V given class
-          # - "I_I_V_given_C" # I(I;V|C) - I and V given class
-
-        # Per-branch vs pooled computation
-        compute_per_branch: true  # If true, compute MI per branch and average; if false, pool all branches
-
-        # Copula parameters for DVC_tensorflow
-        copula_params:
-          cases: 1000         # Number of samples for entropy estimation
-          iterations: 10      # Number of iterations for convergence
-          alpha: 0.05         # Confidence level
-          vine_type: c-vine   # Type of vine copula: "d-vine", "c-vine", "r-vine"
-          use_nonparametric: false  # Whether to use non-parametric kernel copula (true) or parametric Gaussian (false)
-          knots: 30           # Number of knots for non-parametric copula (only used when use_nonparametric=true)
-          opt_method: LL1     # Optimization method for non-parametric: "LL1", "LL2", etc.
-          batch_paral: 1      # Batch parallelization for non-parametric fitting
+    # NEW: Integrated information-theoretic analysis using multivariate methods
+    information_analysis:
+      # Estimation method for mutual information computation
+      method: "kraskov"  # Options: "kraskov" (k-NN), "sklearn" (histogram/kernel), "copula" (copula-based)
+      
+      # Method-specific parameters
+      n_neighbors: 10       # For Kraskov k-NN estimator (higher = more accurate but slower)
+      n_bins: 20           # For sklearn histogram method (more bins = finer resolution)
+      copula_type: "gaussian"  # For copula method: "gaussian", "t", "clayton", "frank"
+      
+      # Which information metrics to compute
+      compute_basic_mi: true       # Basic MI: I(E;C), I(I;C), I(Vout;C), I(E,I;C)
+      compute_pairwise_mi: true    # Pairwise MI: I(E;I), I(E;Vout), I(I;Vout)
+      compute_conditional_mi: true  # Conditional MI: I(E;I|C), I(E;Vout|C), I(I;Vout|C)
+      compute_pid: false           # Partial Information Decomposition (requires external PID library)
+      
+      # PID-specific settings (only used if compute_pid=true)
+      pid_binarize: true              # Whether to binarize data for PID computation
+      pid_binarize_method: "median"   # Binarization method: "median", "mean", "quantile"
+      pid_binarize_threshold: 0.5     # Threshold for "quantile" method (0-1)
+      
+      # Additional options
+      include_vinf: true     # Include soma activation (Vinf) in analysis
+      normalize_mi: false    # Normalize MI values by entropy H(C)
+      verbose: false        # Print detailed progress during computation
 
 sweep_config:
   # model.network.type: ["EINet"]

@@ -1,0 +1,624 @@
+# ============================================================================
+# DENDRITIC MODELING EXPERIMENT CONFIGURATION
+# ============================================================================
+# This configuration file controls all aspects of dendritic network experiments
+# including model architecture, training parameters, datasets, and analysis.
+# ============================================================================
+
+# ============================================================================
+# MODEL CONFIGURATION
+# ============================================================================
+model:
+  # Task type - determines the model wrapper and loss function
+  # Options:
+  #   - "classification": For categorical prediction tasks (uses cross-entropy loss)
+  #   - "regression": For continuous value prediction (uses MSE loss)
+  task: classification
+  
+  # Whether to use probabilistic outputs (LogSoftmax) for classification
+  # - true: Outputs log probabilities (useful for uncertainty estimation)
+  # - false: Outputs raw logits
+  probabilistic: true
+  
+  # Network architecture configuration
+  network:
+    # Network type
+    # Options:
+    #   - "EINet": Excitation-Inhibition Network with dendritic branches
+    #   - "MLP": Standard Multi-Layer Perceptron
+    #   - "MatchedParamMLP": MLP with parameter count matched to EINet
+    #   - "SimpleMLPNet": Simple MLP implementation
+    type: EINet
+    
+    parameters:
+      # ========================================
+      # NETWORK ARCHITECTURE PARAMETERS
+      # ========================================
+      
+      # Number of excitatory neurons per layer
+      # List length determines number of layers
+      # Example: [100, 50] creates 2 layers with 100 and 50 excitatory neurons
+      excitatory_layer_sizes: [10]
+      
+      # Number of inhibitory neurons per layer
+      # Should match length of excitatory_layer_sizes
+      # Set to [] for no inhibitory neurons
+      inhibitory_layer_sizes: [40]
+      
+      # Branch factors for excitatory neurons
+      # Determines how branches converge: [2,2] means 4→2→1 branches
+      # Length should be one less than excitatory_layer_sizes
+      excitatory_branch_factors: [2,2]
+      
+      # Branch factors for inhibitory neurons (usually empty)
+      inhibitory_branch_factors: []
+      
+      # ========================================
+      # SYNAPTIC CONNECTIVITY PARAMETERS
+      # ========================================
+      
+      # Number of excitatory-to-excitatory synapses per branch per layer
+      # Controls sparsity of E→E connections
+      ee_synapses_per_branch_per_layer: [100]
+      
+      # Number of excitatory-to-inhibitory synapses per branch per layer
+      # Controls how excitatory inputs affect inhibitory neurons
+      ei_synapses_per_branch_per_layer: [200]
+      
+      # Number of inhibitory-to-excitatory synapses per branch per layer
+      # Controls inhibitory feedback to excitatory neurons
+      ie_synapses_per_branch_per_layer: [10]
+      
+      # Number of inhibitory-to-inhibitory synapses per branch per layer
+      # Usually 0 (no I→I connections)
+      ii_synapses_per_branch_per_layer: [0]
+      
+      # Whether to include direct synapses to soma (bypassing dendrites)
+      # - true: Allows direct connections to soma
+      # - false: All inputs must go through dendritic branches
+      somatic_synapses: true
+      
+      # Whether to use shunting inhibition (divisive) or subtractive
+      # - true: V = E/(E+I+1) - biologically plausible shunting
+      # - false: V = E-I - simple subtraction
+      use_shunting: true
+      
+      # ========================================
+      # TOP-K SYNAPSE SELECTION PARAMETERS
+      # ========================================
+      
+      # Weight initialization method for synapses
+      # Options:
+      #   - "xavier_normal": Xavier/Glorot normal initialization
+      #   - "xavier_uniform": Xavier/Glorot uniform initialization
+      #   - "kaiming_normal": He normal initialization (good for ReLU)
+      #   - "kaiming_uniform": He uniform initialization
+      #   - "orthogonal": Orthogonal matrix initialization
+      #   - "normal": Standard normal distribution
+      #   - "uniform": Standard uniform distribution
+      #   - "eye": Identity matrix initialization
+      topk_init_method: xavier_normal
+      
+      # Noise level added to weights during TopK selection
+      # Range: 0.0 to 1.0 (0 = no noise, higher = more stochastic selection)
+      topk_noise_level: 0.0
+      
+      # TopK selection strategy
+      # Options:
+      #   - "standard": Deterministic top-K selection (fastest)
+      #   - "stochastic": Probabilistic selection based on weight rank
+      #   - "variance": Selection based on input variance × weight
+      #   - "deepst": Dynamic sparse training with rewiring
+      topk_type: standard
+      
+      # Temperature for stochastic TopK (only used if topk_type="stochastic")
+      # Range: 0.1 to 1.0 (lower = more deterministic, higher = more random)
+      topk_temperature: 0.5
+      
+      # Enable ultra-fast approximation for stochastic TopK
+      # - true: 10-50x faster but approximate
+      # - false: Exact but slower
+      topk_ultrafast: true
+      
+      # ========================================
+      # ACTIVATION/REACTIVATION PARAMETERS
+      # ========================================
+      
+      # Whether to use reactivation functions after branch computation
+      reactivate: true
+      
+      # Type of reactivation function
+      # Options:
+      #   - "none": No reactivation (identity)
+      #   - "param_tanh": Parametric tanh with learnable m and b
+      #   - "param_tanh_only_m": Parametric tanh with only m learnable
+      #   - "relu": Standard ReLU
+      #   - "sigmoid": Standard sigmoid
+      #   - "tanh": Standard tanh
+      #   - "param_linear_sigmoid": Interpolates between linear and sigmoid
+      #   - "linear_sigmoid": Non-trainable linear-sigmoid interpolation
+      #   - "param_linear_tanh": Trainable linear-tanh interpolation
+      #   - "linear_tanh": Non-trainable linear-tanh interpolation
+      #   - "param_linear_tanh_transition": Smooth transition from linear to tanh
+      #   - "linear_tanh_transition": Non-trainable version
+      reactivation_type: param_tanh
+      
+      # Initial slope parameter for parametric activations
+      # Higher values = steeper activation curves
+      reactivation_init_m: 1.5
+      
+      # Initial bias/threshold parameter for parametric activations
+      # Controls the activation midpoint
+      reactivation_init_b: 0.5
+      
+      # ========================================
+      # GRADIENT SCALING PARAMETERS
+      # ========================================
+      
+      # Gradient scaling strategy for reactivation layers
+      # Options:
+      #   - "none": No gradient scaling
+      #   - "inverse": Scale by 1/derivative (helps with vanishing gradients)
+      reactivation_strategy: inverse
+      
+      # Gradient scaling for TopK layers
+      # Options:
+      #   - "none": No scaling
+      #   - "conductance_dynamic": Scale based on total conductance
+      topk_strategy: conductance_dynamic
+      
+      # Gradient scaling for block linear layers
+      # Options:
+      #   - "none": No scaling
+      #   - "distal_upweight_by_idx": Upweight distal branches
+      #   - "conductance_dynamic": Scale based on conductance
+      blocklinear_strategy: conductance_dynamic
+      
+      # Whether to print gradient statistics during training (debugging)
+      print_hooks: false
+      
+      # ========================================
+      # OUTPUT LAYER PARAMETERS
+      # ========================================
+      
+      # Whether to add a final linear classification layer
+      # - true: Add FC layer (exc_size → output_dim)
+      # - false: Use excitatory neurons directly as output
+      output_layer: false
+      
+      # Number of output classes/dimensions
+      output_dim: 10
+      
+      # ========================================
+      # INPUT PREPROCESSING PARAMETERS
+      # ========================================
+      
+      # Input mode determines how inputs are processed
+      # Options:
+      #   - 0: Original mode - raw input to excitatory, None to inhibitory
+      #   - 1: Simple mode - same input to both excitatory and inhibitory
+      #   - 2: Network mode - use input_net_dict to transform inputs
+      input_mode: 1
+      
+      # Input network configuration (only used if input_mode=2)
+      input_net_dict:
+        # Type of input transformation network
+        # Options:
+        #   - "IndexInputTransform": Random index splitting
+        #   - "MLPInputTransform": MLP-based transformation
+        #   - "CNNInputTransform": CNN-based transformation
+        #   - "AlexNetTransform": Pre-trained AlexNet features
+        #   - "FeatureExtractorMLP": Feature extraction MLP
+        #   - "SigmoidInputNetTransform": MLP with sigmoid output
+        type: "CNNInputTransform"
+        
+        # MLP parameters (for MLPInputTransform)
+        hidden_dims: []  # Hidden layer sizes, e.g., [512, 256, 128]
+        excitatory_dim: 256  # Output dimension for excitatory pathway
+        inhibitory_dim: 64   # Output dimension for inhibitory pathway
+        
+        # CNN parameters (for CNNInputTransform)
+        input_shape: [3, 32, 32]  # [channels, height, width]
+        excitatory_hidden_dims: [8]  # Conv channel sizes for exc pathway
+        inhibitory_hidden_dims: [4]  # Conv channel sizes for inh pathway
+        excitatory_kernel_sizes: [5]  # Kernel sizes for exc conv layers
+        inhibitory_kernel_sizes: [9]  # Kernel sizes for inh conv layers
+        excitatory_strides: [1]  # Strides for exc conv layers
+        inhibitory_strides: [1]  # Strides for inh conv layers
+      
+      # ========================================
+      # DYNAMIC SPARSE TRAINING (DEEPST) PARAMETERS
+      # ========================================
+      
+      # Target density of active connections (0.0 to 1.0)
+      excitatory_target_density: 0.1
+      inhibitory_target_density: 0.1
+      
+      # Whether to add Gaussian noise for exploration
+      use_noise: true
+      
+      # Standard deviation of Gaussian noise
+      sigma: 0.05
+      
+      # Rewiring mode for dynamic connections
+      # Options:
+      #   - "global": Can rewire to any neuron
+      #   - "local": Only rewire within same neuron
+      #   - "constant_branch": Maintain constant synapses per branch
+      rewiring_mode: "global"
+      
+      # How often to rewire (every N training steps)
+      rewire_frequency: 1
+      
+      # Fixed synapses per branch (for constant_branch mode)
+      synapses_per_branch: null
+      
+      # Whether to freeze connectivity (no rewiring)
+      freeze_excitatory_connectivity: false
+      freeze_inhibitory_connectivity: false
+      
+      # Weight initialization method (see topk_init_method for options)
+      init_method: "xavier_normal"
+      
+      # Threshold below which weights are pruned
+      weight_threshold: 1e-6
+
+# ============================================================================
+# TRAINING CONFIGURATION
+# ============================================================================
+train:
+  # Experiment name for logging and saving
+  run_name: exp_run
+  
+  # Learning strategy
+  # Options:
+  #   - "mle": Maximum likelihood estimation (standard backprop)
+  #   - "freeze_layers": Train layers sequentially, freezing previous
+  #   - "local_credit_assignment": Local learning rules
+  #   - "two_step": Two-step training with local then global
+  #   - "two_step_kl": Two-step with KL divergence regularization
+  #   - "voltage_stabilization": Warm up with voltage stabilization
+  #   - "regression": For regression tasks (MSE loss)
+  #   - "specialized": Special training strategies
+  learning_strategy: mle
+  
+  # Random seed for reproducibility
+  seed: 0
+  
+  # Train/validation split ratio (0.8 = 80% train, 20% valid)
+  train_valid_split: 0.8
+  
+  # Optimizer configuration
+  optim_dict:
+    # Base learning rate (used if split_params=false)
+    lr: 0.01
+    
+    # Whether to use different learning rates for different parameter groups
+    split_params: true
+    
+    # Group-specific learning rates (only used if split_params=true)
+    input_net_lr: 0.001     # Learning rate for input network
+    topk_lr: 0.001          # Learning rate for TopK synaptic weights
+    blocklinear_lr: 0.001   # Learning rate for branch aggregation
+    reactivation_lr: 0.001  # Learning rate for activation parameters
+    output_layer_lr: 0.001  # Learning rate for output layer
+  
+  # Maximum number of training epochs
+  epochs: 50
+  
+  # Early stopping configuration
+  early_stopping: false  # Whether to stop when validation loss plateaus
+  patience: 10          # Epochs to wait before stopping
+  
+  # Batch size for training
+  batch_size: 512
+  
+  # Gradient clipping value (prevents exploding gradients)
+  # Set to 0 to disable clipping
+  grad_clip_value: 5
+  
+  # Layer-wise training parameters (for freeze_layers strategy)
+  epochs_per_layer: 50  # Epochs to train each layer
+  final_tune_epochs: 10  # Final fine-tuning epochs
+  
+  # Voltage stabilization parameters
+  warmup_epochs: 1          # Epochs for voltage stabilization
+  stability_target_voltage: 0.5  # Target voltage for stabilization
+  
+  # Weight decay rate (L2 regularization on log-weights)
+  weight_decay_rate: 0.1
+  
+  # Input network training configuration (for input_mode=2)
+  input_net_training:
+    # Training mode
+    # Options:
+    #   - "joint": Train input network and main network together
+    #   - "sequential": Train input network first, then main network
+    training_mode: "sequential"
+    
+    # Whether to train input network (false = use pre-trained)
+    train_input_net: true
+    
+    # Epochs for input network pre-training
+    input_net_epochs: 20
+    
+    # Whether to train exc/inh heads independently
+    train_heads_independently: false
+    
+    # Objective for inhibitory head
+    # Options:
+    #   - "classification": Standard classification loss
+    #   - "diversity": Maximize diversity of representations
+    #   - "combined": Weighted combination of both
+    inhibitory_head_objective: "classification"
+    
+    # Weight for diversity loss (0.0 to 1.0)
+    diversity_weight: 0.5
+    
+    # Pre-trained weight options
+    pretrained_options:
+      # Source of pre-trained weights
+      # Options:
+      #   - "file": Load from file
+      #   - "pytorch": Use PyTorch pre-trained model
+      #   - "none": No pre-trained weights
+      source: "file"
+      
+      # Path to weights file (if source="file")
+      weights_path: ""
+      
+      # PyTorch model name (if source="pytorch")
+      # Options: "alexnet", "resnet18", etc.
+      pytorch_model: ""
+
+# ============================================================================
+# TASK/DATASET CONFIGURATION
+# ============================================================================
+task:
+  # Dataset name
+  # Options:
+  #   - "mnist": MNIST handwritten digits
+  #   - "cifar10": CIFAR-10 natural images
+  #   - "mnist_modulo10": MNIST with modulo 10 labels
+  #   - "random_flip_mnist": MNIST with random label flips
+  #   - "line": Synthetic line detection
+  #   - "center_surround": Center-surround patterns
+  #   - "orientation_bars": Oriented bar detection
+  #   - "multi_xor": Multi-bit XOR task
+  #   - "info_shunting": Information routing task
+  #   - "noise_resilience": Noisy line detection
+  #   - "feature_selectivity": Sparse MNIST
+  #   - "context_gating": Contextual figure-ground
+  #   - "learning_dynamics": Multi-task lines
+  #   - "hierarchical_processing": Compositional MNIST
+  #   - "poisson_generator": Poisson-sampled data
+  #   - "orthonet": Orthogonal network generated data
+  dataset: cifar10
+  
+  # Path to dataset (empty = use default location)
+  data_path: ""
+  
+  # Dataset-specific parameters
+  parameters:
+    # Common parameters
+    train_size: 8000      # Number of training samples
+    valid_size: 1000      # Number of validation samples
+    test_size: 1000       # Number of test samples
+    flatten: true         # Whether to flatten images
+    normalize: false      # Whether to normalize inputs
+    
+    # Task-specific parameters
+    image_size: 16        # Image size (for synthetic tasks)
+    n_orient_classes: 8   # Number of orientations (orientation_bars)
+    n_bits: 8            # Number of bits (multi_xor)
+    base_dataset: "mnist" # Base dataset (poisson_generator)
+    rate_multiplier: 1    # Poisson rate multiplier
+    
+    # OrthoNet parameters
+    input_dim: 10        # Input dimension
+    n_layers: 5          # Number of orthogonal layers
+    nonlinearity: 'sigmoid'  # 'sigmoid', 'tanh', or None
+    repeat_layers: false  # Whether to repeat layer weights
+    noise_std: 0.1       # Noise for repeated layers
+
+# ============================================================================
+# WEIGHTS & BIASES CONFIGURATION
+# ============================================================================
+wandb:
+  # W&B entity (username or team name)
+  entity: ""
+  
+  # Project name
+  project: "dendritic_modeling"
+  
+  # Run group (for organizing related runs)
+  group: "experiments"
+  
+  # Tags for categorizing runs
+  tags: ["dendritic", "ei_network"]
+  
+  # Whether to use W&B logging
+  use_wandb: false
+
+# ============================================================================
+# VISUALIZATION CONFIGURATION
+# ============================================================================
+visualization:
+  # Whether to enable visualization
+  enabled: false
+  
+  # Epochs at which to generate visualizations
+  visualize_epochs: [10, 30, 50]
+  
+  # Types of plots to generate
+  # Options:
+  #   - "weights": Synaptic weight matrices
+  #   - "activations": Activation distributions
+  #   - "gradients": Gradient flow
+  #   - "profiles": Dendritic profiles
+  #   - "branch_info": Branch information content
+  #   - "branch_ablation": Branch ablation effects
+  #   - "layer_ablation": Layer ablation effects
+  plots:
+    - weights
+    - activations
+    - gradients
+    - branch_ablation
+    - layer_ablation
+
+# ============================================================================
+# ANALYSIS CONFIGURATION
+# ============================================================================
+analysis:
+  # Performance metrics analysis
+  performance_analysis:
+    enabled: true       # Whether to compute performance metrics
+    training: false     # Whether to run during training
+    params:
+      accuracy: true    # Classification accuracy
+      categorical_loglikelihood: true  # Log-likelihood
+      mse: false       # Mean squared error (for regression)
+  
+  # Information-theoretic analysis (NEW INTEGRATED VERSION)
+  information_analysis:
+    # Estimation method
+    # Options:
+    #   - "kraskov": K-nearest neighbors estimator (best for continuous)
+    #   - "sklearn": Scikit-learn based (good for mixed data)
+    #   - "copula": Copula-based estimation (for complex dependencies)
+    #   - "auto": Automatically select based on data
+    method: kraskov
+    
+    # Kraskov estimator parameters
+    n_neighbors: 10    # Number of neighbors (5-20 typical)
+    
+    # Sklearn estimator parameters
+    n_bins: 20        # Number of bins for histogram method
+    
+    # Copula estimator parameters
+    copula_type: gaussian  # Type of copula: "gaussian", "t", "clayton"
+    
+    # Which metrics to compute
+    compute_basic_mi: true      # I(E;C), I(I;C), I(Vout;C), I(Vinf;C)
+    compute_pairwise_mi: true   # I(E;I), I(E;Vout), I(I;Vout), etc.
+    compute_conditional_mi: true # I(E;I|C), I(E;Vout|C), etc.
+    compute_pid: false          # Partial Information Decomposition
+    
+    # PID-specific settings
+    pid_binarize: true          # Whether to binarize for PID
+    pid_binarize_method: median # "median", "mean", "quantile"
+    pid_binarize_threshold: 0.5 # Threshold for quantile method
+    
+    # Additional options
+    include_vinf: true     # Include soma activation in analysis
+    normalize_mi: false    # Normalize MI by entropy
+    verbose: false         # Print detailed progress
+  
+  # Synaptic turnover analysis
+  synapse_turnover_analysis:
+    enabled: false      # Track synapse dynamics over time
+    training: false     # Run during training
+  
+  # Noise robustness analysis
+  noise_perturbation_analysis:
+    enabled: false
+    training: false
+    params:
+      uniform_noise: true           # Test uniform noise
+      uniform_magnitudes: [0.1, 0.2] # Noise magnitudes
+      gaussian_noise: true          # Test Gaussian noise
+      gaussian_sdevs: [0.1, 0.2]    # Noise std devs
+      n_samples: 10                 # Samples per noise level
+      accuracy: true                # Measure accuracy
+      categorical_loglikelihood: true # Measure log-likelihood
+  
+  # Component ablation analysis
+  ablation_analysis:
+    enabled: false
+    training: false
+    params:
+      ablate_all_synapses: true    # Test removing all synapses
+      ablate_excitation: true       # Test removing excitation
+      ablate_inhibition: true       # Test removing inhibition
+      ablate_branches: true         # Test removing branches
+      accuracy: true
+      categorical_loglikelihood: true
+  
+  # Weight distribution analysis
+  weight_analysis:
+    enabled: false
+    training: false
+    params:
+      synapse_weights: true  # Analyze synapse weights
+      branch_weights: true   # Analyze branch weights
+  
+  # Synaptic activation patterns
+  synaptic_activation_analysis:
+    enabled: false
+    training: false
+    params:
+      network_summary: true  # Network-wide statistics
+      layer_summary: true    # Per-layer statistics
+      branch_summary: true   # Per-branch statistics
+      raw_summary: true      # Raw activation values
+      logspace: false        # Use log-transformed values
+      downsample: true       # Downsample for efficiency
+      samples: 1000          # Number of samples
+  
+  # Branch activation patterns
+  branch_activation_analysis:
+    enabled: false
+    training: false
+    params:
+      synapse_activations: true  # E/I synapse activations
+      branch_activations: true   # Branch output activations
+      network_summary: true      # Network statistics
+      layer_summary: true        # Layer statistics
+      branch_summary: true       # Branch statistics
+      raw_summary: true          # Raw values
+      logspace: false           # Log transform
+      downsample: true          # Downsample
+      samples: 1000             # Sample size
+  
+  # Single layer contribution (tests each layer in isolation)
+  single_layer_contribution:
+    enabled: true
+    training: false
+    params:
+      save_plots: true   # Generate plots
+      save_csv: true     # Save numerical results
+  
+  # Synaptic ablation (removes specific synapses)
+  synaptic_ablation:
+    enabled: true
+    training: false
+    params:
+      # Ablation scope
+      # Options:
+      #   - "whole_layer": Remove entire layers
+      #   - "single_branch": Remove individual branches
+      ablation_type: "whole_layer"
+      
+      # Which layers to analyze (empty = all)
+      layers_to_analyze: []
+      
+      # Ablation method
+      # Options:
+      #   - "direct": Set weights to large negative value
+      #   - "full": Complete removal (not implemented)
+      mode: "direct"
+      
+      save_plots: true
+      save_csv: true
+
+# ============================================================================
+# OUTPUT CONFIGURATION
+# ============================================================================
+outputs:
+  # Directory for all experiment outputs
+  # Subdirectories will be created for:
+  #   - models/: Saved model checkpoints
+  #   - logs/: Training logs
+  #   - analysis/: Analysis results
+  #   - visualizations/: Generated plots
+  dir: ./outputs/ 

@@ -36,7 +36,7 @@ pip install -e .
 
 # Create a simple configuration file (examples in configs/)
 # Run an experiment
-python src/dendritic_modeling/train_experiments.py configs/config_exp.yaml
+python src/dendritic_modeling/scripts/train_experiments.py configs/config_exp.yaml
 ```
 
 For a step-by-step guide, check out our [Quickstart Documentation](https://kempnerinstitute.github.io/dendritic-modeling/getting_started/quickstart.html).
