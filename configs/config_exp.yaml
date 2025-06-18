@@ -235,7 +235,10 @@ analysis:
   # NEW: Integrated information-theoretic analysis using multivariate methods
   information_analysis:
     # Estimation method for mutual information computation
-    method: "kraskov"  # Options: "kraskov" (k-NN), "sklearn" (histogram/kernel), "copula" (copula-based)
+    method: "copula"  # Changed to "copula" for copula-based estimation
+    
+    # Maximum number of samples to use (for faster computation)
+    max_samples: 1000  # Use only 1000 samples instead of all 10000
     
     # Method-specific parameters
     n_neighbors: 10       # For Kraskov k-NN estimator (higher = more accurate but slower)
@@ -244,20 +247,25 @@ analysis:
     
     # Which information metrics to compute
     compute_basic_mi: true       # Basic MI: I(E;C), I(I;C), I(Vout;C), I(Vinf;C), I(E,I;C)
-    compute_pairwise_mi: true    # Pairwise MI: I(E;I), I(E;Vout), I(I;Vout), I(E;Vinf), I(I;Vinf), I(Vout;Vinf)
-    compute_conditional_mi: true  # Conditional MI: I(E;I|C), I(E;Vout|C), I(I;Vout|C), I(E;Vinf|C), I(I;Vinf|C)
-    compute_pid: false           # Partial Information Decomposition (requires external PID library)
+    compute_pairwise_mi: false   # DISABLED for speed - Pairwise MI: I(E;I), I(E;Vout), I(I;Vout), I(E;Vinf), I(I;Vinf), I(Vout;Vinf)
+    compute_conditional_mi: false # DISABLED for speed - Conditional MI: I(E;I|C), I(E;Vout|C), I(I;Vout|C), I(E;Vinf|C), I(I;Vinf|C)
+    compute_pid: false           # Partial Information Decomposition (requires external library)
     
-    # PID-specific settings (only used if compute_pid=true)
-    pid_binarize: true              # Whether to binarize data for PID computation
-    pid_binarize_method: "median"   # Binarization method: "median", "mean", "quantile"
-    pid_binarize_threshold: 0.5     # Threshold for "quantile" method (0-1)
+    # PID-specific options (only used if compute_pid is true)
+    pid_binarize: true          # Whether to binarize data for PID computation
+    pid_binarize_method: "median" # Binarization method: "median", "mean", "quantile"
+    pid_binarize_threshold: 0.5  # Threshold for quantile method
     
     # Additional options
     include_vinf: true     # Include soma activation (Vinf) in analysis
-                            # When true, computes: I(Vinf;C), I(E;Vinf), I(I;Vinf), I(Vout;Vinf), I(E;Vinf|C), I(I;Vinf|C)
     normalize_mi: false    # Normalize MI values by entropy H(C)
     verbose: false        # Print detailed progress during computation
+    
+          # Branch aggregation options (NEW)
+      compute_per_branch: true  # If true: compute MI for each branch separately and average results
+                                  # If false: aggregate branches first, then compute MI once
+      branch_aggregation: "mean"  # How to aggregate branch activations when compute_per_branch=false
+                                   # Options: "mean", "max", "sum", "first" (only first branch)
 
 outputs:
   dir: ./outputs/
