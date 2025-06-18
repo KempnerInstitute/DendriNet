@@ -237,11 +237,21 @@ class SingleLayerContributionAnalyzer:
             if self.save_plots:
                 # Use the new unified plotting system
                 plotter = LayerAnalysisPlotter()
-                fig = plotter.plot_single_layer_contribution(
-                    results, 
-                    baseline_acc,
+                
+                # Prepare data in the format expected by plot_layer_contributions
+                plot_results = {
+                    'accuracies': {
+                        i: results['isolated_baseline_acc'][i] 
+                        for i in range(len(results['layer_idx']))
+                    }
+                }
+                
+                fig, ax = plotter.plot_layer_contributions(
+                    plot_results,
+                    metrics=['accuracy'],
                     save_path=save_path,
-                    filename=filename
+                    filename=filename,
+                    reverse_layers=True
                 )
                 self.logger.info(f"Saved plot to {save_path}/{filename}.png")
 
