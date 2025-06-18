@@ -13,7 +13,7 @@ from .performance.layers import SingleLayerContributionAnalyzer
 from .performance.synaptic_ablation import SynapticAblationAnalyzer
 
 # Information analysis
-from .information import EIInformationAnalyzer, BranchInformationAnalyzer
+from .information import IntegratedInformationAnalyzer
 
 # Activation analysis
 from .activations.synaptic import SynapticActivationAnalyzer
@@ -40,8 +40,7 @@ __all__ = [
     "SynapticAblationAnalyzer",
     
     # Information analysis
-    "EIInformationAnalyzer",
-    "BranchInformationAnalyzer",
+    "IntegratedInformationAnalyzer",
     
     # Activation analysis
     "SynapticActivationAnalyzer",
