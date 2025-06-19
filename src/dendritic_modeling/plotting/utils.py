@@ -10,6 +10,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import torch
 import logging
+from typing import List
 
 try:
     import networkx as nx
@@ -21,6 +22,33 @@ except ImportError:
     nx = None
 
 from dendritic_modeling.plotting.analysis import einet_activations_todict
+
+
+def reverse_layer_indices(layer_indices: List[int]) -> List[int]:
+    """
+    Reverse layer indices for soma-to-distal visualization.
+    
+    Args:
+        layer_indices: Original layer indices
+        
+    Returns:
+        Reversed indices where last layer (soma) becomes 0
+    """
+    num_layers = len(layer_indices)
+    return [num_layers - 1 - idx for idx in layer_indices]
+
+
+def format_layer_labels(layer_indices: List[int]) -> List[str]:
+    """
+    Format layer indices as labels with special handling for soma.
+    
+    Args:
+        layer_indices: Layer indices (0-based)
+        
+    Returns:
+        List of formatted labels
+    """
+    return ["Soma" if idx == 0 else str(idx) for idx in layer_indices]
 
 
 def dendrinet_activations_to_csv(
