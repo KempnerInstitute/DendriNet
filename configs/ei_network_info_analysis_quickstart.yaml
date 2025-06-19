@@ -1,0 +1,159 @@
+# ============================================================================
+# QUICK START: EI NETWORK WITH INFORMATION ANALYSIS
+# ============================================================================
+# This configuration trains an Excitation-Inhibition network on MNIST and
+# computes information-theoretic measures between E/I inputs, branch outputs,
+# and class labels.
+#
+# TO RUN:
+#   python -m dendritic_modeling.scripts.train_experiments --config configs/ei_network_info_analysis_quickstart.yaml
+# ============================================================================
+
+# Minimal model configuration
+model:
+  task: classification
+  base:
+    output_layer: true
+    output_dim: 10
+  network:
+    type: EINet
+    parameters:
+      # Small network for quick training
+      excitatory_layer_sizes: [20, 10]
+      inhibitory_layer_sizes: [10, 5]
+      excitatory_branch_factors: [2, 2]
+      inhibitory_branch_factors: [2]
+      
+      # Moderate connectivity
+      ee_synapses_per_branch_per_layer: [50, 25]
+      ei_synapses_per_branch_per_layer: [30, 15]
+      ie_synapses_per_branch_per_layer: [20, 10]
+      ii_synapses_per_branch_per_layer: [0, 0]
+      
+      # Essential settings
+      somatic_synapses: true
+      use_shunting: true      # V = E/(E+I+1)
+      reactivate: true
+      reactivation_type: param_tanh
+      topk_init_method: xavier_normal
+      topk_type: standard
+      input_mode: 0           # Clear E/I separation
+
+# Quick training settings
+train:
+  run_name: ei_info_quickstart
+  learning_strategy: standard
+  seed: 42
+  train_valid_split: 0.8
+  
+  optim_dict:
+    split_params: true
+    topk_lr: 0.001
+    blocklinear_lr: 0.001
+    reactivation_lr: 0.001
+  
+  trainer:
+    # for all learning strategies:
+    loss_function: categorical_nll
+    epochs: 50
+    early_stopping: false
+    patience: 10
+    batch_size: 128
+    shuffle: true
+    grad_clip_value: 5.0
+    load_best_state_dict: true
+    plot_losses: true
+    suppress_prints: false
+    print_every: 10
+    # for learning strategies other than standard:
+    pretrain_epochs: 10
+    target_voltage: 0.5
+    kl_weight: 0.1
+    reverse_training: false
+    epochs_per_layer: 10
+    epochs_per_branch: 10
+    final_tune_epochs: 10
+
+# MNIST dataset (subset for speed)
+task:
+  dataset: mnist
+  parameters:
+    train_size: 10000     # 10K training samples
+    valid_size: 2000      # 2K validation
+    test_size: 2000       # 2K test
+    flatten: true
+    normalize: false
+
+# ============================================================================
+# INFORMATION ANALYSIS (MAIN FOCUS)
+# ============================================================================
+analysis:
+  # Basic performance metrics
+  performance_analysis:
+    enabled: true
+    training: false       # Only at end
+    params:
+      accuracy: true
+      categorical_loglikelihood: true
+  
+  # INFORMATION-THEORETIC ANALYSIS
+  information_analysis:
+    # Use Kraskov estimator (accurate for continuous data)
+    method: kraskov
+    n_neighbors: 10
+    
+    # Compute all basic measures
+    compute_basic_mi: true       # I(E;C), I(I;C), I(Vout;C), etc.
+    compute_pairwise_mi: true    # I(E;I), I(E;Vout), etc.
+    compute_conditional_mi: true # I(E;I|C), etc.
+    compute_pid: false           # Skip PID (requires external package)
+    
+    # Include soma activation
+    include_vinf: true
+    verbose: true               # Show progress
+  
+  # Disable other analyses for speed
+  synapse_turnover_analysis:
+    enabled: false
+  noise_perturbation_analysis:
+    enabled: false
+  ablation_analysis:
+    enabled: false
+  weight_analysis:
+    enabled: false
+  synaptic_activation_analysis:
+    enabled: false
+  branch_activation_analysis:
+    enabled: false
+  single_layer_contribution:
+    enabled: false
+
+# No W&B or visualization
+wandb:
+  use_wandb: false
+
+visualization:
+  enabled: false
+
+# Output directory
+outputs:
+  dir: ./outputs/ei_info_quickstart/
+
+# ============================================================================
+# EXPECTED OUTPUT
+# ============================================================================
+# After training, you'll find in outputs/ei_info_quickstart/analysis/:
+#
+# 1. information_analysis/
+#    - information_analysis_results.json  # Raw MI values
+#    - information_analysis_summary.txt   # Human-readable summary
+#
+# 2. performance_analysis/
+#    - test_metrics.json                  # Final accuracy
+#
+# The summary will show values like:
+# - I(E;C) = 1.23 nats    # Excitatory info about class
+# - I(I;C) = 0.89 nats    # Inhibitory info about class  
+# - I(E;I) = 0.45 nats    # E/I dependence
+# - I(Vout;C) = 1.56 nats # Branch output info
+# ============================================================================ 

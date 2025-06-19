@@ -8,14 +8,13 @@ model performance by testing each layer in isolation and measuring its individua
 import os
 import json
 import logging
-from typing import List, Optional
-import numpy as np
+from typing import Optional
 import torch
-import matplotlib.pyplot as plt
 import pandas as pd
 
 from dendritic_modeling.models import BaseModel
 from dendritic_modeling.utils import measure_performance
+from dendritic_modeling.plotting.analysis import LayerAnalysisPlotter
 
 
 class SingleLayerContributionAnalyzer:
@@ -234,197 +233,24 @@ class SingleLayerContributionAnalyzer:
                 self.logger.info(f"Saved results to {json_path}")
 
             if self.save_plots:
-                # Reverse layer indices so soma (last layer) becomes 0
-                num_layers = len(results["layer_idx"])
-                reversed_layer_idx = [
-                    num_layers - 1 - idx for idx in results["layer_idx"]
-                ]
-
-                # Create figure with two subplots
-                fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(20, 8))
-
-                # Left plot: Absolute accuracy values
-                x = np.array(reversed_layer_idx)
-
-                # Reverse the data to match the x positions
-                baseline_acc_reversed = [
-                    results["isolated_baseline_acc"][i]
-                    for i in range(num_layers - 1, -1, -1)
-                ]
-                exc_only_acc_reversed = [
-                    results["isolated_exc_only_acc"][i]
-                    for i in range(num_layers - 1, -1, -1)
-                ]
-                inh_only_acc_reversed = [
-                    results["isolated_inh_only_acc"][i]
-                    for i in range(num_layers - 1, -1, -1)
-                ]
-                neither_acc_reversed = [
-                    results["isolated_neither_acc"][i]
-                    for i in range(num_layers - 1, -1, -1)
-                ]
-
-                ax1.plot(
-                    x,
-                    baseline_acc_reversed,
-                    "o-",
-                    label="Both E+I",
-                    linewidth=3,
-                    markersize=10,
-                    color="purple",
+                # Use the new unified plotting system
+                plotter = LayerAnalysisPlotter()
+                
+                # Prepare data in the format expected by plot_layer_contributions
+                plot_results = {
+                    'accuracies': {
+                        i: results['isolated_baseline_acc'][i] 
+                        for i in range(len(results['layer_idx']))
+                    }
+                }
+                
+                fig, ax = plotter.plot_layer_contributions(
+                    plot_results,
+                    metrics=['accuracy'],
+                    save_path=save_path,
+                    filename=filename,
+                    reverse_layers=True
                 )
-                ax1.plot(
-                    x,
-                    exc_only_acc_reversed,
-                    "s-",
-                    label="Excitatory only",
-                    linewidth=3,
-                    markersize=10,
-                    color="red",
-                )
-                ax1.plot(
-                    x,
-                    inh_only_acc_reversed,
-                    "^-",
-                    label="Inhibitory only",
-                    linewidth=3,
-                    markersize=10,
-                    color="blue",
-                )
-                ax1.plot(
-                    x,
-                    neither_acc_reversed,
-                    "v-",
-                    label="Neither",
-                    linewidth=3,
-                    markersize=10,
-                    color="gray",
-                )
-                ax1.axhline(
-                    y=baseline_acc,
-                    color="k",
-                    linestyle="--",
-                    linewidth=2,
-                    label=f"Full network baseline ({baseline_acc:.3f})",
-                )
-
-                # Set x-axis ticks and labels
-                ax1.set_xticks(x)
-                # Create labels based on position, not value
-                x_labels = ["Soma" if i == 0 else f"{i}" for i in range(len(x))]
-                ax1.set_xticklabels(x_labels)
-
-                ax1.set_xlabel("Layer (Soma → Distal)", fontsize=14)
-                ax1.set_ylabel("Classification Accuracy", fontsize=14)
-                ax1.set_title(
-                    "Single Layer Contribution Analysis\n(Each layer tested in isolation)",
-                    fontsize=16,
-                )
-                ax1.legend(fontsize=12)
-                ax1.grid(True, alpha=0.3)
-                ax1.set_ylim(
-                    [0, max(max(results["isolated_baseline_acc"]), baseline_acc) * 1.1]
-                )
-
-                # Right plot: Contribution breakdown (bar chart)
-                width = 0.25
-
-                # Calculate contributions
-                exc_contrib = [
-                    b - n
-                    for b, n in zip(
-                        results["isolated_exc_only_acc"],
-                        results["isolated_neither_acc"],
-                    )
-                ]
-                inh_contrib = [
-                    b - n
-                    for b, n in zip(
-                        results["isolated_inh_only_acc"],
-                        results["isolated_neither_acc"],
-                    )
-                ]
-                synergy = [
-                    full - max(e, i)
-                    for full, e, i in zip(
-                        results["isolated_baseline_acc"],
-                        results["isolated_exc_only_acc"],
-                        results["isolated_inh_only_acc"],
-                    )
-                ]
-
-                # Debug: Print contributions before reversal
-                self.logger.info(
-                    f"Before reversal - Excitatory contributions: {exc_contrib}"
-                )
-                self.logger.info(
-                    f"Before reversal - Inhibitory contributions: {inh_contrib}"
-                )
-                self.logger.info(f"Before reversal - Synergy: {synergy}")
-
-                # Reverse the contributions too
-                exc_contrib = [exc_contrib[i] for i in range(num_layers - 1, -1, -1)]
-                inh_contrib = [inh_contrib[i] for i in range(num_layers - 1, -1, -1)]
-                synergy = [synergy[i] for i in range(num_layers - 1, -1, -1)]
-
-                # Debug: Print contributions after reversal
-                self.logger.info(
-                    f"After reversal - Excitatory contributions: {exc_contrib}"
-                )
-                self.logger.info(
-                    f"After reversal - Inhibitory contributions: {inh_contrib}"
-                )
-                self.logger.info(f"After reversal - Synergy: {synergy}")
-                self.logger.info(f"Plotting x positions: {x.tolist()}")
-
-                ax2.bar(
-                    x - width,
-                    exc_contrib,
-                    width,
-                    label="Excitatory contribution",
-                    color="red",
-                    alpha=0.7,
-                )
-                ax2.bar(
-                    x,
-                    inh_contrib,
-                    width,
-                    label="Inhibitory contribution",
-                    color="blue",
-                    alpha=0.7,
-                )
-                ax2.bar(
-                    x + width,
-                    synergy,
-                    width,
-                    label="E+I synergy",
-                    color="purple",
-                    alpha=0.7,
-                )
-
-                # Set x-axis
-                ax2.set_xticks([i * 3 for i in range(len(reversed_layer_idx))])
-                # Create position-based labels
-                x_labels = [
-                    "Soma" if i == 0 else f"{i}" for i in range(len(reversed_layer_idx))
-                ]
-                ax2.set_xticklabels(x_labels)
-                ax2.set_xlabel("Layer (Soma → Distal)", fontsize=14)
-
-                ax2.set_ylabel("Accuracy Contribution", fontsize=14)
-                ax2.set_title(
-                    "Layer Contributions Breakdown\n(When tested in isolation)",
-                    fontsize=16,
-                )
-                ax2.legend(fontsize=12)
-                ax2.grid(True, axis="y", alpha=0.3)
-                ax2.axhline(y=0, color="k", linestyle="-", linewidth=0.5)
-
-                plt.tight_layout()
-                plot_path = os.path.join(save_path, f"{filename}.png")
-                plt.savefig(plot_path, dpi=300, bbox_inches="tight")
-                plt.close()
-
-                self.logger.info(f"Saved plot to {plot_path}")
+                self.logger.info(f"Saved plot to {save_path}/{filename}.png")
 
         return results 

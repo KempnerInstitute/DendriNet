@@ -1,14 +1,12 @@
 """
 Information analysis subpackage.
 
-This subpackage contains analyzers focused on information theory and mutual information
-analysis for understanding information flow in dendritic networks.
+This subpackage provides unified information-theoretic analysis for dendritic networks,
+including mutual information, conditional mutual information, and partial information decomposition.
+Uses multivariate methods from information.py as the core computation engine.
 """
 
-from dendritic_modeling.analysis.information.mutual_info import EIInformationAnalyzer
-from dendritic_modeling.analysis.information.branch_info import BranchInformationAnalyzer
-
-# Import from information.py
+# Core computation functions (multivariate-aware)
 from dendritic_modeling.analysis.information.information import (
     compute_mi_cc,
     compute_mi_cd,
@@ -19,17 +17,17 @@ from dendritic_modeling.analysis.information.information import (
     compute_synaptic_information,
 )
 
-# Import from pid_utils.py
+# PID utilities
 from dendritic_modeling.analysis.information.pid_utils import (
     check_pid_available,
     pid_synergy_redundancy,
 )
 
+# Main integrated analyzer
+from dendritic_modeling.analysis.information.integrated_analyzer import IntegratedInformationAnalyzer
+
 __all__ = [
-    # Analyzer classes
-    "EIInformationAnalyzer",
-    "BranchInformationAnalyzer",
-    # Information theory functions
+    # Core computation functions
     "compute_mi_cc",
     "compute_mi_cd",
     "compute_EI_MI",
@@ -40,4 +38,6 @@ __all__ = [
     # PID utilities
     "check_pid_available",
     "pid_synergy_redundancy",
+    # Main analyzer
+    "IntegratedInformationAnalyzer",
 ] 

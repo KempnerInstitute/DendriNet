@@ -10,12 +10,8 @@ import logging
 import os
 import traceback
 
-from dendritic_modeling.plotting import (
-    plot_einet_activations,
-    plot_dendrinet_gradients,
-    plot_einet_params,
-    plot_einet_profiles,
-)
+from dendritic_modeling.plotting.analysis import plot_einet_activations
+from dendritic_modeling.plotting.network import plot_dendrinet_gradients, plot_einet_params
 from dendritic_modeling.datasets import split_MNIST_inputs
 from dendritic_modeling.utils import Shaper
 from dendritic_modeling.analysis.branches.interactive import InteractiveBranchAnalyzer
@@ -120,19 +116,13 @@ class PlotManager:
             save_dir = os.path.join(self.save_path, "param_visuals")
             os.makedirs(save_dir, exist_ok=True)
             
-            shaper = None
-            if hasattr(self.args, 'shape') and self.args.shape is not None:
-                shaper = Shaper(shape=self.args.shape)
-                
+            save_path = os.path.join(save_dir, f"{self.file_name}_params.png" if self.file_name else "params.png")
             plot_einet_params(
-                einet=self.model.net,
-                save_root=save_dir,
-                reshape_fn=shaper.reshape if shaper else None,
-                reshape_exc_syn=True,
-                logspace=True,
-                save_in_dir=True,
-                filename=self.file_name,
+                model=self.model.net,
+                save_path=save_path,
+                show=False
             )
+            logging.info(f"Saved parameter visualizations in {save_path}")
         else:
             logging.info("No 'net' attribute found on model. Skipping _plot_weights.")
 
@@ -148,10 +138,10 @@ class PlotManager:
             plot_einet_activations(
                 einet=self.model.net,
                 input_list=input_list,
-                save_root=save_dir,
-                save_in_dir=True,
-                filename=self.file_name,
+                save_path=save_dir,
+                filename=self.file_name if self.file_name else "activations"
             )
+            logging.info(f"Saved activation visualizations in {save_dir}")
         else:
             logging.info("No 'net' attribute on model. Skipping _plot_activations.")
 
@@ -161,49 +151,20 @@ class PlotManager:
             save_dir = os.path.join(self.save_path, "grad_visuals")
             os.makedirs(save_dir, exist_ok=True)
             
-            train_input, train_label = self.data["train"][:]
-            shaper = None
-            if hasattr(self.args, 'shape') and self.args.shape is not None:
-                shaper = Shaper(shape=self.args.shape)
-                
+            save_path = os.path.join(save_dir, f"{self.file_name}_gradients.png" if self.file_name else "gradients.png")
             plot_dendrinet_gradients(
                 model=self.model,
-                inputs=train_input,
-                labels=train_label,
-                save_root=save_dir,
-                reshape_fn=shaper.reshape if shaper else None,
-                reshape_exc_syn=True,
-                save_in_dir=True,
-                filename=self.file_name,
+                save_path=save_path,
+                show=False
             )
-            logging.info(f"Saved gradient visualizations in {save_dir}")
+            logging.info(f"Saved gradient visualizations in {save_path}")
         else:
             logging.info("No 'net' attribute found. Skipping gradient plotting.")
 
     def _plot_profiles(self):
-        """Generate profile visualizations - delegates to plotting.analysis module."""
-        if hasattr(self.model, "net"):
-            save_dir = os.path.join(self.save_path, "profiles")
-            os.makedirs(save_dir, exist_ok=True)
-            
-            shaper = None
-            if hasattr(self.args, 'shape') and self.args.shape is not None:
-                shaper = Shaper(shape=self.args.shape)
-                
-            plot_einet_profiles(
-                model=self.model,
-                train_data=self.data["train"],
-                valid_data=self.data["valid"],
-                n_tasks=1,
-                logspace=True,
-                reshape_fn=shaper.reshape if shaper else None,
-                save_root=save_dir,
-                save_in_dir=True,
-                filename=self.file_name,
-            )
-            logging.info(f"Saved profile visualizations in {save_dir}")
-        else:
-            logging.info("No 'net' attribute found. Skipping profile plotting.")
+        """Generate profile visualizations - NOT IMPLEMENTED."""
+        logging.info("Profile plotting is not currently implemented.")
+        # TODO: Implement profile visualization if needed
 
     # Branch analysis methods - delegate to InteractiveBranchAnalyzer
     def _branch_info(self):
