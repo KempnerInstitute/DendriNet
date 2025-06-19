@@ -10,11 +10,9 @@ from dendritic_modeling.analysis.performance.metrics import PerformanceAnalyzer
 from dendritic_modeling.analysis.performance.noise import NoisePerturbationAnalyzer
 from dendritic_modeling.analysis.performance.ablation import AblationAnalyzer
 from dendritic_modeling.analysis.performance.layers import SingleLayerContributionAnalyzer
-from dendritic_modeling.analysis.performance.synaptic_ablation import SynapticAblationAnalyzer
 
 # Information analysis
-from dendritic_modeling.analysis.information.mutual_info import EIInformationAnalyzer
-from dendritic_modeling.analysis.information.branch_info import BranchInformationAnalyzer
+from dendritic_modeling.analysis.information.integrated_analyzer import IntegratedInformationAnalyzer
 
 # Activation analysis
 from dendritic_modeling.analysis.activations.synaptic import SynapticActivationAnalyzer
@@ -38,11 +36,9 @@ __all__ = [
     "NoisePerturbationAnalyzer", 
     "AblationAnalyzer",
     "SingleLayerContributionAnalyzer",
-    "SynapticAblationAnalyzer",
     
     # Information analysis
-    "EIInformationAnalyzer",
-    "BranchInformationAnalyzer",
+    "IntegratedInformationAnalyzer",
     
     # Activation analysis
     "SynapticActivationAnalyzer",
@@ -58,5 +54,5 @@ __all__ = [
     # New organized analysis classes
     "InteractiveBranchAnalyzer",
     "ComprehensiveDendriticAnalyzer",
-    "PlotManager",
+    "PlotManager"
 ] 
