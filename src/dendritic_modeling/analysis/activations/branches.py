@@ -10,6 +10,7 @@ import torch
 from dendritic_modeling.models import BaseModel
 from dendritic_modeling.networks import ExcitationInhibitionNetwork
 from dendritic_modeling.networks.layers.dendritic import DendriticBranchLayer
+from dendritic_modeling.config.analysis import BranchActivationAnalysisParams
 from dendritic_modeling.utils import save_dict
 
 
@@ -22,18 +23,7 @@ class BranchActivationAnalyzer:
     Includes debugging print statements for detailed analysis tracking.
     """
     
-    def __init__(
-        self,
-        synapse_activations: bool = True,
-        branch_activations: bool = True,
-        network_summary: bool = True,
-        layer_summary: bool = True,
-        branch_summary: bool = True,
-        raw_summary: bool = True,
-        logspace: bool = False,
-        downsample: bool = False,
-        samples: int = 1000,
-    ):
+    def __init__(self, params: BranchActivationAnalysisParams):
         """
         Initialize the branch activation analyzer.
         
@@ -48,15 +38,15 @@ class BranchActivationAnalyzer:
             downsample: Whether to downsample input data for efficiency
             samples: Number of samples to use if downsampling
         """
-        self.synapse_activations = synapse_activations
-        self.branch_activations = branch_activations
-        self.network_summary = network_summary
-        self.layer_summary = layer_summary
-        self.branch_summary = branch_summary
-        self.raw_summary = raw_summary
-        self.logspace = logspace
-        self.downsample = downsample
-        self.samples = samples
+        self.synapse_activations = params.synapse_activations
+        self.branch_activations = params.branch_activations
+        self.network_summary = params.network_summary
+        self.layer_summary = params.layer_summary
+        self.branch_summary = params.branch_summary
+        self.raw_summary = params.raw_summary
+        self.logspace = params.logspace
+        self.downsample = params.downsample
+        self.samples = params.samples
 
     def attach_forward_hooks(self, model: BaseModel):
         """

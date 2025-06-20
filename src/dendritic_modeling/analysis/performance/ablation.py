@@ -16,6 +16,7 @@ from torch.utils.data import TensorDataset
 from dendritic_modeling.models import BaseModel
 from dendritic_modeling.networks import ExcitationInhibitionNetwork
 from dendritic_modeling.networks.layers.dendritic import DendriticBranchLayer
+from dendritic_modeling.config.analysis import AblationAnalysisParams
 from dendritic_modeling.utils import (
     evaluate_accuracy,
     evaluate_categorical_loglikelihood,
@@ -24,25 +25,15 @@ from dendritic_modeling.utils import (
 
 
 class AblationAnalyzer:
-    def __init__(
-        self,
-        layer_ablation: bool = True,
-        compartment_ablation: bool = True,
-        ablate_all_synapses: bool = True,
-        ablate_excitation: bool = True,
-        ablate_inhibition: bool = True,
-        ablate_upstream: bool = True,
-        accuracy: bool = True,
-        categorical_loglikelihood: bool = True,
-    ):
-        self.layer_ablation = layer_ablation
-        self.compartment_ablation = compartment_ablation
-        self.ablate_all_synapses = ablate_all_synapses
-        self.ablate_excitation = ablate_excitation
-        self.ablate_inhibition = ablate_inhibition
-        self.ablate_upstream = ablate_upstream
-        self.accuracy = accuracy
-        self.categorical_ll = categorical_loglikelihood
+    def __init__(self, params: AblationAnalysisParams):
+        self.layer_ablation = params.layer_ablation
+        self.compartment_ablation = params.compartment_ablation
+        self.ablate_all_synapses = params.ablate_all_synapses
+        self.ablate_excitation = params.ablate_excitation
+        self.ablate_inhibition = params.ablate_inhibition
+        self.ablate_upstream = params.ablate_upstream
+        self.accuracy = params.accuracy
+        self.categorical_ll = params.categorical_loglikelihood
     
     def ablate_layer_and_evaluate(
         self,

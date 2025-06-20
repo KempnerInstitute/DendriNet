@@ -6,7 +6,7 @@ tracking the dynamics of active, stable, and transient synapses over time.
 """
 
 from copy import deepcopy
-from typing import Optional, Tuple, List
+from typing import Optional, Tuple
 import torch
 from dendritic_modeling.models import BaseModel
 from dendritic_modeling.networks import ExcitationInhibitionNetwork

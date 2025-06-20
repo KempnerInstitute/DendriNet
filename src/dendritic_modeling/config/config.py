@@ -10,6 +10,17 @@ from typing import Any, Dict, List, Optional
 
 from omegaconf import OmegaConf as om
 
+from dendritic_modeling.config.analysis import (
+    PerformanceAnalysisConfig,
+    SynapseTurnoverAnalysisConfig,
+    NoisePerturbationAnalysisConfig,
+    AblationAnalysisConfig,
+    WeightAnalysisConfig,
+    SynapticActivationAnalysisConfig,
+    BranchActivationAnalysisConfig,
+    SingleLayerContributionAnalysisConfig,
+    InformationAnalysisConfig
+)
 
 class BaseConfig:
     @classmethod
@@ -144,47 +155,34 @@ class VisualizationConfig(BaseConfig):
 
 
 @dataclass
-class InformationAnalysisConfig(BaseConfig):
-    """Configuration for integrated information analysis."""
-    # Estimation method: "kraskov", "sklearn", "copula", "auto"
-    method: str = "kraskov"
-    
-    # Method-specific parameters
-    n_neighbors: int = 10  # For Kraskov
-    n_bins: int = 20  # For sklearn histogram
-    copula_type: str = "gaussian"  # For copula
-    
-    # Which metrics to compute
-    compute_basic_mi: bool = True  # I(E;C), I(I;C), I(Vout;C)
-    compute_pairwise_mi: bool = True  # I(E;I), I(E;Vout), I(I;Vout)
-    compute_conditional_mi: bool = True  # I(E;I|C), I(E;Vout|C), etc.
-    compute_pid: bool = False  # Partial Information Decomposition
-    
-    # PID settings
-    pid_binarize: bool = True
-    pid_binarize_method: str = "median"  # "median", "mean", "quantile"
-    pid_binarize_threshold: float = 0.5
-    
-    # Additional options
-    include_vinf: bool = True  # Include soma activation
-    normalize_mi: bool = False  # Normalize by entropy
-    verbose: bool = False
-
-
-@dataclass
 class AnalysisConfig(BaseConfig):
-    performance_analysis: Dict = field(default_factory=dict)
-    ei_info_analysis: Dict = field(default_factory=dict)
-    synapse_turnover_analysis: Dict = field(default_factory=dict)
-    noise_perturbation_analysis: Dict = field(default_factory=dict)
-    single_layer_contribution: Dict = field(default_factory=dict)
-    branch_information: Dict = field(default_factory=dict)
-    ablation_analysis: Dict = field(default_factory=dict)
-    weight_analysis: Dict = field(default_factory=dict)
-    synaptic_activation_analysis: Dict = field(default_factory=dict)
-    branch_activation_analysis: Dict = field(default_factory=dict)
-    # New integrated information analysis
-    information_analysis: InformationAnalysisConfig = field(default_factory=InformationAnalysisConfig)
+    performance_analysis: PerformanceAnalysisConfig = field(
+        default_factory=PerformanceAnalysisConfig
+    )
+    synapse_turnover_analysis: SynapseTurnoverAnalysisConfig = field(
+        default_factory=SynapseTurnoverAnalysisConfig
+    )
+    noise_perturbation_analysis: NoisePerturbationAnalysisConfig = field(
+        default_factory=NoisePerturbationAnalysisConfig
+    )
+    single_layer_contribution: SingleLayerContributionAnalysisConfig = field(
+        default_factory=SingleLayerContributionAnalysisConfig
+    )
+    ablation_analysis: AblationAnalysisConfig = field(
+        default_factory=AblationAnalysisConfig
+    )
+    weight_analysis: WeightAnalysisConfig = field(
+        default_factory=WeightAnalysisConfig
+    )
+    synaptic_activation_analysis: SynapticActivationAnalysisConfig = field(
+        default_factory=SynapticActivationAnalysisConfig
+    )
+    branch_activation_analysis: BranchActivationAnalysisConfig = field(
+        default_factory=BranchActivationAnalysisConfig
+    )
+    information_analysis: InformationAnalysisConfig = field(
+        default_factory=InformationAnalysisConfig
+    )
 
 
 @dataclass

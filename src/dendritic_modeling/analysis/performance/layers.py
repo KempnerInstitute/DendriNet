@@ -15,6 +15,7 @@ import pandas as pd
 from dendritic_modeling.models import BaseModel
 from dendritic_modeling.utils import measure_performance
 from dendritic_modeling.plotting.analysis import LayerAnalysisPlotter
+from dendritic_modeling.config.analysis import SingleLayerContributionAnalysisParams
 
 
 class SingleLayerContributionAnalyzer:
@@ -24,23 +25,17 @@ class SingleLayerContributionAnalyzer:
     to test what each layer can do on its own.
     """
 
-    def __init__(
-        self,
-        batch_size: int = 32,
-        device: str = "cuda",
-        save_plots: bool = True,
-        save_csv: bool = True,
-    ):
-        self.batch_size = batch_size
-        self.device = device
-        self.save_plots = save_plots
-        self.save_csv = save_csv
+    def __init__(self, params: SingleLayerContributionAnalysisParams):
+        self.batch_size = params.batch_size
+        self.save_plots = params.save_plots
+        self.save_csv = params.save_csv
         self.logger = logging.getLogger(__name__)
 
     def analyze(
         self,
         model: BaseModel,
         test_dataset: torch.utils.data.Dataset,
+        device: str = "cuda",
         save_path: Optional[str] = None,
         filename: str = "single_layer_contribution",
     ):
@@ -48,7 +43,7 @@ class SingleLayerContributionAnalyzer:
         self.logger.info("Starting single layer contribution analysis...")
 
         # Ensure model is on the correct device
-        model = model.to(self.device)
+        model = model.to(device)
         # Get the underlying network
         if hasattr(model, "net"):
             net = model.net
@@ -101,7 +96,7 @@ class SingleLayerContributionAnalyzer:
             return
 
         # Get baseline performance with all layers active
-        baseline_acc = measure_performance(net, test_dataset, device=self.device)
+        baseline_acc = measure_performance(net, test_dataset, device=device)
         self.logger.info(f"Baseline accuracy: {baseline_acc:.4f}")
 
         # Log layer structure for debugging
@@ -153,7 +148,7 @@ class SingleLayerContributionAnalyzer:
 
             # Measure with only this layer active (both E and I)
             isolated_baseline = measure_performance(
-                net, test_dataset, device=self.device
+                net, test_dataset, device=device
             )
 
             # Test with only excitatory active
@@ -163,7 +158,7 @@ class SingleLayerContributionAnalyzer:
             ):
                 branch_layers[layer_idx].branch_inhibition.pre_w.data.fill_(-1000.0)
                 exc_only_acc = measure_performance(
-                    net, test_dataset, device=self.device
+                    net, test_dataset, device=device
                 )
                 # Restore inhibitory
                 for n, p in net.named_parameters():
@@ -179,7 +174,7 @@ class SingleLayerContributionAnalyzer:
             ):
                 branch_layers[layer_idx].branch_excitation.pre_w.data.fill_(-1000.0)
                 inh_only_acc = measure_performance(
-                    net, test_dataset, device=self.device
+                    net, test_dataset, device=device
                 )
                 # Restore excitatory
                 for n, p in net.named_parameters():
@@ -199,7 +194,7 @@ class SingleLayerContributionAnalyzer:
                 and branch_layers[layer_idx].branch_inhibition is not None
             ):
                 branch_layers[layer_idx].branch_inhibition.pre_w.data.fill_(-1000.0)
-            neither_acc = measure_performance(net, test_dataset, device=self.device)
+            neither_acc = measure_performance(net, test_dataset, device=device)
 
             # Restore all parameters
             for n, p in net.named_parameters():

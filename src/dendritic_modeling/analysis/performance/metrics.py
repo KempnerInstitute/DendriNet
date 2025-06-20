@@ -14,6 +14,7 @@ from dendritic_modeling.utils import (
     evaluate_mse,
     save_dict,
 )
+from dendritic_modeling.config.analysis import PerformanceAnalysisParams
 
 
 class PerformanceAnalyzer:
@@ -24,15 +25,10 @@ class PerformanceAnalyzer:
     on train, validation, and test datasets.
     """
     
-    def __init__(
-        self,
-        accuracy: bool = False,
-        categorical_loglikelihood: bool = False,
-        mse: bool = False,
-    ):
-        self.accuracy = accuracy
-        self.categorical_loglikelihood = categorical_loglikelihood
-        self.mse = mse
+    def __init__(self, params: PerformanceAnalysisParams):
+        self.accuracy = params.accuracy
+        self.categorical_loglikelihood = params.categorical_loglikelihood
+        self.mse = params.mse
 
     def analyze(
         self,
