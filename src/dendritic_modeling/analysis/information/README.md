@@ -1,4 +1,4 @@
-# Integrated Information Analysis Framework
+# Information Analysis Framework
 
 This module provides a unified framework for computing information-theoretic metrics in dendritic networks using multiple estimation methods.
 
@@ -14,13 +14,13 @@ The framework supports:
 
 ```python
 from dendritic_modeling.analysis.information import (
-    IntegratedInformationAnalyzer,
+    InformationAnalyzer,
     InformationAnalysisPreset
 )
 
 # Create analyzer with full analysis preset
 config = InformationAnalysisPreset.full_analysis(method="kraskov")
-analyzer = IntegratedInformationAnalyzer(config)
+analyzer = InformationAnalyzer(config)
 
 # Run analysis on your data
 results = analyzer.analyze(E, I, Vout, C, Vinf)
@@ -120,7 +120,7 @@ config = ConfigBuilder() \
 ```python
 from dendritic_modeling.config import load_config
 from dendritic_modeling.analysis.information import (
-    IntegratedInformationAnalyzer,
+    InformationAnalyzer,
     create_analyzer_config_from_main_config
 )
 
@@ -131,7 +131,7 @@ config = load_config("configs/example_information_analysis.yaml")
 info_config = create_analyzer_config_from_main_config(
     config.analysis.information_analysis
 )
-analyzer = IntegratedInformationAnalyzer(info_config)
+analyzer = InformationAnalyzer(info_config)
 
 # Run analysis
 results = analyzer.analyze(E, I, Vout, C, Vinf)
@@ -156,7 +156,7 @@ from dendritic_modeling.analysis.information import (
 )
 
 info_config = create_analyzer_config_from_main_config(config_dict)
-analyzer = IntegratedInformationAnalyzer(info_config)
+analyzer = InformationAnalyzer(info_config)
 ```
 
 ## Usage Examples
@@ -166,7 +166,7 @@ analyzer = IntegratedInformationAnalyzer(info_config)
 ```python
 import numpy as np
 from dendritic_modeling.analysis.information import (
-    IntegratedInformationAnalyzer,
+    InformationAnalyzer,
     InformationAnalysisPreset
 )
 
@@ -179,8 +179,8 @@ Vinf = soma_activation    # Shape: (n_samples,) or (n_samples, n_features)
 
 # Create and run analyzer
 config = InformationAnalysisPreset.full_analysis()
-analyzer = IntegratedInformationAnalyzer(config)
-results = analyzer.analyze(E, I, Vout, C, Vinf)
+analyzer = InformationAnalyzer(config)
+analyzer.analyze(model, test_dataset, device, save_path, filename)
 ```
 
 ### Method Comparison
@@ -191,7 +191,7 @@ results_by_method = {}
 
 for method in methods:
     config = ConfigBuilder().with_method(method).build()
-    analyzer = IntegratedInformationAnalyzer(config)
+    analyzer = InformationAnalyzer(config)
     results_by_method[method] = analyzer.analyze(E, I, Vout, C)
     
 # Compare results
@@ -209,7 +209,7 @@ config = ConfigBuilder() \
     .with_kraskov_params(n_neighbors=15) \
     .build()
 
-analyzer = IntegratedInformationAnalyzer(config)
+analyzer = InformationAnalyzer(config)
 
 # Analyze multiple conditions
 for condition in experimental_conditions:
@@ -231,9 +231,9 @@ from dendritic_modeling.analysis.information import (
     compute_mi_cd
 )
 
-# But you can now use the integrated framework instead
+# But you can now use the framework instead
 from dendritic_modeling.analysis.information import (
-    IntegratedInformationAnalyzer,
+    InformationAnalyzer,
     KraskovEstimator,
     EstimatorConfig
 )
@@ -273,7 +273,7 @@ InformationEstimatorFactory.register_estimator(
 ```python
 # Process multiple datasets efficiently
 datasets = load_all_datasets()
-analyzer = IntegratedInformationAnalyzer(config)
+analyzer = InformationAnalyzer(config)
 
 results_list = []
 for dataset in datasets:
@@ -290,8 +290,8 @@ aggregate_results(results_list)
 
 ### Main Classes
 
-- `IntegratedInformationAnalyzer` - Main analyzer class
-- `IntegratedAnalyzerConfig` - Configuration dataclass
+- `InformationAnalyzer` - Main analyzer class
+- `AnalyzerConfig` - Configuration dataclass
 - `EstimatorConfig` - Estimator-specific configuration
 - `BaseInformationEstimator` - Abstract base for estimators
 - `ConfigBuilder` - Fluent configuration builder

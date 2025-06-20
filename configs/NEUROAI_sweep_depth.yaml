@@ -231,6 +231,8 @@ train_config:
       params:
         # Estimation method for mutual information computation
         method: "kraskov"  # Options: "kraskov" (k-NN), "sklearn" (histogram/kernel), "copula" (copula-based)
+
+        max_samples: null
         
         # Method-specific parameters
         n_neighbors: 10       # For Kraskov k-NN estimator (higher = more accurate but slower)
@@ -253,7 +255,8 @@ train_config:
         normalize_mi: false    # Normalize MI values by entropy H(C)
         verbose: false        # Print detailed progress during computation
 
-
+      compute_per_branch: true
+      branch_aggregation: none
 
 sweep_config:
   # model.network.type: ["EINet"]
