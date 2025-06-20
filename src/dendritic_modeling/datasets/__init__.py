@@ -30,8 +30,7 @@ from dendritic_modeling.datasets.synthetic_datasets import (
     load_poisson_generator_datasets,
     get_unified_datasets,
     # Utility functions
-    applyRandomFlip,
-    split_MNIST_inputs,
+    applyRandomFlip
 )
 
 __all__ = [
@@ -60,6 +59,5 @@ __all__ = [
     "load_poisson_generator_datasets",
     "get_unified_datasets",
     # Utility functions
-    "applyRandomFlip",
-    "split_MNIST_inputs",
+    "applyRandomFlip"
 ] 
