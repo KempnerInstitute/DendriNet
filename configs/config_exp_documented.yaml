@@ -490,6 +490,8 @@ analysis:
       #   - "copula": Copula-based estimation (for complex dependencies)
       #   - "auto": Automatically select based on data
       method: kraskov
+
+      max_samples: null
       
       # Kraskov estimator parameters
       n_neighbors: 10    # Number of neighbors (5-20 typical)
@@ -515,6 +517,9 @@ analysis:
       include_vinf: true     # Include soma activation in analysis
       normalize_mi: false    # Normalize MI by entropy
       verbose: false         # Print detailed progress
+
+      compute_per_branch: true
+      branch_aggregation: none
   
   # Synaptic turnover analysis
   synapse_turnover_analysis:

@@ -146,6 +146,8 @@ analysis:
       #   - Automatically selects based on data properties
       #   - Currently defaults to "kraskov"
       method: kraskov
+
+      max_samples: null
       
       # =========================
       # KRASKOV ESTIMATOR PARAMETERS
@@ -256,6 +258,9 @@ analysis:
       # - true: Print progress and intermediate results
       # - false: Silent operation
       verbose: true
+
+      compute_per_branch: true
+      branch_aggregation: none
     
     # =========================
     # EXAMPLE USE CASES

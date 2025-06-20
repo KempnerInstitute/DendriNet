@@ -1,5 +1,5 @@
 from dataclasses import dataclass, field
-from typing import List
+from typing import List, Optional
 
 from dendritic_modeling.config.config import BaseConfig
 
@@ -25,6 +25,9 @@ class InformationAnalysisParams(BaseConfig):
     """Configuration for integrated information analysis."""
     # Estimation method: "kraskov", "sklearn", "copula", "auto"
     method: str = "kraskov"
+
+    # Optional: limit the number of samples to analyze
+    max_samples: Optional[int] = None
     
     # Method-specific parameters
     n_neighbors: int = 10  # For Kraskov
@@ -46,6 +49,9 @@ class InformationAnalysisParams(BaseConfig):
     include_vinf: bool = True  # Include soma activation
     normalize_mi: bool = False  # Normalize by entropy
     verbose: bool = False
+
+    compute_per_branch: bool = True
+    branch_aggregation: str = "mean"
 
 @dataclass
 class InformationAnalysisConfig(BaseConfig):

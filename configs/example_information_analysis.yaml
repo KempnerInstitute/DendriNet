@@ -1,4 +1,4 @@
-# Example configuration for the integrated information analysis framework
+# Example configuration for the information analysis framework
 # This file demonstrates various configurations for computing information-theoretic metrics
 # in dendritic networks using different estimation methods.
 
@@ -60,7 +60,7 @@ analysis:
     enabled: false
   
   # ============================================================
-  # NEW INTEGRATED INFORMATION ANALYSIS
+  # NEW INFORMATION ANALYSIS
   # ============================================================
   information_analysis:
     enabled: false
@@ -68,6 +68,8 @@ analysis:
     params:
       # Method selection: "kraskov", "sklearn", "copula", "auto"
       method: kraskov
+
+      max_samples: null
       
       # Method-specific parameters
       n_neighbors: 10      # For Kraskov k-NN estimator
@@ -89,6 +91,9 @@ analysis:
       include_vinf: true     # Include soma activation (Vinf) in computations
       normalize_mi: false    # Normalize MI values by entropy
       verbose: false         # Enable detailed logging
+
+      compute_per_branch: true
+      branch_aggregation: none
 
 # ============================================================
 # EXAMPLE CONFIGURATIONS FOR DIFFERENT USE CASES
@@ -159,7 +164,7 @@ outputs:
 # USAGE NOTES
 # ============================================================
 # 
-# The integrated information analysis framework computes various
+# The information analysis framework computes various
 # information-theoretic metrics between:
 # - E: Excitatory inputs to branches
 # - I: Inhibitory inputs to branches
@@ -183,7 +188,7 @@ outputs:
 # ```python
 # from dendritic_modeling.config import load_config
 # from dendritic_modeling.analysis.information import (
-#     IntegratedInformationAnalyzer,
+#     InformationAnalyzer,
 #     create_analyzer_config_from_main_config
 # )
 # 
@@ -194,7 +199,7 @@ outputs:
 # info_config = create_analyzer_config_from_main_config(
 #     config.analysis.information_analysis
 # )
-# analyzer = IntegratedInformationAnalyzer(info_config)
+# analyzer = InformationAnalyzer(info_config)
 # 
 # # Analyze your data
 # results = analyzer.analyze(E, I, Vout, C, Vinf)
