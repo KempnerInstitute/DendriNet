@@ -12,8 +12,7 @@ import traceback
 
 from dendritic_modeling.plotting.analysis import plot_einet_activations
 from dendritic_modeling.plotting.network import plot_dendrinet_gradients, plot_einet_params
-from dendritic_modeling.datasets import split_MNIST_inputs
-from dendritic_modeling.utils import Shaper
+from dendritic_modeling.plotting.utils import split_MNIST_inputs
 from dendritic_modeling.analysis.branches.interactive import InteractiveBranchAnalyzer
 from dendritic_modeling.analysis.dendritic.comprehensive import ComprehensiveDendriticAnalyzer
 
