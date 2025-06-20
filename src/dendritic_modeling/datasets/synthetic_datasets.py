@@ -1136,13 +1136,3 @@ def get_unified_datasets(task_cfg, train_cfg, output_dir=None, outputs_cfg=None)
         return random_split(full_ds, [train_size, valid_size, test_size])
     else:
         raise ValueError(f"Unknown dataset name: {dataset_name}")
-
-
-# Added function from the older codebase for splitting MNIST inputs.
-def split_MNIST_inputs(inputs, labels):
-    unique_label = torch.unique(labels)
-    input_list = []
-    for unique in unique_label:
-        ix = torch.where(labels == unique, True, False)
-        input_list.append(inputs[ix])
-    return input_list
