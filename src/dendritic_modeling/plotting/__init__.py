@@ -13,7 +13,14 @@ Each module contains focused plotting functions for specific aspects of dendriti
 """
 
 # Import base classes and configuration
-from dendritic_modeling.plotting.base import PlotConfig, BasePlotter, LinePlotter, BarPlotter, BoxPlotter, ComparisonPlotter
+from dendritic_modeling.plotting.base import (
+    PlotConfig, 
+    BasePlotter, 
+    LinePlotter, 
+    BarPlotter, 
+    BoxPlotter, 
+    ComparisonPlotter
+)
 
 # Import analysis plotting classes and functions
 from dendritic_modeling.plotting.analysis import (
@@ -32,7 +39,7 @@ from dendritic_modeling.plotting.analysis import (
     plot_information_analysis,
     # Helper functions
     dendrinet_activations_todict,
-    einet_activations_todict,
+    einet_activations_todict
 )
 
 # Import training plotting functions
@@ -41,7 +48,7 @@ from dendritic_modeling.plotting.training import (
     plot_ei_sweep_results,
     plot_branch_sweep_results,
     plot_noise_sweep_ei_results,
-    plot_noise_sweep_branch_results,
+    plot_noise_sweep_branch_results
 )
 
 # Import network plotting functions
@@ -59,7 +66,7 @@ from dendritic_modeling.plotting.network import (
     dendrinet_params_todict,
     einet_params_todict,
     dendrinet_gradients_todict,
-    einet_gradients_todict,
+    einet_gradients_todict
 )
 
 # Import basic plotting functions
@@ -67,7 +74,7 @@ from dendritic_modeling.plotting.basic import (
     plotWithColor,
     add_colorbars,
     shape_helper,
-    plot_NLL_loss_curves as plot_NLL_loss_curves_basic,
+    plot_NLL_loss_curves as plot_NLL_loss_curves_basic
 )
 
 # Import utility functions
@@ -81,7 +88,7 @@ from dendritic_modeling.plotting.utils import (
     plot_activation_tuning,
     plot_voltage_before_activation,
     split_MNIST_inputs,
-    plot_depth_info,
+    plot_depth_info
 )
 
 __all__ = [

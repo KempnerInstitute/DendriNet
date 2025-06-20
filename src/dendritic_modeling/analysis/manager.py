@@ -57,138 +57,55 @@ class AnalysisManager:
         self.logger = logging.getLogger(__name__)
 
         # Initialize Performance Analysis
-        performance_config = self.config.performance_analysis
-        self.performance_enabled = performance_config.get("enabled", False)
-        self.performance_training = performance_config.get("training", False)
-        if self.performance_enabled:
-            performance_params: dict = performance_config.get("params", {})
+        if self.config.performance_analysis.enabled:
             self.performance_analyzer = PerformanceAnalyzer(
-                accuracy=performance_params.get("accuracy", False),
-                categorical_loglikelihood=performance_params.get(
-                    "categorical_loglikelihood", False
-                ),
-                mse=performance_params.get("mse", False),
+                self.config.performance_analysis.params
             )
 
         # Initialize Integrated Information Analysis
-        # Uses the InformationAnalysisConfig from the main config
-        info_analysis_config = self.config.information_analysis
-        self.info_analysis_enabled = hasattr(info_analysis_config, 'method') or isinstance(info_analysis_config, dict)
-        if self.info_analysis_enabled:
-            self.information_analyzer = IntegratedInformationAnalyzer(info_analysis_config)
+        if self.config.information_analysis.enabled:
+            self.information_analyzer = IntegratedInformationAnalyzer(
+                self.config.information_analysis.params
+            )
 
         # Initialize Synaptic Turnover Analysis
-        syn_turnover_config = self.config.synapse_turnover_analysis
-        self.syn_turnover_enabled = syn_turnover_config.get("enabled", False)
-        self.syn_turnover_training = syn_turnover_config.get("training", False)
-        if self.syn_turnover_enabled:
+        if self.config.synapse_turnover_analysis.enabled:
             self.syn_turnover_analyzer = SynapticTurnoverAnalyzer(model=model)
 
         # Initialize Noise Perturbation Analysis
-        noise_config = self.config.noise_perturbation_analysis
-        self.noise_enabled = noise_config.get("enabled", False)
-        self.noise_training = noise_config.get("training", False)
-        if self.noise_enabled:
-            noise_params: dict = noise_config.get("params", {})
+        if self.config.noise_perturbation_analysis.enabled:
             self.noise_perturbation_analyzer = NoisePerturbationAnalyzer(
-                uniform_noise=noise_params.get("uniform_noise", True),
-                uniform_magnitudes=noise_params.get("uniform_magnitudes", [0.1]),
-                gaussian_noise=noise_params.get("gaussian_noise", True),
-                gaussian_sdevs=noise_params.get("gaussian_sdevs", [0.1]),
-                n_samples=noise_params.get("n_samples", 10),
-                accuracy=noise_params.get("accuracy", True),
-                categorical_loglikelihood=noise_params.get(
-                    "categorical_loglikelihood", True
-                ),
+                self.config.noise_perturbation_analysis.params
             )
 
         # Initialize Single Layer Contribution Analysis (formerly layer_ablation)
-        single_layer_config = self.config.single_layer_contribution
-        self.single_layer_enabled = single_layer_config.get("enabled", False)
-        self.single_layer_training = single_layer_config.get("training", False)
-        if self.single_layer_enabled:
-            params = single_layer_config.get("params", {})
-            # Get batch_size from train config
-            batch_size = self.train_config.get("batch_size", 32)
+        if self.config.single_layer_contribution.enabled:
             self.single_layer_analyzer = SingleLayerContributionAnalyzer(
-                batch_size=batch_size,
-                device=self.device,
-                save_plots=params.get("save_plots", True),
-                save_csv=params.get("save_csv", True),
+                self.config.single_layer_contribution.params
             )
 
         # Initialize Ablation Analysis
-        ablation_config = self.config.ablation_analysis
-        self.ablation_enabled = ablation_config.get("enabled", False)
-        self.ablation_training = ablation_config.get("training", False)
-        if self.ablation_enabled:
-            ablation_params: dict = ablation_config.get("params", {})
+        if self.config.ablation_analysis.enabled:
             self.ablation_analyzer = AblationAnalyzer(
-                ablate_all_synapses=ablation_params.get("ablate_all_synapses", True),
-                ablate_excitation=ablation_params.get("ablate_excitation", True),
-                ablate_inhibition=ablation_params.get("ablate_inhibition", True),
-                ablate_branches=ablation_params.get("ablate_branches", True),
-                accuracy=ablation_params.get("accuracy", True),
-                categorical_loglikelihood=ablation_params.get(
-                    "categorical_loglikelihood", True
-                ),
+                self.config.ablation_analysis.params
             )
 
         # Initialize Weight Analysis
-        weight_config = self.config.weight_analysis
-        self.weight_enabled = weight_config.get("enabled", False)
-        self.weight_training = weight_config.get("training", False)
-        if self.weight_enabled:
-            weight_params: dict = weight_config.get("params", {})
+        if self.config.weight_analysis.enabled:
             self.weight_analyzer = WeightAnalyzer(
-                synapse_weights=weight_params.get("synapse_weights", True),
-                branch_weights=weight_params.get("branch_weights", True),
+                self.config.weight_analysis.params
             )
 
         # Initialize Synaptic Activation Analysis
-        synaptic_activation_config = self.config.synaptic_activation_analysis
-        self.synaptic_activation_enabled = synaptic_activation_config.get(
-            "enabled", False
-        )
-        self.synaptic_activation_training = synaptic_activation_config.get(
-            "training", False
-        )
-        if self.synaptic_activation_enabled:
-            synaptic_activation_params: dict = synaptic_activation_config.get(
-                "params", {}
-            )
+        if self.config.synaptic_activation_analysis.enabled:
             self.synaptic_activation_analyzer = SynapticActivationAnalyzer(
-                network_summary=synaptic_activation_params.get("network_summary", True),
-                layer_summary=synaptic_activation_params.get("layer_summary", True),
-                branch_summary=synaptic_activation_params.get("branch_summary", True),
-                raw_summary=synaptic_activation_params.get("raw_summary", True),
-                logspace=synaptic_activation_params.get("logspace", False),
-                downsample=synaptic_activation_params.get("downsample", False),
-                samples=synaptic_activation_params.get("samples", 1000),
+                self.config.synaptic_activation_analysis.params
             )
 
         # Initialize Branch Activation Analysis
-        branch_activation_config = self.config.branch_activation_analysis
-        self.branch_activation_enabled = branch_activation_config.get("enabled", False)
-        self.branch_activation_training = branch_activation_config.get(
-            "training", False
-        )
-        if self.branch_activation_enabled:
-            branch_activation_params: dict = branch_activation_config.get("params", {})
+        if self.config.branch_activation_analysis.enabled:
             self.branch_activation_analyzer = BranchActivationAnalyzer(
-                synapse_activations=branch_activation_params.get(
-                    "synapse_activations", True
-                ),
-                branch_activations=branch_activation_params.get(
-                    "branch_activations", True
-                ),
-                network_summary=branch_activation_params.get("network_summary", True),
-                layer_summary=branch_activation_params.get("layer_summary", True),
-                branch_summary=branch_activation_params.get("branch_summary", True),
-                raw_summary=branch_activation_params.get("raw_summary", True),
-                logspace=branch_activation_params.get("logspace", False),
-                downsample=branch_activation_params.get("downsample", False),
-                samples=branch_activation_params.get("samples", 1000),
+                self.config.branch_activation_analysis.params
             )
 
     def run_analysis(self, filename: str = "final", training: bool = False):
@@ -200,8 +117,9 @@ class AnalysisManager:
             training: Whether this is being called during training (affects which analyses run)
         """
         # Performance Analysis
-        if self.performance_enabled and (
-            (self.performance_training and training) or not training
+        if self.config.performance_analysis.enabled and (
+            (self.config.performance_analysis.training and training) 
+            or not training
         ):
             self.performance_analyzer.analyze(
                 model=self.model,
@@ -214,12 +132,16 @@ class AnalysisManager:
             )
 
         # Information Analysis using Integrated Analyzer
-        if self.info_analysis_enabled and not training:
+        if self.config.information_analysis.enabled and (
+            (self.config.information_analysis.training and training)
+            or not training
+        ):
             self._run_information_analysis(filename)
 
         # Synaptic Turnover Analysis
-        if self.syn_turnover_enabled and (
-            (self.syn_turnover_training and training) or not training
+        if self.config.synapse_turnover_analysis.enabled and (
+            (self.config.synapse_turnover_analysis.training and training)
+            or not training
         ):
             self.syn_turnover_analyzer.analyze(
                 model=self.model,
@@ -229,7 +151,10 @@ class AnalysisManager:
             )
 
         # Noise Perturbation Analysis
-        if self.noise_enabled and ((self.noise_training and training) or not training):
+        if self.config.noise_perturbation_analysis.enabled and (
+            (self.config.noise_perturbation_analysis.training and training)
+            or not training
+        ):
             self.noise_perturbation_analyzer.analyze(
                 model=self.model,
                 test_dataset=self.data["test"],
@@ -239,8 +164,9 @@ class AnalysisManager:
             )
 
         # Single Layer Contribution Analysis
-        if self.single_layer_enabled and (
-            (self.single_layer_training and training) or not training
+        if self.config.single_layer_contribution.enabled and (
+            (self.config.single_layer_contribution.training and training)
+            or not training
         ):
             self.single_layer_analyzer.analyze(
                 model=self.model,
@@ -250,8 +176,9 @@ class AnalysisManager:
             )
 
         # Ablation Analysis
-        if self.ablation_enabled and (
-            (self.ablation_training and training) or not training
+        if self.config.ablation_analysis.enabled and (
+            (self.config.ablation_analysis.training and training)
+            or not training
         ):
             self.ablation_analyzer.analyze(
                 model=self.model,
@@ -262,8 +189,9 @@ class AnalysisManager:
             )
 
         # Weight Analysis
-        if self.weight_enabled and (
-            (self.weight_training and training) or not training
+        if self.config.weight_analysis.enabled and (
+            (self.config.weight_analysis.training and training)
+            or not training
         ):
             self.weight_analyzer.analyze(
                 model=self.model,
@@ -272,8 +200,9 @@ class AnalysisManager:
             )
 
         # Synaptic Activation Analysis
-        if self.synaptic_activation_enabled and (
-            (self.synaptic_activation_training and training) or not training
+        if self.config.synaptic_activation_analysis.enabled and (
+            (self.config.synaptic_activation_analysis.training and training)
+            or not training
         ):
             self.synaptic_activation_analyzer.analyze(
                 model=self.model,
@@ -284,8 +213,9 @@ class AnalysisManager:
             )
 
         # Branch Activation Analysis
-        if self.branch_activation_enabled and (
-            (self.branch_activation_training and training) or not training
+        if self.config.branch_activation_analysis.enabled and (
+            (self.config.branch_activation_analysis.training and training)
+            or not training
         ):
             self.branch_activation_analyzer.analyze(
                 model=self.model,

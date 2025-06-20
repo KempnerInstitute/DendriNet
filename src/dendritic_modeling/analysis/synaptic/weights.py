@@ -5,12 +5,13 @@ This module contains classes for analyzing the statistical distribution of synap
 across the dendritic network, including excitatory weights, inhibitory weights, and branch weights.
 """
 
-from typing import List, Optional
+from typing import Optional
 import torch
 from dendritic_modeling.models import BaseModel
 from dendritic_modeling.networks import ExcitationInhibitionNetwork
 from dendritic_modeling.networks.layers.dendritic import DendriticBranchLayer
 from dendritic_modeling.utils import save_dict
+from dendritic_modeling.config.analysis import WeightAnalysisParams
 
 
 class WeightAnalyzer:
@@ -21,7 +22,7 @@ class WeightAnalyzer:
     and branch-to-output connections across all dendritic branch layers in the network.
     """
     
-    def __init__(self, synapse_weights: bool = True, branch_weights: bool = True):
+    def __init__(self, params: WeightAnalysisParams):
         """
         Initialize the weight analyzer.
         
@@ -29,8 +30,8 @@ class WeightAnalyzer:
             synapse_weights: Whether to analyze excitatory and inhibitory synapse weights
             branch_weights: Whether to analyze branch-to-output connection weights
         """
-        self.synapse_weights = synapse_weights
-        self.branch_weights = branch_weights
+        self.synapse_weights = params.synapse_weights
+        self.branch_weights = params.branch_weights
 
     def analyze(
         self, model: BaseModel, save_path: Optional[str] = None, filename: str = "final"
