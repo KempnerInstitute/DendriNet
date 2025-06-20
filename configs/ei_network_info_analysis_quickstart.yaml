@@ -98,19 +98,22 @@ analysis:
   
   # INFORMATION-THEORETIC ANALYSIS
   information_analysis:
-    # Use Kraskov estimator (accurate for continuous data)
-    method: kraskov
-    n_neighbors: 10
-    
-    # Compute all basic measures
-    compute_basic_mi: true       # I(E;C), I(I;C), I(Vout;C), etc.
-    compute_pairwise_mi: true    # I(E;I), I(E;Vout), etc.
-    compute_conditional_mi: true # I(E;I|C), etc.
-    compute_pid: false           # Skip PID (requires external package)
-    
-    # Include soma activation
-    include_vinf: true
-    verbose: true               # Show progress
+    enabled: true
+    training: false
+    params:
+      # Use Kraskov estimator (accurate for continuous data)
+      method: kraskov
+      n_neighbors: 10
+      
+      # Compute all basic measures
+      compute_basic_mi: true       # I(E;C), I(I;C), I(Vout;C), etc.
+      compute_pairwise_mi: true    # I(E;I), I(E;Vout), etc.
+      compute_conditional_mi: true # I(E;I|C), etc.
+      compute_pid: false           # Skip PID (requires external package)
+      
+      # Include soma activation
+      include_vinf: true
+      verbose: true               # Show progress
   
   # Disable other analyses for speed
   synapse_turnover_analysis:
