@@ -116,179 +116,182 @@ analysis:
   # INFORMATION-THEORETIC ANALYSIS
   # ========================================
   information_analysis:
+    enabled: false
+    training: false
+    params:
+      # =========================
+      # ESTIMATION METHOD
+      # =========================
+      # Choose the mutual information estimation method based on your data:
+      #
+      # "kraskov" (RECOMMENDED for most cases):
+      #   - K-nearest neighbors estimator from Kraskov et al. (2004)
+      #   - Best for: Continuous multivariate data
+      #   - Pros: Non-parametric, handles high dimensions well
+      #   - Cons: Can be slow for large datasets
+      #
+      # "sklearn":
+      #   - Scikit-learn's mutual_info_score and variants
+      #   - Best for: Mixed discrete/continuous data or when speed matters
+      #   - Pros: Fast, handles discrete variables naturally
+      #   - Cons: Less accurate for complex continuous distributions
+      #
+      # "copula":
+      #   - Copula-based estimation using Gaussian or other copulas
+      #   - Best for: Data with complex non-linear dependencies
+      #   - Pros: Captures non-linear relationships well
+      #   - Cons: Limited to bivariate analysis currently
+      #
+      # "auto":
+      #   - Automatically selects based on data properties
+      #   - Currently defaults to "kraskov"
+      method: kraskov
+      
+      # =========================
+      # KRASKOV ESTIMATOR PARAMETERS
+      # =========================
+      # Number of nearest neighbors for k-NN estimation
+      # - Lower values (3-5): More local, sensitive to noise
+      # - Medium values (5-15): Good balance (RECOMMENDED)
+      # - Higher values (15-30): More global, smoother estimates
+      # - Too high: Underestimates MI
+      n_neighbors: 10
+      
+      # =========================
+      # SKLEARN ESTIMATOR PARAMETERS
+      # =========================
+      # Number of bins for histogram-based estimation
+      # - Lower values (10-20): Coarse discretization, faster
+      # - Medium values (20-50): Good balance
+      # - Higher values (50-100): Finer discretization, slower
+      # - Rule of thumb: sqrt(n_samples) or n_samples^(1/3)
+      n_bins: 20
+      
+      # =========================
+      # COPULA ESTIMATOR PARAMETERS
+      # =========================
+      # Type of copula to use
+      # Options:
+      #   - "gaussian": Gaussian copula (most common)
+      #   - "t": Student-t copula (heavier tails)
+      #   - "clayton": Clayton copula (lower tail dependence)
+      #   - "gumbel": Gumbel copula (upper tail dependence)
+      #   - "frank": Frank copula (symmetric dependence)
+      copula_type: gaussian
+      
+      # =========================
+      # METRICS TO COMPUTE
+      # =========================
+      
+      # Basic mutual information with class labels
+      # Computes: I(E;C), I(I;C), I(Vout;C), I(Vinf;C), I(E,I;C)
+      # - I(E;C): How much excitatory inputs inform about class
+      # - I(I;C): How much inhibitory inputs inform about class
+      # - I(Vout;C): How much branch outputs inform about class
+      # - I(Vinf;C): How much soma activation informs about class
+      # - I(E,I;C): Joint information from E and I about class
+      compute_basic_mi: true
+      
+      # Pairwise mutual information between variables
+      # Computes: I(E;I), I(E;Vout), I(I;Vout), I(E;Vinf), I(I;Vinf), I(Vout;Vinf)
+      # - I(E;I): Dependence between excitatory and inhibitory
+      # - I(E;Vout): How E influences branch output
+      # - I(I;Vout): How I influences branch output
+      # - etc.
+      compute_pairwise_mi: true
+      
+      # Conditional mutual information given class
+      # Computes: I(E;I|C), I(E;Vout|C), I(I;Vout|C), etc.
+      # Measures dependencies after accounting for class information
+      # Useful for understanding within-class processing
+      compute_conditional_mi: true
+      
+      # Partial Information Decomposition (Williams & Beer, 2010)
+      # Decomposes information into:
+      #   - Synergy: Information only available from both sources
+      #   - Redundancy: Information available from either source
+      #   - Unique(X): Information only from source X
+      #   - Unique(Y): Information only from source Y
+      # Computes for: (E,I)→C, (E,Vout)→C, (I,Vout)→C, (E,I)→Vout
+      # NOTE: Requires external PID package in 'external/' directory
+      compute_pid: false
+      
+      # =========================
+      # PID SETTINGS
+      # =========================
+      
+      # Whether to binarize data for PID computation
+      # Many PID methods require discrete/binary data
+      # - true: Binarize continuous data (RECOMMENDED)
+      # - false: Use raw continuous data (may not work)
+      pid_binarize: true
+      
+      # Binarization method
+      # Options:
+      #   - "median": Split at median value (50/50 split)
+      #   - "mean": Split at mean value
+      #   - "quantile": Split at specified quantile
+      pid_binarize_method: median
+      
+      # Threshold for quantile method (0.0 to 1.0)
+      # Only used if pid_binarize_method="quantile"
+      # Examples: 0.25 (lower quartile), 0.75 (upper quartile)
+      pid_binarize_threshold: 0.5
+      
+      # =========================
+      # ADDITIONAL OPTIONS
+      # =========================
+      
+      # Whether to include soma activation (Vinf) in analysis
+      # - true: Analyze final output activation
+      # - false: Only analyze branch-level variables
+      include_vinf: true
+      
+      # Whether to normalize MI values by entropy
+      # - true: Report MI/H(Y) for interpretability (0 to 1)
+      # - false: Report raw MI values in nats
+      normalize_mi: false
+      
+      # Verbose output during computation
+      # - true: Print progress and intermediate results
+      # - false: Silent operation
+      verbose: true
+    
     # =========================
-    # ESTIMATION METHOD
+    # EXAMPLE USE CASES
     # =========================
-    # Choose the mutual information estimation method based on your data:
+    # 1. Quick exploration (fast but approximate):
+    #    method: sklearn
+    #    n_bins: 15
+    #    compute_basic_mi: true
+    #    compute_pairwise_mi: false
+    #    compute_conditional_mi: false
+    #    compute_pid: false
     #
-    # "kraskov" (RECOMMENDED for most cases):
-    #   - K-nearest neighbors estimator from Kraskov et al. (2004)
-    #   - Best for: Continuous multivariate data
-    #   - Pros: Non-parametric, handles high dimensions well
-    #   - Cons: Can be slow for large datasets
+    # 2. Detailed analysis (slow but accurate):
+    #    method: kraskov
+    #    n_neighbors: 15
+    #    compute_basic_mi: true
+    #    compute_pairwise_mi: true
+    #    compute_conditional_mi: true
+    #    compute_pid: true
     #
-    # "sklearn":
-    #   - Scikit-learn's mutual_info_score and variants
-    #   - Best for: Mixed discrete/continuous data or when speed matters
-    #   - Pros: Fast, handles discrete variables naturally
-    #   - Cons: Less accurate for complex continuous distributions
+    # 3. Focus on E/I interactions:
+    #    method: kraskov
+    #    n_neighbors: 10
+    #    compute_basic_mi: false
+    #    compute_pairwise_mi: true
+    #    compute_conditional_mi: true
+    #    compute_pid: false
     #
-    # "copula":
-    #   - Copula-based estimation using Gaussian or other copulas
-    #   - Best for: Data with complex non-linear dependencies
-    #   - Pros: Captures non-linear relationships well
-    #   - Cons: Limited to bivariate analysis currently
-    #
-    # "auto":
-    #   - Automatically selects based on data properties
-    #   - Currently defaults to "kraskov"
-    method: kraskov
-    
-    # =========================
-    # KRASKOV ESTIMATOR PARAMETERS
-    # =========================
-    # Number of nearest neighbors for k-NN estimation
-    # - Lower values (3-5): More local, sensitive to noise
-    # - Medium values (5-15): Good balance (RECOMMENDED)
-    # - Higher values (15-30): More global, smoother estimates
-    # - Too high: Underestimates MI
-    n_neighbors: 10
-    
-    # =========================
-    # SKLEARN ESTIMATOR PARAMETERS
-    # =========================
-    # Number of bins for histogram-based estimation
-    # - Lower values (10-20): Coarse discretization, faster
-    # - Medium values (20-50): Good balance
-    # - Higher values (50-100): Finer discretization, slower
-    # - Rule of thumb: sqrt(n_samples) or n_samples^(1/3)
-    n_bins: 20
-    
-    # =========================
-    # COPULA ESTIMATOR PARAMETERS
-    # =========================
-    # Type of copula to use
-    # Options:
-    #   - "gaussian": Gaussian copula (most common)
-    #   - "t": Student-t copula (heavier tails)
-    #   - "clayton": Clayton copula (lower tail dependence)
-    #   - "gumbel": Gumbel copula (upper tail dependence)
-    #   - "frank": Frank copula (symmetric dependence)
-    copula_type: gaussian
-    
-    # =========================
-    # METRICS TO COMPUTE
-    # =========================
-    
-    # Basic mutual information with class labels
-    # Computes: I(E;C), I(I;C), I(Vout;C), I(Vinf;C), I(E,I;C)
-    # - I(E;C): How much excitatory inputs inform about class
-    # - I(I;C): How much inhibitory inputs inform about class
-    # - I(Vout;C): How much branch outputs inform about class
-    # - I(Vinf;C): How much soma activation informs about class
-    # - I(E,I;C): Joint information from E and I about class
-    compute_basic_mi: true
-    
-    # Pairwise mutual information between variables
-    # Computes: I(E;I), I(E;Vout), I(I;Vout), I(E;Vinf), I(I;Vinf), I(Vout;Vinf)
-    # - I(E;I): Dependence between excitatory and inhibitory
-    # - I(E;Vout): How E influences branch output
-    # - I(I;Vout): How I influences branch output
-    # - etc.
-    compute_pairwise_mi: true
-    
-    # Conditional mutual information given class
-    # Computes: I(E;I|C), I(E;Vout|C), I(I;Vout|C), etc.
-    # Measures dependencies after accounting for class information
-    # Useful for understanding within-class processing
-    compute_conditional_mi: true
-    
-    # Partial Information Decomposition (Williams & Beer, 2010)
-    # Decomposes information into:
-    #   - Synergy: Information only available from both sources
-    #   - Redundancy: Information available from either source
-    #   - Unique(X): Information only from source X
-    #   - Unique(Y): Information only from source Y
-    # Computes for: (E,I)→C, (E,Vout)→C, (I,Vout)→C, (E,I)→Vout
-    # NOTE: Requires external PID package in 'external/' directory
-    compute_pid: false
-    
-    # =========================
-    # PID SETTINGS
-    # =========================
-    
-    # Whether to binarize data for PID computation
-    # Many PID methods require discrete/binary data
-    # - true: Binarize continuous data (RECOMMENDED)
-    # - false: Use raw continuous data (may not work)
-    pid_binarize: true
-    
-    # Binarization method
-    # Options:
-    #   - "median": Split at median value (50/50 split)
-    #   - "mean": Split at mean value
-    #   - "quantile": Split at specified quantile
-    pid_binarize_method: median
-    
-    # Threshold for quantile method (0.0 to 1.0)
-    # Only used if pid_binarize_method="quantile"
-    # Examples: 0.25 (lower quartile), 0.75 (upper quartile)
-    pid_binarize_threshold: 0.5
-    
-    # =========================
-    # ADDITIONAL OPTIONS
-    # =========================
-    
-    # Whether to include soma activation (Vinf) in analysis
-    # - true: Analyze final output activation
-    # - false: Only analyze branch-level variables
-    include_vinf: true
-    
-    # Whether to normalize MI values by entropy
-    # - true: Report MI/H(Y) for interpretability (0 to 1)
-    # - false: Report raw MI values in nats
-    normalize_mi: false
-    
-    # Verbose output during computation
-    # - true: Print progress and intermediate results
-    # - false: Silent operation
-    verbose: true
-  
-  # =========================
-  # EXAMPLE USE CASES
-  # =========================
-  # 1. Quick exploration (fast but approximate):
-  #    method: sklearn
-  #    n_bins: 15
-  #    compute_basic_mi: true
-  #    compute_pairwise_mi: false
-  #    compute_conditional_mi: false
-  #    compute_pid: false
-  #
-  # 2. Detailed analysis (slow but accurate):
-  #    method: kraskov
-  #    n_neighbors: 15
-  #    compute_basic_mi: true
-  #    compute_pairwise_mi: true
-  #    compute_conditional_mi: true
-  #    compute_pid: true
-  #
-  # 3. Focus on E/I interactions:
-  #    method: kraskov
-  #    n_neighbors: 10
-  #    compute_basic_mi: false
-  #    compute_pairwise_mi: true
-  #    compute_conditional_mi: true
-  #    compute_pid: false
-  #
-  # 4. PID analysis only:
-  #    method: kraskov
-  #    n_neighbors: 5
-  #    compute_basic_mi: false
-  #    compute_pairwise_mi: false
-  #    compute_conditional_mi: false
-  #    compute_pid: true
-  #    pid_binarize: true
+    # 4. PID analysis only:
+    #    method: kraskov
+    #    n_neighbors: 5
+    #    compute_basic_mi: false
+    #    compute_pairwise_mi: false
+    #    compute_conditional_mi: false
+    #    compute_pid: true
+    #    pid_binarize: true
   
   # Disable all other analyses
   synapse_turnover_analysis:

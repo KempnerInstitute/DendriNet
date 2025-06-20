@@ -226,29 +226,32 @@ train_config:
 
     # NEW: Integrated information-theoretic analysis using multivariate methods
     information_analysis:
-      # Estimation method for mutual information computation
-      method: "kraskov"  # Options: "kraskov" (k-NN), "sklearn" (histogram/kernel), "copula" (copula-based)
-      
-      # Method-specific parameters
-      n_neighbors: 10       # For Kraskov k-NN estimator (higher = more accurate but slower)
-      n_bins: 20           # For sklearn histogram method (more bins = finer resolution)
-      copula_type: "gaussian"  # For copula method: "gaussian", "t", "clayton", "frank"
-      
-      # Which information metrics to compute
-      compute_basic_mi: true       # Basic MI: I(E;C), I(I;C), I(Vout;C), I(E,I;C)
-      compute_pairwise_mi: true    # Pairwise MI: I(E;I), I(E;Vout), I(I;Vout)
-      compute_conditional_mi: true  # Conditional MI: I(E;I|C), I(E;Vout|C), I(I;Vout|C)
-      compute_pid: false           # Partial Information Decomposition (requires external PID library)
-      
-      # PID-specific settings (only used if compute_pid=true)
-      pid_binarize: true              # Whether to binarize data for PID computation
-      pid_binarize_method: "median"   # Binarization method: "median", "mean", "quantile"
-      pid_binarize_threshold: 0.5     # Threshold for "quantile" method (0-1)
-      
-      # Additional options
-      include_vinf: true     # Include soma activation (Vinf) in analysis
-      normalize_mi: false    # Normalize MI values by entropy H(C)
-      verbose: false        # Print detailed progress during computation
+      enabled: true
+      training: false
+      params:
+        # Estimation method for mutual information computation
+        method: "kraskov"  # Options: "kraskov" (k-NN), "sklearn" (histogram/kernel), "copula" (copula-based)
+        
+        # Method-specific parameters
+        n_neighbors: 10       # For Kraskov k-NN estimator (higher = more accurate but slower)
+        n_bins: 20           # For sklearn histogram method (more bins = finer resolution)
+        copula_type: "gaussian"  # For copula method: "gaussian", "t", "clayton", "frank"
+        
+        # Which information metrics to compute
+        compute_basic_mi: true       # Basic MI: I(E;C), I(I;C), I(Vout;C), I(E,I;C)
+        compute_pairwise_mi: true    # Pairwise MI: I(E;I), I(E;Vout), I(I;Vout)
+        compute_conditional_mi: true  # Conditional MI: I(E;I|C), I(E;Vout|C), I(I;Vout|C)
+        compute_pid: false           # Partial Information Decomposition (requires external PID library)
+        
+        # PID-specific settings (only used if compute_pid=true)
+        pid_binarize: true              # Whether to binarize data for PID computation
+        pid_binarize_method: "median"   # Binarization method: "median", "mean", "quantile"
+        pid_binarize_threshold: 0.5     # Threshold for "quantile" method (0-1)
+        
+        # Additional options
+        include_vinf: true     # Include soma activation (Vinf) in analysis
+        normalize_mi: false    # Normalize MI values by entropy H(C)
+        verbose: false        # Print detailed progress during computation
 
 
 
