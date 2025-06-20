@@ -480,38 +480,41 @@ analysis:
   
   # Information-theoretic analysis (NEW INTEGRATED VERSION)
   information_analysis:
-    # Estimation method
-    # Options:
-    #   - "kraskov": K-nearest neighbors estimator (best for continuous)
-    #   - "sklearn": Scikit-learn based (good for mixed data)
-    #   - "copula": Copula-based estimation (for complex dependencies)
-    #   - "auto": Automatically select based on data
-    method: kraskov
-    
-    # Kraskov estimator parameters
-    n_neighbors: 10    # Number of neighbors (5-20 typical)
-    
-    # Sklearn estimator parameters
-    n_bins: 20        # Number of bins for histogram method
-    
-    # Copula estimator parameters
-    copula_type: gaussian  # Type of copula: "gaussian", "t", "clayton"
-    
-    # Which metrics to compute
-    compute_basic_mi: true      # I(E;C), I(I;C), I(Vout;C), I(Vinf;C)
-    compute_pairwise_mi: true   # I(E;I), I(E;Vout), I(I;Vout), etc.
-    compute_conditional_mi: true # I(E;I|C), I(E;Vout|C), etc.
-    compute_pid: false          # Partial Information Decomposition
-    
-    # PID-specific settings
-    pid_binarize: true          # Whether to binarize for PID
-    pid_binarize_method: median # "median", "mean", "quantile"
-    pid_binarize_threshold: 0.5 # Threshold for quantile method
-    
-    # Additional options
-    include_vinf: true     # Include soma activation in analysis
-    normalize_mi: false    # Normalize MI by entropy
-    verbose: false         # Print detailed progress
+    enabled: false
+    training: false
+    params:
+      # Estimation method
+      # Options:
+      #   - "kraskov": K-nearest neighbors estimator (best for continuous)
+      #   - "sklearn": Scikit-learn based (good for mixed data)
+      #   - "copula": Copula-based estimation (for complex dependencies)
+      #   - "auto": Automatically select based on data
+      method: kraskov
+      
+      # Kraskov estimator parameters
+      n_neighbors: 10    # Number of neighbors (5-20 typical)
+      
+      # Sklearn estimator parameters
+      n_bins: 20        # Number of bins for histogram method
+      
+      # Copula estimator parameters
+      copula_type: gaussian  # Type of copula: "gaussian", "t", "clayton"
+      
+      # Which metrics to compute
+      compute_basic_mi: true      # I(E;C), I(I;C), I(Vout;C), I(Vinf;C)
+      compute_pairwise_mi: true   # I(E;I), I(E;Vout), I(I;Vout), etc.
+      compute_conditional_mi: true # I(E;I|C), I(E;Vout|C), etc.
+      compute_pid: false          # Partial Information Decomposition
+      
+      # PID-specific settings
+      pid_binarize: true          # Whether to binarize for PID
+      pid_binarize_method: median # "median", "mean", "quantile"
+      pid_binarize_threshold: 0.5 # Threshold for quantile method
+      
+      # Additional options
+      include_vinf: true     # Include soma activation in analysis
+      normalize_mi: false    # Normalize MI by entropy
+      verbose: false         # Print detailed progress
   
   # Synaptic turnover analysis
   synapse_turnover_analysis:

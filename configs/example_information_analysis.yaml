@@ -63,29 +63,32 @@ analysis:
   # NEW INTEGRATED INFORMATION ANALYSIS
   # ============================================================
   information_analysis:
-    # Method selection: "kraskov", "sklearn", "copula", "auto"
-    method: kraskov
-    
-    # Method-specific parameters
-    n_neighbors: 10      # For Kraskov k-NN estimator
-    n_bins: 20          # For sklearn histogram-based estimation
-    copula_type: gaussian  # For copula method: "gaussian", "t", etc.
-    
-    # Which metrics to compute
-    compute_basic_mi: true      # I(E;C), I(I;C), I(Vout;C), I(Vinf;C), I(E,I;C)
-    compute_pairwise_mi: true   # I(E;I), I(E;Vout), I(I;Vout), I(E;Vinf), etc.
-    compute_conditional_mi: true # I(E;I|C), I(E;Vout|C), I(I;Vout|C), etc.
-    compute_pid: false          # Partial Information Decomposition (requires external library)
-    
-    # PID configuration (only used if compute_pid: true)
-    pid_binarize: true          # Whether to binarize data for PID
-    pid_binarize_method: median # "median", "mean", "quantile"
-    pid_binarize_threshold: 0.5 # Threshold for quantile method
-    
-    # Additional options
-    include_vinf: true     # Include soma activation (Vinf) in computations
-    normalize_mi: false    # Normalize MI values by entropy
-    verbose: false         # Enable detailed logging
+    enabled: false
+    training: false
+    params:
+      # Method selection: "kraskov", "sklearn", "copula", "auto"
+      method: kraskov
+      
+      # Method-specific parameters
+      n_neighbors: 10      # For Kraskov k-NN estimator
+      n_bins: 20          # For sklearn histogram-based estimation
+      copula_type: gaussian  # For copula method: "gaussian", "t", etc.
+      
+      # Which metrics to compute
+      compute_basic_mi: true      # I(E;C), I(I;C), I(Vout;C), I(Vinf;C), I(E,I;C)
+      compute_pairwise_mi: true   # I(E;I), I(E;Vout), I(I;Vout), I(E;Vinf), etc.
+      compute_conditional_mi: true # I(E;I|C), I(E;Vout|C), I(I;Vout|C), etc.
+      compute_pid: false          # Partial Information Decomposition (requires external library)
+      
+      # PID configuration (only used if compute_pid: true)
+      pid_binarize: true          # Whether to binarize data for PID
+      pid_binarize_method: median # "median", "mean", "quantile"
+      pid_binarize_threshold: 0.5 # Threshold for quantile method
+      
+      # Additional options
+      include_vinf: true     # Include soma activation (Vinf) in computations
+      normalize_mi: false    # Normalize MI values by entropy
+      verbose: false         # Enable detailed logging
 
 # ============================================================
 # EXAMPLE CONFIGURATIONS FOR DIFFERENT USE CASES
