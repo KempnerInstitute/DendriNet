@@ -11,6 +11,7 @@ from dendritic_modeling.models import BaseModel
 from dendritic_modeling.networks import ExcitationInhibitionNetwork
 from dendritic_modeling.networks.layers.dendritic import DendriticBranchLayer
 from dendritic_modeling.utils import save_dict
+from dendritic_modeling.config.analysis import SynapticActivationAnalysisParams
 
 
 class SynapticActivationAnalyzer:
@@ -21,16 +22,7 @@ class SynapticActivationAnalyzer:
     and computes detailed statistical summaries at network, layer, and branch levels.
     """
     
-    def __init__(
-        self,
-        network_summary: bool = True,
-        layer_summary: bool = True,
-        branch_summary: bool = True,
-        raw_summary: bool = True,
-        logspace: bool = False,
-        downsample: bool = False,
-        samples: int = 1000,
-    ):
+    def __init__(self, params: SynapticActivationAnalysisParams):   
         """
         Initialize the synaptic activation analyzer.
         
@@ -43,13 +35,13 @@ class SynapticActivationAnalyzer:
             downsample: Whether to downsample input data for efficiency
             samples: Number of samples to use if downsampling
         """
-        self.network_summary = network_summary
-        self.layer_summary = layer_summary
-        self.branch_summary = branch_summary
-        self.raw_summary = raw_summary
-        self.logspace = logspace
-        self.downsample = downsample
-        self.samples = samples
+        self.network_summary = params.network_summary
+        self.layer_summary = params.layer_summary
+        self.branch_summary = params.branch_summary
+        self.raw_summary = params.raw_summary
+        self.logspace = params.logspace
+        self.downsample = params.downsample
+        self.samples = params.samples
 
     def attach_forward_hooks(self, model: BaseModel):
         """

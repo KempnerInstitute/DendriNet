@@ -9,6 +9,7 @@ from typing import Dict, Optional, Union, Any
 import numpy as np
 import logging
 
+from dendritic_modeling.config.analysis import InformationAnalysisParams
 from dendritic_modeling.analysis.information.estimators import (
     EstimatorConfig,
     InformationEstimatorFactory
@@ -27,7 +28,7 @@ class IntegratedInformationAnalyzer:
     and class labels. It supports continuous multivariate data natively.
     """
     
-    def __init__(self, config: Union[Dict, Any]):
+    def __init__(self, params: InformationAnalysisParams):
         """Initialize the analyzer with configuration from main YAML config.
         
         Parameters
@@ -36,32 +37,32 @@ class IntegratedInformationAnalyzer:
             Configuration from the main config system (analysis.information_analysis)
         """
         # Handle both dict and dataclass configs
-        if hasattr(config, '__dict__'):
+        if hasattr(params, '__dict__'):
             # It's a dataclass, convert to dict
-            config_dict = {k: v for k, v in config.__dict__.items()}
+            config_dict = {k: v for k, v in params.__dict__.items()}
         else:
-            config_dict = config
+            config_dict = params
             
         self.logger = logging.getLogger(self.__class__.__name__)
         
         # Extract configuration parameters
-        self.method = config_dict.get("method", "kraskov")
-        self.n_neighbors = config_dict.get("n_neighbors", 10)
-        self.n_bins = config_dict.get("n_bins", 20)
-        self.copula_type = config_dict.get("copula_type", "gaussian")
+        self.method = params.method
+        self.n_neighbors = params.n_neighbors
+        self.n_bins = params.n_bins
+        self.copula_type = params.copula_type
         
-        self.compute_basic_mi = config_dict.get("compute_basic_mi", True)
-        self.compute_pairwise_mi = config_dict.get("compute_pairwise_mi", True)
-        self.compute_conditional_mi = config_dict.get("compute_conditional_mi", True)
-        self.compute_pid = config_dict.get("compute_pid", False)
+        self.compute_basic_mi = params.compute_basic_mi
+        self.compute_pairwise_mi = params.compute_pairwise_mi
+        self.compute_conditional_mi = params.compute_conditional_mi
+        self.compute_pid = params.compute_pid
         
-        self.pid_binarize = config_dict.get("pid_binarize", True)
-        self.pid_binarize_method = config_dict.get("pid_binarize_method", "median")
-        self.pid_binarize_threshold = config_dict.get("pid_binarize_threshold", 0.5)
+        self.pid_binarize = params.pid_binarize
+        self.pid_binarize_method = params.pid_binarize_method
+        self.pid_binarize_threshold = params.pid_binarize_threshold
         
-        self.include_vinf = config_dict.get("include_vinf", True)
-        self.normalize_mi = config_dict.get("normalize_mi", False)
-        self.verbose = config_dict.get("verbose", False)
+        self.include_vinf = params.include_vinf
+        self.normalize_mi = params.normalize_mi
+        self.verbose = params.verbose
         
         if self.verbose:
             self.logger.setLevel(logging.DEBUG)

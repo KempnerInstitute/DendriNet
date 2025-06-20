@@ -16,6 +16,7 @@ from dendritic_modeling.utils import (
     evaluate_categorical_loglikelihood,
     save_dict,
 )
+from dendritic_modeling.config.analysis import NoisePerturbationAnalysisParams
 
 
 class NoisePerturbationAnalyzer:
@@ -26,16 +27,7 @@ class NoisePerturbationAnalyzer:
     accuracy and categorical log-likelihood on perturbed test data.
     """
     
-    def __init__(
-        self,
-        uniform_noise: bool = False,
-        uniform_magnitudes: List[float] = [0.1],
-        gaussian_noise: bool = False,
-        gaussian_sdevs: List[float] = [0.1],
-        n_samples: int = 10,
-        accuracy: bool = True,
-        categorical_loglikelihood: bool = True,
-    ):
+    def __init__(self, params: NoisePerturbationAnalysisParams):
         """
         Initialize the noise perturbation analyzer.
         
@@ -48,13 +40,13 @@ class NoisePerturbationAnalyzer:
             accuracy: Whether to compute accuracy on noisy data
             categorical_loglikelihood: Whether to compute categorical log-likelihood on noisy data
         """
-        self.uniform_noise = uniform_noise
-        self.uniform_magnitudes = uniform_magnitudes
-        self.gaussian_noise = gaussian_noise
-        self.gaussian_sdevs = gaussian_sdevs
-        self.n_samples = n_samples
-        self.accuracy = accuracy
-        self.categorical_ll = categorical_loglikelihood
+        self.uniform_noise = params.uniform_noise
+        self.uniform_magnitudes = params.uniform_magnitudes
+        self.gaussian_noise = params.gaussian_noise
+        self.gaussian_sdevs = params.gaussian_sdevs
+        self.n_samples = params.n_samples
+        self.accuracy = params.accuracy
+        self.categorical_ll = params.categorical_loglikelihood
 
     def analyze(
         self,
