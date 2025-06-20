@@ -12,7 +12,7 @@ from dendritic_modeling.analysis.performance.ablation import AblationAnalyzer
 from dendritic_modeling.analysis.performance.layers import SingleLayerContributionAnalyzer
 
 # Information analysis
-from dendritic_modeling.analysis.information.integrated_analyzer import IntegratedInformationAnalyzer
+from dendritic_modeling.analysis.information.integrated_analyzer import InformationAnalyzer
 
 # Activation analysis
 from dendritic_modeling.analysis.activations.synaptic import SynapticActivationAnalyzer
@@ -38,7 +38,7 @@ __all__ = [
     "SingleLayerContributionAnalyzer",
     
     # Information analysis
-    "IntegratedInformationAnalyzer",
+    "InformationAnalyzer",
     
     # Activation analysis
     "SynapticActivationAnalyzer",

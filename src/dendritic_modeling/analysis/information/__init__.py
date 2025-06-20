@@ -24,7 +24,7 @@ from dendritic_modeling.analysis.information.pid_utils import (
 )
 
 # Main integrated analyzer
-from dendritic_modeling.analysis.information.integrated_analyzer import IntegratedInformationAnalyzer
+from dendritic_modeling.analysis.information.integrated_analyzer import InformationAnalyzer
 
 __all__ = [
     # Core computation functions
@@ -39,5 +39,5 @@ __all__ = [
     "check_pid_available",
     "pid_synergy_redundancy",
     # Main analyzer
-    "IntegratedInformationAnalyzer",
+    "InformationAnalyzer",
 ] 

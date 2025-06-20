@@ -240,6 +240,8 @@ analysis:
     params:
       # Estimation method for mutual information computation
       method: "copula"  # Changed to "copula" for copula-based estimation
+
+      max_samples: null
       
       # Maximum number of samples to use (for faster computation)
       max_samples: 1000  # Use only 1000 samples instead of all 10000
@@ -264,6 +266,9 @@ analysis:
       include_vinf: true     # Include soma activation (Vinf) in analysis
       normalize_mi: false    # Normalize MI values by entropy H(C)
       verbose: false        # Print detailed progress during computation
-      
+
+      compute_per_branch: true
+      branch_aggregation: none
+
 outputs:
   dir: ./outputs/

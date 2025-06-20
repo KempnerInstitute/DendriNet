@@ -5,7 +5,7 @@ import numpy as np
 from unittest.mock import patch, MagicMock
 
 from src.dendritic_modeling.analysis.information import (
-    IntegratedInformationAnalyzer,
+    InformationAnalyzer,
     IntegratedAnalyzerConfig,
     EstimatorConfig,
     EstimationMethod,
@@ -119,7 +119,7 @@ class TestIntegratedAnalyzer:
             compute_pid=False,
         )
         
-        analyzer = IntegratedInformationAnalyzer(config)
+        analyzer = InformationAnalyzer(config)
         results = analyzer.analyze(self.E, self.I, self.Vout, self.C, self.Vinf)
         
         assert "basic_mi" in results
@@ -143,7 +143,7 @@ class TestIntegratedAnalyzer:
             compute_pid=False,
         )
         
-        analyzer = IntegratedInformationAnalyzer(config)
+        analyzer = InformationAnalyzer(config)
         results = analyzer.analyze(self.E, self.I, self.Vout, self.C, self.Vinf)
         
         assert "pairwise_mi" in results
@@ -162,7 +162,7 @@ class TestIntegratedAnalyzer:
             compute_pid=False,
         )
         
-        analyzer = IntegratedInformationAnalyzer(config)
+        analyzer = InformationAnalyzer(config)
         results = analyzer.analyze(self.E, self.I, self.Vout, self.C)
         
         assert "conditional_mi" in results
@@ -179,7 +179,7 @@ class TestIntegratedAnalyzer:
             compute_conditional_mi=False,
             compute_pid=False,
         )
-        analyzer2 = IntegratedInformationAnalyzer(config2)
+        analyzer2 = InformationAnalyzer(config2)
         results2 = analyzer2.analyze(self.E, self.I, self.Vout, self.C)
         
         # In this case, E and I are conditionally independent given C
@@ -202,7 +202,7 @@ class TestIntegratedAnalyzer:
             pid_binarize=True,
         )
         
-        analyzer = IntegratedInformationAnalyzer(config)
+        analyzer = InformationAnalyzer(config)
         analyzer.pid_available = True  # Force PID availability
         
         results = analyzer.analyze(self.E, self.I, self.Vout, self.C)
@@ -220,7 +220,7 @@ class TestIntegratedAnalyzer:
         Vout_multi = np.random.randn(self.n_samples, n_features)
         
         config = InformationAnalysisPreset.basic_mi_analysis()
-        analyzer = IntegratedInformationAnalyzer(config)
+        analyzer = InformationAnalyzer(config)
         
         results = analyzer.analyze(E_multi, I_multi, Vout_multi, self.C)
         
@@ -238,7 +238,7 @@ class TestIntegratedAnalyzer:
             normalize_mi=True,
         )
         
-        analyzer = IntegratedInformationAnalyzer(config)
+        analyzer = InformationAnalyzer(config)
         results = analyzer.analyze(self.E, self.I, self.Vout, self.C)
         
         assert "basic_mi" in results
@@ -321,7 +321,7 @@ class TestIntegration:
                 .with_metrics(basic=True, pairwise=False, conditional=False, pid=False) \
                 .build()
                 
-            analyzer = IntegratedInformationAnalyzer(config)
+            analyzer = InformationAnalyzer(config)
             results[method] = analyzer.analyze(E, I, Vout, C)
         
         # Results should be similar but not identical
@@ -338,7 +338,7 @@ class TestIntegration:
     def test_summary_generation(self):
         """Test summary string generation."""
         config = InformationAnalysisPreset.basic_mi_analysis()
-        analyzer = IntegratedInformationAnalyzer(config)
+        analyzer = InformationAnalyzer(config)
         
         # Simple data
         E = np.random.randn(100)
