@@ -4,40 +4,84 @@ Configuration module for dendritic modeling.
 This module contains configuration dataclasses and utilities.
 """
 
-from dendritic_modeling.config.config import (
-    Config,
-    ModelConfig,
-    TrainConfig,
-    TrainerConfig,
-    TaskConfig,
-    AnalysisConfig,
-    InformationAnalysisConfig,
-    VisualizationConfig,
-    WandbConfig,
-    OutputsConfig,
+from dendritic_modeling.config.base import BaseConfig
+
+from dendritic_modeling.config.model import (
     EINetParameters,
     FeedForwardParameters,
     NetworkConfig,
     BaseModelConfig,
-    BaseConfig,
+    TransferFunctionParams,
+    ModelConfig
+)
+
+from dendritic_modeling.config.training import (
+    TrainerConfig,
+    TrainConfig
+)
+
+from dendritic_modeling.config.analysis import (
+    PerformanceAnalysisParams,
+    PerformanceAnalysisConfig,
+    InformationAnalysisParams,
+    InformationAnalysisConfig,
+    SynapseTurnoverAnalysisConfig,
+    NoisePerturbationAnalysisParams,
+    NoisePerturbationAnalysisConfig,
+    AblationAnalysisParams,
+    AblationAnalysisConfig,
+    WeightAnalysisParams,
+    WeightAnalysisConfig,
+    SynapticActivationAnalysisParams,
+    SynapticActivationAnalysisConfig,
+    BranchActivationAnalysisParams,
+    BranchActivationAnalysisConfig,
+    SingleLayerContributionAnalysisParams,
+    SingleLayerContributionAnalysisConfig,
+    AnalysisConfig
+)
+
+from dendritic_modeling.config.config import (
+    VisualizationConfig,
+    WandbConfig,
+    TaskConfig,
+    OutputsConfig,
+    Config,
     load_config
 )
 
 __all__ = [
-    "Config",
-    "ModelConfig", 
-    "TrainConfig",
-    "TrainerConfig",
-    "TaskConfig",
-    "AnalysisConfig",
-    "InformationAnalysisConfig",
-    "VisualizationConfig",
-    "WandbConfig",
-    "OutputsConfig",
+    "BaseConfig",
     "EINetParameters",
     "FeedForwardParameters",
     "NetworkConfig",
     "BaseModelConfig",
-    "BaseConfig",
+    "TransferFunctionParams",
+    "ModelConfig",
+    "TrainerConfig",
+    "TrainConfig",
+    "VisualizationConfig",
+    "WandbConfig",
+    "TaskConfig",
+    "OutputsConfig",
+    "PerformanceAnalysisParams",
+    "PerformanceAnalysisConfig",
+    "InformationAnalysisParams",
+    "InformationAnalysisConfig",
+    "SynapseTurnoverAnalysisConfig",
+    "NoisePerturbationAnalysisParams",
+    "NoisePerturbationAnalysisConfig",
+    "AblationAnalysisParams",
+    "AblationAnalysisConfig",
+    "WeightAnalysisParams",
+    "WeightAnalysisConfig",
+    "SynapticActivationAnalysisParams",
+    "SynapticActivationAnalysisConfig",
+    "BranchActivationAnalysisParams",
+    "BranchActivationAnalysisConfig",
+    "SingleLayerContributionAnalysisParams",
+    "SingleLayerContributionAnalysisConfig",
+    "AnalysisConfig",
+    "Config",
     "load_config"
-] 
+]

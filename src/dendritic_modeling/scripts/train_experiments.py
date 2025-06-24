@@ -65,14 +65,11 @@ from dendritic_modeling.training import (
 from dendritic_modeling.models import (
     BaseModel,
     Classifier,
-    Regressor,
-    SimpleMLP
+    Regressor
 )
 from dendritic_modeling.networks import (
     ExcitationInhibitionNetwork,
-    FeatureExtractorMLP,
-    MatchedParamMLP,
-    SigmoidInputNetTransform
+    MatchedParamMLP
 )
 from dendritic_modeling.datasets import get_unified_datasets
 from dendritic_modeling.utils import (

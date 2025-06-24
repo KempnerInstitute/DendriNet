@@ -10,7 +10,7 @@ import torch
 
 from dendritic_modeling import logger
 from dendritic_modeling.models import BaseModel
-from dendritic_modeling.networks.layers import DendriticBranchLayer
+from dendritic_modeling.networks import DendriticBranchLayer
 from dendritic_modeling.networks import ExcitationInhibitionNetwork
 from dendritic_modeling.training.strategies import Trainer
 

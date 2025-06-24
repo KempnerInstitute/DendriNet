@@ -13,11 +13,6 @@ from dendritic_modeling.networks.activations.parametric import (
     ParametricLinearTanh,
     ParametricLinearTanhTransition,
 )
-from dendritic_modeling.networks.activations.simple import (
-    SimpleReLU, 
-    SimpleSigmoid, 
-    SimpleTanh
-)
 
 __all__ = [
     # Factory
@@ -27,9 +22,5 @@ __all__ = [
     "ParametricTanhOnlyM",
     "ParametricLinearSigmoid",
     "ParametricLinearTanh",
-    "ParametricLinearTanhTransition",
-    # Simple activations
-    "SimpleReLU",
-    "SimpleSigmoid",
-    "SimpleTanh",
+    "ParametricLinearTanhTransition"
 ] 
