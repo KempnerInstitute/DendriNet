@@ -5,23 +5,47 @@ This module contains various neural network architectures including
 dendritic, excitation-inhibition, and MLP-based models.
 """
 
-from dendritic_modeling.networks.architectures.dendritic import DendriNet
-from dendritic_modeling.networks.architectures.excitation_inhibition import (
-    ExcitationInhibitionNetwork, 
-    MLPExcInhNetwork
+from dendritic_modeling.networks.architectures.classical import (
+    AlexNet,
+    CNN,
+    MLP,
+    MatchedParamMLP
 )
-from dendritic_modeling.networks.architectures.mlp import (
-    MatchedParamMLP, 
-    SimpleMLPNet
+
+from dendritic_modeling.networks.architectures.excitation_inhibition import (
+    ExcitationInhibitionLayer,
+    ExcitationInhibitionNetwork,
+    IdentityInputTransform,
+    IndexInputTransform,
+    TransferLayer,
+    TopKLinear,
+    StochasticTopKLinear,
+    VarianceTopKLinear,
+    DeepstLinear,
+    BlockLinear,
+    DendriticBranchLayer,
+    DendriNet,
+    GradientScaler,
+    initialize_dendritic_branch_layer
 )
 
 __all__ = [
-    # Dendritic architectures
-    "DendriNet",
-    # Excitation-Inhibition architectures
-    "ExcitationInhibitionNetwork",
-    "MLPExcInhNetwork",
-    # MLP architectures
+    "AlexNet",
+    "CNN",
+    "MLP",
     "MatchedParamMLP",
-    "SimpleMLPNet",
-] 
+    "ExcitationInhibitionLayer",
+    "ExcitationInhibitionNetwork",
+    "IdentityInputTransform",
+    "IndexInputTransform",
+    "TransferLayer",
+    "TopKLinear",
+    "StochasticTopKLinear",
+    "VarianceTopKLinear",
+    "DeepstLinear",
+    "BlockLinear",
+    "DendriticBranchLayer",
+    "DendriNet",
+    "GradientScaler",
+    "initialize_dendritic_branch_layer"
+]

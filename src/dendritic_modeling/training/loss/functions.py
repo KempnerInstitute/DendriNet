@@ -5,7 +5,7 @@ from torch import nn
 from torch.distributions import Categorical
 
 from dendritic_modeling.models import BaseModel
-from dendritic_modeling.networks.layers import DendriticBranchLayer
+from dendritic_modeling.networks import DendriticBranchLayer
 
 
 class LossFunction(nn.Module):

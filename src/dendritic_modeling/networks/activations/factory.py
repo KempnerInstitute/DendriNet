@@ -13,11 +13,6 @@ from dendritic_modeling.networks.activations.parametric import (
     ParametricLinearTanh,
     ParametricLinearTanhTransition,
 )
-from dendritic_modeling.networks.activations.simple import (
-    SimpleReLU, 
-    SimpleSigmoid, 
-    SimpleTanh
-)
 
 
 class ActivationFactory:
@@ -64,11 +59,11 @@ class ActivationFactory:
                 raise ValueError("ParametricTanhOnlyM requires output_dim.")
             return ParametricTanhOnlyM(output_dim, init_m, fixed_b)
         elif act_type == "relu":
-            return SimpleReLU()
+            return nn.ReLU()
         elif act_type == "sigmoid":
-            return SimpleSigmoid()
+            return nn.Sigmoid()
         elif act_type == "tanh":
-            return SimpleTanh()
+            return nn.Tanh()
         elif act_type == "param_linear_sigmoid":
             if output_dim is None:  # trainable init_m
                 raise ValueError("ParametricLinearSigmoid requires output_dim.")
