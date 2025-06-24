@@ -14,14 +14,14 @@ import torch
 from dendritic_modeling.models import BaseModel
 from dendritic_modeling.config import AnalysisConfig
 
-from dendritic_modeling.analysis.performance.metrics import PerformanceAnalyzer
-from dendritic_modeling.analysis.performance.noise import NoisePerturbationAnalyzer
-from dendritic_modeling.analysis.performance.ablation import AblationAnalyzer
-from dendritic_modeling.analysis.performance.layers import SingleLayerContributionAnalyzer
-from dendritic_modeling.analysis.synaptic.turnover import SynapticTurnoverAnalyzer
-from dendritic_modeling.analysis.synaptic.weights import WeightAnalyzer
-from dendritic_modeling.analysis.activations.synaptic import SynapticActivationAnalyzer
-from dendritic_modeling.analysis.activations.branches import BranchActivationAnalyzer
+from dendritic_modeling.analysis.performance import PerformanceAnalyzer
+from dendritic_modeling.analysis.noise_perturbation import NoisePerturbationAnalyzer
+from dendritic_modeling.analysis.ablation import AblationAnalyzer
+from dendritic_modeling.analysis.layer_contribution import SingleLayerContributionAnalyzer
+from dendritic_modeling.analysis.synaptic_turnover import SynapticTurnoverAnalyzer
+from dendritic_modeling.analysis.weight import WeightAnalyzer
+from dendritic_modeling.analysis.synaptic_activation import SynapticActivationAnalyzer
+from dendritic_modeling.analysis.branch_activation import BranchActivationAnalyzer
 from dendritic_modeling.analysis.information import InformationAnalyzer
 
 
@@ -174,6 +174,7 @@ class AnalysisManager:
             self.single_layer_analyzer.analyze(
                 model=self.model,
                 test_dataset=self.data["test"],
+                device=self.device,
                 save_path=os.path.join(self.save_root, "single_layer_contribution"),
                 filename=filename
             )

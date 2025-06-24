@@ -8,15 +8,21 @@ for all model wrappers including parameter grouping and weight decay.
 import torch
 import torch.nn as nn
 from itertools import chain
+from typing import Union
 
-from dendritic_modeling.networks import ExcitationInhibitionNetwork
-from dendritic_modeling.networks.base import BaseNetwork
+from dendritic_modeling.networks import (
+    DendriticBranchLayer,
+    DendriNet,
+    ExcitationInhibitionLayer,
+    ExcitationInhibitionNetwork,
+    BaseNetwork
+)
 
 
 class BaseModel(nn.Module):
     def __init__(self, net: BaseNetwork):
         super(BaseModel, self).__init__()
-        self.net = net
+        self.net: Union[ExcitationInhibitionNetwork, BaseNetwork] = net
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         raise NotImplementedError("Forward method must be implemented in subclass.")
@@ -50,10 +56,11 @@ class BaseModel(nn.Module):
             output_layer_params = []
 
             for ei_layer in self.net.layers:
-                exc_cells = ei_layer.excitatory_cells
-                inh_cells = ei_layer.inhibitory_cells
+                ei_layer: ExcitationInhibitionLayer
+                exc_cells: DendriNet = ei_layer.excitatory_cells
 
                 for dendritic_layer in exc_cells.branch_layers:
+                    dendritic_layer: DendriticBranchLayer
                     if dendritic_layer.branch_excitation is not None:
                         topk_params.append(
                             dendritic_layer.branch_excitation.parameters()
@@ -73,7 +80,8 @@ class BaseModel(nn.Module):
                             dendritic_layer.reactivation.parameters()
                         )
                 
-                if inh_cells is not None:
+                if hasattr(ei_layer, 'inhibitory_cells'):
+                    inh_cells = ei_layer.inhibitory_cells
                     for dendritic_layer in inh_cells.branch_layers:
                         if dendritic_layer.branch_excitation is not None:
                             topk_params.append(
@@ -95,8 +103,10 @@ class BaseModel(nn.Module):
                             )
             
             if hasattr(self, 'final_fc'):
+                self.final_fc: nn.Module
                 output_layer_params.append(self.final_fc.parameters())
             if hasattr(self, 'log_output_scale'):
+                self.log_output_scale: nn.Parameter
                 output_layer_params.append([self.log_output_scale])
 
             param_groups = []
@@ -115,9 +125,10 @@ class BaseModel(nn.Module):
                     'params': chain(*reactivation_params), 
                     'lr': optim_dict.get('reactivation_lr', 0.001)
                 })
-            if hasattr(self.net, 'input_net'):
+            if hasattr(self.net, 'transfer_fn'):
+                transfer_fn: nn.Module = self.net.transfer_fn
                 param_groups.append({
-                    'params': self.net.input_net.parameters(), 
+                    'params': transfer_fn.parameters(), 
                     'lr': optim_dict.get('input_net_lr', 0.001)
                 })
             if output_layer_params:

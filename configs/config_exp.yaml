@@ -6,6 +6,12 @@ model:
   network:
     type: EINet #"EINet", "MLP"
     parameters:
+      # transfer function parameters
+      transfer_params:
+        input_mode: 1
+        independent_pathways: true
+        excitatory_dim: 2000
+        inhibitory_dim: 1072
       # configuration parameters
       excitatory_layer_sizes: [10]
       inhibitory_layer_sizes: [40]
@@ -33,24 +39,6 @@ model:
       topk_strategy: conductance_dynamic
       blocklinear_strategy: conductance_dynamic # "none", "distal_upweight_by_idx", "conductance_dynamic"
       print_hooks: false # Whether to print gradient statistics in hooks
-
-      # input mode (0=original, 1=exc=x+inh=x, 2=input_net)
-      input_mode: 1
-      # If we set input_mode=2, the following get used for input network:
-      input_net_dict:
-        type: "CNNInputTransform"  # Type of input network: "IndexInputTransform", "MLPInputTransform", "AlexNetTransform", etc.
-        hidden_dims: [] #[512, 256, 128]     # Hidden layer dimensions for better capacity
-        excitatory_dim: 256             # Output dimension for excitatory input network
-        inhibitory_dim: 64             # Output dimension for inhibitory input network
-        # CNNInputTransform arguments
-        input_shape: [3, 32, 32]
-        excitatory_hidden_dims: [8]
-        inhibitory_hidden_dims: [4]
-        excitatory_kernel_sizes: [5]
-        inhibitory_kernel_sizes: [9]
-        excitatory_strides: [1]
-        inhibitory_strides: [1]
-
       # DEEPST specific parameters
       excitatory_target_density: 0.1   # Target density for excitatory connections (fraction of active synapses)
       inhibitory_target_density: 0.1   # Target density for inhibitory connections (fraction of active synapses)
@@ -102,7 +90,7 @@ train:
   trainer:
     # for all learning strategies:
     loss_function: categorical_nll
-    epochs: 50
+    epochs: 10
     early_stopping: false
     patience: 10
     batch_size: 128
@@ -168,10 +156,10 @@ analysis:
       mse: false
 
   synapse_turnover_analysis:
-    enabled: false  # Whether to enable synapse turnover analysis
-    training: false  # Whether to enable synapse turnover analysis during training
+    enabled: true  # Whether to enable synapse turnover analysis
+    training: true  # Whether to enable synapse turnover analysis during training
   noise_perturbation_analysis:
-    enabled: false
+    enabled: true
     training: false
     params:
       uniform_noise: true
@@ -182,7 +170,7 @@ analysis:
       accuracy: true
       categorical_loglikelihood: true
   ablation_analysis:
-    enabled: false
+    enabled: true
     training: false
     params:
       layer_ablation: true
@@ -194,13 +182,13 @@ analysis:
       accuracy: true
       categorical_loglikelihood: true
   weight_analysis:
-    enabled: false
+    enabled: true
     training: false
     params:
       synapse_weights: true
       branch_weights: true
   synaptic_activation_analysis:
-    enabled: false
+    enabled: true
     training: false
     params:
       network_summary: true
@@ -209,9 +197,9 @@ analysis:
       raw_summary: true
       logspace: false
       downsample: true
-      samples: 5
+      samples: 2
   branch_activation_analysis:
-    enabled: false
+    enabled: true
     training: false
     params:
       synapse_activations: true
@@ -222,7 +210,7 @@ analysis:
       raw_summary: true
       logspace: false
       downsample: true
-      samples: 5
+      samples: 2
 
   # Single layer contribution analysis (formerly layer_ablation)
   # Isolates each layer to test what it can achieve on its own
@@ -235,16 +223,14 @@ analysis:
 
   # NEW: Integrated information-theoretic analysis using multivariate methods
   information_analysis:
-    enabled: false
+    enabled: true
     training: false
     params:
       # Estimation method for mutual information computation
       method: "copula"  # Changed to "copula" for copula-based estimation
-
-      max_samples: null
       
       # Maximum number of samples to use (for faster computation)
-      max_samples: 1000  # Use only 1000 samples instead of all 10000
+      max_samples: 100  # Use only 1000 samples instead of all 10000
       
       # Method-specific parameters
       n_neighbors: 10       # For Kraskov k-NN estimator (higher = more accurate but slower)
@@ -271,4 +257,4 @@ analysis:
       branch_aggregation: none
 
 outputs:
-  dir: ./outputs/
+  dir: /Users/maceorichards/Documents/Dendritic Modeling/dendritic-modeling/outputs/

@@ -5,146 +5,15 @@ Configuration file for dendritic_modeling.
 This module defines the configuration dataclasses for the model, training, task, etc.
 It loads and saves configurations using OmegaConf.
 """
-from dataclasses import asdict, dataclass, field
-from typing import Any, Dict, List, Optional
+from dataclasses import dataclass, field
+from typing import Dict, List
 
 from omegaconf import OmegaConf as om
 
-from dendritic_modeling.config.analysis import (
-    PerformanceAnalysisConfig,
-    SynapseTurnoverAnalysisConfig,
-    NoisePerturbationAnalysisConfig,
-    AblationAnalysisConfig,
-    WeightAnalysisConfig,
-    SynapticActivationAnalysisConfig,
-    BranchActivationAnalysisConfig,
-    SingleLayerContributionAnalysisConfig,
-    InformationAnalysisConfig
-)
-
-class BaseConfig:
-    @classmethod
-    def load(cls, path: str):
-        conf = om.load(path)
-        return cls(**conf)
-
-    def save(self, path: str):
-        om.save(config=self, f=path)
-
-    def asdict(self):
-        return asdict(self)
-
-
-@dataclass
-class EINetParameters(BaseConfig):
-    input_dim: int = 784
-    excitatory_layer_sizes: List[int] = field(default_factory=lambda: [10])
-    inhibitory_layer_sizes: List[int] = field(default_factory=lambda: [20])
-    excitatory_branch_factors: List[int] = field(default_factory=lambda: [2, 2])
-    inhibitory_branch_factors: List[int] = field(default_factory=lambda: [])
-    ee_synapses_per_branch_per_layer: List[int] = field(default_factory=lambda: [24])
-    ei_synapses_per_branch_per_layer: List[int] = field(default_factory=lambda: [200])
-    ie_synapses_per_branch_per_layer: List[int] = field(default_factory=lambda: [1])
-    ii_synapses_per_branch_per_layer: List[int] = field(default_factory=lambda: [])
-    reactivate: bool = True
-    reactivation_init_m: float = 1.5
-    reactivation_init_b: float = 0.5
-    somatic_synapses: bool = True
-    topk_init_method: str = "xavier_normal"
-    topk_noise_level: float = 0.0
-    topk_type: str = "standard"  # can be "standard", "stochastic", or "variance"
-    topk_temperature: float = 0.5
-    topk_ultrafast: bool = False
-    topk_strategy: str = "conductance_dynamic"
-    use_shunting: bool = True
-    reactivation_type: str = "param_tanh"
-    reactivation_strategy: str = "inverse"
-    blocklinear_strategy: str = "conductance_dynamic"
-    print_hooks: bool = False  # Whether to print gradient statistics in hooks
-    input_mode: int = 0  # Input mode (0=original, 1=exc=x+inh=x, 2=input_net)
-    input_net_dict: Dict[str, Any] = field(
-        default_factory=dict
-    )  # Input network configuration
-    output_layer: bool = False
-    output_dim: int = 10
-    excitatory_target_density: float = 0.1
-    inhibitory_target_density: float = 0.1
-    use_noise: bool = True
-    sigma: float = 0.05
-    rewiring_mode: str = "global"
-    rewire_frequency: int = 1
-    synapses_per_branch: Optional[int] = None
-    freeze_excitatory_connectivity: bool = False
-    freeze_inhibitory_connectivity: bool = False
-    init_method: str = "xavier_normal"
-    weight_threshold: float = 1e-6
-
-
-@dataclass
-class FeedForwardParameters(BaseConfig):
-    input_dim: int = 784
-    hidden_layer_sizes: List[int] = field(default_factory=lambda: [128, 64])
-    activation: str = "relu"
-    dropout: float = 0.2
-    output_dim: int = 10
-
-
-@dataclass
-class BaseModelConfig(BaseConfig):
-    output_layer: bool = False
-    output_dim: int = 10
-
-
-@dataclass
-class NetworkConfig(BaseConfig):
-    type: str = "EINet"
-    parameters: EINetParameters = field(default_factory=EINetParameters)
-
-
-@dataclass
-class ModelConfig(BaseConfig):
-    task: str = "classification"
-    base: BaseModelConfig = field(default_factory=BaseModelConfig)
-    network: NetworkConfig = field(default_factory=NetworkConfig)
-
-
-@dataclass
-class TrainerConfig(BaseConfig):
-    loss_function: str = "mse"
-    epochs: int = 50
-    early_stopping: bool = False
-    patience: int = 10
-    batch_size: int = 128
-    shuffle: bool = True
-    grad_clip_value: float = 5.0
-    load_best_state_dict: bool = True
-    plot_losses: bool = False
-    save_path: Optional[str] = None
-    suppress_prints: bool = False
-    print_every: int = 10
-    # for learning strategies other than standard:
-    pretrain_epochs: int = 50
-    target_voltage: float = 0.5
-    kl_weight: float = 0.1
-    reverse_training: bool = False
-    epochs_per_layer: int = 50
-    epochs_per_branch: int = 50
-    final_tune_epochs: int = 10
-
-
-@dataclass
-class TrainConfig(BaseConfig):
-    learning_strategy: str = "mle"
-    run_name: str = "exp_run"
-    seed: int = 0
-    train_valid_split: float = 0.8
-    optim_dict: Dict[str, Any] = field(
-        default_factory=dict
-    )  # Optimizer / param group settings
-    weight_decay_rate: float = 0.1
-    input_net_training: dict = field(default_factory=dict)
-    trainer: TrainerConfig = field(default_factory=TrainerConfig)
-
+from dendritic_modeling.config.base import BaseConfig
+from dendritic_modeling.config.analysis import AnalysisConfig
+from dendritic_modeling.config.model import ModelConfig
+from dendritic_modeling.config.training import TrainConfig
 
 @dataclass
 class VisualizationConfig(BaseConfig):
@@ -152,37 +21,6 @@ class VisualizationConfig(BaseConfig):
     visualize_epochs: List[int] = field(default_factory=lambda: [])
     plots: List[str] = field(default_factory=lambda: ["branch_info", "ablation"])
     parameters: Dict = field(default_factory=dict)
-
-
-@dataclass
-class AnalysisConfig(BaseConfig):
-    performance_analysis: PerformanceAnalysisConfig = field(
-        default_factory=PerformanceAnalysisConfig
-    )
-    synapse_turnover_analysis: SynapseTurnoverAnalysisConfig = field(
-        default_factory=SynapseTurnoverAnalysisConfig
-    )
-    noise_perturbation_analysis: NoisePerturbationAnalysisConfig = field(
-        default_factory=NoisePerturbationAnalysisConfig
-    )
-    single_layer_contribution: SingleLayerContributionAnalysisConfig = field(
-        default_factory=SingleLayerContributionAnalysisConfig
-    )
-    ablation_analysis: AblationAnalysisConfig = field(
-        default_factory=AblationAnalysisConfig
-    )
-    weight_analysis: WeightAnalysisConfig = field(
-        default_factory=WeightAnalysisConfig
-    )
-    synaptic_activation_analysis: SynapticActivationAnalysisConfig = field(
-        default_factory=SynapticActivationAnalysisConfig
-    )
-    branch_activation_analysis: BranchActivationAnalysisConfig = field(
-        default_factory=BranchActivationAnalysisConfig
-    )
-    information_analysis: InformationAnalysisConfig = field(
-        default_factory=InformationAnalysisConfig
-    )
 
 
 @dataclass

@@ -1,7 +1,7 @@
 from dataclasses import dataclass, field
 from typing import List, Optional
 
-from dendritic_modeling.config.config import BaseConfig
+from dendritic_modeling.config.base import BaseConfig
 
 
 @dataclass
@@ -183,4 +183,35 @@ class SingleLayerContributionAnalysisConfig(BaseConfig):
     training: bool = False
     params: SingleLayerContributionAnalysisParams = field(
         default_factory=SingleLayerContributionAnalysisParams
+    )
+
+
+@dataclass
+class AnalysisConfig(BaseConfig):
+    performance_analysis: PerformanceAnalysisConfig = field(
+        default_factory=PerformanceAnalysisConfig
+    )
+    synapse_turnover_analysis: SynapseTurnoverAnalysisConfig = field(
+        default_factory=SynapseTurnoverAnalysisConfig
+    )
+    noise_perturbation_analysis: NoisePerturbationAnalysisConfig = field(
+        default_factory=NoisePerturbationAnalysisConfig
+    )
+    single_layer_contribution: SingleLayerContributionAnalysisConfig = field(
+        default_factory=SingleLayerContributionAnalysisConfig
+    )
+    ablation_analysis: AblationAnalysisConfig = field(
+        default_factory=AblationAnalysisConfig
+    )
+    weight_analysis: WeightAnalysisConfig = field(
+        default_factory=WeightAnalysisConfig
+    )
+    synaptic_activation_analysis: SynapticActivationAnalysisConfig = field(
+        default_factory=SynapticActivationAnalysisConfig
+    )
+    branch_activation_analysis: BranchActivationAnalysisConfig = field(
+        default_factory=BranchActivationAnalysisConfig
+    )
+    information_analysis: InformationAnalysisConfig = field(
+        default_factory=InformationAnalysisConfig
     )
