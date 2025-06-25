@@ -12,102 +12,90 @@ from typing import Union
 
 from dendritic_modeling.networks import (
     DendriticBranchLayer,
-    DendriNet,
-    ExcitationInhibitionLayer,
     ExcitationInhibitionNetwork,
     BaseNetwork
 )
 
 
 class BaseModel(nn.Module):
-    def __init__(self, net: BaseNetwork):
+    def __init__(
+        self, 
+        input_network: BaseNetwork,
+        core_network: BaseNetwork,
+        decoder_network: BaseNetwork
+    ):
         super(BaseModel, self).__init__()
-        self.net: Union[ExcitationInhibitionNetwork, BaseNetwork] = net
+        
+        self.input_network = input_network
+        
+        self.core_network: Union[
+            ExcitationInhibitionNetwork, BaseNetwork
+        ] = core_network
+        
+        self.decoder_network = decoder_network
+        
+        self.input_network_enabled = True
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
-        raise NotImplementedError("Forward method must be implemented in subclass.")
+        x = self.input_network(x)
+        x = self.core_network(x)
+        x = self.decoder_network(x)
+        return x
 
     def predict(self, x: torch.Tensor) -> torch.Tensor:
         raise NotImplementedError("Predict method must be implemented in subclass.")
+    
+    def set_input_network_enabled(self, enabled: bool):
+        self.input_network_enabled = enabled
     
     def decay_weights(self, weight_decay: float):
         """
         Forward this call to self.net if it implements decay_weights.
         """
-        if hasattr(self.net, 'decay_weights'):
-            self.net.decay_weights(weight_decay)
+        if hasattr(self.core_network, 'decay_weights'):
+            self.core_network.decay_weights(weight_decay)
     
     def apply_rewiring(self):
         """
         Forward this call to self.net if it implements apply_rewiring.
         """
-        if hasattr(self.net, 'apply_rewiring'):
-            self.net.apply_rewiring()
+        if hasattr(self.core_network, 'apply_rewiring'):
+            self.core_network.apply_rewiring()
     
     def get_param_groups(self, optim_dict: dict) -> list[dict]:
         """
         Get parameter groups for optimizer.
         """
         split_params = optim_dict.get("split_params", False)
-        if split_params and isinstance(self.net, ExcitationInhibitionNetwork):
+        if split_params and isinstance(self.core_network, ExcitationInhibitionNetwork):
             topk_params = []
             blocklinear_params = []
             reactivation_params = []
-            output_layer_params = []
+            decoder_params = []
 
-            for ei_layer in self.net.layers:
-                ei_layer: ExcitationInhibitionLayer
-                exc_cells: DendriNet = ei_layer.excitatory_cells
-
-                for dendritic_layer in exc_cells.branch_layers:
-                    dendritic_layer: DendriticBranchLayer
-                    if dendritic_layer.branch_excitation is not None:
+            for module in self.core_network.modules():
+                if isinstance(module, DendriticBranchLayer):
+                    if module.branch_excitation is not None:
                         topk_params.append(
-                            dendritic_layer.branch_excitation.parameters()
+                            module.branch_excitation.parameters()
                         )
-                    if dendritic_layer.branch_inhibition is not None:
+                    if module.branch_inhibition is not None:
                         topk_params.append(
-                            dendritic_layer.branch_inhibition.parameters()
+                            module.branch_inhibition.parameters()
                         )
-                    
-                    if hasattr(dendritic_layer, 'branches_to_output'):
+                    if hasattr(module, 'branches_to_output'):
                         blocklinear_params.append(
-                            dendritic_layer.branches_to_output.parameters()
+                            module.branches_to_output.parameters()
                         )
-                    
-                    if dendritic_layer.reactivate:
+                    if module.reactivate:
                         reactivation_params.append(
-                            dendritic_layer.reactivation.parameters()
+                            module.reactivation.parameters()
                         )
-                
-                if hasattr(ei_layer, 'inhibitory_cells'):
-                    inh_cells = ei_layer.inhibitory_cells
-                    for dendritic_layer in inh_cells.branch_layers:
-                        if dendritic_layer.branch_excitation is not None:
-                            topk_params.append(
-                                dendritic_layer.branch_excitation.parameters()
-                            )
-                        if dendritic_layer.branch_inhibition is not None:
-                            topk_params.append(
-                                dendritic_layer.branch_inhibition.parameters()
-                            )
-                        
-                        if hasattr(dendritic_layer, 'branches_to_output'):
-                            blocklinear_params.append(
-                                dendritic_layer.branches_to_output.parameters()
-                            )
-                        
-                        if dendritic_layer.reactivate:
-                            reactivation_params.append(
-                                dendritic_layer.reactivation.parameters()
-                            )
             
-            if hasattr(self, 'final_fc'):
-                self.final_fc: nn.Module
-                output_layer_params.append(self.final_fc.parameters())
+            decoder_params.append(self.decoder_network.parameters())
             if hasattr(self, 'log_output_scale'):
                 self.log_output_scale: nn.Parameter
-                output_layer_params.append([self.log_output_scale])
+                decoder_params.append([self.log_output_scale])
 
             param_groups = []
             if topk_params:
@@ -125,16 +113,19 @@ class BaseModel(nn.Module):
                     'params': chain(*reactivation_params), 
                     'lr': optim_dict.get('reactivation_lr', 0.001)
                 })
-            if hasattr(self.net, 'transfer_fn'):
-                transfer_fn: nn.Module = self.net.transfer_fn
+
+            param_groups.append({
+                'params': self.input_network.parameters(),
+                'lr': optim_dict.get('input_net_lr', 0.001)
+            })
+            param_groups.append({
+                'params': self.core_network.transfer_fn.parameters(), 
+                'lr': optim_dict.get('transfer_fn_lr', 0.001)
+            })
+            if decoder_params:
                 param_groups.append({
-                    'params': transfer_fn.parameters(), 
-                    'lr': optim_dict.get('input_net_lr', 0.001)
-                })
-            if output_layer_params:
-                param_groups.append({
-                    'params': chain(*output_layer_params), 
-                    'lr': optim_dict.get('output_layer_lr', 0.001)
+                    'params': chain(*decoder_params), 
+                    'lr': optim_dict.get('decoder_lr', 0.001)
                 })
             
             return param_groups

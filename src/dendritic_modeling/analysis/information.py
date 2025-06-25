@@ -500,7 +500,7 @@ class InformationAnalyzer:
         """Run integrated information analysis on the model."""
         try:
             # Check if model has ExcitationInhibitionNetwork
-            if not isinstance(model.net, ExcitationInhibitionNetwork):
+            if not isinstance(model.core_network, ExcitationInhibitionNetwork):
                 self.logger.warning("Model does not have ExcitationInhibitionNetwork. Skipping information analysis.")
                 return
 

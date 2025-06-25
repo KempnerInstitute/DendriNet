@@ -22,7 +22,8 @@ class CNN(BaseNetwork):
         kernel_sizes: List[int],  # Kernel size for all conv layers
         strides: List[int],  # Stride for all conv layers
         activation: str = "relu",
-        output_dim: Optional[int] = None
+        output_dim: Optional[int] = None,
+        **kwargs
     ):
         super().__init__()
 
@@ -73,9 +74,13 @@ class CNN(BaseNetwork):
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         # Ensure input has correct shape (add batch dimension if needed)
         if x.dim() == 3:  # (C, H, W)
-            x = x.unsqueeze(0)  # Add batch dimension: (1, C, H, W)
-
-        return self.layers(x)
+            x = x[None, ...]  # Add batch dimension: (1, C, H, W)
+        
+        batch_shape = x.shape[:-3]
+        x = x.reshape(-1, *x.shape[-3:])
+        
+        output: torch.Tensor = self.layers(x)
+        return output.reshape(*batch_shape, -1)
 
 
 __all__ = ["CNN"] 

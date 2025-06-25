@@ -8,9 +8,12 @@ from dendritic_modeling.networks.architectures.classical.mlp import (
     MatchedParamMLP
 )
 
+from dendritic_modeling.networks.architectures.classical.identity import Identity
+
 __all__ = [
     "AlexNet",
     "CNN",
     "MLP",
-    "MatchedParamMLP"
+    "MatchedParamMLP",
+    "Identity"
 ]

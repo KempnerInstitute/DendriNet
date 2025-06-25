@@ -62,7 +62,7 @@ class InteractiveBranchAnalyzer:
             logging.error("No 'net' attribute found on model. Skipping branch_info analysis.")
             return {}
             
-        net = model.net
+        net = model.core_network
         if not hasattr(net, "forward_with_branch_outputs"):
             print("ERROR: No forward_with_branch_outputs method found on net. Skipping branch_info analysis.")
             logging.error("No forward_with_branch_outputs method found on net. Skipping branch_info analysis.")
@@ -89,7 +89,7 @@ class InteractiveBranchAnalyzer:
         layer_inh_accuracies = []
         layer_combined_accuracies = []
         
-        use_shunting = getattr(model.net, "use_shunting", True)
+        use_shunting = getattr(model.core_network, "use_shunting", True)
         print(f"Using {'shunting' if use_shunting else 'subtraction'} for combining excitatory and inhibitory inputs")
         
         for layer_idx, layer in enumerate(net.branch_layers):

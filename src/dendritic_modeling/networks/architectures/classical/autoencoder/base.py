@@ -8,6 +8,16 @@ from dendritic_modeling.networks.architectures.classical.cnn.cnn import CNN
 from dendritic_modeling.networks.architectures.classical.mlp.mlp import MLP
 
 
+class Encoder(BaseNetwork):
+    def __init__(self, net: BaseNetwork):
+        super().__init__()
+        self.net = net
+        self.output_dim = net.output_dim
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        return torch.sigmoid(self.net(x))
+
+
 class BaseAutoencoder(nn.Module):
     def __init__(self):
         super().__init__()
@@ -27,7 +37,8 @@ class MLPAutoencoder(BaseAutoencoder):
         encoder_hidden_dims: List[int],
         latent_dim: int,
         decoder_hidden_dims: List[int],
-        activation: str = "relu"
+        activation: str = "relu",
+        **kwargs
     ):
         super().__init__()
 
@@ -38,7 +49,7 @@ class MLPAutoencoder(BaseAutoencoder):
             output_dim=latent_dim
         )
 
-        self.encoder = nn.Sequential(encoder_net, nn.Sigmoid())
+        self.encoder = Encoder(encoder_net)
 
         self.decoder = MLP(
             input_dim=latent_dim,
@@ -46,6 +57,8 @@ class MLPAutoencoder(BaseAutoencoder):
             activation=activation,
             output_dim=input_dim
         )
+
+        self.output_dim = latent_dim
 
 
 class CNNAutoencoder(BaseAutoencoder):
@@ -57,7 +70,8 @@ class CNNAutoencoder(BaseAutoencoder):
         encoder_strides: List[int],
         latent_dim: int,
         decoder_hidden_dims: List[int],
-        activation: str = "relu"
+        activation: str = "relu",
+        **kwargs
     ):
         super().__init__()
 
@@ -70,7 +84,7 @@ class CNNAutoencoder(BaseAutoencoder):
             output_dim=latent_dim
         )
 
-        self.encoder = nn.Sequential(encoder_net, nn.Sigmoid())
+        self.encoder = Encoder(encoder_net)
         
         input_dim = 1
         for dim in input_shape:
@@ -82,3 +96,5 @@ class CNNAutoencoder(BaseAutoencoder):
             activation=activation,
             output_dim=input_dim
         )
+
+        self.output_dim = latent_dim

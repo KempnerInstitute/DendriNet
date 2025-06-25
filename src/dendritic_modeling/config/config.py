@@ -41,6 +41,7 @@ class TaskConfig(BaseConfig):
 
 @dataclass
 class OutputsConfig(BaseConfig):
+    run_name: str = "exp_run"
     dir: str = "outputs"
 
 
