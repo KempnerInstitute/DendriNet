@@ -7,11 +7,12 @@ This module contains configuration dataclasses and utilities.
 from dendritic_modeling.config.base import BaseConfig
 
 from dendritic_modeling.config.model import (
-    EINetParameters,
-    FeedForwardParameters,
-    NetworkConfig,
-    BaseModelConfig,
     TransferFunctionParams,
+    EINetParameters,
+    CoreNetworkConfig,
+    InputNetworkParameters,
+    InputNetworkConfig,
+    DecoderNetworkConfig,
     ModelConfig
 )
 
@@ -53,9 +54,10 @@ from dendritic_modeling.config.config import (
 __all__ = [
     "BaseConfig",
     "EINetParameters",
-    "FeedForwardParameters",
-    "NetworkConfig",
-    "BaseModelConfig",
+    "CoreNetworkConfig",
+    "InputNetworkParameters",
+    "InputNetworkConfig",
+    "DecoderNetworkConfig",
     "TransferFunctionParams",
     "ModelConfig",
     "TrainerConfig",

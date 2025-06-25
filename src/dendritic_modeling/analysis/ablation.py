@@ -205,7 +205,7 @@ class AblationAnalyzer:
         filename: str = "final",
     ):
         try:
-            assert isinstance(model.net, ExcitationInhibitionNetwork)
+            assert isinstance(model.core_network, ExcitationInhibitionNetwork)
         except AssertionError:
             return
 

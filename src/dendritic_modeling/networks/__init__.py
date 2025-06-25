@@ -16,6 +16,7 @@ from dendritic_modeling.networks.activations import (
 )
 
 from dendritic_modeling.networks.architectures import (
+    Identity,
     AlexNet,
     CNN,
     MLP,
@@ -37,11 +38,6 @@ from dendritic_modeling.networks.architectures import (
 )
 
 from dendritic_modeling.networks.input_network import (
-    BaseAutoencoder,
-    MLPAutoencoder,
-    CNNAutoencoder,
-    MLPVariationalAutoencoder,
-    CNNVariationalAutoencoder,
     InputNetTransform,
     SigmoidOutputNetwork
 )

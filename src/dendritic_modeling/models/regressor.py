@@ -3,9 +3,9 @@ Standard regression models.
 
 This module contains standard regression models using MSE loss.
 """
+from typing import Optional
 
 import torch
-import torch.nn as nn
 
 from dendritic_modeling.models.base import BaseModel
 from dendritic_modeling.networks.base import BaseNetwork
@@ -18,19 +18,18 @@ class Regressor(BaseModel):
     """
     def __init__(
         self,
-        net: BaseNetwork,
-        output_layer: bool = False,
-        output_dim: int = 10,
+        input_network: Optional[BaseNetwork],
+        core_network: BaseNetwork,
+        decoder_network: Optional[BaseNetwork]
     ):
-        super(Regressor, self).__init__(net)
-        if output_layer:
-            self.final_fc = nn.Linear(net.output_dim, output_dim)
-
+        super(Regressor, self).__init__(
+            input_network,
+            core_network,
+            decoder_network
+        )
+    
     def forward(self, x: torch.Tensor) -> torch.Tensor:
-        out = self.net(x)
-        if hasattr(self, 'final_fc'):
-            out = self.final_fc(out)
-        return out
+        return super().forward(x)
 
     def predict(self, x: torch.Tensor) -> torch.Tensor:
         with torch.no_grad():

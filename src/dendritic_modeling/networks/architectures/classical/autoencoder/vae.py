@@ -7,7 +7,7 @@ from typing import Tuple, List
 from dendritic_modeling.networks.base import BaseNetwork
 from dendritic_modeling.networks.architectures.classical.cnn.cnn import CNN
 from dendritic_modeling.networks.architectures.classical.mlp.mlp import MLP
-from dendritic_modeling.networks.input_network.autoencoder.base import BaseAutoencoder
+from dendritic_modeling.networks.architectures.classical.autoencoder.base import BaseAutoencoder
 
 
 class VariationalEncoder(BaseNetwork):
@@ -43,7 +43,8 @@ class MLPVariationalAutoencoder(BaseAutoencoder):
         encoder_hidden_dims: List[int],
         latent_dim: int,
         decoder_hidden_dims: List[int],
-        activation: str = "relu"
+        activation: str = "relu",
+        **kwargs
     ):
         super().__init__()
 
@@ -62,6 +63,8 @@ class MLPVariationalAutoencoder(BaseAutoencoder):
             output_dim=input_dim
         )
 
+        self.output_dim = latent_dim
+
 
 class CNNVariationalAutoencoder(BaseAutoencoder):
     def __init__(
@@ -72,7 +75,8 @@ class CNNVariationalAutoencoder(BaseAutoencoder):
         encoder_strides: List[int],
         latent_dim: int,
         decoder_hidden_dims: List[int],
-        activation: str = "relu"
+        activation: str = "relu",
+        **kwargs
     ):
         super().__init__()
 
@@ -96,3 +100,5 @@ class CNNVariationalAutoencoder(BaseAutoencoder):
             activation=activation,
             output_dim=input_dim
         )
+
+        self.output_dim = latent_dim
