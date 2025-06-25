@@ -31,12 +31,12 @@ class TrainerConfig(BaseConfig):
 @dataclass
 class TrainConfig(BaseConfig):
     learning_strategy: str = "mle"
-    run_name: str = "exp_run"
     seed: int = 0
     train_valid_split: float = 0.8
     optim_dict: Dict[str, Any] = field(
         default_factory=dict
     )  # Optimizer / param group settings
     weight_decay_rate: float = 0.1
-    input_net_training: dict = field(default_factory=dict)
-    trainer: TrainerConfig = field(default_factory=TrainerConfig)
+    input_net_trainer: TrainerConfig = field(default_factory=TrainerConfig)
+    main_trainer: TrainerConfig = field(default_factory=TrainerConfig)
+ 

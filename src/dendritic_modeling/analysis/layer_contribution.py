@@ -16,6 +16,7 @@ from dendritic_modeling.models import BaseModel
 from dendritic_modeling.utils import measure_performance
 from dendritic_modeling.plotting.analysis import LayerAnalysisPlotter
 from dendritic_modeling.config import SingleLayerContributionAnalysisParams
+from dendritic_modeling.utils import evaluate_accuracy
 
 
 class SingleLayerContributionAnalyzer:
@@ -45,8 +46,8 @@ class SingleLayerContributionAnalyzer:
         # Ensure model is on the correct device
         model = model.to(device)
         # Get the underlying network
-        if hasattr(model, "net"):
-            net = model.net
+        if hasattr(model, "core_network"):
+            net = model.core_network
         else:
             net = model
 
@@ -96,6 +97,9 @@ class SingleLayerContributionAnalyzer:
             return
 
         # Get baseline performance with all layers active
+        # baseline_acc = evaluate_accuracy(
+        #     classifier=net,
+        # )
         baseline_acc = measure_performance(net, test_dataset, device=device)
         self.logger.info(f"Baseline accuracy: {baseline_acc:.4f}")
 

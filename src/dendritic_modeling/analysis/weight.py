@@ -48,7 +48,7 @@ class WeightAnalyzer:
             Dictionary containing weight statistics if save_path is None, otherwise None
         """
         try:
-            assert isinstance(model.net, ExcitationInhibitionNetwork)
+            assert isinstance(model.core_network, ExcitationInhibitionNetwork)
         except AssertionError:
             return
 

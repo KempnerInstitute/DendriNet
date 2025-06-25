@@ -9,7 +9,8 @@ from dendritic_modeling.networks.architectures.classical import (
     AlexNet,
     CNN,
     MLP,
-    MatchedParamMLP
+    MatchedParamMLP,
+    Identity
 )
 
 from dendritic_modeling.networks.architectures.excitation_inhibition import (
@@ -47,5 +48,6 @@ __all__ = [
     "DendriticBranchLayer",
     "DendriNet",
     "GradientScaler",
-    "initialize_dendritic_branch_layer"
+    "initialize_dendritic_branch_layer",
+    "Identity"
 ]

@@ -1,17 +1,23 @@
 model:
   task: classification  # Options: "classification", "regression"
-  base:
-    output_layer: true
-    output_dim: 10
-  network:
+  input_network:
+    type: CNNAutoencoder # MLPAutoencoder, CNNAutoencoder, MLPVariationalAutoencoder, CNNVariationalAutoencoder, identity, none
+    parameters:
+      encoder_hidden_dims: [64]
+      encoder_kernel_sizes: [3]
+      encoder_strides: [2]
+      latent_dim: 200
+      decoder_hidden_dims: [64]
+      activation: relu
+  core_network:
     type: EINet #"EINet", "MLP"
     parameters:
       # transfer function parameters
       transfer_params:
         input_mode: 1
         independent_pathways: true
-        excitatory_dim: 2000
-        inhibitory_dim: 1072
+        excitatory_dim: 100
+        inhibitory_dim: 100
       # configuration parameters
       excitatory_layer_sizes: [10]
       inhibitory_layer_sizes: [40]
@@ -51,9 +57,12 @@ model:
       freeze_inhibitory_connectivity: false  # Whether to freeze inhibitory synapse locations (only update weights)
       init_method: "xavier_normal"     # Weight initialization method for DEEPST connections
       weight_threshold: 1e-6           # Threshold below which weights are considered zero for pruning
+  decoder_network:
+    hidden_dims: [32, 16]
+    activation: relu
+    output_dim: 10
 
 train:
-  run_name: exp_run
   learning_strategy: standard # Options: "standard", "freeze_layers", "freeze_branches", "voltage_stabilization", "two_step", "two_step_kl"
   seed: 0
   train_valid_split: 0.8
@@ -61,33 +70,30 @@ train:
     lr: 0.01  # default learning rate if split_params is false
     split_params: true  # whether to split parameters into groups (only used for EINet)
     input_net_lr: 0.001  # learning rate for input network
+    transfer_fn_lr: 0.001  # learning rate for transfer function
     topk_lr: 0.001  # learning rate for topk layers
     blocklinear_lr: 0.001  # learning rate for blocklinear layers
     reactivation_lr: 0.001  # learning rate for reactivation layers
-    output_layer_lr: 0.001  # learning rate for output layer
+    decoder_lr: 0.001  # learning rate for decoder network
 
   weight_decay_rate: 0.1  # Standard weight decay
+
   # Input network training configuration
-  input_net_training:
-    training_mode: "sequential"     # "joint" (train everything together) or "sequential" (train input_net first, then dendrinet)
-    # Options for sequential training mode
-    train_input_net: true    # Whether to train the input network or use pre-trained weights
-    input_net_epochs: 20     # Fewer epochs needed with better training
-
-    # Independent head training options
-    train_heads_independently: false  # Whether to train excitatory and inhibitory heads independently
-
-    # Inhibitory head training objective
-    inhibitory_head_objective: "classification"  # Options: "classification", "diversity", "combined"
-    diversity_weight: 0.5              # Weight for diversity loss (alpha)
-
-    # Options for pre-trained weights (when train_input_net is false)
-    pretrained_options:
-      source: "file"           # "file", "pytorch", "none"
-      weights_path: ""         # Path to weights file if source is "file"
-      pytorch_model: ""        # Name of PyTorch model if source is "pytorch"
+  input_net_trainer:
+    # for all learning strategies:
+    loss_function: mse
+    epochs: 10
+    early_stopping: false
+    patience: 10
+    batch_size: 128
+    shuffle: true
+    grad_clip_value: 5.0
+    load_best_state_dict: true
+    plot_losses: true
+    suppress_prints: false
+    print_every: 10
   
-  trainer:
+  main_trainer:
     # for all learning strategies:
     loss_function: categorical_nll
     epochs: 10
@@ -112,7 +118,7 @@ train:
 task:
   dataset: cifar10 #mnist, cifar10, mnist_modulo10, random_flip_mnist
   data_path:
-  parameters: {flatten: true, normalize: false}
+  parameters: {flatten: false, normalize: false}
   # dataset: "line", "center_surround", "orientation_bars", "multi_xor", "mnist", "mnist_modulo10", "mnist_switch2",
             #"mnist_switch10", "info_shunting", "noise_resilience", "feature_selectivity", "context_gating",
             #"learning_dynamics", "hierarchical_processing", "cifar10", "poisson_generator", "orthonet"
@@ -128,6 +134,7 @@ task:
   #   n_samples: 10
   #   n_orient_classes: 8
   #   n_bits: 8
+
 wandb:
   entity:
   project: "dendritic_cifar10"
@@ -257,4 +264,5 @@ analysis:
       branch_aggregation: none
 
 outputs:
+  run_name: exp_run
   dir: /Users/maceorichards/Documents/Dendritic Modeling/dendritic-modeling/outputs/

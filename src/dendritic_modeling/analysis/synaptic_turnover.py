@@ -33,9 +33,9 @@ class SynapticTurnoverAnalyzer:
         Note:
             This automatically takes an initial snapshot of the model's synaptic masks.
         """
-        assert isinstance(model.net, ExcitationInhibitionNetwork), (
-            "model.net must be an instance of ExcitationInhibitionNetwork. "
-            + f"Got model.net type: {type(model.net)}"
+        assert isinstance(model.core_network, ExcitationInhibitionNetwork), (
+            "model.core_network must be an instance of ExcitationInhibitionNetwork. "
+            + f"Got model.core_network type: {type(model.core_network)}"
         )
 
         self.data_dict_list = []
@@ -62,7 +62,7 @@ class SynapticTurnoverAnalyzer:
             Dictionary containing turnover statistics if training=False and save_path is None
         """
         try:
-            assert isinstance(model.net, ExcitationInhibitionNetwork)
+            assert isinstance(model.core_network, ExcitationInhibitionNetwork)
         except AssertionError:
             return
 

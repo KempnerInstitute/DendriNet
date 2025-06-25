@@ -1,5 +1,5 @@
 from dataclasses import dataclass, field
-from typing import List, Optional
+from typing import List, Optional, Tuple
 
 from dendritic_modeling.config.base import BaseConfig
 
@@ -55,28 +55,40 @@ class EINetParameters(BaseConfig):
 
 
 @dataclass
-class FeedForwardParameters(BaseConfig):
-    input_dim: int = 784
-    hidden_layer_sizes: List[int] = field(default_factory=lambda: [128, 64])
-    activation: str = "relu"
-    dropout: float = 0.2
-    output_dim: int = 10
-
-
-@dataclass
-class BaseModelConfig(BaseConfig):
-    output_layer: bool = False
-    output_dim: int = 10
-
-
-@dataclass
-class NetworkConfig(BaseConfig):
+class CoreNetworkConfig(BaseConfig):
     type: str = "EINet"
     parameters: EINetParameters = field(default_factory=EINetParameters)
 
 
 @dataclass
+class InputNetworkParameters(BaseConfig):
+    input_dim: int = None
+    input_shape: Tuple[int, int, int] = None
+    encoder_hidden_dims: List[int] = field(default_factory=lambda: [128, 64])
+    encoder_kernel_sizes: List[int] = field(default_factory=lambda: [3, 3])
+    encoder_strides: List[int] = field(default_factory=lambda: [2, 2])
+    latent_dim: int = 10
+    decoder_hidden_dims: List[int] = field(default_factory=lambda: [64, 128])
+    activation: str = "relu"
+
+
+@dataclass
+class InputNetworkConfig(BaseConfig):
+    type: str = "MLPAutoencoder"
+    parameters: InputNetworkParameters = field(default_factory=InputNetworkParameters)
+
+
+@dataclass
+class DecoderNetworkConfig(BaseConfig):
+    input_dim: int = None
+    hidden_dims: List[int] = field(default_factory=lambda: [32, 16])
+    activation: str = "relu"
+    output_dim: int = None
+
+
+@dataclass
 class ModelConfig(BaseConfig):
     task: str = "classification"
-    base: BaseModelConfig = field(default_factory=BaseModelConfig)
-    network: NetworkConfig = field(default_factory=NetworkConfig)
+    input_network: InputNetworkConfig = field(default_factory=InputNetworkConfig)
+    core_network: CoreNetworkConfig = field(default_factory=CoreNetworkConfig)
+    decoder_network: DecoderNetworkConfig = field(default_factory=DecoderNetworkConfig)
