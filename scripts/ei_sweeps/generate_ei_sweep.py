@@ -19,7 +19,7 @@ Filtering Modes:
 
 Network Type Comparison:
 The script supports comparing different network architectures in the same sweep by using:
-`model.network.parameters.use_shunting: [true, false, "MLP"]` in your sweep parameters.
+`model.core_network.parameters.use_shunting: [true, false, "MLP"]` in your sweep parameters.
 - true: Creates an EINet with shunting inhibition enabled
 - false: Creates an EINet with shunting inhibition disabled
 - "MLP": Creates a standard MLP network using the same EI parameters
@@ -200,13 +200,13 @@ def generate_sweep_configs_manually(
     # Extract parameter names and values
     einet_param_names = list(sweep_params.keys())
 
-    # Check if model.network.type is specified in sweep params
+    # Check if model.core_network.type is specified in sweep params
     force_network_type = None
-    if "model.network.type" in einet_param_names:
-        einet_param_names.remove("model.network.type")
+    if "model.core_network.type" in einet_param_names:
+        einet_param_names.remove("model.core_network.type")
 
     # Check if use_shunting is in the sweep parameters and contains "MLP"
-    use_shunting_param_name = "model.network.parameters.use_shunting"
+    use_shunting_param_name = "model.core_network.parameters.use_shunting"
     has_mlp_option = False
     if use_shunting_param_name in sweep_params:
         # Check if any value is "MLP" (string) in the use_shunting parameter
@@ -283,8 +283,8 @@ def generate_sweep_configs_manually(
                 yield (item,) + rest
 
     # Check if we need to filter E-I combinations
-    ee_param_name = "model.network.parameters.ee_synapses_per_branch_per_layer"
-    ie_param_name = "model.network.parameters.ie_synapses_per_branch_per_layer"
+    ee_param_name = "model.core_network.parameters.ee_synapses_per_branch_per_layer"
+    ie_param_name = "model.core_network.parameters.ie_synapses_per_branch_per_layer"
 
     if (
         filter_mode != "all"
@@ -340,7 +340,7 @@ def generate_sweep_configs_manually(
                     new_config.train.seed = seed
 
                     # Set network type and use_shunting based on current_shunting_val
-                    # This logic assumes 'model.network.type' is not meant to be independently swept when filtering E/I and use_shunting.
+                    # This logic assumes 'model.core_network.type' is not meant to be independently swept when filtering E/I and use_shunting.
                     # It prioritizes 'use_shunting' to determine network type if 'MLP' is involved.
                     if (
                         use_shunting_param_name in sweep_params
@@ -349,13 +349,13 @@ def generate_sweep_configs_manually(
                             isinstance(current_shunting_val, str)
                             and current_shunting_val.upper() == "MLP"
                         ):
-                            new_config.model.network.type = "MLP"
+                            new_config.model.core_network.type = "MLP"
                             set_nested_value(
                                 new_config, use_shunting_param_name, False
                             )  # MLP implies shunting is conceptually False for EINet
                         else:
                             # Default to EINet if not MLP, or could take from base train_config if more sophisticated logic is needed
-                            new_config.model.network.type = "EINet"
+                            new_config.model.core_network.type = "EINet"
                             set_nested_value(
                                 new_config,
                                 use_shunting_param_name,
@@ -365,12 +365,12 @@ def generate_sweep_configs_manually(
                     # We also need to ensure model.network.type from train_config is respected if not overridden by MLP logic.
                     elif (
                         "model" in new_config
-                        and "network" in new_config.model
-                        and "type" in new_config.model.network
+                        and "core_network" in new_config.model
+                        and "type" in new_config.model.core_network
                     ):
                         pass  # It's already set from train_config
                     else:  # Ensure a default if not in sweep and not in train_config
-                        new_config.model.network.type = "EINet"
+                        new_config.model.core_network.type = "EINet"
 
                     # Set the filtered E and I parameters
                     set_nested_value(new_config, ee_param_name, ee)
@@ -384,7 +384,7 @@ def generate_sweep_configs_manually(
                             ie_param_name,
                             use_shunting_param_name,  # if use_shunting_param_name in sweep_params, it's handled above
                             # if not, it might be a fixed value in train_config, not listed in einet_param_names from sweep_params
-                            "model.network.type",  # Handled by MLP logic or inherited
+                            "model.core_network.type",  # Handled by MLP logic or inherited
                         ]:
                             # Check if this param_name_other is actually use_shunting_param_name AND it was NOT in sweep_params
                             # This edge case should not occur if einet_param_names is from sweep_params.keys()
@@ -411,7 +411,7 @@ def generate_sweep_configs_manually(
                     # new_config is a copy of train_config, so it should be there.
                     # The logic above for MLP might set it to False. If not MLP and not in sweep, it's inherited.
                     if use_shunting_param_name not in sweep_params and hasattr(
-                        config.train_config.model.network.parameters,
+                        config.train_config.model.core_network.parameters,
                         use_shunting_param_name.split(".")[-1],
                     ):
                         if not (
@@ -437,6 +437,7 @@ def generate_sweep_configs_manually(
                     new_config.outputs.dir = os.path.join(
                         output_dir, "results", f"config_{config_idx}"
                     )
+                    new_config.outputs.run_name = config.slurm_config.run_name
 
                     # Save the config
                     config_path = os.path.join(
@@ -488,7 +489,7 @@ def generate_sweep_configs_manually(
                         and shunting_value.upper() == "MLP"
                     ):
                         # Set network type to MLP for this configuration
-                        new_config.model.network.type = "MLP"
+                        new_config.model.core_network.type = "MLP"
                         is_mlp_config = True
                         # Set use_shunting to False for MLP
                         set_nested_value(new_config, use_shunting_param_name, False)
@@ -503,14 +504,16 @@ def generate_sweep_configs_manually(
                                 param_value, str
                             ):
                                 if len(param_value) > 0 and param_name not in [
-                                    "model.network.parameters.excitatory_branch_factors",
-                                    "model.network.parameters.inhibitory_branch_factors",
+                                    "model.core_network.parameters.excitatory_branch_factors",
+                                    "model.core_network.parameters.inhibitory_branch_factors",
+                                    "model.core_network.parameters.ee_synapses_per_branch_per_layer",
+                                    "model.core_network.parameters.ie_synapses_per_branch_per_layer",
                                 ]:
                                     param_value = param_value[0]
                             set_nested_value(new_config, param_name, param_value)
                     else:
                         # This is an EINet config with specific use_shunting value
-                        new_config.model.network.type = "EINet"
+                        new_config.model.core_network.type = "EINet"
                         # Set all parameters, including use_shunting
                         for i, param_name in enumerate(einet_param_names):
                             # Fix: Make sure we set single values not lists
@@ -520,16 +523,18 @@ def generate_sweep_configs_manually(
                                 param_value, str
                             ):
                                 if len(param_value) > 0 and param_name not in [
-                                    "model.network.parameters.excitatory_branch_factors",
-                                    "model.network.parameters.inhibitory_branch_factors",
+                                    "model.core_network.parameters.excitatory_branch_factors",
+                                    "model.core_network.parameters.inhibitory_branch_factors",
+                                    "model.core_network.parameters.ee_synapses_per_branch_per_layer",
+                                    "model.core_network.parameters.ie_synapses_per_branch_per_layer",
                                 ]:
                                     param_value = param_value[0]
                             set_nested_value(new_config, param_name, param_value)
                 else:
                     # Standard EINet config (no MLP option)
                     # Set network type to EINet if specified in sweep_params
-                    if "model.network.type" in sweep_params:
-                        new_config.model.network.type = "EINet"
+                    if "model.core_network.type" in sweep_params:
+                        new_config.model.core_network.type = "EINet"
 
                     # Set all the parameter values
                     for i, param_name in enumerate(einet_param_names):
@@ -540,8 +545,10 @@ def generate_sweep_configs_manually(
                             param_value, str
                         ):
                             if len(param_value) > 0 and param_name not in [
-                                "model.network.parameters.excitatory_branch_factors",
-                                "model.network.parameters.inhibitory_branch_factors",
+                                "model.core_network.parameters.excitatory_branch_factors",
+                                "model.core_network.parameters.inhibitory_branch_factors",
+                                "model.core_network.parameters.ee_synapses_per_branch_per_layer",
+                                "model.core_network.parameters.ie_synapses_per_branch_per_layer",
                             ]:
                                 param_value = param_value[0]
                         set_nested_value(new_config, param_name, param_value)
@@ -554,6 +561,7 @@ def generate_sweep_configs_manually(
                 new_config.outputs.dir = os.path.join(
                     output_dir, "results", f"config_{config_idx}"
                 )
+                new_config.outputs.run_name = config.slurm_config.run_name
 
                 # Save the config
                 config_path = os.path.join(
@@ -573,7 +581,7 @@ def generate_sweep_configs_manually(
     # The MLP networks are now handled in the main parameter generation loop
     # via the use_shunting="MLP" option, so we can remove this separate MLP handling
     # unless we still want to generate MLP configurations from model.network.type
-    net_types = sweep_params.get("model.network.type", ["EINet"])
+    net_types = sweep_params.get("model.core_network.type", ["EINet"])
     if "MLP" in net_types and not has_mlp_option:
         # set default values for MLP
         ee = [1]
@@ -587,10 +595,10 @@ def generate_sweep_configs_manually(
 
             seed = base_seed + seed_idx
             new_config.train.seed = seed
-            new_config.model.network.type = "MLP"
-            new_config.model.network.parameters.ee_synapses_per_branch_per_layer = ee
-            new_config.model.network.parameters.ie_synapses_per_branch_per_layer = ie
-            new_config.model.network.parameters.use_shunting = use_shunting
+            new_config.model.core_network.type = "MLP"
+            new_config.model.core_network.parameters.ee_synapses_per_branch_per_layer = ee
+            new_config.model.core_network.parameters.ie_synapses_per_branch_per_layer = ie
+            new_config.model.core_network.parameters.use_shunting = use_shunting
 
             # Make sure outputs.dir points to the correct directory
             if "outputs" not in new_config:
@@ -600,6 +608,7 @@ def generate_sweep_configs_manually(
             new_config.outputs.dir = os.path.join(
                 output_dir, "results", f"config_{config_idx}"
             )
+            new_config.outputs.run_name = config.slurm_config.run_name
 
             # Save the config
             config_path = os.path.join(
@@ -968,7 +977,10 @@ def main():
 
     # Check if the "outputs" block exists, if not add it
     if "outputs" not in config.train_config:
-        config.train_config.outputs = {"dir": ""}
+        config.train_config.outputs = {
+            "dir": "",
+            "run_name": config.slurm_config.run_name,
+        }
 
     # Ensure outputs.dir is set to the specific results directory
     config.train_config.outputs.dir = os.path.join(output_dir, "results")

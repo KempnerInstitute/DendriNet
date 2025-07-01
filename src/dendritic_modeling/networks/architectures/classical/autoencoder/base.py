@@ -13,7 +13,7 @@ class Encoder(BaseNetwork):
         super().__init__()
         self.net = net
         self.output_dim = net.output_dim
-
+    
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         return torch.sigmoid(self.net(x))
 
@@ -21,7 +21,7 @@ class Encoder(BaseNetwork):
 class BaseAutoencoder(nn.Module):
     def __init__(self):
         super().__init__()
-        self.encoder: BaseNetwork
+        self.encoder: Encoder
         self.decoder: BaseNetwork
     
     def forward(self, x: torch.Tensor) -> torch.Tensor:
@@ -48,7 +48,6 @@ class MLPAutoencoder(BaseAutoencoder):
             activation=activation,
             output_dim=latent_dim
         )
-
         self.encoder = Encoder(encoder_net)
 
         self.decoder = MLP(
@@ -83,7 +82,6 @@ class CNNAutoencoder(BaseAutoencoder):
             activation=activation,
             output_dim=latent_dim
         )
-
         self.encoder = Encoder(encoder_net)
         
         input_dim = 1

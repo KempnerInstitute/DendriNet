@@ -2,10 +2,11 @@ from typing import List, Tuple, Optional
 
 import torch
 from torch import nn
-from torch.distributions import Categorical
+from torch.distributions import Categorical, Normal
 
 from dendritic_modeling.models import BaseModel
 from dendritic_modeling.networks import DendriticBranchLayer
+from dendritic_modeling.networks.architectures.classical.autoencoder import BaseVariationalAutoencoder
 
 
 class LossFunction(nn.Module):
@@ -89,6 +90,63 @@ class CategoricalNLLLoss(LossFunction):
             return nll
 
 
+class VAE_ELBOLoss(LossFunction):
+    def __init__(self, reduction: str = "mean"):
+        super().__init__(reduction)
+        self._loss_name = "VAE ELBO"
+        self.bce = nn.BCELoss(reduction="none")
+
+    def forward(
+        self, 
+        model: BaseVariationalAutoencoder, 
+        x: torch.Tensor, 
+        y: torch.Tensor
+    ) -> torch.Tensor:
+        assert isinstance(model, BaseVariationalAutoencoder), \
+            "Model must be an instance of BaseVariationalAutoencoder" + \
+            "but got " + str(type(model))
+        
+        z_mu, z_sigma = model.encoder(x)
+        z = Normal(z_mu, z_sigma).sample()
+        x_reconstructed = torch.sigmoid(model.decoder(torch.sigmoid(z)))
+
+        bce = torch.mean(self.bce(x_reconstructed, y), dim=-1)
+
+        z_var = z_sigma**2
+        kl_div = 0.5 * torch.sum(z_mu**2 + z_var - torch.log(z_var) - 1, dim=-1)
+
+        loss = bce + kl_div
+
+        if self.reduction == "mean":
+            return torch.mean(loss)
+        elif self.reduction == "sum":
+            return torch.sum(loss)
+        else:
+            return loss
+
+
+class NegativeCosineSimilarityLoss(LossFunction):
+    def __init__(self, reduction: str = "mean"):
+        super().__init__(reduction)
+        self._loss_name = "Negative Cosine Similarity"
+        self.cosine_similarity = nn.CosineSimilarity(dim=-1)
+    
+    def forward(
+        self, 
+        model: nn.Module, 
+        x: torch.Tensor, 
+        y: torch.Tensor
+    ) -> torch.Tensor:
+        y_hat = model(x)
+        cosine_similarity = self.cosine_similarity(y_hat, y)
+        if self.reduction == "mean":
+            return torch.mean(-1 * cosine_similarity)
+        elif self.reduction == "sum":
+            return torch.sum(-1 * cosine_similarity)
+        else:
+            return -1 * cosine_similarity
+
+
 class VoltageStabilizationLoss(LossFunction):
     def __init__(
         self, 
@@ -154,5 +212,9 @@ def get_loss_function(loss_function: str) -> LossFunction:
         return BCELoss()
     elif loss_function == "categorical_nll":
         return CategoricalNLLLoss()
+    elif loss_function == "vae_elbo":
+        return VAE_ELBOLoss()
+    elif loss_function == "negative_cosine_similarity":
+        return NegativeCosineSimilarityLoss()
     else:
         raise ValueError(f"Invalid loss function: {loss_function}")

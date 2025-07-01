@@ -1,6 +1,6 @@
 model:
   task: classification  # Options: "classification", "regression"
-  input_network:
+  encoder_network:
     type: CNNAutoencoder # MLPAutoencoder, CNNAutoencoder, MLPVariationalAutoencoder, CNNVariationalAutoencoder, identity, none
     parameters:
       encoder_hidden_dims: [64]
@@ -69,7 +69,7 @@ train:
   optim_dict:
     lr: 0.01  # default learning rate if split_params is false
     split_params: true  # whether to split parameters into groups (only used for EINet)
-    input_net_lr: 0.001  # learning rate for input network
+    encoder_net_lr: 0.001  # learning rate for input network
     transfer_fn_lr: 0.001  # learning rate for transfer function
     topk_lr: 0.001  # learning rate for topk layers
     blocklinear_lr: 0.001  # learning rate for blocklinear layers
@@ -79,7 +79,7 @@ train:
   weight_decay_rate: 0.1  # Standard weight decay
 
   # Input network training configuration
-  input_net_trainer:
+  encoder_net_trainer:
     # for all learning strategies:
     loss_function: mse
     epochs: 10
@@ -222,7 +222,7 @@ analysis:
   # Single layer contribution analysis (formerly layer_ablation)
   # Isolates each layer to test what it can achieve on its own
   single_layer_contribution:
-    enabled: true  # whether to enable single layer contribution analysis
+    enabled: false  # whether to enable single layer contribution analysis
     training: false  # Whether to run during training
     params:
       save_plots: true
@@ -265,4 +265,4 @@ analysis:
 
 outputs:
   run_name: exp_run
-  dir: /Users/maceorichards/Documents/Dendritic Modeling/dendritic-modeling/outputs/
+  dir: 

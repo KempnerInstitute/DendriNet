@@ -8,6 +8,7 @@ architectures, activations, and input transforms.
 # Activations
 from dendritic_modeling.networks.activations import (
     ActivationFactory,
+    ParametricActivation,
     ParametricTanh,
     ParametricTanhOnlyM,
     ParametricLinearSigmoid,
@@ -46,12 +47,14 @@ from dendritic_modeling.networks.base import BaseNetwork
 
 __all__ = [
     "ActivationFactory",
+    "ParametricActivation",
     "ParametricTanh",
     "ParametricTanhOnlyM",
     "ParametricLinearSigmoid",
     "ParametricLinearTanh",
     "ParametricLinearTanhTransition",
     "BaseNetwork",
+    "Identity",
     "AlexNet",
     "CNN",
     "MLP",

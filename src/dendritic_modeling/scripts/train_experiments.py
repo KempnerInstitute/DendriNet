@@ -7,7 +7,7 @@ Main training script for dendritic modeling experiments.
 This script handles:
 - Configuration loading and setup
 - Model initialization and training
-- Input network pretraining (for dendritic models)
+- Encoder network pretraining (for dendritic models)
 - Visualization and analysis
 - Results saving and logging
 
@@ -34,7 +34,7 @@ import logging
 import traceback
 from dataclasses import asdict
 from datetime import datetime
-from typing import Optional
+from typing import Optional, Union
 
 import torch
 try:
@@ -73,6 +73,7 @@ from dendritic_modeling.networks import (
     Identity,
     BaseNetwork
 )
+from dendritic_modeling.networks.architectures.classical.autoencoder import BaseAutoencoder
 from dendritic_modeling.datasets import get_unified_datasets
 from dendritic_modeling.utils import (
     save_dict,
@@ -83,20 +84,20 @@ from dendritic_modeling.networks.architectures.factory import get_architecture
 
 
 def initialize_model(model_config: ModelConfig):
-    input_network_config = model_config.input_network
+    encoder_network_config = model_config.encoder_network
     core_network_config = model_config.core_network
     decoder_network_config = model_config.decoder_network
 
-    input_network = get_architecture(
-        input_network_config.type,
-        OmegaConf.to_container(input_network_config.parameters, resolve=True)
+    encoder_network = get_architecture(
+        encoder_network_config.type,
+        OmegaConf.to_container(encoder_network_config.parameters, resolve=True)
     )
-    if isinstance(input_network, Identity):
-        encoder = input_network
+    if isinstance(encoder_network, Identity):
+        encoder = encoder_network
     else:
-        encoder = input_network.encoder
+        encoder = encoder_network.encoder
 
-    core_network_config.parameters.input_dim = input_network.output_dim
+    core_network_config.parameters.input_dim = encoder.output_dim
     core_network = get_architecture(
         core_network_config.type,
         OmegaConf.to_container(core_network_config.parameters, resolve=True)
@@ -125,7 +126,7 @@ def initialize_model(model_config: ModelConfig):
     
     logger.info(f"Initialized model: {type(model).__name__}")
 
-    return model, input_network
+    return model, encoder_network
 
 
 def save_model(model: torch.nn.Module, save_path: str, filename: str):
@@ -215,39 +216,46 @@ def setup_environment(
     )
 
     input_sample: torch.Tensor = train_ds[0][0]
-    model_config.input_network.parameters.input_dim = input_sample.numel()
-    model_config.input_network.parameters.input_shape = tuple(input_sample.shape)
+    model_config.encoder_network.parameters.input_dim = input_sample.numel()
+    model_config.encoder_network.parameters.input_shape = tuple(input_sample.shape)
     
-    model, input_network = initialize_model(model_config)
+    model, encoder_network = initialize_model(model_config)
 
-    return run_save_path, train_ds, valid_ds, test_ds, model, input_network
+    return run_save_path, train_ds, valid_ds, test_ds, model, encoder_network
 
 
-def train_input_network(
-    input_network: BaseNetwork,
+def train_encoder_network(
+    encoder_network: Union[BaseNetwork, BaseAutoencoder],
     train_ds: torch.utils.data.Dataset,
     valid_ds: torch.utils.data.Dataset,
     test_ds: torch.utils.data.Dataset,
     run_save_path: str,
     train_config: TrainConfig
 ):
-    if isinstance(input_network, Identity):
-        return input_network, train_ds, valid_ds
+    if isinstance(encoder_network, Identity):
+        return encoder_network, train_ds, valid_ds, test_ds
     else:
-        input_net_save_path = os.path.join(run_save_path, "input_network")
-        os.makedirs(input_net_save_path, exist_ok=True)
+        encoder_net_save_path = os.path.join(run_save_path, "_encoder_network")
+        os.makedirs(encoder_net_save_path, exist_ok=True)
 
-        input_net_trainer_config = train_config.input_net_trainer
-        input_net_trainer_config.save_path = input_net_save_path
+        encoder_net_trainer_config = train_config.encoder_net_trainer
+        encoder_net_trainer_config.save_path = encoder_net_save_path
 
-        input_net_trainer_config_dict = OmegaConf.to_container(
-            input_net_trainer_config, 
+        encoder_net_trainer_config_dict = OmegaConf.to_container(
+            encoder_net_trainer_config, 
             resolve=True
         )
 
         train_input, train_label = train_ds[:]
         valid_input, valid_label = valid_ds[:]
         test_input, test_label = test_ds[:]
+
+        train_input: torch.Tensor
+        valid_input: torch.Tensor
+        test_input: torch.Tensor
+        train_label: torch.Tensor
+        valid_label: torch.Tensor
+        test_label: torch.Tensor
 
         auto_train_ds = torch.utils.data.TensorDataset(
             train_input, train_input.flatten(1,-1)
@@ -257,27 +265,27 @@ def train_input_network(
         )
         
         optimizer = torch.optim.Adam(
-            input_network.parameters(),
-            lr=train_config.optim_dict.get("input_net_lr", 0.001)
+            encoder_network.parameters(),
+            lr=train_config.optim_dict.get("encoder_net_lr", 0.001)
         )
         
-        input_net_trainer = get_trainer(
+        encoder_net_trainer = get_trainer(
             strategy="standard",
             optimizer=optimizer,
-            trainer_config_dict=input_net_trainer_config_dict,
+            trainer_config_dict=encoder_net_trainer_config_dict,
             analysis_manager=None
         )
-        input_net_trainer.train(
-            model=input_network,
+        encoder_net_trainer.train(
+            model=encoder_network,
             train_data=auto_train_ds,
             valid_data=auto_valid_ds
         )
-        input_network = input_network.cpu()
+        encoder_network = encoder_network.cpu()
 
         with torch.no_grad():
-            encoded_train_input = input_network.encoder(train_input)
-            encoded_valid_input = input_network.encoder(valid_input)
-            encoded_test_input = input_network.encoder(test_input)
+            encoded_train_input = encoder_network.encoder(train_input)
+            encoded_valid_input = encoder_network.encoder(valid_input)
+            encoded_test_input = encoder_network.encoder(test_input)
 
         encoded_train_ds = torch.utils.data.TensorDataset(
             encoded_train_input, train_label
@@ -289,10 +297,10 @@ def train_input_network(
             encoded_test_input, test_label
         )
 
-        for param in input_network.parameters():
+        for param in encoder_network.parameters():
             param.requires_grad = False
 
-        return input_network.encoder, encoded_train_ds, encoded_valid_ds, encoded_test_ds
+        return encoder_network.encoder, encoded_train_ds, encoded_valid_ds, encoded_test_ds
 
 
 def run_analysis(
@@ -347,7 +355,6 @@ def run_analysis(
 
     logger.info("Running analyses...")
     if analysis_manager is not None:
-        analysis_manager.data = data
         analysis_manager.run_analysis()
 
 
@@ -380,7 +387,7 @@ def main(config_path: str, args=None):
         valid_ds,
         test_ds,
         model,
-        input_network
+        encoder_network
     ) = setup_environment(
         model_config=model_config,
         train_config=train_config,
@@ -418,12 +425,12 @@ def main(config_path: str, args=None):
 
 
     (
-        input_network_encoder, 
+        encoder, 
         encoded_train_ds, 
         encoded_valid_ds, 
         encoded_test_ds
-    ) = train_input_network(
-        input_network=input_network,
+    ) = train_encoder_network(
+        encoder_network=encoder_network,
         train_ds=train_ds,
         valid_ds=valid_ds,
         test_ds=test_ds,
@@ -445,9 +452,9 @@ def main(config_path: str, args=None):
         train_config=train_config
     )
 
-    model.input_network = Identity(input_network_encoder.output_dim)
+    model.encoder_network = Identity(encoder.output_dim)
 
-    main_net_save_path = os.path.join(run_save_path, "main_network")
+    main_net_save_path = os.path.join(run_save_path, "_main_network")
     os.makedirs(main_net_save_path, exist_ok=True)
 
     main_trainer_config = train_config.main_trainer
@@ -475,9 +482,6 @@ def main(config_path: str, args=None):
         train_data=encoded_train_ds,
         valid_data=encoded_valid_ds
     )
-    model.input_network = input_network_encoder
-    save_model(model, run_save_path, "final_model.pt")
-
 
     nparams = 0
     for param in model.parameters():
@@ -495,6 +499,9 @@ def main(config_path: str, args=None):
         run_save_path=run_save_path,
         analysis_manager=analysis_manager
     )
+
+    model.encoder_network = encoder
+    save_model(model, run_save_path, "final_model.pt")
 
     if (
         hasattr(wandb_config, "use_wandb")
