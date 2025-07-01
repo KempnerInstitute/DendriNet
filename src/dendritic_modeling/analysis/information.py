@@ -534,7 +534,7 @@ class InformationAnalyzer:
             # Remove hooks
             self.remove_forward_hooks(handles)
             
-            C = labels.numpy()
+            C = labels.detach().cpu().numpy()
 
             self.data_dict: Dict[str, Dict[str, torch.Tensor]]
             

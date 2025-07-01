@@ -38,7 +38,7 @@ class SingleLayerContributionAnalyzer:
         test_dataset: torch.utils.data.Dataset,
         device: str = "cuda",
         save_path: Optional[str] = None,
-        filename: str = "single_layer_contribution",
+        filename: str = "final",
     ):
         """Analyze each layer's contribution in isolation"""
         self.logger.info("Starting single layer contribution analysis...")
