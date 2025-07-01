@@ -20,12 +20,12 @@ class Classifier(BaseModel):
 
     def __init__(
         self,
-        input_network: Optional[BaseNetwork],
+        encoder_network: Optional[BaseNetwork],
         core_network: BaseNetwork,
         decoder_network: Optional[BaseNetwork]
     ):
         super(Classifier, self).__init__(
-            input_network,
+            encoder_network,
             core_network,
             decoder_network
         )

@@ -10,8 +10,8 @@ from dendritic_modeling.config.model import (
     TransferFunctionParams,
     EINetParameters,
     CoreNetworkConfig,
-    InputNetworkParameters,
-    InputNetworkConfig,
+    EncoderNetworkParameters,
+    EncoderNetworkConfig,
     DecoderNetworkConfig,
     ModelConfig
 )
@@ -55,8 +55,8 @@ __all__ = [
     "BaseConfig",
     "EINetParameters",
     "CoreNetworkConfig",
-    "InputNetworkParameters",
-    "InputNetworkConfig",
+    "EncoderNetworkParameters",
+    "EncoderNetworkConfig",
     "DecoderNetworkConfig",
     "TransferFunctionParams",
     "ModelConfig",
