@@ -4,6 +4,7 @@ Baseline MLP models.
 This module contains simple MLP implementations for baseline comparisons.
 """
 from typing import List, Optional
+from copy import deepcopy
 
 import torch
 from torch import nn
@@ -25,12 +26,14 @@ class MLP(BaseNetwork):
 
         activation_factory = ActivationFactory()
 
+        hidden_dims = deepcopy(hidden_dims)
+        hidden_dims.insert(0, input_dim)
+
         layers = []
-        prev_dim = input_dim
 
         # Create hidden layers
-        for h_dim in hidden_dims:
-            fc_linear = torch.nn.Linear(prev_dim, h_dim)
+        for i in range(1, len(hidden_dims)):
+            fc_linear = torch.nn.Linear(hidden_dims[i-1], hidden_dims[i])
             if activation == "relu":
                 nn.init.kaiming_normal_(fc_linear.weight)
                 nn.init.zeros_(fc_linear.bias)
@@ -42,10 +45,9 @@ class MLP(BaseNetwork):
             layers.append(
                 activation_factory.create(
                     act_type=activation,
-                    output_dim= h_dim
+                    output_dim= hidden_dims[i]
                 )
             )
-            prev_dim = h_dim
 
         self.output_dim = hidden_dims[-1]
         if output_dim is not None:

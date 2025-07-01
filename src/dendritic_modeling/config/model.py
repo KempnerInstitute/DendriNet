@@ -61,7 +61,7 @@ class CoreNetworkConfig(BaseConfig):
 
 
 @dataclass
-class InputNetworkParameters(BaseConfig):
+class EncoderNetworkParameters(BaseConfig):
     input_dim: int = None
     input_shape: Tuple[int, int, int] = None
     encoder_hidden_dims: List[int] = field(default_factory=lambda: [128, 64])
@@ -73,9 +73,9 @@ class InputNetworkParameters(BaseConfig):
 
 
 @dataclass
-class InputNetworkConfig(BaseConfig):
+class EncoderNetworkConfig(BaseConfig):
     type: str = "MLPAutoencoder"
-    parameters: InputNetworkParameters = field(default_factory=InputNetworkParameters)
+    parameters: EncoderNetworkParameters = field(default_factory=EncoderNetworkParameters)
 
 
 @dataclass
@@ -89,6 +89,6 @@ class DecoderNetworkConfig(BaseConfig):
 @dataclass
 class ModelConfig(BaseConfig):
     task: str = "classification"
-    input_network: InputNetworkConfig = field(default_factory=InputNetworkConfig)
+    encoder_network: EncoderNetworkConfig = field(default_factory=EncoderNetworkConfig)
     core_network: CoreNetworkConfig = field(default_factory=CoreNetworkConfig)
     decoder_network: DecoderNetworkConfig = field(default_factory=DecoderNetworkConfig)

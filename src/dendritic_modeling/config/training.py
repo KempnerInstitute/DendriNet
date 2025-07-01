@@ -37,6 +37,6 @@ class TrainConfig(BaseConfig):
         default_factory=dict
     )  # Optimizer / param group settings
     weight_decay_rate: float = 0.1
-    input_net_trainer: TrainerConfig = field(default_factory=TrainerConfig)
+    encoder_net_trainer: TrainerConfig = field(default_factory=TrainerConfig)
     main_trainer: TrainerConfig = field(default_factory=TrainerConfig)
  

@@ -11,14 +11,41 @@ import torch
 import torch.nn as nn
 
 
-class ParametricTanh(nn.Module):
+class ParametricActivation(nn.Module):
+    """
+    Base class for parametric activation functions.
+    
+    Provides common initialization and parameter management functionality for parametric
+    activation functions with learnable parameters.
+    """
+    
+    def __init__(self):
+        super(ParametricActivation, self).__init__()
+
+    def initialize(self, *args, **kwargs):
+        """
+        Initialize the activation function parameters.
+        Should be implemented by child classes.
+        """
+        raise NotImplementedError("Initialize method must be implemented by child class")
+
+    def forward(self, x):
+        """
+        Forward pass of the activation function.
+        Should be implemented by child classes.
+        """
+        raise NotImplementedError("Forward method must be implemented by child class")
+
+
+
+class ParametricTanh(ParametricActivation):
     """
     A parametric tanh reactivation function with learnable parameters m and b.
     Both parameters are trainable.
     """
 
     def __init__(self, output_dim, init_m=1.5, init_b=1.0):
-        super(ParametricTanh, self).__init__()
+        super().__init__()
         self.log_m = nn.Parameter(torch.empty((output_dim,)), requires_grad=True)
         self.log_b = nn.Parameter(torch.empty((output_dim,)), requires_grad=True)
 
@@ -35,14 +62,14 @@ class ParametricTanh(nn.Module):
         self.log_b.data.fill_(log_mid)
 
 
-class ParametricTanhOnlyM(nn.Module):
+class ParametricTanhOnlyM(ParametricActivation):
     """
     A parametric tanh activation function where b is fixed and only m is
     trainable. The fixed value of b is provided via the fixed_b argument.
     """
 
     def __init__(self, output_dim, init_m=1.5, fixed_b=0.5):
-        super(ParametricTanhOnlyM, self).__init__()
+        super().__init__()
         self.log_m = nn.Parameter(torch.empty((output_dim,)), requires_grad=True)
         self.fixed_b = fixed_b  # fixed midpoint value
         with torch.no_grad():
@@ -54,7 +81,7 @@ class ParametricTanhOnlyM(nn.Module):
         return (torch.tanh(m * (V - b)) + 1) / 2
 
 
-class ParametricLinearSigmoid(nn.Module):
+class ParametricLinearSigmoid(ParametricActivation):
     """
     A parametric activation function that interpolates between linear and sigmoid functions.
     The function is: h(x)*g(x) + f(x)*(1-g(x)) where:
@@ -75,7 +102,7 @@ class ParametricLinearSigmoid(nn.Module):
     """
 
     def __init__(self, output_dim, init_m=4, init_b=None, trainable=True):
-        super(ParametricLinearSigmoid, self).__init__()
+        super().__init__()
         self.log_m = nn.Parameter(torch.empty((output_dim,)), requires_grad=trainable)
 
         # Initialize trainable parameter
@@ -101,7 +128,7 @@ class ParametricLinearSigmoid(nn.Module):
         return h_x * g_x + f_x * (1 - g_x)
 
 
-class ParametricLinearTanh(nn.Module):
+class ParametricLinearTanh(ParametricActivation):
     """
     A parametric activation function that interpolates between linear and tanh functions.
     The function is: h(x)*g(x) + f(x)*(1-g(x)) where:
@@ -122,7 +149,7 @@ class ParametricLinearTanh(nn.Module):
     """
 
     def __init__(self, output_dim, init_m=4, init_b=None, trainable=True):
-        super(ParametricLinearTanh, self).__init__()
+        super().__init__()
         self.log_m = nn.Parameter(torch.empty((output_dim,)), requires_grad=trainable)
 
         # Initialize trainable parameter
@@ -147,7 +174,7 @@ class ParametricLinearTanh(nn.Module):
         return h_x * g_x + f_x * (1 - g_x)
 
 
-class ParametricLinearTanhTransition(nn.Module):
+class ParametricLinearTanhTransition(ParametricActivation):
     """
     A differentiable activation function operating element-wise for a given output dimension.
     Each element starts linear (scalar slope linear_slope) for x < threshold[i],

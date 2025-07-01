@@ -11,7 +11,12 @@ from itertools import chain
 from typing import Union
 
 from dendritic_modeling.networks import (
+    # TopKLinear,
+    # DeepstLinear,
+    # BlockLinear,
+    # ParametricActivation,
     DendriticBranchLayer,
+    # DendriNet,
     ExcitationInhibitionNetwork,
     BaseNetwork
 )
@@ -20,34 +25,29 @@ from dendritic_modeling.networks import (
 class BaseModel(nn.Module):
     def __init__(
         self, 
-        input_network: BaseNetwork,
+        encoder_network: BaseNetwork,
         core_network: BaseNetwork,
         decoder_network: BaseNetwork
     ):
         super(BaseModel, self).__init__()
         
-        self.input_network = input_network
+        self.encoder_network = encoder_network
         
         self.core_network: Union[
             ExcitationInhibitionNetwork, BaseNetwork
         ] = core_network
         
         self.decoder_network = decoder_network
-        
-        self.input_network_enabled = True
-
+    
     def forward(self, x: torch.Tensor) -> torch.Tensor:
-        x = self.input_network(x)
+        x = self.encoder_network(x)
         x = self.core_network(x)
         x = self.decoder_network(x)
         return x
 
     def predict(self, x: torch.Tensor) -> torch.Tensor:
         raise NotImplementedError("Predict method must be implemented in subclass.")
-    
-    def set_input_network_enabled(self, enabled: bool):
-        self.input_network_enabled = enabled
-    
+      
     def decay_weights(self, weight_decay: float):
         """
         Forward this call to self.net if it implements decay_weights.
@@ -114,14 +114,23 @@ class BaseModel(nn.Module):
                     'lr': optim_dict.get('reactivation_lr', 0.001)
                 })
 
-            param_groups.append({
-                'params': self.input_network.parameters(),
-                'lr': optim_dict.get('input_net_lr', 0.001)
-            })
-            param_groups.append({
-                'params': self.core_network.transfer_fn.parameters(), 
-                'lr': optim_dict.get('transfer_fn_lr', 0.001)
-            })
+            # transfer_fn_params = []
+            # for module in self.core_network.transfer_fn.modules():
+            #     if (
+            #         not isinstance(module, DendriNet)
+            #         and not isinstance(module, DendriticBranchLayer) 
+            #         and not isinstance(module,BlockLinear) 
+            #         and not isinstance(module,TopKLinear) 
+            #         and not isinstance(module,DeepstLinear) 
+            #         and not isinstance(module,ParametricActivation)
+            #     ):
+            #         transfer_fn_params.append(module.parameters())
+
+            # param_groups.append({
+            #     'params': chain(*transfer_fn_params), 
+            #     'lr': optim_dict.get('transfer_fn_lr', 0.001)
+            # })
+
             if decoder_params:
                 param_groups.append({
                     'params': chain(*decoder_params), 

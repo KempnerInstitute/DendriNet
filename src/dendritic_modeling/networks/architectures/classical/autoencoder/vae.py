@@ -27,16 +27,35 @@ class VariationalEncoder(BaseNetwork):
         )
 
         self.output_dim = latent_dim
+    
+    def latent_distribution(
+        self, 
+        x: torch.Tensor
+    ) -> Tuple[torch.Tensor, torch.Tensor]:
+        x = self.net(x)
+        z_mu = self.fc_mean(x)
+        z_sigma = self.fc_std(x)
+        return z_mu, z_sigma
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
-        x = self.net(x)
-        mean = self.fc_mean(x)
-        std = self.fc_std(x)
-        distribution = Normal(mean, std)
-        return torch.sigmoid(distribution.sample())
+        z_mu, z_sigma = self.latent_distribution(x)
+        z = torch.sigmoid(Normal(z_mu, z_sigma).sample())
+        return z
 
 
-class MLPVariationalAutoencoder(BaseAutoencoder):
+# assumes input space is [0, 1]
+class BaseVariationalAutoencoder(BaseAutoencoder):
+    def __init__(self):
+        super().__init__()
+        self.encoder: VariationalEncoder
+    
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        z = self.encoder(x)
+        x_reconstructed = torch.sigmoid(self.decoder(z))
+        return x_reconstructed
+    
+
+class MLPVariationalAutoencoder(BaseVariationalAutoencoder):
     def __init__(
         self,
         input_dim: int,
@@ -66,7 +85,7 @@ class MLPVariationalAutoencoder(BaseAutoencoder):
         self.output_dim = latent_dim
 
 
-class CNNVariationalAutoencoder(BaseAutoencoder):
+class CNNVariationalAutoencoder(BaseVariationalAutoencoder):
     def __init__(
         self,
         input_shape: Tuple[int, int, int],
