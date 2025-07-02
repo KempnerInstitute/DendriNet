@@ -7,7 +7,8 @@ dendritic, excitation-inhibition, and MLP-based models.
 
 from dendritic_modeling.networks.architectures.classical import (
     AlexNet,
-    CNN,
+    CNNUpsample,
+    CNNDownsample,
     MLP,
     MatchedParamMLP,
     Identity
@@ -32,7 +33,8 @@ from dendritic_modeling.networks.architectures.excitation_inhibition import (
 
 __all__ = [
     "AlexNet",
-    "CNN",
+    "CNNUpsample",
+    "CNNDownsample",
     "MLP",
     "MatchedParamMLP",
     "ExcitationInhibitionLayer",
