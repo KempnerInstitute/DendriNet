@@ -4,7 +4,10 @@ import torch.nn as nn
 from typing import Tuple, List
 
 from dendritic_modeling.networks.base import BaseNetwork
-from dendritic_modeling.networks.architectures.classical.cnn.cnn import CNN
+from dendritic_modeling.networks.architectures.classical.cnn.cnn import (
+    CNNDownsample,
+    CNNUpsample
+)
 from dendritic_modeling.networks.architectures.classical.mlp.mlp import MLP
 
 
@@ -74,7 +77,7 @@ class CNNAutoencoder(BaseAutoencoder):
     ):
         super().__init__()
 
-        encoder_net = CNN(
+        encoder_net = CNNDownsample(
             input_shape=input_shape,
             hidden_dims=encoder_hidden_dims,
             kernel_sizes=encoder_kernel_sizes,
@@ -84,15 +87,15 @@ class CNNAutoencoder(BaseAutoencoder):
         )
         self.encoder = Encoder(encoder_net)
         
-        input_dim = 1
-        for dim in input_shape:
-            input_dim *= dim
-        
-        self.decoder = MLP(
-            input_dim=latent_dim,
+        decoder_net = CNNUpsample(
+            input_shape=(latent_dim, 1, 1),
+            target_shape=input_shape,
             hidden_dims=decoder_hidden_dims,
-            activation=activation,
-            output_dim=input_dim
+            activation=activation
+        )
+        self.decoder = nn.Sequential(
+            nn.Unflatten(dim=-1, unflattened_size=(latent_dim, 1, 1)),
+            decoder_net
         )
 
-        self.output_dim = latent_dim
+        self.output_dim = tuple(input_shape)

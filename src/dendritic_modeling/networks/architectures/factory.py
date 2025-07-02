@@ -3,7 +3,8 @@
 
 from dendritic_modeling.networks.architectures.classical.cnn import (
     AlexNet,
-    CNN
+    CNNUpsample,
+    CNNDownsample
 )
 
 from dendritic_modeling.networks.architectures.classical.mlp import (
@@ -27,8 +28,10 @@ def get_architecture(type: str, parameters: dict):
     type = type.lower()
     if type == "alexnet":
         return AlexNet(**parameters)
-    elif type == "cnn":
-        return CNN(**parameters)
+    elif type in ["cnn", "cnn_down", "cnndownsample", "cnn_downsample"]:
+        return CNNDownsample(**parameters)
+    elif type in ["cnn_up", "cnnupsample", "cnn_upsample"]:
+        return CNNUpsample(**parameters)
     elif type == "mlp":
         return MLP(**parameters)
     elif type == "matchedparammlp":
