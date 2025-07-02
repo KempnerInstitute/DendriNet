@@ -75,11 +75,13 @@ class EncoderNetworkParameters(BaseConfig):
 @dataclass
 class EncoderNetworkConfig(BaseConfig):
     type: str = "MLPAutoencoder"
-    parameters: EncoderNetworkParameters = field(default_factory=EncoderNetworkParameters)
+    parameters: EncoderNetworkParameters = field(
+        default_factory=EncoderNetworkParameters
+    )
 
 
 @dataclass
-class DecoderNetworkConfig(BaseConfig):
+class DecoderNetworkParameters(BaseConfig):
     input_dim: int = None
     hidden_dims: List[int] = field(default_factory=lambda: [32, 16])
     activation: str = "relu"
@@ -87,8 +89,22 @@ class DecoderNetworkConfig(BaseConfig):
 
 
 @dataclass
+class DecoderNetworkConfig(BaseConfig):
+    type: str = "MLP"
+    parameters: DecoderNetworkParameters = field(
+        default_factory=DecoderNetworkParameters
+    )
+
+
+@dataclass
 class ModelConfig(BaseConfig):
     task: str = "classification"
-    encoder_network: EncoderNetworkConfig = field(default_factory=EncoderNetworkConfig)
-    core_network: CoreNetworkConfig = field(default_factory=CoreNetworkConfig)
-    decoder_network: DecoderNetworkConfig = field(default_factory=DecoderNetworkConfig)
+    encoder_network: EncoderNetworkConfig = field(
+        default_factory=EncoderNetworkConfig
+    )
+    core_network: CoreNetworkConfig = field(
+        default_factory=CoreNetworkConfig
+    )
+    decoder_network: DecoderNetworkConfig = field(
+        default_factory=DecoderNetworkConfig
+    )

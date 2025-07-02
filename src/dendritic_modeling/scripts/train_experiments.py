@@ -96,17 +96,22 @@ def initialize_model(model_config: ModelConfig):
         encoder = encoder_network
     else:
         encoder = encoder_network.encoder
+    
+    if isinstance(encoder.output_dim, tuple):
+        encoder_output_dim = encoder.output_dim[0]
+    else:
+        encoder_output_dim = encoder.output_dim
 
-    core_network_config.parameters.input_dim = encoder.output_dim
+    core_network_config.parameters.input_dim = encoder_output_dim
     core_network = get_architecture(
         core_network_config.type,
         OmegaConf.to_container(core_network_config.parameters, resolve=True)
     )
 
-    decoder_network_config.input_dim = core_network.output_dim
+    decoder_network_config.parameters.input_dim = core_network.output_dim
     decoder_network = get_architecture(
-        "MLP",
-        OmegaConf.to_container(decoder_network_config, resolve=True)
+        decoder_network_config.type,
+        OmegaConf.to_container(decoder_network_config.parameters, resolve=True)
     )
 
     if model_config.task == "classification":
@@ -231,7 +236,12 @@ def train_encoder_network(
     test_ds: torch.utils.data.Dataset,
     run_save_path: str,
     train_config: TrainConfig
-):
+) -> tuple[
+    BaseNetwork, 
+    torch.utils.data.Dataset, 
+    torch.utils.data.Dataset, 
+    torch.utils.data.Dataset
+]:
     if isinstance(encoder_network, Identity):
         return encoder_network, train_ds, valid_ds, test_ds
     else:
@@ -258,10 +268,10 @@ def train_encoder_network(
         test_label: torch.Tensor
 
         auto_train_ds = torch.utils.data.TensorDataset(
-            train_input, train_input.flatten(1,-1)
+            train_input, train_input
         )
         auto_valid_ds = torch.utils.data.TensorDataset(
-            valid_input, valid_input.flatten(1,-1)
+            valid_input, valid_input
         )
         
         optimizer = torch.optim.Adam(
@@ -300,7 +310,12 @@ def train_encoder_network(
         for param in encoder_network.parameters():
             param.requires_grad = False
 
-        return encoder_network.encoder, encoded_train_ds, encoded_valid_ds, encoded_test_ds
+        return (
+            encoder_network.encoder, 
+            encoded_train_ds, 
+            encoded_valid_ds, 
+            encoded_test_ds
+        )
 
 
 def run_analysis(

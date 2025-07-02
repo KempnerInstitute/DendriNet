@@ -1,6 +1,7 @@
 from dendritic_modeling.networks.architectures.classical.cnn import (
     AlexNet,
-    CNN
+    CNNUpsample,
+    CNNDownsample
 )
 
 from dendritic_modeling.networks.architectures.classical.mlp import (
@@ -12,7 +13,8 @@ from dendritic_modeling.networks.architectures.classical.identity import Identit
 
 __all__ = [
     "AlexNet",
-    "CNN",
+    "CNNUpsample",
+    "CNNDownsample",
     "MLP",
     "MatchedParamMLP",
     "Identity"

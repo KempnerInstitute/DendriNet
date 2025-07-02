@@ -39,6 +39,21 @@ class MSELoss(LossFunction):
         return self.mse(model(x), y)
 
 
+class LogMSELoss(MSELoss):
+    def __init__(self, reduction: str = "mean"):
+        super().__init__(reduction)
+        self._loss_name = "Log Mean Squared Error"
+    
+    def forward(
+        self, 
+        model: nn.Module, 
+        x: torch.Tensor, 
+        y: torch.Tensor
+    ) -> torch.Tensor:
+        mse = super().forward(model, x, y)
+        return torch.log(mse + 1e-12)
+
+
 class CrossEntropyLoss(LossFunction):
     def __init__(self, reduction: str = "mean"):
         super().__init__(reduction)
@@ -94,7 +109,7 @@ class VAE_ELBOLoss(LossFunction):
     def __init__(self, reduction: str = "mean"):
         super().__init__(reduction)
         self._loss_name = "VAE ELBO"
-        self.bce = nn.BCELoss(reduction="none")
+        self.mse = nn.MSELoss(reduction="none")
 
     def forward(
         self, 
@@ -106,16 +121,19 @@ class VAE_ELBOLoss(LossFunction):
             "Model must be an instance of BaseVariationalAutoencoder" + \
             "but got " + str(type(model))
         
-        z_mu, z_sigma = model.encoder(x)
-        z = Normal(z_mu, z_sigma).sample()
-        x_reconstructed = torch.sigmoid(model.decoder(torch.sigmoid(z)))
+        z_mu, z_sigma = model.encoder.latent_distribution(x)
+        z = torch.sigmoid(Normal(z_mu, z_sigma).sample())
+        x_reconstructed: torch.Tensor = model.decoder(z)
 
-        bce = torch.mean(self.bce(x_reconstructed, y), dim=-1)
+        mse = torch.mean(
+            self.mse(x_reconstructed, y), 
+            dim=tuple(range(1, x_reconstructed.dim()))
+        )
 
         z_var = z_sigma**2
         kl_div = 0.5 * torch.sum(z_mu**2 + z_var - torch.log(z_var) - 1, dim=-1)
 
-        loss = bce + kl_div
+        loss = mse + kl_div
 
         if self.reduction == "mean":
             return torch.mean(loss)
@@ -145,6 +163,24 @@ class NegativeCosineSimilarityLoss(LossFunction):
             return torch.sum(-1 * cosine_similarity)
         else:
             return -1 * cosine_similarity
+
+
+class LogAdjustedNegativeCosineSimilarityLoss(NegativeCosineSimilarityLoss):
+    """
+    Enable finetuning near perfect cosine similarity.
+    """
+    def __init__(self, reduction: str = "mean"):
+        super().__init__(reduction)
+        self._loss_name = "Log Adjusted Negative Cosine Similarity"
+    
+    def forward(
+        self, 
+        model: nn.Module, 
+        x: torch.Tensor, 
+        y: torch.Tensor
+    ) -> torch.Tensor:
+        neg_cos_sim = super().forward(model, x, y)
+        return torch.log(neg_cos_sim + 1 + 1e-12)
 
 
 class VoltageStabilizationLoss(LossFunction):
@@ -204,17 +240,23 @@ class VoltageStabilizationLoss(LossFunction):
 
 
 def get_loss_function(loss_function: str) -> LossFunction:
-    if loss_function == "mse":
+    if loss_function in ["mse", "mean_squared_error"]:
         return MSELoss()
-    elif loss_function == "cross_entropy":
+    elif loss_function in ["log_mse", "log_mean_squared_error"]:
+        return LogMSELoss()
+    elif loss_function in ["ce", "cross_entropy"]:
         return CrossEntropyLoss()
-    elif loss_function == "bce":
+    elif loss_function in ["bce", "binary_cross_entropy"]:
         return BCELoss()
-    elif loss_function == "categorical_nll":
+    elif loss_function in ["cat_nll", "categorical_negative_log_likelihood"]:
         return CategoricalNLLLoss()
-    elif loss_function == "vae_elbo":
+    elif loss_function in ["vae_elbo", "variational_autoencoder_elbo"]:
         return VAE_ELBOLoss()
-    elif loss_function == "negative_cosine_similarity":
+    elif loss_function in ["neg_cos_sim", "negative_cosine_similarity"]:
         return NegativeCosineSimilarityLoss()
+    elif loss_function in [
+        "log_adj_neg_cos_sim", "log_adjusted_negative_cosine_similarity"
+    ]:
+        return LogAdjustedNegativeCosineSimilarityLoss()
     else:
         raise ValueError(f"Invalid loss function: {loss_function}")
