@@ -30,8 +30,8 @@ class WeightAnalyzer:
             synapse_weights: Whether to analyze excitatory and inhibitory synapse weights
             branch_weights: Whether to analyze branch-to-output connection weights
         """
-        self.synapse_weights = getattr(params, "synapse_weights", True)
-        self.branch_weights = getattr(params, "branch_weights", True)
+        self.synapse_weights = getattr(params, "synapse_weights", False)
+        self.branch_weights = getattr(params, "branch_weights", False)
 
     def analyze(
         self, model: BaseModel, save_path: Optional[str] = None, filename: str = "final"

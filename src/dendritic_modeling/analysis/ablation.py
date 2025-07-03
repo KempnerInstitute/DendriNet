@@ -6,7 +6,7 @@ disabling or ablating different network components to understand their contribut
 """
 import os
 from copy import deepcopy
-from typing import Optional
+from typing import Optional, Callable
 
 import torch
 import numpy as np
@@ -19,21 +19,27 @@ from dendritic_modeling.networks.architectures import DendriticBranchLayer
 from dendritic_modeling.config.analysis import AblationAnalysisParams
 from dendritic_modeling.utils import (
     evaluate_accuracy,
+    evaluate_auc,
     evaluate_categorical_loglikelihood,
+    evaluate_mse,
+    evaluate_cosine_similarity,
     save_dict
 )
 
 
 class AblationAnalyzer:
     def __init__(self, params: AblationAnalysisParams):
-        self.layer_ablation = getattr(params, "layer_ablation", True)
+        self.layer_ablation = getattr(params, "layer_ablation", False)
         self.compartment_ablation = getattr(params, "compartment_ablation", False)
-        self.ablate_all_synapses = getattr(params, "ablate_all_synapses", True)
-        self.ablate_excitation = getattr(params, "ablate_excitation", True)
-        self.ablate_inhibition = getattr(params, "ablate_inhibition", True)
-        self.ablate_upstream = getattr(params, "ablate_upstream", True)
-        self.accuracy = getattr(params, "accuracy", True)
-        self.categorical_ll = getattr(params, "categorical_loglikelihood", True)
+        self.ablate_all_synapses = getattr(params, "ablate_all_synapses", False)
+        self.ablate_excitation = getattr(params, "ablate_excitation", False)
+        self.ablate_inhibition = getattr(params, "ablate_inhibition", False)
+        self.ablate_upstream = getattr(params, "ablate_upstream", False)
+        self.accuracy = getattr(params, "accuracy", False)
+        self.auc = getattr(params, "auc", False)
+        self.categorical_ll = getattr(params, "categorical_loglikelihood", False)
+        self.mse = getattr(params, "mse", False)
+        self.cosine_similarity = getattr(params, "cosine_similarity", False)
     
     def ablate_layer_and_evaluate(
         self,
@@ -55,20 +61,40 @@ class AblationAnalyzer:
             module.branch_inhibition.pre_w.data.fill_(-1000)
         if ablation_type == "upstream":
             module.branches_to_output.log_weight.data.fill_(-1000)
+        
+        def _evaluate_metric(metric_func: Callable, metric_key: str):
+            metric_score = metric_func(
+                model, test_ds=test_dataset, move_device=False
+            )[-1]
+            results_dict[ablation_type][module_name][f"{metric_key} drop"] = \
+                baseline_dict[metric_key] - metric_score
 
         if self.accuracy:
-            accuracy = evaluate_accuracy(
-                classifier=model, test_ds=test_dataset, move_device=False
-            )[-1]
-            results_dict[ablation_type][module_name]["accuracy drop"] = \
-                baseline_dict["accuracy"] - accuracy
+            _evaluate_metric(
+                metric_func=evaluate_accuracy,
+                metric_key="accuracy"
+            )
+        if self.auc:
+            _evaluate_metric(
+                metric_func=evaluate_auc,
+                metric_key="auc"
+            )
         if self.categorical_ll:
-            loglikelihood = evaluate_categorical_loglikelihood(
-                classifier=model, test_ds=test_dataset, move_device=False
-            )[-1]
-            results_dict[ablation_type][module_name]["log likelihood drop"] = \
-                baseline_dict["log likelihood"] - loglikelihood
-        
+            _evaluate_metric(
+                metric_func=evaluate_categorical_loglikelihood,
+                metric_key="log likelihood"
+            )
+        if self.mse:
+            _evaluate_metric(
+                metric_func=evaluate_mse,
+                metric_key="mse"
+            )
+        if self.cosine_similarity:
+            _evaluate_metric(
+                metric_func=evaluate_cosine_similarity, 
+                metric_key="cosine similarity"
+            )
+                
         model.load_state_dict(state_dict)
 
         return results_dict
@@ -98,8 +124,20 @@ class AblationAnalyzer:
 
         if self.accuracy:
             accuracy_list = []
+        if self.auc:
+            auc_list = []
         if self.categorical_ll:
             loglikelihood_list = []
+        if self.mse:
+            mse_list = []
+        if self.cosine_similarity:
+            cosine_similarity_list = []
+        
+        def _evaluate_metric(metric_func: Callable, metric_key: str, metric_list: list):
+            metric_score = metric_func(
+                model, test_ds=test_dataset, move_device=False
+            )[-1]
+            metric_list.append(baseline_dict[metric_key] - metric_score)
 
         for branch_ix in range(n_branches):
             if ablation_type in ["all synapses", "excitation"]:
@@ -110,22 +148,48 @@ class AblationAnalyzer:
                 module.branches_to_output.log_weight.data[branch_ix, :] = -1000
 
             if self.accuracy:
-                accuracy = evaluate_accuracy(
-                    classifier=model, test_ds=test_dataset, move_device=False
-                )[-1]
-                accuracy_list.append(baseline_dict["accuracy"] - accuracy)
+                _evaluate_metric(
+                    metric_func=evaluate_accuracy,
+                    metric_key="accuracy",
+                    metric_list=accuracy_list
+                )
+            if self.auc:
+                _evaluate_metric(
+                    metric_func=evaluate_auc,
+                    metric_key="auc",
+                    metric_list=auc_list
+                )
             if self.categorical_ll:
-                loglikelihood = evaluate_categorical_loglikelihood(
-                    classifier=model, test_ds=test_dataset, move_device=False
-                )[-1]
-                loglikelihood_list.append(baseline_dict["log likelihood"] - loglikelihood)
-            
+                _evaluate_metric(
+                    metric_func=evaluate_categorical_loglikelihood,
+                    metric_key="log likelihood",
+                    metric_list=loglikelihood_list
+                )
+            if self.mse:
+                _evaluate_metric(
+                    metric_func=evaluate_mse,
+                    metric_key="mse",
+                    metric_list=mse_list
+                )
+            if self.cosine_similarity:
+                _evaluate_metric(
+                    metric_func=evaluate_cosine_similarity,
+                    metric_key="cosine similarity",
+                    metric_list=cosine_similarity_list
+                )
+                
             model.load_state_dict(state_dict)
         
         if self.accuracy:
             results_dict[ablation_type][module_name]["accuracy drop"] = accuracy_list
+        if self.auc:
+            results_dict[ablation_type][module_name]["auc drop"] = auc_list
         if self.categorical_ll:
             results_dict[ablation_type][module_name]["log likelihood drop"] = loglikelihood_list
+        if self.mse:
+            results_dict[ablation_type][module_name]["mse drop"] = mse_list
+        if self.cosine_similarity:
+            results_dict[ablation_type][module_name]["cosine similarity drop"] = cosine_similarity_list
 
         return results_dict
     
@@ -223,11 +287,23 @@ class AblationAnalyzer:
             baselines["accuracy"] = evaluate_accuracy(
                 classifier=model, test_ds=test_dataset, move_device=False
             )[-1]
+        if self.auc:
+            baselines["auc"] = evaluate_auc(
+                classifier=model, test_ds=test_dataset, move_device=False
+            )[-1]
         if self.categorical_ll:
             baselines["log likelihood"] = evaluate_categorical_loglikelihood(
                 classifier=model, test_ds=test_dataset, move_device=False
             )[-1]
-
+        if self.mse:
+            baselines["mse"] = evaluate_mse(
+                classifier=model, test_ds=test_dataset, move_device=False
+            )[-1]
+        if self.cosine_similarity:
+            baselines["cosine similarity"] = evaluate_cosine_similarity(
+                classifier=model, test_ds=test_dataset, move_device=False
+            )[-1]
+        
         if self.layer_ablation:
             layer_results = {}
             if self.ablate_all_synapses:
@@ -251,12 +327,12 @@ class AblationAnalyzer:
                 compartment_results["upstream"] = {}
 
         for name, module in model.named_modules():
-            if isinstance(module, DendriticBranchLayer):
-                if (
-                    self.ablate_all_synapses
-                    and module.branch_excitation is not None
-                    and module.branch_inhibition is not None
-                ):
+            if (
+                isinstance(module, DendriticBranchLayer)
+                and module.branch_excitation is not None
+                and module.branch_inhibition is not None
+            ):
+                if self.ablate_all_synapses:
                     if self.layer_ablation:
                         layer_results = self.ablate_layer_and_evaluate(
                             test_dataset=test_dataset,
@@ -280,7 +356,7 @@ class AblationAnalyzer:
                             state_dict=state_dict
                         )
 
-                if self.ablate_excitation and module.branch_excitation is not None:
+                if self.ablate_excitation:
                     if self.layer_ablation:
                         layer_results = self.ablate_layer_and_evaluate(
                             test_dataset=test_dataset,
@@ -304,7 +380,7 @@ class AblationAnalyzer:
                             state_dict=state_dict
                         )
 
-                if self.ablate_inhibition and module.branch_inhibition is not None:
+                if self.ablate_inhibition:
                     if self.layer_ablation:
                         layer_results = self.ablate_layer_and_evaluate(
                             test_dataset=test_dataset,
