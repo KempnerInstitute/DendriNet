@@ -16,10 +16,14 @@ from dendritic_modeling.utils.data import (
 from dendritic_modeling.utils.evaluation import (
     accuracy_score,
     evaluate_accuracy,
+    auc_score,
+    evaluate_auc,
     categorical_loglikelihood_score,
     evaluate_categorical_loglikelihood,
     mse_score,
     evaluate_mse,
+    cosine_similarity_score,
+    evaluate_cosine_similarity
 )
 
 # Noise utilities
@@ -80,10 +84,14 @@ __all__ = [
     # Evaluation utilities
     "accuracy_score",
     "evaluate_accuracy",
+    "auc_score",
+    "evaluate_auc",
     "categorical_loglikelihood_score",
     "evaluate_categorical_loglikelihood",
     "mse_score",
     "evaluate_mse",
+    "cosine_similarity_score",
+    "evaluate_cosine_similarity",
     
     # Noise utilities
     "add_gaussian_noise",

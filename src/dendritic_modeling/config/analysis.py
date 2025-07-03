@@ -7,8 +7,10 @@ from dendritic_modeling.config.base import BaseConfig
 @dataclass
 class PerformanceAnalysisParams(BaseConfig):
     accuracy: bool = True
+    auc: bool = True
     categorical_loglikelihood: bool = True
     mse: bool = False
+    cosine_similarity: bool = False
 
 
 @dataclass
@@ -80,7 +82,10 @@ class NoisePerturbationAnalysisParams(BaseConfig):
     )
     n_samples: int = 10
     accuracy: bool = True
+    auc: bool = True
     categorical_loglikelihood: bool = True
+    mse: bool = True
+    cosine_similarity: bool = True
 
 
 @dataclass
@@ -101,7 +106,10 @@ class AblationAnalysisParams(BaseConfig):
     ablate_inhibition: bool = True
     ablate_upstream: bool = True
     accuracy: bool = True
+    auc: bool = True
     categorical_loglikelihood: bool = True
+    mse: bool = True
+    cosine_similarity: bool = True
 
 
 @dataclass
@@ -172,9 +180,14 @@ class BranchActivationAnalysisConfig(BaseConfig):
 
 @dataclass
 class SingleLayerContributionAnalysisParams(BaseConfig):
-    batch_size: int = 32
-    save_plots: bool = True
-    save_csv: bool = True
+    excitation_contribution: bool = True
+    inhibition_contribution: bool = True
+    both_contribution: bool = True
+    accuracy: bool = True
+    auc: bool = True
+    categorical_loglikelihood: bool = True
+    mse: bool = True
+    cosine_similarity: bool = True
 
 
 @dataclass
