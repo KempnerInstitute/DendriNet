@@ -1134,5 +1134,37 @@ def get_unified_datasets(task_cfg, train_cfg, output_dir=None, outputs_cfg=None)
             noise_std=noise_std
         )
         return random_split(full_ds, [train_size, valid_size, test_size])
+    elif dataset_name == "synthetic_correlated":
+        from dendritic_modeling.datasets.synthetic_correlated import SyntheticCorrelatedDataset
+        input_dim = p.get('input_dim', 300)
+        correlation_range = (p.get('corr_min', -0.1), p.get('corr_max', 0.1))
+        mean_magnitude = p.get('mean_magnitude', 0.5)
+        seed = getattr(train_cfg, 'seed', 0)
+        
+        train_ds = SyntheticCorrelatedDataset(
+            n_samples=train_size // 2,  # Per class
+            input_dim=input_dim,
+            correlation_range=correlation_range,
+            random_seed=seed,
+            apply_sigmoid=True,
+            mean_magnitude=mean_magnitude
+        )
+        valid_ds = SyntheticCorrelatedDataset(
+            n_samples=valid_size // 2,
+            input_dim=input_dim,
+            correlation_range=correlation_range,
+            random_seed=seed + 1 if seed is not None else None,
+            apply_sigmoid=True,
+            mean_magnitude=mean_magnitude
+        )
+        test_ds = SyntheticCorrelatedDataset(
+            n_samples=test_size // 2,
+            input_dim=input_dim,
+            correlation_range=correlation_range,
+            random_seed=seed + 2 if seed is not None else None,
+            apply_sigmoid=True,
+            mean_magnitude=mean_magnitude
+        )
+        return train_ds, valid_ds, test_ds
     else:
         raise ValueError(f"Unknown dataset name: {dataset_name}")

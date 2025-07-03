@@ -22,6 +22,9 @@ from dendritic_modeling.analysis.branch_activation import BranchActivationAnalyz
 from dendritic_modeling.analysis.synaptic_turnover import SynapticTurnoverAnalyzer
 from dendritic_modeling.analysis.weight import WeightAnalyzer
 
+# Correlation analysis
+from dendritic_modeling.analysis.correlation_analysis import CorrelationAnalyzer
+
 # Analysis manager
 from dendritic_modeling.analysis.manager import AnalysisManager
 
@@ -47,6 +50,9 @@ __all__ = [
     # Synaptic analysis
     "SynapticTurnoverAnalyzer",
     "WeightAnalyzer",
+    
+    # Correlation analysis
+    "CorrelationAnalyzer",
     
     # Analysis manager
     "AnalysisManager",

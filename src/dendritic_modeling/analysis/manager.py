@@ -23,6 +23,7 @@ from dendritic_modeling.analysis.weight import WeightAnalyzer
 from dendritic_modeling.analysis.synaptic_activation import SynapticActivationAnalyzer
 from dendritic_modeling.analysis.branch_activation import BranchActivationAnalyzer
 from dendritic_modeling.analysis.information import InformationAnalyzer
+from dendritic_modeling.analysis.correlation_analysis import CorrelationAnalyzer
 
 
 class AnalysisManager:
@@ -104,6 +105,13 @@ class AnalysisManager:
             self.branch_activation_analyzer = BranchActivationAnalyzer(
                 self.config.branch_activation_analysis.params
             )
+
+        # Initialize Correlation Analysis
+        if hasattr(self.config, 'correlation_analysis') and self.config.correlation_analysis.enabled:
+            # Note: CorrelationAnalyzer is initialized differently, needs dataset
+            self.correlation_analysis_enabled = True
+        else:
+            self.correlation_analysis_enabled = False
 
     def run_analysis(self, filename: str = "final", training: bool = False):
         """
@@ -227,4 +235,19 @@ class AnalysisManager:
                 device="cpu",
                 save_path=os.path.join(self.save_root, "branch_activation_analysis"),
                 filename=filename
+            )
+
+        # Correlation Analysis
+        if self.correlation_analysis_enabled and (
+            (hasattr(self.config.correlation_analysis, 'training') and self.config.correlation_analysis.training and training)
+            or not training
+        ):
+            # Initialize with test dataset for correlation structure
+            correlation_analyzer = CorrelationAnalyzer(
+                model=self.model,
+                dataset=self.data["test"],
+                device=self.device
+            )
+            correlation_analyzer.analyze(
+                save_dir=os.path.join(self.save_root, "correlation_analysis")
             )
