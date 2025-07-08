@@ -1,0 +1,102 @@
+# Visual neuron property templates and test configurations
+# Each property defines weight initialization and stimulus battery
+
+retina_dog:
+  description: "Retinal ganglion cell with center-surround organization"
+  weight_template: "center_surround"
+  params:
+    center_size: 5
+    surround_size: 11
+    cell_type: "on-center"  # or "off-center"
+  stimulus:
+    type: "white_noise"
+    params:
+      size: 64
+      n_frames: 1000
+      std: 0.2
+  criterion:
+    metric: "dog_fit"
+    threshold: 0.9  # R² ≥ 0.9
+
+V1_OSI:
+  description: "V1 simple cell with orientation selectivity"
+  weight_template: "gabor"
+  params:
+    orientation: 45  # degrees
+    wavelength: 8
+    sigma: 3.0
+  stimulus:
+    type: "drifting_gratings"
+    params:
+      orientations: [0, 22.5, 45, 67.5, 90, 112.5, 135, 157.5]
+      spatial_frequency: 8
+      temporal_frequency: 2
+  criterion:
+    metric: "orientation_selectivity_index"
+    threshold: 0.8  # OSI ≥ 0.8
+
+V1_phase:
+  description: "V1 simple/complex cell phase sensitivity"
+  weight_template: "gabor_pair"  # Odd + even pair
+  params:
+    orientation: 0
+    wavelength: 8
+    sigma: 3.0
+  stimulus:
+    type: "phase_sweep"
+    params:
+      phases: [0, 45, 90, 135, 180, 225, 270, 315]  # degrees
+      spatial_frequency: 8
+  criterion:
+    metric: "f1_f0_ratio"
+    threshold: 1.0  # F1/F0 < 1 for complex cells
+
+V1_DSI:
+  description: "V1 direction-selective cell"
+  weight_template: "motion_ds"
+  params:
+    preferred_direction: "rightward"
+    kernel_size: 15
+  stimulus:
+    type: "moving_bars"
+    params:
+      directions: [0, 45, 90, 135, 180, 225, 270, 315]
+      speed: 2.0
+      bar_width: 4
+  criterion:
+    metric: "direction_selectivity_index"
+    threshold: 0.5  # DSI ≥ 0.5
+
+V1_endstop:
+  description: "V1 end-stopped (hypercomplex) cell"
+  weight_template: "end_stopped"
+  params:
+    preferred_length: 20
+    orientation: 90
+  stimulus:
+    type: "length_sweep"
+    params:
+      lengths: [5, 10, 15, 20, 25, 30, 40, 50]
+      bar_width: 4
+      orientation: 90
+  criterion:
+    metric: "length_tuning"
+    threshold: "peak_then_fall"  # Response peaks then decreases
+
+# Training configuration
+training:
+  loss_weights:
+    task: 1.0      # Primary task loss (e.g., classification)
+    dog: 0.05      # DoG fit loss
+    osi: 0.05      # Orientation selectivity
+    dsi: 0.05      # Direction selectivity  
+    phase: 0.02    # Phase invariance
+    endstop: 0.02  # End-stopping
+    sparse: 0.01   # Sparsity
+
+  schedule:
+    warmup_epochs: 10
+    bio_weight_start: 0.05
+    bio_weight_end: 0.2
+    
+  probe_batch_size: 32  # Synthetic probes per minibatch 
