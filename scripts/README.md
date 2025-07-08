@@ -65,8 +65,8 @@ python documentation_tools/generate_documentation_figures.py
 ## Dependencies
 
 Most scripts require the dendritic-modeling package to be installed:
-```bash
-pip install -e .
-```
+   ```bash
+   pip install -e .
+   ```
 
 Additional requirements may vary by script - check individual script headers for specific dependencies. 
