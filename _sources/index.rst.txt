@@ -3,12 +3,12 @@ Dendritic Modeling Framework
 
 A PyTorch framework for biologically-inspired neural networks with dendritic computation
 
-.. figure:: _static/einet_architecture.svg
+.. figure:: _static/basic_dendritic_neuron.svg
    :align: center
-   :width: 80%
-   :alt: Dendritic Network Architecture
+   :width: 70%
+   :alt: Dendritic Neuron Architecture
 
-   Overview of the dendritic modeling framework showing multi-layer E/I networks with shunting inhibition
+   Dendritic neuron structure with excitatory and inhibitory synapses, the biological inspiration for the framework
 
 .. note::
 

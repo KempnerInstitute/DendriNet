@@ -141,7 +141,7 @@
 <a class="reference internal image-reference" href="../../_images/basic_dendritic_neuron.png"><img alt="Basic dendritic neuron architecture" src="../../_images/basic_dendritic_neuron.png" style="width: 600px;" />
 </a>
 <figcaption>
-<p><span class="caption-number">Figure 3 </span><span class="caption-text"><strong>Basic Dendritic Neuron</strong>: Shows excitatory (red triangles) and inhibitory (blue circles) synaptic inputs converging on dendritic branches. The soma integrates these inputs using divisive normalization.</span><a class="headerlink" href="#id1" title="Link to this image"></a></p>
+<p><span class="caption-number">Figure 3 </span><span class="caption-text"><strong>Basic Dendritic Neuron</strong>: Shows excitatory (red triangles) and inhibitory (blue circles) synaptic inputs arriving at dendritic branches. Each dendrite performs divisive normalization computation locally, and the soma integrates the processed outputs from all dendrites.</span><a class="headerlink" href="#id1" title="Link to this image"></a></p>
 </figcaption>
 </figure>
 <p>Each neuron computes its output using the formula:</p>
@@ -159,7 +159,7 @@
 <a class="reference internal image-reference" href="../../_images/shunting_inhibition_diagram.png"><img alt="Shunting inhibition mechanism" src="../../_images/shunting_inhibition_diagram.png" style="width: 800px;" />
 </a>
 <figcaption>
-<p><span class="caption-number">Figure 4 </span><span class="caption-text"><strong>Shunting Inhibition</strong>: Left panel shows the mechanism where inhibition divisively modulates excitation. Right panel demonstrates the divisive normalization effect - increasing inhibition reduces the gain without changing the shape of the response curve.</span><a class="headerlink" href="#id2" title="Link to this image"></a></p>
+<p><span class="caption-number">Figure 4 </span><span class="caption-text"><strong>Shunting Inhibition in Dendritic Processing</strong>: Shows how dendrites perform shunting inhibition computation. Each dendrite receives excitatory and inhibitory synaptic inputs and computes the divisive normalization locally. Dendrites can also receive inputs from previous dendritic layers. The soma integrates the processed outputs from all dendrites.</span><a class="headerlink" href="#id2" title="Link to this image"></a></p>
 </figcaption>
 </figure>
 </section>
@@ -206,7 +206,7 @@
 <a class="reference internal image-reference" href="../../_images/dendritic_computation_flow.png"><img alt="Dendritic computation flow" src="../../_images/dendritic_computation_flow.png" style="width: 700px;" />
 </a>
 <figcaption>
-<p><span class="caption-number">Figure 8 </span><span class="caption-text"><strong>Computation Flow</strong>: Illustrates how multiple excitatory and inhibitory synaptic inputs are summed separately and then combined through division to produce the output voltage.</span><a class="headerlink" href="#id6" title="Link to this image"></a></p>
+<p><span class="caption-number">Figure 8 </span><span class="caption-text"><strong>Computation Flow</strong>: Illustrates how multiple excitatory and inhibitory synaptic inputs are received by dendrites, summed separately at each dendrite, and then combined through shunting inhibition division to produce each dendrite’s output voltage.</span><a class="headerlink" href="#id6" title="Link to this image"></a></p>
 </figcaption>
 </figure>
 </section>
