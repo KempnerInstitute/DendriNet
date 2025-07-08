@@ -1,5 +1,5 @@
 # Core dependencies for dendritic modeling
-torch
+torch>=2.0.0,!=2.6.0  # Exclude 2.6.0 due to GHSA-887c-mr87-cxwp vulnerability
 numpy
 torchvision
 torchinfo
@@ -36,7 +36,7 @@ coverage[toml]>=6.5.0
 # Code quality and formatting
 ruff>=0.1.0
 mypy>=1.0,<1.4
-black>=23.1,<24.0
+black>=24.3.0  # Updated to fix PYSEC-2024-48 vulnerability
 isort>=5.12,<5.13
 
 # Pre-commit hooks for development

@@ -22,7 +22,7 @@ from .logging_config import (
 )
 
 # Import evaluation utilities from training module
-from ..training.evaluation import (
+from ..training.utils.evaluation import (
     accuracy_score,
     evaluate_accuracy,
     auc_score,
