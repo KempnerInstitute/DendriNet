@@ -8,7 +8,7 @@ for all model wrappers including parameter grouping and weight decay.
 import torch
 import torch.nn as nn
 from itertools import chain
-from typing import Union
+from typing import Union, List, Dict
 
 from dendritic_modeling.networks import (
     # TopKLinear,
@@ -20,6 +20,7 @@ from dendritic_modeling.networks import (
     ExcitationInhibitionNetwork,
     BaseNetwork
 )
+from dendritic_modeling.config import ParamGroupsConfig
 
 
 class BaseModel(nn.Module):
@@ -62,11 +63,11 @@ class BaseModel(nn.Module):
         if hasattr(self.core_network, 'apply_rewiring'):
             self.core_network.apply_rewiring()
     
-    def get_param_groups(self, optim_dict: dict) -> list[dict]:
+    def get_param_groups(self, param_groups_config: ParamGroupsConfig) -> List[Dict]:
         """
         Get parameter groups for optimizer.
         """
-        split_params = optim_dict.get("split_params", False)
+        split_params = getattr(param_groups_config, 'split_params', True)
         if split_params and isinstance(self.core_network, ExcitationInhibitionNetwork):
             topk_params = []
             blocklinear_params = []
@@ -101,17 +102,17 @@ class BaseModel(nn.Module):
             if topk_params:
                 param_groups.append({
                     'params': chain(*topk_params), 
-                    'lr': optim_dict.get('topk_lr', 0.001)
+                    'lr': getattr(param_groups_config, 'topk_lr', 0.001)
                 })
             if blocklinear_params:
                 param_groups.append({
                     'params': chain(*blocklinear_params), 
-                    'lr': optim_dict.get('blocklinear_lr', 0.001)
+                    'lr': getattr(param_groups_config, 'blocklinear_lr', 0.001)
                 })
             if reactivation_params:
                 param_groups.append({
                     'params': chain(*reactivation_params), 
-                    'lr': optim_dict.get('reactivation_lr', 0.001)
+                    'lr': getattr(param_groups_config, 'reactivation_lr', 0.001)
                 })
 
             # transfer_fn_params = []
@@ -134,14 +135,14 @@ class BaseModel(nn.Module):
             if decoder_params:
                 param_groups.append({
                     'params': chain(*decoder_params), 
-                    'lr': optim_dict.get('decoder_lr', 0.001)
+                    'lr': getattr(param_groups_config, 'decoder_lr', 0.001)
                 })
             
             return param_groups
         else:
             return [{
                 'params': self.parameters(), 
-                'lr': optim_dict.get('lr', 0.001)
+                'lr': getattr(param_groups_config, 'lr', 0.001)
             }]
         
 
