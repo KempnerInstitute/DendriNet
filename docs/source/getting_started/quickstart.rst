@@ -1,251 +1,296 @@
-.. _quickstart:
+Quick Start Guide
+=================
 
-Quickstart
-==========
+This guide will help you get started with the Dendritic Modeling Framework quickly.
 
-This quickstart guide will help you get up and running with the Dendritic Modeling framework. We'll cover the basics of creating, training, and evaluating a dendritic network model using both the programmatic API and the recommended configuration-based approach.
+Installation
+------------
 
-.. note::
-   The recommended way to run experiments is using the configuration-based approach with ``train_experiments.py``. We cover both approaches to help you understand the components, but for production use, the config approach offers better reproducibility and experiment tracking.
-
-Prerequisites
--------------
-
-Before starting, make sure you have installed the framework. See :doc:`installation` for detailed instructions.
-
-**Quick Installation:**
+Install the framework using pip:
 
 .. code-block:: bash
 
-    # Create conda environment with all dependencies
-    conda env create -f environment.yml
-    conda activate dendritic_env
-    
-    # Install the package
-    pip install -e .
-    
-    # Verify installation
-    python -c "import dendritic_modeling; print('✓ Ready to go!')"
+   pip install -e .
 
-Option 1: Configuration-based Approach (Recommended)
----------------------------------------------------
+Or with development dependencies:
 
-The most straightforward way to run experiments is using a YAML configuration file with the ``train_experiments.py`` script.
+.. code-block:: bash
 
-Step 1: Create a Configuration File
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+   pip install -e ".[dev]"
 
-Create a file named ``my_mnist_config.yaml`` with the following content:
+Basic Example
+-------------
+
+Here's a simple example training a dendritic network on MNIST:
+
+.. code-block:: python
+
+   import torch
+   from torch.utils.data import DataLoader
+   from torchvision import datasets, transforms
+   
+   from dendritic_modeling.models import DendriticClassifier
+   from dendritic_modeling.training import Trainer
+   
+   # Load MNIST dataset
+   transform = transforms.Compose([
+       transforms.ToTensor(),
+       transforms.Normalize((0.1307,), (0.3081,))
+   ])
+   
+   train_dataset = datasets.MNIST('./data', train=True, download=True, transform=transform)
+   test_dataset = datasets.MNIST('./data', train=False, transform=transform)
+   
+   train_loader = DataLoader(train_dataset, batch_size=64, shuffle=True)
+   test_loader = DataLoader(test_dataset, batch_size=1000, shuffle=False)
+   
+   # Create model
+   model = DendriticClassifier(
+       network_config={
+           "name": "ExcitationInhibitionNetwork",
+           "params": {
+               "input_dim": 784,
+               "n_layers": 2,
+               "n_excitatory": [100, 10],
+               "n_inhibitory": [20, 0],
+               "n_branches": [10, 5]
+           }
+       },
+       num_classes=10
+   )
+   
+   # Train model
+   trainer = Trainer(max_epochs=10)
+   trainer.fit(model, train_loader, test_loader)
+   
+   # Evaluate
+   accuracy = trainer.test(model, test_loader)
+   print(f"Test accuracy: {accuracy:.2%}")
+
+Using Configuration Files
+-------------------------
+
+For more complex experiments, use YAML configuration files:
+
+**config.yaml:**
 
 .. code-block:: yaml
 
-    model:
-      task: classification
-      network:
-        type: EINet
-        parameters:
-          input_dim: 784  # For MNIST (28x28 pixels)
-          excitatory_layer_sizes: [512, 256]
-          inhibitory_layer_sizes: [200, 100]
-          excitatory_branch_factors: [4, 4]
-          inhibitory_branch_factors: [2, 2]
-          reactivate: true
-          somatic_synapses: true
-          topk_init_method: xavier_normal
-          reactivation_type: param_tanh
-          reactivation_strategy: inverse
-          blocklinear_strategy: block_conductance_dynamic
-          enable_branch_outputs: true
-          output_layer: false
-          output_dim: 10
+   experiment:
+     name: mnist_dendritic
+     seed: 42
+   
+   data:
+     dataset: MNIST
+     batch_size: 64
+     num_workers: 4
+   
+   model:
+     name: DendriticClassifier
+     params:
+       network_config:
+         name: ExcitationInhibitionNetwork
+         params:
+           input_dim: 784
+           n_layers: 3
+           n_excitatory: [200, 100, 10]
+           n_inhibitory: [50, 25, 0]
+           n_branches: [20, 15, 10]
+           connectivity: sparse
+           sparsity: 0.2
+       
+       num_classes: 10
+   
+   training:
+     max_epochs: 50
+     optimizer:
+       name: Adam
+       lr: 0.001
+       weight_decay: 0.0001
+     
+     scheduler:
+       name: CosineAnnealingLR
+       T_max: 50
+   
+   logging:
+     use_wandb: true
+     project: dendritic-modeling
 
-    train:
-      learning_strategy: mle
-      seed: 42
-      train_valid_split: 0.8
-      lr: 0.001
-      epochs: 20
-      batch_size: 64
-      grad_clip_value: 5.0
+Run with configuration:
 
-    task:
-      dataset: mnist
-      data_path: ""  # Default location
-      parameters: {}
+.. code-block:: python
 
-    visualization:
-      enabled: true
-      plots:
-        - weights
-        - activations
-        - branch_ablation
+   from dendritic_modeling import run_experiment
+   
+   run_experiment("config.yaml")
 
-    wandb:
-      use_wandb: false
-
-    outputs:
-      dir: "./outputs"
-
-Step 2: Run the Experiment
-~~~~~~~~~~~~~~~~~~~~~~~~~
-
-Run the experiment with:
+Or from command line:
 
 .. code-block:: bash
 
-    python src/dendritic_modeling/scripts/train_experiments.py my_mnist_config.yaml
+   python -m dendritic_modeling.train --config config.yaml
 
-This will:
-1. Load the MNIST dataset
-2. Create the model as specified in the config
-3. Train the model for the specified number of epochs
-4. Generate visualizations if enabled
-5. Save the model and results to the output directory
+Key Concepts
+------------
 
-Step 3: View the Results
-~~~~~~~~~~~~~~~~~~~~~~
+Dendritic Computation
+~~~~~~~~~~~~~~~~~~~~~
 
-Check the output directory for:
-- Saved model checkpoints
-- Training logs
-- Visualizations (if enabled)
-- Evaluation metrics
+The core computation in dendritic networks is divisive normalization:
 
-You can adjust the configuration parameters to experiment with different architectures and training strategies. See :doc:`../advanced/configuration/index` for a complete guide to configuration options.
+.. math::
 
-Option 2: Programmatic API Approach
-----------------------------------
+   V_{out} = \frac{E}{E + I + \epsilon}
 
-If you prefer to have more control or want to integrate with existing code, you can use the programmatic API.
+This implements:
 
-Creating a Simple Dendritic Network
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+- **Gain control**: Response scaling based on context
+- **Normalization**: Bounded outputs
+- **Competition**: Between excitation and inhibition
 
-Let's start by creating a simple dendritic network model for MNIST classification:
+Network Architecture
+~~~~~~~~~~~~~~~~~~~~
 
-.. code-block:: python
+.. figure:: ../../figures/architecture/basic_dendritic_neuron.png
+   :align: center
+   :width: 60%
+   :alt: Dendritic Neuron
 
-    import torch
-    from dendritic_modeling.networks import ExcitationInhibitionNetwork
+   Basic dendritic neuron with excitatory and inhibitory inputs
 
-    # Define a simple EINet for MNIST
-    model = ExcitationInhibitionNetwork(
-        input_dim=784,  # 28x28 images flattened
-        excitatory_layer_sizes=[512, 256],
-        inhibitory_layer_sizes=[200, 100],
-        excitatory_branch_factors=[4, 4],  # 16 branches per cell
-        inhibitory_branch_factors=[2, 2],  # 4 branches per inhibitory cell
-        reactivate=True,  # Use reactivation for branches
-        somatic_synapses=True,  # Allow somatic connections
-        topk_init_method="xavier_normal",
-        reactivation_type="param_tanh",
-        reactivation_strategy="inverse",
-        blocklinear_strategy="block_conductance_dynamic",
-        enable_branch_outputs=True,
-        output_dim=10
-    )
+E/I Networks
+~~~~~~~~~~~~
 
-    # Apply a softmax for classification
-    classifier = torch.nn.Sequential(
-        model,
-        torch.nn.LogSoftmax(dim=-1)
-    )
-
-Loading a Dataset
-~~~~~~~~~~~~~~~~
-
-Now, let's load the MNIST dataset:
+Multi-layer networks with excitatory and inhibitory populations:
 
 .. code-block:: python
 
-    from dendritic_modeling.utils import load_mnist_as_datasets
+   from dendritic_modeling.networks import ExcitationInhibitionNetwork
+   
+   network = ExcitationInhibitionNetwork(
+       input_dim=784,
+       n_layers=3,
+       n_excitatory=[200, 100, 10],  # E neurons per layer
+       n_inhibitory=[50, 25, 0],      # I neurons per layer
+       n_branches=[20, 15, 10]        # Branches per neuron
+   )
 
-    # Load MNIST and split into train/validation/test sets
-    train_ds, valid_ds, test_ds = load_mnist_as_datasets(train_valid_split=0.8)
+Common Tasks
+------------
 
-    # Peek at the data
-    x_sample, y_sample = train_ds[0]
-    print(f"Input shape: {x_sample.shape}, Label: {y_sample}")
-
-Training the Model
-~~~~~~~~~~~~~~~~
-
-Now, let's train our model using a standard learning strategy:
-
-.. code-block:: python
-
-    from dendritic_modeling.learning_strategies import TrainerMLE
-
-    # Set up optimizer with Adam
-    optimizer = torch.optim.Adam(classifier.parameters(), lr=0.001)
-
-    # Initialize the MLE (Maximum Likelihood Estimation) trainer
-    trainer = TrainerMLE(optimizer=optimizer)
-
-    # Train the model
-    results = trainer.train(
-        model=classifier,
-        train_data=train_ds,
-        valid_data=valid_ds,
-        grad_clip_value=5.0,
-        epochs=20,
-        batch_size=64,
-        shuffle=True
-    )
-
-    # Plot training curves
-    import matplotlib.pyplot as plt
-
-    plt.figure(figsize=(10, 5))
-    plt.plot(results['train losses'], label='Train Loss')
-    plt.plot(results['valid losses'], label='Validation Loss')
-    plt.xlabel('Epoch')
-    plt.ylabel('Loss')
-    plt.legend()
-    plt.show()
-
-Evaluating the Model
-~~~~~~~~~~~~~~~~~~
-
-Let's evaluate our trained model:
+Image Classification
+~~~~~~~~~~~~~~~~~~~~
 
 .. code-block:: python
 
-    from dendritic_modeling.utils import accuracy_score
+   # CNN with dendritic layers
+   from dendritic_modeling.models import CNNClassifier
+   
+   model = CNNClassifier(
+       input_channels=3,
+       num_classes=10,
+       channels=[32, 64, 128],
+       n_branches=[10, 8, 6]
+   )
 
-    # Evaluate on test set
-    test_accuracy = accuracy_score(classifier, *test_ds[:])
-    print(f"Test accuracy: {test_accuracy:.4f}")
+Custom Input Transforms
+~~~~~~~~~~~~~~~~~~~~~~~
 
-Mapping Between Approaches
--------------------------
+.. code-block:: python
 
-Here's how the programmatic API corresponds to the configuration-based approach:
+   from dendritic_modeling.networks.input_network import InputNetwork
+   
+   # Gabor filter preprocessing
+   input_net = InputNetwork(
+       input_transform_name="gabor",
+       n_orientations=8,
+       n_scales=4
+   )
+   
+   # Use with model
+   model = DendriticClassifier(
+       input_network=input_net,
+       network_config={...}
+   )
 
-.. list-table::
-   :header-rows: 1
-   :width: 100%
+Analyzing Trained Models
+~~~~~~~~~~~~~~~~~~~~~~~~
 
-   * - Programmatic API
-     - Configuration Entry
-   * - ``ExcitationInhibitionNetwork(input_dim=784, ...)``
-     - ``model.network.parameters`` section
-   * - ``TrainerMLE(optimizer=...)``
-     - ``train.learning_strategy: mle``
-   * - ``trainer.train(epochs=20, batch_size=64)``
-     - ``train.epochs: 20, train.batch_size: 64``
-   * - ``load_mnist_as_datasets()``
-     - ``task.dataset: mnist``
+.. code-block:: python
+
+   from dendritic_modeling.analysis import (
+       AblationAnalyzer,
+       InformationAnalyzer,
+       BranchActivationAnalyzer
+   )
+   
+   # Ablation analysis
+   ablation = AblationAnalyzer()
+   results = ablation.analyze(model, test_dataset)
+   
+   # Information analysis
+   info = InformationAnalyzer()
+   mi_results = info.analyze(model, test_dataset)
+   
+   # Branch activation patterns
+   activation = BranchActivationAnalyzer()
+   patterns = activation.analyze(model, test_dataset)
+
+Visualization
+~~~~~~~~~~~~~
+
+.. code-block:: python
+
+   from dendritic_modeling.plotting import (
+       plot_weight_distributions,
+       plot_branch_activations,
+       plot_ei_balance
+   )
+   
+   # Visualize learned weights
+   plot_weight_distributions(model)
+   
+   # Show activation patterns
+   plot_branch_activations(model, sample_input)
+   
+   # E/I balance over training
+   plot_ei_balance(training_history)
 
 Next Steps
 ----------
 
-Now that you've learned the basics of the Dendritic Modeling framework, you can:
+- :doc:`tutorials/index` - Detailed tutorials
+- :doc:`/user_guide/index` - User guide
+- :doc:`/api/index` - API reference
+- :doc:`/examples/index` - Example scripts
 
-- Explore more complex network architectures in :doc:`../advanced/network_structures/index`
-- Try different learning strategies detailed in :doc:`../advanced/learning/index`
-- Run ablation studies as described in :doc:`../advanced/analysis/ablation_studies`
-- Visualize your models with tools in :doc:`../advanced/visualization/visualization_guide`
-- Experiment with synthetic datasets designed to test specific dendritic computational capabilities
+Tips for Success
+----------------
 
-Refer to the detailed documentation for each component for more information.
+1. **Start Simple**: Begin with small networks and gradually increase complexity
+2. **Monitor E/I Balance**: Use tensorboard/wandb to track E/I ratios
+3. **Regularization**: Apply sparsity constraints for biological plausibility
+4. **Hyperparameters**: Key parameters are n_branches, E/I ratios, and connectivity
+5. **Initialization**: Proper weight initialization is crucial for convergence
+
+Common Issues
+-------------
+
+**Numerical Instability**
+   Increase epsilon value or use gradient clipping
+
+**Poor Convergence**
+   Check E/I balance, reduce learning rate, or adjust branch numbers
+
+**Memory Issues**
+   Reduce batch size or use sparse connectivity
+
+**Slow Training**
+   Enable mixed precision training or reduce number of branches
+
+Getting Help
+------------
+
+- GitHub Issues: Report bugs or request features
+- Documentation: Full guides and API reference
+- Examples: Working code examples in ``examples/`` directory
