@@ -17,7 +17,7 @@ from dendritic_modeling.networks.factories.neuron_factory import (
 from dendritic_modeling.datasets.stimuli.gratings import create_static_grating
 from dendritic_modeling.datasets.stimuli.noise import create_white_noise
 from dendritic_modeling.datasets.stimuli.bars import create_moving_bar, create_length_sweep_bars
-from dendritic_modeling.metrics.visual import (
+from dendritic_modeling.analysis.performance.visual import (
     orientation_selectivity_index,
     direction_selectivity_index,
     size_tuning_index,
