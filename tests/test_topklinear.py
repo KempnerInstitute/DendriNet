@@ -2,7 +2,7 @@ import unittest
 
 import torch
 
-from dendritic_modeling.dendrinet import TopKLinear
+from dendritic_modeling.networks import TopKLinear
 
 
 class TestTopKLinear(unittest.TestCase):
