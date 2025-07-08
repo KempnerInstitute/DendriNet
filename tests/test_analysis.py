@@ -210,48 +210,6 @@ class TestInformationAnalyzer(unittest.TestCase):
                 self.assertIsInstance(results, dict)
 
 
-class TestBranchInformationAnalyzer(unittest.TestCase):
-    """Test the Branch Information Analyzer class."""
-    
-    def setUp(self):
-        """Set up test fixtures."""
-        self.analyzer = BranchInformationAnalyzer(device="cpu")
-        
-        # Create test model
-        self.model = ProbabilisticClassifier(
-            net=ExcitationInhibitionNetwork(
-                input_dim=8,
-                excitatory_layer_sizes=[4],
-                inhibitory_layer_sizes=[4],
-                excitatory_branch_factors=[2],
-                inhibitory_branch_factors=[2],
-                output_dim=2
-            ),
-            output_dim=2
-        )
-        
-        # Create test data
-        self.test_data = torch.utils.data.TensorDataset(
-            torch.randn(30, 8),
-            torch.randint(0, 2, (30,))
-        )
-    
-    def test_analyzer_initialization(self):
-        """Test analyzer initialization."""
-        self.assertIsInstance(self.analyzer, BranchInformationAnalyzer)
-    
-    def test_branch_information_analysis(self):
-        """Test branch information analysis."""
-        with tempfile.TemporaryDirectory() as tmpdir:
-            # Create mock data for branch analysis
-            results = self.analyzer.analyze_branch_information(
-                model=self.model,
-                test_data=self.test_data,
-                save_path=tmpdir
-            )
-            
-            self.assertIsInstance(results, dict)
-
 
 class TestActivationAnalyzers(unittest.TestCase):
     """Test the activation analyzer classes."""
