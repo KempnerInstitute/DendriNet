@@ -5,13 +5,18 @@ This module contains classes for evaluating model performance including
 accuracy, categorical log-likelihood, and mean squared error.
 """
 
-from typing import Optional
+from typing import Optional, Callable
+
 import torch
+from torch.utils.data import TensorDataset
+
 from dendritic_modeling.models import BaseModel
 from dendritic_modeling.utils import (
     evaluate_accuracy,
+    evaluate_auc,
     evaluate_categorical_loglikelihood,
     evaluate_mse,
+    evaluate_cosine_similarity,
     save_dict,
 )
 from dendritic_modeling.config import PerformanceAnalysisParams
@@ -26,9 +31,11 @@ class PerformanceAnalyzer:
     """
     
     def __init__(self, params: PerformanceAnalysisParams):
-        self.accuracy = getattr(params, "accuracy", True)
-        self.categorical_loglikelihood = getattr(params, "categorical_loglikelihood", True)
+        self.accuracy = getattr(params, "accuracy", False)
+        self.auc = getattr(params, "auc", False)
+        self.categorical_loglikelihood = getattr(params, "categorical_loglikelihood", False)
         self.mse = getattr(params, "mse", False)
+        self.cosine_similarity = getattr(params, "cosine_similarity", False)
 
     def analyze(
         self,
@@ -55,55 +62,68 @@ class PerformanceAnalyzer:
         Returns:
             Dictionary containing results if save_path is None, otherwise None
         """
+        def _dataset_to_device(
+            dataset: Optional[torch.utils.data.Dataset],
+            device: str = "cpu"
+        ):
+            if dataset is not None:
+                inputs, labels = dataset[:]
+                inputs: torch.Tensor = inputs.to(device)
+                labels: torch.Tensor = labels.to(device)
+                return TensorDataset(inputs, labels)
+            return None
+        
         results = {}
+
+        def _evaluate_metric(metric_func: Callable, metric_key: str):
+            results[metric_key] = {}
+            train_metric, valid_metric, test_metric = metric_func(
+                model,
+                train_ds=train_ds,
+                valid_ds=valid_ds,
+                test_ds=test_ds,
+                move_device=False
+            )
+            if train_ds is not None:
+                results[metric_key]["train"] = train_metric
+            if valid_ds is not None:
+                results[metric_key]["valid"] = valid_metric
+            if test_ds is not None:
+                results[metric_key]["test"] = test_metric
+                
+        train_ds = _dataset_to_device(train_ds, device)
+        valid_ds = _dataset_to_device(valid_ds, device)
+        test_ds = _dataset_to_device(test_ds, device)
         
         if self.accuracy:
-            results["accuracy"] = {}
-            train_acc, valid_acc, test_acc = evaluate_accuracy(
-                classifier=model,
-                train_ds=train_ds,
-                valid_ds=valid_ds,
-                test_ds=test_ds,
-                device=device,
+            _evaluate_metric(
+                metric_func=evaluate_accuracy,
+                metric_key="accuracy"
             )
-            if train_ds is not None:
-                results["accuracy"]["train"] = train_acc
-            if valid_ds is not None:
-                results["accuracy"]["valid"] = valid_acc
-            if test_ds is not None:
-                results["accuracy"]["test"] = test_acc
 
-        if self.categorical_loglikelihood:
-            results["categorical_loglikelihood"] = {}
-            train_catll, valid_catll, test_catll = evaluate_categorical_loglikelihood(
-                classifier=model,
-                train_ds=train_ds,
-                valid_ds=valid_ds,
-                test_ds=test_ds,
-                device=device,
+        if self.auc:
+            _evaluate_metric(
+                metric_func=evaluate_auc,
+                metric_key="auc"
             )
-            if train_ds is not None:
-                results["categorical_loglikelihood"]["train"] = train_catll
-            if valid_ds is not None:
-                results["categorical_loglikelihood"]["valid"] = valid_catll
-            if test_ds is not None:
-                results["categorical_loglikelihood"]["test"] = test_catll
+        
+        if self.categorical_loglikelihood:
+            _evaluate_metric(
+                metric_func=evaluate_categorical_loglikelihood,
+                metric_key="categorical_loglikelihood"
+            ) 
 
         if self.mse:
-            results["mse"] = {}
-            train_mse, valid_mse, test_mse = evaluate_mse(
-                classifier=model,
-                train_ds=train_ds,
-                valid_ds=valid_ds,
-                test_ds=test_ds,
-                device=device,
+            _evaluate_metric(
+                metric_func=evaluate_mse,
+                metric_key="mse"
             )
-            if train_ds is not None:
-                results["mse"]["train"] = train_mse
-            if valid_ds is not None:
-                results["mse"]["valid"] = valid_mse
-            if test_ds is not None:
-                results["mse"]["test"] = test_mse
+        
+        if self.cosine_similarity:
+            _evaluate_metric(
+                metric_func=evaluate_cosine_similarity,
+                metric_key="cosine_similarity"
+            )
 
         if save_path is not None:
             save_dict(results, save_path, filename)

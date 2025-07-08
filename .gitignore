@@ -186,3 +186,7 @@ cython_debug/
 .DS_Store
 .vscode/*
 outputs/*
+.data/*
+trained_encoder_networks/*
+.trained_encoder_networks/*
+encoder_networks/*

@@ -1,7 +1,17 @@
 from dataclasses import dataclass, field
-from typing import Dict, Any, Optional
+from typing import Optional
 
 from dendritic_modeling.config.base import BaseConfig
+
+
+@dataclass
+class ParamGroupsConfig(BaseConfig):
+    lr: float = 0.001
+    split_params: bool = True
+    topk_lr: float = 0.001
+    blocklinear_lr: float = 0.0001
+    reactivation_lr: float = 0.0001
+    decoder_lr: float = 0.0001
 
 
 @dataclass
@@ -29,14 +39,23 @@ class TrainerConfig(BaseConfig):
 
 
 @dataclass
+class EncoderTrainConfig(BaseConfig):
+    load_save_root: Optional[str] = None
+    lr: float = 0.001
+    trainer: TrainerConfig = field(default_factory=TrainerConfig)
+
+
+@dataclass
+class MainTrainConfig(BaseConfig):
+    learning_strategy: str = "standard"
+    weight_decay_rate: float = 0.01
+    param_groups: ParamGroupsConfig = field(default_factory=ParamGroupsConfig)
+    trainer: TrainerConfig = field(default_factory=TrainerConfig)
+
+
+@dataclass
 class TrainConfig(BaseConfig):
-    learning_strategy: str = "mle"
     seed: int = 0
     train_valid_split: float = 0.8
-    optim_dict: Dict[str, Any] = field(
-        default_factory=dict
-    )  # Optimizer / param group settings
-    weight_decay_rate: float = 0.1
-    encoder_net_trainer: TrainerConfig = field(default_factory=TrainerConfig)
-    main_trainer: TrainerConfig = field(default_factory=TrainerConfig)
- 
+    encoder: EncoderTrainConfig = field(default_factory=EncoderTrainConfig)
+    main: MainTrainConfig = field(default_factory=MainTrainConfig)

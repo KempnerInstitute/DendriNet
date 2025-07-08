@@ -35,12 +35,12 @@ class SynapticActivationAnalyzer:
             downsample: Whether to downsample input data for efficiency
             samples: Number of samples to use if downsampling
         """
-        self.network_summary = getattr(params, "network_summary", True)
-        self.layer_summary = getattr(params, "layer_summary", True)
+        self.network_summary = getattr(params, "network_summary", False)
+        self.layer_summary = getattr(params, "layer_summary", False)
         self.branch_summary = getattr(params, "branch_summary", False)
         self.raw_summary = getattr(params, "raw_summary", False)
         self.logspace = getattr(params, "logspace", False)
-        self.downsample = getattr(params, "downsample", True)
+        self.downsample = getattr(params, "downsample", False)
         self.samples = getattr(params, "samples", 5)
 
     def attach_forward_hooks(self, model: BaseModel):
