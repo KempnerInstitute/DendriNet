@@ -11,6 +11,77 @@ import matplotlib.pyplot as plt
 import matplotlib.patches as patches
 from matplotlib.patches import FancyBboxPatch, Circle, Rectangle, FancyArrowPatch, Polygon
 import matplotlib.lines as mlines
+import matplotlib.patheffects as path_effects
+
+
+# =====================================================================================
+# Enhanced Visual Style
+# =====================================================================================
+
+
+def apply_enhanced_style():
+    """Apply a highly polished, modern visual style for all figures."""
+    # A more vibrant and professional color palette
+    global COLORS
+    COLORS = {
+        'excitatory': '#ff6b6b',
+        'inhibitory': '#48dbfb',
+        'soma': '#485460',
+        'dendrite': '#a29bfe',
+        'background': '#f5f6fa',
+        'text': '#2f3542',
+        'arrow': '#57606f',
+        'shadow': '#000000'
+    }
+
+    plt.style.use('default')
+    plt.rcParams.update({
+        'figure.facecolor': 'white',
+        'figure.edgecolor': 'white',
+        'savefig.pad_inches': 0.1,
+        'font.family': 'sans-serif',
+        'font.sans-serif': ['Arial', 'Helvetica', 'DejaVu Sans'],
+        'font.weight': 'normal',
+        'axes.facecolor': 'white',
+        'axes.edgecolor': '#cccccc',
+        'axes.labelcolor': COLORS['text'],
+        'axes.labelweight': 'bold',
+        'axes.titlecolor': COLORS['text'],
+        'axes.titlesize': 16,
+        'axes.titleweight': 'bold',
+        'axes.grid': True,
+        'grid.color': '#e1e1e1',
+        'grid.linestyle': '--',
+        'grid.linewidth': 0.5,
+        'xtick.color': COLORS['text'],
+        'ytick.color': COLORS['text'],
+        'legend.frameon': False,
+        'legend.fontsize': 10
+    })
+
+
+def add_shadow(artist, dx=2, dy=-2, color='auto', alpha=0.3, **kwargs):
+    """Add a drop shadow effect to a matplotlib artist."""
+    if color == 'auto':
+        shadow_color = COLORS['shadow']
+    else:
+        shadow_color = color
+
+    shadow = path_effects.SimplePatchShadow(
+        offset=(dx, dy), shadow_rgb_alpha=(0, 0, 0, alpha),
+        alpha=1.0, **kwargs
+    )
+    artist.set_path_effects([shadow, path_effects.Normal()])
+
+
+# Apply the new style globally when the script is loaded
+apply_enhanced_style()
+
+
+# =====================================================================================
+# Core Architectural Diagrams
+# =====================================================================================
+
 
 # Set clean style
 plt.style.use('default')
@@ -351,93 +422,51 @@ def create_shunting_inhibition_diagram():
 
 
 def create_network_architecture_overview():
-    """Create simplified, clean network architecture overview."""
-    fig, ax = plt.subplots(1, 1, figsize=(16, 8))
-    
-    # Main components with better layout
-    components = [
-        ('Input', 2, 4, 1.5, 1.2),
-        ('Input\nNetwork', 5, 4, 2, 1.5),
-        ('E/I\nSeparation', 8.5, 4, 2, 1.5),
-        ('Dendritic\nLayers', 12, 4, 2.5, 3),
-        ('Output', 15.5, 4, 1.5, 1.2)
-    ]
-    
-    # Draw main flow
-    for i, (label, x, y, w, h) in enumerate(components):
-        if i == 3:  # Dendritic layers - special treatment
-            # Main box
-            box = FancyBboxPatch((x-w/2, y-h/2), w, h, 
-                                boxstyle="round,pad=0.1",
-                                facecolor=COLORS['dendrite'], 
-                                edgecolor='black', linewidth=2,
-                                alpha=0.3)
-            ax.add_patch(box)
-            
-            # Sub-layers
-            for j in range(3):
-                sub_y = y + 1 - j
-                sub_box = Rectangle((x-w/2+0.2, sub_y-0.3), w-0.4, 0.6,
-                                   facecolor=COLORS['dendrite'], 
-                                   edgecolor='black', linewidth=1)
-                ax.add_patch(sub_box)
-                ax.text(x, sub_y, f'Layer {j+1}', ha='center', va='center',
-                       fontsize=10)
-        else:
-            color = COLORS['background'] if i < 3 else COLORS['soma']
-            box = FancyBboxPatch((x-w/2, y-h/2), w, h, 
-                                boxstyle="round,pad=0.1",
-                                facecolor=color, edgecolor='black', 
-                                linewidth=2)
-            ax.add_patch(box)
-        
-        if i != 3:
-            ax.text(x, y, label, ha='center', va='center', 
-                   fontsize=12, weight='bold')
-    
-    # Arrows
-    arrow_positions = [(3.25, 4), (6, 4), (9.5, 4), (13.25, 4), (14.75, 4)]
-    for i in range(len(arrow_positions) - 1):
-        arrow = FancyArrowPatch(arrow_positions[i], arrow_positions[i+1], 
-                               arrowstyle='->', mutation_scale=20, 
-                               lw=2.5, color=COLORS['arrow'])
-        ax.add_patch(arrow)
-    
-    # E/I separation detail
-    ax.plot([8.5, 8.5], [5.25, 6], 'k-', linewidth=2)
-    ax.plot([8.5, 7.5], [6, 6.5], 'k-', linewidth=2)
-    ax.plot([8.5, 9.5], [6, 6.5], 'k-', linewidth=2)
-    
-    exc_circle = Circle((7.5, 6.8), 0.3, color=COLORS['excitatory'], 
-                       ec='black', linewidth=2)
-    ax.add_patch(exc_circle)
-    ax.text(7.5, 6.8, 'E', ha='center', va='center', color='white', 
-           fontsize=10, weight='bold')
-    
-    inh_circle = Circle((9.5, 6.8), 0.3, color=COLORS['inhibitory'], 
-                       ec='black', linewidth=2)
-    ax.add_patch(inh_circle)
-    ax.text(9.5, 6.8, 'I', ha='center', va='center', color='white', 
-           fontsize=10, weight='bold')
-    
-    # Title
-    ax.text(8.5, 8, 'Dendritic Network Architecture', ha='center', 
-            fontsize=20, weight='bold')
-    
-    # Key equation
-    ax.text(8.5, 0.5, r'Core Computation: $V_{out} = \frac{E}{E + I + \epsilon}$', 
-            ha='center', fontsize=14,
-            bbox=dict(boxstyle="round,pad=0.8", facecolor='white', 
-                     edgecolor='gray', linewidth=2))
-    
-    ax.set_xlim(0, 17)
-    ax.set_ylim(0, 9)
+    """A highly polished, professional overview of the network architecture."""
+    fig, ax = plt.subplots(figsize=(14, 7))
     ax.axis('off')
-    
-    plt.tight_layout()
-    plt.savefig(os.path.join(OUTPUT_DIR, 'network_architecture_overview.png'), 
-                dpi=300, bbox_inches='tight', facecolor='white')
-    plt.close()
+    ax.set_xlim(0, 14)
+    ax.set_ylim(0, 6)
+
+    def draw_stage(x, y, w, h, label, sub_labels=None, color=COLORS['background']):
+        """Draw a single stage of the pipeline with shadow and text."""
+        box = FancyBboxPatch((x, y), w, h, boxstyle="round,pad=0.2", facecolor=color, ec='#333333', lw=0.5)
+        ax.add_patch(box)
+        add_shadow(box)
+
+        title_text = ax.text(x + w / 2, y + h - 0.5, label, ha='center', va='center', fontsize=12, weight='bold', color=COLORS['text'])
+        add_shadow(title_text, dx=1, dy=-1, alpha=0.1)
+
+        if sub_labels:
+            for i, sub in enumerate(sub_labels):
+                ax.text(x + w / 2, y + h - 1.2 - (i * 0.4), sub, ha='center', va='center', fontsize=9, color=COLORS['text'])
+
+    # Pipeline stages
+    draw_stage(1, 2, 2, 2, "Input", ["Images", "Time-Series"], color='#e0f7fa')
+    draw_stage(4, 2, 2, 2, "Pre-Net", ["Feature Extraction"], color='#c5e1a5')
+    draw_stage(7, 1.5, 3, 3, "Dendritic Core", ["E/I Separation", "Branching", "Shunting Inhibition"], color=COLORS['dendrite'])
+    draw_stage(11, 2, 2, 2, "Output", ["Classifier Head"], color='#ffe0b2')
+
+    # Arrows
+    def draw_arrow(start, end):
+        arrow = FancyArrowPatch(start, end, arrowstyle='Simple,tail_width=0.7,head_width=4,head_length=8',
+                                connectionstyle="arc3,rad=0.1", color=COLORS['arrow'],
+                                shrinkA=10, shrinkB=10)
+        add_shadow(arrow, dx=1, dy=-1)
+        ax.add_patch(arrow)
+
+    draw_arrow((3, 3), (4, 3))
+    draw_arrow((6, 3), (7, 3))
+    draw_arrow((10, 3), (11, 3))
+
+    # E/I split visualization inside the core box
+    ax.add_patch(Circle((8.2, 2.5), 0.3, color=COLORS['excitatory']))
+    ax.add_patch(Circle((8.8, 2.5), 0.3, color=COLORS['inhibitory']))
+
+    # Title
+    fig.suptitle("Dendritic Modeling Framework Architecture", fontsize=18, weight='bold', color=COLORS['text'])
+
+    _save(fig, 'network_architecture_overview.png')
 
 
 def create_dendritic_computation_flow():
@@ -731,16 +760,6 @@ def create_head_training_strategies():
     _save(fig, "head_training_strategies.png")
 
 
-def create_input_modes_comparison():
-    fig, ax = plt.subplots(figsize=(6, 3))
-    modes = ["Raw", "Fourier", "Wavelet"]
-    ax.plot(modes, [0.6, 0.75, 0.72], marker="o", lw=2)
-    ax.set_ylim(0.5, 0.8)
-    ax.set_ylabel("AUROC")
-    ax.set_title("Input Modes Comparison")
-    _save(fig, "input_modes_comparison.png")
-
-
 def create_learning_strategies():
     fig, ax = plt.subplots(figsize=(6, 3))
     ax.pie([40, 35, 25], labels=["Backprop", "Hebbian", "RL"], autopct="%1.0f%%", colors=["#264653", "#2a9d8f", "#e9c46a"])
@@ -852,7 +871,6 @@ if __name__ == "__main__":
     create_training_strategies(); print("✓ Training strategies")
     create_sequential_vs_joint(); print("✓ Sequential vs joint")
     create_head_training_strategies(); print("✓ Head training strategies")
-    create_input_modes_comparison(); print("✓ Input modes comparison")
     create_learning_strategies(); print("✓ Learning strategies")
     create_ablation_visualization(); print("✓ Ablation visualization")
     create_computational_properties(); print("✓ Computational properties")
