@@ -10,10 +10,12 @@ from .hooks import safe_backward_hook
 from .evaluation import (
     accuracy_score,
     evaluate_accuracy,
+    evaluate_auc,
     categorical_loglikelihood_score,
     evaluate_categorical_loglikelihood,
     mse_score,
-    evaluate_mse
+    evaluate_mse,
+    evaluate_cosine_similarity
 )
 
 __all__ = [
@@ -22,8 +24,10 @@ __all__ = [
     # Evaluation
     "accuracy_score",
     "evaluate_accuracy",
+    "evaluate_auc",
     "categorical_loglikelihood_score",
     "evaluate_categorical_loglikelihood",
     "mse_score",
     "evaluate_mse",
+    "evaluate_cosine_similarity",
 ] 
