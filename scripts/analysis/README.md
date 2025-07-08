@@ -1,8 +1,8 @@
-# Analysis Tools - Information Theory and Visualization
+# Analysis Tools
 
-This directory contains specialized analysis tools for information theory, pixel-level analysis, and advanced visualization of dendritic network behavior.
+Comprehensive analysis tools for dendritic modeling experiments and results.
 
-## 📁 Scripts Overview
+## Scripts Overview
 
 ### `analyze_pixel_information.py` (33KB, 841 lines)
 **Purpose**: Comprehensive pixel-level information analysis using mutual information and partial information decomposition (PID).
@@ -51,7 +51,7 @@ bash run_pixel_analysis.sh cifar10 --parallel
 bash run_pixel_analysis.sh mnist --workers 4 --bins 10
 ```
 
-## 🔧 Dependencies
+## Dependencies
 
 ### Required Packages
 ```bash
@@ -81,7 +81,7 @@ pip install scikit-learn[extra]
 pip install numba
 ```
 
-## 📊 Analysis Types
+## Analysis Types
 
 ### 1. Single Pixel Mutual Information
 
@@ -114,7 +114,7 @@ Groups pixels based on redundancy patterns:
 python analyze_pixel_information.py --dataset mnist --cluster-redundancy --num-clusters 5
 ```
 
-## 🚀 Usage Examples
+## Usage Examples
 
 ### Complete Information Analysis Pipeline
 
@@ -179,7 +179,7 @@ output:
   dpi: 300
 ```
 
-## 📈 Output Structure
+## Output Structure
 
 ```
 output/
@@ -202,7 +202,7 @@ output/
         └── ... (similar structure)
 ```
 
-## 🔬 Advanced Features
+## Advanced Features
 
 ### Parallel Processing Configuration
 
@@ -238,7 +238,7 @@ Available metrics computed by the scripts:
 4. **Redundancy**: `I(X; Z) + I(Y; Z) - I(X,Y; Z)`
 5. **Unique Information**: `I(X; Z | Y)` and `I(Y; Z | X)`
 
-## 🐛 Troubleshooting
+## Troubleshooting
 
 ### Common Issues
 
@@ -285,7 +285,7 @@ logging.basicConfig(level=logging.DEBUG)
 from tqdm import tqdm
 ```
 
-## 📚 Related Theory
+## Related Theory
 
 ### Partial Information Decomposition (PID)
 

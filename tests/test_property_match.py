@@ -225,7 +225,7 @@ def test_all_properties():
             elif prop_name == "V1_endstop":
                 tester.test_v1_endstop(config)
                 
-            print(f"✓ {prop_name}: PASSED")
+            print(f"{prop_name}: PASSED")
             
         except AssertionError as e:
             print(f"✗ {prop_name}: FAILED - {str(e)}")

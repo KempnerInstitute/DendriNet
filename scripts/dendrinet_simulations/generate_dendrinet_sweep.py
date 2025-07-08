@@ -352,7 +352,7 @@ python -c "import sys; print('\\n'.join(sys.path))"
 echo "Checking for PyYAML..."
 python -c "try:
     import yaml
-    print('✓ PyYAML is available:', yaml.__file__)
+    print('PyYAML is available:', yaml.__file__)
     exit(0)
 except ImportError as e:
     print('PyYAML import error:', e)
@@ -370,7 +370,7 @@ else
         print(' -', p)
 
     from omegaconf import OmegaConf
-    print('✓ OmegaConf is available:', OmegaConf)
+    print('OmegaConf is available:', OmegaConf)
     print('OmegaConf file location:', OmegaConf.__file__)
     exit(0)
 except ImportError as e:
@@ -380,7 +380,7 @@ except ImportError as e:
     if [ $? -eq 0 ]; then
         CONFIG_OK=true
     else
-        echo "❌ ERROR: Neither PyYAML nor OmegaConf is available"
+        echo "ERROR: Neither PyYAML nor OmegaConf is available"
         echo "Please install one of these packages in the {slurm_config['conda_env_path']} conda environment."
         echo "Run: conda install -n {slurm_config['conda_env_path']} pyyaml"
         echo "  or: conda install -n {slurm_config['conda_env_path']} omegaconf"
@@ -392,18 +392,18 @@ fi
 echo "Checking for numpy, pandas, tqdm..."
 python -c "try:
     import numpy
-    print('✓ numpy is available:', numpy.__version__)
+    print('numpy is available:', numpy.__version__)
     import pandas
-    print('✓ pandas is available:', pandas.__version__)
+    print('pandas is available:', pandas.__version__)
     import tqdm
-    print('✓ tqdm is available:', tqdm.__version__)
+    print('tqdm is available:', tqdm.__version__)
     exit(0)
 except ImportError as e:
     print('Error importing core packages:', e)
     exit(1)
 "
 if [ $? -ne 0 ]; then
-    echo "❌ ERROR: Core packages not available in conda environment."
+    echo "ERROR: Core packages not available in conda environment."
     echo "Please ensure that numpy, pandas, and tqdm are installed in the {slurm_config['conda_env_path']} conda environment."
     exit 1
 fi
@@ -562,33 +562,33 @@ def create_submission_check_script(output_dir, simulation_script, config, dryrun
 echo "==== Environment Check for Dendrinet Simulation ===="
 echo "Checking if simulation script exists..."
 if [ -f "{simulation_script}" ]; then
-    echo "✓ Found simulation script: {simulation_script}"
+    echo "Found simulation script: {simulation_script}"
 else
-    echo "❌ ERROR: Simulation script not found: {simulation_script}"
+    echo "ERROR: Simulation script not found: {simulation_script}"
     exit 1
 fi
 
 echo "Checking output directories..."
 if [ -d "{output_dir}" ]; then
-    echo "✓ Output directory exists: {output_dir}"
+    echo "Output directory exists: {output_dir}"
 else
-    echo "❌ ERROR: Output directory not found: {output_dir}"
+    echo "ERROR: Output directory not found: {output_dir}"
     exit 1
 fi
 
 if [ -d "{output_dir}/configs" ]; then
-    echo "✓ Config directory exists: {output_dir}/configs"
+    echo "Config directory exists: {output_dir}/configs"
 else
-    echo "❌ ERROR: Config directory not found: {output_dir}/configs"
+    echo "ERROR: Config directory not found: {output_dir}/configs"
     exit 1
 fi
 
 echo "Checking if SLURM is available..."
 which sbatch
 if [ $? -ne 0 ]; then
-    echo "❌ WARNING: sbatch command not found - SLURM may not be available"
+    echo "WARNING: sbatch command not found - SLURM may not be available"
 else
-    echo "✓ SLURM is available"
+    echo "SLURM is available"
 fi
 
 """
@@ -602,11 +602,11 @@ source "$CONDA_BASE/etc/profile.d/conda.sh"
 # Try to activate the conda environment
 conda activate {conda_env_path} 2>/dev/null
 if [ $? -ne 0 ]; then
-    echo "❌ ERROR: Could not activate conda environment '{conda_env_path}'"
+    echo "ERROR: Could not activate conda environment '{conda_env_path}'"
     echo "Please check if this environment exists"
     exit 1
 else
-    echo "✓ Successfully activated conda environment '{conda_env_path}'"
+    echo "Successfully activated conda environment '{conda_env_path}'"
 
     # Check the active environment name
     ENV_NAME=$(conda info --envs | grep '*' | awk '{{print $1}}')
@@ -631,7 +631,7 @@ else
     python -c "
 try:
     import yaml
-    print(f'✓ PyYAML is available: {{yaml.__file__}}')
+    print(f'PyYAML is available: {{yaml.__file__}}')
     exit(0)
 except ImportError as e:
     print(f'PyYAML not available: {{e}}')
@@ -655,7 +655,7 @@ try:
         print(f' - {{p}}')
 
     from omegaconf import OmegaConf
-    print(f'✓ OmegaConf is available: {{OmegaConf.__file__}}')
+    print(f'OmegaConf is available: {{OmegaConf.__file__}}')
     exit(0)
 except ImportError as e:
     print(f'OmegaConf not available: {{e}}')
@@ -671,7 +671,7 @@ except ImportError as e:
 
     # Config package check
     if [ "$CONFIG_OK" = false ]; then
-        echo "❌ ERROR: Neither PyYAML nor OmegaConf is available"
+        echo "ERROR: Neither PyYAML nor OmegaConf is available"
         echo "Please install one of these packages in the '{conda_env_path}' environment:"
         echo "  conda activate {conda_env_path}"
         echo "  conda install pyyaml"
@@ -685,14 +685,14 @@ except ImportError as e:
     python -c "
 try:
     import numpy
-    print(f'✓ numpy is available: {{numpy.__version__}} at {{numpy.__file__}}')
+    print(f'numpy is available: {{numpy.__version__}} at {{numpy.__file__}}')
     exit(0)
 except ImportError as e:
     print(f'numpy not available: {{e}}')
     exit(1)
 "
     if [ $? -ne 0 ]; then
-        echo "❌ Package 'numpy' is NOT available in conda environment"
+        echo "Package 'numpy' is NOT available in conda environment"
         PACKAGES_OK=false
     fi
 
@@ -700,14 +700,14 @@ except ImportError as e:
     python -c "
 try:
     import pandas
-    print(f'✓ pandas is available: {{pandas.__version__}} at {{pandas.__file__}}')
+    print(f'pandas is available: {{pandas.__version__}} at {{pandas.__file__}}')
     exit(0)
 except ImportError as e:
     print(f'pandas not available: {{e}}')
     exit(1)
 "
     if [ $? -ne 0 ]; then
-        echo "❌ Package 'pandas' is NOT available in conda environment"
+        echo "Package 'pandas' is NOT available in conda environment"
         PACKAGES_OK=false
     fi
 
@@ -715,19 +715,19 @@ except ImportError as e:
     python -c "
 try:
     import tqdm
-    print(f'✓ tqdm is available: {{tqdm.__version__}} at {{tqdm.__file__}}')
+    print(f'tqdm is available: {{tqdm.__version__}} at {{tqdm.__file__}}')
     exit(0)
 except ImportError as e:
     print(f'tqdm not available: {{e}}')
     exit(1)
 "
     if [ $? -ne 0 ]; then
-        echo "❌ Package 'tqdm' is NOT available in conda environment"
+        echo "Package 'tqdm' is NOT available in conda environment"
         PACKAGES_OK=false
     fi
 
     if [ "$PACKAGES_OK" = false ]; then
-        echo "❌ ERROR: Some required packages are missing from conda environment"
+        echo "ERROR: Some required packages are missing from conda environment"
         echo "Please install the missing packages in the '{conda_env_path}' environment"
         exit 1
     fi

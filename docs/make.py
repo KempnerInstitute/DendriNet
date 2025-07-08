@@ -78,16 +78,14 @@ def ensure_dir_exists(directory):
     """Ensure directory exists, create if it doesn't."""
     try:
         Path(directory).mkdir(parents=True, exist_ok=True)
-        print(f"✓ Directory exists or created: {directory}")
+        print(f"Directory exists or created: {directory}")
         return True
     except Exception as e:
-        print(f"❌ ERROR creating directory {directory}: {str(e)}")
-        traceback.print_exc()
-        return False
+        print(f"ERROR creating directory {directory}: {str(e)}")
+        sys.exit(1)
 
 
-def create_placeholder_image(
-    filename: str,
+def create_placeholder_image(filename: str,
     width: int = 800,
     height: int = 600,
     title: str = "Sample Output Curve",
@@ -115,16 +113,16 @@ def create_placeholder_image(
             _save_figure_multiformat(fig, filename)
 
         if os.path.exists(filename):
-            print(f"✓ Created image: {filename} ({os.path.getsize(filename)} bytes)")
+            print(f"Created image: {filename} ({os.path.getsize(filename)} bytes)")
             return True
         else:
             print(
-                f"❌ Failed to create image: {filename} (file doesn't exist after save)"
+                f"Failed to create image: {filename} (file doesn't exist after save)"
             )
             return False
 
     except Exception as e:
-        print(f"❌ ERROR creating image {filename}: {str(e)}")
+        print(f"ERROR creating image {filename}: {str(e)}")
         traceback.print_exc()
         return False
 
@@ -188,17 +186,17 @@ def create_network_diagram(
 
         if os.path.exists(filename):
             print(
-                f"✓ Created network diagram: {filename} ({os.path.getsize(filename)} bytes)"
+                f"Created network diagram: {filename} ({os.path.getsize(filename)} bytes)"
             )
             return True
         else:
             print(
-                f"❌ Failed to create network diagram: {filename} (file doesn't exist after save)"
+                f"Failed to create network diagram: {filename} (file doesn't exist after save)"
             )
             return False
 
     except Exception as e:
-        print(f"❌ ERROR creating network diagram {filename}: {str(e)}")
+        print(f"ERROR creating network diagram {filename}: {str(e)}")
         traceback.print_exc()
         return False
 
@@ -250,17 +248,17 @@ def create_dendritic_diagram(filename, width=800, height=600):
 
         if os.path.exists(filename):
             print(
-                f"✓ Created dendritic diagram: {filename} ({os.path.getsize(filename)} bytes)"
+                f"Created dendritic diagram: {filename} ({os.path.getsize(filename)} bytes)"
             )
             return True
         else:
             print(
-                f"❌ Failed to create dendritic diagram: {filename} (file doesn't exist after save)"
+                f"Failed to create dendritic diagram: {filename} (file doesn't exist after save)"
             )
             return False
 
     except Exception as e:
-        print(f"❌ ERROR creating dendritic diagram {filename}: {str(e)}")
+        print(f"ERROR creating dendritic diagram {filename}: {str(e)}")
         traceback.print_exc()
         return False
 
@@ -305,7 +303,7 @@ def _run_external_figure_generators():
     if hasattr(module, "OUTPUT_DIR"):
         setattr(module, "OUTPUT_DIR", str(target_dir))
         target_dir.mkdir(parents=True, exist_ok=True)
-        print(f"✓ Redirected external OUTPUT_DIR to: {target_dir}")
+        print(f"Redirected external OUTPUT_DIR to: {target_dir}")
 
     created = 0
     for name in dir(module):
@@ -316,7 +314,7 @@ def _run_external_figure_generators():
                 func()
                 created += 1
             except Exception as exc:  # pylint: disable=broad-except
-                print(f"⚠️  External generator {name} failed: {exc}")
+                print(f"WARNING: External generator {name} failed: {exc}")
                 traceback.print_exc()
 
     # Copy generated PNGs/SVGs (if any) into source/_static for Sphinx builds
