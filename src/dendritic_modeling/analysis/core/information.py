@@ -12,8 +12,6 @@ import traceback
 
 import numpy as np
 import torch
-import matplotlib.pyplot as plt
-
 from dendritic_modeling.models import BaseModel
 from dendritic_modeling.networks import (
     DendriticBranchLayer, 
@@ -668,6 +666,7 @@ class InformationAnalyzer:
                 self.logger.info(f"Generated {len(figs)} information analysis plots in {plot_save_path}")
                 
                 # Close all figures to free memory
+                import matplotlib.pyplot as plt
                 for fig in figs:
                     plt.close(fig)
                     

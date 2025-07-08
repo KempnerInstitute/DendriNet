@@ -9,9 +9,6 @@ from copy import deepcopy
 from typing import Optional, Callable
 
 import torch
-import numpy as np
-import matplotlib.pyplot as plt
-
 from torch.utils.data import TensorDataset
 from dendritic_modeling.models import BaseModel
 from dendritic_modeling.networks import ExcitationInhibitionNetwork
@@ -193,72 +190,7 @@ class AblationAnalyzer:
 
         return results_dict
     
-    def plot_layer_ablation(
-        self,
-        layer_results: dict,
-        save_path: Optional[str] = None,
-        filename: str = "final"
-    ):
-        if save_path is None:
-            fig_list = []
-        
-        metric_mapping = {
-            "accuracy": "Accuracy",
-            "log likelihood": "Log Likelihood"
-        }
 
-        metrics = []
-        for metric in metric_mapping.keys():
-            if metric in layer_results:
-                metrics.append(metric)
-        
-        synapse_ablation_types = []
-        if "excitation" in layer_results:
-            synapse_ablation_types.append("excitation")
-        if "inhibition" in layer_results:
-            synapse_ablation_types.append("inhibition")
-        if "all synapses" in layer_results:
-            synapse_ablation_types.append("all synapses")
-        
-        for metric in metrics:
-            results = {}
-            for ablation_type in synapse_ablation_types:
-                data_dict = {"depth": [], "decrease": []}
-                type_dict: dict = layer_results[ablation_type]
-                for layer_dict in type_dict.values():
-                    data_dict["depth"].append(layer_dict["depth"])
-                    data_dict["decrease"].append(layer_dict[metric])
-                results[ablation_type] = data_dict
-            
-            fig, ax = plt.subplots(figsize=(10, 8))
-            n_ablation_types = len(synapse_ablation_types)
-            depths = results[synapse_ablation_types[0]]["depth"]
-            width = 0.25
-            for i, ablation_type in enumerate(synapse_ablation_types):
-                x = np.array(depths) + width * (i - (n_ablation_types - 1) / 2)
-                ax.bar(
-                    x,
-                    results[ablation_type]["decrease"],
-                    width=width,
-                    label=ablation_type
-                )
-            ax.set_xticks(depths)
-            ax.set_xlabel("Depth")
-            ax.set_ylabel(f"{metric_mapping[metric]} Decrease")
-            ax.set_title(f"{metric_mapping[metric]} Decrease vs. Depth")
-            ax.legend()
-            # ax.grid(True, axis="y", alpha=0.3)
-            if save_path is not None:
-                plot_path = os.path.join(
-                    save_path, f"{filename}_synapse_ablation_{metric}.png"
-                )
-                fig.savefig(plot_path, dpi=300, bbox_inches="tight")
-                plt.close()
-            else:
-                fig_list.append(fig)
-        
-        if save_path is None:
-            return fig_list
 
     def analyze(
         self,
@@ -436,7 +368,9 @@ class AblationAnalyzer:
         if save_path is not None:
             save_dict(results, save_path, filename)
             if self.layer_ablation:
-                self.plot_layer_ablation(
+                # Import plotting function
+                from dendritic_modeling.plotting.ablation_plots import plot_layer_ablation
+                plot_layer_ablation(
                     layer_results=layer_results,
                     save_path=save_path,
                     filename=filename
