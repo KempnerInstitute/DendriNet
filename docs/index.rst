@@ -3,12 +3,23 @@ Dendritic Modeling Framework
 
 A PyTorch framework for biologically-inspired neural networks with dendritic computation
 
-.. figure:: figures/architecture/network_architecture_overview.png
+.. figure:: _static/einet_architecture.svg
    :align: center
    :width: 80%
    :alt: Dendritic Network Architecture
 
    Overview of the dendritic modeling framework showing multi-layer E/I networks with shunting inhibition
+
+.. note::
+
+   All diagrams and placeholder images in the documentation are generated automatically by the helper script ``docs/make.py``.  
+   If you update the code that produces a new visual or change the styling, remember to rerun:
+
+   ````bash
+   python docs/make.py
+   ````
+
+   before rebuilding the documentation (``make html`` or equivalent).  This guarantees that the HTML/PDF output always ships with the latest, high-resolution figures (both PNG and SVG).  Vector ``.svg`` versions are preferred for crisp rendering at any zoom level.
 
 Overview
 --------
@@ -96,7 +107,7 @@ Shunting Inhibition
 
 The core computation implements divisive normalization:
 
-.. figure:: figures/architecture/shunting_inhibition_diagram.png
+.. figure:: _static/shunting_inhibition_diagram.png
    :align: center
    :width: 60%
    :alt: Shunting Inhibition
@@ -108,7 +119,7 @@ Dendritic Branches
 
 Neurons have hierarchical dendritic branches:
 
-.. figure:: figures/architecture/basic_dendritic_neuron.png
+.. figure:: _static/basic_dendritic_neuron.png
    :align: center
    :width: 50%
    :alt: Dendritic Neuron

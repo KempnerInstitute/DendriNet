@@ -11,7 +11,7 @@ Dendritic Neuron Model
 
 The fundamental computational unit in our framework is the dendritic neuron, which implements shunting inhibition (divisive normalization):
 
-.. figure:: ../../figures/architecture/basic_dendritic_neuron.png
+.. figure:: ../../_static/basic_dendritic_neuron.png
    :align: center
    :width: 600px
    :alt: Basic dendritic neuron architecture
@@ -34,7 +34,7 @@ Shunting Inhibition Mechanism
 
 Shunting inhibition provides a biologically plausible mechanism for gain control and normalization:
 
-.. figure:: ../../figures/architecture/shunting_inhibition_diagram.png
+.. figure:: ../../_static/shunting_inhibition_diagram.png
    :align: center
    :width: 800px
    :alt: Shunting inhibition mechanism
@@ -49,7 +49,7 @@ Input Transformation Pipeline
 
 The framework processes inputs through a specialized pipeline that separates excitatory and inhibitory pathways:
 
-.. figure:: ../../figures/architecture/ei_input_transformation.png
+.. figure:: ../../_static/ei_input_transformation.png
    :align: center
    :width: 900px
    :alt: E/I input transformation pipeline
@@ -61,7 +61,7 @@ Multi-Layer Networks
 
 Complex computations are achieved by stacking multiple layers of E/I neurons:
 
-.. figure:: ../../figures/architecture/multilayer_ei_network.png
+.. figure:: ../../_static/multilayer_ei_network.png
    :align: center
    :width: 800px
    :alt: Multi-layer E/I network
@@ -73,7 +73,7 @@ Complete Architecture Flow
 
 The complete network architecture integrates all components:
 
-.. figure:: ../../figures/architecture/network_architecture_overview.png
+.. figure:: ../../_static/network_architecture_overview.png
    :align: center
    :width: 1000px
    :alt: Network architecture overview
@@ -85,7 +85,7 @@ Computation Flow
 
 The dendritic computation flow shows how synaptic inputs are processed:
 
-.. figure:: ../../figures/architecture/dendritic_computation_flow.png
+.. figure:: ../../_static/dendritic_computation_flow.png
    :align: center
    :width: 700px
    :alt: Dendritic computation flow
