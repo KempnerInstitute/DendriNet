@@ -279,7 +279,7 @@ When visualizations are enabled, the framework generates the specified plots at 
 
 Visualizations are saved in the output directory and can also be logged to W&B.
 
-.. figure:: figures/pdf/place_holder.pdf
+.. figure:: ../../../_static/experiment_tracking.png
    :alt: Experiment Tracking System
    :width: 600px
    :align: center
