@@ -187,6 +187,22 @@ class SingleLayerContributionAnalysisConfig(BaseConfig):
 
 
 @dataclass
+class CorrelationAnalysisParams(BaseConfig):
+    compute_synaptic_correlations: bool = True
+    compute_tuning_curves: bool = True
+    save_plots: bool = True
+
+
+@dataclass
+class CorrelationAnalysisConfig(BaseConfig):
+    enabled: bool = False
+    training: bool = False
+    params: CorrelationAnalysisParams = field(
+        default_factory=CorrelationAnalysisParams
+    )
+
+
+@dataclass
 class AnalysisConfig(BaseConfig):
     performance_analysis: PerformanceAnalysisConfig = field(
         default_factory=PerformanceAnalysisConfig
@@ -214,4 +230,7 @@ class AnalysisConfig(BaseConfig):
     )
     information_analysis: InformationAnalysisConfig = field(
         default_factory=InformationAnalysisConfig
+    )
+    correlation_analysis: CorrelationAnalysisConfig = field(
+        default_factory=CorrelationAnalysisConfig
     )
