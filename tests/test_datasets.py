@@ -31,9 +31,9 @@ from dendritic_modeling.datasets import (
     OrthoNetDataset,
     RandomFlipMNISTDataset,
     PoissonGeneratorDataset,
-    get_data_directory,
-    split_MNIST_inputs
+    get_data_directory
 )
+from dendritic_modeling.plotting.utils import split_MNIST_inputs
 
 
 class TestSyntheticDatasets(unittest.TestCase):

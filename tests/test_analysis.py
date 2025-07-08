@@ -19,11 +19,12 @@ from unittest.mock import Mock, patch, MagicMock
 from dendritic_modeling.analysis import (
     PerformanceAnalyzer,
     AblationAnalyzer,
-    EIInformationAnalyzer,
-    BranchInformationAnalyzer,
-    SynapticActivationAnalyzer,
+    InformationAnalyzer,
     BranchActivationAnalyzer,
     AnalysisManager
+)
+from dendritic_modeling.analysis.tools import (
+    SynapticActivationAnalyzer
 )
 from dendritic_modeling.networks import ExcitationInhibitionNetwork
 from dendritic_modeling.models import ProbabilisticClassifier
@@ -160,12 +161,14 @@ class TestAblationAnalyzer(unittest.TestCase):
             self.assertIsInstance(results, dict)
 
 
-class TestEIInformationAnalyzer(unittest.TestCase):
-    """Test the EI Information Analyzer class."""
+class TestInformationAnalyzer(unittest.TestCase):
+    """Test the Information Analyzer class."""
     
     def setUp(self):
         """Set up test fixtures."""
-        self.analyzer = EIInformationAnalyzer(device="cpu")
+        from dendritic_modeling.config import InformationAnalysisParams
+        params = InformationAnalysisParams()
+        self.analyzer = InformationAnalyzer(params)
         
         # Create test model
         self.model = ProbabilisticClassifier(
@@ -188,7 +191,7 @@ class TestEIInformationAnalyzer(unittest.TestCase):
     
     def test_analyzer_initialization(self):
         """Test analyzer initialization."""
-        self.assertIsInstance(self.analyzer, EIInformationAnalyzer)
+        self.assertIsInstance(self.analyzer, InformationAnalyzer)
     
     def test_mutual_information_analysis(self):
         """Test mutual information computation."""
@@ -197,9 +200,10 @@ class TestEIInformationAnalyzer(unittest.TestCase):
             with patch.object(self.analyzer, '_compute_mutual_information') as mock_mi:
                 mock_mi.return_value = 0.5
                 
-                results = self.analyzer.analyze_ei_information(
+                results = self.analyzer.analyze(
                     model=self.model,
-                    test_data=self.test_data,
+                    test_dataset=self.test_data,
+                    device="cpu",
                     save_path=tmpdir
                 )
                 
