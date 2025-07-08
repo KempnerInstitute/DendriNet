@@ -13,8 +13,8 @@ import traceback
 from dendritic_modeling.plotting.analysis import plot_einet_activations
 from dendritic_modeling.plotting.network import plot_dendrinet_gradients, plot_einet_params
 from dendritic_modeling.plotting.utils import split_MNIST_inputs
-from dendritic_modeling.analysis.branch_interactive import InteractiveBranchAnalyzer
-from dendritic_modeling.analysis.dendrite_comprehensive import ComprehensiveDendriticAnalyzer
+# from dendritic_modeling.analysis.branch_interactive import InteractiveBranchAnalyzer
+# from dendritic_modeling.analysis.dendrite_comprehensive import ComprehensiveDendriticAnalyzer
 
 logger = logging.getLogger(__name__)
 
@@ -50,8 +50,8 @@ class PlotManager:
         )
         
         # Initialize specialized analyzers
-        self.branch_analyzer = InteractiveBranchAnalyzer(device=device)
-        self.dendritic_analyzer = ComprehensiveDendriticAnalyzer(device=device)
+        # self.branch_analyzer = InteractiveBranchAnalyzer(device=device)
+        # self.dendritic_analyzer = ComprehensiveDendriticAnalyzer(device=device)
         
         # Define available plot methods
         self.plot_methods = {

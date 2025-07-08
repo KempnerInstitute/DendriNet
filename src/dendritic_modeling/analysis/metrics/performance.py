@@ -11,14 +11,14 @@ import torch
 from torch.utils.data import TensorDataset
 
 from dendritic_modeling.models import BaseModel
-from dendritic_modeling.utils import (
+from dendritic_modeling.training.utils.evaluation import (
     evaluate_accuracy,
     evaluate_auc,
     evaluate_categorical_loglikelihood,
     evaluate_mse,
     evaluate_cosine_similarity,
-    save_dict,
 )
+from dendritic_modeling.utils import save_dict
 from dendritic_modeling.config import PerformanceAnalysisParams
 
 
