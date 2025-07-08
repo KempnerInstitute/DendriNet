@@ -16,7 +16,7 @@ The fundamental computational unit in our framework is the dendritic neuron, whi
    :width: 600px
    :alt: Basic dendritic neuron architecture
 
-   **Basic Dendritic Neuron**: Shows excitatory (red triangles) and inhibitory (blue circles) synaptic inputs converging on dendritic branches. The soma integrates these inputs using divisive normalization.
+   **Basic Dendritic Neuron**: Shows excitatory (red triangles) and inhibitory (blue circles) synaptic inputs arriving at dendritic branches. Each dendrite performs divisive normalization computation locally, and the soma integrates the processed outputs from all dendrites.
 
 Each neuron computes its output using the formula:
 
@@ -39,7 +39,7 @@ Shunting inhibition provides a biologically plausible mechanism for gain control
    :width: 800px
    :alt: Shunting inhibition mechanism
 
-   **Shunting Inhibition**: Left panel shows the mechanism where inhibition divisively modulates excitation. Right panel demonstrates the divisive normalization effect - increasing inhibition reduces the gain without changing the shape of the response curve.
+   **Shunting Inhibition in Dendritic Processing**: Shows how dendrites perform shunting inhibition computation. Each dendrite receives excitatory and inhibitory synaptic inputs and computes the divisive normalization locally. Dendrites can also receive inputs from previous dendritic layers. The soma integrates the processed outputs from all dendrites.
 
 Network Architecture
 -------------------
@@ -90,7 +90,7 @@ The dendritic computation flow shows how synaptic inputs are processed:
    :width: 700px
    :alt: Dendritic computation flow
 
-   **Computation Flow**: Illustrates how multiple excitatory and inhibitory synaptic inputs are summed separately and then combined through division to produce the output voltage.
+   **Computation Flow**: Illustrates how multiple excitatory and inhibitory synaptic inputs are received by dendrites, summed separately at each dendrite, and then combined through shunting inhibition division to produce each dendrite's output voltage.
 
 Implementation Details
 --------------------

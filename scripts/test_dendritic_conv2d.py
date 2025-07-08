@@ -22,7 +22,7 @@ if __name__ == "__main__":
     
     try:
         run_all_tests()
-        print("\n✅ All tests completed successfully!")
+        print("\nAll tests completed successfully!")
     except Exception as e:
-        print(f"\n❌ Test failed with error: {e}")
-        sys.exit(1) 
+        print(f"\nTest failed with error: {e}")
+        raise 

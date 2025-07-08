@@ -44,7 +44,7 @@ The fastest way to get started is using our conda environment file:
     pip install -e .
 
     # Verify installation
-    python -c "import dendritic_modeling; print('✓ Installation successful!')"
+    python -c "import dendritic_modeling; print('Installation successful!')"
 
 This creates a complete development environment with testing, code quality tools, and all optional dependencies.
 
@@ -252,7 +252,7 @@ Basic Verification
 .. code-block:: bash
 
     # Test basic functionality
-    python -c "import dendritic_modeling; print('✓ Package imported successfully')"
+    python -c "import dendritic_modeling; print('Installation successful!')"
 
     # Test all core dependencies
     python -c "
@@ -262,7 +262,7 @@ Basic Verification
     import pandas as pd
     import numpy as np
     import dendritic_modeling
-    print('✓ All core dependencies working')
+    print('All core dependencies working')
     "
 
 Comprehensive Testing
