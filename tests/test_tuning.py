@@ -4,7 +4,7 @@ import unittest
 
 import torch
 
-from dendritic_modeling.dendrinet import DendriNet
+from dendritic_modeling.networks import DendriNet
 from dendritic_modeling.tuning import DendriNetTuner
 
 

@@ -3,7 +3,7 @@ import unittest
 import torch
 import torch.nn as nn
 
-from dendritic_modeling.dendrinet import BlockLinear, DendriticBranchLayer, TopKLinear
+from dendritic_modeling.networks import BlockLinear, DendriticBranchLayer, TopKLinear
 
 
 class TestDendriticBranchLayer(unittest.TestCase):
