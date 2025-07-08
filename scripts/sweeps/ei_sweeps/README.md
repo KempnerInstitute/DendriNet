@@ -1,8 +1,8 @@
-# EI Sweeps - Excitation-Inhibition Parameter Sweeps
+# EI Parameter Sweeps
 
-This directory contains scripts for comprehensive parameter sweeps over excitation-inhibition (EI) parameters for dendritic networks.
+Specialized tools for exploring excitatory-inhibitory parameter spaces in dendritic models.
 
-## 📁 Scripts Overview
+## Scripts Overview
 
 ### `generate_ei_sweep.py` (45KB, 1066 lines)
 **Purpose**: Generate EI sweep configurations with advanced filtering options.
@@ -79,7 +79,7 @@ python rerun_missing_configs.py --ei-folder ei_20250411144518
 python rerun_missing_configs.py --ei-folder ei_20250411144518 --submit
 ```
 
-## 🔧 Configuration Requirements
+## Configuration Requirements
 
 ### EI Sweep Configuration File
 Create `configs/sweep_params_seeds_ei.yaml`:
@@ -134,7 +134,7 @@ train_config:
     seed: 42
 ```
 
-## 🚀 Workflow Examples
+## Workflow Examples
 
 ### Complete EI Sweep Pipeline
 
@@ -171,7 +171,7 @@ done
 python analyze_ei_sweep.py --all --report-missing
 ```
 
-## 📊 Filtering Modes
+## Filtering Modes
 
 ### Available Filter Types
 
@@ -201,7 +201,7 @@ python generate_ei_sweep.py configs/sweep_params_seeds_ei.yaml \
     --filter-mode ei-ratio --filter-value 2.0 --filter-tolerance 0.1
 ```
 
-## 🔬 Network Type Comparison
+## Network Type Comparison
 
 The scripts support comparing different network architectures:
 
@@ -211,7 +211,7 @@ The scripts support comparing different network architectures:
 
 This enables direct comparison between dendritic (EINet) and non-dendritic (MLP) architectures in the same sweep.
 
-## 📈 Output Structure
+## Output Structure
 
 ```
 output/
@@ -235,7 +235,7 @@ output/
     └── rerun_missing.sh (if needed)
 ```
 
-## 🐛 Troubleshooting
+## Troubleshooting
 
 ### Common Issues
 

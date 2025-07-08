@@ -62,7 +62,7 @@ from .classifiers import (
 )
 
 # Manager
-from .manager import AnalysisManager
+from .managers.analysis_manager import AnalysisManager
 
 __all__ = [
     # Core
