@@ -15,16 +15,16 @@ import torch
 from dendritic_modeling.models import BaseModel
 from dendritic_modeling.config import AnalysisConfig
 
-from dendritic_modeling.analysis.performance import PerformanceAnalyzer
-from dendritic_modeling.analysis.noise_perturbation import NoisePerturbationAnalyzer
-from dendritic_modeling.analysis.ablation import AblationAnalyzer
-from dendritic_modeling.analysis.layer_contribution import SingleLayerContributionAnalyzer
-from dendritic_modeling.analysis.synaptic_turnover import SynapticTurnoverAnalyzer
-from dendritic_modeling.analysis.weight import WeightAnalyzer
-from dendritic_modeling.analysis.synaptic_activation import SynapticActivationAnalyzer
-from dendritic_modeling.analysis.branch_activation import BranchActivationAnalyzer
-from dendritic_modeling.analysis.information import InformationAnalyzer
-from dendritic_modeling.analysis.correlation_analysis import CorrelationAnalyzer
+from dendritic_modeling.analysis.metrics.performance import PerformanceAnalyzer
+from dendritic_modeling.analysis.metrics.noise_perturbation import NoisePerturbationAnalyzer
+from dendritic_modeling.analysis.core.ablation import AblationAnalyzer
+from dendritic_modeling.analysis.metrics.layer_contribution import SingleLayerContributionAnalyzer
+from dendritic_modeling.analysis.tools.synaptic_turnover import SynapticTurnoverAnalyzer
+from dendritic_modeling.analysis.tools.weight import WeightAnalyzer
+from dendritic_modeling.analysis.tools.synaptic_activation import SynapticActivationAnalyzer
+from dendritic_modeling.analysis.core.branch_activation import BranchActivationAnalyzer
+from dendritic_modeling.analysis.core.information import InformationAnalyzer
+from dendritic_modeling.analysis.tools.correlation_analysis import CorrelationAnalyzer
 
 
 class AnalysisManager:
