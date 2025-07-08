@@ -273,13 +273,13 @@ def create_dendritic_diagram(filename, width=800, height=600):
 def _run_external_figure_generators():
     """Import and run the advanced figure generators if the script exists.
 
-    The external script lives at ../../scripts/generate_documentation_figures.py
+    The external script lives at ../../scripts/documentation_tools/generate_documentation_figures.py
     (relative to this file). We dynamically load it, override its OUTPUT_DIR so
     it writes directly into the local ``_static`` directory, then invoke every
     callable whose name starts with ``create_``.
     """
 
-    script_path = Path(__file__).resolve().parent.parent / "scripts" / "generate_documentation_figures.py"
+    script_path = Path(__file__).resolve().parent.parent / "scripts" / "documentation_tools" / "generate_documentation_figures.py"
 
     if not script_path.exists():
         print("External figure generation script not found – skipping advanced diagrams.")
