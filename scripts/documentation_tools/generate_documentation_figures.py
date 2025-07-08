@@ -575,109 +575,162 @@ def create_dendritic_computation_flow():
 
 
 def _save(fig, name):
-    """Helper to save fig at high DPI to OUTPUT_DIR."""
+    """Helper to save fig at high DPI to OUTPUT_DIR in both PNG and SVG formats."""
     fig.tight_layout()
-    fig.savefig(os.path.join(OUTPUT_DIR, name), dpi=300, bbox_inches="tight", facecolor="white")
+    
+    # Save PNG
+    png_path = os.path.join(OUTPUT_DIR, name)
+    fig.savefig(png_path, dpi=300, bbox_inches="tight", facecolor="white")
+    
+    # Save SVG
+    svg_name = name.replace('.png', '.svg')
+    svg_path = os.path.join(OUTPUT_DIR, svg_name)
+    fig.savefig(svg_path, format='svg', bbox_inches="tight", facecolor="white")
+    
     plt.close(fig)
 
 
 def create_einet_architecture():
-    """Create a clear EINet architecture diagram showing E/I separation and dendritic processing."""
+    """Create the main architecture diagram showcasing the dendritic modeling framework."""
     
-    fig, ax = plt.subplots(figsize=(12, 8))
+    fig, ax = plt.subplots(figsize=(14, 8))
     
-    # Define components
-    components = [
-        {"name": "Input\nImage", "x": 1, "y": 4, "w": 1.5, "h": 1.5, "color": "#e0f7fa"},
-        {"name": "Conv\nLayers", "x": 3.5, "y": 4, "w": 1.5, "h": 1.5, "color": "#c5e1a5"},
-        {"name": "E/I\nSeparation", "x": 6, "y": 4, "w": 1.5, "h": 1.5, "color": "#ffccbc"},
-    ]
+    # Title
+    ax.text(7, 7.2, "Dendritic Modeling Framework Architecture", 
+           ha="center", fontsize=20, weight="bold")
     
-    # Draw components
-    for comp in components:
-        box = FancyBboxPatch((comp["x"] - comp["w"]/2, comp["y"] - comp["h"]/2), 
-                            comp["w"], comp["h"], 
-                            boxstyle="round,pad=0.15", 
-                            facecolor=comp["color"], 
-                            ec="#333333", 
-                            lw=2)
-        ax.add_patch(box)
-        add_shadow(box)
-        ax.text(comp["x"], comp["y"], comp["name"], 
-               ha="center", va="center", fontsize=12, weight="bold")
+    # Input stage
+    input_box = FancyBboxPatch((0.5, 3), 2, 2, 
+                              boxstyle="round,pad=0.15", 
+                              facecolor="#e8f5e9", 
+                              ec="#2e7d32", lw=2)
+    ax.add_patch(input_box)
+    add_shadow(input_box)
+    ax.text(1.5, 4, "Input\nData", ha="center", va="center", 
+           fontsize=12, weight="bold")
     
-    # E/I input channels
-    e_inputs = FancyBboxPatch((7.5, 4.5), 2, 1.2, 
-                             boxstyle="round,pad=0.1", 
-                             facecolor=COLORS["excitatory"], 
-                             ec="#333333", lw=2, alpha=0.8)
-    i_inputs = FancyBboxPatch((7.5, 2.8), 2, 1.2, 
-                             boxstyle="round,pad=0.1", 
-                             facecolor=COLORS["inhibitory"], 
-                             ec="#333333", lw=2, alpha=0.8)
-    ax.add_patch(e_inputs)
-    ax.add_patch(i_inputs)
-    add_shadow(e_inputs)
-    add_shadow(i_inputs)
+    # Feature extraction
+    feature_box = FancyBboxPatch((3.5, 3), 2, 2, 
+                                boxstyle="round,pad=0.15", 
+                                facecolor="#e3f2fd", 
+                                ec="#1976d2", lw=2)
+    ax.add_patch(feature_box)
+    add_shadow(feature_box)
+    ax.text(4.5, 4, "Feature\nExtraction", ha="center", va="center", 
+           fontsize=12, weight="bold")
     
-    ax.text(8.5, 5.1, "Excitatory\nInputs", ha="center", va="center", 
+    # E/I Separation - the key innovation
+    ei_group = FancyBboxPatch((6.5, 1.5), 3, 5, 
+                             boxstyle="round,pad=0.2", 
+                             facecolor="#fff8e1", 
+                             ec="#f57c00", lw=2.5)
+    ax.add_patch(ei_group)
+    add_shadow(ei_group)
+    
+    # E pathway
+    e_path = FancyBboxPatch((7, 4.5), 2, 1.5, 
+                           boxstyle="round,pad=0.1", 
+                           facecolor=COLORS["excitatory"], 
+                           ec="#333333", lw=2, alpha=0.9)
+    ax.add_patch(e_path)
+    ax.text(8, 5.25, "Excitatory\nPathway", ha="center", va="center", 
            fontsize=11, color="white", weight="bold")
-    ax.text(8.5, 3.4, "Inhibitory\nInputs", ha="center", va="center", 
+    
+    # I pathway
+    i_path = FancyBboxPatch((7, 2.2), 2, 1.5, 
+                           boxstyle="round,pad=0.1", 
+                           facecolor=COLORS["inhibitory"], 
+                           ec="#333333", lw=2, alpha=0.9)
+    ax.add_patch(i_path)
+    ax.text(8, 2.95, "Inhibitory\nPathway", ha="center", va="center", 
            fontsize=11, color="white", weight="bold")
     
-    # Dendritic computation
-    dendrite = FancyBboxPatch((10, 3), 2, 2.5, 
-                             boxstyle="round,pad=0.15", 
-                             facecolor=COLORS["dendrite"], 
-                             ec="#333333", lw=2)
-    ax.add_patch(dendrite)
-    add_shadow(dendrite)
+    # Label for E/I group
+    ax.text(8, 6.2, "E/I Separation", ha="center", fontsize=11, 
+           weight="bold", style="italic")
     
-    # Division formula inside dendrite
-    ax.text(11, 4.2, "Dendritic", ha="center", fontsize=12, weight="bold", color="white")
-    ax.text(11, 3.7, "Computation", ha="center", fontsize=12, weight="bold", color="white")
-    ax.text(11, 3.0, r"$\frac{E}{E+I+\epsilon}$", ha="center", fontsize=14, color="white")
+    # Dendritic computation - the core
+    dendrite_box = FancyBboxPatch((10, 2.5), 3, 3, 
+                                 boxstyle="round,pad=0.2", 
+                                 facecolor=COLORS["dendrite"], 
+                                 ec="#333333", lw=2.5)
+    ax.add_patch(dendrite_box)
+    add_shadow(dendrite_box, dx=3, dy=-3)
+    
+    ax.text(11.5, 4.8, "Dendritic", ha="center", fontsize=14, 
+           weight="bold", color="white")
+    ax.text(11.5, 4.3, "Computation", ha="center", fontsize=14, 
+           weight="bold", color="white")
+    
+    # The key equation
+    eq_box = Rectangle((10.3, 2.8), 2.4, 1, facecolor="white", 
+                      ec="black", lw=1.5, alpha=0.9)
+    ax.add_patch(eq_box)
+    ax.text(11.5, 3.3, r"$V = \frac{E}{E+I+\epsilon}$", ha="center", 
+           fontsize=16, weight="bold")
     
     # Output
-    output_box = FancyBboxPatch((12.5, 3.5), 1.5, 1.5, 
+    output_box = FancyBboxPatch((13.8, 3), 2, 2, 
                                boxstyle="round,pad=0.15", 
-                               facecolor="#ffe0b2", 
-                               ec="#333333", lw=2)
+                               facecolor="#fce4ec", 
+                               ec="#c2185b", lw=2)
     ax.add_patch(output_box)
     add_shadow(output_box)
-    ax.text(13.25, 4.25, "Output", ha="center", fontsize=12, weight="bold")
+    ax.text(14.8, 4, "Output", ha="center", va="center", 
+           fontsize=12, weight="bold")
     
-    # Arrows
+    # Connections with arrows
     arrows = [
-        ((2.25, 4.25), (2.75, 4.25)),  # Input to Conv
-        ((4.75, 4.25), (5.25, 4.25)),  # Conv to E/I
-        ((6.75, 4.5), (7.5, 5.1)),     # To E inputs
-        ((6.75, 3.5), (7.5, 3.4)),     # To I inputs
-        ((9.5, 5.1), (10, 4.1)),       # E to dendrite
-        ((9.5, 3.4), (10, 3.9)),       # I to dendrite
-        ((12, 4.25), (12.5, 4.25)),    # Dendrite to output
+        # Input flow
+        ((2.5, 4), (3.5, 4), "Data"),
+        ((5.5, 4), (6.5, 4), "Features"),
+        # E/I split
+        ((6.5, 4.2), (7, 5.25), None),
+        ((6.5, 3.8), (7, 2.95), None),
+        # To dendrite
+        ((9, 5.25), (10.2, 4.5), "E"),
+        ((9, 2.95), (10.2, 3.5), "I"),
+        # Output
+        ((13, 4), (13.8, 4), "Normalized")
     ]
     
-    for start, end in arrows:
+    for start, end, label in arrows:
         arrow = FancyArrowPatch(start, end, 
                                arrowstyle="-|>", 
-                               mutation_scale=15, 
-                               lw=2, 
-                               color=COLORS["arrow"])
+                               mutation_scale=20, 
+                               lw=2.5, 
+                               color="#424242")
         ax.add_patch(arrow)
-        add_shadow(arrow)
+        add_shadow(arrow, alpha=0.2)
+        
+        if label:
+            # Calculate midpoint
+            mid_x = (start[0] + end[0]) / 2
+            mid_y = (start[1] + end[1]) / 2
+            ax.text(mid_x, mid_y + 0.2, label, ha="center", 
+                   fontsize=9, style="italic", color="#666666")
     
-    # Annotations
-    ax.text(2.25, 3.0, "Raw pixels", ha="center", fontsize=9, style="italic", color="#666666")
-    ax.text(4.75, 3.0, "Features", ha="center", fontsize=9, style="italic", color="#666666")
-    ax.text(6.75, 2.2, "Separate\nchannels", ha="center", fontsize=9, style="italic", color="#666666")
-    ax.text(11, 2.0, "Shunting\ninhibition", ha="center", fontsize=9, style="italic", color="#666666")
+    # Key features boxes
+    features = [
+        (1.5, 1, "✓ Biological plausibility"),
+        (4.5, 1, "✓ Divisive normalization"),
+        (8, 0.5, "✓ Separate E/I pathways"),
+        (11.5, 1, "✓ Gain control"),
+        (14.5, 1, "✓ Flexible architecture")
+    ]
     
-    ax.set_xlim(0, 14.5)
-    ax.set_ylim(1.5, 6)
+    for x, y, text in features:
+        feat_box = FancyBboxPatch((x-1, y-0.2), 2, 0.4, 
+                                 boxstyle="round,pad=0.05", 
+                                 facecolor="#f5f5f5", 
+                                 ec="#9e9e9e", lw=1)
+        ax.add_patch(feat_box)
+        ax.text(x, y, text, ha="center", va="center", 
+               fontsize=8, color="#424242")
+    
+    ax.set_xlim(-0.5, 16.5)
+    ax.set_ylim(0, 7.8)
     ax.axis("off")
-    
-    ax.set_title("EINet Architecture: Excitatory/Inhibitory Network", fontsize=16, weight="bold")
     
     _save(fig, "einet_architecture.png")
 

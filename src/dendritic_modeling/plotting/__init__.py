@@ -70,11 +70,11 @@ from dendritic_modeling.plotting.network import (
 )
 
 # Import basic plotting functions
-from dendritic_modeling.plotting.basic import (
+from dendritic_modeling.plotting.simple_plots import (
     plotWithColor,
     add_colorbars,
     shape_helper,
-    plot_NLL_loss_curves as plot_NLL_loss_curves_basic
+    plot_NLL_loss_curves,
 )
 
 # Import utility functions
@@ -142,7 +142,7 @@ __all__ = [
     
     # Basic plotting functions (excluding plotWithColor and add_colorbars as they're in network)
     "shape_helper",
-    "plot_NLL_loss_curves_basic",
+    "plot_NLL_loss_curves",
     
     # Utility functions
     "reverse_layer_indices",
