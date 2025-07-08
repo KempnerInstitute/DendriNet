@@ -78,3 +78,43 @@ class LoggerManager:
         os.makedirs(log_dir, exist_ok=True)
         log_file = os.path.join(log_dir, os.path.basename(self.file_path))
         self.set_log_file(log_file)
+
+
+# Wrapper functions for backward compatibility
+def setup_logging(log_dir=None, debug=False):
+    """Setup logging with optional directory and debug level.
+    
+    Args:
+        log_dir (str, optional): Directory to save log files. 
+                               If None, uses default from environment or 'logs'
+        debug (bool, optional): If True, sets console logging to DEBUG level
+    
+    Returns:
+        logging.Logger: The configured logger instance
+    """
+    manager = LoggerManager()
+    
+    if log_dir:
+        manager.set_log_directory(log_dir)
+    
+    if debug:
+        # Set console handler to DEBUG level
+        for handler in manager.logger.handlers:
+            if isinstance(handler, logging.StreamHandler) and not isinstance(handler, logging.FileHandler):
+                handler.setLevel(logging.DEBUG)
+                break
+    
+    return manager.get_logger()
+
+
+def get_logger(name=None):
+    """Get the logger instance.
+    
+    Args:
+        name (str, optional): Logger name (ignored, maintained for compatibility)
+        
+    Returns:
+        logging.Logger: The configured logger instance
+    """
+    manager = LoggerManager()
+    return manager.get_logger()

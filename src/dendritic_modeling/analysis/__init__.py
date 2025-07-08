@@ -34,7 +34,7 @@ from .core import (
 # Metrics
 from .metrics import (
     PerformanceAnalyzer,
-    LayerContributionAnalyzer,
+    SingleLayerContributionAnalyzer,
     NoisePerturbationAnalyzer,
     orientation_selectivity_index,
     direction_selectivity_index,
@@ -71,7 +71,7 @@ __all__ = [
     "InformationAnalyzer",
     # Metrics
     "PerformanceAnalyzer",
-    "LayerContributionAnalyzer",
+    "SingleLayerContributionAnalyzer",
     "NoisePerturbationAnalyzer",
     "orientation_selectivity_index",
     "direction_selectivity_index",
