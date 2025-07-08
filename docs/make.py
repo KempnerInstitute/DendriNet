@@ -412,7 +412,6 @@ def main():
         "training_strategies.png",
         "sequential_vs_joint.png",
         "head_training_strategies.png",
-        "input_modes_comparison.png",
         "learning_strategies.png",
         "dendritic_computation.png",
         "ablation_visualization.png",
