@@ -38,7 +38,7 @@ Differentiable losses for training:
 - `loss_endstop`: Length tuning curves
 - `loss_sparsity`: Activity sparsity
 
-### 5. Visual Metrics (`src/dendritic_modeling/metrics/visual.py`)
+### 5. Visual Metrics (`src/dendritic_modeling/analysis/performance/visual.py`)
 Standard neuroscience metrics:
 - Orientation Selectivity Index (OSI)
 - Direction Selectivity Index (DSI)
@@ -69,8 +69,8 @@ on_center = create_center_surround_unit(kind="on", center_size=5, surround_size=
 ### Testing Visual Properties
 
 ```python
-from dendritic_modeling.stimuli.gratings import create_static_grating
-from dendritic_modeling.metrics.visual import orientation_selectivity_index
+from dendritic_modeling.datasets.stimuli.gratings import create_static_grating
+from dendritic_modeling.analysis.performance.visual import orientation_selectivity_index
 
 # Test orientation tuning
 orientations = np.linspace(0, 180, 37)
@@ -92,7 +92,7 @@ print(f"OSI = {osi:.3f}")  # Should be > 0.8 for good selectivity
 ### Converting CNN to Dendritic
 
 ```python
-from dendritic_modeling.networks.convert.conv_to_dendrite import conv2d_to_dendrite
+from dendritic_modeling.networks.convert.cnn_to_dendrite import conv2d_to_dendrite
 
 # Convert existing Conv2d layer
 conv_layer = nn.Conv2d(3, 64, 7)
@@ -133,11 +133,11 @@ total_loss = task_loss + bio_loss
 
 ```bash
 # Test visual properties
-python -m dendritic_modeling.tests.test_property_match
+python tests/test_property_match.py
 
 # Run demos
-python src/dendritic_modeling/demos/gabor_orientation.py
-python src/dendritic_modeling/demos/motion_DS.py
+python scripts/gabor_orientation.py
+python scripts/motion_DS.py
 ```
 
 ## References
