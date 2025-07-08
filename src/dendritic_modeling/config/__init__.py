@@ -17,7 +17,10 @@ from dendritic_modeling.config.model import (
 )
 
 from dendritic_modeling.config.training import (
+    ParamGroupsConfig,
     TrainerConfig,
+    EncoderTrainConfig,
+    MainTrainConfig,
     TrainConfig
 )
 
@@ -60,8 +63,12 @@ __all__ = [
     "DecoderNetworkConfig",
     "TransferFunctionParams",
     "ModelConfig",
+
     "TrainerConfig",
     "TrainConfig",
+    "ParamGroupsConfig",
+    "EncoderTrainConfig",
+    "MainTrainConfig",
     "VisualizationConfig",
     "WandbConfig",
     "TaskConfig",
