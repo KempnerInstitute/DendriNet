@@ -13,38 +13,26 @@ release = "0.1.0"
 # -- Project information -----------------------------------------------------
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#project-information
 
-project = "dendritic_modeling"
+project = "Dendritic Modeling Framework"
 copyright = "2025, Research and Engineering at Kempner"
 author = "Research and Engineering at Kempner"
 
 # -- General configuration ---------------------------------------------------
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#general-configuration
 
+# Use only basic extensions that come with Sphinx
 extensions = [
-    "sphinx.ext.intersphinx",
     "sphinx.ext.autodoc",  # Automatically document from docstrings
     "sphinx.ext.napoleon",  # Support for Google and NumPy style docstrings
     "sphinx.ext.viewcode",  # Add links to highlighted source code
     "sphinx.ext.autosummary",  # Generate summary tables for modules/classes
     "sphinx.ext.doctest",
     "sphinx.ext.mathjax",
-    "nbsphinx",
-    "myst_parser",  # Support for Markdown files (if using Markdown)
     "sphinx.ext.autosectionlabel",
     "sphinx.ext.githubpages",
-    "sphinx_copybutton",
-    "sphinxcontrib.bibtex",
 ]
 
-myst_enable_extensions = [
-    "dollarmath",
-    "amsmath",
-    "colon_fence",
-    "smartquotes",
-    "linkify",
-    "substitution",
-]
-
+# Napoleon configuration for docstring parsing
 napoleon_google_docstring = False
 napoleon_numpy_docstring = True
 napoleon_include_init_with_doc = True
@@ -59,13 +47,8 @@ napoleon_preprocess_types = False
 napoleon_type_aliases = None
 autosectionlabel_prefix_document = True
 
-
-bibtex_bibfiles = ["refs.bib"]
-
-
 # Enable syntax highlighting
-pygments_style = "default"  # You can also use 'default' or other pygments styles
-
+pygments_style = "default"
 
 # Figure numbers
 numfig = True
@@ -80,9 +63,48 @@ numfig_format = {
 templates_path = ["_templates"]
 exclude_patterns = ["_build", "Thumbs.db", ".DS_Store"]
 
-
 # -- Options for HTML output -------------------------------------------------
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#options-for-html-output
 
 html_theme = "sphinx_rtd_theme"
 html_static_path = ["_static"]
+
+# Additional HTML theme options
+html_theme_options = {
+    'collapse_navigation': False,
+    'sticky_navigation': True,
+    'navigation_depth': 4,
+    'includehidden': True,
+    'titles_only': False
+}
+
+# The master toctree document
+master_doc = 'index'
+
+# The suffix(es) of source filenames
+source_suffix = '.rst'
+
+# The encoding of source files
+source_encoding = 'utf-8-sig'
+
+# Add any paths that contain custom static files (such as style sheets) here,
+# relative to this directory. They are copied after the builtin static files,
+# so a file named "default.css" will overwrite the builtin "default.css".
+html_static_path = ['_static']
+
+# Custom CSS files
+html_css_files = []
+
+# If true, the current module name will be prepended to all description
+# unit titles (such as .. function::).
+add_module_names = True
+
+# If true, sectionauthor and moduleauthor directives will be shown in the
+# output. They are ignored by default.
+show_authors = False
+
+# The name of the Pygments (syntax highlighting) style to use.
+pygments_style = 'sphinx'
+
+# A list of ignored prefixes for module index sorting.
+modindex_common_prefix = ['dendritic_modeling.']
