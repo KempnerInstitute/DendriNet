@@ -1,182 +1,140 @@
-# General Sweeps - Universal Parameter Sweep Utilities
+# General Parameter Sweeps
 
-This directory contains general-purpose parameter sweep utilities that can be used for any model parameters in the dendritic modeling framework.
+Tools for running general parameter sweeps on dendritic models.
 
-## 📁 Scripts Overview
+## Scripts Overview
 
-### `generate_sweep_configs.py` (21KB, 614 lines)
-**Purpose**: Universal sweep configuration generator for any parameter combinations.
+### `generate_sweep_configs.py`
+Generates configuration files for parameter sweeps based on a YAML specification.
 
-**Key Features**:
-- Flexible parameter specification via YAML configuration
-- SLURM job script generation
-- Multiple seeds per condition support
-- Nested parameter path support (e.g., `model.network.parameters.layers`)
-- Custom output directory organization
-- Array job and single job modes
+Features:
+- Grid search over multiple parameters
+- Cartesian product of all parameter combinations
+- Automatic SLURM job script generation
+- Flexible configuration format
 
-**Usage**:
-```bash
-# Basic sweep generation
-python generate_sweep_configs.py configs sweep_params.yaml
+### `analyze_sweep_results.py`
+Analyzes results from parameter sweeps and generates visualizations.
 
-# Specify custom directories
-python generate_sweep_configs.py --config-dir configs --param-filename sweep_params.yaml
+Features:
+- Aggregates results across multiple runs
+- Creates performance heatmaps
+- Identifies best parameter combinations
+- Generates summary statistics
 
-# Output to specific directory
-python generate_sweep_configs.py configs sweep_params.yaml --output-dir custom_sweep
-```
+### `sweep_utils.py`
+Utility functions for parameter sweeps.
 
-### `analyze_sweep_results.py` (19KB, 610 lines)
-**Purpose**: General analysis and visualization for any parameter sweep results.
+Features:
+- Configuration file parsing
+- Result file management
+- Data aggregation helpers
 
-**Key Features**:
-- Automatic result collection from sweep directories
-- Performance metric extraction and analysis
-- Parameter correlation analysis
-- Statistical summary generation
-- Customizable visualization options
+## Configuration Format
 
-**Usage**:
-```bash
-# Analyze sweep results
-python analyze_sweep_results.py --results-dir output/sweep_results
-
-# Custom output directory for plots
-python analyze_sweep_results.py --results-dir output/sweep_results --output-dir plots/analysis
-
-# Include statistical analysis
-python analyze_sweep_results.py --results-dir output/sweep_results --statistical-analysis
-```
-
-## 🔧 Configuration Format
-
-### Sweep Parameters Configuration
-
-Create `configs/sweep_params.yaml`:
+Example sweep configuration (`sweep_params.yaml`):
 
 ```yaml
-# SLURM job configuration
+# SLURM configuration
 slurm_config:
-  run_name: "parameter_sweep"
+  run_name: "general_sweep"
   account: "kempner_dev"
   partition: "kempner"
-  time: "01:00:00"
+  time: "02:00:00"
   nodes: 1
   ntasks_per_node: 1
   gpus_per_node: 1
   cpus_per_task: 4
-  mem: "16G"
-  max_concurrent_jobs: 20
+  mem: "32G"
   modules_to_load: ["cuda/12.1.0-fasrc01"]
-  conda_env_path: "/path/to/conda/envs/dendritic_env_ts"
+  conda_env_path: "/path/to/conda/envs/dendritic_env"
   training_script: "src/dendritic_modeling/scripts/train_experiments.py"
 
 # Base training configuration
 train_config:
   task:
-    dataset: "multixor"
-    parameters:
-      num_samples: 5000
+    dataset: "mnist"
   
   model:
     network:
       type: "EINet"
       parameters:
         num_layers: 3
-        num_branches_per_layer: 10
         
   train:
     optimizer: "adam"
-    learning_rate: 0.001
     batch_size: 64
     num_epochs: 100
-    seed: 42
 
 # Parameters to sweep
 sweep_config:
-  train.learning_rate: [0.001, 0.01, 0.1]
+  train.learning_rate: [0.0001, 0.001, 0.01]
   train.batch_size: [32, 64, 128]
   model.network.parameters.num_layers: [2, 3, 4, 5]
-  model.network.parameters.num_branches_per_layer: [5, 10, 15, 20]
+  model.network.parameters.use_shunting: [true, false]
 
 # Experiment settings
 experiment_settings:
-  seeds_per_condition: 5
+  seeds_per_condition: 3
   base_seed: 42
 ```
 
-## 🚀 Usage Examples
+## Usage Examples
 
-### Learning Rate and Architecture Sweep
-
-```yaml
-sweep_config:
-  train.learning_rate: [1e-4, 1e-3, 1e-2]
-  train.optimizer: ["adam", "sgd", "adamw"]
-  model.network.parameters.num_layers: [2, 3, 4]
-  model.network.parameters.num_branches_per_layer: [8, 16, 32]
-```
-
-### Dataset Comparison Sweep
-
-```yaml
-sweep_config:
-  task.dataset: ["multixor", "center_surround", "orientation_bars"]
-  task.parameters.num_samples: [2000, 5000, 10000]
-  model.network.parameters.use_shunting: [true, false]
-```
-
-### Training Strategy Sweep
-
-```yaml
-sweep_config:
-  train.strategy: ["mle", "two_step", "regression"]
-  train.batch_size: [32, 64, 128]
-  train.num_epochs: [50, 100, 200]
-```
-
-## 📊 Complete Workflow
-
-### 1. Generate Sweep
+### Basic Parameter Sweep
 
 ```bash
-# Create sweep configurations
-python generate_sweep_configs.py configs sweep_params.yaml
+# Generate sweep configurations
+python scripts/general_sweeps/generate_sweep_configs.py configs sweep_params.yaml
 
-# Submit SLURM jobs
-sbatch run.sh
+# Run the sweep (via SLURM)
+bash run.sh
 
-# Monitor progress
-squeue -u $USER
+# Analyze results
+python scripts/general_sweeps/analyze_sweep_results.py --results-dir output/general_sweep_20240101_120000
 ```
 
-### 2. Analyze Results
+### Custom Output Directory
 
 ```bash
-# Wait for completion, then analyze
-python analyze_sweep_results.py \
-    --results-dir output/parameter_sweep_* \
-    --output-dir plots/parameter_analysis \
-    --statistical-analysis
+python scripts/general_sweeps/generate_sweep_configs.py \
+    --config-dir configs \
+    --param-filename sweep_params.yaml \
+    --output-dir custom_sweep
 ```
 
-### 3. Extract Best Parameters
+### Parallel Job Submission
 
 ```bash
-# Find optimal configurations
-python analyze_sweep_results.py \
-    --results-dir output/parameter_sweep_* \
-    --extract-best \
-    --metric test_accuracy \
-    --output-file best_configs.json
+# Generate configs with job splitting (for large sweeps)
+python scripts/general_sweeps/generate_sweep_configs.py configs sweep_params.yaml --split-jobs 10
 ```
 
-## 📈 Output Structure
+## Complete Workflow
+
+1. **Define sweep parameters** in a YAML file
+2. **Generate configurations**:
+   ```bash
+   python scripts/general_sweeps/generate_sweep_configs.py configs sweep_params.yaml
+   ```
+3. **Submit jobs** (SLURM):
+   ```bash
+   sbatch run.sh
+   ```
+4. **Monitor progress**:
+   ```bash
+   squeue -u $USER
+   ```
+5. **Analyze results**:
+   ```bash
+   python scripts/general_sweeps/analyze_sweep_results.py --results-dir output/sweep_results
+   ```
+
+## Output Structure
 
 ```
 output/
-└── parameter_sweep_20250412/
+└── general_sweep_20240101_120000/
     ├── configs/
     │   ├── config_0.yaml
     │   ├── config_1.yaml
@@ -185,64 +143,71 @@ output/
     │   ├── config_0/
     │   ├── config_1/
     │   └── ...
-    ├── analysis/
-    │   ├── parameter_effects.png
-    │   ├── correlation_analysis.png
-    │   ├── best_configurations.json
-    │   └── statistical_summary.txt
+    ├── plots/
+    │   ├── parameter_heatmap.png
+    │   ├── best_configs.png
+    │   └── sweep_summary.pdf
     └── run.sh
-```
 
-## 🔬 Advanced Features
+## Advanced Features
 
-### Nested Parameter Specification
+### Parameter Dependencies
 
-Support for complex nested parameter paths:
+Define parameter combinations that should be tested together:
 
 ```yaml
 sweep_config:
-  model.network.parameters.excitatory_cells.activation: ["tanh", "relu", "sigmoid"]
-  model.network.parameters.inhibitory_cells.learning_rate: [0.001, 0.01]
-  train.optimizer_params.weight_decay: [0.0, 1e-5, 1e-4]
+  # Regular parameters
+  train.learning_rate: [0.001, 0.01]
+  
+  # Grouped parameters (tested together)
+  _groups:
+    architecture:
+      - model.network.parameters.num_layers: 3
+        model.network.parameters.num_branches_per_layer: 10
+      - model.network.parameters.num_layers: 5
+        model.network.parameters.num_branches_per_layer: 5
 ```
 
-### Conditional Parameter Sweeps
+### Conditional Parameters
 
 ```yaml
 sweep_config:
   model.network.type: ["EINet", "MLP"]
-  # EINet-specific parameters
-  model.network.parameters.use_shunting: [true, false]  # Only for EINet
-  # MLP-specific parameters  
-  model.network.parameters.hidden_sizes: [[64, 32], [128, 64], [256, 128]]  # Only for MLP
+  
+  # Only applies when network type is EINet
+  _conditional:
+    - when:
+        model.network.type: "EINet"
+      parameters:
+        model.network.parameters.use_shunting: [true, false]
+        model.network.parameters.ee_synapses_per_branch_per_layer: [10, 20]
 ```
 
-### Statistical Analysis Options
-
-```yaml
-analysis_config:
-  metrics_to_analyze: ["train_accuracy", "test_accuracy", "convergence_time"]
-  statistical_tests: ["anova", "tukey_hsd", "correlation"]
-  significance_level: 0.05
-  multiple_comparison_correction: "bonferroni"
-```
-
-## 🐛 Troubleshooting
+## Troubleshooting
 
 ### Common Issues
 
-1. **Parameter Path Errors**: Ensure nested paths match configuration structure
-2. **Memory Issues**: Reduce `max_concurrent_jobs` or parameter combinations
-3. **SLURM Failures**: Check account permissions and resource limits
-4. **Analysis Errors**: Verify all sweep jobs completed successfully
+1. **Configuration not found**:
+   - Ensure config file path is correct
+   - Check YAML syntax with `python -c "import yaml; yaml.safe_load(open('config.yaml'))"`
+
+2. **SLURM job failures**:
+   - Check output logs in `slurm-*.out` files
+   - Verify conda environment path
+   - Ensure sufficient resources allocated
+
+3. **Missing results**:
+   - Check if jobs completed: `sacct -j <job_id>`
+   - Look for error files in output directory
+   - Verify training script path is correct
 
 ### Performance Tips
 
-- Start with smaller parameter ranges for testing
-- Use appropriate number of seeds for statistical significance
-- Monitor disk space for large sweeps
-- Consider parameter importance when designing sweeps
+- Use `--split-jobs` for large parameter sweeps
+- Adjust `seeds_per_condition` based on variance needs
+- Consider using array jobs for very large sweeps
 
 ---
 
-*Compatible with dendritic-modeling framework v2.0+* 
+For more information, see the main documentation or contact the development team. 

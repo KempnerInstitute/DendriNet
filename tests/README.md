@@ -1,8 +1,8 @@
-# Dendritic Modeling Test Suite
+# Test Suite
 
-This directory contains a comprehensive test suite for the dendritic modeling package. The tests are designed to ensure code quality, catch regressions, and validate the functionality of all components.
+Comprehensive test suite for the dendritic modeling framework.
 
-## 📁 Test Structure
+## Test Structure
 
 ```
 tests/
@@ -20,7 +20,7 @@ tests/
 └── __init__.py                 # Test package initialization
 ```
 
-## 🚀 Quick Start
+## Quick Start
 
 ### Basic Test Running
 
@@ -63,7 +63,7 @@ python tests/test_runner.py --test-type coverage --html-coverage
 python tests/test_runner.py --check-deps
 ```
 
-## 📊 Coverage Reports
+## Coverage Reports
 
 ### Generate Coverage Reports
 
@@ -80,7 +80,7 @@ python -m pytest --cov=src/dendritic_modeling --cov-report=xml
 
 The HTML report will be generated in `htmlcov/index.html` and can be opened in a browser.
 
-## 🎯 Test Categories
+## Test Categories
 
 ### Unit Tests
 Test individual components in isolation:
@@ -104,7 +104,7 @@ Test performance characteristics:
 - **Memory**: Memory usage tests
 - **GPU**: GPU-specific functionality (when available)
 
-## 🏷️ Test Markers
+## Test Markers
 
 Tests are marked with pytest markers for selective running:
 
@@ -132,7 +132,7 @@ Available markers:
 - `requires_gpu`: Tests requiring GPU
 - `requires_data`: Tests requiring external data
 
-## 🛠️ Development Workflow
+## Development Workflow
 
 ### Writing New Tests
 
@@ -207,7 +207,7 @@ python tests/test_runner.py --test-type coverage
 python tests/test_runner.py --check-deps
 ```
 
-## 🔧 Configuration
+## Configuration
 
 ### Pytest Configuration
 
@@ -232,7 +232,7 @@ export PYTHONHASHSEED=42
 export MPLBACKEND=Agg
 ```
 
-## 📈 Continuous Integration
+## Continuous Integration
 
 ### GitHub Actions Example
 
@@ -261,7 +261,7 @@ jobs:
       uses: codecov/codecov-action@v1
 ```
 
-## 🐛 Debugging Tests
+## Debugging Tests
 
 ### Running Individual Tests
 
@@ -294,7 +294,7 @@ python -m pytest tests/test_models.py --tb=long
    - Skip GPU tests: `python -m pytest -m "not requires_gpu"`
    - Set CPU-only mode: `export CUDA_VISIBLE_DEVICES=""`
 
-## 📋 Test Checklist
+## Test Checklist
 
 Before submitting code, ensure:
 
@@ -306,7 +306,7 @@ Before submitting code, ensure:
 - [ ] No test warnings or errors
 - [ ] Tests run in reasonable time
 
-## 🤝 Contributing
+## Contributing
 
 When contributing tests:
 
@@ -318,7 +318,7 @@ When contributing tests:
 6. **Add markers** for test categorization
 7. **Keep tests independent** - no test should depend on another test's state
 
-## 📚 Additional Resources
+## Additional Resources
 
 - [PyTest Documentation](https://docs.pytest.org/)
 - [Coverage.py Documentation](https://coverage.readthedocs.io/)

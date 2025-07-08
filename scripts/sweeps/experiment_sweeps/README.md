@@ -1,8 +1,8 @@
-# Experiment Sweeps - Specialized Experimental Conditions
+# Experiment Sweeps
 
-This directory contains specialized parameter sweep scripts for specific experimental conditions including noise robustness, branch architecture variations, and EI parameter exploration.
+Specialized tools for running comprehensive experiments on dendritic models across multiple datasets and configurations.
 
-## 📁 Scripts Overview
+## Scripts Overview
 
 ### `sweep_noise_experiment.py` (15KB, 462 lines)
 **Purpose**: Comprehensive noise robustness analysis for dendritic networks.
@@ -79,7 +79,7 @@ python sweep_ei_experiment.py --config configs/ei_sweep.yaml --ei-range 0.5 3.0 
 python sweep_ei_experiment.py --config configs/ei_sweep.yaml --analyze-dynamics
 ```
 
-## 🔧 Configuration Examples
+## Configuration Examples
 
 ### Noise Experiment Configuration
 
@@ -176,7 +176,7 @@ analysis_config:
   statistical_analysis: true
 ```
 
-## 🚀 Experimental Workflows
+## Experimental Workflows
 
 ### Noise Robustness Analysis
 
@@ -244,7 +244,7 @@ python sweep_ei_experiment.py \
     --criterion stability
 ```
 
-## 📊 Analysis Features
+## Analysis Features
 
 ### Noise Robustness Metrics
 
@@ -267,7 +267,7 @@ python sweep_ei_experiment.py \
 - **Dynamic Range**: Input range with linear response
 - **Oscillation Index**: Tendency for network oscillations
 
-## 📈 Output Structure
+## Output Structure
 
 ```
 output/
@@ -291,7 +291,7 @@ output/
     └── optimal_balance.json
 ```
 
-## 🔬 Advanced Analysis Options
+## Advanced Analysis Options
 
 ### Noise Type Characterization
 
@@ -329,7 +329,7 @@ stability_metrics = {
 }
 ```
 
-## 🐛 Troubleshooting
+## Troubleshooting
 
 ### Common Issues
 

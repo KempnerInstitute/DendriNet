@@ -1,8 +1,8 @@
-# Dendrinet Simulations - Advanced Dendritic Network Analysis
+# DendriNet Simulations
 
-This directory contains scripts for advanced dendritic network simulations with comprehensive correlation analysis and information theory applications.
+Specialized tools for running DendriNet architecture simulations with comprehensive parameter sweeps and analysis.
 
-## 📁 Scripts Overview
+## Scripts Overview
 
 ### `simulate_dendrinet.py` (54KB, 1651 lines)
 **Purpose**: Comprehensive dendritic network simulations with correlation enumeration and information theory analysis.
@@ -88,7 +88,7 @@ python analyze_dendrinet_results.py --results-dir output/dendrinet_results --plo
 python analyze_dendrinet_results.py --results-dir input/results --output-dir custom_plots
 ```
 
-## 🔬 Simulation Features
+## Simulation Features
 
 ### Correlation Analysis
 
@@ -113,7 +113,7 @@ The D-dimensional feature space is partitioned into 3 groups:
 
 Both models are compared across all parameter combinations.
 
-## 🚀 Usage Examples
+## Usage Examples
 
 ### Complete Simulation Pipeline
 
@@ -161,7 +161,7 @@ python simulate_dendrinet.py \
     --rho 0.25
 ```
 
-## 📊 Configuration Files
+## Configuration Files
 
 ### Dendrinet Sweep Configuration
 
@@ -222,7 +222,7 @@ output:
   generate_plots: true
 ```
 
-## 📈 Output Structure
+## Output Structure
 
 ```
 output/
@@ -246,7 +246,7 @@ output/
         └── parameter_logs/
 ```
 
-## 🔬 Advanced Features
+## Advanced Features
 
 ### Information Theory Metrics
 
@@ -271,7 +271,7 @@ Computed for each simulation:
 - E/I ratio performance curves
 - Statistical distribution plots
 
-## 🐛 Troubleshooting
+## Troubleshooting
 
 ### Common Issues
 
