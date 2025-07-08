@@ -1,64 +1,95 @@
 """
-Analysis package for dendritic modeling.
+Analysis Module
+===============
 
-This package provides comprehensive analysis tools for evaluating model performance,
-synaptic properties, ablation studies, and information flow in dendritic networks.
+This module provides comprehensive analysis tools for dendritic networks, including:
+
+Core Analysis:
+- Ablation studies
+- Branch activation analysis  
+- Information-theoretic analysis
+
+Metrics:
+- Performance metrics
+- Layer contribution analysis
+- Noise perturbation analysis
+- Visual neuron metrics
+
+Tools:
+- Correlation analysis
+- Weight analysis
+- Synaptic analysis
+
+Classifiers:
+- MLP classifiers for activation decoding
 """
 
-# Performance analysis
-from dendritic_modeling.analysis.performance import PerformanceAnalyzer
-from dendritic_modeling.analysis.noise_perturbation import NoisePerturbationAnalyzer
-from dendritic_modeling.analysis.ablation import AblationAnalyzer
-from dendritic_modeling.analysis.layer_contribution import SingleLayerContributionAnalyzer
+# Core analyzers
+from .core import (
+    AblationAnalyzer,
+    BranchActivationAnalyzer,
+    InformationAnalyzer
+)
 
-# Information analysis
-from dendritic_modeling.analysis.information import InformationAnalyzer
+# Metrics
+from .metrics import (
+    PerformanceAnalyzer,
+    LayerContributionAnalyzer,
+    NoisePerturbationAnalyzer,
+    orientation_selectivity_index,
+    direction_selectivity_index,
+    size_tuning_index,
+    length_selectivity_index
+)
 
-# Activation analysis
-from dendritic_modeling.analysis.synaptic_activation import SynapticActivationAnalyzer
-from dendritic_modeling.analysis.branch_activation import BranchActivationAnalyzer
+# Tools
+from .tools import (
+    CorrelationAnalyzer,
+    WeightAnalyzer,
+    SynapticActivationAnalyzer,
+    SynapticTurnoverAnalyzer
+)
 
-# Synaptic analysis
-from dendritic_modeling.analysis.synaptic_turnover import SynapticTurnoverAnalyzer
-from dendritic_modeling.analysis.weight import WeightAnalyzer
+# Classifiers
+from .classifiers import (
+    MLPClassifier,
+    train_classifier,
+    evaluate_classifier,
+    get_layer_activations,
+    get_ablated_activations,
+    analyze_layerwise_ablation,
+    train_and_evaluate_classifier
+)
 
-# Correlation analysis
-from dendritic_modeling.analysis.correlation_analysis import CorrelationAnalyzer
-
-# Analysis manager
-from dendritic_modeling.analysis.manager import AnalysisManager
-
-# Import new organized analysis classes
-from dendritic_modeling.analysis.branch_interactive import InteractiveBranchAnalyzer
-from dendritic_modeling.analysis.dendrite_comprehensive import ComprehensiveDendriticAnalyzer
-from dendritic_modeling.analysis.managers import PlotManager
+# Manager
+from .manager import AnalysisManager
 
 __all__ = [
-    # Performance analysis
-    "PerformanceAnalyzer",
-    "NoisePerturbationAnalyzer", 
+    # Core
     "AblationAnalyzer",
-    "SingleLayerContributionAnalyzer",
-    
-    # Information analysis
-    "InformationAnalyzer",
-    
-    # Activation analysis
-    "SynapticActivationAnalyzer",
     "BranchActivationAnalyzer",
-    
-    # Synaptic analysis
-    "SynapticTurnoverAnalyzer",
-    "WeightAnalyzer",
-    
-    # Correlation analysis
+    "InformationAnalyzer",
+    # Metrics
+    "PerformanceAnalyzer",
+    "LayerContributionAnalyzer",
+    "NoisePerturbationAnalyzer",
+    "orientation_selectivity_index",
+    "direction_selectivity_index",
+    "size_tuning_index",
+    "length_selectivity_index",
+    # Tools
     "CorrelationAnalyzer",
-    
-    # Analysis manager
-    "AnalysisManager",
-
-    # New organized analysis classes
-    "InteractiveBranchAnalyzer",
-    "ComprehensiveDendriticAnalyzer",
-    "PlotManager"
+    "WeightAnalyzer",
+    "SynapticActivationAnalyzer",
+    "SynapticTurnoverAnalyzer",
+    # Classifiers
+    "MLPClassifier",
+    "train_classifier",
+    "evaluate_classifier",
+    "get_layer_activations",
+    "get_ablated_activations",
+    "analyze_layerwise_ablation",
+    "train_and_evaluate_classifier",
+    # Manager
+    "AnalysisManager"
 ] 

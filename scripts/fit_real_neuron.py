@@ -18,7 +18,7 @@ from torch.nn import functional as F
 
 from dendritic_modeling.networks.layers.dendritic_conv2d import DendriteConv2d
 from dendritic_modeling.networks.factories.vision_units import rf_on_center, rf_off_center, rf_gabor
-from dendritic_modeling.analysis.performance.visual import orientation_selectivity_index as osi
+from dendritic_modeling.utils.visual_metrics import orientation_selectivity_index as osi
 
 
 def parse_args():
