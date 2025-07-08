@@ -369,7 +369,7 @@ The ``generate_sweep_configs.py`` script can also generate SLURM job submission 
 
 This will create a ``run.sh`` file that submits all generated configuration files as a SLURM array job.
 
-.. figure:: figures/pdf/place_holder.pdf
+.. figure:: ../../../_static/configuration_system.png
    :alt: Configuration System Diagram
    :width: 600px
    :align: center

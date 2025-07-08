@@ -228,7 +228,7 @@ The batch script organizes output files into directories based on the job ID and
 
 This creates a hierarchical directory structure that keeps outputs from different runs organized.
 
-.. figure:: figures/pdf/place_holder.pdf
+.. figure:: ../../../_static/sweep_job_submission.png
    :alt: SLURM Workflow
    :width: 600px
    :align: center
