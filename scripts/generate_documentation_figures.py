@@ -343,82 +343,45 @@ def create_multilayer_ei_network():
 
 
 def create_shunting_inhibition_diagram():
-    """Create clean shunting inhibition mechanism diagram."""
-    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(14, 6))
-    
-    # Left: Mechanism diagram
-    ax1.text(0.5, 0.95, 'Shunting Inhibition Mechanism', 
-             ha='center', transform=ax1.transAxes, 
-             fontsize=16, weight='bold')
-    
-    # Central dendrite
-    dendrite = Circle((0.5, 0.5), 0.15, color=COLORS['dendrite'], 
-                     transform=ax1.transAxes, zorder=5)
-    ax1.add_patch(dendrite)
-    ax1.text(0.5, 0.5, 'D', ha='center', va='center', color='white', 
-             transform=ax1.transAxes, fontsize=14, weight='bold')
-    
-    # Excitatory input
-    ax1.arrow(0.15, 0.7, 0.2, -0.1, head_width=0.05, head_length=0.03, 
-              fc=COLORS['excitatory'], ec=COLORS['excitatory'], 
-              transform=ax1.transAxes, linewidth=2)
-    ax1.text(0.1, 0.75, 'E', ha='center', color=COLORS['excitatory'], 
-             transform=ax1.transAxes, fontsize=14, weight='bold')
-    
-    # Inhibitory input
-    ax1.arrow(0.15, 0.3, 0.2, 0.1, head_width=0.05, head_length=0.03, 
-              fc=COLORS['inhibitory'], ec=COLORS['inhibitory'], 
-              transform=ax1.transAxes, linewidth=2)
-    ax1.text(0.1, 0.25, 'I', ha='center', color=COLORS['inhibitory'], 
-             transform=ax1.transAxes, fontsize=14, weight='bold')
-    
-    # Output
-    ax1.arrow(0.65, 0.5, 0.2, 0, head_width=0.05, head_length=0.03, 
-              fc=COLORS['arrow'], ec=COLORS['arrow'], 
-              transform=ax1.transAxes, linewidth=2)
-    ax1.text(0.9, 0.5, 'Vout', ha='center', 
-             transform=ax1.transAxes, fontsize=12)
-    
+    """A polished diagram of the shunting inhibition mechanism."""
+    fig, ax = plt.subplots(figsize=(7, 6))
+    ax.axis('off')
+
+    # Central dendrite/soma
+    soma = Circle((0.5, 0.5), 0.2, color=COLORS['soma'])
+    ax.add_patch(soma)
+    add_shadow(soma)
+    ax.text(0.5, 0.5, 'Soma', ha='center', va='center', color='white', fontsize=12, weight='bold')
+
+    # Input arrows with labels
+    def draw_input(x, y, label, color, rad):
+        arrow = FancyArrowPatch((x, y + 0.1), (0.5, 0.6), connectionstyle=f"arc3,rad={rad}",
+                                arrowstyle='->,head_length=6,head_width=4', lw=2, color=color)
+        ax.add_patch(arrow)
+        add_shadow(arrow)
+        text = ax.text(x, y + 0.2, label, ha='center', va='center', fontsize=12, weight='bold', color=color)
+        add_shadow(text, dx=1, dy=-1, alpha=0.1)
+
+    draw_input(0.15, 0.8, "Excitatory (E)", COLORS['excitatory'], -0.3)
+    draw_input(0.85, 0.8, "Inhibitory (I)", COLORS['inhibitory'], 0.3)
+
+    # Output arrow
+    output_arrow = FancyArrowPatch((0.5, 0.3), (0.5, 0.1), arrowstyle='->,head_length=8,head_width=6',
+                                   lw=2.5, color=COLORS['arrow'])
+    ax.add_patch(output_arrow)
+    add_shadow(output_arrow)
+    ax.text(0.5, 0.0, "Output", ha='center', va='center', fontsize=12, weight='bold', color=COLORS['text'])
+
     # Equation
-    ax1.text(0.5, 0.15, r'$V_{out} = \frac{E}{E + I + \epsilon}$', 
-             ha='center', transform=ax1.transAxes, fontsize=16,
-             bbox=dict(boxstyle="round,pad=0.5", facecolor='white', 
-                      edgecolor='gray'))
-    
-    ax1.set_xlim(0, 1)
-    ax1.set_ylim(0, 1)
-    ax1.axis('off')
-    
-    # Right: Response curves
-    ax2.text(0.5, 0.95, 'Divisive Normalization Effect', 
-             ha='center', transform=ax2.transAxes, 
-             fontsize=16, weight='bold')
-    
-    E_values = np.linspace(0, 10, 100)
-    I_values = [0, 1, 3, 10]
-    epsilon = 0.1
-    
-    for I in I_values:
-        V_out = E_values / (E_values + I + epsilon)
-        ax2.plot(E_values, V_out, label=f'I = {I}', linewidth=2.5)
-    
-    ax2.set_xlabel('Excitatory Input (E)', fontsize=14)
-    ax2.set_ylabel('Output (Vout)', fontsize=14)
-    ax2.legend(title='Inhibitory Input', loc='lower right', 
-               frameon=True, fancybox=True, shadow=True)
-    ax2.grid(True, alpha=0.3, linestyle='--')
-    ax2.set_xlim(0, 10)
-    ax2.set_ylim(0, 1.1)
-    
-    # Add annotations
-    ax2.annotate('Saturation', xy=(8, 0.1), xytext=(6, 0.3),
-                arrowprops=dict(arrowstyle='->', color='gray', alpha=0.5),
-                fontsize=10, color='gray')
-    
-    plt.tight_layout()
-    plt.savefig(os.path.join(OUTPUT_DIR, 'shunting_inhibition_diagram.png'), 
-                dpi=300, bbox_inches='tight', facecolor='white')
-    plt.close()
+    eq_text = r'$V_{out} = \frac{\sum E}{\sum E + \sum I + \epsilon}$'
+    bbox_props = dict(boxstyle="round,pad=0.5", facecolor='white', edgecolor='#cccccc', lw=0.5)
+    text_bbox = ax.text(0.5, -0.25, eq_text, ha='center', va='center', fontsize=14, bbox=bbox_props)
+    add_shadow(text_bbox.get_bbox_patch())
+
+    ax.set_xlim(0, 1)
+    ax.set_ylim(-0.4, 1.1)
+    fig.suptitle("Shunting Inhibition Mechanism", fontsize=16, weight='bold')
+    _save(fig, 'shunting_inhibition_diagram.png')
 
 
 def create_network_architecture_overview():

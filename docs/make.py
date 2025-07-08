@@ -409,13 +409,7 @@ def main():
         "einet_architecture.png",
         "input_network_architecture.png",
         "dendritic_processing.png",
-        "training_strategies.png",
-        "sequential_vs_joint.png",
-        "head_training_strategies.png",
-        "learning_strategies.png",
         "dendritic_computation.png",
-        "ablation_visualization.png",
-        "computational_properties.png",
         "input_modes_complete.png",
         "installation_workflow.png",
         # new placeholders replacing legacy PDFs
