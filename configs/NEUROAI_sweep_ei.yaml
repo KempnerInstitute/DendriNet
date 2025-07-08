@@ -35,7 +35,9 @@ experiment_settings:
 train_config:
   model:
     task: "classification"
-    probabilistic: true
+    base:
+      output_layer: true
+      output_dim: 10
     network:
       type: "EINet"
       parameters:
@@ -61,8 +63,6 @@ train_config:
         blocklinear_strategy: "conductance_dynamic"
         print_hooks: false
         enable_branch_outputs: false
-        output_layer: true
-        output_dim: 10
         input_mode: 1
         input_net_dict:
           type: "FeatureExtractorMLP"  # Type of input network: "IndexInputTransform", "MLPInputTransform", "AlexNetTransform", etc.
@@ -80,7 +80,7 @@ train_config:
           inhibitory_strides: [1]
 
   train:
-    learning_strategy: "mle"
+    learning_strategy: "standard"
     run_name: "dendritic_ei_sweep"
     seed: 0  # This will be overridden for each run
     train_valid_split: 0.8
@@ -92,16 +92,28 @@ train_config:
       blocklinear_lr: 0.001  # learning rate for blocklinear layers
       reactivation_lr: 0.001  # learning rate for reactivation layers
       output_layer_lr: 0.0001  # learning rate for output layer
-    epochs: 1000
-    early_stopping: true
-    patience: 200
-    batch_size: 1024
-    grad_clip_value: 5
-    epochs_per_layer: 50
-    final_tune_epochs: 10
-    warmup_epochs: 1
-    stability_target_voltage: 0.5
     weight_decay_rate: 0.1
+    trainer:
+      # for all learning strategies:
+      loss_function: categorical_nll
+      epochs: 50
+      early_stopping: false
+      patience: 10
+      batch_size: 128
+      shuffle: true
+      grad_clip_value: 5.0
+      load_best_state_dict: true
+      plot_losses: true
+      suppress_prints: false
+      print_every: 10
+      # for learning strategies other than standard:
+      pretrain_epochs: 10
+      target_voltage: 0.5
+      kl_weight: 0.1
+      reverse_training: false
+      epochs_per_layer: 10
+      epochs_per_branch: 10
+      final_tune_epochs: 10
     input_net_training:
       training_mode: "sequential"
       train_input_net: true
@@ -145,15 +157,7 @@ train_config:
         accuracy: true
         categorical_loglikelihood: true
         mse: false
-    ei_info_analysis:
-      enabled: true
-      training: false
-      params:
-        compute_mi_E_I: true
-        compute_mi_EI_Vout: true
-        compute_sr_EI_Vout: true
-        compute_mi_EI_label: true
-        n_neighbors: 8
+
     synapse_turnover_analysis:
       enabled: true
       training: true
@@ -172,10 +176,12 @@ train_config:
       enabled: true
       training: false
       params:
+        layer_ablation: true
+        compartment_ablation: true
         ablate_all_synapses: true
         ablate_excitation: true
         ablate_inhibition: true
-        ablate_branches: true
+        ablate_upstream: true
         accuracy: true
         categorical_loglikelihood: true
     weight_analysis:
@@ -208,56 +214,49 @@ train_config:
         logspace: true
         downsample: true
         samples: 5
-
-
-
-    # Synaptic ablation analysis (formerly branch_ablation)
-    # Removes specific synapses while keeping the rest of the network intact
-    synaptic_ablation:
-      enabled: true  # Whether to enable synaptic ablation analysis
+    
+    # Single layer contribution analysis (formerly layer_ablation)
+    # Isolates each layer to test what it can achieve on its own
+    single_layer_contribution:
+      enabled: true  # whether to enable single layer contribution analysis
       training: false  # Whether to run during training
       params:
-        ablation_type: "whole_layer"  # Options: "whole_layer" or "single_branch"
-        layers_to_analyze: []  # Empty list means analyze all layers, or specify [0, 1, 2]
-        mode: "direct"  # Options: "direct" (zero weights) or "full"
         save_plots: true
         save_csv: true
 
-    # Branch information analysis
-    # Computes mutual information between branch components (E, I, V, C)
-    branch_information:
-      enabled: true  # Whether to enable branch information analysis
-      training: false  # Whether to run during training
+    # NEW: Integrated information-theoretic analysis using multivariate methods
+    information_analysis:
+      enabled: true
+      training: false
       params:
-        n_neighbors: 10  # Number of neighbors for MI estimation
-        use_dvc: true  # Enable DVC_tensorflow for better MI computation
-        save_plots: true
-        save_csv: true
-        # Configurable metrics to compute
-        compute_metrics:
-          #- "I_E_C"    # I(E;C) - Excitatory inputs and class
-          #- "I_I_C"    # I(I;C) - Inhibitory inputs and class
-          #- "I_V_C"    # I(V;C) - Branch outputs and class
-          # - "I_E_I"    # I(E;I) - Excitatory and inhibitory inputs
-          # - "I_E_V"    # I(E;V) - Excitatory inputs and branch outputs
-          # - "I_I_V"    # I(I;V) - Inhibitory inputs and branch outputs
-          # - "I_E_I_given_C" # I(E;I|C) - E and I given class
-          # - "I_E_V_given_C" # I(E;V|C) - E and V given class
-          # - "I_I_V_given_C" # I(I;V|C) - I and V given class
+        # Estimation method for mutual information computation
+        method: "kraskov"  # Options: "kraskov" (k-NN), "sklearn" (histogram/kernel), "copula" (copula-based)
 
-        # Per-branch vs pooled computation
-        compute_per_branch: true  # If true, compute MI per branch and average; if false, pool all branches
+        max_samples: null
 
-        # Copula parameters for DVC_tensorflow
-        copula_params:
-          cases: 1000         # Number of samples for entropy estimation
-          iterations: 10      # Number of iterations for convergence
-          alpha: 0.05         # Confidence level
-          vine_type: c-vine   # Type of vine copula: "d-vine", "c-vine", "r-vine"
-          use_nonparametric: false  # Whether to use non-parametric kernel copula (true) or parametric Gaussian (false)
-          knots: 30           # Number of knots for non-parametric copula (only used when use_nonparametric=true)
-          opt_method: LL1     # Optimization method for non-parametric: "LL1", "LL2", etc.
-          batch_paral: 1      # Batch parallelization for non-parametric fitting
+        # Method-specific parameters
+        n_neighbors: 10       # For Kraskov k-NN estimator (higher = more accurate but slower)
+        n_bins: 20           # For sklearn histogram method (more bins = finer resolution)
+        copula_type: "gaussian"  # For copula method: "gaussian", "t", "clayton", "frank"
+        
+        # Which information metrics to compute
+        compute_basic_mi: true       # Basic MI: I(E;C), I(I;C), I(Vout;C), I(E,I;C)
+        compute_pairwise_mi: true    # Pairwise MI: I(E;I), I(E;Vout), I(I;Vout)
+        compute_conditional_mi: true  # Conditional MI: I(E;I|C), I(E;Vout|C), I(I;Vout|C)
+        compute_pid: false           # Partial Information Decomposition (requires external PID library)
+        
+        # PID-specific settings (only used if compute_pid=true)
+        pid_binarize: true              # Whether to binarize data for PID computation
+        pid_binarize_method: "median"   # Binarization method: "median", "mean", "quantile"
+        pid_binarize_threshold: 0.5     # Threshold for "quantile" method (0-1)
+        
+        # Additional options
+        include_vinf: true     # Include soma activation (Vinf) in analysis
+        normalize_mi: false    # Normalize MI values by entropy H(C)
+        verbose: false        # Print detailed progress during computation
+
+        compute_per_branch: true
+        branch_aggregation: none
 
 sweep_config:
   # model.network.type: ["EINet"]
