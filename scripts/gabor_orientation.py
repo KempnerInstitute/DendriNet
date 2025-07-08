@@ -16,7 +16,7 @@ sys.path.append(str(Path(__file__).parent.parent / 'src'))
 from dendritic_modeling.networks.layers.dendritic_conv2d import DendriteConv2d
 from dendritic_modeling.networks.factories.vision_units import create_gabor_unit
 from dendritic_modeling.datasets.stimuli.gratings import create_static_grating
-from dendritic_modeling.analysis.performance.visual import orientation_selectivity_index
+from dendritic_modeling.utils.visual_metrics import orientation_selectivity_index
 
 
 def test_orientation_tuning(neuron: DendriteConv2d, test_orientations: np.ndarray) -> np.ndarray:

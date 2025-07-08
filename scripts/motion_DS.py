@@ -16,7 +16,7 @@ sys.path.append(str(Path(__file__).parent.parent / 'src'))
 from dendritic_modeling.networks.layers.dendritic_conv2d import DendriteConv2d
 from dendritic_modeling.networks.factories.vision_units import create_motion_unit
 from dendritic_modeling.datasets.stimuli.bars import create_moving_bar
-from dendritic_modeling.analysis.performance.visual import direction_selectivity_index
+from dendritic_modeling.utils.visual_metrics import direction_selectivity_index
 
 
 def test_direction_selectivity(neuron: DendriteConv2d, directions: np.ndarray) -> np.ndarray:
