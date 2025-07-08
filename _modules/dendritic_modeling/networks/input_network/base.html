@@ -1,0 +1,279 @@
+
+
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" data-content_root="../../../../">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>dendritic_modeling.networks.input_network.base &mdash; dendritic_modeling 0.1.0 documentation</title>
+      <link rel="stylesheet" type="text/css" href="../../../../_static/pygments.css?v=b86133f3" />
+      <link rel="stylesheet" type="text/css" href="../../../../_static/css/theme.css?v=e59714d7" />
+      <link rel="stylesheet" type="text/css" href="../../../../_static/copybutton.css?v=76b2166b" />
+
+  
+      <script src="../../../../_static/jquery.js?v=5d32c60e"></script>
+      <script src="../../../../_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
+      <script src="../../../../_static/documentation_options.js?v=01f34227"></script>
+      <script src="../../../../_static/doctools.js?v=9bcbadda"></script>
+      <script src="../../../../_static/sphinx_highlight.js?v=dc90522c"></script>
+      <script src="../../../../_static/clipboard.min.js?v=a7894cd8"></script>
+      <script src="../../../../_static/copybutton.js?v=f281be69"></script>
+      <script crossorigin="anonymous" integrity="sha256-Ae2Vz/4ePdIu6ZyI/5ZGsYnb+m0JlOmKPjt6XZ9JJkA=" src="https://cdnjs.cloudflare.com/ajax/libs/require.js/2.3.4/require.min.js"></script>
+    <script src="../../../../_static/js/theme.js"></script>
+    <link rel="author" title="About these documents" href="../../../../about.html" />
+    <link rel="index" title="Index" href="../../../../genindex.html" />
+    <link rel="search" title="Search" href="../../../../search.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+
+          
+          
+          <a href="../../../../index.html" class="icon icon-home">
+            dendritic_modeling
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../../../../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <p class="caption" role="heading"><span class="caption-text">Getting Started</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../../source/getting_started/installation.html">Installation and Setup</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../source/getting_started/quickstart.html">Quick Start Guide</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">User Guide</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../../source/user_guide/architecture.html">Architecture Overview</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../source/user_guide/configuration.html">Configuration System</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">API Reference</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../../source/api/networks.html">Networks API Reference</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../source/api/models.html">Models API Reference</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Advanced Topics</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../../source/advanced/network_structures/index.html">Network Structures</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../source/advanced/learning/index.html">Learning Strategies</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../source/advanced/analysis/index.html">Analysis Tools</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../source/advanced/visualization/index.html">Visualization Tools</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../source/advanced/configuration/index.html">Configuration System</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Development</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../../source/development/contributing.html">Contributing to Dendritic Modeling Framework</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../source/development/testing.html">Testing Guide</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Reference</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../../source/reference/glossary.html">Glossary</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../about.html">About</a></li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../../../../index.html">dendritic_modeling</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="../../../../index.html" class="icon icon-home" aria-label="Home"></a></li>
+          <li class="breadcrumb-item"><a href="../../../index.html">Module code</a></li>
+      <li class="breadcrumb-item active">dendritic_modeling.networks.input_network.base</li>
+      <li class="wy-breadcrumbs-aside">
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <h1>Source code for dendritic_modeling.networks.input_network.base</h1><div class="highlight"><pre>
+<span></span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">Base Input Transform for neural networks.</span>
+
+<span class="sd">This module implements the base InputNetTransform class that maps</span>
+<span class="sd">raw inputs to excitatory and inhibitory pathways.</span>
+<span class="sd">&quot;&quot;&quot;</span>
+
+<span class="kn">import</span><span class="w"> </span><span class="nn">torch</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">torch.nn</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">nn</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">typing</span><span class="w"> </span><span class="kn">import</span> <span class="n">Optional</span><span class="p">,</span> <span class="n">List</span><span class="p">,</span> <span class="n">Tuple</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">logging</span>
+
+<span class="kn">from</span><span class="w"> </span><span class="nn">dendritic_modeling.networks.architectures.excitation_inhibition.input_transform.index</span><span class="w"> </span><span class="kn">import</span> <span class="n">IndexInputTransform</span>
+<span class="c1"># from dendritic_modeling.networks.architectures.classical.mlp.mlp import MLPInputTransform</span>
+<span class="c1"># from dendritic_modeling.networks.architectures.classical.cnn.cnn import CNNInputTransform</span>
+<span class="c1"># from dendritic_modeling.networks.architectures.classical.cnn.alexnet import AlexNetInputTransform</span>
+
+<span class="n">logger</span> <span class="o">=</span> <span class="n">logging</span><span class="o">.</span><span class="n">getLogger</span><span class="p">(</span><span class="vm">__name__</span><span class="p">)</span>
+
+
+<div class="viewcode-block" id="InputNetTransform">
+<a class="viewcode-back" href="../../../../source/api/dendritic_modeling.html#dendritic_modeling.networks.InputNetTransform">[docs]</a>
+<span class="k">class</span><span class="w"> </span><span class="nc">InputNetTransform</span><span class="p">(</span><span class="n">nn</span><span class="o">.</span><span class="n">Module</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    A transform that maps the raw input x to (excitatory_input, inhibitory_input).</span>
+<span class="sd">    This is a generalized version that can support different network architectures.</span>
+<span class="sd">    By default, it uses an MLP with configurable hidden dimensions.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span> 
+        <span class="n">input_dim</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">int</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span> 
+        <span class="n">hidden_dims</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n">List</span><span class="p">[</span><span class="nb">int</span><span class="p">]]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span> 
+        <span class="n">independent_heads</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span>
+        <span class="n">excitatory_dim</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">int</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span> 
+        <span class="n">inhibitory_dim</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">int</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span> 
+        <span class="n">output_dim</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">int</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+        <span class="n">input_shape</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n">Tuple</span><span class="p">[</span><span class="nb">int</span><span class="p">,</span> <span class="nb">int</span><span class="p">,</span> <span class="nb">int</span><span class="p">]]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+        <span class="n">excitatory_hidden_dims</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n">List</span><span class="p">[</span><span class="nb">int</span><span class="p">]]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+        <span class="n">inhibitory_hidden_dims</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n">List</span><span class="p">[</span><span class="nb">int</span><span class="p">]]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+        <span class="n">excitatory_kernel_sizes</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n">List</span><span class="p">[</span><span class="nb">int</span><span class="p">]]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+        <span class="n">inhibitory_kernel_sizes</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n">List</span><span class="p">[</span><span class="nb">int</span><span class="p">]]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+        <span class="n">excitatory_strides</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n">List</span><span class="p">[</span><span class="nb">int</span><span class="p">]]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+        <span class="n">inhibitory_strides</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n">List</span><span class="p">[</span><span class="nb">int</span><span class="p">]]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+        <span class="n">network_type</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;MLPInputTransform&quot;</span><span class="p">,</span>
+    <span class="p">):</span>
+        <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="fm">__init__</span><span class="p">()</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">network_type</span> <span class="o">=</span> <span class="n">network_type</span>
+
+        <span class="k">if</span> <span class="n">network_type</span> <span class="o">==</span> <span class="s2">&quot;IndexInputTransform&quot;</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">input_transform</span> <span class="o">=</span> <span class="n">IndexInputTransform</span><span class="p">(</span>
+                <span class="n">input_dim</span><span class="o">=</span><span class="n">input_dim</span><span class="p">,</span>
+                <span class="n">excitatory_dim</span><span class="o">=</span><span class="n">excitatory_dim</span><span class="p">,</span>
+                <span class="n">inhibitory_dim</span><span class="o">=</span><span class="n">inhibitory_dim</span><span class="p">,</span>
+            <span class="p">)</span>
+
+        <span class="k">elif</span> <span class="n">network_type</span> <span class="o">==</span> <span class="s2">&quot;MLPInputTransform&quot;</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">input_transform</span> <span class="o">=</span> <span class="n">MLPInputTransform</span><span class="p">(</span>
+                <span class="n">input_dim</span><span class="o">=</span><span class="n">input_dim</span><span class="p">,</span>
+                <span class="n">hidden_dims</span><span class="o">=</span><span class="n">hidden_dims</span><span class="p">,</span>
+                <span class="n">excitatory_dim</span><span class="o">=</span><span class="n">excitatory_dim</span><span class="p">,</span>
+                <span class="n">inhibitory_dim</span><span class="o">=</span><span class="n">inhibitory_dim</span><span class="p">,</span>
+            <span class="p">)</span>
+        
+        <span class="k">elif</span> <span class="n">network_type</span> <span class="o">==</span> <span class="s2">&quot;FeatureExtractorMLP&quot;</span><span class="p">:</span>
+            <span class="kn">from</span><span class="w"> </span><span class="nn">..mlp</span><span class="w"> </span><span class="kn">import</span> <span class="n">FeatureExtractorMLP</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">input_transform</span> <span class="o">=</span> <span class="n">FeatureExtractorMLP</span><span class="p">(</span>
+                <span class="n">input_dim</span> <span class="o">=</span> <span class="n">input_dim</span><span class="p">,</span>
+                <span class="n">hidden_dims</span> <span class="o">=</span> <span class="n">hidden_dims</span><span class="p">,</span>
+                <span class="n">output_dim</span> <span class="o">=</span> <span class="n">output_dim</span>
+            <span class="p">)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">input_transform</span><span class="o">.</span><span class="n">set_readout</span><span class="p">(</span><span class="kc">False</span><span class="p">)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">input_transform</span><span class="o">.</span><span class="n">disable_grad</span><span class="p">()</span>
+        <span class="k">elif</span> <span class="n">network_type</span> <span class="o">==</span> <span class="s2">&quot;AlexNetTransform&quot;</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">input_transform</span> <span class="o">=</span> <span class="n">AlexNetInputTransform</span><span class="p">(</span>
+                <span class="n">excitatory_dim</span><span class="o">=</span><span class="n">excitatory_dim</span><span class="p">,</span> <span class="n">inhibitory_dim</span><span class="o">=</span><span class="n">inhibitory_dim</span>
+            <span class="p">)</span>
+
+        <span class="k">elif</span> <span class="n">network_type</span> <span class="o">==</span> <span class="s2">&quot;CNNInputTransform&quot;</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">input_transform</span> <span class="o">=</span> <span class="n">CNNInputTransform</span><span class="p">(</span>
+                <span class="n">input_shape</span><span class="o">=</span><span class="n">input_shape</span><span class="p">,</span>
+                <span class="n">excitatory_hidden_dims</span><span class="o">=</span><span class="n">excitatory_hidden_dims</span><span class="p">,</span>
+                <span class="n">inhibitory_hidden_dims</span><span class="o">=</span><span class="n">inhibitory_hidden_dims</span><span class="p">,</span>
+                <span class="n">excitatory_kernel_sizes</span><span class="o">=</span><span class="n">excitatory_kernel_sizes</span><span class="p">,</span>
+                <span class="n">inhibitory_kernel_sizes</span><span class="o">=</span><span class="n">inhibitory_kernel_sizes</span><span class="p">,</span>
+                <span class="n">excitatory_strides</span><span class="o">=</span><span class="n">excitatory_strides</span><span class="p">,</span>
+                <span class="n">inhibitory_strides</span><span class="o">=</span><span class="n">inhibitory_strides</span><span class="p">,</span>
+            <span class="p">)</span>
+
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Unknown network type: </span><span class="si">{</span><span class="n">network_type</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">forward</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">x</span><span class="p">):</span>
+        <span class="n">excitatory_input</span><span class="p">,</span> <span class="n">inhibitory_input</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">input_transform</span><span class="p">(</span><span class="n">x</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">excitatory_input</span><span class="p">,</span> <span class="n">inhibitory_input</span>
+
+<div class="viewcode-block" id="InputNetTransform.load_pretrained_weights">
+<a class="viewcode-back" href="../../../../source/api/dendritic_modeling.html#dendritic_modeling.networks.InputNetTransform.load_pretrained_weights">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">load_pretrained_weights</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">source</span><span class="p">,</span> <span class="n">weights_path</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">pytorch_model</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Load pre-trained weights for the input network.</span>
+
+<span class="sd">        Args:</span>
+<span class="sd">            source (str): Source of weights - &#39;file&#39;, &#39;pytorch&#39;, or &#39;none&#39;</span>
+<span class="sd">            weights_path (str, optional): Path to weights file if source is &#39;file&#39;</span>
+<span class="sd">            pytorch_model (str, optional): Name of PyTorch model if source is &#39;pytorch&#39;</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="n">source</span> <span class="o">==</span> <span class="s2">&quot;none&quot;</span><span class="p">:</span>
+            <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s2">&quot;No pre-trained weights to load.&quot;</span><span class="p">)</span>
+            <span class="k">return</span>
+
+        <span class="k">elif</span> <span class="n">source</span> <span class="o">==</span> <span class="s2">&quot;file&quot;</span><span class="p">:</span>
+            <span class="k">if</span> <span class="ow">not</span> <span class="n">weights_path</span><span class="p">:</span>
+                <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;weights_path must be provided when source is &#39;file&#39;&quot;</span><span class="p">)</span>
+            <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Loading weights from file: </span><span class="si">{</span><span class="n">weights_path</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+            <span class="n">state_dict</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">load</span><span class="p">(</span><span class="n">weights_path</span><span class="p">)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">load_state_dict</span><span class="p">(</span><span class="n">state_dict</span><span class="p">)</span>
+
+        <span class="k">elif</span> <span class="n">source</span> <span class="o">==</span> <span class="s2">&quot;pytorch&quot;</span><span class="p">:</span>
+            <span class="k">if</span> <span class="ow">not</span> <span class="n">pytorch_model</span><span class="p">:</span>
+                <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+                    <span class="s2">&quot;pytorch_model must be provided when source is &#39;pytorch&#39;&quot;</span>
+                <span class="p">)</span>
+            <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Loading pre-trained PyTorch model: </span><span class="si">{</span><span class="n">pytorch_model</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+
+            <span class="kn">import</span><span class="w"> </span><span class="nn">torchvision.models</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">models</span>
+
+            <span class="k">if</span> <span class="n">pytorch_model</span> <span class="o">==</span> <span class="s2">&quot;alexnet&quot;</span><span class="p">:</span>
+                <span class="n">pretrained_model</span> <span class="o">=</span> <span class="n">models</span><span class="o">.</span><span class="n">alexnet</span><span class="p">(</span><span class="n">pretrained</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+                <span class="c1"># Copy features to shared backbone</span>
+                <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">network_type</span> <span class="o">==</span> <span class="s2">&quot;AlexNetTransform&quot;</span><span class="p">:</span>
+                    <span class="c1"># For AlexNet, we can directly copy the features</span>
+                    <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="n">layer</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="nb">list</span><span class="p">(</span><span class="n">pretrained_model</span><span class="o">.</span><span class="n">features</span><span class="p">)):</span>
+                        <span class="k">if</span> <span class="n">i</span> <span class="o">&lt;</span> <span class="nb">len</span><span class="p">(</span><span class="nb">list</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">shared</span><span class="p">)):</span>
+                            <span class="bp">self</span><span class="o">.</span><span class="n">shared</span><span class="p">[</span><span class="n">i</span><span class="p">]</span><span class="o">.</span><span class="n">load_state_dict</span><span class="p">(</span><span class="n">layer</span><span class="o">.</span><span class="n">state_dict</span><span class="p">())</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Unsupported PyTorch model: </span><span class="si">{</span><span class="n">pytorch_model</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Unknown source: </span><span class="si">{</span><span class="n">source</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span></div>
+</div>
+
+
+
+<span class="n">__all__</span> <span class="o">=</span> <span class="p">[</span><span class="s2">&quot;InputNetTransform&quot;</span><span class="p">]</span> 
+</pre></div>
+
+           </div>
+          </div>
+          <footer>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright 2025, Research and Engineering at Kempner.</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>

@@ -26,7 +26,7 @@
     <link rel="author" title="About these documents" href="about.html" />
     <link rel="index" title="Index" href="genindex.html" />
     <link rel="search" title="Search" href="search.html" />
-    <link rel="next" title="About" href="about.html" /> 
+    <link rel="next" title="Installation and Setup" href="source/getting_started/installation.html" /> 
 </head>
 
 <body class="wy-body-for-nav"> 
@@ -48,30 +48,38 @@
   </form>
 </div>
         </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
-              <p class="caption" role="heading"><span class="caption-text">Introduction</span></p>
+              <p class="caption" role="heading"><span class="caption-text">Getting Started</span></p>
 <ul>
-<li class="toctree-l1"><a class="reference internal" href="about.html">About</a></li>
+<li class="toctree-l1"><a class="reference internal" href="source/getting_started/installation.html">Installation and Setup</a></li>
+<li class="toctree-l1"><a class="reference internal" href="source/getting_started/quickstart.html">Quick Start Guide</a></li>
 </ul>
-<p class="caption" role="heading"><span class="caption-text">Contents</span></p>
+<p class="caption" role="heading"><span class="caption-text">User Guide</span></p>
 <ul>
-<li class="toctree-l1"><a class="reference internal" href="source/getting_started/index.html">Getting Started Guide</a></li>
-<li class="toctree-l1"><a class="reference internal" href="source/user_guide/index.html">User Guide</a></li>
+<li class="toctree-l1"><a class="reference internal" href="source/user_guide/architecture.html">Architecture Overview</a></li>
+<li class="toctree-l1"><a class="reference internal" href="source/user_guide/configuration.html">Configuration System</a></li>
 </ul>
-<p class="caption" role="heading"><span class="caption-text">Contents</span></p>
+<p class="caption" role="heading"><span class="caption-text">API Reference</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="source/api/networks.html">Networks API Reference</a></li>
+<li class="toctree-l1"><a class="reference internal" href="source/api/models.html">Models API Reference</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Advanced Topics</span></p>
 <ul>
 <li class="toctree-l1"><a class="reference internal" href="source/advanced/network_structures/index.html">Network Structures</a></li>
 <li class="toctree-l1"><a class="reference internal" href="source/advanced/learning/index.html">Learning Strategies</a></li>
-<li class="toctree-l1"><a class="reference internal" href="source/advanced/visualization/index.html">Visualization Tools</a></li>
 <li class="toctree-l1"><a class="reference internal" href="source/advanced/analysis/index.html">Analysis Tools</a></li>
+<li class="toctree-l1"><a class="reference internal" href="source/advanced/visualization/index.html">Visualization Tools</a></li>
 <li class="toctree-l1"><a class="reference internal" href="source/advanced/configuration/index.html">Configuration System</a></li>
 </ul>
-<p class="caption" role="heading"><span class="caption-text">Contents</span></p>
+<p class="caption" role="heading"><span class="caption-text">Development</span></p>
 <ul>
-<li class="toctree-l1"><a class="reference internal" href="source/api/index.html">API Reference</a></li>
+<li class="toctree-l1"><a class="reference internal" href="source/development/contributing.html">Contributing to Dendritic Modeling Framework</a></li>
+<li class="toctree-l1"><a class="reference internal" href="source/development/testing.html">Testing Guide</a></li>
 </ul>
-<p class="caption" role="heading"><span class="caption-text">Contents</span></p>
+<p class="caption" role="heading"><span class="caption-text">Reference</span></p>
 <ul>
-<li class="toctree-l1"><a class="reference internal" href="source/deployment/index.html">Deployment Guide</a></li>
+<li class="toctree-l1"><a class="reference internal" href="source/reference/glossary.html">Glossary</a></li>
+<li class="toctree-l1"><a class="reference internal" href="about.html">About</a></li>
 </ul>
 
         </div>
@@ -100,51 +108,119 @@
              
   <section id="dendritic-modeling-framework">
 <h1>Dendritic Modeling Framework<a class="headerlink" href="#dendritic-modeling-framework" title="Link to this heading"></a></h1>
-<p><em>A Python framework for creating, training, and analyzing neural networks with dendritic-inspired architectures</em></p>
-<a class="reference internal image-reference" href="_images/dendritic_diagram.png"><img alt="Dendritic neuron diagram" src="_images/dendritic_diagram.png" style="width: 400px;" />
+<p>A PyTorch framework for biologically-inspired neural networks with dendritic computation</p>
+<figure class="align-center" id="id1">
+<a class="reference internal image-reference" href="_static/einet_architecture.svg"><img alt="Dendritic Network Architecture" src="_static/einet_architecture.svg" style="width: 80%;" />
 </a>
-<p>This documentation provides comprehensive information about the dendritic modeling framework, its theoretical foundations, implementation details, and practical usage guides.</p>
-<p>The framework allows you to define and run experiments using a flexible YAML-based configuration system, making it easy to reproduce experiments and iterate quickly.</p>
+<figcaption>
+<p><span class="caption-number">Figure 1 </span><span class="caption-text">Overview of the dendritic modeling framework showing multi-layer E/I networks with shunting inhibition</span><a class="headerlink" href="#id1" title="Link to this image"></a></p>
+</figcaption>
+</figure>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>All diagrams and placeholder images in the documentation are generated automatically by the helper script <code class="docutils literal notranslate"><span class="pre">docs/make.py</span></code>.
+If you update the code that produces a new visual or change the styling, remember to rerun:</p>
+<p><code class="docutils literal notranslate"><span class="pre">``bash</span>
+<span class="pre">python</span> <span class="pre">docs/make.py</span>
+<span class="pre">``</span></code></p>
+<p>before rebuilding the documentation (<code class="docutils literal notranslate"><span class="pre">make</span> <span class="pre">html</span></code> or equivalent).  This guarantees that the HTML/PDF output always ships with the latest, high-resolution figures (both PNG and SVG).  Vector <code class="docutils literal notranslate"><span class="pre">.svg</span></code> versions are preferred for crisp rendering at any zoom level.</p>
+</div>
+<section id="overview">
+<h2>Overview<a class="headerlink" href="#overview" title="Link to this heading"></a></h2>
+<p>The Dendritic Modeling Framework implements neural networks inspired by the dendritic computations in biological neurons. Key features include:</p>
+<ul class="simple">
+<li><p><strong>Shunting Inhibition</strong>: Divisive normalization through E/(E+I+ε) computation</p></li>
+<li><p><strong>Multi-layer E/I Networks</strong>: Separate excitatory and inhibitory populations</p></li>
+<li><p><strong>Flexible Architectures</strong>: Support for MLPs, CNNs, and Vision Transformers</p></li>
+<li><p><strong>Biological Plausibility</strong>: Branching patterns, synaptic constraints, and Dale’s principle</p></li>
+<li><p><strong>Comprehensive Analysis</strong>: Information theory, ablation studies, and visualization tools</p></li>
+</ul>
 <div class="toctree-wrapper compound">
-<p class="caption" role="heading"><span class="caption-text">Introduction</span></p>
+<p class="caption" role="heading"><span class="caption-text">Getting Started</span></p>
 <ul>
-<li class="toctree-l1"><a class="reference internal" href="about.html">About</a><ul>
-<li class="toctree-l2"><a class="reference internal" href="about.html#the-dendritic-modeling-framework">The Dendritic Modeling Framework</a></li>
-<li class="toctree-l2"><a class="reference internal" href="about.html#key-features">Key Features</a></li>
-<li class="toctree-l2"><a class="reference internal" href="about.html#research-applications">Research Applications</a></li>
+<li class="toctree-l1"><a class="reference internal" href="source/getting_started/installation.html">Installation and Setup</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="source/getting_started/installation.html#overview">Overview</a></li>
+<li class="toctree-l2"><a class="reference internal" href="source/getting_started/installation.html#system-requirements">System Requirements</a></li>
+<li class="toctree-l2"><a class="reference internal" href="source/getting_started/installation.html#quick-installation-recommended">Quick Installation (Recommended)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="source/getting_started/installation.html#installation-options">Installation Options</a></li>
+<li class="toctree-l2"><a class="reference internal" href="source/getting_started/installation.html#dependency-groups-explained">Dependency Groups Explained</a></li>
+<li class="toctree-l2"><a class="reference internal" href="source/getting_started/installation.html#detailed-installation-steps">Detailed Installation Steps</a></li>
+<li class="toctree-l2"><a class="reference internal" href="source/getting_started/installation.html#verification-and-testing">Verification and Testing</a></li>
+<li class="toctree-l2"><a class="reference internal" href="source/getting_started/installation.html#troubleshooting">Troubleshooting</a></li>
+<li class="toctree-l2"><a class="reference internal" href="source/getting_started/installation.html#running-your-first-experiment">Running Your First Experiment</a></li>
+<li class="toctree-l2"><a class="reference internal" href="source/getting_started/installation.html#continuous-integration-setup">Continuous Integration Setup</a></li>
+<li class="toctree-l2"><a class="reference internal" href="source/getting_started/installation.html#next-steps">Next Steps</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="source/getting_started/quickstart.html">Quick Start Guide</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="source/getting_started/quickstart.html#installation">Installation</a></li>
+<li class="toctree-l2"><a class="reference internal" href="source/getting_started/quickstart.html#basic-example">Basic Example</a></li>
+<li class="toctree-l2"><a class="reference internal" href="source/getting_started/quickstart.html#using-configuration-files">Using Configuration Files</a></li>
+<li class="toctree-l2"><a class="reference internal" href="source/getting_started/quickstart.html#key-concepts">Key Concepts</a></li>
+<li class="toctree-l2"><a class="reference internal" href="source/getting_started/quickstart.html#common-tasks">Common Tasks</a></li>
+<li class="toctree-l2"><a class="reference internal" href="source/getting_started/quickstart.html#next-steps">Next Steps</a></li>
+<li class="toctree-l2"><a class="reference internal" href="source/getting_started/quickstart.html#tips-for-success">Tips for Success</a></li>
+<li class="toctree-l2"><a class="reference internal" href="source/getting_started/quickstart.html#common-issues">Common Issues</a></li>
+<li class="toctree-l2"><a class="reference internal" href="source/getting_started/quickstart.html#getting-help">Getting Help</a></li>
 </ul>
 </li>
 </ul>
 </div>
-<section id="getting-started">
-<h2>Getting Started<a class="headerlink" href="#getting-started" title="Link to this heading"></a></h2>
 <div class="toctree-wrapper compound">
-<p class="caption" role="heading"><span class="caption-text">Contents</span></p>
+<p class="caption" role="heading"><span class="caption-text">User Guide</span></p>
 <ul>
-<li class="toctree-l1"><a class="reference internal" href="source/getting_started/index.html">Getting Started Guide</a><ul>
-<li class="toctree-l2"><a class="reference internal" href="source/getting_started/installation.html">Installation and Setup</a></li>
-<li class="toctree-l2"><a class="reference internal" href="source/getting_started/quickstart.html">Quickstart</a></li>
-<li class="toctree-l2"><a class="reference internal" href="source/getting_started/examples.html">Examples</a></li>
+<li class="toctree-l1"><a class="reference internal" href="source/user_guide/architecture.html">Architecture Overview</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="source/user_guide/architecture.html#core-concepts">Core Concepts</a></li>
+<li class="toctree-l2"><a class="reference internal" href="source/user_guide/architecture.html#network-architecture">Network Architecture</a></li>
+<li class="toctree-l2"><a class="reference internal" href="source/user_guide/architecture.html#implementation-details">Implementation Details</a></li>
+<li class="toctree-l2"><a class="reference internal" href="source/user_guide/architecture.html#biological-inspiration">Biological Inspiration</a></li>
+<li class="toctree-l2"><a class="reference internal" href="source/user_guide/architecture.html#applications">Applications</a></li>
+<li class="toctree-l2"><a class="reference internal" href="source/user_guide/architecture.html#next-steps">Next Steps</a></li>
 </ul>
 </li>
-<li class="toctree-l1"><a class="reference internal" href="source/user_guide/index.html">User Guide</a><ul>
-<li class="toctree-l2"><a class="reference internal" href="source/user_guide/concepts.html">Key Concepts and Overview</a></li>
-<li class="toctree-l2"><a class="reference internal" href="source/user_guide/configuration.html">Configuration System</a></li>
-<li class="toctree-l2"><a class="reference internal" href="source/user_guide/config_yaml_guide.html">Understanding the Config YAML File</a></li>
-<li class="toctree-l2"><a class="reference internal" href="source/user_guide/interactive_run.html">Running an interactive session</a></li>
-<li class="toctree-l2"><a class="reference internal" href="source/user_guide/train_experiments_guide.html">Using train_experiments.py</a></li>
-<li class="toctree-l2"><a class="reference internal" href="source/user_guide/experiment_tracking.html">Experiment Tracking</a></li>
-<li class="toctree-l2"><a class="reference internal" href="source/user_guide/ei_sweep_guide.html">Running and Analyzing EI Sweeps</a></li>
-<li class="toctree-l2"><a class="reference internal" href="source/user_guide/cifar10_tutorial.html">CIFAR10 Tutorial</a></li>
+<li class="toctree-l1"><a class="reference internal" href="source/user_guide/configuration.html">Configuration System</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="source/user_guide/configuration.html#basic-configuration-structure">Basic Configuration Structure</a></li>
+<li class="toctree-l2"><a class="reference internal" href="source/user_guide/configuration.html#model-configuration">Model Configuration</a></li>
+<li class="toctree-l2"><a class="reference internal" href="source/user_guide/configuration.html#training-configuration">Training Configuration</a></li>
+<li class="toctree-l2"><a class="reference internal" href="source/user_guide/configuration.html#task-configuration">Task Configuration</a></li>
+<li class="toctree-l2"><a class="reference internal" href="source/user_guide/configuration.html#wandb-configuration">Wandb Configuration</a></li>
+<li class="toctree-l2"><a class="reference internal" href="source/user_guide/configuration.html#visualization-configuration">Visualization Configuration</a></li>
+<li class="toctree-l2"><a class="reference internal" href="source/user_guide/configuration.html#outputs-configuration">Outputs Configuration</a></li>
+<li class="toctree-l2"><a class="reference internal" href="source/user_guide/configuration.html#using-the-configuration-system">Using the Configuration System</a></li>
 </ul>
 </li>
 </ul>
 </div>
-</section>
-<section id="advanced-topics">
-<h2>Advanced Topics<a class="headerlink" href="#advanced-topics" title="Link to this heading"></a></h2>
 <div class="toctree-wrapper compound">
-<p class="caption" role="heading"><span class="caption-text">Contents</span></p>
+<p class="caption" role="heading"><span class="caption-text">API Reference</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="source/api/networks.html">Networks API Reference</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="source/api/networks.html#core-network-classes">Core Network Classes</a></li>
+<li class="toctree-l2"><a class="reference internal" href="source/api/networks.html#layer-components">Layer Components</a></li>
+<li class="toctree-l2"><a class="reference internal" href="source/api/networks.html#input-networks">Input Networks</a></li>
+<li class="toctree-l2"><a class="reference internal" href="source/api/networks.html#specialized-architectures">Specialized Architectures</a></li>
+<li class="toctree-l2"><a class="reference internal" href="source/api/networks.html#factory-functions">Factory Functions</a></li>
+<li class="toctree-l2"><a class="reference internal" href="source/api/networks.html#utilities">Utilities</a></li>
+<li class="toctree-l2"><a class="reference internal" href="source/api/networks.html#configuration">Configuration</a></li>
+<li class="toctree-l2"><a class="reference internal" href="source/api/networks.html#see-also">See Also</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="source/api/models.html">Models API Reference</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="source/api/models.html#base-model-classes">Base Model Classes</a></li>
+<li class="toctree-l2"><a class="reference internal" href="source/api/models.html#classification-models">Classification Models</a></li>
+<li class="toctree-l2"><a class="reference internal" href="source/api/models.html#regression-models">Regression Models</a></li>
+<li class="toctree-l2"><a class="reference internal" href="source/api/models.html#baseline-models">Baseline Models</a></li>
+<li class="toctree-l2"><a class="reference internal" href="source/api/models.html#model-configuration">Model Configuration</a></li>
+<li class="toctree-l2"><a class="reference internal" href="source/api/models.html#model-factory">Model Factory</a></li>
+<li class="toctree-l2"><a class="reference internal" href="source/api/models.html#model-utilities">Model Utilities</a></li>
+<li class="toctree-l2"><a class="reference internal" href="source/api/models.html#integration-with-pytorch-lightning">Integration with PyTorch Lightning</a></li>
+<li class="toctree-l2"><a class="reference internal" href="source/api/models.html#see-also">See Also</a></li>
+</ul>
+</li>
+</ul>
+</div>
+<div class="toctree-wrapper compound">
+<p class="caption" role="heading"><span class="caption-text">Advanced Topics</span></p>
 <ul>
 <li class="toctree-l1"><a class="reference internal" href="source/advanced/network_structures/index.html">Network Structures</a><ul>
 <li class="toctree-l2"><a class="reference internal" href="source/advanced/network_structures/network_structures.html">Network Structures and Architecture</a></li>
@@ -158,11 +234,6 @@
 <li class="toctree-l2"><a class="reference internal" href="source/advanced/learning/topk_linear.html">TopKLinear Layers and Dendritic Processing</a></li>
 </ul>
 </li>
-<li class="toctree-l1"><a class="reference internal" href="source/advanced/visualization/index.html">Visualization Tools</a><ul>
-<li class="toctree-l2"><a class="reference internal" href="source/advanced/visualization/visualization_guide.html">Network Visualization Guide</a></li>
-<li class="toctree-l2"><a class="reference internal" href="source/advanced/visualization/evaluation_visualization.html">Evaluation and Visualization</a></li>
-</ul>
-</li>
 <li class="toctree-l1"><a class="reference internal" href="source/advanced/analysis/index.html">Analysis Tools</a><ul>
 <li class="toctree-l2"><a class="reference internal" href="source/advanced/analysis/ablation_studies.html">Ablation Studies</a></li>
 <li class="toctree-l2"><a class="reference internal" href="source/advanced/analysis/branch_information.html">Branch Information Analysis</a></li>
@@ -171,6 +242,11 @@
 <li class="toctree-l2"><a class="reference internal" href="source/advanced/analysis/experiment_tracking.html">Experiment Tracking and Logging</a></li>
 <li class="toctree-l2"><a class="reference internal" href="source/advanced/analysis/output_handling.html">Output Handling and Loss Functions</a></li>
 <li class="toctree-l2"><a class="reference internal" href="source/advanced/analysis/ei_sweep_analysis.html">EI Sweep Analysis</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="source/advanced/visualization/index.html">Visualization Tools</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="source/advanced/visualization/visualization_guide.html">Network Visualization Guide</a></li>
+<li class="toctree-l2"><a class="reference internal" href="source/advanced/visualization/evaluation_visualization.html">Evaluation and Visualization</a></li>
 </ul>
 </li>
 <li class="toctree-l1"><a class="reference internal" href="source/advanced/configuration/index.html">Configuration System</a><ul>
@@ -184,45 +260,88 @@
 </li>
 </ul>
 </div>
-</section>
-<section id="api-reference">
-<h2>API Reference<a class="headerlink" href="#api-reference" title="Link to this heading"></a></h2>
 <div class="toctree-wrapper compound">
-<p class="caption" role="heading"><span class="caption-text">Contents</span></p>
+</div>
+<div class="toctree-wrapper compound">
+<p class="caption" role="heading"><span class="caption-text">Development</span></p>
 <ul>
-<li class="toctree-l1"><a class="reference internal" href="source/api/index.html">API Reference</a><ul>
-<li class="toctree-l2"><a class="reference internal" href="source/api/api_reference.html">API Reference</a></li>
-</ul>
-</li>
+<li class="toctree-l1"><a class="reference internal" href="source/development/contributing.html">Contributing to Dendritic Modeling Framework</a></li>
+<li class="toctree-l1"><a class="reference internal" href="source/development/testing.html">Testing Guide</a></li>
 </ul>
 </div>
-</section>
-<section id="deployment">
-<h2>Deployment<a class="headerlink" href="#deployment" title="Link to this heading"></a></h2>
 <div class="toctree-wrapper compound">
-<p class="caption" role="heading"><span class="caption-text">Contents</span></p>
+<p class="caption" role="heading"><span class="caption-text">Reference</span></p>
 <ul>
-<li class="toctree-l1"><a class="reference internal" href="source/deployment/index.html">Deployment Guide</a><ul>
-<li class="toctree-l2"><a class="reference internal" href="source/deployment/sweep_job_submission.html">Sweep Job Submission</a></li>
-<li class="toctree-l2"><a class="reference internal" href="source/deployment/user_sweep_job_submission.html">Sweep Job Submission (User)</a></li>
-</ul>
-</li>
+<li class="toctree-l1"><a class="reference internal" href="source/reference/glossary.html">Glossary</a></li>
+<li class="toctree-l1"><a class="reference internal" href="about.html">About</a></li>
 </ul>
 </div>
 </section>
-<section id="development">
-<h2>Development<a class="headerlink" href="#development" title="Link to this heading"></a></h2>
-<div class="toctree-wrapper compound">
+<section id="key-concepts">
+<h2>Key Concepts<a class="headerlink" href="#key-concepts" title="Link to this heading"></a></h2>
+<section id="shunting-inhibition">
+<h3>Shunting Inhibition<a class="headerlink" href="#shunting-inhibition" title="Link to this heading"></a></h3>
+<p>The core computation implements divisive normalization:</p>
+<figure class="align-center" id="id2">
+<a class="reference internal image-reference" href="_images/shunting_inhibition_diagram.png"><img alt="Shunting Inhibition" src="_images/shunting_inhibition_diagram.png" style="width: 60%;" />
+</a>
+<figcaption>
+<p><span class="caption-number">Figure 9 </span><span class="caption-text">Shunting inhibition provides gain control and normalization</span><a class="headerlink" href="#id2" title="Link to this image"></a></p>
+</figcaption>
+</figure>
+</section>
+<section id="dendritic-branches">
+<h3>Dendritic Branches<a class="headerlink" href="#dendritic-branches" title="Link to this heading"></a></h3>
+<p>Neurons have hierarchical dendritic branches:</p>
+<figure class="align-center" id="id3">
+<a class="reference internal image-reference" href="_images/basic_dendritic_neuron.png"><img alt="Dendritic Neuron" src="_images/basic_dendritic_neuron.png" style="width: 50%;" />
+</a>
+<figcaption>
+<p><span class="caption-number">Figure 10 </span><span class="caption-text">Dendritic branches receive excitatory and inhibitory inputs</span><a class="headerlink" href="#id3" title="Link to this image"></a></p>
+</figcaption>
+</figure>
+</section>
+</section>
+<section id="quick-example">
+<h2>Quick Example<a class="headerlink" href="#quick-example" title="Link to this heading"></a></h2>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span><span class="w"> </span><span class="nn">dendritic_modeling.models</span><span class="w"> </span><span class="kn">import</span> <span class="n">DendriticClassifier</span>
+
+<span class="c1"># Create a dendritic network for MNIST</span>
+<span class="n">model</span> <span class="o">=</span> <span class="n">DendriticClassifier</span><span class="p">(</span>
+    <span class="n">network_config</span><span class="o">=</span><span class="p">{</span>
+        <span class="s2">&quot;name&quot;</span><span class="p">:</span> <span class="s2">&quot;ExcitationInhibitionNetwork&quot;</span><span class="p">,</span>
+        <span class="s2">&quot;params&quot;</span><span class="p">:</span> <span class="p">{</span>
+            <span class="s2">&quot;input_dim&quot;</span><span class="p">:</span> <span class="mi">784</span><span class="p">,</span>
+            <span class="s2">&quot;n_layers&quot;</span><span class="p">:</span> <span class="mi">2</span><span class="p">,</span>
+            <span class="s2">&quot;n_excitatory&quot;</span><span class="p">:</span> <span class="p">[</span><span class="mi">100</span><span class="p">,</span> <span class="mi">10</span><span class="p">],</span>
+            <span class="s2">&quot;n_inhibitory&quot;</span><span class="p">:</span> <span class="p">[</span><span class="mi">20</span><span class="p">,</span> <span class="mi">0</span><span class="p">],</span>
+            <span class="s2">&quot;n_branches&quot;</span><span class="p">:</span> <span class="p">[</span><span class="mi">10</span><span class="p">,</span> <span class="mi">5</span><span class="p">]</span>
+        <span class="p">}</span>
+    <span class="p">},</span>
+    <span class="n">num_classes</span><span class="o">=</span><span class="mi">10</span>
+<span class="p">)</span>
+
+<span class="c1"># Train and evaluate</span>
+<span class="n">trainer</span><span class="o">.</span><span class="n">fit</span><span class="p">(</span><span class="n">model</span><span class="p">,</span> <span class="n">train_loader</span><span class="p">,</span> <span class="n">val_loader</span><span class="p">)</span>
+<span class="n">accuracy</span> <span class="o">=</span> <span class="n">trainer</span><span class="o">.</span><span class="n">test</span><span class="p">(</span><span class="n">model</span><span class="p">,</span> <span class="n">test_loader</span><span class="p">)</span>
+</pre></div>
 </div>
 </section>
-<section id="reference">
-<h2>Reference<a class="headerlink" href="#reference" title="Link to this heading"></a></h2>
-<div class="toctree-wrapper compound">
+<section id="citing">
+<h2>Citing<a class="headerlink" href="#citing" title="Link to this heading"></a></h2>
+<p>If you use this framework in your research, please cite:</p>
+<div class="highlight-bibtex notranslate"><div class="highlight"><pre><span></span><span class="nc">@software</span><span class="p">{</span><span class="nl">dendritic_modeling</span><span class="p">,</span>
+<span class="w">  </span><span class="na">title</span><span class="w"> </span><span class="p">=</span><span class="w"> </span><span class="s">{Dendritic Modeling Framework}</span><span class="p">,</span>
+<span class="w">  </span><span class="na">author</span><span class="w"> </span><span class="p">=</span><span class="w"> </span><span class="s">{Your Lab}</span><span class="p">,</span>
+<span class="w">  </span><span class="na">year</span><span class="w"> </span><span class="p">=</span><span class="w"> </span><span class="s">{2024}</span><span class="p">,</span>
+<span class="w">  </span><span class="na">url</span><span class="w"> </span><span class="p">=</span><span class="w"> </span><span class="s">{https://github.com/yourusername/dendritic-modeling}</span>
+<span class="p">}</span>
+</pre></div>
 </div>
 </section>
 </section>
 <section id="indices-and-tables">
-<h1>Indices and tables<a class="headerlink" href="#indices-and-tables" title="Link to this heading"></a></h1>
+<h1>Indices and Tables<a class="headerlink" href="#indices-and-tables" title="Link to this heading"></a></h1>
 <ul class="simple">
 <li><p><a class="reference internal" href="genindex.html"><span class="std std-ref">Index</span></a></p></li>
 <li><p><a class="reference internal" href="py-modindex.html"><span class="std std-ref">Module Index</span></a></p></li>
@@ -234,7 +353,7 @@
            </div>
           </div>
           <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
-        <a href="about.html" class="btn btn-neutral float-right" title="About" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
+        <a href="source/getting_started/installation.html" class="btn btn-neutral float-right" title="Installation and Setup" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
     </div>
 
   <hr/>

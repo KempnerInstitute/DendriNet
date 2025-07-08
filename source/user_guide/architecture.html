@@ -1,0 +1,309 @@
+
+
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" data-content_root="../../">
+<head>
+  <meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Architecture Overview &mdash; dendritic_modeling 0.1.0 documentation</title>
+      <link rel="stylesheet" type="text/css" href="../../_static/pygments.css?v=b86133f3" />
+      <link rel="stylesheet" type="text/css" href="../../_static/css/theme.css?v=e59714d7" />
+      <link rel="stylesheet" type="text/css" href="../../_static/copybutton.css?v=76b2166b" />
+
+  
+      <script src="../../_static/jquery.js?v=5d32c60e"></script>
+      <script src="../../_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
+      <script src="../../_static/documentation_options.js?v=01f34227"></script>
+      <script src="../../_static/doctools.js?v=9bcbadda"></script>
+      <script src="../../_static/sphinx_highlight.js?v=dc90522c"></script>
+      <script src="../../_static/clipboard.min.js?v=a7894cd8"></script>
+      <script src="../../_static/copybutton.js?v=f281be69"></script>
+      <script crossorigin="anonymous" integrity="sha256-Ae2Vz/4ePdIu6ZyI/5ZGsYnb+m0JlOmKPjt6XZ9JJkA=" src="https://cdnjs.cloudflare.com/ajax/libs/require.js/2.3.4/require.min.js"></script>
+      <script>window.MathJax = {"tex": {"inlineMath": [["$", "$"], ["\\(", "\\)"]], "processEscapes": true}, "options": {"ignoreHtmlClass": "tex2jax_ignore|mathjax_ignore|document", "processHtmlClass": "tex2jax_process|mathjax_process|math|output_area"}}</script>
+      <script defer="defer" src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+    <script src="../../_static/js/theme.js"></script>
+    <link rel="author" title="About these documents" href="../../about.html" />
+    <link rel="index" title="Index" href="../../genindex.html" />
+    <link rel="search" title="Search" href="../../search.html" />
+    <link rel="next" title="Configuration System" href="configuration.html" />
+    <link rel="prev" title="Quick Start Guide" href="../getting_started/quickstart.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+
+          
+          
+          <a href="../../index.html" class="icon icon-home">
+            dendritic_modeling
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <p class="caption" role="heading"><span class="caption-text">Getting Started</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../getting_started/installation.html">Installation and Setup</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../getting_started/quickstart.html">Quick Start Guide</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">User Guide</span></p>
+<ul class="current">
+<li class="toctree-l1 current"><a class="current reference internal" href="#">Architecture Overview</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="#core-concepts">Core Concepts</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#dendritic-neuron-model">Dendritic Neuron Model</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#shunting-inhibition-mechanism">Shunting Inhibition Mechanism</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="#network-architecture">Network Architecture</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#input-transformation-pipeline">Input Transformation Pipeline</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#multi-layer-networks">Multi-Layer Networks</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#complete-architecture-flow">Complete Architecture Flow</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#computation-flow">Computation Flow</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="#implementation-details">Implementation Details</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#key-classes">Key Classes</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#example-usage">Example Usage</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="#biological-inspiration">Biological Inspiration</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#applications">Applications</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#next-steps">Next Steps</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="configuration.html">Configuration System</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">API Reference</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../api/networks.html">Networks API Reference</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../api/models.html">Models API Reference</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Advanced Topics</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../advanced/network_structures/index.html">Network Structures</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../advanced/learning/index.html">Learning Strategies</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../advanced/analysis/index.html">Analysis Tools</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../advanced/visualization/index.html">Visualization Tools</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../advanced/configuration/index.html">Configuration System</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Development</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../development/contributing.html">Contributing to Dendritic Modeling Framework</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../development/testing.html">Testing Guide</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Reference</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../reference/glossary.html">Glossary</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../about.html">About</a></li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../../index.html">dendritic_modeling</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="../../index.html" class="icon icon-home" aria-label="Home"></a></li>
+      <li class="breadcrumb-item active">Architecture Overview</li>
+      <li class="wy-breadcrumbs-aside">
+            <a href="../../_sources/source/user_guide/architecture.rst.txt" rel="nofollow"> View page source</a>
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <section id="architecture-overview">
+<h1>Architecture Overview<a class="headerlink" href="#architecture-overview" title="Link to this heading"></a></h1>
+<p>The dendritic modeling framework implements biologically-inspired neural networks based on dendritic computation with shunting inhibition. This architecture enables neurons to perform divisive normalization through the interaction of excitatory and inhibitory inputs.</p>
+<section id="core-concepts">
+<h2>Core Concepts<a class="headerlink" href="#core-concepts" title="Link to this heading"></a></h2>
+<section id="dendritic-neuron-model">
+<h3>Dendritic Neuron Model<a class="headerlink" href="#dendritic-neuron-model" title="Link to this heading"></a></h3>
+<p>The fundamental computational unit in our framework is the dendritic neuron, which implements shunting inhibition (divisive normalization):</p>
+<figure class="align-center" id="id1">
+<a class="reference internal image-reference" href="../../_images/basic_dendritic_neuron.png"><img alt="Basic dendritic neuron architecture" src="../../_images/basic_dendritic_neuron.png" style="width: 600px;" />
+</a>
+<figcaption>
+<p><span class="caption-number">Figure 3 </span><span class="caption-text"><strong>Basic Dendritic Neuron</strong>: Shows excitatory (red triangles) and inhibitory (blue circles) synaptic inputs converging on dendritic branches. The soma integrates these inputs using divisive normalization.</span><a class="headerlink" href="#id1" title="Link to this image"></a></p>
+</figcaption>
+</figure>
+<p>Each neuron computes its output using the formula:</p>
+<div class="math notranslate nohighlight">
+\[V_{out} = \frac{E}{E + I + \epsilon}\]</div>
+<p>where:
+- <span class="math notranslate nohighlight">\(E\)</span> is the sum of excitatory inputs
+- <span class="math notranslate nohighlight">\(I\)</span> is the sum of inhibitory inputs
+- <span class="math notranslate nohighlight">\(\epsilon\)</span> is a small constant for numerical stability</p>
+</section>
+<section id="shunting-inhibition-mechanism">
+<h3>Shunting Inhibition Mechanism<a class="headerlink" href="#shunting-inhibition-mechanism" title="Link to this heading"></a></h3>
+<p>Shunting inhibition provides a biologically plausible mechanism for gain control and normalization:</p>
+<figure class="align-center" id="id2">
+<a class="reference internal image-reference" href="../../_images/shunting_inhibition_diagram.png"><img alt="Shunting inhibition mechanism" src="../../_images/shunting_inhibition_diagram.png" style="width: 800px;" />
+</a>
+<figcaption>
+<p><span class="caption-number">Figure 4 </span><span class="caption-text"><strong>Shunting Inhibition</strong>: Left panel shows the mechanism where inhibition divisively modulates excitation. Right panel demonstrates the divisive normalization effect - increasing inhibition reduces the gain without changing the shape of the response curve.</span><a class="headerlink" href="#id2" title="Link to this image"></a></p>
+</figcaption>
+</figure>
+</section>
+</section>
+<section id="network-architecture">
+<h2>Network Architecture<a class="headerlink" href="#network-architecture" title="Link to this heading"></a></h2>
+<section id="input-transformation-pipeline">
+<h3>Input Transformation Pipeline<a class="headerlink" href="#input-transformation-pipeline" title="Link to this heading"></a></h3>
+<p>The framework processes inputs through a specialized pipeline that separates excitatory and inhibitory pathways:</p>
+<figure class="align-center" id="id3">
+<a class="reference internal image-reference" href="../../_images/ei_input_transformation.png"><img alt="E/I input transformation pipeline" src="../../_images/ei_input_transformation.png" style="width: 900px;" />
+</a>
+<figcaption>
+<p><span class="caption-number">Figure 5 </span><span class="caption-text"><strong>Input Transformation</strong>: Input images are processed through an input network that generates separate excitatory and inhibitory signals, which then feed into dendritic neurons implementing divisive normalization.</span><a class="headerlink" href="#id3" title="Link to this image"></a></p>
+</figcaption>
+</figure>
+</section>
+<section id="multi-layer-networks">
+<h3>Multi-Layer Networks<a class="headerlink" href="#multi-layer-networks" title="Link to this heading"></a></h3>
+<p>Complex computations are achieved by stacking multiple layers of E/I neurons:</p>
+<figure class="align-center" id="id4">
+<a class="reference internal image-reference" href="../../_images/multilayer_ei_network.png"><img alt="Multi-layer E/I network" src="../../_images/multilayer_ei_network.png" style="width: 800px;" />
+</a>
+<figcaption>
+<p><span class="caption-number">Figure 6 </span><span class="caption-text"><strong>Multi-Layer E/I Network</strong>: Shows how excitatory (red) and inhibitory (blue) neurons are organized in layers. Each E neuron implements the divisive normalization computation. Connections show feedforward excitation and lateral inhibition patterns.</span><a class="headerlink" href="#id4" title="Link to this image"></a></p>
+</figcaption>
+</figure>
+</section>
+<section id="complete-architecture-flow">
+<h3>Complete Architecture Flow<a class="headerlink" href="#complete-architecture-flow" title="Link to this heading"></a></h3>
+<p>The complete network architecture integrates all components:</p>
+<figure class="align-center" id="id5">
+<a class="reference internal image-reference" href="../../_images/network_architecture_overview.png"><img alt="Network architecture overview" src="../../_images/network_architecture_overview.png" style="width: 1000px;" />
+</a>
+<figcaption>
+<p><span class="caption-number">Figure 7 </span><span class="caption-text"><strong>Complete Architecture</strong>: Shows the full pipeline from input through the input network, E/I separation, multiple dendritic layers, to final output. Each layer implements the core divisive normalization computation.</span><a class="headerlink" href="#id5" title="Link to this image"></a></p>
+</figcaption>
+</figure>
+</section>
+<section id="computation-flow">
+<h3>Computation Flow<a class="headerlink" href="#computation-flow" title="Link to this heading"></a></h3>
+<p>The dendritic computation flow shows how synaptic inputs are processed:</p>
+<figure class="align-center" id="id6">
+<a class="reference internal image-reference" href="../../_images/dendritic_computation_flow.png"><img alt="Dendritic computation flow" src="../../_images/dendritic_computation_flow.png" style="width: 700px;" />
+</a>
+<figcaption>
+<p><span class="caption-number">Figure 8 </span><span class="caption-text"><strong>Computation Flow</strong>: Illustrates how multiple excitatory and inhibitory synaptic inputs are summed separately and then combined through division to produce the output voltage.</span><a class="headerlink" href="#id6" title="Link to this image"></a></p>
+</figcaption>
+</figure>
+</section>
+</section>
+<section id="implementation-details">
+<h2>Implementation Details<a class="headerlink" href="#implementation-details" title="Link to this heading"></a></h2>
+<section id="key-classes">
+<h3>Key Classes<a class="headerlink" href="#key-classes" title="Link to this heading"></a></h3>
+<p>The framework provides several key classes for building dendritic networks:</p>
+<ol class="arabic simple">
+<li><p><strong>DendriticLayer</strong>: Base class for layers implementing dendritic computation</p></li>
+<li><p><strong>ExcitatoryInhibitoryLayer</strong>: Implements E/I separation and processing</p></li>
+<li><p><strong>InputTransformNetwork</strong>: Converts inputs into E/I signals</p></li>
+<li><p><strong>DendriticMLP</strong>: Multi-layer perceptron with dendritic neurons</p></li>
+</ol>
+</section>
+<section id="example-usage">
+<h3>Example Usage<a class="headerlink" href="#example-usage" title="Link to this heading"></a></h3>
+<p>Here’s a simple example of creating a dendritic network:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">import</span><span class="w"> </span><span class="nn">torch</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">dendritic_modeling.networks.architectures</span><span class="w"> </span><span class="kn">import</span> <span class="n">DendriticMLP</span>
+
+<span class="c1"># Create a 3-layer dendritic network</span>
+<span class="n">model</span> <span class="o">=</span> <span class="n">DendriticMLP</span><span class="p">(</span>
+    <span class="n">input_size</span><span class="o">=</span><span class="mi">784</span><span class="p">,</span>
+    <span class="n">hidden_sizes</span><span class="o">=</span><span class="p">[</span><span class="mi">128</span><span class="p">,</span> <span class="mi">64</span><span class="p">],</span>
+    <span class="n">output_size</span><span class="o">=</span><span class="mi">10</span><span class="p">,</span>
+    <span class="n">activation</span><span class="o">=</span><span class="s1">&#39;relu&#39;</span><span class="p">,</span>
+    <span class="n">use_dendritic</span><span class="o">=</span><span class="kc">True</span>
+<span class="p">)</span>
+
+<span class="c1"># Forward pass</span>
+<span class="n">x</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">randn</span><span class="p">(</span><span class="mi">32</span><span class="p">,</span> <span class="mi">784</span><span class="p">)</span>  <span class="c1"># batch of 32 images</span>
+<span class="n">output</span> <span class="o">=</span> <span class="n">model</span><span class="p">(</span><span class="n">x</span><span class="p">)</span>
+</pre></div>
+</div>
+</section>
+</section>
+<section id="biological-inspiration">
+<h2>Biological Inspiration<a class="headerlink" href="#biological-inspiration" title="Link to this heading"></a></h2>
+<p>The architecture is inspired by several biological principles:</p>
+<ol class="arabic simple">
+<li><p><strong>Dendritic Integration</strong>: Real neurons integrate inputs on their dendritic trees</p></li>
+<li><p><strong>Shunting Inhibition</strong>: A common mechanism in the brain for gain control</p></li>
+<li><p><strong>E/I Balance</strong>: The balance between excitation and inhibition is crucial for neural computation</p></li>
+<li><p><strong>Divisive Normalization</strong>: A canonical computation in sensory systems</p></li>
+</ol>
+</section>
+<section id="applications">
+<h2>Applications<a class="headerlink" href="#applications" title="Link to this heading"></a></h2>
+<p>This architecture is particularly well-suited for:</p>
+<ul class="simple">
+<li><p>Modeling visual neuron responses (simple cells, complex cells)</p></li>
+<li><p>Implementing biologically plausible CNNs</p></li>
+<li><p>Studying normalization mechanisms in neural networks</p></li>
+<li><p>Building interpretable models with clear computational principles</p></li>
+</ul>
+</section>
+<section id="next-steps">
+<h2>Next Steps<a class="headerlink" href="#next-steps" title="Link to this heading"></a></h2>
+<ul class="simple">
+<li><p><a class="reference internal" href="../getting_started/quickstart.html"><span class="doc">Quick Start Guide</span></a> - Get started with the framework</p></li>
+<li><p><a class="reference internal" href="../api/networks.html"><span class="doc">Networks API Reference</span></a> - Detailed API documentation</p></li>
+<li><p><a class="reference internal" href="../advanced/configuration/index.html"><span class="doc">Configuration System</span></a> - Advanced configuration options</p></li>
+</ul>
+</section>
+</section>
+
+
+           </div>
+          </div>
+          <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
+        <a href="../getting_started/quickstart.html" class="btn btn-neutral float-left" title="Quick Start Guide" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
+        <a href="configuration.html" class="btn btn-neutral float-right" title="Configuration System" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright 2025, Research and Engineering at Kempner.</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>

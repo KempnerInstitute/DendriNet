@@ -23,9 +23,7 @@
     <script src="../../_static/js/theme.js"></script>
     <link rel="author" title="About these documents" href="../../about.html" />
     <link rel="index" title="Index" href="../../genindex.html" />
-    <link rel="search" title="Search" href="../../search.html" />
-    <link rel="next" title="Running and Analyzing EI Sweeps" href="ei_sweep_guide.html" />
-    <link rel="prev" title="Using train_experiments.py" href="train_experiments_guide.html" /> 
+    <link rel="search" title="Search" href="../../search.html" /> 
 </head>
 
 <body class="wy-body-for-nav"> 
@@ -47,65 +45,38 @@
   </form>
 </div>
         </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
-              <p class="caption" role="heading"><span class="caption-text">Introduction</span></p>
+              <p class="caption" role="heading"><span class="caption-text">Getting Started</span></p>
 <ul>
-<li class="toctree-l1"><a class="reference internal" href="../../about.html">About</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../getting_started/installation.html">Installation and Setup</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../getting_started/quickstart.html">Quick Start Guide</a></li>
 </ul>
-<p class="caption" role="heading"><span class="caption-text">Contents</span></p>
-<ul class="current">
-<li class="toctree-l1"><a class="reference internal" href="../getting_started/index.html">Getting Started Guide</a></li>
-<li class="toctree-l1 current"><a class="reference internal" href="index.html">User Guide</a><ul class="current">
-<li class="toctree-l2"><a class="reference internal" href="concepts.html">Key Concepts and Overview</a></li>
-<li class="toctree-l2"><a class="reference internal" href="configuration.html">Configuration System</a></li>
-<li class="toctree-l2"><a class="reference internal" href="config_yaml_guide.html">Understanding the Config YAML File</a></li>
-<li class="toctree-l2"><a class="reference internal" href="interactive_run.html">Running an interactive session</a></li>
-<li class="toctree-l2"><a class="reference internal" href="train_experiments_guide.html">Using train_experiments.py</a></li>
-<li class="toctree-l2 current"><a class="current reference internal" href="#">Experiment Tracking</a><ul>
-<li class="toctree-l3"><a class="reference internal" href="#logging-system">Logging System</a><ul>
-<li class="toctree-l4"><a class="reference internal" href="#configuring-the-logger">Configuring the Logger</a></li>
+<p class="caption" role="heading"><span class="caption-text">User Guide</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="architecture.html">Architecture Overview</a></li>
+<li class="toctree-l1"><a class="reference internal" href="configuration.html">Configuration System</a></li>
 </ul>
-</li>
-<li class="toctree-l3"><a class="reference internal" href="#local-experiment-tracking">Local Experiment Tracking</a><ul>
-<li class="toctree-l4"><a class="reference internal" href="#visualizing-local-results">Visualizing Local Results</a></li>
+<p class="caption" role="heading"><span class="caption-text">API Reference</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../api/networks.html">Networks API Reference</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../api/models.html">Models API Reference</a></li>
 </ul>
-</li>
-<li class="toctree-l3"><a class="reference internal" href="#integration-with-weights-biases">Integration with Weights &amp; Biases</a><ul>
-<li class="toctree-l4"><a class="reference internal" href="#setting-up-weights-biases">Setting Up Weights &amp; Biases</a></li>
-<li class="toctree-l4"><a class="reference internal" href="#logging-metrics-to-weights-biases">Logging Metrics to Weights &amp; Biases</a></li>
-<li class="toctree-l4"><a class="reference internal" href="#logging-model-architecture">Logging Model Architecture</a></li>
-<li class="toctree-l4"><a class="reference internal" href="#saving-and-logging-artifacts">Saving and Logging Artifacts</a></li>
-<li class="toctree-l4"><a class="reference internal" href="#running-sweeps-with-weights-biases">Running Sweeps with Weights &amp; Biases</a></li>
-<li class="toctree-l4"><a class="reference internal" href="#specialized-ei-parameter-sweeps-recommended-approach">Specialized EI Parameter Sweeps (Recommended Approach)</a></li>
-</ul>
-</li>
-<li class="toctree-l3"><a class="reference internal" href="#comparing-experiments">Comparing Experiments</a><ul>
-<li class="toctree-l4"><a class="reference internal" href="#analyzing-experiment-results">Analyzing Experiment Results</a></li>
-</ul>
-</li>
-<li class="toctree-l3"><a class="reference internal" href="#reproducibility">Reproducibility</a></li>
-<li class="toctree-l3"><a class="reference internal" href="#best-practices">Best Practices</a></li>
-</ul>
-</li>
-<li class="toctree-l2"><a class="reference internal" href="ei_sweep_guide.html">Running and Analyzing EI Sweeps</a></li>
-<li class="toctree-l2"><a class="reference internal" href="cifar10_tutorial.html">CIFAR10 Tutorial</a></li>
-</ul>
-</li>
-</ul>
-<p class="caption" role="heading"><span class="caption-text">Contents</span></p>
+<p class="caption" role="heading"><span class="caption-text">Advanced Topics</span></p>
 <ul>
 <li class="toctree-l1"><a class="reference internal" href="../advanced/network_structures/index.html">Network Structures</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../advanced/learning/index.html">Learning Strategies</a></li>
-<li class="toctree-l1"><a class="reference internal" href="../advanced/visualization/index.html">Visualization Tools</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../advanced/analysis/index.html">Analysis Tools</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../advanced/visualization/index.html">Visualization Tools</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../advanced/configuration/index.html">Configuration System</a></li>
 </ul>
-<p class="caption" role="heading"><span class="caption-text">Contents</span></p>
+<p class="caption" role="heading"><span class="caption-text">Development</span></p>
 <ul>
-<li class="toctree-l1"><a class="reference internal" href="../api/index.html">API Reference</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../development/contributing.html">Contributing to Dendritic Modeling Framework</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../development/testing.html">Testing Guide</a></li>
 </ul>
-<p class="caption" role="heading"><span class="caption-text">Contents</span></p>
+<p class="caption" role="heading"><span class="caption-text">Reference</span></p>
 <ul>
-<li class="toctree-l1"><a class="reference internal" href="../deployment/index.html">Deployment Guide</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../reference/glossary.html">Glossary</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../about.html">About</a></li>
 </ul>
 
         </div>
@@ -122,7 +93,6 @@
           <div role="navigation" aria-label="Page navigation">
   <ul class="wy-breadcrumbs">
       <li><a href="../../index.html" class="icon icon-home" aria-label="Home"></a></li>
-          <li class="breadcrumb-item"><a href="index.html">User Guide</a></li>
       <li class="breadcrumb-item active">Experiment Tracking</li>
       <li class="wy-breadcrumbs-aside">
             <a href="../../_sources/source/user_guide/experiment_tracking.rst.txt" rel="nofollow"> View page source</a>
@@ -476,10 +446,7 @@ python<span class="w"> </span>scripts/analyze_ei_sweep.py<span class="w"> </span
 
            </div>
           </div>
-          <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
-        <a href="train_experiments_guide.html" class="btn btn-neutral float-left" title="Using train_experiments.py" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
-        <a href="ei_sweep_guide.html" class="btn btn-neutral float-right" title="Running and Analyzing EI Sweeps" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
-    </div>
+          <footer>
 
   <hr/>
 

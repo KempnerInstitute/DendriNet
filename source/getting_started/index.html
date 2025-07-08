@@ -20,12 +20,12 @@
       <script src="../../_static/clipboard.min.js?v=a7894cd8"></script>
       <script src="../../_static/copybutton.js?v=f281be69"></script>
       <script crossorigin="anonymous" integrity="sha256-Ae2Vz/4ePdIu6ZyI/5ZGsYnb+m0JlOmKPjt6XZ9JJkA=" src="https://cdnjs.cloudflare.com/ajax/libs/require.js/2.3.4/require.min.js"></script>
+      <script>window.MathJax = {"tex": {"inlineMath": [["$", "$"], ["\\(", "\\)"]], "processEscapes": true}, "options": {"ignoreHtmlClass": "tex2jax_ignore|mathjax_ignore|document", "processHtmlClass": "tex2jax_process|mathjax_process|math|output_area"}}</script>
+      <script defer="defer" src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
     <script src="../../_static/js/theme.js"></script>
     <link rel="author" title="About these documents" href="../../about.html" />
     <link rel="index" title="Index" href="../../genindex.html" />
-    <link rel="search" title="Search" href="../../search.html" />
-    <link rel="next" title="Installation and Setup" href="installation.html" />
-    <link rel="prev" title="About" href="../../about.html" /> 
+    <link rel="search" title="Search" href="../../search.html" /> 
 </head>
 
 <body class="wy-body-for-nav"> 
@@ -47,35 +47,38 @@
   </form>
 </div>
         </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
-              <p class="caption" role="heading"><span class="caption-text">Introduction</span></p>
+              <p class="caption" role="heading"><span class="caption-text">Getting Started</span></p>
 <ul>
-<li class="toctree-l1"><a class="reference internal" href="../../about.html">About</a></li>
+<li class="toctree-l1"><a class="reference internal" href="installation.html">Installation and Setup</a></li>
+<li class="toctree-l1"><a class="reference internal" href="quickstart.html">Quick Start Guide</a></li>
 </ul>
-<p class="caption" role="heading"><span class="caption-text">Contents</span></p>
-<ul class="current">
-<li class="toctree-l1 current"><a class="current reference internal" href="#">Getting Started Guide</a><ul>
-<li class="toctree-l2"><a class="reference internal" href="installation.html">Installation and Setup</a></li>
-<li class="toctree-l2"><a class="reference internal" href="quickstart.html">Quickstart</a></li>
-<li class="toctree-l2"><a class="reference internal" href="examples.html">Examples</a></li>
+<p class="caption" role="heading"><span class="caption-text">User Guide</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../user_guide/architecture.html">Architecture Overview</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../user_guide/configuration.html">Configuration System</a></li>
 </ul>
-</li>
-<li class="toctree-l1"><a class="reference internal" href="../user_guide/index.html">User Guide</a></li>
+<p class="caption" role="heading"><span class="caption-text">API Reference</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../api/networks.html">Networks API Reference</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../api/models.html">Models API Reference</a></li>
 </ul>
-<p class="caption" role="heading"><span class="caption-text">Contents</span></p>
+<p class="caption" role="heading"><span class="caption-text">Advanced Topics</span></p>
 <ul>
 <li class="toctree-l1"><a class="reference internal" href="../advanced/network_structures/index.html">Network Structures</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../advanced/learning/index.html">Learning Strategies</a></li>
-<li class="toctree-l1"><a class="reference internal" href="../advanced/visualization/index.html">Visualization Tools</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../advanced/analysis/index.html">Analysis Tools</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../advanced/visualization/index.html">Visualization Tools</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../advanced/configuration/index.html">Configuration System</a></li>
 </ul>
-<p class="caption" role="heading"><span class="caption-text">Contents</span></p>
+<p class="caption" role="heading"><span class="caption-text">Development</span></p>
 <ul>
-<li class="toctree-l1"><a class="reference internal" href="../api/index.html">API Reference</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../development/contributing.html">Contributing to Dendritic Modeling Framework</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../development/testing.html">Testing Guide</a></li>
 </ul>
-<p class="caption" role="heading"><span class="caption-text">Contents</span></p>
+<p class="caption" role="heading"><span class="caption-text">Reference</span></p>
 <ul>
-<li class="toctree-l1"><a class="reference internal" href="../deployment/index.html">Deployment Guide</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../reference/glossary.html">Glossary</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../about.html">About</a></li>
 </ul>
 
         </div>
@@ -112,19 +115,27 @@
 <li class="toctree-l1"><a class="reference internal" href="installation.html">Installation and Setup</a><ul>
 <li class="toctree-l2"><a class="reference internal" href="installation.html#overview">Overview</a></li>
 <li class="toctree-l2"><a class="reference internal" href="installation.html#system-requirements">System Requirements</a></li>
-<li class="toctree-l2"><a class="reference internal" href="installation.html#installation-methods">Installation Methods</a></li>
+<li class="toctree-l2"><a class="reference internal" href="installation.html#quick-installation-recommended">Quick Installation (Recommended)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="installation.html#installation-options">Installation Options</a></li>
+<li class="toctree-l2"><a class="reference internal" href="installation.html#dependency-groups-explained">Dependency Groups Explained</a></li>
 <li class="toctree-l2"><a class="reference internal" href="installation.html#detailed-installation-steps">Detailed Installation Steps</a></li>
-<li class="toctree-l2"><a class="reference internal" href="installation.html#configuring-for-different-hardware">Configuring for Different Hardware</a></li>
+<li class="toctree-l2"><a class="reference internal" href="installation.html#verification-and-testing">Verification and Testing</a></li>
 <li class="toctree-l2"><a class="reference internal" href="installation.html#troubleshooting">Troubleshooting</a></li>
-<li class="toctree-l2"><a class="reference internal" href="installation.html#starting-your-first-experiment">Starting Your First Experiment</a></li>
+<li class="toctree-l2"><a class="reference internal" href="installation.html#running-your-first-experiment">Running Your First Experiment</a></li>
+<li class="toctree-l2"><a class="reference internal" href="installation.html#continuous-integration-setup">Continuous Integration Setup</a></li>
 <li class="toctree-l2"><a class="reference internal" href="installation.html#next-steps">Next Steps</a></li>
 </ul>
 </li>
-<li class="toctree-l1"><a class="reference internal" href="quickstart.html">Quickstart</a><ul>
-<li class="toctree-l2"><a class="reference internal" href="quickstart.html#option-1-configuration-based-approach-recommended">Option 1: Configuration-based Approach (Recommended)</a></li>
-<li class="toctree-l2"><a class="reference internal" href="quickstart.html#option-2-programmatic-api-approach">Option 2: Programmatic API Approach</a></li>
-<li class="toctree-l2"><a class="reference internal" href="quickstart.html#mapping-between-approaches">Mapping Between Approaches</a></li>
+<li class="toctree-l1"><a class="reference internal" href="quickstart.html">Quick Start Guide</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="quickstart.html#installation">Installation</a></li>
+<li class="toctree-l2"><a class="reference internal" href="quickstart.html#basic-example">Basic Example</a></li>
+<li class="toctree-l2"><a class="reference internal" href="quickstart.html#using-configuration-files">Using Configuration Files</a></li>
+<li class="toctree-l2"><a class="reference internal" href="quickstart.html#key-concepts">Key Concepts</a></li>
+<li class="toctree-l2"><a class="reference internal" href="quickstart.html#common-tasks">Common Tasks</a></li>
 <li class="toctree-l2"><a class="reference internal" href="quickstart.html#next-steps">Next Steps</a></li>
+<li class="toctree-l2"><a class="reference internal" href="quickstart.html#tips-for-success">Tips for Success</a></li>
+<li class="toctree-l2"><a class="reference internal" href="quickstart.html#common-issues">Common Issues</a></li>
+<li class="toctree-l2"><a class="reference internal" href="quickstart.html#getting-help">Getting Help</a></li>
 </ul>
 </li>
 <li class="toctree-l1"><a class="reference internal" href="examples.html">Examples</a><ul>
@@ -141,10 +152,7 @@
 
            </div>
           </div>
-          <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
-        <a href="../../about.html" class="btn btn-neutral float-left" title="About" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
-        <a href="installation.html" class="btn btn-neutral float-right" title="Installation and Setup" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
-    </div>
+          <footer>
 
   <hr/>
 

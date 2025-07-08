@@ -1,0 +1,364 @@
+
+
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" data-content_root="../../">
+<head>
+  <meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Models API Reference &mdash; dendritic_modeling 0.1.0 documentation</title>
+      <link rel="stylesheet" type="text/css" href="../../_static/pygments.css?v=b86133f3" />
+      <link rel="stylesheet" type="text/css" href="../../_static/css/theme.css?v=e59714d7" />
+      <link rel="stylesheet" type="text/css" href="../../_static/copybutton.css?v=76b2166b" />
+
+  
+      <script src="../../_static/jquery.js?v=5d32c60e"></script>
+      <script src="../../_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
+      <script src="../../_static/documentation_options.js?v=01f34227"></script>
+      <script src="../../_static/doctools.js?v=9bcbadda"></script>
+      <script src="../../_static/sphinx_highlight.js?v=dc90522c"></script>
+      <script src="../../_static/clipboard.min.js?v=a7894cd8"></script>
+      <script src="../../_static/copybutton.js?v=f281be69"></script>
+      <script crossorigin="anonymous" integrity="sha256-Ae2Vz/4ePdIu6ZyI/5ZGsYnb+m0JlOmKPjt6XZ9JJkA=" src="https://cdnjs.cloudflare.com/ajax/libs/require.js/2.3.4/require.min.js"></script>
+    <script src="../../_static/js/theme.js"></script>
+    <link rel="author" title="About these documents" href="../../about.html" />
+    <link rel="index" title="Index" href="../../genindex.html" />
+    <link rel="search" title="Search" href="../../search.html" />
+    <link rel="next" title="Network Structures" href="../advanced/network_structures/index.html" />
+    <link rel="prev" title="Networks API Reference" href="networks.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+
+          
+          
+          <a href="../../index.html" class="icon icon-home">
+            dendritic_modeling
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <p class="caption" role="heading"><span class="caption-text">Getting Started</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../getting_started/installation.html">Installation and Setup</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../getting_started/quickstart.html">Quick Start Guide</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">User Guide</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../user_guide/architecture.html">Architecture Overview</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../user_guide/configuration.html">Configuration System</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">API Reference</span></p>
+<ul class="current">
+<li class="toctree-l1"><a class="reference internal" href="networks.html">Networks API Reference</a></li>
+<li class="toctree-l1 current"><a class="current reference internal" href="#">Models API Reference</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="#base-model-classes">Base Model Classes</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#basemodel">BaseModel</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="#dendritic_modeling.models.BaseModel"><code class="docutils literal notranslate"><span class="pre">BaseModel</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="#dendriticmodel">DendriticModel</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="#classification-models">Classification Models</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#dendriticclassifier">DendriticClassifier</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#cnnclassifier">CNNClassifier</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#vitclassifier">ViTClassifier</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="#regression-models">Regression Models</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#dendriticregressor">DendriticRegressor</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="#baseline-models">Baseline Models</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#mlpbaseline">MLPBaseline</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#cnnbaseline">CNNBaseline</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="#model-configuration">Model Configuration</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#model-factory">Model Factory</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#model-utilities">Model Utilities</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#checkpointing">Checkpointing</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#model-analysis">Model Analysis</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="#integration-with-pytorch-lightning">Integration with PyTorch Lightning</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#see-also">See Also</a></li>
+</ul>
+</li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Advanced Topics</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../advanced/network_structures/index.html">Network Structures</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../advanced/learning/index.html">Learning Strategies</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../advanced/analysis/index.html">Analysis Tools</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../advanced/visualization/index.html">Visualization Tools</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../advanced/configuration/index.html">Configuration System</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Development</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../development/contributing.html">Contributing to Dendritic Modeling Framework</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../development/testing.html">Testing Guide</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Reference</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../reference/glossary.html">Glossary</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../about.html">About</a></li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../../index.html">dendritic_modeling</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="../../index.html" class="icon icon-home" aria-label="Home"></a></li>
+      <li class="breadcrumb-item active">Models API Reference</li>
+      <li class="wy-breadcrumbs-aside">
+            <a href="../../_sources/source/api/models.rst.txt" rel="nofollow"> View page source</a>
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <section id="models-api-reference">
+<h1>Models API Reference<a class="headerlink" href="#models-api-reference" title="Link to this heading"></a></h1>
+<p>The models module provides high-level model wrappers that combine networks with task-specific heads and training utilities.</p>
+<section id="base-model-classes">
+<h2>Base Model Classes<a class="headerlink" href="#base-model-classes" title="Link to this heading"></a></h2>
+<section id="basemodel">
+<h3>BaseModel<a class="headerlink" href="#basemodel" title="Link to this heading"></a></h3>
+<dl class="py class">
+<dt class="sig sig-object py" id="dendritic_modeling.models.BaseModel">
+<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">dendritic_modeling.models.</span></span><span class="sig-name descname"><span class="pre">BaseModel</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">encoder_network</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="dendritic_modeling.html#dendritic_modeling.networks.BaseNetwork" title="dendritic_modeling.networks.base.BaseNetwork"><span class="pre">BaseNetwork</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">core_network</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="dendritic_modeling.html#dendritic_modeling.networks.BaseNetwork" title="dendritic_modeling.networks.base.BaseNetwork"><span class="pre">BaseNetwork</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">decoder_network</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="dendritic_modeling.html#dendritic_modeling.networks.BaseNetwork" title="dendritic_modeling.networks.base.BaseNetwork"><span class="pre">BaseNetwork</span></a></span></em><span class="sig-paren">)</span><a class="reference internal" href="../../_modules/dendritic_modeling/models/base.html#BaseModel"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#dendritic_modeling.models.BaseModel" title="Link to this definition"></a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">Module</span></code></p>
+<p>Abstract base class for all models in the framework.</p>
+<p><strong>Key attributes:</strong></p>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">core_network</span></code>: The underlying network architecture</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">input_network</span></code>: Optional input transformation network</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">task_head</span></code>: Task-specific output head (classification, regression, etc.)</p></li>
+</ul>
+<p><strong>Key methods:</strong></p>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">forward(x)</span></code>: Forward pass through the model</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">configure_optimizers()</span></code>: Set up optimizers for training</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">save_checkpoint(path)</span></code>: Save model state</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">load_checkpoint(path)</span></code>: Load model state</p></li>
+</ul>
+<dl class="py method">
+<dt class="sig sig-object py" id="dendritic_modeling.models.BaseModel.apply_rewiring">
+<span class="sig-name descname"><span class="pre">apply_rewiring</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="../../_modules/dendritic_modeling/models/base.html#BaseModel.apply_rewiring"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#dendritic_modeling.models.BaseModel.apply_rewiring" title="Link to this definition"></a></dt>
+<dd><p>Forward this call to self.net if it implements apply_rewiring.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="dendritic_modeling.models.BaseModel.decay_weights">
+<span class="sig-name descname"><span class="pre">decay_weights</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">weight_decay</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">float</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../../_modules/dendritic_modeling/models/base.html#BaseModel.decay_weights"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#dendritic_modeling.models.BaseModel.decay_weights" title="Link to this definition"></a></dt>
+<dd><p>Forward this call to self.net if it implements decay_weights.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="dendritic_modeling.models.BaseModel.forward">
+<span class="sig-name descname"><span class="pre">forward</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">x</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Tensor</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">Tensor</span></span></span><a class="reference internal" href="../../_modules/dendritic_modeling/models/base.html#BaseModel.forward"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#dendritic_modeling.models.BaseModel.forward" title="Link to this definition"></a></dt>
+<dd><p>Define the computation performed at every call.</p>
+<p>Should be overridden by all subclasses.</p>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>Although the recipe for forward pass needs to be defined within
+this function, one should call the <code class="xref py py-class docutils literal notranslate"><span class="pre">Module</span></code> instance afterwards
+instead of this since the former takes care of running the
+registered hooks while the latter silently ignores them.</p>
+</div>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="dendritic_modeling.models.BaseModel.get_param_groups">
+<span class="sig-name descname"><span class="pre">get_param_groups</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">param_groups_config</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="dendritic_modeling.html#dendritic_modeling.config.ParamGroupsConfig" title="dendritic_modeling.config.training.ParamGroupsConfig"><span class="pre">ParamGroupsConfig</span></a></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">List</span><span class="p"><span class="pre">[</span></span><span class="pre">Dict</span><span class="p"><span class="pre">]</span></span></span></span><a class="reference internal" href="../../_modules/dendritic_modeling/models/base.html#BaseModel.get_param_groups"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#dendritic_modeling.models.BaseModel.get_param_groups" title="Link to this definition"></a></dt>
+<dd><p>Get parameter groups for optimizer.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="dendritic_modeling.models.BaseModel.predict">
+<span class="sig-name descname"><span class="pre">predict</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">x</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Tensor</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">Tensor</span></span></span><a class="reference internal" href="../../_modules/dendritic_modeling/models/base.html#BaseModel.predict"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#dendritic_modeling.models.BaseModel.predict" title="Link to this definition"></a></dt>
+<dd></dd></dl>
+
+</dd></dl>
+
+</section>
+<section id="dendriticmodel">
+<h3>DendriticModel<a class="headerlink" href="#dendriticmodel" title="Link to this heading"></a></h3>
+</section>
+</section>
+<section id="classification-models">
+<h2>Classification Models<a class="headerlink" href="#classification-models" title="Link to this heading"></a></h2>
+<section id="dendriticclassifier">
+<h3>DendriticClassifier<a class="headerlink" href="#dendriticclassifier" title="Link to this heading"></a></h3>
+</section>
+<section id="cnnclassifier">
+<h3>CNNClassifier<a class="headerlink" href="#cnnclassifier" title="Link to this heading"></a></h3>
+</section>
+<section id="vitclassifier">
+<h3>ViTClassifier<a class="headerlink" href="#vitclassifier" title="Link to this heading"></a></h3>
+</section>
+</section>
+<section id="regression-models">
+<h2>Regression Models<a class="headerlink" href="#regression-models" title="Link to this heading"></a></h2>
+<section id="dendriticregressor">
+<h3>DendriticRegressor<a class="headerlink" href="#dendriticregressor" title="Link to this heading"></a></h3>
+</section>
+</section>
+<section id="baseline-models">
+<h2>Baseline Models<a class="headerlink" href="#baseline-models" title="Link to this heading"></a></h2>
+<p>The framework includes baseline models for comparison:</p>
+<section id="mlpbaseline">
+<h3>MLPBaseline<a class="headerlink" href="#mlpbaseline" title="Link to this heading"></a></h3>
+</section>
+<section id="cnnbaseline">
+<h3>CNNBaseline<a class="headerlink" href="#cnnbaseline" title="Link to this heading"></a></h3>
+</section>
+</section>
+<section id="model-configuration">
+<h2>Model Configuration<a class="headerlink" href="#model-configuration" title="Link to this heading"></a></h2>
+<p>Models can be configured via YAML:</p>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">model</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">DendriticClassifier</span>
+<span class="w">  </span><span class="nt">params</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">network_config</span><span class="p">:</span>
+<span class="w">      </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">ExcitationInhibitionNetwork</span>
+<span class="w">      </span><span class="nt">params</span><span class="p">:</span>
+<span class="w">        </span><span class="nt">input_dim</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">784</span>
+<span class="w">        </span><span class="nt">n_layers</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">3</span>
+<span class="w">        </span><span class="nt">n_excitatory</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">200</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">100</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">10</span><span class="p p-Indicator">]</span>
+<span class="w">        </span><span class="nt">n_inhibitory</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">50</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">25</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">0</span><span class="p p-Indicator">]</span>
+<span class="w">        </span><span class="nt">n_branches</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">20</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">15</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">10</span><span class="p p-Indicator">]</span>
+
+<span class="w">    </span><span class="nt">num_classes</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">10</span>
+<span class="w">    </span><span class="nt">use_temperature_scaling</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+
+<span class="w">    </span><span class="nt">optimizer</span><span class="p">:</span>
+<span class="w">      </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">Adam</span>
+<span class="w">      </span><span class="nt">lr</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">0.001</span>
+<span class="w">      </span><span class="nt">weight_decay</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">0.0001</span>
+
+<span class="w">    </span><span class="nt">scheduler</span><span class="p">:</span>
+<span class="w">      </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">CosineAnnealingLR</span>
+<span class="w">      </span><span class="nt">T_max</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">100</span>
+</pre></div>
+</div>
+</section>
+<section id="model-factory">
+<h2>Model Factory<a class="headerlink" href="#model-factory" title="Link to this heading"></a></h2>
+<p>Factory function for creating models from configuration:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span><span class="w"> </span><span class="nn">dendritic_modeling.models</span><span class="w"> </span><span class="kn">import</span> <span class="n">create_model</span>
+
+<span class="c1"># From config dict</span>
+<span class="n">model</span> <span class="o">=</span> <span class="n">create_model</span><span class="p">(</span><span class="n">config_dict</span><span class="p">)</span>
+
+<span class="c1"># From YAML file</span>
+<span class="n">model</span> <span class="o">=</span> <span class="n">create_model</span><span class="o">.</span><span class="n">from_yaml</span><span class="p">(</span><span class="s2">&quot;config.yaml&quot;</span><span class="p">)</span>
+</pre></div>
+</div>
+</section>
+<section id="model-utilities">
+<h2>Model Utilities<a class="headerlink" href="#model-utilities" title="Link to this heading"></a></h2>
+<section id="checkpointing">
+<h3>Checkpointing<a class="headerlink" href="#checkpointing" title="Link to this heading"></a></h3>
+<p>Functions for saving and loading model checkpoints:</p>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">save_checkpoint(model,</span> <span class="pre">path,</span> <span class="pre">metadata=None)</span></code></p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">load_checkpoint(model,</span> <span class="pre">path,</span> <span class="pre">strict=True)</span></code></p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">get_best_checkpoint(checkpoint_dir,</span> <span class="pre">metric=&quot;val_acc&quot;)</span></code></p></li>
+</ul>
+</section>
+<section id="model-analysis">
+<h3>Model Analysis<a class="headerlink" href="#model-analysis" title="Link to this heading"></a></h3>
+<p>Tools for analyzing trained models:</p>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">get_layer_representations(model,</span> <span class="pre">dataloader)</span></code></p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">compute_feature_importance(model,</span> <span class="pre">dataset)</span></code></p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">visualize_learned_features(model)</span></code></p></li>
+</ul>
+</section>
+</section>
+<section id="integration-with-pytorch-lightning">
+<h2>Integration with PyTorch Lightning<a class="headerlink" href="#integration-with-pytorch-lightning" title="Link to this heading"></a></h2>
+<p>All models inherit from <code class="docutils literal notranslate"><span class="pre">pytorch_lightning.LightningModule</span></code>:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">import</span><span class="w"> </span><span class="nn">pytorch_lightning</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">pl</span>
+
+<span class="c1"># Create model</span>
+<span class="n">model</span> <span class="o">=</span> <span class="n">DendriticClassifier</span><span class="p">(</span><span class="o">...</span><span class="p">)</span>
+
+<span class="c1"># Create trainer</span>
+<span class="n">trainer</span> <span class="o">=</span> <span class="n">pl</span><span class="o">.</span><span class="n">Trainer</span><span class="p">(</span>
+    <span class="n">max_epochs</span><span class="o">=</span><span class="mi">100</span><span class="p">,</span>
+    <span class="n">gpus</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span>
+    <span class="n">precision</span><span class="o">=</span><span class="mi">16</span><span class="p">,</span>
+    <span class="n">callbacks</span><span class="o">=</span><span class="p">[</span><span class="o">...</span><span class="p">]</span>
+<span class="p">)</span>
+
+<span class="c1"># Train</span>
+<span class="n">trainer</span><span class="o">.</span><span class="n">fit</span><span class="p">(</span><span class="n">model</span><span class="p">,</span> <span class="n">train_dataloader</span><span class="p">,</span> <span class="n">val_dataloader</span><span class="p">)</span>
+</pre></div>
+</div>
+</section>
+<section id="see-also">
+<h2>See Also<a class="headerlink" href="#see-also" title="Link to this heading"></a></h2>
+<ul class="simple">
+<li><p><a class="reference internal" href="networks.html"><span class="doc">Networks API Reference</span></a> - Network architectures</p></li>
+<li><p><span class="xref std std-doc">training</span> - Training utilities</p></li>
+<li><p><span class="xref std std-doc">/user_guide/training</span> - Training guide</p></li>
+</ul>
+</section>
+</section>
+
+
+           </div>
+          </div>
+          <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
+        <a href="networks.html" class="btn btn-neutral float-left" title="Networks API Reference" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
+        <a href="../advanced/network_structures/index.html" class="btn btn-neutral float-right" title="Network Structures" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright 2025, Research and Engineering at Kempner.</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>

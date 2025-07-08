@@ -45,30 +45,38 @@
   </form>
 </div>
         </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
-              <p class="caption" role="heading"><span class="caption-text">Introduction</span></p>
+              <p class="caption" role="heading"><span class="caption-text">Getting Started</span></p>
 <ul>
-<li class="toctree-l1"><a class="reference internal" href="../../about.html">About</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../getting_started/installation.html">Installation and Setup</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../getting_started/quickstart.html">Quick Start Guide</a></li>
 </ul>
-<p class="caption" role="heading"><span class="caption-text">Contents</span></p>
+<p class="caption" role="heading"><span class="caption-text">User Guide</span></p>
 <ul>
-<li class="toctree-l1"><a class="reference internal" href="../getting_started/index.html">Getting Started Guide</a></li>
-<li class="toctree-l1"><a class="reference internal" href="../user_guide/index.html">User Guide</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../user_guide/architecture.html">Architecture Overview</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../user_guide/configuration.html">Configuration System</a></li>
 </ul>
-<p class="caption" role="heading"><span class="caption-text">Contents</span></p>
+<p class="caption" role="heading"><span class="caption-text">API Reference</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../api/networks.html">Networks API Reference</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../api/models.html">Models API Reference</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Advanced Topics</span></p>
 <ul>
 <li class="toctree-l1"><a class="reference internal" href="../advanced/network_structures/index.html">Network Structures</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../advanced/learning/index.html">Learning Strategies</a></li>
-<li class="toctree-l1"><a class="reference internal" href="../advanced/visualization/index.html">Visualization Tools</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../advanced/analysis/index.html">Analysis Tools</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../advanced/visualization/index.html">Visualization Tools</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../advanced/configuration/index.html">Configuration System</a></li>
 </ul>
-<p class="caption" role="heading"><span class="caption-text">Contents</span></p>
+<p class="caption" role="heading"><span class="caption-text">Development</span></p>
 <ul>
-<li class="toctree-l1"><a class="reference internal" href="../api/index.html">API Reference</a></li>
+<li class="toctree-l1"><a class="reference internal" href="contributing.html">Contributing to Dendritic Modeling Framework</a></li>
+<li class="toctree-l1"><a class="reference internal" href="testing.html">Testing Guide</a></li>
 </ul>
-<p class="caption" role="heading"><span class="caption-text">Contents</span></p>
+<p class="caption" role="heading"><span class="caption-text">Reference</span></p>
 <ul>
-<li class="toctree-l1"><a class="reference internal" href="../deployment/index.html">Deployment Guide</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../reference/glossary.html">Glossary</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../about.html">About</a></li>
 </ul>
 
         </div>
@@ -113,7 +121,7 @@
 <section id="running-experiments">
 <h2>Running Experiments<a class="headerlink" href="#running-experiments" title="Link to this heading"></a></h2>
 <p>You can run experiments using the provided training script with a configuration file:</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>python<span class="w"> </span>scripts/train_experiments.py<span class="w"> </span>configs/config_exp.yaml
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>python<span class="w"> </span>src/dendritic_modeling/scripts/train_experiments.py<span class="w"> </span>configs/config_exp.yaml
 </pre></div>
 </div>
 </section>
@@ -426,31 +434,7 @@
 </pre></div>
 </div>
 <p>This will create a <code class="docutils literal notranslate"><span class="pre">run.sh</span></code> file that submits all generated configuration files as a SLURM array job.</p>
-<figure class="align-center" id="id2">
-<a class="reference internal image-reference" href="source/development/figures/pdf/place_holder.pdf"><img alt="Configuration System Diagram" src="source/development/figures/pdf/place_holder.pdf" style="width: 600px;" />
-</a>
-<figcaption>
-<p><span class="caption-text">Diagram showing how the configuration system integrates with different components. [PLACEHOLDER FOR DIAGRAM]</span><a class="headerlink" href="#id2" title="Link to this image"></a></p>
-</figcaption>
-</figure>
-</section>
-<section id="loading-and-extending-configurations">
-<h2>Loading and Extending Configurations<a class="headerlink" href="#loading-and-extending-configurations" title="Link to this heading"></a></h2>
-<p>In custom scripts, you can load and modify configurations programmatically:</p>
-<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span><span class="w"> </span><span class="nn">dendritic_modeling.config</span><span class="w"> </span><span class="kn">import</span> <span class="n">load_config</span>
-
-<span class="c1"># Load configuration from file</span>
-<span class="n">config</span> <span class="o">=</span> <span class="n">load_config</span><span class="p">(</span><span class="s2">&quot;configs/config_exp.yaml&quot;</span><span class="p">)</span>
-
-<span class="c1"># Modify configuration</span>
-<span class="n">config</span><span class="o">.</span><span class="n">train</span><span class="o">.</span><span class="n">lr</span> <span class="o">=</span> <span class="mf">0.0005</span>
-<span class="n">config</span><span class="o">.</span><span class="n">model</span><span class="o">.</span><span class="n">network</span><span class="o">.</span><span class="n">parameters</span><span class="o">.</span><span class="n">excitatory_layer_sizes</span> <span class="o">=</span> <span class="p">[</span><span class="mi">20</span><span class="p">]</span>
-
-<span class="c1"># Use configuration in your script</span>
-<span class="c1"># ...</span>
-</pre></div>
-</div>
-<p>This allows for flexible experimentation while maintaining reproducibility.</p>
+<p>This allows for flexible configuration composition and runtime overrides.</p>
 <p># Development parameters
 development_mode: false        # Enable development mode for extra logging
 profiling: false               # Enable profiling for performance analysis</p>

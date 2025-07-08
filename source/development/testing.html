@@ -1,0 +1,719 @@
+
+
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" data-content_root="../../">
+<head>
+  <meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Testing Guide &mdash; dendritic_modeling 0.1.0 documentation</title>
+      <link rel="stylesheet" type="text/css" href="../../_static/pygments.css?v=b86133f3" />
+      <link rel="stylesheet" type="text/css" href="../../_static/css/theme.css?v=e59714d7" />
+      <link rel="stylesheet" type="text/css" href="../../_static/copybutton.css?v=76b2166b" />
+
+  
+      <script src="../../_static/jquery.js?v=5d32c60e"></script>
+      <script src="../../_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
+      <script src="../../_static/documentation_options.js?v=01f34227"></script>
+      <script src="../../_static/doctools.js?v=9bcbadda"></script>
+      <script src="../../_static/sphinx_highlight.js?v=dc90522c"></script>
+      <script src="../../_static/clipboard.min.js?v=a7894cd8"></script>
+      <script src="../../_static/copybutton.js?v=f281be69"></script>
+      <script crossorigin="anonymous" integrity="sha256-Ae2Vz/4ePdIu6ZyI/5ZGsYnb+m0JlOmKPjt6XZ9JJkA=" src="https://cdnjs.cloudflare.com/ajax/libs/require.js/2.3.4/require.min.js"></script>
+    <script src="../../_static/js/theme.js"></script>
+    <link rel="author" title="About these documents" href="../../about.html" />
+    <link rel="index" title="Index" href="../../genindex.html" />
+    <link rel="search" title="Search" href="../../search.html" />
+    <link rel="next" title="Glossary" href="../reference/glossary.html" />
+    <link rel="prev" title="Contributing to Dendritic Modeling Framework" href="contributing.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+
+          
+          
+          <a href="../../index.html" class="icon icon-home">
+            dendritic_modeling
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <p class="caption" role="heading"><span class="caption-text">Getting Started</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../getting_started/installation.html">Installation and Setup</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../getting_started/quickstart.html">Quick Start Guide</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">User Guide</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../user_guide/architecture.html">Architecture Overview</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../user_guide/configuration.html">Configuration System</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">API Reference</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../api/networks.html">Networks API Reference</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../api/models.html">Models API Reference</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Advanced Topics</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../advanced/network_structures/index.html">Network Structures</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../advanced/learning/index.html">Learning Strategies</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../advanced/analysis/index.html">Analysis Tools</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../advanced/visualization/index.html">Visualization Tools</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../advanced/configuration/index.html">Configuration System</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Development</span></p>
+<ul class="current">
+<li class="toctree-l1"><a class="reference internal" href="contributing.html">Contributing to Dendritic Modeling Framework</a></li>
+<li class="toctree-l1 current"><a class="current reference internal" href="#">Testing Guide</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="#overview">Overview</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#quick-test-commands">Quick Test Commands</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#test-organization">Test Organization</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#test-structure">Test Structure</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#test-categories">Test Categories</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="#running-tests">Running Tests</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#basic-test-execution">Basic Test Execution</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#advanced-test-options">Advanced Test Options</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#coverage-analysis">Coverage Analysis</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#custom-test-runner">Custom Test Runner</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="#test-configuration">Test Configuration</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#pytest-configuration">Pytest Configuration</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#coverage-configuration">Coverage Configuration</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="#writing-tests">Writing Tests</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#id1">Test Structure</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#mocking-dependencies">Mocking Dependencies</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#testing-neural-networks">Testing Neural Networks</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="#testing-best-practices">Testing Best Practices</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#test-design-principles">Test Design Principles</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#naming-conventions">Naming Conventions</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#assertion-best-practices">Assertion Best Practices</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#test-data-management">Test Data Management</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="#continuous-integration">Continuous Integration</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#local-ci-simulation">Local CI Simulation</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#ci-test-matrix">CI Test Matrix</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#performance-testing">Performance Testing</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="#troubleshooting-tests">Troubleshooting Tests</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#common-issues">Common Issues</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#debug-test-failures">Debug Test Failures</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="#getting-help">Getting Help</a></li>
+</ul>
+</li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Reference</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../reference/glossary.html">Glossary</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../about.html">About</a></li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../../index.html">dendritic_modeling</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="../../index.html" class="icon icon-home" aria-label="Home"></a></li>
+      <li class="breadcrumb-item active">Testing Guide</li>
+      <li class="wy-breadcrumbs-aside">
+            <a href="../../_sources/source/development/testing.rst.txt" rel="nofollow"> View page source</a>
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <section id="testing-guide">
+<h1>Testing Guide<a class="headerlink" href="#testing-guide" title="Link to this heading"></a></h1>
+<p>The Dendritic Modeling Framework includes a comprehensive testing infrastructure to ensure code quality, reliability, and maintainability. This guide covers how to run tests, understand test organization, and write new tests.</p>
+<section id="overview">
+<h2>Overview<a class="headerlink" href="#overview" title="Link to this heading"></a></h2>
+<p>Our testing system includes:</p>
+<ul class="simple">
+<li><p><strong>Unit Tests</strong>: Test individual components in isolation</p></li>
+<li><p><strong>Integration Tests</strong>: Test component interactions</p></li>
+<li><p><strong>Performance Tests</strong>: Benchmark critical functionality</p></li>
+<li><p><strong>Code Quality Tests</strong>: Linting, formatting, and type checking</p></li>
+<li><p><strong>Coverage Analysis</strong>: Ensure adequate test coverage</p></li>
+</ul>
+<p><strong>Test Statistics:</strong>
+- 1,500+ lines of test code across 7 test files
+- 75% minimum coverage requirement
+- Automated testing on every pull request
+- Cross-platform and multi-version testing</p>
+</section>
+<section id="quick-test-commands">
+<h2>Quick Test Commands<a class="headerlink" href="#quick-test-commands" title="Link to this heading"></a></h2>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># Run all tests</span>
+pytest
+
+<span class="c1"># Run tests with coverage</span>
+pytest<span class="w"> </span>--cov<span class="o">=</span>dendritic_modeling
+
+<span class="c1"># Run specific test categories</span>
+pytest<span class="w"> </span>-m<span class="w"> </span>unit<span class="w">              </span><span class="c1"># Unit tests only</span>
+pytest<span class="w"> </span>-m<span class="w"> </span>integration<span class="w">       </span><span class="c1"># Integration tests only</span>
+pytest<span class="w"> </span>-m<span class="w"> </span><span class="s2">&quot;not slow&quot;</span><span class="w">        </span><span class="c1"># Skip slow tests</span>
+
+<span class="c1"># Run our custom test runner</span>
+python<span class="w"> </span>tests/test_runner.py
+
+<span class="c1"># Run code quality checks</span>
+pre-commit<span class="w"> </span>run<span class="w"> </span>--all-files
+</pre></div>
+</div>
+</section>
+<section id="test-organization">
+<h2>Test Organization<a class="headerlink" href="#test-organization" title="Link to this heading"></a></h2>
+<section id="test-structure">
+<h3>Test Structure<a class="headerlink" href="#test-structure" title="Link to this heading"></a></h3>
+<p>Our tests are organized into logical categories:</p>
+<div class="highlight-text notranslate"><div class="highlight"><pre><span></span>tests/
+├── test_analysis.py          # Analysis and evaluation tools (350+ lines)
+├── test_datasets.py          # Dataset loading and processing (400+ lines)
+├── test_training_strategies.py # Training algorithms (150+ lines)
+├── test_plotting.py          # Visualization functions (350+ lines)
+├── test_config.py            # Configuration system (350+ lines)
+├── test_runner.py            # Custom test runner (250+ lines)
+├── README.md                 # Testing documentation
+└── pytest.ini               # Pytest configuration
+</pre></div>
+</div>
+</section>
+<section id="test-categories">
+<h3>Test Categories<a class="headerlink" href="#test-categories" title="Link to this heading"></a></h3>
+<p>Tests are marked with categories for selective execution:</p>
+<p><strong>Unit Tests</strong> (<code class="docutils literal notranslate"><span class="pre">&#64;pytest.mark.unit</span></code>):
+- Fast, isolated tests
+- Mock external dependencies
+- Test individual functions/classes</p>
+<p><strong>Integration Tests</strong> (<code class="docutils literal notranslate"><span class="pre">&#64;pytest.mark.integration</span></code>):
+- Test component interactions
+- Use real dependencies where needed
+- End-to-end workflow testing</p>
+<p><strong>Slow Tests</strong> (<code class="docutils literal notranslate"><span class="pre">&#64;pytest.mark.slow</span></code>):
+- Performance benchmarks
+- Large dataset testing
+- Time-intensive operations</p>
+<p><strong>GPU Tests</strong> (<code class="docutils literal notranslate"><span class="pre">&#64;pytest.mark.requires_gpu</span></code>):
+- Require CUDA-capable hardware
+- Test GPU-specific functionality</p>
+<p><strong>Data Tests</strong> (<code class="docutils literal notranslate"><span class="pre">&#64;pytest.mark.requires_data</span></code>):
+- Require external datasets
+- Network-dependent tests</p>
+</section>
+</section>
+<section id="running-tests">
+<h2>Running Tests<a class="headerlink" href="#running-tests" title="Link to this heading"></a></h2>
+<section id="basic-test-execution">
+<h3>Basic Test Execution<a class="headerlink" href="#basic-test-execution" title="Link to this heading"></a></h3>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># Run all tests</span>
+pytest
+
+<span class="c1"># Verbose output with test names</span>
+pytest<span class="w"> </span>-v
+
+<span class="c1"># Run specific test file</span>
+pytest<span class="w"> </span>tests/test_analysis.py
+
+<span class="c1"># Run specific test function</span>
+pytest<span class="w"> </span>tests/test_analysis.py::test_performance_analyzer_basic
+
+<span class="c1"># Run tests matching pattern</span>
+pytest<span class="w"> </span>-k<span class="w"> </span><span class="s2">&quot;test_dataset&quot;</span>
+</pre></div>
+</div>
+</section>
+<section id="advanced-test-options">
+<h3>Advanced Test Options<a class="headerlink" href="#advanced-test-options" title="Link to this heading"></a></h3>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># Run tests in parallel (faster)</span>
+pytest<span class="w"> </span>-n<span class="w"> </span>auto
+
+<span class="c1"># Stop on first failure</span>
+pytest<span class="w"> </span>-x
+
+<span class="c1"># Show local variables on failure</span>
+pytest<span class="w"> </span>-l
+
+<span class="c1"># Run with timeout (prevent hanging)</span>
+pytest<span class="w"> </span>--timeout<span class="o">=</span><span class="m">300</span>
+
+<span class="c1"># Only run failed tests from last run</span>
+pytest<span class="w"> </span>--lf
+
+<span class="c1"># Run tests that failed and were modified</span>
+pytest<span class="w"> </span>--ff
+</pre></div>
+</div>
+</section>
+<section id="coverage-analysis">
+<h3>Coverage Analysis<a class="headerlink" href="#coverage-analysis" title="Link to this heading"></a></h3>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># Run with coverage</span>
+pytest<span class="w"> </span>--cov<span class="o">=</span>dendritic_modeling
+
+<span class="c1"># Generate HTML coverage report</span>
+pytest<span class="w"> </span>--cov<span class="o">=</span>dendritic_modeling<span class="w"> </span>--cov-report<span class="o">=</span>html
+open<span class="w"> </span>htmlcov/index.html
+
+<span class="c1"># Coverage with branch analysis</span>
+pytest<span class="w"> </span>--cov<span class="o">=</span>dendritic_modeling<span class="w"> </span>--cov-branch
+
+<span class="c1"># Fail if coverage below threshold</span>
+pytest<span class="w"> </span>--cov<span class="o">=</span>dendritic_modeling<span class="w"> </span>--cov-fail-under<span class="o">=</span><span class="m">75</span>
+</pre></div>
+</div>
+</section>
+<section id="custom-test-runner">
+<h3>Custom Test Runner<a class="headerlink" href="#custom-test-runner" title="Link to this heading"></a></h3>
+<p>We provide a custom test runner with additional features:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># Basic test run</span>
+python<span class="w"> </span>tests/test_runner.py
+
+<span class="c1"># Run with coverage reporting</span>
+python<span class="w"> </span>tests/test_runner.py<span class="w"> </span>--coverage
+
+<span class="c1"># Run only fast tests</span>
+python<span class="w"> </span>tests/test_runner.py<span class="w"> </span>--mode<span class="w"> </span>fast
+
+<span class="c1"># Check dependencies and run full suite</span>
+python<span class="w"> </span>tests/test_runner.py<span class="w"> </span>--mode<span class="w"> </span>full
+
+<span class="c1"># Check for missing dependencies</span>
+python<span class="w"> </span>tests/test_runner.py<span class="w"> </span>--check-deps
+</pre></div>
+</div>
+<p><strong>Test Runner Features:</strong>
+- Dependency checking
+- Performance monitoring
+- Detailed error reporting
+- Coverage analysis
+- CI simulation</p>
+</section>
+</section>
+<section id="test-configuration">
+<h2>Test Configuration<a class="headerlink" href="#test-configuration" title="Link to this heading"></a></h2>
+<section id="pytest-configuration">
+<h3>Pytest Configuration<a class="headerlink" href="#pytest-configuration" title="Link to this heading"></a></h3>
+<p>Our <code class="docutils literal notranslate"><span class="pre">pytest.ini</span></code> file configures:</p>
+<div class="highlight-ini notranslate"><div class="highlight"><pre><span></span><span class="k">[tool:pytest]</span>
+<span class="na">testpaths</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s">tests</span>
+<span class="na">python_files</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s">test_*.py *_test.py</span>
+<span class="na">python_classes</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s">Test*</span>
+<span class="na">python_functions</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s">test_*</span>
+<span class="na">addopts</span><span class="w"> </span><span class="o">=</span>
+<span class="w">    </span><span class="na">--strict-markers</span>
+<span class="w">    </span><span class="na">--cov</span><span class="o">=</span><span class="s">dendritic_modeling</span>
+<span class="w">    </span><span class="na">--cov-report</span><span class="o">=</span><span class="s">term-missing</span>
+<span class="w">    </span><span class="na">--cov-fail-under</span><span class="o">=</span><span class="s">75</span>
+<span class="na">markers</span><span class="w"> </span><span class="o">=</span>
+<span class="w">    </span><span class="na">slow</span><span class="o">:</span><span class="w"> </span><span class="s">marks tests as slow</span>
+<span class="w">    </span><span class="na">integration</span><span class="o">:</span><span class="w"> </span><span class="s">marks tests as integration tests</span>
+<span class="w">    </span><span class="na">unit</span><span class="o">:</span><span class="w"> </span><span class="s">marks tests as unit tests</span>
+<span class="w">    </span><span class="na">requires_gpu</span><span class="o">:</span><span class="w"> </span><span class="s">marks tests that require GPU</span>
+<span class="w">    </span><span class="na">requires_data</span><span class="o">:</span><span class="w"> </span><span class="s">marks tests that require external data</span>
+</pre></div>
+</div>
+</section>
+<section id="coverage-configuration">
+<h3>Coverage Configuration<a class="headerlink" href="#coverage-configuration" title="Link to this heading"></a></h3>
+<p>Coverage settings in <code class="docutils literal notranslate"><span class="pre">pyproject.toml</span></code>:</p>
+<div class="highlight-toml notranslate"><div class="highlight"><pre><span></span><span class="k">[tool.coverage.run]</span>
+<span class="n">source</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">[</span><span class="s2">&quot;src/dendritic_modeling&quot;</span><span class="p">]</span>
+<span class="n">omit</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">[</span>
+<span class="w">    </span><span class="s2">&quot;*/tests/*&quot;</span><span class="p">,</span>
+<span class="w">    </span><span class="s2">&quot;*/test_*.py&quot;</span><span class="p">,</span>
+<span class="w">    </span><span class="s2">&quot;*/__pycache__/*&quot;</span><span class="p">,</span>
+<span class="p">]</span>
+
+<span class="k">[tool.coverage.report]</span>
+<span class="n">exclude_lines</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">[</span>
+<span class="w">    </span><span class="s2">&quot;pragma: no cover&quot;</span><span class="p">,</span>
+<span class="w">    </span><span class="s2">&quot;def __repr__&quot;</span><span class="p">,</span>
+<span class="w">    </span><span class="s2">&quot;raise NotImplementedError&quot;</span><span class="p">,</span>
+<span class="w">    </span><span class="s2">&quot;if __name__ == .__main__.:&quot;</span><span class="p">,</span>
+<span class="p">]</span>
+</pre></div>
+</div>
+</section>
+</section>
+<section id="writing-tests">
+<h2>Writing Tests<a class="headerlink" href="#writing-tests" title="Link to this heading"></a></h2>
+<section id="id1">
+<h3>Test Structure<a class="headerlink" href="#id1" title="Link to this heading"></a></h3>
+<p>Follow this structure when writing tests:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="sd">&quot;&quot;&quot;Test module for YourComponent functionality.&quot;&quot;&quot;</span>
+
+<span class="kn">import</span><span class="w"> </span><span class="nn">pytest</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">unittest.mock</span><span class="w"> </span><span class="kn">import</span> <span class="n">Mock</span><span class="p">,</span> <span class="n">patch</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">dendritic_modeling.your_module</span><span class="w"> </span><span class="kn">import</span> <span class="n">YourClass</span>
+
+
+<span class="k">class</span><span class="w"> </span><span class="nc">TestYourClass</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Test suite for YourClass.&quot;&quot;&quot;</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">setup_method</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Set up test fixtures before each test method.&quot;&quot;&quot;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">test_instance</span> <span class="o">=</span> <span class="n">YourClass</span><span class="p">(</span><span class="n">param</span><span class="o">=</span><span class="mi">42</span><span class="p">)</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">test_basic_functionality</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Test basic usage of YourClass.&quot;&quot;&quot;</span>
+        <span class="n">result</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">test_instance</span><span class="o">.</span><span class="n">method</span><span class="p">()</span>
+        <span class="k">assert</span> <span class="n">result</span> <span class="o">==</span> <span class="n">expected_value</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">test_edge_cases</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Test edge cases and error conditions.&quot;&quot;&quot;</span>
+        <span class="k">with</span> <span class="n">pytest</span><span class="o">.</span><span class="n">raises</span><span class="p">(</span><span class="ne">ValueError</span><span class="p">,</span> <span class="n">match</span><span class="o">=</span><span class="s2">&quot;Invalid parameter&quot;</span><span class="p">):</span>
+            <span class="n">YourClass</span><span class="p">(</span><span class="n">invalid_param</span><span class="o">=-</span><span class="mi">1</span><span class="p">)</span>
+
+    <span class="nd">@pytest</span><span class="o">.</span><span class="n">mark</span><span class="o">.</span><span class="n">parametrize</span><span class="p">(</span><span class="s2">&quot;input_val,expected&quot;</span><span class="p">,</span> <span class="p">[</span>
+        <span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="mi">2</span><span class="p">),</span>
+        <span class="p">(</span><span class="mi">5</span><span class="p">,</span> <span class="mi">10</span><span class="p">),</span>
+        <span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">),</span>
+    <span class="p">])</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">test_parameterized</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">input_val</span><span class="p">,</span> <span class="n">expected</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Test multiple input/output combinations.&quot;&quot;&quot;</span>
+        <span class="n">result</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">test_instance</span><span class="o">.</span><span class="n">calculate</span><span class="p">(</span><span class="n">input_val</span><span class="p">)</span>
+        <span class="k">assert</span> <span class="n">result</span> <span class="o">==</span> <span class="n">expected</span>
+
+    <span class="nd">@pytest</span><span class="o">.</span><span class="n">mark</span><span class="o">.</span><span class="n">slow</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">test_performance_intensive</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Test that takes longer to run.&quot;&quot;&quot;</span>
+        <span class="c1"># Long-running test code</span>
+        <span class="k">pass</span>
+</pre></div>
+</div>
+</section>
+<section id="mocking-dependencies">
+<h3>Mocking Dependencies<a class="headerlink" href="#mocking-dependencies" title="Link to this heading"></a></h3>
+<p>Use mocking to isolate components:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span><span class="w"> </span><span class="nn">unittest.mock</span><span class="w"> </span><span class="kn">import</span> <span class="n">Mock</span><span class="p">,</span> <span class="n">patch</span><span class="p">,</span> <span class="n">MagicMock</span>
+
+<span class="k">class</span><span class="w"> </span><span class="nc">TestWithMocking</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Test class demonstrating mocking patterns.&quot;&quot;&quot;</span>
+
+    <span class="nd">@patch</span><span class="p">(</span><span class="s1">&#39;dendritic_modeling.plotting.plt.show&#39;</span><span class="p">)</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">test_plotting_function</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">mock_show</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Test plotting without actually showing plots.&quot;&quot;&quot;</span>
+        <span class="kn">from</span><span class="w"> </span><span class="nn">dendritic_modeling.plotting</span><span class="w"> </span><span class="kn">import</span> <span class="n">plot_results</span>
+
+        <span class="n">plot_results</span><span class="p">(</span><span class="n">data</span><span class="p">)</span>
+        <span class="n">mock_show</span><span class="o">.</span><span class="n">assert_called_once</span><span class="p">()</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">test_with_mock_model</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Test using a mock model.&quot;&quot;&quot;</span>
+        <span class="n">mock_model</span> <span class="o">=</span> <span class="n">Mock</span><span class="p">()</span>
+        <span class="n">mock_model</span><span class="o">.</span><span class="n">forward</span><span class="o">.</span><span class="n">return_value</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">tensor</span><span class="p">([</span><span class="mf">1.0</span><span class="p">,</span> <span class="mf">2.0</span><span class="p">])</span>
+
+        <span class="n">result</span> <span class="o">=</span> <span class="n">analyze_model</span><span class="p">(</span><span class="n">mock_model</span><span class="p">,</span> <span class="n">test_data</span><span class="p">)</span>
+        <span class="n">mock_model</span><span class="o">.</span><span class="n">forward</span><span class="o">.</span><span class="n">assert_called_once</span><span class="p">()</span>
+        <span class="k">assert</span> <span class="n">result</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span>
+</pre></div>
+</div>
+</section>
+<section id="testing-neural-networks">
+<h3>Testing Neural Networks<a class="headerlink" href="#testing-neural-networks" title="Link to this heading"></a></h3>
+<p>Special considerations for testing neural networks:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">import</span><span class="w"> </span><span class="nn">torch</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">dendritic_modeling.networks</span><span class="w"> </span><span class="kn">import</span> <span class="n">ExcitationInhibitionNetwork</span>
+
+<span class="k">class</span><span class="w"> </span><span class="nc">TestEINetwork</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Test suite for EI networks.&quot;&quot;&quot;</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">test_network_creation</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Test network can be created with valid parameters.&quot;&quot;&quot;</span>
+        <span class="n">network</span> <span class="o">=</span> <span class="n">ExcitationInhibitionNetwork</span><span class="p">(</span>
+            <span class="n">input_dim</span><span class="o">=</span><span class="mi">10</span><span class="p">,</span>
+            <span class="n">excitatory_layer_sizes</span><span class="o">=</span><span class="p">[</span><span class="mi">20</span><span class="p">,</span> <span class="mi">10</span><span class="p">],</span>
+            <span class="n">inhibitory_layer_sizes</span><span class="o">=</span><span class="p">[</span><span class="mi">10</span><span class="p">,</span> <span class="mi">5</span><span class="p">],</span>
+            <span class="c1"># ... other parameters</span>
+        <span class="p">)</span>
+        <span class="k">assert</span> <span class="n">network</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">test_forward_pass_shape</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Test forward pass produces correct output shape.&quot;&quot;&quot;</span>
+        <span class="n">network</span> <span class="o">=</span> <span class="n">ExcitationInhibitionNetwork</span><span class="p">(</span>
+            <span class="n">input_dim</span><span class="o">=</span><span class="mi">10</span><span class="p">,</span>
+            <span class="n">output_dim</span><span class="o">=</span><span class="mi">5</span><span class="p">,</span>
+            <span class="c1"># ... other parameters</span>
+        <span class="p">)</span>
+
+        <span class="n">batch_size</span> <span class="o">=</span> <span class="mi">32</span>
+        <span class="n">input_tensor</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">randn</span><span class="p">(</span><span class="n">batch_size</span><span class="p">,</span> <span class="mi">10</span><span class="p">)</span>
+        <span class="n">output</span> <span class="o">=</span> <span class="n">network</span><span class="p">(</span><span class="n">input_tensor</span><span class="p">)</span>
+
+        <span class="k">assert</span> <span class="n">output</span><span class="o">.</span><span class="n">shape</span> <span class="o">==</span> <span class="p">(</span><span class="n">batch_size</span><span class="p">,</span> <span class="mi">5</span><span class="p">)</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">test_gradient_flow</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Test gradients flow correctly through network.&quot;&quot;&quot;</span>
+        <span class="n">network</span> <span class="o">=</span> <span class="n">ExcitationInhibitionNetwork</span><span class="p">(</span>
+            <span class="n">input_dim</span><span class="o">=</span><span class="mi">10</span><span class="p">,</span>
+            <span class="n">output_dim</span><span class="o">=</span><span class="mi">5</span><span class="p">,</span>
+            <span class="c1"># ... other parameters</span>
+        <span class="p">)</span>
+
+        <span class="n">input_tensor</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">randn</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="mi">10</span><span class="p">,</span> <span class="n">requires_grad</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+        <span class="n">output</span> <span class="o">=</span> <span class="n">network</span><span class="p">(</span><span class="n">input_tensor</span><span class="p">)</span>
+        <span class="n">loss</span> <span class="o">=</span> <span class="n">output</span><span class="o">.</span><span class="n">sum</span><span class="p">()</span>
+        <span class="n">loss</span><span class="o">.</span><span class="n">backward</span><span class="p">()</span>
+
+        <span class="c1"># Check gradients exist</span>
+        <span class="k">assert</span> <span class="n">input_tensor</span><span class="o">.</span><span class="n">grad</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span>
+        <span class="k">for</span> <span class="n">param</span> <span class="ow">in</span> <span class="n">network</span><span class="o">.</span><span class="n">parameters</span><span class="p">():</span>
+            <span class="k">assert</span> <span class="n">param</span><span class="o">.</span><span class="n">grad</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span>
+</pre></div>
+</div>
+</section>
+</section>
+<section id="testing-best-practices">
+<h2>Testing Best Practices<a class="headerlink" href="#testing-best-practices" title="Link to this heading"></a></h2>
+<section id="test-design-principles">
+<h3>Test Design Principles<a class="headerlink" href="#test-design-principles" title="Link to this heading"></a></h3>
+<ol class="arabic simple">
+<li><p><strong>Fast and Reliable</strong>: Tests should run quickly and consistently</p></li>
+<li><p><strong>Independent</strong>: Tests should not depend on each other</p></li>
+<li><p><strong>Descriptive</strong>: Test names should clearly describe what’s being tested</p></li>
+<li><p><strong>Focused</strong>: Each test should test one specific behavior</p></li>
+<li><p><strong>Maintainable</strong>: Tests should be easy to understand and modify</p></li>
+</ol>
+</section>
+<section id="naming-conventions">
+<h3>Naming Conventions<a class="headerlink" href="#naming-conventions" title="Link to this heading"></a></h3>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="c1"># Good test names</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">test_network_forward_pass_with_valid_input</span><span class="p">():</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Test network forward pass with valid input data.&quot;&quot;&quot;</span>
+    <span class="k">pass</span>
+
+<span class="k">def</span><span class="w"> </span><span class="nf">test_training_raises_error_with_invalid_lr</span><span class="p">():</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Test training raises ValueError with negative learning rate.&quot;&quot;&quot;</span>
+    <span class="k">pass</span>
+
+<span class="k">def</span><span class="w"> </span><span class="nf">test_dataset_loader_returns_correct_batch_size</span><span class="p">():</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Test dataset loader returns batches of correct size.&quot;&quot;&quot;</span>
+    <span class="k">pass</span>
+</pre></div>
+</div>
+</section>
+<section id="assertion-best-practices">
+<h3>Assertion Best Practices<a class="headerlink" href="#assertion-best-practices" title="Link to this heading"></a></h3>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="c1"># Use descriptive assertions</span>
+<span class="k">assert</span> <span class="n">result</span><span class="o">.</span><span class="n">shape</span> <span class="o">==</span> <span class="n">expected_shape</span><span class="p">,</span> <span class="sa">f</span><span class="s2">&quot;Expected </span><span class="si">{</span><span class="n">expected_shape</span><span class="si">}</span><span class="s2">, got </span><span class="si">{</span><span class="n">result</span><span class="o">.</span><span class="n">shape</span><span class="si">}</span><span class="s2">&quot;</span>
+
+<span class="c1"># Test approximate equality for floats</span>
+<span class="k">assert</span> <span class="nb">abs</span><span class="p">(</span><span class="n">result</span> <span class="o">-</span> <span class="n">expected</span><span class="p">)</span> <span class="o">&lt;</span> <span class="mf">1e-6</span>
+
+<span class="c1"># Use pytest.approx for floating point comparisons</span>
+<span class="k">assert</span> <span class="n">result</span> <span class="o">==</span> <span class="n">pytest</span><span class="o">.</span><span class="n">approx</span><span class="p">(</span><span class="n">expected</span><span class="p">,</span> <span class="n">rel</span><span class="o">=</span><span class="mf">1e-5</span><span class="p">)</span>
+
+<span class="c1"># Test exception messages</span>
+<span class="k">with</span> <span class="n">pytest</span><span class="o">.</span><span class="n">raises</span><span class="p">(</span><span class="ne">ValueError</span><span class="p">,</span> <span class="n">match</span><span class="o">=</span><span class="s2">&quot;Learning rate must be positive&quot;</span><span class="p">):</span>
+    <span class="n">train_model</span><span class="p">(</span><span class="n">lr</span><span class="o">=-</span><span class="mf">0.1</span><span class="p">)</span>
+</pre></div>
+</div>
+</section>
+<section id="test-data-management">
+<h3>Test Data Management<a class="headerlink" href="#test-data-management" title="Link to this heading"></a></h3>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="c1"># Use fixtures for reusable test data</span>
+<span class="nd">@pytest</span><span class="o">.</span><span class="n">fixture</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">sample_config</span><span class="p">():</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Provide sample configuration for tests.&quot;&quot;&quot;</span>
+    <span class="k">return</span> <span class="p">{</span>
+        <span class="s1">&#39;model&#39;</span><span class="p">:</span> <span class="p">{</span>
+            <span class="s1">&#39;network&#39;</span><span class="p">:</span> <span class="p">{</span>
+                <span class="s1">&#39;type&#39;</span><span class="p">:</span> <span class="s1">&#39;EINet&#39;</span><span class="p">,</span>
+                <span class="s1">&#39;parameters&#39;</span><span class="p">:</span> <span class="p">{</span>
+                    <span class="s1">&#39;input_dim&#39;</span><span class="p">:</span> <span class="mi">784</span><span class="p">,</span>
+                    <span class="s1">&#39;output_dim&#39;</span><span class="p">:</span> <span class="mi">10</span><span class="p">,</span>
+                <span class="p">}</span>
+            <span class="p">}</span>
+        <span class="p">}</span>
+    <span class="p">}</span>
+
+<span class="c1"># Use parametrize for multiple test cases</span>
+<span class="nd">@pytest</span><span class="o">.</span><span class="n">mark</span><span class="o">.</span><span class="n">parametrize</span><span class="p">(</span><span class="s2">&quot;batch_size,expected_batches&quot;</span><span class="p">,</span> <span class="p">[</span>
+    <span class="p">(</span><span class="mi">32</span><span class="p">,</span> <span class="mi">32</span><span class="p">),</span>
+    <span class="p">(</span><span class="mi">64</span><span class="p">,</span> <span class="mi">16</span><span class="p">),</span>
+    <span class="p">(</span><span class="mi">128</span><span class="p">,</span> <span class="mi">8</span><span class="p">),</span>
+<span class="p">])</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">test_dataloader_batch_sizes</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">batch_size</span><span class="p">,</span> <span class="n">expected_batches</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Test dataloader with different batch sizes.&quot;&quot;&quot;</span>
+    <span class="c1"># Test implementation</span>
+</pre></div>
+</div>
+</section>
+</section>
+<section id="continuous-integration">
+<h2>Continuous Integration<a class="headerlink" href="#continuous-integration" title="Link to this heading"></a></h2>
+<section id="local-ci-simulation">
+<h3>Local CI Simulation<a class="headerlink" href="#local-ci-simulation" title="Link to this heading"></a></h3>
+<p>Run the same checks as CI locally:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># Full CI simulation</span>
+python<span class="w"> </span>tests/test_runner.py<span class="w"> </span>--mode<span class="w"> </span>full
+
+<span class="c1"># Quick checks (same as PR quick check)</span>
+pre-commit<span class="w"> </span>run<span class="w"> </span>--all-files
+
+<span class="c1"># Test import performance</span>
+python<span class="w"> </span>-c<span class="w"> </span><span class="s2">&quot;import time; start=time.time(); import dendritic_modeling; print(f&#39;Import: {time.time()-start:.2f}s&#39;)&quot;</span>
+</pre></div>
+</div>
+</section>
+<section id="ci-test-matrix">
+<h3>CI Test Matrix<a class="headerlink" href="#ci-test-matrix" title="Link to this heading"></a></h3>
+<p>Our CI runs tests across:</p>
+<ul class="simple">
+<li><p><strong>Python versions</strong>: 3.9, 3.10, 3.11, 3.12</p></li>
+<li><p><strong>Operating systems</strong>: Ubuntu, macOS, Windows</p></li>
+<li><p><strong>PyTorch versions</strong>: Latest stable versions</p></li>
+<li><p><strong>Dependency combinations</strong>: Core, full, minimal</p></li>
+</ul>
+</section>
+<section id="performance-testing">
+<h3>Performance Testing<a class="headerlink" href="#performance-testing" title="Link to this heading"></a></h3>
+<p>We monitor:</p>
+<ul class="simple">
+<li><p><strong>Test execution time</strong>: Prevent slow test regressions</p></li>
+<li><p><strong>Import time</strong>: Keep imports under 2 seconds</p></li>
+<li><p><strong>Memory usage</strong>: Monitor memory consumption</p></li>
+<li><p><strong>Coverage</strong>: Maintain minimum 75% coverage</p></li>
+</ul>
+</section>
+</section>
+<section id="troubleshooting-tests">
+<h2>Troubleshooting Tests<a class="headerlink" href="#troubleshooting-tests" title="Link to this heading"></a></h2>
+<section id="common-issues">
+<h3>Common Issues<a class="headerlink" href="#common-issues" title="Link to this heading"></a></h3>
+<p><strong>Import Errors</strong></p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># Check package installation</span>
+pip<span class="w"> </span>show<span class="w"> </span>dendritic_modeling
+
+<span class="c1"># Reinstall in development mode</span>
+pip<span class="w"> </span>install<span class="w"> </span>-e<span class="w"> </span>.
+</pre></div>
+</div>
+<p><strong>Slow Tests</strong></p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># Skip slow tests during development</span>
+pytest<span class="w"> </span>-m<span class="w"> </span><span class="s2">&quot;not slow&quot;</span>
+
+<span class="c1"># Profile test execution</span>
+pytest<span class="w"> </span>--durations<span class="o">=</span><span class="m">10</span>
+</pre></div>
+</div>
+<p><strong>GPU Test Failures</strong></p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># Skip GPU tests if no GPU available</span>
+pytest<span class="w"> </span>-m<span class="w"> </span><span class="s2">&quot;not requires_gpu&quot;</span>
+
+<span class="c1"># Check CUDA availability</span>
+python<span class="w"> </span>-c<span class="w"> </span><span class="s2">&quot;import torch; print(torch.cuda.is_available())&quot;</span>
+</pre></div>
+</div>
+<p><strong>Coverage Issues</strong></p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># Check which lines are missing coverage</span>
+pytest<span class="w"> </span>--cov<span class="o">=</span>dendritic_modeling<span class="w"> </span>--cov-report<span class="o">=</span>html
+open<span class="w"> </span>htmlcov/index.html
+
+<span class="c1"># Run with branch coverage</span>
+pytest<span class="w"> </span>--cov<span class="o">=</span>dendritic_modeling<span class="w"> </span>--cov-branch
+</pre></div>
+</div>
+</section>
+<section id="debug-test-failures">
+<h3>Debug Test Failures<a class="headerlink" href="#debug-test-failures" title="Link to this heading"></a></h3>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># Run with verbose output</span>
+pytest<span class="w"> </span>-v<span class="w"> </span>-s
+
+<span class="c1"># Drop into debugger on failure</span>
+pytest<span class="w"> </span>--pdb
+
+<span class="c1"># Show local variables on failure</span>
+pytest<span class="w"> </span>-l
+
+<span class="c1"># Only run failed tests</span>
+pytest<span class="w"> </span>--lf
+</pre></div>
+</div>
+</section>
+</section>
+<section id="getting-help">
+<h2>Getting Help<a class="headerlink" href="#getting-help" title="Link to this heading"></a></h2>
+<p><strong>Resources:</strong></p>
+<ul class="simple">
+<li><p><strong>Test Documentation</strong>: <code class="docutils literal notranslate"><span class="pre">tests/README.md</span></code></p></li>
+<li><p><strong>CI Setup Guide</strong>: <code class="docutils literal notranslate"><span class="pre">CI_SETUP.md</span></code></p></li>
+<li><p><strong>Contributing Guide</strong>: <a class="reference internal" href="contributing.html"><span class="doc">Contributing to Dendritic Modeling Framework</span></a></p></li>
+<li><p><strong>GitHub Issues</strong>: Report test-related bugs</p></li>
+</ul>
+<p><strong>Common Commands Reference:</strong></p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># Essential test commands</span>
+pytest<span class="w">                              </span><span class="c1"># Run all tests</span>
+pytest<span class="w"> </span>-v<span class="w">                          </span><span class="c1"># Verbose output</span>
+pytest<span class="w"> </span>-k<span class="w"> </span><span class="s2">&quot;test_name&quot;</span><span class="w">              </span><span class="c1"># Run specific tests</span>
+pytest<span class="w"> </span>-m<span class="w"> </span>unit<span class="w">                     </span><span class="c1"># Run unit tests only</span>
+pytest<span class="w"> </span>--cov<span class="o">=</span>dendritic_modeling<span class="w">    </span><span class="c1"># Run with coverage</span>
+python<span class="w"> </span>tests/test_runner.py<span class="w">        </span><span class="c1"># Custom test runner</span>
+pre-commit<span class="w"> </span>run<span class="w"> </span>--all-files<span class="w">         </span><span class="c1"># Code quality checks</span>
+</pre></div>
+</div>
+<p>The testing infrastructure ensures the reliability and maintainability of the Dendritic Modeling Framework. By following these guidelines, you can contribute high-quality tests that help maintain the project’s quality standards.</p>
+</section>
+</section>
+
+
+           </div>
+          </div>
+          <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
+        <a href="contributing.html" class="btn btn-neutral float-left" title="Contributing to Dendritic Modeling Framework" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
+        <a href="../reference/glossary.html" class="btn btn-neutral float-right" title="Glossary" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright 2025, Research and Engineering at Kempner.</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>

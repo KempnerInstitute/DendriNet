@@ -1,0 +1,280 @@
+
+
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" data-content_root="../../../../../../">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>dendritic_modeling.networks.architectures.classical.mlp.matched_param &mdash; dendritic_modeling 0.1.0 documentation</title>
+      <link rel="stylesheet" type="text/css" href="../../../../../../_static/pygments.css?v=b86133f3" />
+      <link rel="stylesheet" type="text/css" href="../../../../../../_static/css/theme.css?v=e59714d7" />
+      <link rel="stylesheet" type="text/css" href="../../../../../../_static/copybutton.css?v=76b2166b" />
+
+  
+      <script src="../../../../../../_static/jquery.js?v=5d32c60e"></script>
+      <script src="../../../../../../_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
+      <script src="../../../../../../_static/documentation_options.js?v=01f34227"></script>
+      <script src="../../../../../../_static/doctools.js?v=9bcbadda"></script>
+      <script src="../../../../../../_static/sphinx_highlight.js?v=dc90522c"></script>
+      <script src="../../../../../../_static/clipboard.min.js?v=a7894cd8"></script>
+      <script src="../../../../../../_static/copybutton.js?v=f281be69"></script>
+      <script crossorigin="anonymous" integrity="sha256-Ae2Vz/4ePdIu6ZyI/5ZGsYnb+m0JlOmKPjt6XZ9JJkA=" src="https://cdnjs.cloudflare.com/ajax/libs/require.js/2.3.4/require.min.js"></script>
+    <script src="../../../../../../_static/js/theme.js"></script>
+    <link rel="author" title="About these documents" href="../../../../../../about.html" />
+    <link rel="index" title="Index" href="../../../../../../genindex.html" />
+    <link rel="search" title="Search" href="../../../../../../search.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+
+          
+          
+          <a href="../../../../../../index.html" class="icon icon-home">
+            dendritic_modeling
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../../../../../../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <p class="caption" role="heading"><span class="caption-text">Getting Started</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../../../../source/getting_started/installation.html">Installation and Setup</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../../../source/getting_started/quickstart.html">Quick Start Guide</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">User Guide</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../../../../source/user_guide/architecture.html">Architecture Overview</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../../../source/user_guide/configuration.html">Configuration System</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">API Reference</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../../../../source/api/networks.html">Networks API Reference</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../../../source/api/models.html">Models API Reference</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Advanced Topics</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../../../../source/advanced/network_structures/index.html">Network Structures</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../../../source/advanced/learning/index.html">Learning Strategies</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../../../source/advanced/analysis/index.html">Analysis Tools</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../../../source/advanced/visualization/index.html">Visualization Tools</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../../../source/advanced/configuration/index.html">Configuration System</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Development</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../../../../source/development/contributing.html">Contributing to Dendritic Modeling Framework</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../../../source/development/testing.html">Testing Guide</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Reference</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../../../../source/reference/glossary.html">Glossary</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../../../about.html">About</a></li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../../../../../../index.html">dendritic_modeling</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="../../../../../../index.html" class="icon icon-home" aria-label="Home"></a></li>
+          <li class="breadcrumb-item"><a href="../../../../../index.html">Module code</a></li>
+      <li class="breadcrumb-item active">dendritic_modeling.networks.architectures.classical.mlp.matched_param</li>
+      <li class="wy-breadcrumbs-aside">
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <h1>Source code for dendritic_modeling.networks.architectures.classical.mlp.matched_param</h1><div class="highlight"><pre>
+<span></span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">Matched Parameter MLP.</span>
+
+<span class="sd">This module implements MatchedParamMLP which creates an MLP with</span>
+<span class="sd">at least as many parameters as an equivalent EINet configuration.</span>
+<span class="sd">&quot;&quot;&quot;</span>
+
+<span class="kn">import</span><span class="w"> </span><span class="nn">torch</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">torch</span><span class="w"> </span><span class="kn">import</span> <span class="n">nn</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">torchinfo</span>
+
+<span class="kn">from</span><span class="w"> </span><span class="nn">dendritic_modeling.networks.architectures.excitation_inhibition</span><span class="w"> </span><span class="kn">import</span> <span class="n">ExcitationInhibitionNetwork</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">dendritic_modeling.networks.activations.factory</span><span class="w"> </span><span class="kn">import</span> <span class="n">ActivationFactory</span>
+
+<div class="viewcode-block" id="MatchedParamMLP">
+<a class="viewcode-back" href="../../../../../../source/api/dendritic_modeling.html#dendritic_modeling.networks.MatchedParamMLP">[docs]</a>
+<span class="k">class</span><span class="w"> </span><span class="nc">MatchedParamMLP</span><span class="p">(</span><span class="n">nn</span><span class="o">.</span><span class="n">Module</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Creates an MLP with at least as many parameters as an equivalent EINet configuration.</span>
+<span class="sd">    Matches the number of layers to DendriticBranchLayers and minimizes parameters while</span>
+<span class="sd">    exceeding EINet parameter count.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span>
+        <span class="n">input_dim</span><span class="p">,</span>
+        <span class="n">excitatory_layer_sizes</span><span class="p">,</span>
+        <span class="n">inhibitory_layer_sizes</span><span class="p">,</span>
+        <span class="n">excitatory_branch_factors</span><span class="p">,</span>
+        <span class="n">inhibitory_branch_factors</span><span class="p">,</span>
+        <span class="n">ee_synapses_per_branch_per_layer</span><span class="p">,</span>
+        <span class="n">ei_synapses_per_branch_per_layer</span><span class="p">,</span>
+        <span class="n">ie_synapses_per_branch_per_layer</span><span class="p">,</span>
+        <span class="n">ii_synapses_per_branch_per_layer</span><span class="o">=</span><span class="p">[],</span>
+        <span class="n">reactivate</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span>
+        <span class="n">somatic_synapses</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+        <span class="n">activation</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;relu&quot;</span><span class="p">,</span>
+        <span class="o">**</span><span class="n">kwargs</span>  <span class="c1"># Accept but ignore other EINet parameters</span>
+    <span class="p">):</span>
+        <span class="nb">super</span><span class="p">(</span><span class="n">MatchedParamMLP</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="fm">__init__</span><span class="p">()</span>
+
+        <span class="c1"># Create EINet to get parameter count and number of layers</span>
+        <span class="n">einet</span> <span class="o">=</span> <span class="n">ExcitationInhibitionNetwork</span><span class="p">(</span>
+            <span class="n">input_dim</span><span class="o">=</span><span class="n">input_dim</span><span class="p">,</span>
+            <span class="n">excitatory_layer_sizes</span><span class="o">=</span><span class="n">excitatory_layer_sizes</span><span class="p">,</span>
+            <span class="n">inhibitory_layer_sizes</span><span class="o">=</span><span class="n">inhibitory_layer_sizes</span><span class="p">,</span>
+            <span class="n">excitatory_branch_factors</span><span class="o">=</span><span class="n">excitatory_branch_factors</span><span class="p">,</span>
+            <span class="n">inhibitory_branch_factors</span><span class="o">=</span><span class="n">inhibitory_branch_factors</span><span class="p">,</span>
+            <span class="n">ee_synapses_per_branch_per_layer</span><span class="o">=</span><span class="n">ee_synapses_per_branch_per_layer</span><span class="p">,</span>
+            <span class="n">ei_synapses_per_branch_per_layer</span><span class="o">=</span><span class="n">ei_synapses_per_branch_per_layer</span><span class="p">,</span>
+            <span class="n">ie_synapses_per_branch_per_layer</span><span class="o">=</span><span class="n">ie_synapses_per_branch_per_layer</span><span class="p">,</span>
+            <span class="n">ii_synapses_per_branch_per_layer</span><span class="o">=</span><span class="n">ii_synapses_per_branch_per_layer</span><span class="p">,</span>
+            <span class="n">reactivate</span><span class="o">=</span><span class="n">reactivate</span><span class="p">,</span>
+            <span class="n">somatic_synapses</span><span class="o">=</span><span class="n">somatic_synapses</span><span class="p">,</span>
+            <span class="o">**</span><span class="n">kwargs</span><span class="p">,</span>
+        <span class="p">)</span>
+
+        <span class="n">summary</span> <span class="o">=</span> <span class="n">torchinfo</span><span class="o">.</span><span class="n">summary</span><span class="p">(</span><span class="n">einet</span><span class="p">,</span> <span class="n">verbose</span><span class="o">=</span><span class="mi">0</span><span class="p">)</span>
+        <span class="n">target_params</span> <span class="o">=</span> <span class="n">summary</span><span class="o">.</span><span class="n">trainable_params</span>
+
+        <span class="c1"># Get number of branch layers</span>
+        <span class="n">n_branch_layers</span> <span class="o">=</span> <span class="n">einet</span><span class="o">.</span><span class="n">n_branch_layers</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">somatic_synapses</span><span class="p">:</span>
+            <span class="n">n_branch_layers</span> <span class="o">-=</span> <span class="mi">2</span> <span class="o">*</span> <span class="nb">len</span><span class="p">(</span><span class="n">einet</span><span class="o">.</span><span class="n">layers</span><span class="p">)</span>  <span class="c1"># Account for somatic layer</span>
+
+        <span class="c1"># Calculate required hidden layer widths</span>
+        <span class="c1"># For n hidden layers (n+1 total layers), we need:</span>
+        <span class="c1"># input_dim * h1 + h1 * h2 + h2 * h3 + ... + hn * output_dim ≥ target_params</span>
+        <span class="c1"># Minimize total parameters while satisfying this constraint</span>
+        <span class="c1"># We&#39;ll use equal width hidden layers for simplicity</span>
+        <span class="c1"># Then: input_dim * h + h * h * (n-1) + h * output_dim ≥ target_params</span>
+        <span class="c1"># where n is number of hidden layers</span>
+
+        <span class="k">def</span><span class="w"> </span><span class="nf">get_param_count</span><span class="p">(</span><span class="n">hidden_width</span><span class="p">):</span>
+<span class="w">            </span><span class="sd">&quot;&quot;&quot;Calculate total parameters for given hidden width&quot;&quot;&quot;</span>
+            <span class="n">params</span> <span class="o">=</span> <span class="n">input_dim</span> <span class="o">*</span> <span class="n">hidden_width</span>  <span class="c1"># First layer</span>
+            <span class="n">params</span> <span class="o">+=</span> <span class="p">(</span>
+                <span class="n">hidden_width</span> <span class="o">*</span> <span class="n">hidden_width</span> <span class="o">*</span> <span class="p">(</span><span class="n">n_branch_layers</span> <span class="o">-</span> <span class="mi">1</span><span class="p">)</span>
+            <span class="p">)</span>  <span class="c1"># Hidden layers</span>
+            <span class="n">params</span> <span class="o">+=</span> <span class="n">hidden_width</span> <span class="o">*</span> <span class="n">excitatory_layer_sizes</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span>  <span class="c1"># Output layer</span>
+            <span class="k">return</span> <span class="n">params</span>
+
+        <span class="c1"># Binary search for minimum hidden width that exceeds target params</span>
+        <span class="n">left</span><span class="p">,</span> <span class="n">right</span> <span class="o">=</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">10000</span>
+        <span class="n">min_width</span> <span class="o">=</span> <span class="n">right</span>
+
+        <span class="k">while</span> <span class="n">left</span> <span class="o">&lt;=</span> <span class="n">right</span><span class="p">:</span>
+            <span class="n">mid</span> <span class="o">=</span> <span class="p">(</span><span class="n">left</span> <span class="o">+</span> <span class="n">right</span><span class="p">)</span> <span class="o">//</span> <span class="mi">2</span>
+            <span class="n">params</span> <span class="o">=</span> <span class="n">get_param_count</span><span class="p">(</span><span class="n">mid</span><span class="p">)</span>
+
+            <span class="k">if</span> <span class="n">params</span> <span class="o">&gt;=</span> <span class="n">target_params</span><span class="p">:</span>
+                <span class="n">min_width</span> <span class="o">=</span> <span class="n">mid</span>
+                <span class="n">right</span> <span class="o">=</span> <span class="n">mid</span> <span class="o">-</span> <span class="mi">1</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="n">left</span> <span class="o">=</span> <span class="n">mid</span> <span class="o">+</span> <span class="mi">1</span>
+
+        <span class="n">hidden_width</span> <span class="o">=</span> <span class="n">min_width</span>
+
+        <span class="c1"># Build MLP layers</span>
+        <span class="n">layers</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="n">activation_factory</span> <span class="o">=</span> <span class="n">ActivationFactory</span><span class="p">()</span>
+
+        <span class="c1"># Input layer</span>
+        <span class="n">fc_linear</span> <span class="o">=</span> <span class="n">nn</span><span class="o">.</span><span class="n">Linear</span><span class="p">(</span><span class="n">input_dim</span><span class="p">,</span> <span class="n">hidden_width</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">activation</span> <span class="o">==</span> <span class="s2">&quot;relu&quot;</span><span class="p">:</span>
+            <span class="n">nn</span><span class="o">.</span><span class="n">init</span><span class="o">.</span><span class="n">kaiming_normal_</span><span class="p">(</span><span class="n">fc_linear</span><span class="o">.</span><span class="n">weight</span><span class="p">)</span>
+            <span class="n">nn</span><span class="o">.</span><span class="n">init</span><span class="o">.</span><span class="n">zeros_</span><span class="p">(</span><span class="n">fc_linear</span><span class="o">.</span><span class="n">bias</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">nn</span><span class="o">.</span><span class="n">init</span><span class="o">.</span><span class="n">xavier_normal_</span><span class="p">(</span><span class="n">fc_linear</span><span class="o">.</span><span class="n">weight</span><span class="p">)</span>
+            <span class="n">nn</span><span class="o">.</span><span class="n">init</span><span class="o">.</span><span class="n">zeros_</span><span class="p">(</span><span class="n">fc_linear</span><span class="o">.</span><span class="n">bias</span><span class="p">)</span>
+        <span class="n">layers</span><span class="o">.</span><span class="n">extend</span><span class="p">([</span>
+            <span class="n">fc_linear</span><span class="p">,</span> 
+            <span class="n">activation_factory</span><span class="o">.</span><span class="n">create</span><span class="p">(</span>
+                <span class="n">act_type</span><span class="o">=</span><span class="n">activation</span><span class="p">,</span>
+                <span class="n">output_dim</span><span class="o">=</span><span class="n">hidden_width</span>
+            <span class="p">)</span>
+        <span class="p">])</span>
+
+        <span class="c1"># Hidden layers</span>
+        <span class="k">for</span> <span class="n">_</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">n_branch_layers</span> <span class="o">-</span> <span class="mi">1</span><span class="p">):</span>
+            <span class="n">fc_linear</span> <span class="o">=</span> <span class="n">nn</span><span class="o">.</span><span class="n">Linear</span><span class="p">(</span><span class="n">hidden_width</span><span class="p">,</span> <span class="n">hidden_width</span><span class="p">)</span>
+            <span class="k">if</span> <span class="n">activation</span> <span class="o">==</span> <span class="s2">&quot;relu&quot;</span><span class="p">:</span>
+                <span class="n">nn</span><span class="o">.</span><span class="n">init</span><span class="o">.</span><span class="n">kaiming_normal_</span><span class="p">(</span><span class="n">fc_linear</span><span class="o">.</span><span class="n">weight</span><span class="p">)</span>
+                <span class="n">nn</span><span class="o">.</span><span class="n">init</span><span class="o">.</span><span class="n">zeros_</span><span class="p">(</span><span class="n">fc_linear</span><span class="o">.</span><span class="n">bias</span><span class="p">)</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="n">nn</span><span class="o">.</span><span class="n">init</span><span class="o">.</span><span class="n">xavier_normal_</span><span class="p">(</span><span class="n">fc_linear</span><span class="o">.</span><span class="n">weight</span><span class="p">)</span>
+                <span class="n">nn</span><span class="o">.</span><span class="n">init</span><span class="o">.</span><span class="n">zeros_</span><span class="p">(</span><span class="n">fc_linear</span><span class="o">.</span><span class="n">bias</span><span class="p">)</span>
+            <span class="n">layers</span><span class="o">.</span><span class="n">extend</span><span class="p">([</span>
+                <span class="n">fc_linear</span><span class="p">,</span> 
+                <span class="n">activation_factory</span><span class="o">.</span><span class="n">create</span><span class="p">(</span>
+                    <span class="n">act_type</span><span class="o">=</span><span class="n">activation</span><span class="p">,</span>
+                    <span class="n">output_dim</span><span class="o">=</span><span class="n">hidden_width</span>
+                <span class="p">)</span>
+            <span class="p">])</span>
+
+        <span class="c1"># Output layer</span>
+        <span class="n">layers</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">nn</span><span class="o">.</span><span class="n">Linear</span><span class="p">(</span><span class="n">hidden_width</span><span class="p">,</span> <span class="n">excitatory_layer_sizes</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">]))</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">hidden</span> <span class="o">=</span> <span class="n">nn</span><span class="o">.</span><span class="n">Sequential</span><span class="p">(</span><span class="o">*</span><span class="n">layers</span><span class="p">)</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">forward</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">x</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">:</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">hidden</span><span class="p">(</span><span class="n">x</span><span class="p">)</span></div>
+
+
+
+<span class="n">__all__</span> <span class="o">=</span> <span class="p">[</span><span class="s2">&quot;MatchedParamMLP&quot;</span><span class="p">]</span> 
+</pre></div>
+
+           </div>
+          </div>
+          <footer>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright 2025, Research and Engineering at Kempner.</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>

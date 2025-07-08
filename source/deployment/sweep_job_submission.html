@@ -23,9 +23,7 @@
     <script src="../../_static/js/theme.js"></script>
     <link rel="author" title="About these documents" href="../../about.html" />
     <link rel="index" title="Index" href="../../genindex.html" />
-    <link rel="search" title="Search" href="../../search.html" />
-    <link rel="next" title="Sweep Job Submission (User)" href="user_sweep_job_submission.html" />
-    <link rel="prev" title="Deployment Guide" href="index.html" /> 
+    <link rel="search" title="Search" href="../../search.html" /> 
 </head>
 
 <body class="wy-body-for-nav"> 
@@ -47,62 +45,38 @@
   </form>
 </div>
         </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
-              <p class="caption" role="heading"><span class="caption-text">Introduction</span></p>
+              <p class="caption" role="heading"><span class="caption-text">Getting Started</span></p>
 <ul>
-<li class="toctree-l1"><a class="reference internal" href="../../about.html">About</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../getting_started/installation.html">Installation and Setup</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../getting_started/quickstart.html">Quick Start Guide</a></li>
 </ul>
-<p class="caption" role="heading"><span class="caption-text">Contents</span></p>
+<p class="caption" role="heading"><span class="caption-text">User Guide</span></p>
 <ul>
-<li class="toctree-l1"><a class="reference internal" href="../getting_started/index.html">Getting Started Guide</a></li>
-<li class="toctree-l1"><a class="reference internal" href="../user_guide/index.html">User Guide</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../user_guide/architecture.html">Architecture Overview</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../user_guide/configuration.html">Configuration System</a></li>
 </ul>
-<p class="caption" role="heading"><span class="caption-text">Contents</span></p>
+<p class="caption" role="heading"><span class="caption-text">API Reference</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../api/networks.html">Networks API Reference</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../api/models.html">Models API Reference</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Advanced Topics</span></p>
 <ul>
 <li class="toctree-l1"><a class="reference internal" href="../advanced/network_structures/index.html">Network Structures</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../advanced/learning/index.html">Learning Strategies</a></li>
-<li class="toctree-l1"><a class="reference internal" href="../advanced/visualization/index.html">Visualization Tools</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../advanced/analysis/index.html">Analysis Tools</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../advanced/visualization/index.html">Visualization Tools</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../advanced/configuration/index.html">Configuration System</a></li>
 </ul>
-<p class="caption" role="heading"><span class="caption-text">Contents</span></p>
+<p class="caption" role="heading"><span class="caption-text">Development</span></p>
 <ul>
-<li class="toctree-l1"><a class="reference internal" href="../api/index.html">API Reference</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../development/contributing.html">Contributing to Dendritic Modeling Framework</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../development/testing.html">Testing Guide</a></li>
 </ul>
-<p class="caption" role="heading"><span class="caption-text">Contents</span></p>
-<ul class="current">
-<li class="toctree-l1 current"><a class="reference internal" href="index.html">Deployment Guide</a><ul class="current">
-<li class="toctree-l2 current"><a class="current reference internal" href="#">Sweep Job Submission</a><ul>
-<li class="toctree-l3"><a class="reference internal" href="#overview">Overview</a></li>
-<li class="toctree-l3"><a class="reference internal" href="#parameter-sweeps">Parameter Sweeps</a><ul>
-<li class="toctree-l4"><a class="reference internal" href="#sweep-parameters-file">Sweep Parameters File</a></li>
-<li class="toctree-l4"><a class="reference internal" href="#generating-sweep-configurations">Generating Sweep Configurations</a></li>
-<li class="toctree-l4"><a class="reference internal" href="#structure-of-generated-files">Structure of Generated Files</a></li>
-</ul>
-</li>
-<li class="toctree-l3"><a class="reference internal" href="#slurm-job-submission">SLURM Job Submission</a><ul>
-<li class="toctree-l4"><a class="reference internal" href="#slurm-array-jobs">SLURM Array Jobs</a></li>
-<li class="toctree-l4"><a class="reference internal" href="#slurm-array-task-ids">SLURM Array Task IDs</a></li>
-<li class="toctree-l4"><a class="reference internal" href="#output-organization">Output Organization</a></li>
-<li class="toctree-l4"><a class="reference internal" href="#customizing-slurm-configuration">Customizing SLURM Configuration</a></li>
-</ul>
-</li>
-<li class="toctree-l3"><a class="reference internal" href="#analysis-and-hyperparameter-search">Analysis and Hyperparameter Search</a><ul>
-<li class="toctree-l4"><a class="reference internal" href="#collecting-results">Collecting Results</a></li>
-<li class="toctree-l4"><a class="reference internal" href="#finding-the-best-configuration">Finding the Best Configuration</a></li>
-<li class="toctree-l4"><a class="reference internal" href="#visualizing-sweep-results">Visualizing Sweep Results</a></li>
-</ul>
-</li>
-<li class="toctree-l3"><a class="reference internal" href="#tips-for-running-large-scale-sweeps">Tips for Running Large-Scale Sweeps</a></li>
-<li class="toctree-l3"><a class="reference internal" href="#advanced-sweep-strategies">Advanced Sweep Strategies</a><ul>
-<li class="toctree-l4"><a class="reference internal" href="#random-search">Random Search</a></li>
-<li class="toctree-l4"><a class="reference internal" href="#bayesian-optimization">Bayesian Optimization</a></li>
-</ul>
-</li>
-</ul>
-</li>
-<li class="toctree-l2"><a class="reference internal" href="user_sweep_job_submission.html">Sweep Job Submission (User)</a></li>
-</ul>
-</li>
+<p class="caption" role="heading"><span class="caption-text">Reference</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../reference/glossary.html">Glossary</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../about.html">About</a></li>
 </ul>
 
         </div>
@@ -119,7 +93,6 @@
           <div role="navigation" aria-label="Page navigation">
   <ul class="wy-breadcrumbs">
       <li><a href="../../index.html" class="icon icon-home" aria-label="Home"></a></li>
-          <li class="breadcrumb-item"><a href="index.html">Deployment Guide</a></li>
       <li class="breadcrumb-item active">Sweep Job Submission</li>
       <li class="wy-breadcrumbs-aside">
             <a href="../../_sources/source/deployment/sweep_job_submission.rst.txt" rel="nofollow"> View page source</a>
@@ -334,13 +307,10 @@
 </pre></div>
 </div>
 <p>This creates a hierarchical directory structure that keeps outputs from different runs organized.</p>
-<figure class="align-center" id="id2">
-<a class="reference internal image-reference" href="source/deployment/figures/pdf/place_holder.pdf"><img alt="SLURM Workflow" src="source/deployment/figures/pdf/place_holder.pdf" style="width: 600px;" />
-</a>
-<figcaption>
-<p><span class="caption-number">Figure 6 </span><span class="caption-text">Workflow for generating and running SLURM array jobs. [PLACEHOLDER FOR DIAGRAM]</span><a class="headerlink" href="#id2" title="Link to this image"></a></p>
-</figcaption>
-</figure>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>Always check your generated plots carefully to ensure the experiments are producing expected trends.</p>
+</div>
 </section>
 <section id="customizing-slurm-configuration">
 <h3>Customizing SLURM Configuration<a class="headerlink" href="#customizing-slurm-configuration" title="Link to this heading"></a></h3>
@@ -544,10 +514,7 @@
 
            </div>
           </div>
-          <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
-        <a href="index.html" class="btn btn-neutral float-left" title="Deployment Guide" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
-        <a href="user_sweep_job_submission.html" class="btn btn-neutral float-right" title="Sweep Job Submission (User)" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
-    </div>
+          <footer>
 
   <hr/>
 

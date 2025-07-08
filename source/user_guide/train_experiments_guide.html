@@ -23,9 +23,7 @@
     <script src="../../_static/js/theme.js"></script>
     <link rel="author" title="About these documents" href="../../about.html" />
     <link rel="index" title="Index" href="../../genindex.html" />
-    <link rel="search" title="Search" href="../../search.html" />
-    <link rel="next" title="Experiment Tracking" href="experiment_tracking.html" />
-    <link rel="prev" title="Running an interactive session" href="interactive_run.html" /> 
+    <link rel="search" title="Search" href="../../search.html" /> 
 </head>
 
 <body class="wy-body-for-nav"> 
@@ -47,57 +45,38 @@
   </form>
 </div>
         </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
-              <p class="caption" role="heading"><span class="caption-text">Introduction</span></p>
+              <p class="caption" role="heading"><span class="caption-text">Getting Started</span></p>
 <ul>
-<li class="toctree-l1"><a class="reference internal" href="../../about.html">About</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../getting_started/installation.html">Installation and Setup</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../getting_started/quickstart.html">Quick Start Guide</a></li>
 </ul>
-<p class="caption" role="heading"><span class="caption-text">Contents</span></p>
-<ul class="current">
-<li class="toctree-l1"><a class="reference internal" href="../getting_started/index.html">Getting Started Guide</a></li>
-<li class="toctree-l1 current"><a class="reference internal" href="index.html">User Guide</a><ul class="current">
-<li class="toctree-l2"><a class="reference internal" href="concepts.html">Key Concepts and Overview</a></li>
-<li class="toctree-l2"><a class="reference internal" href="configuration.html">Configuration System</a></li>
-<li class="toctree-l2"><a class="reference internal" href="config_yaml_guide.html">Understanding the Config YAML File</a></li>
-<li class="toctree-l2"><a class="reference internal" href="interactive_run.html">Running an interactive session</a></li>
-<li class="toctree-l2 current"><a class="current reference internal" href="#">Using train_experiments.py</a><ul>
-<li class="toctree-l3"><a class="reference internal" href="#overview">Overview</a></li>
-<li class="toctree-l3"><a class="reference internal" href="#basic-usage">Basic Usage</a></li>
-<li class="toctree-l3"><a class="reference internal" href="#script-workflow">Script Workflow</a></li>
-<li class="toctree-l3"><a class="reference internal" href="#command-line-arguments">Command-Line Arguments</a></li>
-<li class="toctree-l3"><a class="reference internal" href="#example-running-an-mnist-experiment">Example: Running an MNIST Experiment</a></li>
-<li class="toctree-l3"><a class="reference internal" href="#example-training-with-different-learning-strategies">Example: Training with Different Learning Strategies</a></li>
-<li class="toctree-l3"><a class="reference internal" href="#example-parameter-sweeps">Example: Parameter Sweeps</a><ul>
-<li class="toctree-l4"><a class="reference internal" href="#recommended-approach-specialized-ei-sweep-scripts">Recommended Approach: Specialized EI Sweep Scripts</a></li>
-<li class="toctree-l4"><a class="reference internal" href="#alternative-approaches-not-standard-practice">Alternative Approaches (Not Standard Practice)</a></li>
+<p class="caption" role="heading"><span class="caption-text">User Guide</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="architecture.html">Architecture Overview</a></li>
+<li class="toctree-l1"><a class="reference internal" href="configuration.html">Configuration System</a></li>
 </ul>
-</li>
-<li class="toctree-l3"><a class="reference internal" href="#best-practices">Best Practices</a></li>
-<li class="toctree-l3"><a class="reference internal" href="#debug-and-troubleshooting">Debug and Troubleshooting</a></li>
-<li class="toctree-l3"><a class="reference internal" href="#advanced-usage">Advanced Usage</a></li>
-<li class="toctree-l3"><a class="reference internal" href="#conclusion">Conclusion</a></li>
+<p class="caption" role="heading"><span class="caption-text">API Reference</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../api/networks.html">Networks API Reference</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../api/models.html">Models API Reference</a></li>
 </ul>
-</li>
-<li class="toctree-l2"><a class="reference internal" href="experiment_tracking.html">Experiment Tracking</a></li>
-<li class="toctree-l2"><a class="reference internal" href="ei_sweep_guide.html">Running and Analyzing EI Sweeps</a></li>
-<li class="toctree-l2"><a class="reference internal" href="cifar10_tutorial.html">CIFAR10 Tutorial</a></li>
-</ul>
-</li>
-</ul>
-<p class="caption" role="heading"><span class="caption-text">Contents</span></p>
+<p class="caption" role="heading"><span class="caption-text">Advanced Topics</span></p>
 <ul>
 <li class="toctree-l1"><a class="reference internal" href="../advanced/network_structures/index.html">Network Structures</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../advanced/learning/index.html">Learning Strategies</a></li>
-<li class="toctree-l1"><a class="reference internal" href="../advanced/visualization/index.html">Visualization Tools</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../advanced/analysis/index.html">Analysis Tools</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../advanced/visualization/index.html">Visualization Tools</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../advanced/configuration/index.html">Configuration System</a></li>
 </ul>
-<p class="caption" role="heading"><span class="caption-text">Contents</span></p>
+<p class="caption" role="heading"><span class="caption-text">Development</span></p>
 <ul>
-<li class="toctree-l1"><a class="reference internal" href="../api/index.html">API Reference</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../development/contributing.html">Contributing to Dendritic Modeling Framework</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../development/testing.html">Testing Guide</a></li>
 </ul>
-<p class="caption" role="heading"><span class="caption-text">Contents</span></p>
+<p class="caption" role="heading"><span class="caption-text">Reference</span></p>
 <ul>
-<li class="toctree-l1"><a class="reference internal" href="../deployment/index.html">Deployment Guide</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../reference/glossary.html">Glossary</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../about.html">About</a></li>
 </ul>
 
         </div>
@@ -114,7 +93,6 @@
           <div role="navigation" aria-label="Page navigation">
   <ul class="wy-breadcrumbs">
       <li><a href="../../index.html" class="icon icon-home" aria-label="Home"></a></li>
-          <li class="breadcrumb-item"><a href="index.html">User Guide</a></li>
       <li class="breadcrumb-item active">Using train_experiments.py</li>
       <li class="wy-breadcrumbs-aside">
             <a href="../../_sources/source/user_guide/train_experiments_guide.rst.txt" rel="nofollow"> View page source</a>
@@ -143,7 +121,7 @@
 <section id="basic-usage">
 <h2>Basic Usage<a class="headerlink" href="#basic-usage" title="Link to this heading"></a></h2>
 <p>To run an experiment, you need a configuration file (see <a class="reference internal" href="config_yaml_guide.html#config-yaml-guide"><span class="std std-ref">Understanding the Config YAML File</span></a> for details on configuration files):</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>python<span class="w"> </span>src/dendritic_modeling/train_experiments.py<span class="w"> </span>configs/config_exp.yaml
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>python<span class="w"> </span>src/dendritic_modeling/scripts/train_experiments.py<span class="w"> </span>configs/config_exp.yaml
 </pre></div>
 </div>
 <p>This command will:</p>
@@ -200,12 +178,12 @@ The script loads the YAML configuration file and parses it into a structured obj
 <section id="command-line-arguments">
 <h2>Command-Line Arguments<a class="headerlink" href="#command-line-arguments" title="Link to this heading"></a></h2>
 <p>The <code class="docutils literal notranslate"><span class="pre">train_experiments.py</span></code> script supports command-line arguments to override configuration parameters:</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>python<span class="w"> </span>src/dendritic_modeling/train_experiments.py<span class="w"> </span>configs/config_exp.yaml<span class="w"> </span>--train.learning_strategy<span class="w"> </span>freeze_branches<span class="w"> </span>--train.lr<span class="w"> </span><span class="m">0</span>.01
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>python<span class="w"> </span>src/dendritic_modeling/scripts/train_experiments.py<span class="w"> </span>configs/config_exp.yaml<span class="w"> </span>--train.learning_strategy<span class="w"> </span>freeze_branches<span class="w"> </span>--train.lr<span class="w"> </span><span class="m">0</span>.01
 </pre></div>
 </div>
 <p>This example overrides the learning strategy and learning rate specified in the configuration file.</p>
 <p>You can override any parameter in the configuration using the dotted notation:</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>python<span class="w"> </span>src/dendritic_modeling/train_experiments.py<span class="w"> </span>configs/config_exp.yaml<span class="w"> </span><span class="se">\</span>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>python<span class="w"> </span>src/dendritic_modeling/scripts/train_experiments.py<span class="w"> </span>configs/config_exp.yaml<span class="w"> </span><span class="se">\</span>
 <span class="w">  </span>--model.network.parameters.excitatory_layer_sizes<span class="w"> </span><span class="s2">&quot;[256]&quot;</span><span class="w"> </span><span class="se">\</span>
 <span class="w">  </span>--train.epochs<span class="w"> </span><span class="m">100</span><span class="w"> </span><span class="se">\</span>
 <span class="w">  </span>--visualization.enabled<span class="w"> </span><span class="nb">true</span>
@@ -449,10 +427,7 @@ python<span class="w"> </span>scripts/analyze_ei_sweep.py<span class="w"> </span
 
            </div>
           </div>
-          <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
-        <a href="interactive_run.html" class="btn btn-neutral float-left" title="Running an interactive session" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
-        <a href="experiment_tracking.html" class="btn btn-neutral float-right" title="Experiment Tracking" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
-    </div>
+          <footer>
 
   <hr/>
 
