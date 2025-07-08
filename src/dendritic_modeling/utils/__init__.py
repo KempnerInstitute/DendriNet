@@ -25,10 +25,14 @@ from .logging_config import (
 from ..training.evaluation import (
     accuracy_score,
     evaluate_accuracy,
+    auc_score,
+    evaluate_auc,
     categorical_loglikelihood_score,
     evaluate_categorical_loglikelihood,
     mse_score,
-    evaluate_mse
+    evaluate_mse,
+    cosine_similarity_score,
+    evaluate_cosine_similarity
 )
 
 # Import hooks from training utils
@@ -59,10 +63,22 @@ __all__ = [
     # Evaluation (from training)
     "accuracy_score",
     "evaluate_accuracy",
+    "auc_score",
+    "evaluate_auc",
     "categorical_loglikelihood_score",
     "evaluate_categorical_loglikelihood",
     "mse_score",
     "evaluate_mse",
+    "cosine_similarity_score",
+    "evaluate_cosine_similarity",
+    
+    # Noise utilities
+    "add_gaussian_noise",
+    "add_uniform_noise",
+    "add_poisson_noise",
+    "add_frequency_noise",
+    
+    # Hook utilities
     # Hooks (from training)
     "safe_backward_hook",
     "safe_register_hooks",

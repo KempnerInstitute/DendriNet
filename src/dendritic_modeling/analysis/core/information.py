@@ -57,20 +57,20 @@ class InformationAnalyzer:
         self.n_bins = getattr(params, "n_bins", 20)
         self.copula_type = getattr(params, "copula_type", "gaussian")
         
-        self.compute_basic_mi = getattr(params, "compute_basic_mi", True)
-        self.compute_pairwise_mi = getattr(params, "compute_pairwise_mi", True)
-        self.compute_conditional_mi = getattr(params, "compute_conditional_mi", True)
+        self.compute_basic_mi = getattr(params, "compute_basic_mi", False)
+        self.compute_pairwise_mi = getattr(params, "compute_pairwise_mi", False)
+        self.compute_conditional_mi = getattr(params, "compute_conditional_mi", False)
         self.compute_pid = getattr(params, "compute_pid", False)
         
-        self.pid_binarize = getattr(params, "pid_binarize", True)
+        self.pid_binarize = getattr(params, "pid_binarize", False)
         self.pid_binarize_method = getattr(params, "pid_binarize_method", "median")
         self.pid_binarize_threshold = getattr(params, "pid_binarize_threshold", 0.5)
         
-        self.include_vinf = getattr(params, "include_vinf", True)
+        self.include_vinf = getattr(params, "include_vinf", False)
         self.normalize_mi = getattr(params, "normalize_mi", False)
         self.verbose = getattr(params, "verbose", False)
 
-        self.compute_per_branch = getattr(params, "compute_per_branch", True)
+        self.compute_per_branch = getattr(params, "compute_per_branch", False)
         self.branch_aggregation = getattr(params, "branch_aggregation", "mean")
         
         if self.verbose:
