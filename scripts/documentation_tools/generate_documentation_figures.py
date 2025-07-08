@@ -396,44 +396,125 @@ def create_multilayer_ei_network():
 
 
 def create_shunting_inhibition_diagram():
-    """A polished diagram of the shunting inhibition mechanism."""
-    fig, ax = plt.subplots(figsize=(7, 6))
+    """A biologically accurate diagram of shunting inhibition showing dendrites receiving inputs."""
+    fig, ax = plt.subplots(figsize=(10, 8))
     ax.axis('off')
 
-    # Central dendrite/soma
-    soma = Circle((0.5, 0.5), 0.2, color=COLORS['soma'])
+    # Central soma (smaller, integrative role)
+    soma = Circle((5, 2), 0.4, color=COLORS['soma'], ec='black', lw=2)
     ax.add_patch(soma)
     add_shadow(soma)
-    ax.text(0.5, 0.5, 'Soma', ha='center', va='center', color='white', fontsize=12, weight='bold')
+    ax.text(5, 2, 'Soma', ha='center', va='center', color='white', fontsize=10, weight='bold')
 
-    # Input arrows with labels
-    def draw_input(x, y, label, color, rad):
-        arrow = FancyArrowPatch((x, y + 0.1), (0.5, 0.6), connectionstyle=f"arc3,rad={rad}",
-                                arrowstyle='->,head_length=6,head_width=4', lw=2, color=color)
-        ax.add_patch(arrow)
-        add_shadow(arrow)
-        text = ax.text(x, y + 0.2, label, ha='center', va='center', fontsize=12, weight='bold', color=color)
-        add_shadow(text, dx=1, dy=-1, alpha=0.1)
+    # Multiple dendrites extending from soma
+    dendrite_positions = [
+        {"center": (2.5, 4.5), "label": "Dendrite 1"},
+        {"center": (7.5, 4.5), "label": "Dendrite 2"},  
+        {"center": (5, 6), "label": "Dendrite 3"}
+    ]
+    
+    for i, dend in enumerate(dendrite_positions):
+        cx, cy = dend["center"]
+        
+        # Draw dendrite as elongated shape
+        dendrite = FancyBboxPatch((cx-1, cy-0.3), 2, 0.6,
+                                 boxstyle="round,pad=0.1",
+                                 facecolor=COLORS["dendrite"],
+                                 ec='black', lw=2)
+        ax.add_patch(dendrite)
+        add_shadow(dendrite)
+        
+        # Connection from soma to dendrite
+        ax.plot([5, cx], [2.4, cy], color=COLORS["dendrite"], lw=2.5, alpha=0.8)
+        
+        # Label dendrite
+        ax.text(cx, cy+0.8, dend["label"], ha='center', va='center', 
+               fontsize=10, weight='bold')
+        
+        # Synaptic inputs arriving at this dendrite
+        # Excitatory inputs
+        for j in range(2):
+            ex = cx - 0.5 + j * 0.5
+            ey = cy + 1.2
+            # Draw excitatory synapse
+            tri = plt.Polygon([(ex, ey-0.1), (ex-0.08, ey+0.05), (ex+0.08, ey+0.05)],
+                             color=COLORS["excitatory"], ec="black", lw=0.8)
+            ax.add_patch(tri)
+            # Input arrow
+            ax.annotate("", xy=(ex, ey+0.05), xytext=(ex, ey+0.4),
+                       arrowprops=dict(arrowstyle="->", color=COLORS["excitatory"], lw=1.5))
+            ax.text(ex, ey+0.6, f"E{i*2+j+1}", ha='center', fontsize=8, 
+                   color=COLORS["excitatory"], weight='bold')
+        
+        # Inhibitory inputs
+        for j in range(2):
+            ix = cx - 0.5 + j * 0.5
+            iy = cy - 1.2
+            # Draw inhibitory synapse
+            circ = Circle((ix, iy+0.1), 0.06, color=COLORS["inhibitory"], ec="black", lw=0.8)
+            ax.add_patch(circ)
+            # Input arrow
+            ax.annotate("", xy=(ix, iy+0.16), xytext=(ix, iy-0.2),
+                       arrowprops=dict(arrowstyle="->", color=COLORS["inhibitory"], lw=1.5))
+            ax.text(ix, iy-0.4, f"I{i*2+j+1}", ha='center', fontsize=8, 
+                   color=COLORS["inhibitory"], weight='bold')
+        
+        # Show computation happening on the dendrite
+        eq_box = Rectangle((cx-0.8, cy-0.15), 1.6, 0.3, facecolor="white", 
+                          ec="black", lw=1, alpha=0.9)
+        ax.add_patch(eq_box)
+        ax.text(cx, cy, r'$\frac{E}{E+I+\epsilon}$', ha='center', va='center', 
+               fontsize=10, weight='bold')
 
-    draw_input(0.15, 0.8, "Excitatory (E)", COLORS['excitatory'], -0.3)
-    draw_input(0.85, 0.8, "Inhibitory (I)", COLORS['inhibitory'], 0.3)
+    # Show inputs from previous dendritic layer (layer L-1)
+    prev_layer_y = 7.5
+    ax.text(5, prev_layer_y + 0.3, "Previous Dendritic Layer (L-1)", 
+           ha='center', va='center', fontsize=12, weight='bold', 
+           style='italic', color='#666666')
+    
+    # Draw some previous layer dendrites
+    for i in range(3):
+        px = 3 + i * 2
+        prev_dend = Circle((px, prev_layer_y), 0.2, color=COLORS["dendrite"], 
+                          ec='black', lw=1.5, alpha=0.7)
+        ax.add_patch(prev_dend)
+        
+        # Connections to current dendrites
+        for dend in dendrite_positions:
+            cx, cy = dend["center"]
+            ax.plot([px, cx], [prev_layer_y-0.2, cy+0.3], 
+                   color='#95a5a6', lw=1.5, alpha=0.6, linestyle='--')
 
-    # Output arrow
-    output_arrow = FancyArrowPatch((0.5, 0.3), (0.5, 0.1), arrowstyle='->,head_length=8,head_width=6',
+    # Output from soma
+    output_arrow = FancyArrowPatch((5, 1.6), (5, 0.5), 
+                                   arrowstyle='->,head_length=8,head_width=6',
                                    lw=2.5, color=COLORS['arrow'])
     ax.add_patch(output_arrow)
     add_shadow(output_arrow)
-    ax.text(0.5, 0.0, "Output", ha='center', va='center', fontsize=12, weight='bold', color=COLORS['text'])
+    ax.text(5, 0.2, "Integrated Output", ha='center', va='center', 
+           fontsize=12, weight='bold', color=COLORS['text'])
 
-    # Equation
-    eq_text = r'$V_{out} = \frac{\sum E}{\sum E + \sum I + \epsilon}$'
-    bbox_props = dict(boxstyle="round,pad=0.5", facecolor='white', edgecolor='#cccccc', lw=0.5)
-    text_bbox = ax.text(0.5, -0.25, eq_text, ha='center', va='center', fontsize=14, bbox=bbox_props)
-    add_shadow(text_bbox.get_bbox_patch())
+    # Legend
+    exc_patch = patches.Patch(color=COLORS["excitatory"], label="Excitatory inputs")
+    inh_patch = patches.Patch(color=COLORS["inhibitory"], label="Inhibitory inputs")
+    prev_patch = patches.Patch(color='#95a5a6', label="Previous layer inputs")
+    ax.legend(handles=[exc_patch, inh_patch, prev_patch], 
+             loc="upper right", frameon=True, fontsize=10)
 
-    ax.set_xlim(0, 1)
-    ax.set_ylim(-0.4, 1.1)
-    fig.suptitle("Shunting Inhibition Mechanism", fontsize=16, weight='bold')
+    # Title and annotations
+    ax.text(5, 8.5, "Shunting Inhibition in Dendritic Processing", 
+           ha='center', fontsize=16, weight='bold')
+    
+    ax.text(1, 1, "Each dendrite performs\nshunting inhibition\ncomputation", 
+           ha='left', va='center', fontsize=10, style='italic', color='#666666',
+           bbox=dict(boxstyle="round,pad=0.3", facecolor="white", alpha=0.8))
+    
+    ax.text(8.5, 1, "Soma integrates\ndendrite outputs", 
+           ha='center', va='center', fontsize=10, style='italic', color='#666666',
+           bbox=dict(boxstyle="round,pad=0.3", facecolor="white", alpha=0.8))
+
+    ax.set_xlim(0, 10)
+    ax.set_ylim(-0.5, 9)
     _save(fig, 'shunting_inhibition_diagram.png')
 
 
@@ -575,109 +656,162 @@ def create_dendritic_computation_flow():
 
 
 def _save(fig, name):
-    """Helper to save fig at high DPI to OUTPUT_DIR."""
+    """Helper to save fig at high DPI to OUTPUT_DIR in both PNG and SVG formats."""
     fig.tight_layout()
-    fig.savefig(os.path.join(OUTPUT_DIR, name), dpi=300, bbox_inches="tight", facecolor="white")
+    
+    # Save PNG
+    png_path = os.path.join(OUTPUT_DIR, name)
+    fig.savefig(png_path, dpi=300, bbox_inches="tight", facecolor="white")
+    
+    # Save SVG
+    svg_name = name.replace('.png', '.svg')
+    svg_path = os.path.join(OUTPUT_DIR, svg_name)
+    fig.savefig(svg_path, format='svg', bbox_inches="tight", facecolor="white")
+    
     plt.close(fig)
 
 
 def create_einet_architecture():
-    """Create a clear EINet architecture diagram showing E/I separation and dendritic processing."""
+    """Create the main architecture diagram showcasing the dendritic modeling framework."""
     
-    fig, ax = plt.subplots(figsize=(12, 8))
+    fig, ax = plt.subplots(figsize=(14, 8))
     
-    # Define components
-    components = [
-        {"name": "Input\nImage", "x": 1, "y": 4, "w": 1.5, "h": 1.5, "color": "#e0f7fa"},
-        {"name": "Conv\nLayers", "x": 3.5, "y": 4, "w": 1.5, "h": 1.5, "color": "#c5e1a5"},
-        {"name": "E/I\nSeparation", "x": 6, "y": 4, "w": 1.5, "h": 1.5, "color": "#ffccbc"},
-    ]
+    # Title
+    ax.text(7, 7.2, "Dendritic Modeling Framework Architecture", 
+           ha="center", fontsize=20, weight="bold")
     
-    # Draw components
-    for comp in components:
-        box = FancyBboxPatch((comp["x"] - comp["w"]/2, comp["y"] - comp["h"]/2), 
-                            comp["w"], comp["h"], 
-                            boxstyle="round,pad=0.15", 
-                            facecolor=comp["color"], 
-                            ec="#333333", 
-                            lw=2)
-        ax.add_patch(box)
-        add_shadow(box)
-        ax.text(comp["x"], comp["y"], comp["name"], 
-               ha="center", va="center", fontsize=12, weight="bold")
+    # Input stage
+    input_box = FancyBboxPatch((0.5, 3), 2, 2, 
+                              boxstyle="round,pad=0.15", 
+                              facecolor="#e8f5e9", 
+                              ec="#2e7d32", lw=2)
+    ax.add_patch(input_box)
+    add_shadow(input_box)
+    ax.text(1.5, 4, "Input\nData", ha="center", va="center", 
+           fontsize=12, weight="bold")
     
-    # E/I input channels
-    e_inputs = FancyBboxPatch((7.5, 4.5), 2, 1.2, 
-                             boxstyle="round,pad=0.1", 
-                             facecolor=COLORS["excitatory"], 
-                             ec="#333333", lw=2, alpha=0.8)
-    i_inputs = FancyBboxPatch((7.5, 2.8), 2, 1.2, 
-                             boxstyle="round,pad=0.1", 
-                             facecolor=COLORS["inhibitory"], 
-                             ec="#333333", lw=2, alpha=0.8)
-    ax.add_patch(e_inputs)
-    ax.add_patch(i_inputs)
-    add_shadow(e_inputs)
-    add_shadow(i_inputs)
+    # Feature extraction
+    feature_box = FancyBboxPatch((3.5, 3), 2, 2, 
+                                boxstyle="round,pad=0.15", 
+                                facecolor="#e3f2fd", 
+                                ec="#1976d2", lw=2)
+    ax.add_patch(feature_box)
+    add_shadow(feature_box)
+    ax.text(4.5, 4, "Feature\nExtraction", ha="center", va="center", 
+           fontsize=12, weight="bold")
     
-    ax.text(8.5, 5.1, "Excitatory\nInputs", ha="center", va="center", 
+    # E/I Separation - the key innovation
+    ei_group = FancyBboxPatch((6.5, 1.5), 3, 5, 
+                             boxstyle="round,pad=0.2", 
+                             facecolor="#fff8e1", 
+                             ec="#f57c00", lw=2.5)
+    ax.add_patch(ei_group)
+    add_shadow(ei_group)
+    
+    # E pathway
+    e_path = FancyBboxPatch((7, 4.5), 2, 1.5, 
+                           boxstyle="round,pad=0.1", 
+                           facecolor=COLORS["excitatory"], 
+                           ec="#333333", lw=2, alpha=0.9)
+    ax.add_patch(e_path)
+    ax.text(8, 5.25, "Excitatory\nPathway", ha="center", va="center", 
            fontsize=11, color="white", weight="bold")
-    ax.text(8.5, 3.4, "Inhibitory\nInputs", ha="center", va="center", 
+    
+    # I pathway
+    i_path = FancyBboxPatch((7, 2.2), 2, 1.5, 
+                           boxstyle="round,pad=0.1", 
+                           facecolor=COLORS["inhibitory"], 
+                           ec="#333333", lw=2, alpha=0.9)
+    ax.add_patch(i_path)
+    ax.text(8, 2.95, "Inhibitory\nPathway", ha="center", va="center", 
            fontsize=11, color="white", weight="bold")
     
-    # Dendritic computation
-    dendrite = FancyBboxPatch((10, 3), 2, 2.5, 
-                             boxstyle="round,pad=0.15", 
-                             facecolor=COLORS["dendrite"], 
-                             ec="#333333", lw=2)
-    ax.add_patch(dendrite)
-    add_shadow(dendrite)
+    # Label for E/I group
+    ax.text(8, 6.2, "E/I Separation", ha="center", fontsize=11, 
+           weight="bold", style="italic")
     
-    # Division formula inside dendrite
-    ax.text(11, 4.2, "Dendritic", ha="center", fontsize=12, weight="bold", color="white")
-    ax.text(11, 3.7, "Computation", ha="center", fontsize=12, weight="bold", color="white")
-    ax.text(11, 3.0, r"$\frac{E}{E+I+\epsilon}$", ha="center", fontsize=14, color="white")
+    # Dendritic computation - the core
+    dendrite_box = FancyBboxPatch((10, 2.5), 3, 3, 
+                                 boxstyle="round,pad=0.2", 
+                                 facecolor=COLORS["dendrite"], 
+                                 ec="#333333", lw=2.5)
+    ax.add_patch(dendrite_box)
+    add_shadow(dendrite_box, dx=3, dy=-3)
+    
+    ax.text(11.5, 4.8, "Dendritic", ha="center", fontsize=14, 
+           weight="bold", color="white")
+    ax.text(11.5, 4.3, "Computation", ha="center", fontsize=14, 
+           weight="bold", color="white")
+    
+    # The key equation
+    eq_box = Rectangle((10.3, 2.8), 2.4, 1, facecolor="white", 
+                      ec="black", lw=1.5, alpha=0.9)
+    ax.add_patch(eq_box)
+    ax.text(11.5, 3.3, r"$V = \frac{E}{E+I+\epsilon}$", ha="center", 
+           fontsize=16, weight="bold")
     
     # Output
-    output_box = FancyBboxPatch((12.5, 3.5), 1.5, 1.5, 
+    output_box = FancyBboxPatch((13.8, 3), 2, 2, 
                                boxstyle="round,pad=0.15", 
-                               facecolor="#ffe0b2", 
-                               ec="#333333", lw=2)
+                               facecolor="#fce4ec", 
+                               ec="#c2185b", lw=2)
     ax.add_patch(output_box)
     add_shadow(output_box)
-    ax.text(13.25, 4.25, "Output", ha="center", fontsize=12, weight="bold")
+    ax.text(14.8, 4, "Output", ha="center", va="center", 
+           fontsize=12, weight="bold")
     
-    # Arrows
+    # Connections with arrows
     arrows = [
-        ((2.25, 4.25), (2.75, 4.25)),  # Input to Conv
-        ((4.75, 4.25), (5.25, 4.25)),  # Conv to E/I
-        ((6.75, 4.5), (7.5, 5.1)),     # To E inputs
-        ((6.75, 3.5), (7.5, 3.4)),     # To I inputs
-        ((9.5, 5.1), (10, 4.1)),       # E to dendrite
-        ((9.5, 3.4), (10, 3.9)),       # I to dendrite
-        ((12, 4.25), (12.5, 4.25)),    # Dendrite to output
+        # Input flow
+        ((2.5, 4), (3.5, 4), "Data"),
+        ((5.5, 4), (6.5, 4), "Features"),
+        # E/I split
+        ((6.5, 4.2), (7, 5.25), None),
+        ((6.5, 3.8), (7, 2.95), None),
+        # To dendrite
+        ((9, 5.25), (10.2, 4.5), "E"),
+        ((9, 2.95), (10.2, 3.5), "I"),
+        # Output
+        ((13, 4), (13.8, 4), "Normalized")
     ]
     
-    for start, end in arrows:
+    for start, end, label in arrows:
         arrow = FancyArrowPatch(start, end, 
                                arrowstyle="-|>", 
-                               mutation_scale=15, 
-                               lw=2, 
-                               color=COLORS["arrow"])
+                               mutation_scale=20, 
+                               lw=2.5, 
+                               color="#424242")
         ax.add_patch(arrow)
-        add_shadow(arrow)
+        add_shadow(arrow, alpha=0.2)
+        
+        if label:
+            # Calculate midpoint
+            mid_x = (start[0] + end[0]) / 2
+            mid_y = (start[1] + end[1]) / 2
+            ax.text(mid_x, mid_y + 0.2, label, ha="center", 
+                   fontsize=9, style="italic", color="#666666")
     
-    # Annotations
-    ax.text(2.25, 3.0, "Raw pixels", ha="center", fontsize=9, style="italic", color="#666666")
-    ax.text(4.75, 3.0, "Features", ha="center", fontsize=9, style="italic", color="#666666")
-    ax.text(6.75, 2.2, "Separate\nchannels", ha="center", fontsize=9, style="italic", color="#666666")
-    ax.text(11, 2.0, "Shunting\ninhibition", ha="center", fontsize=9, style="italic", color="#666666")
+    # Key features boxes
+    features = [
+        (1.5, 1, "Biological plausibility"),
+        (4.5, 1, "Divisive normalization"),
+        (8, 0.5, "Separate E/I pathways"),
+        (11.5, 1, "Gain control"),
+        (14.5, 1, "Flexible architecture")
+    ]
     
-    ax.set_xlim(0, 14.5)
-    ax.set_ylim(1.5, 6)
+    for x, y, text in features:
+        feat_box = FancyBboxPatch((x-1, y-0.2), 2, 0.4, 
+                                 boxstyle="round,pad=0.05", 
+                                 facecolor="#f5f5f5", 
+                                 ec="#9e9e9e", lw=1)
+        ax.add_patch(feat_box)
+        ax.text(x, y, text, ha="center", va="center", 
+               fontsize=8, color="#424242")
+    
+    ax.set_xlim(-0.5, 16.5)
+    ax.set_ylim(0, 7.8)
     ax.axis("off")
-    
-    ax.set_title("EINet Architecture: Excitatory/Inhibitory Network", fontsize=16, weight="bold")
     
     _save(fig, "einet_architecture.png")
 
@@ -1172,39 +1306,39 @@ if __name__ == "__main__":
     
     # Create all figures
     create_basic_dendritic_neuron()
-    print("✓ Basic dendritic neuron diagram created")
+    print("Basic dendritic neuron diagram created")
     
     create_ei_input_transformation()
-    print("✓ E/I input transformation diagram created")
+    print("E/I input transformation diagram created")
     
     create_multilayer_ei_network()
-    print("✓ Multi-layer E/I network diagram created")
+    print("Multi-layer E/I network diagram created")
     
     create_shunting_inhibition_diagram()
-    print("✓ Shunting inhibition diagram created")
+    print("Shunting inhibition diagram created")
     
     create_network_architecture_overview()
-    print("✓ Network architecture overview created")
+    print("Network architecture overview created")
     
     create_dendritic_computation_flow()
-    print("✓ Dendritic computation flow created")
+    print("Dendritic computation flow created")
     
     create_einet_architecture()
-    print("✓ EINet architecture diagram created")
+    print("EINet architecture diagram created")
 
     create_einet_classifier_dataflow()
-    print("✓ EINetClassifier dataflow diagram created")
+    print("EINetClassifier dataflow diagram created")
 
     create_dendrinet_1()
-    print("✓ Dendrinet-1 architecture diagram created")
+    print("Dendrinet-1 architecture diagram created")
 
     create_dendrinet_2()
-    print("✓ Dendrinet-2 architecture diagram created")
+    print("Dendrinet-2 architecture diagram created")
 
-    create_input_network_architecture(); print("✓ Input network architecture")
-    create_dendritic_processing(); print("✓ Dendritic processing")
-    create_dendritic_computation(); print("✓ Dendritic computation")
+    create_input_network_architecture(); print("Input network architecture")
+    create_dendritic_processing(); print("Dendritic processing")
+    create_dendritic_computation(); print("Dendritic computation")
     # Skipped result-based plots
-    create_input_modes_complete(); print("✓ Input modes complete")
+    create_input_modes_complete(); print("Input modes complete")
     
     print(f"\nAll figures saved to: {os.path.abspath(OUTPUT_DIR)}") 

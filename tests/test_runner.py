@@ -216,10 +216,11 @@ def print_test_summary(result):
     """
     if isinstance(result, int):
         if result == 0:
-            print("\n✅ All tests passed!")
+            print("\nAll tests passed!")
+            return 0
         else:
-            print(f"\n❌ Tests failed with exit code {result}")
-        return
+            print(f"\nTests failed with exit code {result}")
+            return result
     
     # Handle unittest.TestResult
     total_tests = result.testsRun
@@ -237,11 +238,11 @@ def print_test_summary(result):
     print(f"Skipped: {skipped}")
     
     if failures > 0:
-        print(f"\n❌ {failures} test(s) failed")
+        print(f"\n{failures} test(s) failed")
     if errors > 0:
-        print(f"\n💥 {errors} test(s) had errors")
+        print(f"\n{errors} test(s) had errors")
     if failures == 0 and errors == 0:
-        print(f"\n✅ All tests passed!")
+        print(f"\nAll tests passed!")
 
 def main():
     """Main test runner function."""
@@ -299,7 +300,7 @@ def main():
         deps = check_dependencies()
         print("Testing Dependencies:")
         for dep, available in deps.items():
-            status = "✅" if available else "❌"
+            status = "AVAILABLE" if available else "NOT AVAILABLE"
             print(f"  {dep}: {status}")
         return 0 if all(deps.values()) else 1
     

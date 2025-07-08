@@ -106,7 +106,7 @@ After installation, verify everything works:
 
 ```bash
 # Basic functionality test
-python -c "import dendritic_modeling; print('✓ Package imported successfully')"
+python -c "import dendritic_modeling; print('Package imported successfully')"
 
 # Full dependency test
 python -c "
@@ -116,7 +116,7 @@ import matplotlib.pyplot as plt
 import pandas as pd
 import numpy as np
 import dendritic_modeling
-print('✓ All core dependencies working')
+print('All core dependencies working')
 "
 
 # Run test suite (if test dependencies installed)

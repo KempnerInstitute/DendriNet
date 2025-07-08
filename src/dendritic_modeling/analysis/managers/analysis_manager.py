@@ -8,6 +8,7 @@ all the different analysis tools in the dendritic modeling package.
 import logging
 import os
 from typing import Dict, Optional
+import numpy as np
 
 import torch
 
@@ -259,9 +260,9 @@ class AnalysisManager:
                 try:
                     info_data = np.load(info_results_path, allow_pickle=True)
                     information_results = info_data.item() if info_data.files else {}
-                    logger.info("Loaded information analysis results for correlation analysis")
+                    self.logger.info("Loaded information analysis results for correlation analysis")
                 except Exception as e:
-                    logger.warning(f"Failed to load information results: {e}")
+                    self.logger.warning(f"Failed to load information results: {e}")
             
             # Try to get accuracy from recent training
             if hasattr(self.model, 'last_test_accuracy'):
