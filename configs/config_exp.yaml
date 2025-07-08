@@ -1,9 +1,23 @@
 model:
   task: classification  # Options: "classification", "regression"
-  probabilistic: true  # This is only for the final EINet model
-  network:
+  encoder_network:
+    type: CNNAutoencoder # MLPAutoencoder, CNNAutoencoder, MLPVariationalAutoencoder, CNNVariationalAutoencoder, identity, none
+    parameters:
+      encoder_hidden_dims: [64]
+      encoder_kernel_sizes: [3]
+      encoder_strides: [2]
+      latent_dim: 200
+      decoder_hidden_dims: [64]
+      activation: relu
+  core_network:
     type: EINet #"EINet", "MLP"
     parameters:
+      # transfer function parameters
+      transfer_params:
+        input_mode: 1
+        independent_pathways: true
+        excitatory_dim: 100
+        inhibitory_dim: 100
       # configuration parameters
       excitatory_layer_sizes: [10]
       inhibitory_layer_sizes: [40]
@@ -31,90 +45,80 @@ model:
       topk_strategy: conductance_dynamic
       blocklinear_strategy: conductance_dynamic # "none", "distal_upweight_by_idx", "conductance_dynamic"
       print_hooks: false # Whether to print gradient statistics in hooks
-      # output parameters
-      output_layer: false  ### adding an output classifier layer FC to final dendrinet layer
-      output_dim: 10
-
-      # input mode (0=original, 1=exc=x+inh=x, 2=input_net)
-      input_mode: 1
-      # If we set input_mode=2, the following get used for input network:
-      input_net_dict:
-        type: "CNNInputTransform"  # Type of input network: "IndexInputTransform", "MLPInputTransform", "AlexNetTransform", etc.
-        hidden_dims: [] #[512, 256, 128]     # Hidden layer dimensions for better capacity
-        excitatory_dim: 256             # Output dimension for excitatory input network
-        inhibitory_dim: 64             # Output dimension for inhibitory input network
-        # CNNInputTransform arguments
-        input_shape: [3, 32, 32]
-        excitatory_hidden_dims: [8]
-        inhibitory_hidden_dims: [4]
-        excitatory_kernel_sizes: [5]
-        inhibitory_kernel_sizes: [9]
-        excitatory_strides: [1]
-        inhibitory_strides: [1]
-
       # DEEPST specific parameters
-      excitatory_target_density: 0.1
-      inhibitory_target_density: 0.1
-      use_noise: true
-      sigma: 0.05
-      rewiring_mode: "global"  # "global", "local", "constant_branch"
-      rewire_frequency: 1
-      synapses_per_branch: None
-      freeze_excitatory_connectivity: false
-      freeze_inhibitory_connectivity: false
-      init_method: "xavier_normal"
-      weight_threshold: 1e-6
+      excitatory_target_density: 0.1   # Target density for excitatory connections (fraction of active synapses)
+      inhibitory_target_density: 0.1   # Target density for inhibitory connections (fraction of active synapses)
+      use_noise: true                  # Whether to apply Gaussian noise during rewiring
+      sigma: 0.05                      # Standard deviation of Gaussian noise for random walk
+      rewiring_mode: "global"          # Rewiring strategy: "global" (any synapse), "local" (nearby), "constant_branch" (fixed per branch)
+      rewire_frequency: 1              # How often to apply rewiring (every N training steps)
+      synapses_per_branch: None        # Number of synapses per branch (required for 'constant_branch' mode)
+      freeze_excitatory_connectivity: false  # Whether to freeze excitatory synapse locations (only update weights)
+      freeze_inhibitory_connectivity: false  # Whether to freeze inhibitory synapse locations (only update weights)
+      init_method: "xavier_normal"     # Weight initialization method for DEEPST connections
+      weight_threshold: 1e-6           # Threshold below which weights are considered zero for pruning
+  decoder_network:
+    hidden_dims: [32, 16]
+    activation: relu
+    output_dim: 10
 
 train:
-  run_name: exp_run
-  learning_strategy: mle # Options: "mle", "freeze_layers", "local_credit_assignment", "two_step", "two_step_kl", "voltage_stabilization", "mse"
+  learning_strategy: standard # Options: "standard", "freeze_layers", "freeze_branches", "voltage_stabilization", "two_step", "two_step_kl"
   seed: 0
   train_valid_split: 0.8
   optim_dict:
     lr: 0.01  # default learning rate if split_params is false
     split_params: true  # whether to split parameters into groups (only used for EINet)
-    input_net_lr: 0.001  # learning rate for input network
+    encoder_net_lr: 0.001  # learning rate for input network
+    transfer_fn_lr: 0.001  # learning rate for transfer function
     topk_lr: 0.001  # learning rate for topk layers
     blocklinear_lr: 0.001  # learning rate for blocklinear layers
     reactivation_lr: 0.001  # learning rate for reactivation layers
-    output_layer_lr: 0.001  # learning rate for output layer
-  epochs: 50
-  early_stopping: false
-  patience: 10
-  batch_size: 512  # Smaller batch size for better generalization
-  grad_clip_value: 5  # Reasonable gradient clipping
-  epochs_per_layer: 50  ## this is only for "freeze_layers" and any other method which has sequential single layer training
-  final_tune_epochs: 10  ## Number of epochs for final fine-tuning after layer-by-layer training
-
-  # Parameters for two_step and voltage_stabilization strategies
-  warmup_epochs: 1  # or however many you want
-  stability_target_voltage: 0.5  # the target "voltage"
+    decoder_lr: 0.001  # learning rate for decoder network
 
   weight_decay_rate: 0.1  # Standard weight decay
+
   # Input network training configuration
-  input_net_training:
-    training_mode: "sequential"     # "joint" (train everything together) or "sequential" (train input_net first, then dendrinet)
-    # Options for sequential training mode
-    train_input_net: true    # Whether to train the input network or use pre-trained weights
-    input_net_epochs: 20     # Fewer epochs needed with better training
-
-    # Independent head training options
-    train_heads_independently: false  # Whether to train excitatory and inhibitory heads independently
-
-    # Inhibitory head training objective
-    inhibitory_head_objective: "classification"  # Options: "classification", "diversity", "combined"
-    diversity_weight: 0.5              # Weight for diversity loss (alpha)
-
-    # Options for pre-trained weights (when train_input_net is false)
-    pretrained_options:
-      source: "file"           # "file", "pytorch", "none"
-      weights_path: ""         # Path to weights file if source is "file"
-      pytorch_model: ""        # Name of PyTorch model if source is "pytorch"
+  encoder_net_trainer:
+    # for all learning strategies:
+    loss_function: mse
+    epochs: 10
+    early_stopping: false
+    patience: 10
+    batch_size: 128
+    shuffle: true
+    grad_clip_value: 5.0
+    load_best_state_dict: true
+    plot_losses: true
+    suppress_prints: false
+    print_every: 10
+  
+  main_trainer:
+    # for all learning strategies:
+    loss_function: categorical_nll
+    epochs: 10
+    early_stopping: false
+    patience: 10
+    batch_size: 128
+    shuffle: true
+    grad_clip_value: 5.0
+    load_best_state_dict: true
+    plot_losses: true
+    suppress_prints: false
+    print_every: 10
+    # for learning strategies other than standard:
+    pretrain_epochs: 10
+    target_voltage: 0.5
+    kl_weight: 0.1
+    reverse_training: false
+    epochs_per_layer: 10
+    epochs_per_branch: 10
+    final_tune_epochs: 10
 
 task:
   dataset: cifar10 #mnist, cifar10, mnist_modulo10, random_flip_mnist
   data_path:
-  parameters: {}
+  parameters: {flatten: false, normalize: false}
   # dataset: "line", "center_surround", "orientation_bars", "multi_xor", "mnist", "mnist_modulo10", "mnist_switch2",
             #"mnist_switch10", "info_shunting", "noise_resilience", "feature_selectivity", "context_gating",
             #"learning_dynamics", "hierarchical_processing", "cifar10", "poisson_generator", "orthonet"
@@ -130,6 +134,7 @@ task:
   #   n_samples: 10
   #   n_orient_classes: 8
   #   n_bits: 8
+
 wandb:
   entity:
   project: "dendritic_cifar10"
@@ -147,7 +152,6 @@ visualization:
     - branch_ablation  # Enable branch-level ablation analysis
     - layer_ablation   # Enable layer-level ablation analysis
     #- profiles     # Plot dendritic compartment profiles
-    #- branch_info  # mutual information
 
 analysis:
   performance_analysis:
@@ -157,20 +161,12 @@ analysis:
       accuracy: true
       categorical_loglikelihood: true
       mse: false
-  ei_info_analysis:
-    enabled: false  # Whether to enable EI mutual information analysis
-    training: false  # Whether to enable EI mutual information analysis during training
-    params:
-      compute_mi_E_I: true
-      compute_mi_EI_Vout: true
-      compute_sr_EI_Vout: true
-      compute_mi_EI_label: true
-      n_neighbors: 10
+
   synapse_turnover_analysis:
-    enabled: false  # Whether to enable synapse turnover analysis
-    training: false  # Whether to enable synapse turnover analysis during training
+    enabled: true  # Whether to enable synapse turnover analysis
+    training: true  # Whether to enable synapse turnover analysis during training
   noise_perturbation_analysis:
-    enabled: false
+    enabled: true
     training: false
     params:
       uniform_noise: true
@@ -181,22 +177,25 @@ analysis:
       accuracy: true
       categorical_loglikelihood: true
   ablation_analysis:
-    enabled: false
+    enabled: true
     training: false
     params:
-      ablate_synapses: true
+      layer_ablation: true
+      compartment_ablation: true
+      ablate_all_synapses: true
+      ablate_excitation: true
       ablate_inhibition: true
-      ablate_branches: true
+      ablate_upstream: true
       accuracy: true
       categorical_loglikelihood: true
   weight_analysis:
-    enabled: false
+    enabled: true
     training: false
     params:
       synapse_weights: true
       branch_weights: true
   synaptic_activation_analysis:
-    enabled: false
+    enabled: true
     training: false
     params:
       network_summary: true
@@ -205,9 +204,9 @@ analysis:
       raw_summary: true
       logspace: false
       downsample: true
-      samples: 5
+      samples: 2
   branch_activation_analysis:
-    enabled: false
+    enabled: true
     training: false
     params:
       synapse_activations: true
@@ -218,63 +217,52 @@ analysis:
       raw_summary: true
       logspace: false
       downsample: true
-      samples: 5
+      samples: 2
 
   # Single layer contribution analysis (formerly layer_ablation)
   # Isolates each layer to test what it can achieve on its own
   single_layer_contribution:
-    enabled: true  # whether to enable single layer contribution analysis
+    enabled: false  # whether to enable single layer contribution analysis
     training: false  # Whether to run during training
     params:
       save_plots: true
       save_csv: true
 
-  # Synaptic ablation analysis (formerly branch_ablation)
-  # Removes specific synapses while keeping the rest of the network intact
-  synaptic_ablation:
-    enabled: true  # Whether to enable synaptic ablation analysis
-    training: false  # Whether to run during training
+  # NEW: Integrated information-theoretic analysis using multivariate methods
+  information_analysis:
+    enabled: true
+    training: false
     params:
-      ablation_type: "whole_layer"  # Options: "whole_layer" or "single_branch"
-      layers_to_analyze: []  # Empty list means analyze all layers, or specify [0, 1, 2]
-      mode: "direct"  # Options: "direct" (zero weights) or "full"
-      save_plots: true
-      save_csv: true
+      # Estimation method for mutual information computation
+      method: "copula"  # Changed to "copula" for copula-based estimation
+      
+      # Maximum number of samples to use (for faster computation)
+      max_samples: 100  # Use only 1000 samples instead of all 10000
+      
+      # Method-specific parameters
+      n_neighbors: 10       # For Kraskov k-NN estimator (higher = more accurate but slower)
+      n_bins: 20           # For sklearn histogram method (more bins = finer resolution)
+      copula_type: "gaussian"  # For copula method: "gaussian", "t", "clayton", "frank"
+      
+      # Which information metrics to compute
+      compute_basic_mi: true       # Basic MI: I(E;C), I(I;C), I(Vout;C), I(Vinf;C), I(E,I;C)
+      compute_pairwise_mi: false   # DISABLED for speed - Pairwise MI: I(E;I), I(E;Vout), I(I;Vout), I(E;Vinf), I(I;Vinf), I(Vout;Vinf)
+      compute_conditional_mi: false # DISABLED for speed - Conditional MI: I(E;I|C), I(E;Vout|C), I(I;Vout|C), I(E;Vinf|C), I(I;Vinf|C)
+      compute_pid: false           # Partial Information Decomposition (requires external library)
+      
+      # PID-specific options (only used if compute_pid is true)
+      pid_binarize: true          # Whether to binarize data for PID computation
+      pid_binarize_method: "median" # Binarization method: "median", "mean", "quantile"
+      pid_binarize_threshold: 0.5  # Threshold for quantile method
+      
+      # Additional options
+      include_vinf: true     # Include soma activation (Vinf) in analysis
+      normalize_mi: false    # Normalize MI values by entropy H(C)
+      verbose: false        # Print detailed progress during computation
 
-  # Branch information analysis
-  # Computes mutual information between branch components (E, I, V, C)
-  branch_information:
-    enabled: true  # Whether to enable branch information analysis
-    training: false  # Whether to run during training
-    params:
-      n_neighbors: 10  # Number of neighbors for MI estimation
-      use_dvc: true  # Enable DVC_tensorflow for better MI computation
-      save_plots: true
-      save_csv: true
-      # Configurable metrics to compute
-      compute_metrics:
-        #- "I_E_C"    # I(E;C) - Excitatory inputs and class
-        #- "I_I_C"    # I(I;C) - Inhibitory inputs and class
-        #- "I_V_C"    # I(V;C) - Branch outputs and class
-        # - "I_E_I"    # I(E;I) - Excitatory and inhibitory inputs
-        # - "I_E_V"    # I(E;V) - Excitatory inputs and branch outputs
-        # - "I_I_V"    # I(I;V) - Inhibitory inputs and branch outputs
-        # - "I_E_I_given_C" # I(E;I|C) - E and I given class
-        # - "I_E_V_given_C" # I(E;V|C) - E and V given class
-        # - "I_I_V_given_C" # I(I;V|C) - I and V given class
+      compute_per_branch: true
+      branch_aggregation: none
 
-      # Per-branch vs pooled computation
-      compute_per_branch: true  # If true, compute MI per branch and average; if false, pool all branches
-
-      # Copula parameters for DVC_tensorflow
-      copula_params:
-        cases: 1000         # Number of samples for entropy estimation
-        iterations: 10      # Number of iterations for convergence
-        alpha: 0.05         # Confidence level
-        vine_type: c-vine   # Type of vine copula: "d-vine", "c-vine", "r-vine"
-        use_nonparametric: false  # Whether to use non-parametric kernel copula (true) or parametric Gaussian (false)
-        knots: 30           # Number of knots for non-parametric copula (only used when use_nonparametric=true)
-        opt_method: LL1     # Optimization method for non-parametric: "LL1", "LL2", etc.
-        batch_paral: 1      # Batch parallelization for non-parametric fitting
 outputs:
-  dir: ./outputs/
+  run_name: exp_run
+  dir: 

@@ -489,13 +489,13 @@ To run an experiment with a specific configuration file:
 
 .. code-block:: bash
 
-    python src/dendritic_modeling/train_experiments.py configs/config_exp.yaml
+    python src/dendritic_modeling/scripts/train_experiments.py configs/config_exp.yaml
 
 To override specific parameters at runtime:
 
 .. code-block:: bash
 
-    python src/dendritic_modeling/train_experiments.py configs/config_exp.yaml \
+    python src/dendritic_modeling/scripts/train_experiments.py configs/config_exp.yaml \
       --train.learning_strategy freeze_branches \
       --train.lr 0.01
 

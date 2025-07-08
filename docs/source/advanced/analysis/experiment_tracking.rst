@@ -279,13 +279,6 @@ When visualizations are enabled, the framework generates the specified plots at 
 
 Visualizations are saved in the output directory and can also be logged to W&B.
 
-.. figure:: figures/pdf/place_holder.pdf
-   :alt: Experiment Tracking System
-   :width: 600px
-   :align: center
-
-   Overview of the experiment tracking and logging system in the dendritic modeling framework. [PLACEHOLDER FOR DIAGRAM]
-
 Custom Metrics for Dendritic Networks
 -------------------------------------
 
