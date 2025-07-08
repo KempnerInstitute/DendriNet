@@ -18,22 +18,20 @@ import matplotlib.patheffects as path_effects
 # Enhanced Visual Style
 # =====================================================================================
 
+# A more vibrant and professional color palette
+COLORS = {
+    'excitatory': '#ff6b6b',
+    'inhibitory': '#48dbfb',
+    'soma': '#485460',
+    'dendrite': '#a29bfe',
+    'background': '#f5f6fa',
+    'text': '#2f3542',
+    'arrow': '#57606f',
+    'shadow': '#000000'
+}
 
 def apply_enhanced_style():
     """Apply a highly polished, modern visual style for all figures."""
-    # A more vibrant and professional color palette
-    global COLORS
-    COLORS = {
-        'excitatory': '#ff6b6b',
-        'inhibitory': '#48dbfb',
-        'soma': '#485460',
-        'dendrite': '#a29bfe',
-        'background': '#f5f6fa',
-        'text': '#2f3542',
-        'arrow': '#57606f',
-        'shadow': '#000000'
-    }
-
     plt.style.use('default')
     plt.rcParams.update({
         'figure.facecolor': 'white',
@@ -67,10 +65,7 @@ def add_shadow(artist, dx=2, dy=-2, color='auto', alpha=0.3, **kwargs):
     else:
         shadow_color = color
 
-    shadow = path_effects.SimplePatchShadow(
-        offset=(dx, dy), shadow_rgb_alpha=(0, 0, 0, alpha),
-        alpha=1.0, **kwargs
-    )
+    shadow = path_effects.SimplePatchShadow(offset=(dx, dy), shadow_rgbFace=shadow_color, alpha=alpha)
     artist.set_path_effects([shadow, path_effects.Normal()])
 
 
@@ -81,26 +76,6 @@ apply_enhanced_style()
 # =====================================================================================
 # Core Architectural Diagrams
 # =====================================================================================
-
-
-# Set clean style
-plt.style.use('default')
-plt.rcParams['font.family'] = 'sans-serif'
-plt.rcParams['font.size'] = 12
-plt.rcParams['axes.linewidth'] = 0
-plt.rcParams['xtick.major.size'] = 0
-plt.rcParams['ytick.major.size'] = 0
-
-# Color scheme
-COLORS = {
-    'excitatory': '#e74c3c',
-    'inhibitory': '#3498db', 
-    'soma': '#2c3e50',
-    'dendrite': '#9b59b6',
-    'background': '#ecf0f1',
-    'text': '#2c3e50',
-    'arrow': '#34495e'
-}
 
 # Output directory
 OUTPUT_DIR = "../docs/figures/architecture"
@@ -327,7 +302,7 @@ def create_multilayer_ei_network():
     ax.text(0.4, 3.2, "Input", ha="right", va="center")
 
     # legend
-    ax.legend([
+    ax.legend(handles=[
         patches.Patch(color=COLORS["excitatory"], label="Excitatory neuron"),
         patches.Patch(color=COLORS["inhibitory"], label="Inhibitory neuron"),
         patches.Patch(facecolor=COLORS["background"], edgecolor="#aaaaaa", label="Branch / layer area", alpha=0.3),
@@ -577,7 +552,7 @@ def create_dendrinet_2():
     _save(fig, "dendrinet_2.png")
 
 
-def create_experiment_tracking():
+def _skip_experiment_tracking():
     """Diagram for experiment tracking pipeline (e.g., lightning + W&B)."""
     fig, ax = plt.subplots(figsize=(10, 6))
     boxes = [
@@ -605,7 +580,7 @@ def create_experiment_tracking():
     _save(fig, "experiment_tracking.png")
 
 
-def create_configuration_system():
+def _skip_configuration_system():
     """Diagram illustrating hierarchical Hydra/OMEGACONF config generation."""
     fig, ax = plt.subplots(figsize=(10, 5))
     levels = ["Defaults.yaml", "Dataset.yaml", "Model.yaml", "Optimizer.yaml", "Run Overrides"]
@@ -626,7 +601,7 @@ def create_configuration_system():
     _save(fig, "configuration_system.png")
 
 
-def create_sweep_job_submission():
+def _skip_sweep_job_submission():
     """Diagram depicting distributed sweep submission to SLURM."""
     fig, ax = plt.subplots(figsize=(10, 5))
     # Boxes
@@ -690,17 +665,17 @@ def create_dendritic_processing():
     _save(fig, "dendritic_processing.png")
 
 
-def create_training_strategies():
+def _skip_training_strategies():
     fig, ax = plt.subplots(figsize=(6, 3))
     strategies = ["Supervised", "Self-Supervised", "Contrastive"]
     ax.barh(strategies, [3, 2, 1], color=["#457b9d", "#e9c46a", "#e76f51"])
     ax.set_xlim(0, 3.5)
     ax.set_xlabel("Relative Usage")
     ax.set_title("Training Strategies")
-    _save(fig, "training_strategies.png")
+    _save(fig, "training_strategies.png")  # preserved but disabled from auto-run
 
 
-def create_sequential_vs_joint():
+def _skip_sequential_vs_joint():
     fig, ax = plt.subplots(figsize=(6, 2.8))
     ax.plot([0, 1, 2], [0.2, 0.8, 1], label="Joint", lw=2)
     ax.plot([0, 1, 2], [0.2, 0.4, 0.6], label="Sequential", lw=2, linestyle="--")
@@ -712,7 +687,7 @@ def create_sequential_vs_joint():
     _save(fig, "sequential_vs_joint.png")
 
 
-def create_head_training_strategies():
+def _skip_head_training_strategies():
     fig, ax = plt.subplots(figsize=(6, 3))
     heads = ["Linear", "MLP", "Dendritic"]
     colors = ["#2a9d8f", "#e9c46a", "#e63946"]
@@ -723,14 +698,14 @@ def create_head_training_strategies():
     _save(fig, "head_training_strategies.png")
 
 
-def create_learning_strategies():
+def _skip_learning_strategies():
     fig, ax = plt.subplots(figsize=(6, 3))
     ax.pie([40, 35, 25], labels=["Backprop", "Hebbian", "RL"], autopct="%1.0f%%", colors=["#264653", "#2a9d8f", "#e9c46a"])
     ax.set_title("Learning Strategies Share")
     _save(fig, "learning_strategies.png")
 
 
-def create_ablation_visualization():
+def _skip_ablation_visualization():
     fig, ax = plt.subplots(figsize=(6, 3))
     ax.errorbar([1, 2, 3], [0.8, 0.6, 0.4], yerr=[0.05, 0.04, 0.03], fmt="o-", capsize=4)
     ax.set_xticks([1, 2, 3])
@@ -740,7 +715,7 @@ def create_ablation_visualization():
     _save(fig, "ablation_visualization.png")
 
 
-def create_computational_properties():
+def _skip_computational_properties():
     fig, ax = plt.subplots(figsize=(6, 3))
     props = ["Add", "Multiply", "Normalize"]
     ax.barh(props, [1, 0.8, 0.9], color="#8ecae6")
@@ -778,7 +753,7 @@ def create_input_modes_complete():
     _save(fig, "input_modes_complete.png")
 
 
-def create_installation_workflow():
+def _skip_installation_workflow():
     fig, ax = plt.subplots(figsize=(8, 2.5))
     _simple_flow(ax, ["Clone Repo", "Install Deps", "Run Tests", "Build Docs"], y=1.25)
     ax.set_xlim(0, 9)
@@ -820,24 +795,9 @@ if __name__ == "__main__":
     create_dendrinet_2()
     print("✓ Dendrinet-2 architecture diagram created")
 
-    create_experiment_tracking()
-    print("✓ Experiment tracking workflow diagram created")
-
-    create_configuration_system()
-    print("✓ Configuration system diagram created")
-
-    create_sweep_job_submission()
-    print("✓ Sweep job submission diagram created")
-    
     create_input_network_architecture(); print("✓ Input network architecture")
     create_dendritic_processing(); print("✓ Dendritic processing")
-    create_training_strategies(); print("✓ Training strategies")
-    create_sequential_vs_joint(); print("✓ Sequential vs joint")
-    create_head_training_strategies(); print("✓ Head training strategies")
-    create_learning_strategies(); print("✓ Learning strategies")
-    create_ablation_visualization(); print("✓ Ablation visualization")
-    create_computational_properties(); print("✓ Computational properties")
+    # Skipped result-based plots
     create_input_modes_complete(); print("✓ Input modes complete")
-    create_installation_workflow(); print("✓ Installation workflow")
     
     print(f"\nAll figures saved to: {os.path.abspath(OUTPUT_DIR)}") 
