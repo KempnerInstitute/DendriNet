@@ -84,7 +84,7 @@ class TestStage1ReceptiveField:
         expected_angle = 0  # Horizontal edge detector
         assert abs(angles[peak_idx] - expected_angle) < 0.5, "Peak response at wrong orientation"
         
-        print(f"✓ Stage 1 passed: Response range = {response_range:.3f}")
+        print(f"Stage 1 passed: Response range = {response_range:.3f}")
         
         # Visualize if requested
         self._visualize_receptive_field(layer, test_batch, output)
@@ -210,7 +210,7 @@ class TestStage2FeatureExtraction:
         assert results["Dendritic"] > results["Standard"] - 5, \
             f"Dendritic ({results['Dendritic']:.1f}%) significantly worse than Standard ({results['Standard']:.1f}%)"
         
-        print(f"\n✓ Stage 2 MNIST passed: Dendritic {results['Dendritic']:.1f}% vs Standard {results['Standard']:.1f}%")
+        print(f"\nStage 2 MNIST passed: Dendritic {results['Dendritic']:.1f}% vs Standard {results['Standard']:.1f}%")
     
     def _create_mnist_model(self, dendrite=True):
         """Create model for MNIST (1 input channel)."""
@@ -305,7 +305,7 @@ class TestStage3RepresentationAnalysis:
         mean_cka = np.mean(cka_scores)
         assert mean_cka > 0.6, f"Mean CKA {mean_cka:.3f} < 0.6"
         
-        print(f"\n✓ Stage 3 passed: Mean CKA = {mean_cka:.3f}")
+        print(f"\nStage 3 passed: Mean CKA = {mean_cka:.3f}")
         
         # Visualize CKA matrix
         self._visualize_cka(cka_scores)
@@ -431,7 +431,7 @@ class TestStage4Attention:
         attn_sum = attn_weights_d.sum(dim=-1)
         assert (attn_sum <= 1.01).all(), "Attention weights sum > 1"
         
-        print(f"\n✓ Stage 4 passed: Dendritic sparsity {sparsity_d:.3f} < Standard {sparsity_s:.3f}")
+        print(f"\nStage 4 passed: Dendritic sparsity {sparsity_d:.3f} < Standard {sparsity_s:.3f}")
         
         # Visualize attention patterns
         self._visualize_attention(attn_weights_d, attn_weights_s)
@@ -493,7 +493,7 @@ class TestVisualizationDiagnostics:
         # Visualize
         self._plot_kernels(E_kernels, I_kernels)
         
-        print("✓ Stage 5: Kernel visualization completed")
+        print("Stage 5: Kernel visualization completed")
     
     def test_contrast_response(self):
         """Test response curves vs contrast."""
@@ -527,7 +527,7 @@ class TestVisualizationDiagnostics:
         # Plot response curve
         self._plot_contrast_response(contrasts.numpy(), np.array(responses))
         
-        print("✓ Stage 5: Contrast response analysis completed")
+        print("Stage 5: Contrast response analysis completed")
     
     def _plot_kernels(self, E_kernels, I_kernels, save_path="results/stage5_kernels.png"):
         """Plot E and I kernel pairs."""
@@ -618,7 +618,7 @@ def run_all_tests():
     test5.test_contrast_response()
     
     print("\n" + "="*60)
-    print("ALL TESTS PASSED! ✓")
+    print("ALL TESTS PASSED!")
     print("="*60)
 
 

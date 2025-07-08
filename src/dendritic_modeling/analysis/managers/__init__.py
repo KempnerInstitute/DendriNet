@@ -1,10 +1,9 @@
-"""
-Analysis managers package.
+"""Analysis managers module."""
 
-This package contains coordination and management classes for various
-analysis workflows in the dendritic modeling framework.
-"""
+from .plot_manager import PlotManager
+from .analysis_manager import AnalysisManager
 
-from dendritic_modeling.analysis.managers.plot_manager import PlotManager
-
-__all__ = ["PlotManager"]
+__all__ = [
+    "PlotManager",
+    "AnalysisManager"
+]

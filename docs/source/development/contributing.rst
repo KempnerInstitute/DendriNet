@@ -90,7 +90,7 @@ Verify your development setup:
 .. code-block:: bash
 
     # Test imports
-    python -c "import dendritic_modeling; print('✓ Package working')"
+    python -c "import dendritic_modeling; print('Package working')"
 
     # Run tests
     pytest tests/ -v
