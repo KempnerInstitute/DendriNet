@@ -21,7 +21,7 @@ Network Architecture
 
 The dendritic modeling framework implements a sophisticated network architecture inspired by biological principles:
 
-.. figure:: figures/pdf/EINetClassifier_dataflow.pdf
+.. figure:: ../../_static/einet_classifier_dataflow.png
     :align: center
     :width: 100%
     :alt: EINetClassifier dataflow
@@ -36,7 +36,7 @@ The architecture consists of several key components:
 3. **ExcitationInhibitionLayer**: Contains two dendritic layers (Dendrinet)
 4. **Dendrinet**: Specialized feedforward multilayer perceptron with dendritic branches
 
-.. figure:: figures/pdf/Dendrinet_1.pdf
+.. figure:: ../../_static/dendrinet_1.png
     :align: center
     :width: 100%
     :alt: Dendrinet dataflow 1
@@ -153,7 +153,7 @@ The ``BlockLinear`` class handles information aggregation through the dendritic 
 2. Controlling information flow between layers
 3. Creating compartmentalized processing paths
 
-.. figure:: figures/pdf/Dendrinet_2.pdf
+.. figure:: ../../_static/dendrinet_2.png
     :align: center
     :width: 100%
     :alt: Dendrinet dataflow 2
@@ -237,7 +237,7 @@ Example: XOR Problem
 
 The XOR logical operation demonstrates the power of dendritic computation:
 
-.. figure:: figures/pdf/place_holder.pdf
+.. figure:: ../../_static/dendritic_computation_flow.png
    :alt: XOR Dendritic Solution
    :align: center
    :width: 400px

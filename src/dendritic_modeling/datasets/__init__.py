@@ -33,6 +33,11 @@ from dendritic_modeling.datasets.synthetic_datasets import (
     applyRandomFlip
 )
 
+from dendritic_modeling.datasets.synthetic_correlated import (
+    SyntheticCorrelatedDataset,
+    load_synthetic_correlated
+)
+
 __all__ = [
     # Dataset classes
     "LineDataset",
@@ -48,6 +53,7 @@ __all__ = [
     "RandomFlipMNISTDataset",
     "PoissonGeneratorDataset",
     "OrthoNetDataset",
+    "SyntheticCorrelatedDataset",
     # Network models
     "OrthoNet",
     "OrthoNetRepeat",
@@ -58,6 +64,7 @@ __all__ = [
     "load_cifar10_as_datasets",
     "load_poisson_generator_datasets",
     "get_unified_datasets",
+    "load_synthetic_correlated",
     # Utility functions
     "applyRandomFlip"
 ] 

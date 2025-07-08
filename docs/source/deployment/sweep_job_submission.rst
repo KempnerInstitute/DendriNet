@@ -228,12 +228,8 @@ The batch script organizes output files into directories based on the job ID and
 
 This creates a hierarchical directory structure that keeps outputs from different runs organized.
 
-.. figure:: figures/pdf/place_holder.pdf
-   :alt: SLURM Workflow
-   :width: 600px
-   :align: center
-
-   Workflow for generating and running SLURM array jobs. [PLACEHOLDER FOR DIAGRAM]
+.. note::
+   Always check your generated plots carefully to ensure the experiments are producing expected trends.
 
 Customizing SLURM Configuration
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
