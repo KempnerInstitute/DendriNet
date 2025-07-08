@@ -779,15 +779,17 @@ def create_input_modes_complete():
         ("Mode 1\n(shared)", "Shared channels"),
     ]
 
-    for idx, (title, desc) in enumerate(modes):
-        x = 1 + idx * 2.5
-        box = FancyBboxPatch((x - 1, 0.6), 2, 1.2, boxstyle="round,pad=0.2", facecolor=COLORS["background"], ec="#2c3e50", lw=1.2)
+    total = len(modes)
+    x_positions = np.linspace(1.3, 6.7, total)  # evenly spaced within figure
+
+    for (x, (title, desc)) in zip(x_positions, modes):
+        box = FancyBboxPatch((x - 1.1, 0.55), 2.2, 1.3, boxstyle="round,pad=0.25", facecolor=COLORS["background"], ec="#2c3e50", lw=1.0)
         ax.add_patch(box)
-        ax.text(x, 1.4, title, ha="center", va="center", fontsize=10, weight="bold")
-        ax.text(x, 0.9, desc, ha="center", va="center", fontsize=9)
+        ax.text(x, 1.35, title, ha="center", va="center", fontsize=10, weight="bold")
+        ax.text(x, 0.9, desc, ha="center", va="center", fontsize=8.5)
 
     ax.set_xlim(0, 8)
-    ax.set_ylim(0.4, 1.9)
+    ax.set_ylim(0.4, 2.0)
     ax.axis("off")
     ax.set_title("Input Modes Supported by transfer.py", fontsize=12, weight="bold")
 
