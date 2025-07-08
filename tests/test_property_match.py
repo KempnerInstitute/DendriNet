@@ -8,11 +8,11 @@ from pathlib import Path
 import sys
 sys.path.append(str(Path(__file__).parent.parent / 'src'))
 
-from dendritic_modeling.networks.factories.neuron_factory import (
-    build_neuron_from_yaml, 
-    load_properties_config,
+from dendritic_modeling.networks.architectures.excitation_inhibition.dendritic.vision_factories.neuron_factory import (
+    build_neuron_from_yaml,
     get_stimulus_params,
-    get_criterion
+    get_criterion,
+    load_properties_config,
 )
 from dendritic_modeling.datasets.stimuli.gratings import create_static_grating
 from dendritic_modeling.datasets.stimuli.noise import create_white_noise

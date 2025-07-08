@@ -5,7 +5,7 @@ from pathlib import Path
 from typing import Dict, Any
 
 from dendritic_modeling.networks.layers.dendritic_conv2d import DendriteConv2d
-from dendritic_modeling.networks.factories.vision_units import (
+from .vision_units import (
     create_gabor_unit,
     create_center_surround_unit,
     create_motion_unit,
@@ -29,8 +29,8 @@ def load_properties_config(config_path: str = None) -> Dict[str, Any]:
         Properties configuration
     """
     if config_path is None:
-        # Use default config
-        config_path = Path(__file__).parent.parent.parent.parent / "configs" / "properties.yaml"
+        # Use default config - now need to go up more directories
+        config_path = Path(__file__).parent.parent.parent.parent.parent.parent.parent / "configs" / "properties.yaml"
         
     with open(config_path, 'r') as f:
         config = yaml.safe_load(f)
