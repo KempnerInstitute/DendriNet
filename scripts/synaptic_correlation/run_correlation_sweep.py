@@ -49,8 +49,8 @@ def run_single_experiment(config_path: str) -> dict:
     # Run the training script
     cmd = [
         sys.executable,
-        str(project_root / 'src' / 'dendritic_modeling' / 'models' / 'train.py'),
-        '--config', config_path
+        str(project_root / 'src' / 'dendritic_modeling' / 'scripts' / 'train_experiments.py'),
+        config_path  # Config path as positional argument, not --config
     ]
     
     print(f"Running: {' '.join(cmd)}")

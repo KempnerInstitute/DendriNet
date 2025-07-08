@@ -400,12 +400,14 @@ class CorrelationAnalyzer:
             plt.savefig(save_path, dpi=300, bbox_inches='tight')
         plt.close()
     
-    def analyze(self, save_dir: Optional[str] = None) -> Dict[str, Any]:
+    def analyze(self, save_dir: Optional[str] = None, information_results: Optional[Dict[str, Any]] = None, accuracy: Optional[float] = None) -> Dict[str, Any]:
         """
         Run full correlation analysis.
         
         Args:
             save_dir: Directory to save results and plots
+            information_results: Results from information analysis (optional)
+            accuracy: Network accuracy (optional)
             
         Returns:
             Dictionary with all analysis results
@@ -465,6 +467,22 @@ class CorrelationAnalyzer:
                 os.path.join(save_dir, 'tuning_curves.png')
             )
             
+            # NEW: Generate information analysis plots if available
+            if information_results and accuracy is not None:
+                logger.info("Generating information analysis plots...")
+                self.plot_information_analysis(
+                    information_results,
+                    accuracy,
+                    os.path.join(save_dir, 'information_analysis.png')
+                )
+                
+                self.plot_correlation_vs_information(
+                    correlations,
+                    information_results,
+                    accuracy,
+                    os.path.join(save_dir, 'correlation_vs_information.png')
+                )
+            
             # Save summary statistics
             summary = {
                 'mean_ee_correlation_total': np.mean(np.abs(correlations['ee_correlation_total'][np.triu_indices_from(correlations['ee_correlation_total'], k=1)])),
@@ -478,6 +496,26 @@ class CorrelationAnalyzer:
                 **weight_corr_stats
             }
             
+            # Add information metrics to summary if available
+            if information_results:
+                basic_mi = information_results.get('basic_mi', {})
+                pairwise_mi = information_results.get('pairwise_mi', {})
+                
+                summary.update({
+                    'I_E_C': basic_mi.get('I(E;C)', 0),
+                    'I_I_C': basic_mi.get('I(I;C)', 0),
+                    'I_Vout_C': basic_mi.get('I(Vout;C)', 0),
+                    'I_EI_C': basic_mi.get('I(E,I;C)', 0),
+                    'I_E_I': pairwise_mi.get('I(E;I)', 0),
+                    'I_E_Vout': pairwise_mi.get('I(E;Vout)', 0),
+                    'I_I_Vout': pairwise_mi.get('I(I;Vout)', 0),
+                    'integration_gain': basic_mi.get('I(Vout;C)', 0) - (basic_mi.get('I(E;C)', 0) + basic_mi.get('I(I;C)', 0)),
+                    'ei_balance': basic_mi.get('I(E;C)', 0) / max(basic_mi.get('I(I;C)', 0), 1e-6)
+                })
+            
+            if accuracy is not None:
+                summary['accuracy'] = accuracy
+            
             pd.DataFrame([summary]).to_csv(
                 os.path.join(save_dir, 'correlation_summary.csv'),
                 index=False
@@ -486,3 +524,281 @@ class CorrelationAnalyzer:
             logger.info(f"Results saved to {save_dir}")
         
         return results 
+
+    def plot_information_analysis(
+        self,
+        information_results: Dict[str, Any],
+        accuracy: float,
+        save_path: Optional[str] = None
+    ):
+        """
+        Plot information analysis results showing MI between E, I, and Vout.
+        
+        Args:
+            information_results: Results from information analysis
+            accuracy: Network accuracy
+            save_path: Path to save plots
+        """
+        if 'basic_mi' not in information_results:
+            print("No basic MI results found in information analysis")
+            return
+            
+        basic_mi = information_results['basic_mi']
+        pairwise_mi = information_results.get('pairwise_mi', {})
+        
+        # Create comprehensive MI plot
+        fig, axes = plt.subplots(2, 3, figsize=(18, 12))
+        
+        # 1. Basic MI with class (E, I, Vout -> C)
+        mi_class_metrics = ['I(E;C)', 'I(I;C)', 'I(Vout;C)', 'I(E,I;C)']
+        mi_class_values = [basic_mi.get(metric, 0) for metric in mi_class_metrics]
+        
+        bars = axes[0, 0].bar(range(len(mi_class_metrics)), mi_class_values,
+                             color=['red', 'blue', 'green', 'purple'])
+        axes[0, 0].set_title('Mutual Information with Class Labels')
+        axes[0, 0].set_ylabel('MI (bits)')
+        axes[0, 0].set_xticks(range(len(mi_class_metrics)))
+        axes[0, 0].set_xticklabels(mi_class_metrics, rotation=45)
+        
+        # Add values on bars
+        for bar, val in zip(bars, mi_class_values):
+            axes[0, 0].text(bar.get_x() + bar.get_width()/2., bar.get_height() + 0.01,
+                           f'{val:.3f}', ha='center', va='bottom')
+        
+        # 2. Pairwise MI (E-I, E-Vout, I-Vout)
+        if pairwise_mi:
+            pairwise_metrics = ['I(E;I)', 'I(E;Vout)', 'I(I;Vout)']
+            pairwise_values = [pairwise_mi.get(metric, 0) for metric in pairwise_metrics]
+            
+            bars = axes[0, 1].bar(range(len(pairwise_metrics)), pairwise_values,
+                                 color=['purple', 'orange', 'brown'])
+            axes[0, 1].set_title('Pairwise Mutual Information')
+            axes[0, 1].set_ylabel('MI (bits)')
+            axes[0, 1].set_xticks(range(len(pairwise_metrics)))
+            axes[0, 1].set_xticklabels(pairwise_metrics, rotation=45)
+            
+            # Add values on bars
+            for bar, val in zip(bars, pairwise_values):
+                axes[0, 1].text(bar.get_x() + bar.get_width()/2., bar.get_height() + 0.01,
+                               f'{val:.3f}', ha='center', va='bottom')
+        
+        # 3. Information flow diagram
+        axes[0, 2].text(0.5, 0.9, f'Network Accuracy: {accuracy:.3f}', 
+                       ha='center', va='top', transform=axes[0, 2].transAxes,
+                       fontsize=14, fontweight='bold')
+        
+        # Create a simple information flow diagram
+        axes[0, 2].text(0.1, 0.7, 'E', ha='center', va='center', fontsize=20, 
+                       bbox=dict(boxstyle="round,pad=0.3", facecolor='red', alpha=0.7))
+        axes[0, 2].text(0.1, 0.3, 'I', ha='center', va='center', fontsize=20,
+                       bbox=dict(boxstyle="round,pad=0.3", facecolor='blue', alpha=0.7))
+        axes[0, 2].text(0.5, 0.5, 'Vout', ha='center', va='center', fontsize=16,
+                       bbox=dict(boxstyle="round,pad=0.3", facecolor='green', alpha=0.7))
+        axes[0, 2].text(0.9, 0.5, 'C', ha='center', va='center', fontsize=20,
+                       bbox=dict(boxstyle="round,pad=0.3", facecolor='gold', alpha=0.7))
+        
+        # Add arrows and MI values
+        if pairwise_mi:
+            axes[0, 2].annotate('', xy=(0.45, 0.6), xytext=(0.15, 0.7),
+                               arrowprops=dict(arrowstyle='->', lw=2, color='orange'))
+            axes[0, 2].text(0.3, 0.65, f"MI={pairwise_mi.get('I(E;Vout)', 0):.2f}",
+                           ha='center', va='center', fontsize=10)
+            
+            axes[0, 2].annotate('', xy=(0.45, 0.4), xytext=(0.15, 0.3),
+                               arrowprops=dict(arrowstyle='->', lw=2, color='brown'))
+            axes[0, 2].text(0.3, 0.35, f"MI={pairwise_mi.get('I(I;Vout)', 0):.2f}",
+                           ha='center', va='center', fontsize=10)
+        
+        axes[0, 2].annotate('', xy=(0.85, 0.5), xytext=(0.55, 0.5),
+                           arrowprops=dict(arrowstyle='->', lw=3, color='darkgreen'))
+        axes[0, 2].text(0.7, 0.55, f"MI={basic_mi.get('I(Vout;C)', 0):.2f}",
+                       ha='center', va='center', fontsize=12, fontweight='bold')
+        
+        axes[0, 2].set_xlim(0, 1)
+        axes[0, 2].set_ylim(0, 1)
+        axes[0, 2].axis('off')
+        axes[0, 2].set_title('Information Flow Diagram')
+        
+        # 4. MI ratios and derived metrics
+        total_input_mi = basic_mi.get('I(E;C)', 0) + basic_mi.get('I(I;C)', 0)
+        output_mi = basic_mi.get('I(Vout;C)', 0)
+        ei_joint_mi = basic_mi.get('I(E,I;C)', 0)
+        
+        derived_metrics = {
+            'Input MI Total': total_input_mi,
+            'Output MI': output_mi,
+            'Integration Gain': output_mi - total_input_mi,
+            'EI Joint MI': ei_joint_mi,
+            'Synergy': ei_joint_mi - total_input_mi if ei_joint_mi > total_input_mi else 0
+        }
+        
+        metric_names = list(derived_metrics.keys())
+        metric_values = list(derived_metrics.values())
+        colors = ['red', 'green', 'purple', 'orange', 'brown']
+        
+        bars = axes[1, 0].bar(range(len(metric_names)), metric_values, color=colors)
+        axes[1, 0].set_title('Derived Information Metrics')
+        axes[1, 0].set_ylabel('MI (bits)')
+        axes[1, 0].set_xticks(range(len(metric_names)))
+        axes[1, 0].set_xticklabels(metric_names, rotation=45)
+        
+        # Add values on bars
+        for bar, val in zip(bars, metric_values):
+            axes[1, 0].text(bar.get_x() + bar.get_width()/2., bar.get_height() + 0.01,
+                           f'{val:.3f}', ha='center', va='bottom')
+        
+        # 5. Conditional MI (if available)
+        conditional_mi = information_results.get('conditional_mi', {})
+        if conditional_mi:
+            cond_metrics = ['I(E;I|C)', 'I(E;Vout|C)', 'I(I;Vout|C)']
+            cond_values = [conditional_mi.get(metric, 0) for metric in cond_metrics]
+            
+            bars = axes[1, 1].bar(range(len(cond_metrics)), cond_values,
+                                 color=['darkpurple', 'darkorange', 'darkbrown'])
+            axes[1, 1].set_title('Conditional Mutual Information')
+            axes[1, 1].set_ylabel('MI (bits)')
+            axes[1, 1].set_xticks(range(len(cond_metrics)))
+            axes[1, 1].set_xticklabels(cond_metrics, rotation=45)
+            
+            # Add values on bars
+            for bar, val in zip(bars, cond_values):
+                axes[1, 1].text(bar.get_x() + bar.get_width()/2., bar.get_height() + 0.01,
+                               f'{val:.3f}', ha='center', va='bottom')
+        
+        # 6. Summary statistics
+        axes[1, 2].text(0.05, 0.95, 'Information Summary:', transform=axes[1, 2].transAxes,
+                       fontsize=14, fontweight='bold', va='top')
+        
+        summary_text = f"""
+Network Accuracy: {accuracy:.3f}
+
+Basic MI:
+• I(E;C) = {basic_mi.get('I(E;C)', 0):.3f}
+• I(I;C) = {basic_mi.get('I(I;C)', 0):.3f}
+• I(Vout;C) = {basic_mi.get('I(Vout;C)', 0):.3f}
+• I(E,I;C) = {basic_mi.get('I(E,I;C)', 0):.3f}
+
+Pairwise MI:
+• I(E;I) = {pairwise_mi.get('I(E;I)', 0):.3f}
+• I(E;Vout) = {pairwise_mi.get('I(E;Vout)', 0):.3f}
+• I(I;Vout) = {pairwise_mi.get('I(I;Vout)', 0):.3f}
+
+Integration Metrics:
+• Integration Gain = {output_mi - total_input_mi:.3f}
+• E/I Balance = {basic_mi.get('I(E;C)', 0)/max(basic_mi.get('I(I;C)', 0), 1e-6):.2f}
+"""
+        
+        axes[1, 2].text(0.05, 0.85, summary_text, transform=axes[1, 2].transAxes,
+                       fontsize=10, va='top', fontfamily='monospace')
+        axes[1, 2].axis('off')
+        
+        plt.tight_layout()
+        
+        if save_path:
+            plt.savefig(save_path, dpi=300, bbox_inches='tight')
+        plt.close()
+
+    def plot_correlation_vs_information(
+        self,
+        correlations: Dict[str, np.ndarray],
+        information_results: Dict[str, Any],
+        accuracy: float,
+        save_path: Optional[str] = None
+    ):
+        """
+        Plot correlation strengths vs information metrics.
+        
+        Args:
+            correlations: Correlation analysis results
+            information_results: Information analysis results
+            accuracy: Network accuracy
+            save_path: Path to save plots
+        """
+        if 'basic_mi' not in information_results:
+            print("No basic MI results found")
+            return
+            
+        basic_mi = information_results['basic_mi']
+        pairwise_mi = information_results.get('pairwise_mi', {})
+        
+        # Calculate mean correlation strengths
+        mean_ee_corr = np.mean(np.abs(correlations['ee_correlation_total'][np.triu_indices_from(correlations['ee_correlation_total'], k=1)]))
+        mean_ei_corr = np.mean(np.abs(correlations['ei_correlation_total']))
+        mean_ii_corr = np.mean(np.abs(correlations['ii_correlation_total'][np.triu_indices_from(correlations['ii_correlation_total'], k=1)]))
+        
+        # Create comparison plot
+        fig, axes = plt.subplots(2, 2, figsize=(15, 12))
+        
+        # 1. Correlation strengths
+        corr_types = ['E-E', 'E-I', 'I-I']
+        corr_values = [mean_ee_corr, mean_ei_corr, mean_ii_corr]
+        
+        bars = axes[0, 0].bar(corr_types, corr_values, color=['red', 'purple', 'blue'])
+        axes[0, 0].set_title('Mean Synaptic Correlation Strengths')
+        axes[0, 0].set_ylabel('Mean |Correlation|')
+        
+        for bar, val in zip(bars, corr_values):
+            axes[0, 0].text(bar.get_x() + bar.get_width()/2., bar.get_height() + 0.001,
+                           f'{val:.3f}', ha='center', va='bottom')
+        
+        # 2. Information metrics
+        mi_types = ['I(E;C)', 'I(I;C)', 'I(Vout;C)']
+        mi_values = [basic_mi.get(metric, 0) for metric in mi_types]
+        
+        bars = axes[0, 1].bar(mi_types, mi_values, color=['red', 'blue', 'green'])
+        axes[0, 1].set_title('Mutual Information with Class')
+        axes[0, 1].set_ylabel('MI (bits)')
+        
+        for bar, val in zip(bars, mi_values):
+            axes[0, 1].text(bar.get_x() + bar.get_width()/2., bar.get_height() + 0.01,
+                           f'{val:.3f}', ha='center', va='bottom')
+        
+        # 3. Correlation vs Information scatter
+        if pairwise_mi:
+            corr_ei = mean_ei_corr
+            mi_ei = pairwise_mi.get('I(E;I)', 0)
+            
+            axes[1, 0].scatter([corr_ei], [mi_ei], s=100, color='purple', alpha=0.7)
+            axes[1, 0].set_xlabel('Mean |E-I Correlation|')
+            axes[1, 0].set_ylabel('I(E;I)')
+            axes[1, 0].set_title('E-I Correlation vs E-I Information')
+            axes[1, 0].grid(True, alpha=0.3)
+            
+            # Add text annotation
+            axes[1, 0].annotate(f'Accuracy: {accuracy:.3f}', 
+                               xy=(corr_ei, mi_ei), xytext=(10, 10),
+                               textcoords='offset points', fontsize=12,
+                               bbox=dict(boxstyle='round,pad=0.3', facecolor='yellow', alpha=0.7))
+        
+        # 4. Summary comparison
+        axes[1, 1].text(0.05, 0.95, 'Correlation vs Information Summary:', 
+                       transform=axes[1, 1].transAxes,
+                       fontsize=14, fontweight='bold', va='top')
+        
+        summary_text = f"""
+Network Accuracy: {accuracy:.3f}
+
+Correlation Strengths:
+• Mean |E-E| = {mean_ee_corr:.3f}
+• Mean |E-I| = {mean_ei_corr:.3f}
+• Mean |I-I| = {mean_ii_corr:.3f}
+
+Information Content:
+• I(E;C) = {basic_mi.get('I(E;C)', 0):.3f}
+• I(I;C) = {basic_mi.get('I(I;C)', 0):.3f}
+• I(Vout;C) = {basic_mi.get('I(Vout;C)', 0):.3f}
+
+Relationships:
+• E-I Corr vs I(E;I) = {pairwise_mi.get('I(E;I)', 0):.3f}
+• Information Gain = {basic_mi.get('I(Vout;C)', 0) - (basic_mi.get('I(E;C)', 0) + basic_mi.get('I(I;C)', 0)):.3f}
+"""
+        
+        axes[1, 1].text(0.05, 0.85, summary_text, transform=axes[1, 1].transAxes,
+                       fontsize=10, va='top', fontfamily='monospace')
+        axes[1, 1].axis('off')
+        
+        plt.tight_layout()
+        
+        if save_path:
+            plt.savefig(save_path, dpi=300, bbox_inches='tight')
+        plt.close() 

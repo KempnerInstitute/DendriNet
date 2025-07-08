@@ -8,22 +8,22 @@ model:
     parameters:
       # Transfer function parameters
       transfer_params:
-        input_mode: 1  # Pass-through mode for inhibitory
-        independent_pathways: false
-        excitatory_dim: 300
-        inhibitory_dim: 300
-      
+        input_mode: 1  # E gets input, I gets network output (creates E/I difference)
+        independent_pathways: true  # E and I get different input subsets
+        excitatory_dim: 15  # First 15 dimensions for E pathway
+        inhibitory_dim: 15  # Last 15 dimensions for I pathway
+        
       # Network architecture
-      excitatory_layer_sizes: [20]  # 20 excitatory neurons
-      inhibitory_layer_sizes: [10]  # 10 inhibitory neurons (dummy for input_mode=1)
-      excitatory_branch_factors: []
-      inhibitory_branch_factors: []
+      excitatory_layer_sizes: [1]  # 1 excitatory neuron
+      inhibitory_layer_sizes: [1]  # 1 inhibitory neuron (will process E inputs)
+      excitatory_branch_factors: [1]  # No branching for single layer
+      inhibitory_branch_factors: []  # No branching for single layer
       
       # Synaptic connectivity
-      ee_synapses_per_branch_per_layer: [50]  # Each E neuron receives from 50 E inputs
-      ei_synapses_per_branch_per_layer: [30]  # Each E neuron receives from 30 I inputs
-      ie_synapses_per_branch_per_layer: [50]  # Each I neuron receives from 50 E inputs
-      ii_synapses_per_branch_per_layer: [0]   # No I-I connections
+      ee_synapses_per_branch_per_layer: [10]   # E->E connections (max 1 since 1 E neuron)
+      ei_synapses_per_branch_per_layer: [1]   # E->I connections (max 1 since 1 E neuron)  
+      ie_synapses_per_branch_per_layer: [10]   # I->E connections (max 1 since 1 I neuron)
+      ii_synapses_per_branch_per_layer: [0]   # No I->I connections
       somatic_synapses: false
       use_shunting: true
       
@@ -88,10 +88,10 @@ task:
     train_size: 5000
     valid_size: 1000
     test_size: 1000
-    input_dim: 300  # Must be divisible by 3
-    corr_min: -0.1
-    corr_max: 0.1
-    mean_magnitude: 0.5  # Magnitude of mean separation between classes
+    input_dim: 30  # Must be divisible by 3
+    corr_min: -0.5
+    corr_max: 0.5
+    mean_magnitude: 0.1  # Magnitude of mean separation between classes
 
 wandb:
   entity:
