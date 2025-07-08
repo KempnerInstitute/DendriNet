@@ -411,15 +411,31 @@ def main():
         "dendritic_processing.png",
         "dendritic_computation.png",
         "input_modes_complete.png",
-        "installation_workflow.png",
         # new placeholders replacing legacy PDFs
         "einet_classifier_dataflow.png",
         "dendrinet_1.png",
         "dendrinet_2.png",
-        "experiment_tracking.png",
-        "configuration_system.png",
-        "sweep_job_submission.png",
     ]
+
+    # Allowed schematic images list (to keep). Anything else in _static will be removed.
+    allowed_files = set(referenced_images + [
+        "dendritic_diagram.png", "einet_architecture.png",
+        "einet_classifier_dataflow.png", "input_network_architecture.png",
+        "dendritic_processing.png", "dendritic_computation_flow.png",
+        "multilayer_ei_network.png", "network_architecture_overview.png",
+        "shunting_inhibition_diagram.png",
+        "dendrinet_1.png", "dendrinet_2.png", "ei_input_transformation.png",
+        "basic_dendritic_neuron.png",
+    ])
+
+    def purge_extra_files(directory):
+        for fname in os.listdir(directory):
+            if fname.endswith((".png", ".svg")) and fname not in allowed_files:
+                try:
+                    os.remove(os.path.join(directory, fname))
+                    print(f"Removed obsolete figure: {fname}")
+                except Exception as e:
+                    print(f"Could not remove {fname}: {e}")
 
     # Create each referenced image
     for img in referenced_images:
@@ -463,6 +479,10 @@ def main():
                 print("  (empty directory)")
         except Exception as e:
             print(f"  ERROR listing directory: {str(e)}")
+
+    # Purge extra result-based figures
+    purge_extra_files("_static")
+    purge_extra_files("source/_static")
 
     # Run external advanced generators at the end so they can override simple placeholders
     print("\n" + "-" * 80)
