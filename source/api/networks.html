@@ -6,10 +6,9 @@
   <meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
 
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Networks API Reference &mdash; dendritic_modeling 0.1.0 documentation</title>
-      <link rel="stylesheet" type="text/css" href="../../_static/pygments.css?v=b86133f3" />
+  <title>Networks API Reference &mdash; Dendritic Modeling Framework 0.1.0 documentation</title>
+      <link rel="stylesheet" type="text/css" href="../../_static/pygments.css?v=03e43079" />
       <link rel="stylesheet" type="text/css" href="../../_static/css/theme.css?v=e59714d7" />
-      <link rel="stylesheet" type="text/css" href="../../_static/copybutton.css?v=76b2166b" />
 
   
       <script src="../../_static/jquery.js?v=5d32c60e"></script>
@@ -17,15 +16,10 @@
       <script src="../../_static/documentation_options.js?v=01f34227"></script>
       <script src="../../_static/doctools.js?v=9bcbadda"></script>
       <script src="../../_static/sphinx_highlight.js?v=dc90522c"></script>
-      <script src="../../_static/clipboard.min.js?v=a7894cd8"></script>
-      <script src="../../_static/copybutton.js?v=f281be69"></script>
-      <script crossorigin="anonymous" integrity="sha256-Ae2Vz/4ePdIu6ZyI/5ZGsYnb+m0JlOmKPjt6XZ9JJkA=" src="https://cdnjs.cloudflare.com/ajax/libs/require.js/2.3.4/require.min.js"></script>
     <script src="../../_static/js/theme.js"></script>
     <link rel="author" title="About these documents" href="../../about.html" />
     <link rel="index" title="Index" href="../../genindex.html" />
-    <link rel="search" title="Search" href="../../search.html" />
-    <link rel="next" title="Models API Reference" href="models.html" />
-    <link rel="prev" title="Configuration System" href="../user_guide/configuration.html" /> 
+    <link rel="search" title="Search" href="../../search.html" /> 
 </head>
 
 <body class="wy-body-for-nav"> 
@@ -37,7 +31,7 @@
           
           
           <a href="../../index.html" class="icon icon-home">
-            dendritic_modeling
+            Dendritic Modeling Framework
           </a>
 <div role="search">
   <form id="rtd-search-form" class="wy-form" action="../../search.html" method="get">
@@ -47,83 +41,300 @@
   </form>
 </div>
         </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
-              <p class="caption" role="heading"><span class="caption-text">Getting Started</span></p>
+              <p class="caption" role="heading"><span class="caption-text">Documentation</span></p>
 <ul>
-<li class="toctree-l1"><a class="reference internal" href="../getting_started/installation.html">Installation and Setup</a></li>
-<li class="toctree-l1"><a class="reference internal" href="../getting_started/quickstart.html">Quick Start Guide</a></li>
-</ul>
-<p class="caption" role="heading"><span class="caption-text">User Guide</span></p>
-<ul>
-<li class="toctree-l1"><a class="reference internal" href="../user_guide/architecture.html">Architecture Overview</a></li>
-<li class="toctree-l1"><a class="reference internal" href="../user_guide/configuration.html">Configuration System</a></li>
-</ul>
-<p class="caption" role="heading"><span class="caption-text">API Reference</span></p>
-<ul class="current">
-<li class="toctree-l1 current"><a class="current reference internal" href="#">Networks API Reference</a><ul>
-<li class="toctree-l2"><a class="reference internal" href="#core-network-classes">Core Network Classes</a><ul>
-<li class="toctree-l3"><a class="reference internal" href="#excitationinhibitionnetwork">ExcitationInhibitionNetwork</a><ul>
-<li class="toctree-l4"><a class="reference internal" href="#dendritic_modeling.networks.ExcitationInhibitionNetwork"><code class="docutils literal notranslate"><span class="pre">ExcitationInhibitionNetwork</span></code></a></li>
+<li class="toctree-l1"><a class="reference internal" href="../user_guide/index.html">User Guide</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="../user_guide/getting_started.html">Getting Started</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="../user_guide/getting_started.html#installation">Installation</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="../user_guide/getting_started.html#system-requirements">System Requirements</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../user_guide/getting_started.html#basic-installation">Basic Installation</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../user_guide/getting_started.html#development-installation">Development Installation</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../user_guide/getting_started.html#optional-dependencies">Optional Dependencies</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../user_guide/getting_started.html#conda-environment">Conda Environment</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../user_guide/getting_started.html#verification">Verification</a></li>
 </ul>
 </li>
-<li class="toctree-l3"><a class="reference internal" href="#dendriticnetwork">DendriticNetwork</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../user_guide/getting_started.html#quick-start-tutorial">Quick Start Tutorial</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="../user_guide/getting_started.html#step-1-import-required-modules">Step 1: Import Required Modules</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../user_guide/getting_started.html#step-2-create-transfer-function-parameters">Step 2: Create Transfer Function Parameters</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../user_guide/getting_started.html#step-3-build-the-network">Step 3: Build the Network</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../user_guide/getting_started.html#step-4-create-the-model">Step 4: Create the Model</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../user_guide/getting_started.html#step-5-load-dataset">Step 5: Load Dataset</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../user_guide/getting_started.html#step-6-train-the-model">Step 6: Train the Model</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../user_guide/getting_started.html#step-7-evaluate-performance">Step 7: Evaluate Performance</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../user_guide/getting_started.html#complete-example">Complete Example</a></li>
 </ul>
 </li>
-<li class="toctree-l2"><a class="reference internal" href="#layer-components">Layer Components</a><ul>
-<li class="toctree-l3"><a class="reference internal" href="#dendriticlayer">DendriticLayer</a></li>
-<li class="toctree-l3"><a class="reference internal" href="#dendriticbranchlayer">DendriticBranchLayer</a></li>
-<li class="toctree-l3"><a class="reference internal" href="#linearexcitation-linearinhibition">LinearExcitation / LinearInhibition</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../user_guide/getting_started.html#basic-usage-patterns">Basic Usage Patterns</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="../user_guide/getting_started.html#working-with-different-network-types">Working with Different Network Types</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../user_guide/getting_started.html#working-with-different-model-types">Working with Different Model Types</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../user_guide/getting_started.html#dataset-loading-and-preprocessing">Dataset Loading and Preprocessing</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../user_guide/getting_started.html#configuration-based-usage">Configuration-Based Usage</a></li>
 </ul>
 </li>
-<li class="toctree-l2"><a class="reference internal" href="#input-networks">Input Networks</a><ul>
-<li class="toctree-l3"><a class="reference internal" href="#inputnetwork">InputNetwork</a></li>
-<li class="toctree-l3"><a class="reference internal" href="#input-transforms">Input Transforms</a><ul>
-<li class="toctree-l4"><a class="reference internal" href="#conv2dtransform">Conv2dTransform</a></li>
-<li class="toctree-l4"><a class="reference internal" href="#mlptransform">MLPTransform</a></li>
-<li class="toctree-l4"><a class="reference internal" href="#gabortransform">GaborTransform</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../user_guide/getting_started.html#common-troubleshooting">Common Troubleshooting</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="../user_guide/getting_started.html#installation-issues">Installation Issues</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../user_guide/getting_started.html#runtime-issues">Runtime Issues</a></li>
 </ul>
 </li>
+<li class="toctree-l3"><a class="reference internal" href="../user_guide/getting_started.html#next-steps">Next Steps</a></li>
 </ul>
 </li>
-<li class="toctree-l2"><a class="reference internal" href="#specialized-architectures">Specialized Architectures</a><ul>
-<li class="toctree-l3"><a class="reference internal" href="#dendriticcnn">DendriticCNN</a></li>
-<li class="toctree-l3"><a class="reference internal" href="#vit-dendrite">ViT_Dendrite</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../user_guide/architecture_and_models.html">Architecture and Models</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="../user_guide/architecture_and_models.html#biological-foundations">Biological Foundations</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="../user_guide/architecture_and_models.html#shunting-inhibition">Shunting Inhibition</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../user_guide/architecture_and_models.html#dendritic-computation">Dendritic Computation</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../user_guide/architecture_and_models.html#dale-s-principle">Dale’s Principle</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../user_guide/architecture_and_models.html#synaptic-organization">Synaptic Organization</a></li>
 </ul>
 </li>
-<li class="toctree-l2"><a class="reference internal" href="#factory-functions">Factory Functions</a><ul>
-<li class="toctree-l3"><a class="reference internal" href="#creating-visual-units">Creating Visual Units</a></li>
-<li class="toctree-l3"><a class="reference internal" href="#module-dendritic_modeling.networks.convert.cnn_to_dendrite">Converting CNNs</a><ul>
-<li class="toctree-l4"><a class="reference internal" href="#dendritic_modeling.networks.convert.cnn_to_dendrite.conv2d_to_dendrite"><code class="docutils literal notranslate"><span class="pre">conv2d_to_dendrite()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="../user_guide/architecture_and_models.html#network-architectures">Network Architectures</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="../user_guide/architecture_and_models.html#excitation-inhibition-networks">Excitation-Inhibition Networks</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../user_guide/architecture_and_models.html#multi-layer-perceptron-mlp">Multi-Layer Perceptron (MLP)</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../user_guide/architecture_and_models.html#convolutional-networks">Convolutional Networks</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../user_guide/architecture_and_models.html#vision-transformers">Vision Transformers</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../user_guide/architecture_and_models.html#hybrid-architectures">Hybrid Architectures</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../user_guide/architecture_and_models.html#input-transformation-networks">Input Transformation Networks</a></li>
 </ul>
 </li>
+<li class="toctree-l3"><a class="reference internal" href="../user_guide/architecture_and_models.html#model-types">Model Types</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="../user_guide/architecture_and_models.html#classification-models">Classification Models</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../user_guide/architecture_and_models.html#regression-models">Regression Models</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../user_guide/architecture_and_models.html#generative-models">Generative Models</a></li>
 </ul>
 </li>
-<li class="toctree-l2"><a class="reference internal" href="#utilities">Utilities</a><ul>
-<li class="toctree-l3"><a class="reference internal" href="#network-analysis">Network Analysis</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../user_guide/architecture_and_models.html#transfer-function-parameters">Transfer Function Parameters</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../user_guide/architecture_and_models.html#model-configuration">Model Configuration</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="../user_guide/architecture_and_models.html#python-configuration">Python Configuration</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../user_guide/architecture_and_models.html#yaml-configuration">YAML Configuration</a></li>
 </ul>
 </li>
-<li class="toctree-l2"><a class="reference internal" href="#configuration">Configuration</a></li>
-<li class="toctree-l2"><a class="reference internal" href="#see-also">See Also</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../user_guide/architecture_and_models.html#advanced-architecture-patterns">Advanced Architecture Patterns</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="../user_guide/architecture_and_models.html#residual-connections">Residual Connections</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../user_guide/architecture_and_models.html#attention-mechanisms">Attention Mechanisms</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../user_guide/architecture_and_models.html#modular-architectures">Modular Architectures</a></li>
 </ul>
 </li>
-<li class="toctree-l1"><a class="reference internal" href="models.html">Models API Reference</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../user_guide/architecture_and_models.html#performance-optimization">Performance Optimization</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="../user_guide/architecture_and_models.html#computational-efficiency">Computational Efficiency</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../user_guide/architecture_and_models.html#memory-optimization">Memory Optimization</a></li>
 </ul>
-<p class="caption" role="heading"><span class="caption-text">Advanced Topics</span></p>
-<ul>
-<li class="toctree-l1"><a class="reference internal" href="../advanced/network_structures/index.html">Network Structures</a></li>
-<li class="toctree-l1"><a class="reference internal" href="../advanced/learning/index.html">Learning Strategies</a></li>
-<li class="toctree-l1"><a class="reference internal" href="../advanced/analysis/index.html">Analysis Tools</a></li>
-<li class="toctree-l1"><a class="reference internal" href="../advanced/visualization/index.html">Visualization Tools</a></li>
-<li class="toctree-l1"><a class="reference internal" href="../advanced/configuration/index.html">Configuration System</a></li>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="../user_guide/architecture_and_models.html#model-parameter-management">Model Parameter Management</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="../user_guide/architecture_and_models.html#parameter-groups">Parameter Groups</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../user_guide/architecture_and_models.html#parameter-initialization">Parameter Initialization</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../user_guide/architecture_and_models.html#model-serialization">Model Serialization</a></li>
 </ul>
-<p class="caption" role="heading"><span class="caption-text">Development</span></p>
-<ul>
-<li class="toctree-l1"><a class="reference internal" href="../development/contributing.html">Contributing to Dendritic Modeling Framework</a></li>
-<li class="toctree-l1"><a class="reference internal" href="../development/testing.html">Testing Guide</a></li>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="../user_guide/architecture_and_models.html#next-steps">Next Steps</a></li>
 </ul>
-<p class="caption" role="heading"><span class="caption-text">Reference</span></p>
-<ul>
-<li class="toctree-l1"><a class="reference internal" href="../reference/glossary.html">Glossary</a></li>
-<li class="toctree-l1"><a class="reference internal" href="../../about.html">About</a></li>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="../user_guide/training_and_configuration.html">Training and Configuration</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="../user_guide/training_and_configuration.html#training-strategies">Training Strategies</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="../user_guide/training_and_configuration.html#maximum-likelihood-estimation-mle">Maximum Likelihood Estimation (MLE)</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../user_guide/training_and_configuration.html#branch-wise-training-strategies">Branch-Wise Training Strategies</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../user_guide/training_and_configuration.html#voltage-stabilization-training">Voltage Stabilization Training</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../user_guide/training_and_configuration.html#curriculum-learning">Curriculum Learning</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../user_guide/training_and_configuration.html#meta-learning-and-few-shot-learning">Meta-Learning and Few-Shot Learning</a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="../user_guide/training_and_configuration.html#configuration-system">Configuration System</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="../user_guide/training_and_configuration.html#yaml-configuration">YAML Configuration</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../user_guide/training_and_configuration.html#python-configuration">Python Configuration</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../user_guide/training_and_configuration.html#configuration-validation">Configuration Validation</a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="../user_guide/training_and_configuration.html#advanced-training-techniques">Advanced Training Techniques</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="../user_guide/training_and_configuration.html#mixed-precision-training">Mixed Precision Training</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../user_guide/training_and_configuration.html#gradient-accumulation">Gradient Accumulation</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../user_guide/training_and_configuration.html#distributed-training">Distributed Training</a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="../user_guide/training_and_configuration.html#hyperparameter-optimization">Hyperparameter Optimization</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="../user_guide/training_and_configuration.html#optuna-integration">Optuna Integration</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../user_guide/training_and_configuration.html#weights-biases-sweeps">Weights &amp; Biases Sweeps</a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="../user_guide/training_and_configuration.html#experiment-management">Experiment Management</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="../user_guide/training_and_configuration.html#experiment-tracking">Experiment Tracking</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../user_guide/training_and_configuration.html#model-checkpointing">Model Checkpointing</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../user_guide/training_and_configuration.html#result-analysis">Result Analysis</a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="../user_guide/training_and_configuration.html#debugging-and-troubleshooting">Debugging and Troubleshooting</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="../user_guide/training_and_configuration.html#training-diagnostics">Training Diagnostics</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../user_guide/training_and_configuration.html#performance-profiling">Performance Profiling</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../user_guide/training_and_configuration.html#common-training-issues">Common Training Issues</a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="../user_guide/training_and_configuration.html#best-practices">Best Practices</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="../user_guide/training_and_configuration.html#configuration-management">Configuration Management</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../user_guide/training_and_configuration.html#training-workflow">Training Workflow</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../user_guide/training_and_configuration.html#performance-optimization">Performance Optimization</a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="../user_guide/training_and_configuration.html#next-steps">Next Steps</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="../user_guide/analysis_and_visualization.html">Analysis and Visualization</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="../user_guide/analysis_and_visualization.html#network-analysis">Network Analysis</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="../user_guide/analysis_and_visualization.html#information-theory-analysis">Information Theory Analysis</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../user_guide/analysis_and_visualization.html#connectivity-analysis">Connectivity Analysis</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../user_guide/analysis_and_visualization.html#dendritic-structure-analysis">Dendritic Structure Analysis</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../user_guide/analysis_and_visualization.html#activity-analysis">Activity Analysis</a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="../user_guide/analysis_and_visualization.html#performance-analysis">Performance Analysis</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="../user_guide/analysis_and_visualization.html#classification-analysis">Classification Analysis</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../user_guide/analysis_and_visualization.html#error-analysis">Error Analysis</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../user_guide/analysis_and_visualization.html#robustness-analysis">Robustness Analysis</a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="../user_guide/analysis_and_visualization.html#biological-plausibility-analysis">Biological Plausibility Analysis</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="../user_guide/analysis_and_visualization.html#dale-s-principle-analysis">Dale’s Principle Analysis</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../user_guide/analysis_and_visualization.html#synaptic-realism-analysis">Synaptic Realism Analysis</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../user_guide/analysis_and_visualization.html#temporal-dynamics-analysis">Temporal Dynamics Analysis</a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="../user_guide/analysis_and_visualization.html#ablation-studies">Ablation Studies</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="../user_guide/analysis_and_visualization.html#layer-wise-ablation">Layer-wise Ablation</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../user_guide/analysis_and_visualization.html#component-ablation">Component Ablation</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../user_guide/analysis_and_visualization.html#systematic-ablation">Systematic Ablation</a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="../user_guide/analysis_and_visualization.html#visualization-tools">Visualization Tools</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="../user_guide/analysis_and_visualization.html#network-visualization">Network Visualization</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../user_guide/analysis_and_visualization.html#activity-visualization">Activity Visualization</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../user_guide/analysis_and_visualization.html#performance-visualization">Performance Visualization</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../user_guide/analysis_and_visualization.html#analysis-visualization">Analysis Visualization</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../user_guide/analysis_and_visualization.html#publication-quality-figures">Publication-Quality Figures</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../user_guide/analysis_and_visualization.html#interactive-visualizations">Interactive Visualizations</a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="../user_guide/analysis_and_visualization.html#automated-analysis-pipeline">Automated Analysis Pipeline</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="../user_guide/analysis_and_visualization.html#complete-analysis-pipeline">Complete Analysis Pipeline</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../user_guide/analysis_and_visualization.html#custom-analysis-workflows">Custom Analysis Workflows</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../user_guide/analysis_and_visualization.html#comparative-analysis">Comparative Analysis</a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="../user_guide/analysis_and_visualization.html#best-practices">Best Practices</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="../user_guide/analysis_and_visualization.html#analysis-workflow">Analysis Workflow</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../user_guide/analysis_and_visualization.html#visualization-guidelines">Visualization Guidelines</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../user_guide/analysis_and_visualization.html#interpretation-guidelines">Interpretation Guidelines</a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="../user_guide/analysis_and_visualization.html#next-steps">Next Steps</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="../user_guide/index.html#overview">Overview</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../user_guide/index.html#key-concepts">Key Concepts</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="../user_guide/index.html#shunting-inhibition">Shunting Inhibition</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../user_guide/index.html#dendritic-architecture">Dendritic Architecture</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../user_guide/index.html#excitation-inhibition-networks">Excitation-Inhibition Networks</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="../user_guide/index.html#framework-components">Framework Components</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="../user_guide/index.html#core-modules">Core Modules</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../user_guide/index.html#supporting-modules">Supporting Modules</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="../user_guide/index.html#quick-reference">Quick Reference</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="../user_guide/index.html#common-operations">Common Operations</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../user_guide/index.html#configuration-examples">Configuration Examples</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="../user_guide/index.html#next-steps">Next Steps</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="index.html">API Reference</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="index.html#overview">Overview</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="index.html#core-modules">Core Modules</a></li>
+<li class="toctree-l3"><a class="reference internal" href="index.html#training-and-optimization">Training and Optimization</a></li>
+<li class="toctree-l3"><a class="reference internal" href="index.html#analysis-and-visualization">Analysis and Visualization</a></li>
+<li class="toctree-l3"><a class="reference internal" href="index.html#data-and-utilities">Data and Utilities</a></li>
+<li class="toctree-l3"><a class="reference internal" href="index.html#managers-and-workflows">Managers and Workflows</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="index.html#quick-reference">Quick Reference</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="index.html#common-import-patterns">Common Import Patterns</a></li>
+<li class="toctree-l3"><a class="reference internal" href="index.html#key-classes-and-functions">Key Classes and Functions</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="index.html#module-dependencies">Module Dependencies</a></li>
+<li class="toctree-l2"><a class="reference internal" href="index.html#version-information">Version Information</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="../advanced/index.html">Advanced Topics</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="../advanced/index.html#overview">Overview</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="../advanced/index.html#advanced-architectures">Advanced Architectures</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../advanced/index.html#advanced-training">Advanced Training</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../advanced/index.html#biological-modeling">Biological Modeling</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../advanced/index.html#research-applications">Research Applications</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../advanced/index.html#performance-and-optimization">Performance and Optimization</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../advanced/index.html#development-and-extension">Development and Extension</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="../advanced/index.html#prerequisites">Prerequisites</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../advanced/index.html#research-focus-areas">Research Focus Areas</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="../advanced/index.html#computational-neuroscience">Computational Neuroscience</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../advanced/index.html#machine-learning-research">Machine Learning Research</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../advanced/index.html#neuromorphic-computing">Neuromorphic Computing</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="../advanced/index.html#technical-deep-dives">Technical Deep Dives</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="../advanced/index.html#mathematical-foundations">Mathematical Foundations</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../advanced/index.html#implementation-details">Implementation Details</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../advanced/index.html#experimental-methodologies">Experimental Methodologies</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="../advanced/index.html#cutting-edge-research">Cutting-Edge Research</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="../advanced/index.html#current-research-directions">Current Research Directions</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../advanced/index.html#emerging-applications">Emerging Applications</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../advanced/index.html#future-directions">Future Directions</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="../advanced/index.html#development-guidelines">Development Guidelines</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="../advanced/index.html#code-quality-standards">Code Quality Standards</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../advanced/index.html#research-best-practices">Research Best Practices</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../advanced/index.html#community-contributions">Community Contributions</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="../advanced/index.html#resources-and-references">Resources and References</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="../advanced/index.html#academic-resources">Academic Resources</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../advanced/index.html#technical-resources">Technical Resources</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../advanced/index.html#community-resources">Community Resources</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="../advanced/index.html#getting-started-with-advanced-topics">Getting Started with Advanced Topics</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../advanced/index.html#next-steps">Next Steps</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="../examples/index.html">Examples</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="../examples/index.html#overview">Overview</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="../examples/index.html#getting-started-examples">Getting Started Examples</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../examples/index.html#network-architecture-examples">Network Architecture Examples</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../examples/index.html#training-examples">Training Examples</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../examples/index.html#analysis-examples">Analysis Examples</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../examples/index.html#application-examples">Application Examples</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../examples/index.html#advanced-examples">Advanced Examples</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="../examples/index.html#quick-start">Quick Start</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../examples/index.html#example-code-structure">Example Code Structure</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../examples/index.html#running-examples">Running Examples</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../examples/index.html#example-categories">Example Categories</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="../examples/index.html#beginner-examples">Beginner Examples</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../examples/index.html#intermediate-examples">Intermediate Examples</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../examples/index.html#id1">Advanced Examples</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="../examples/index.html#contributing-examples">Contributing Examples</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../examples/index.html#interactive-examples">Interactive Examples</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../examples/index.html#example-datasets">Example Datasets</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../examples/index.html#getting-help">Getting Help</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../examples/index.html#next-steps">Next Steps</a></li>
+</ul>
+</li>
 </ul>
 
         </div>
@@ -132,7 +343,7 @@
 
     <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
           <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
-          <a href="../../index.html">dendritic_modeling</a>
+          <a href="../../index.html">Dendritic Modeling Framework</a>
       </nav>
 
       <div class="wy-nav-content">
@@ -359,10 +570,7 @@ decomposition of <code class="docutils literal notranslate"><span class="pre">co
 
            </div>
           </div>
-          <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
-        <a href="../user_guide/configuration.html" class="btn btn-neutral float-left" title="Configuration System" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
-        <a href="models.html" class="btn btn-neutral float-right" title="Models API Reference" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
-    </div>
+          <footer>
 
   <hr/>
 
