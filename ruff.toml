@@ -3,6 +3,36 @@
 # Target Python 3.9+ (minimum supported version)
 target-version = "py39"
 
+# Same as Black
+line-length = 88
+
+# Exclude a variety of commonly ignored directories
+exclude = [
+    ".bzr",
+    ".direnv", 
+    ".eggs",
+    ".git",
+    ".git-rewrite",
+    ".hg",
+    ".mypy_cache",
+    ".nox",
+    ".pants.d",
+    ".pytype",
+    ".ruff_cache",
+    ".svn",
+    ".tox",
+    ".venv",
+    "__pypackages__",
+    "_build",
+    "buck-out",
+    "build",
+    "dist",
+    "node_modules",
+    "venv",
+    "*.ipynb",  # Ignore Jupyter notebooks
+]
+
+[lint]
 # Enable pycodestyle (`E`) and Pyflakes (`F`) codes by default
 # Add isort (`I`), pydocstyle (`D`), and other useful rules
 select = [
@@ -33,39 +63,10 @@ ignore = [
 fixable = ["ALL"]
 unfixable = []
 
-# Exclude a variety of commonly ignored directories
-exclude = [
-    ".bzr",
-    ".direnv", 
-    ".eggs",
-    ".git",
-    ".git-rewrite",
-    ".hg",
-    ".mypy_cache",
-    ".nox",
-    ".pants.d",
-    ".pytype",
-    ".ruff_cache",
-    ".svn",
-    ".tox",
-    ".venv",
-    "__pypackages__",
-    "_build",
-    "buck-out",
-    "build",
-    "dist",
-    "node_modules",
-    "venv",
-    "*.ipynb",  # Ignore Jupyter notebooks
-]
-
-# Same as Black
-line-length = 88
-
 # Allow unused variables when underscore-prefixed
 dummy-variable-rgx = "^(_+|(_+[a-zA-Z0-9_]*[a-zA-Z0-9]+?))$"
 
-[per-file-ignores]
+[lint.per-file-ignores]
 # Tests can use magic values and have longer lines
 "tests/**" = ["PLR2004", "S101", "D"]
 # Config files can have longer lines
@@ -73,15 +74,26 @@ dummy-variable-rgx = "^(_+|(_+[a-zA-Z0-9_]*[a-zA-Z0-9]+?))$"
 # __init__.py files can have unused imports
 "__init__.py" = ["F401"]
 
-[mccabe]
+[lint.mccabe]
 # Cyclomatic complexity threshold
 max-complexity = 10
 
-[isort]
-# Use black-compatible isort settings
-profile = "black"
-multi_line_output = 3
-include_trailing_comma = true
-force_grid_wrap = 0
-use_parentheses = true
-ensure_newline_before_comments = true 
+[lint.isort]
+# Black-compatible isort settings for ruff
+force-single-line = false
+force-wrap-aliases = false
+split-on-trailing-comma = true
+combine-as-imports = true
+known-first-party = ["dendritic_modeling"]
+known-third-party = [
+    "torch", 
+    "numpy", 
+    "matplotlib", 
+    "scipy", 
+    "sklearn", 
+    "pandas",
+    "pytest",
+    "wandb",
+    "hydra",
+    "omegaconf"
+] 
