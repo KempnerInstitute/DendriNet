@@ -131,7 +131,10 @@ class VAE_ELBOLoss(LossFunction):
         )
 
         z_var = z_sigma**2
-        kl_div = 0.5 * torch.sum(z_mu**2 + z_var - torch.log(z_var) - 1, dim=-1)
+        kl_div = 0.5 * torch.sum(
+            z_mu**2 + z_var - torch.log(z_var) - 1, 
+            dim=tuple(range(1, z_mu.dim()))
+        )
 
         loss = mse + kl_div
 
