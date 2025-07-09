@@ -1,61 +1,165 @@
 Dendritic Modeling Framework
 ============================
 
-A comprehensive PyTorch framework for biologically-inspired neural networks implementing dendritic computation with excitation-inhibition dynamics
+A comprehensive PyTorch framework for biologically-inspired neural networks implementing dendritic computation with excitation-inhibition dynamics and shunting inhibition mechanisms.
 
-.. figure:: _static/shunting_inhibition_diagram.svg
+.. figure:: figures/architecture/comprehensive_dendritic_neuron.svg
    :align: center
    :width: 80%
-   :alt: Shunting Inhibition Mechanism
+   :alt: Comprehensive Dendritic Neuron Architecture
 
-   Multi-dendrite neuron implementing shunting inhibition through divisive normalization. Each dendrite receives excitatory and inhibitory inputs, performs local E/(E+I+ε) computation, and the soma integrates outputs from all dendrites.
+   **Dendritic Neuron Architecture**: Multi-dendrite neurons with excitatory and inhibitory synaptic inputs, hierarchical branching patterns, and shunting inhibition computation. Each dendrite performs local E/(E+I+ε) processing before somatic integration.
 
 .. note::
 
-   All diagrams in this documentation are generated automatically by the helper script ``docs/make.py``.  
-   If you update the code or styling, remember to rerun:
+   **Documentation Figures**: All diagrams are automatically generated with professional styling by our enhanced figure generation system. To regenerate with the latest updates:
 
    .. code-block:: bash
 
-      python docs/make.py
+      python scripts/documentation_tools/generate_documentation_figures.py
 
-   before rebuilding the documentation to ensure the latest high-resolution figures are included.
+   This generates both high-resolution PNG (300 DPI) and vector SVG formats for publication-quality documentation.
 
-Framework Overview
-------------------
+Overview
+--------
 
-The Dendritic Modeling Framework implements neural networks inspired by biological dendritic computation, specifically focusing on shunting inhibition mechanisms. The framework provides a complete toolkit for building, training, and analyzing biologically-plausible neural networks.
+The Dendritic Modeling Framework represents a paradigm shift in neural network architectures, drawing inspiration from the sophisticated dendritic computation mechanisms observed in biological neurons. Our framework implements **shunting inhibition** as the core computational principle, where dendrites perform local divisive normalization through the mathematical operation:
 
-**Core Features:**
+.. math::
 
-* **Biologically-Inspired Architecture**: Multi-dendrite neurons with excitatory/inhibitory input separation and divisive normalization
-* **Shunting Inhibition**: Implements E/(E+I+ε) computation for gain control and normalization
-* **Flexible Network Types**: Support for MLPs, CNNs, Vision Transformers, and custom architectures
-* **Comprehensive Training**: Multiple learning strategies including branch-wise training and voltage stabilization
-* **Advanced Analysis**: Information theory metrics, ablation studies, and visualization tools
-* **Configuration System**: YAML-based configuration for reproducible experiments
-* **Experiment Tracking**: Integration with Weights & Biases for experiment management
+   V_{out} = \frac{\sum E_i}{\sum E_i + \sum I_j + \epsilon}
 
-**Key Components:**
+where :math:`E_i` represents excitatory inputs, :math:`I_j` represents inhibitory inputs, and :math:`\epsilon` is a small constant preventing division by zero.
 
-* **Networks**: Core neural network architectures implementing dendritic computation
-* **Models**: High-level model wrappers with task-specific heads for classification and regression
-* **Training**: Comprehensive training utilities with multiple learning strategies
-* **Analysis**: Tools for analyzing network behavior, information flow, and biological plausibility
-* **Configuration**: Type-safe configuration system for experiment reproducibility
-* **Datasets**: Synthetic and real datasets for dendritic modeling research
+Key Innovation: Biologically-Inspired Architecture
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-.. toctree::
-   :maxdepth: 3
-   :caption: Documentation
+**Dendritic Computation**: Unlike traditional artificial neurons that simply sum weighted inputs, our framework implements multi-dendrite neurons where each dendrite performs local computation before somatic integration. This mirrors the biological reality where dendrites are active computational units, not passive conduits.
 
-   source/user_guide/index
-   source/api/index
-   source/advanced/index
-   source/examples/index
+**Shunting Inhibition**: The framework implements divisive normalization through shunting inhibition, providing natural gain control and dynamic range adaptation. This mechanism is ubiquitous in biological nervous systems and provides superior stability compared to subtractive inhibition.
 
-Quick Start Example
-------------------
+**Excitation-Inhibition Balance**: Following Dale's principle, we maintain separate excitatory and inhibitory populations with realistic connectivity patterns, enabling complex dynamics and homeostatic regulation.
+
+**Synaptic Sparsity**: The framework incorporates biologically-realistic sparse connectivity through TopK mechanisms, reducing computational overhead while maintaining biological plausibility.
+
+Core Framework Components
+~~~~~~~~~~~~~~~~~~~~~~~~~
+
+.. figure:: figures/architecture/configuration_parameters_diagram.svg
+   :align: center
+   :width: 90%
+   :alt: Configuration Parameters Overview
+
+   **Configuration System**: Comprehensive parameter management for network architecture, synaptic connectivity, transfer functions, training strategies, sparsity control, and regularization.
+
+**Networks** (``dendritic_modeling.networks``)
+   Core neural network architectures implementing dendritic computation:
+   
+   - **ExcitationInhibitionNetwork**: Multi-layer networks with E/I separation
+   - **DendriticBranchLayer**: Individual dendritic processing units
+   - **TopKLinear**: Sparse connectivity with multiple selection strategies
+   - **Classical Networks**: MLPs, CNNs, and Vision Transformers for comparison
+
+**Models** (``dendritic_modeling.models``)
+   High-level model interfaces combining networks with task-specific components:
+   
+   - **Classifier**: Multi-class classification with dendritic computation
+   - **Regressor**: Regression tasks with continuous outputs
+   - **BaseModel**: Extensible foundation for custom applications
+
+**Configuration** (``dendritic_modeling.config``)
+   Type-safe configuration system enabling reproducible experiments:
+   
+   - **Network Architecture**: Layer sizes, branch factors, connectivity patterns
+   - **Transfer Functions**: Shunting inhibition parameters, input modes
+   - **Training Strategy**: Learning rates, optimization algorithms, regularization
+   - **Sparsity Control**: TopK strategies, density targets, rewiring mechanisms
+
+**Training** (``dendritic_modeling.training``)
+   Comprehensive training utilities designed for dendritic networks:
+   
+   - **Branch-wise Training**: Individual dendrite optimization
+   - **Voltage Stabilization**: Membrane potential regulation
+   - **Gradient Scaling**: Adaptive normalization for stable learning
+   - **Distributed Training**: Multi-GPU and cluster support
+
+**Analysis** (``dendritic_modeling.analysis``)
+   Specialized tools for understanding dendritic network behavior:
+   
+   - **Information Theory**: Mutual information, entropy measures
+   - **Ablation Studies**: Systematic component analysis
+   - **Biological Plausibility**: Comparison with neuroscience data
+   - **Performance Metrics**: Classification, regression, and efficiency measures
+
+Architecture Variants
+~~~~~~~~~~~~~~~~~~~~
+
+.. figure:: figures/architecture/network_variants_comparison.svg
+   :align: center
+   :width: 90%
+   :alt: Network Architecture Variants
+
+   **Network Variants**: The framework supports multiple architecture types including standard MLPs, E/I networks, dendritic networks, and hybrid CNN-dendritic models.
+
+**Standard Networks**
+   - **MLP**: Traditional multi-layer perceptrons for baseline comparison
+   - **CNN**: Convolutional networks for spatial data processing
+   - **Vision Transformer**: Attention-based architectures
+
+**Dendritic Networks**
+   - **EINet**: Excitation-inhibition networks with shunting inhibition
+   - **DendriNet**: Multi-dendrite networks with hierarchical processing
+   - **Hybrid Models**: Combinations of conventional and dendritic components
+
+**Sparsity Patterns**
+   - **TopK Standard**: Deterministic top-K weight selection
+   - **Stochastic TopK**: Temperature-controlled probabilistic selection
+   - **Variance TopK**: Hebbian-inspired activity-dependent selection
+
+Training Methodologies
+~~~~~~~~~~~~~~~~~~~~~
+
+.. figure:: figures/architecture/training_strategies_diagram.svg
+   :align: center
+   :width: 90%
+   :alt: Training Strategies
+
+   **Training Strategies**: Comprehensive overview of training approaches including standard backpropagation, branch-wise training, hybrid methods, voltage stabilization, gradient scaling, and synaptic plasticity mechanisms.
+
+**Training Strategies**
+   - **Standard Backpropagation**: End-to-end gradient descent
+   - **Branch-wise Training**: Individual dendrite optimization
+   - **Hybrid Training**: Combined approaches for optimal performance
+   - **Voltage Stabilization**: Membrane potential regulation
+   - **Gradient Scaling**: Adaptive normalization techniques
+   - **Synaptic Plasticity**: Hebbian-like adaptation mechanisms
+
+**Optimization Features**
+   - **Adaptive Learning Rates**: Dynamic adjustment based on network state
+   - **Regularization**: L1/L2 penalties, dropout, weight decay
+   - **Batch Normalization**: Specialized techniques for dendritic networks
+   - **Mixed Precision**: Efficient training with automatic precision scaling
+
+Quick Start Guide
+-----------------
+
+Installation
+~~~~~~~~~~~~
+
+The framework can be installed using pip or conda:
+
+.. code-block:: bash
+
+   # Install from PyPI
+   pip install dendritic-modeling
+
+   # Or install from source for development
+   git clone https://github.com/your-org/dendritic-modeling.git
+   cd dendritic-modeling
+   pip install -e .
+
+Basic Usage Example
+~~~~~~~~~~~~~~~~~
 
 .. code-block:: python
 
@@ -63,127 +167,254 @@ Quick Start Example
    from dendritic_modeling.networks import ExcitationInhibitionNetwork
    from dendritic_modeling.config import TransferFunctionParams
    from dendritic_modeling.datasets import get_unified_datasets
+   from dendritic_modeling.training.utils import train_model
    
-   # Create transfer function parameters
+   # Configure transfer function with shunting inhibition
    transfer_params = TransferFunctionParams(
-       input_mode=0,
-       multiplicative=True,
-       shunting_inhibition=True
+       input_mode=0,                    # Direct input mode
+       multiplicative=True,             # Enable multiplicative interactions
+       shunting_inhibition=True,        # Enable shunting inhibition
+       use_shunting=True,              # Apply shunting mechanism
+       reactivation_type="param_tanh"   # Parameterized tanh activation
    )
    
    # Create excitation-inhibition network
    ei_network = ExcitationInhibitionNetwork(
-       input_dim=784,
+       input_dim=784,                   # MNIST image dimensions
        transfer_params=transfer_params.asdict(),
-       excitatory_layer_sizes=[100, 10],
-       inhibitory_layer_sizes=[50, 0],
-       excitatory_branch_factors=[5, 1],
-       inhibitory_branch_factors=[3, 0],
-       ee_synapses_per_branch_per_layer=[10, 1],
-       ei_synapses_per_branch_per_layer=[5, 0],
-       ie_synapses_per_branch_per_layer=[2, 0],
-       ii_synapses_per_branch_per_layer=[]
+       excitatory_layer_sizes=[128, 64, 10],        # E-population sizes
+       inhibitory_layer_sizes=[64, 32, 0],          # I-population sizes
+       excitatory_branch_factors=[5, 3, 1],         # Dendrites per E-neuron
+       inhibitory_branch_factors=[3, 2, 0],         # Dendrites per I-neuron
+       ee_synapses_per_branch_per_layer=[20, 10, 1], # E→E connections
+       ei_synapses_per_branch_per_layer=[10, 5, 0],  # E→I connections
+       ie_synapses_per_branch_per_layer=[5, 3, 0],   # I→E connections
+       topk_type="standard",            # Sparse connectivity strategy
+       use_shunting=True,               # Enable shunting inhibition
+       gradient_scaling=True            # Adaptive gradient normalization
    )
    
    # Create classifier model
    model = Classifier(
        core_network=ei_network,
-       encoder_network=None,
-       decoder_network=None
+       encoder_network=None,            # Optional input preprocessing
+       decoder_network=None             # Optional output postprocessing
    )
    
    # Load dataset
    train_dataset, val_dataset, test_dataset = get_unified_datasets(
        dataset_name="mnist",
-       data_path="./data"
+       data_path="./data",
+       train_valid_split=0.8
    )
    
-   # Train model
-   from dendritic_modeling.training.utils import train_model
-   train_model(model, train_dataset, val_dataset, epochs=50)
+   # Train with advanced configuration
+   train_model(
+       model=model,
+       train_dataset=train_dataset,
+       val_dataset=val_dataset,
+       epochs=100,
+       batch_size=64,
+       learning_rate=1e-3,
+       optimizer="AdamW",
+       scheduler="CosineAnnealingLR",
+       branch_wise_training=True,       # Enable branch-wise optimization
+       voltage_stabilization=True,      # Enable membrane potential regulation
+       gradient_scaling=True,           # Enable adaptive gradient scaling
+       use_wandb=True                   # Enable experiment tracking
+   )
 
-Architecture Overview
---------------------
+Configuration-Based Experiments
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-The framework implements a hierarchical architecture where biological dendritic computation is embedded at multiple levels:
+For reproducible research, use YAML configuration files:
 
-**Neuron Level**: Individual neurons implement multi-dendrite computation with excitatory/inhibitory input separation and shunting inhibition.
+.. code-block:: yaml
 
-**Layer Level**: Layers coordinate excitatory and inhibitory populations following Dale's principle and biological connectivity patterns.
+   # config.yaml
+   model:
+     task: classification
+     core_network:
+       type: EINet
+       parameters:
+         input_dim: 784
+         excitatory_layer_sizes: [128, 64, 10]
+         inhibitory_layer_sizes: [64, 32, 0]
+         excitatory_branch_factors: [5, 3, 1]
+         inhibitory_branch_factors: [3, 2, 0]
+         ee_synapses_per_branch_per_layer: [20, 10, 1]
+         ei_synapses_per_branch_per_layer: [10, 5, 0]
+         ie_synapses_per_branch_per_layer: [5, 3, 0]
+         topk_type: "standard"
+         use_shunting: true
+         gradient_scaling: true
+         transfer_params:
+           input_mode: 0
+           multiplicative: true
+           shunting_inhibition: true
+           reactivation_type: "param_tanh"
+   
+   train:
+     learning_strategy: "mle"
+     optimizer: "AdamW"
+     lr: 1e-3
+     epochs: 100
+     batch_size: 64
+     scheduler: "CosineAnnealingLR"
+     branch_wise_training: true
+     voltage_stabilization: true
+     gradient_scaling: true
+   
+   task:
+     dataset: "mnist"
+     data_path: "./data"
+   
+   analysis:
+     information_analysis: true
+     ablation_studies: true
+     biological_plausibility: true
 
-**Network Level**: Complete networks stack multiple layers with flexible architectures supporting various computational tasks.
+Run experiments with:
 
-**Model Level**: High-level models combine networks with task-specific components for classification, regression, and other applications.
+.. code-block:: bash
+
+   python src/dendritic_modeling/scripts/train_experiments.py config.yaml
+
+Advanced Features
+----------------
+
+Network Data Flow
+~~~~~~~~~~~~~~~~~
+
+.. figure:: figures/architecture/comprehensive_network_flow.svg
+   :align: center
+   :width: 95%
+   :alt: Complete Network Data Flow
+
+   **Complete Data Flow**: Comprehensive overview of data processing through the dendritic network, showing input transformation, E/I separation, dendritic processing, somatic integration, and output generation.
+
+The framework implements a sophisticated data processing pipeline:
+
+1. **Input Transformation**: Raw data is preprocessed and optionally transformed through input networks
+2. **E/I Separation**: Inputs are split into excitatory and inhibitory pathways
+3. **Dendritic Processing**: Each dendrite performs local shunting inhibition computation
+4. **Somatic Integration**: The soma integrates outputs from all dendritic branches
+5. **Output Generation**: Final outputs are produced through task-specific heads
 
 Biological Foundations
----------------------
+~~~~~~~~~~~~~~~~~~~~~
 
-The framework is grounded in several key biological principles:
+The framework is grounded in fundamental neuroscience principles:
 
-**Shunting Inhibition**: The core computation E/(E+I+ε) implements divisive normalization found throughout the nervous system, providing gain control and dynamic range adaptation.
+**Shunting Inhibition**: The core E/(E+I+ε) computation implements divisive normalization ubiquitous in biological systems, providing gain control and dynamic range adaptation.
 
 **Dendritic Integration**: Multi-dendrite neurons perform local computations on dendritic branches before somatic integration, mirroring biological neural computation.
 
 **Dale's Principle**: Separate excitatory and inhibitory populations maintain biological plausibility and enable complex E/I dynamics.
 
-**Synaptic Constraints**: Realistic connectivity patterns and synaptic densities based on neurobiological measurements.
+**Synaptic Sparsity**: Realistic connectivity patterns based on neurobiological measurements, with TopK mechanisms providing computational efficiency.
+
+**Homeostatic Regulation**: Built-in mechanisms for maintaining network stability and preventing pathological activity states.
 
 Research Applications
---------------------
+~~~~~~~~~~~~~~~~~~~~
 
-The framework supports research in:
+The framework enables research across multiple domains:
 
-* **Computational Neuroscience**: Modeling dendritic computation and E/I dynamics
-* **Machine Learning**: Biologically-inspired architectures for improved performance
-* **Neuomorphic Computing**: Hardware-efficient implementations of neural computation
-* **Interpretability**: Understanding neural computation through biological analogies
+**Computational Neuroscience**
+   - Modeling dendritic computation mechanisms
+   - Understanding E/I balance in neural circuits
+   - Investigating synaptic plasticity and learning
+   - Simulating pathological conditions and interventions
 
-Installation and Setup
-----------------------
+**Machine Learning**
+   - Biologically-inspired architectures for improved performance
+   - Sparse neural networks with natural regularization
+   - Robust learning algorithms with homeostatic properties
+   - Novel optimization strategies based on biological principles
 
-Install the framework using pip:
+**Neuomorphic Computing**
+   - Hardware-efficient implementations of neural computation
+   - Low-power neuromorphic chip design
+   - Event-driven processing paradigms
+   - Spike-based communication protocols
 
-.. code-block:: bash
+**Interpretable AI**
+   - Understanding neural computation through biological analogies
+   - Explainable AI systems based on dendritic processing
+   - Visualization of hierarchical information processing
+   - Biological constraints for model interpretability
 
-   pip install dendritic-modeling
+Documentation Structure
+-----------------------
 
-Or install from source:
+.. toctree::
+   :maxdepth: 2
+   :caption: Getting Started
 
-.. code-block:: bash
+   source/user_guide/getting_started
+   source/user_guide/architecture_and_models
+   source/user_guide/configuration_system
 
-   git clone https://github.com/your-org/dendritic-modeling.git
-   cd dendritic-modeling
-   pip install -e .
+.. toctree::
+   :maxdepth: 2
+   :caption: Core Concepts
 
-Citation
---------
+   source/core_concepts/neuron_and_dendrite
+   source/core_concepts/shunting_inhibition
+   source/core_concepts/network_construction
+   source/core_concepts/connectivity_sparsity
+   source/core_concepts/training_pipeline
 
-If you use this framework in your research, please cite:
+.. toctree::
+   :maxdepth: 2
+   :caption: Advanced Topics
+
+   source/advanced/training_strategies
+   source/advanced/biological_plausibility
+   source/advanced/performance_optimization
+   source/advanced/custom_architectures
+
+.. toctree::
+   :maxdepth: 2
+   :caption: API Reference
+
+   source/api/networks
+   source/api/models
+   source/api/training
+   source/api/analysis
+   source/api/config
+
+.. toctree::
+   :maxdepth: 2
+   :caption: Examples and Tutorials
+
+   source/examples/basic_usage
+   source/examples/advanced_configurations
+   source/examples/research_applications
+   source/examples/custom_extensions
+
+Community and Support
+---------------------
+
+**Contributing**: We welcome contributions from the community! Please see our contributing guidelines for information on code style, testing requirements, and submission procedures.
+
+**Citation**: If you use this framework in your research, please cite our work:
 
 .. code-block:: bibtex
 
-   @software{dendritic_modeling,
-     title = {Dendritic Modeling Framework: Biologically-Inspired Neural Networks},
-     author = {Your Research Group},
+   @software{dendritic_modeling_framework,
+     title = {Dendritic Modeling Framework: Biologically-Inspired Neural Networks with Shunting Inhibition},
+     author = {Your Research Team},
      year = {2024},
      url = {https://github.com/your-org/dendritic-modeling},
-     version = {1.0.0}
+     version = {1.0.0},
+     doi = {10.5281/zenodo.xxxxx}
    }
 
-Contributing
------------
+**Support**: For questions, bug reports, and feature requests, please use our GitHub issues page or contact the development team.
 
-We welcome contributions to the framework! Please see the development guide for details on:
-
-* Code style and standards
-* Testing requirements
-* Documentation guidelines
-* Issue reporting and feature requests
-
-License
--------
-
-This project is licensed under the MIT License. See the LICENSE file for details.
+**License**: This project is licensed under the MIT License, allowing for both academic and commercial use.
 
 Indices and Search
 ==================

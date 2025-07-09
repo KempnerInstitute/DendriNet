@@ -16,7 +16,7 @@ def generate_figures():
     print("Generating documentation figures...")
     
     # Path to the figure generation script
-    script_path = Path(__file__).parent.parent / "scripts" / "documentation_tools" / "generate_documentation_figures.py"
+    script_path = Path(__file__).parent / "generate_documentation_figures.py"
     
     if not script_path.exists():
         print(f"Warning: Figure generation script not found at {script_path}")
