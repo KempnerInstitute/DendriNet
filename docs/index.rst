@@ -3,12 +3,12 @@ Dendritic Modeling Framework
 
 A comprehensive PyTorch framework for biologically-inspired neural networks implementing dendritic computation with excitation-inhibition dynamics and shunting inhibition mechanisms.
 
-.. figure:: figures/architecture/comprehensive_dendritic_neuron.svg
+.. figure:: figures/architecture/scientifically_accurate_dendritic_neuron.svg
    :align: center
    :width: 80%
-   :alt: Comprehensive Dendritic Neuron Architecture
+   :alt: Scientifically Accurate Dendritic Neuron Architecture
 
-   **Dendritic Neuron Architecture**: Multi-dendrite neurons with excitatory and inhibitory synaptic inputs, hierarchical branching patterns, and shunting inhibition computation. Each dendrite performs local E/(E+I+ε) processing before somatic integration.
+   **Dendritic Neuron Architecture**: Sequential dendritic processing where each dendrite receives excitatory inputs, inhibitory inputs, AND outputs from previous dendrites. Each dendrite computes E/(E+I+D_prev+ε) before passing to the next dendrite, with the final dendrite feeding the soma.
 
 .. note::
 
@@ -23,22 +23,22 @@ A comprehensive PyTorch framework for biologically-inspired neural networks impl
 Overview
 --------
 
-The Dendritic Modeling Framework represents a paradigm shift in neural network architectures, drawing inspiration from the sophisticated dendritic computation mechanisms observed in biological neurons. Our framework implements **shunting inhibition** as the core computational principle, where dendrites perform local divisive normalization through the mathematical operation:
+The Dendritic Modeling Framework represents a paradigm shift in neural network architectures, drawing inspiration from the sophisticated dendritic computation mechanisms observed in biological neurons. Our framework implements **shunting inhibition** as the core computational principle, where dendrites perform sequential processing through the mathematical operation:
 
 .. math::
 
-   V_{out} = \frac{\sum E_i}{\sum E_i + \sum I_j + \epsilon}
+   V_{d_i} = \frac{E_i + D_{i+1}}{E_i + D_{i+1} + I_i + \epsilon}
 
-where :math:`E_i` represents excitatory inputs, :math:`I_j` represents inhibitory inputs, and :math:`\epsilon` is a small constant preventing division by zero.
+where :math:`E_i` represents excitatory inputs to dendrite i, :math:`I_i` represents inhibitory inputs to dendrite i, :math:`D_{i+1}` represents the output from the previous dendrite (dendrite i+1), and :math:`\epsilon` is a small constant preventing division by zero. This creates a sequential processing chain: dendrite_n → dendrite_{n-1} → ... → dendrite_1 → soma.
 
 Key Innovation: Biologically-Inspired Architecture
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-**Dendritic Computation**: Unlike traditional artificial neurons that simply sum weighted inputs, our framework implements multi-dendrite neurons where each dendrite performs local computation before somatic integration. This mirrors the biological reality where dendrites are active computational units, not passive conduits.
+**Dendritic Computation**: Unlike traditional artificial neurons that simply sum weighted inputs, our framework implements sequential dendritic processing where each dendrite receives excitatory inputs, inhibitory inputs, AND outputs from the previous dendrite. This creates a processing chain where information flows through dendrites sequentially before reaching the soma, mirroring biological dendritic integration.
 
 **Shunting Inhibition**: The framework implements divisive normalization through shunting inhibition, providing natural gain control and dynamic range adaptation. This mechanism is ubiquitous in biological nervous systems and provides superior stability compared to subtractive inhibition.
 
-**Excitation-Inhibition Balance**: Following Dale's principle, we maintain separate excitatory and inhibitory populations with realistic connectivity patterns, enabling complex dynamics and homeostatic regulation.
+**Excitation-Inhibition Balance**: Following Dale's principle, each layer maintains separate excitatory and inhibitory populations. Excitatory neurons project to both excitatory and inhibitory populations in the next layer, while inhibitory neurons modulate excitatory neurons within the same layer, enabling complex dynamics and homeostatic regulation.
 
 **Synaptic Sparsity**: The framework incorporates biologically-realistic sparse connectivity through TopK mechanisms, reducing computational overhead while maintaining biological plausibility.
 
@@ -94,12 +94,12 @@ Core Framework Components
 Architecture Variants
 ~~~~~~~~~~~~~~~~~~~~
 
-.. figure:: figures/architecture/network_variants_comparison.svg
+.. figure:: figures/architecture/scientifically_accurate_multilayer_ei_network.svg
    :align: center
    :width: 90%
-   :alt: Network Architecture Variants
+   :alt: Scientifically Accurate Multi-layer E/I Network Architecture
 
-   **Network Variants**: The framework supports multiple architecture types including standard MLPs, E/I networks, dendritic networks, and hybrid CNN-dendritic models.
+   **Multi-layer E/I Network**: Each layer contains excitatory and inhibitory neuron populations. Excitatory neurons project to both E and I populations in the next layer, while inhibitory neurons modulate excitatory neurons within the same layer. Each neuron internally implements sequential dendritic processing.
 
 **Standard Networks**
    - **MLP**: Traditional multi-layer perceptrons for baseline comparison
@@ -119,12 +119,12 @@ Architecture Variants
 Training Methodologies
 ~~~~~~~~~~~~~~~~~~~~~
 
-.. figure:: figures/architecture/training_strategies_diagram.svg
+.. figure:: figures/architecture/dendritic_computation_flow.svg
    :align: center
    :width: 90%
-   :alt: Training Strategies
+   :alt: Dendritic Computation Flow
 
-   **Training Strategies**: Comprehensive overview of training approaches including standard backpropagation, branch-wise training, hybrid methods, voltage stabilization, gradient scaling, and synaptic plasticity mechanisms.
+   **Dendritic Computation Flow**: Sequential processing through dendritic layers showing the actual DendriNet forward pass. Each dendrite receives excitatory inputs, inhibitory inputs, and outputs from the previous dendrite, implementing E/(E+I+D_prev+ε) computation.
 
 **Training Strategies**
    - **Standard Backpropagation**: End-to-end gradient descent
@@ -286,12 +286,12 @@ Advanced Features
 Network Data Flow
 ~~~~~~~~~~~~~~~~~
 
-.. figure:: figures/architecture/comprehensive_network_flow.svg
+.. figure:: figures/architecture/network_architecture_overview.svg
    :align: center
    :width: 95%
-   :alt: Complete Network Data Flow
+   :alt: Network Architecture Overview
 
-   **Complete Data Flow**: Comprehensive overview of data processing through the dendritic network, showing input transformation, E/I separation, dendritic processing, somatic integration, and output generation.
+   **Network Architecture Overview**: Comprehensive overview of data processing through the dendritic network, showing input transformation, E/I separation, dendritic processing, somatic integration, and output generation.
 
 The framework implements a sophisticated data processing pipeline:
 
