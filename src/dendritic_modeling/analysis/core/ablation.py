@@ -14,14 +14,14 @@ from dendritic_modeling.models import BaseModel
 from dendritic_modeling.networks import ExcitationInhibitionNetwork
 from dendritic_modeling.networks.architectures import DendriticBranchLayer
 from dendritic_modeling.config.analysis import AblationAnalysisParams
-from dendritic_modeling.utils import (
+from dendritic_modeling.training.utils.evaluation import (
     evaluate_accuracy,
     evaluate_auc,
     evaluate_categorical_loglikelihood,
     evaluate_mse,
-    evaluate_cosine_similarity,
-    save_dict
+    evaluate_cosine_similarity
 )
+from dendritic_modeling.utils import save_dict
 
 
 class AblationAnalyzer:

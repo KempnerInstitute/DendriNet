@@ -10,7 +10,6 @@ import torch
 from typing import Optional
 
 from dendritic_modeling import logger
-from dendritic_modeling.analysis import AnalysisManager
 from dendritic_modeling.training.strategies import (
     Trainer,
     LocalCreditAssignment,
@@ -25,7 +24,7 @@ def get_trainer(
     strategy: str, 
     optimizer: torch.optim.Optimizer, 
     trainer_config_dict: dict,
-    analysis_manager: Optional[AnalysisManager] = None
+    analysis_manager: Optional[object] = None
 ):
     """
     Factory function to create training strategies.

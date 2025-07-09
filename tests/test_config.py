@@ -28,8 +28,7 @@ from dendritic_modeling.config import (
     WandbConfig,
     OutputsConfig,
     EINetParameters,
-    FeedForwardParameters,
-    ModelNetworkConfig,
+    CoreNetworkConfig,
     load_config,
     BaseConfig
 )
@@ -56,16 +55,15 @@ class TestConfigDataclasses(unittest.TestCase):
         self.assertTrue(params.somatic_synapses)  # Default value
     
     def test_network_config_creation(self):
-        """Test ModelNetworkConfig dataclass creation."""
-        network_config = ModelNetworkConfig(
+        """Test CoreNetworkConfig dataclass creation."""
+        network_config = CoreNetworkConfig(
             type="EINet",
             parameters=EINetParameters(
                 input_dim=784,
                 excitatory_layer_sizes=[32],
                 inhibitory_layer_sizes=[24],
                 excitatory_branch_factors=[2],
-                inhibitory_branch_factors=[2],
-                output_dim=10
+                inhibitory_branch_factors=[2]
             )
         )
         
@@ -77,23 +75,20 @@ class TestConfigDataclasses(unittest.TestCase):
         """Test ModelConfig dataclass creation."""
         model_config = ModelConfig(
             task="classification",
-            probabilistic=True,
-            network=ModelNetworkConfig(
+            core_network=CoreNetworkConfig(
                 type="EINet",
                 parameters=EINetParameters(
                     input_dim=784,
                     excitatory_layer_sizes=[32],
                     inhibitory_layer_sizes=[24],
                     excitatory_branch_factors=[2],
-                    inhibitory_branch_factors=[2],
-                    output_dim=10
+                    inhibitory_branch_factors=[2]
                 )
             )
         )
         
         self.assertEqual(model_config.task, "classification")
-        self.assertTrue(model_config.probabilistic)
-        self.assertIsInstance(model_config.network, ModelNetworkConfig)
+        self.assertIsInstance(model_config.core_network, CoreNetworkConfig)
     
     def test_train_config_creation(self):
         """Test TrainConfig dataclass creation."""
@@ -154,16 +149,14 @@ class TestConfigDataclasses(unittest.TestCase):
         complete_config = Config(
             model=ModelConfig(
                 task="classification",
-                probabilistic=True,
-                network=ModelNetworkConfig(
+                core_network=CoreNetworkConfig(
                     type="EINet",
                     parameters=EINetParameters(
                         input_dim=784,
                         excitatory_layer_sizes=[32],
                         inhibitory_layer_sizes=[24],
                         excitatory_branch_factors=[2],
-                        inhibitory_branch_factors=[2],
-                        output_dim=10
+                        inhibitory_branch_factors=[2]
                     )
                 )
             ),
@@ -213,8 +206,7 @@ class TestConfigLoading(unittest.TestCase):
         self.sample_config = {
             'model': {
                 'task': 'classification',
-                'probabilistic': True,
-                'network': {
+                'core_network': {
                     'type': 'EINet',
                     'parameters': {
                         'input_dim': 784,
@@ -222,7 +214,6 @@ class TestConfigLoading(unittest.TestCase):
                         'inhibitory_layer_sizes': [32, 16],
                         'excitatory_branch_factors': [2, 2],
                         'inhibitory_branch_factors': [2, 2],
-                        'output_dim': 10,
                         'reactivate': True,
                         'somatic_synapses': True
                     }
@@ -283,7 +274,7 @@ class TestConfigLoading(unittest.TestCase):
         self.assertEqual(config.model.task, "classification")
         self.assertEqual(config.train.run_name, "test_run")
         self.assertEqual(config.task.dataset, "mnist")
-        self.assertEqual(config.model.network.parameters.input_dim, 784)
+        self.assertEqual(config.model.core_network.parameters.input_dim, 784)
     
     def test_load_config_from_dictconfig(self):
         """Test loading configuration from OmegaConf DictConfig."""
@@ -407,11 +398,11 @@ class TestConfigUpdating(unittest.TestCase):
     def test_nested_config_updates(self):
         """Test updating nested configuration fields."""
         # Update network parameters
-        self.base_config.model.network.parameters.input_dim = 1024
-        self.base_config.model.network.parameters.excitatory_layer_sizes = [128, 64]
+        self.base_config.model.core_network.parameters.input_dim = 1024
+        self.base_config.model.core_network.parameters.excitatory_layer_sizes = [128, 64]
         
-        self.assertEqual(self.base_config.model.network.parameters.input_dim, 1024)
-        self.assertEqual(self.base_config.model.network.parameters.excitatory_layer_sizes, [128, 64])
+        self.assertEqual(self.base_config.model.core_network.parameters.input_dim, 1024)
+        self.assertEqual(self.base_config.model.core_network.parameters.excitatory_layer_sizes, [128, 64])
     
     def test_optim_dict_updates(self):
         """Test updating optimizer dictionary."""
@@ -456,7 +447,7 @@ class TestConfigSerialization(unittest.TestCase):
         """Test round-trip serialization/deserialization."""
         # Modify config
         self.config.train.epochs = 150
-        self.config.model.network.parameters.input_dim = 512
+        self.config.model.core_network.parameters.input_dim = 512
         self.config.task.dataset = "cifar10"
         
         # Convert to dict
@@ -467,7 +458,7 @@ class TestConfigSerialization(unittest.TestCase):
         
         # Verify values are preserved
         self.assertEqual(restored_config.train.epochs, 150)
-        self.assertEqual(restored_config.model.network.parameters.input_dim, 512)
+        self.assertEqual(restored_config.model.core_network.parameters.input_dim, 512)
         self.assertEqual(restored_config.task.dataset, "cifar10")
 
 
@@ -483,12 +474,12 @@ class TestConfigIntegration(unittest.TestCase):
         # This is a basic test to ensure config structure is compatible
         # with expected model initialization parameters
         model_config = self.config.model
-        network_params = model_config.network.parameters
+        network_params = model_config.core_network.parameters
         
         # Check required fields exist
         required_fields = [
             'input_dim', 'excitatory_layer_sizes', 'inhibitory_layer_sizes',
-            'excitatory_branch_factors', 'inhibitory_branch_factors', 'output_dim'
+            'excitatory_branch_factors', 'inhibitory_branch_factors'
         ]
         
         for field in required_fields:

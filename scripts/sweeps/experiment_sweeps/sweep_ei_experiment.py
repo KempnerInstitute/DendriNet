@@ -29,7 +29,8 @@ from dendritic_modeling.models import Classifier, ProbabilisticClassifier
 from dendritic_modeling.networks import ExcitationInhibitionNetwork, MatchedParamMLP
 from dendritic_modeling.plotting.utils import plot_activation_tuning
 from dendritic_modeling.datasets import get_unified_datasets
-from dendritic_modeling.utils import evaluate_accuracy, save_dict, set_seed
+from dendritic_modeling.training.utils.evaluation import evaluate_accuracy
+from dendritic_modeling.utils import save_dict, set_seed
 
 torch.backends.cudnn.deterministic = True
 

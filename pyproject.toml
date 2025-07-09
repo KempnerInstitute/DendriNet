@@ -19,6 +19,7 @@ dependencies = [
     "torchvision",
     "torchinfo",
     "matplotlib",
+    "seaborn",
     "wandb",
     "pandas",
     "omegaconf>=2.3.0",
@@ -73,7 +74,6 @@ train = [
     "jupyter",  # For training notebooks and analysis
     "ipykernel",  # Jupyter kernel support
     "plotly",  # Interactive plotting for analysis
-    "seaborn",  # Additional plotting capabilities
     "tensorboard",  # TensorFlow/PyTorch logging and visualization
 ]
 
