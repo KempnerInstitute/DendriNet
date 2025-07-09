@@ -3,7 +3,7 @@ Shunting Inhibition: The Core Computational Mechanism
 
 Shunting inhibition represents the fundamental computational principle underlying the Dendritic Modeling Framework. Unlike traditional neural networks that rely on simple weighted summation, our framework implements divisive normalization through the biologically-inspired shunting inhibition mechanism.
 
-.. figure:: ../../figures/architecture/professional_shunting_inhibition_diagram.svg
+.. figure:: ../../figures/architecture/shunting_inhibition_diagram.svg
    :align: center
    :width: 90%
    :alt: Professional Shunting Inhibition Diagram
@@ -13,18 +13,21 @@ Shunting inhibition represents the fundamental computational principle underlyin
 Mathematical Foundation
 ----------------------
 
-The core mathematical operation in shunting inhibition is divisive normalization:
+The core mathematical operation in shunting inhibition is sequential dendritic processing:
 
 .. math::
 
-   V_{out} = \frac{\sum_{i} E_i}{\sum_{i} E_i + \sum_{j} I_j + \epsilon}
+   V_{d_i} = \frac{E_i + D_{i+1}}{E_i + D_{i+1} + I_i + \epsilon}
 
 where:
 
-- :math:`E_i` represents the i-th excitatory input
-- :math:`I_j` represents the j-th inhibitory input  
+- :math:`E_i` represents excitatory inputs to dendrite i
+- :math:`I_i` represents inhibitory inputs to dendrite i
+- :math:`D_{i+1}` represents the output from the previous dendrite (dendrite i+1)
 - :math:`\epsilon` is a small positive constant preventing division by zero
-- :math:`V_{out} \in [0, 1]` is the normalized output
+- :math:`V_{d_i} \in [0, 1]` is the normalized output of dendrite i
+
+This creates a sequential processing chain: dendrite_n → dendrite_{n-1} → ... → dendrite_1 → soma.
 
 Properties of Shunting Inhibition
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -70,24 +73,31 @@ The Dendritic Modeling Framework implements shunting inhibition at multiple leve
 Dendritic Level
 ~~~~~~~~~~~~~~
 
-Each dendritic branch performs local shunting inhibition computation:
+Each dendritic layer performs sequential shunting inhibition computation:
 
 .. code-block:: python
 
-   class DendriticBranch(nn.Module):
-       def __init__(self, input_dim, epsilon=1e-6):
+   class DendriticBranchLayer(nn.Module):
+       def __init__(self, output_dim, excitatory_input_dim, inhibitory_input_dim, epsilon=1e-6):
            super().__init__()
-           self.excitatory_weights = nn.Parameter(torch.randn(input_dim))
-           self.inhibitory_weights = nn.Parameter(torch.randn(input_dim))
+           self.excitatory_weights = nn.Parameter(torch.randn(excitatory_input_dim, output_dim))
+           self.inhibitory_weights = nn.Parameter(torch.randn(inhibitory_input_dim, output_dim))
            self.epsilon = epsilon
            
-       def forward(self, x):
-           # Compute excitatory and inhibitory activations
+       def forward(self, x, inhibitory_input=None, branch_input=None):
+           # Compute excitatory activation
            E = torch.matmul(x, self.excitatory_weights)
-           I = torch.matmul(x, self.inhibitory_weights)
            
-           # Apply shunting inhibition
-           output = E / (E + I + self.epsilon)
+           # Compute inhibitory activation
+           I = torch.matmul(inhibitory_input, self.inhibitory_weights) if inhibitory_input is not None else 0
+           
+           # Include previous dendrite output
+           D_prev = branch_input if branch_input is not None else 0
+           
+           # Apply shunting inhibition: E/(E+I+D_prev+ε)
+           numerator = E + D_prev
+           denominator = E + D_prev + I + self.epsilon
+           output = numerator / denominator
            return output
 
 Network Level
