@@ -19,11 +19,12 @@ from unittest.mock import Mock, patch, MagicMock
 from dendritic_modeling.analysis import (
     PerformanceAnalyzer,
     AblationAnalyzer,
-    EIInformationAnalyzer,
-    BranchInformationAnalyzer,
-    SynapticActivationAnalyzer,
+    InformationAnalyzer,
     BranchActivationAnalyzer,
     AnalysisManager
+)
+from dendritic_modeling.analysis.tools import (
+    SynapticActivationAnalyzer
 )
 from dendritic_modeling.networks import ExcitationInhibitionNetwork
 from dendritic_modeling.models import ProbabilisticClassifier
@@ -160,12 +161,14 @@ class TestAblationAnalyzer(unittest.TestCase):
             self.assertIsInstance(results, dict)
 
 
-class TestEIInformationAnalyzer(unittest.TestCase):
-    """Test the EI Information Analyzer class."""
+class TestInformationAnalyzer(unittest.TestCase):
+    """Test the Information Analyzer class."""
     
     def setUp(self):
         """Set up test fixtures."""
-        self.analyzer = EIInformationAnalyzer(device="cpu")
+        from dendritic_modeling.config import InformationAnalysisParams
+        params = InformationAnalysisParams()
+        self.analyzer = InformationAnalyzer(params)
         
         # Create test model
         self.model = ProbabilisticClassifier(
@@ -188,7 +191,7 @@ class TestEIInformationAnalyzer(unittest.TestCase):
     
     def test_analyzer_initialization(self):
         """Test analyzer initialization."""
-        self.assertIsInstance(self.analyzer, EIInformationAnalyzer)
+        self.assertIsInstance(self.analyzer, InformationAnalyzer)
     
     def test_mutual_information_analysis(self):
         """Test mutual information computation."""
@@ -197,56 +200,15 @@ class TestEIInformationAnalyzer(unittest.TestCase):
             with patch.object(self.analyzer, '_compute_mutual_information') as mock_mi:
                 mock_mi.return_value = 0.5
                 
-                results = self.analyzer.analyze_ei_information(
+                results = self.analyzer.analyze(
                     model=self.model,
-                    test_data=self.test_data,
+                    test_dataset=self.test_data,
+                    device="cpu",
                     save_path=tmpdir
                 )
                 
                 self.assertIsInstance(results, dict)
 
-
-class TestBranchInformationAnalyzer(unittest.TestCase):
-    """Test the Branch Information Analyzer class."""
-    
-    def setUp(self):
-        """Set up test fixtures."""
-        self.analyzer = BranchInformationAnalyzer(device="cpu")
-        
-        # Create test model
-        self.model = ProbabilisticClassifier(
-            net=ExcitationInhibitionNetwork(
-                input_dim=8,
-                excitatory_layer_sizes=[4],
-                inhibitory_layer_sizes=[4],
-                excitatory_branch_factors=[2],
-                inhibitory_branch_factors=[2],
-                output_dim=2
-            ),
-            output_dim=2
-        )
-        
-        # Create test data
-        self.test_data = torch.utils.data.TensorDataset(
-            torch.randn(30, 8),
-            torch.randint(0, 2, (30,))
-        )
-    
-    def test_analyzer_initialization(self):
-        """Test analyzer initialization."""
-        self.assertIsInstance(self.analyzer, BranchInformationAnalyzer)
-    
-    def test_branch_information_analysis(self):
-        """Test branch information analysis."""
-        with tempfile.TemporaryDirectory() as tmpdir:
-            # Create mock data for branch analysis
-            results = self.analyzer.analyze_branch_information(
-                model=self.model,
-                test_data=self.test_data,
-                save_path=tmpdir
-            )
-            
-            self.assertIsInstance(results, dict)
 
 
 class TestActivationAnalyzers(unittest.TestCase):
