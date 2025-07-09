@@ -31,9 +31,9 @@ from dendritic_modeling.datasets import (
     OrthoNetDataset,
     RandomFlipMNISTDataset,
     PoissonGeneratorDataset,
-    get_data_directory,
-    split_MNIST_inputs
+    get_data_directory
 )
+from dendritic_modeling.plotting.utils import split_MNIST_inputs
 
 
 class TestSyntheticDatasets(unittest.TestCase):
@@ -282,13 +282,17 @@ class TestDatasetUtilities(unittest.TestCase):
         
         input_list = split_MNIST_inputs(inputs, labels)
         
-        # Check that we got the right number of classes
-        self.assertEqual(len(input_list), 3)
+        # Check that we got the right number of classes (function returns 10 for all digits 0-9)
+        self.assertEqual(len(input_list), 10)
         
-        # Check shapes
+        # Check shapes for the classes we actually have data for
         self.assertEqual(input_list[0].shape, (30, 784))  # Class 0
         self.assertEqual(input_list[1].shape, (40, 784))  # Class 1
         self.assertEqual(input_list[2].shape, (30, 784))  # Class 2
+        
+        # Check that classes without data have empty tensors
+        for i in range(3, 10):
+            self.assertEqual(input_list[i].shape[0], 0)  # Empty for classes 3-9
 
 
 class TestGetUnifiedDatasets(unittest.TestCase):

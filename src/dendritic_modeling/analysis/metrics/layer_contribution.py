@@ -17,14 +17,14 @@ from dendritic_modeling.networks import (
     DendriticBranchLayer
 )
 from dendritic_modeling.config import SingleLayerContributionAnalysisParams
-from dendritic_modeling.utils import (
+from dendritic_modeling.training.utils.evaluation import (
     evaluate_accuracy,
     evaluate_auc,
     evaluate_categorical_loglikelihood,
     evaluate_mse,
     evaluate_cosine_similarity,
-    save_dict
 )
+from dendritic_modeling.utils import save_dict
 
 
 class SingleLayerContributionAnalyzer:

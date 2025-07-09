@@ -2,7 +2,7 @@ import unittest
 
 import torch
 
-from dendritic_modeling.dendrinet import BlockLinear
+from dendritic_modeling.networks import BlockLinear
 
 
 class TestBlockLinear(unittest.TestCase):

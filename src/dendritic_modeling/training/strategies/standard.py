@@ -17,7 +17,6 @@ from torch.nn.utils import clip_grad_value_
 from torch.utils.data import DataLoader
 
 from dendritic_modeling.training.loss.functions import get_loss_function
-from dendritic_modeling.analysis import AnalysisManager
 from dendritic_modeling.models import BaseModel
 from dendritic_modeling.plotting import plot_loss_curves
 from dendritic_modeling.training.loss.functions import LossFunction
@@ -40,7 +39,7 @@ class Trainer:
         save_path: Optional[str] = None,
         suppress_prints=False,
         print_every=10,
-        analysis_manager: Optional[AnalysisManager] = None,
+        analysis_manager: Optional[object] = None,
         **kwargs,
     ):
         self.optimizer = optimizer
@@ -256,10 +255,13 @@ class Trainer:
     
     def _analyze(self):
         if self.analysis_manager is not None:
-            self.analysis_manager.run_analysis(
-                filename=f"epoch{self.epoch_counter}", 
-                training=True
-            )
+            # Conditional import to avoid circular dependency
+            from dendritic_modeling.analysis import AnalysisManager
+            if isinstance(self.analysis_manager, AnalysisManager):
+                self.analysis_manager.run_analysis(
+                    filename=f"epoch{self.epoch_counter}", 
+                    training=True
+                )
     
     def _tracking(
         self,
