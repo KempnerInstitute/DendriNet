@@ -7,22 +7,23 @@ model performance by testing each layer in isolation and measuring its individua
 
 import logging
 from copy import deepcopy
-from typing import Optional, Callable
+from typing import Callable, Optional
+
 import torch
 from torch.utils.data import TensorDataset
 
+from dendritic_modeling.config import SingleLayerContributionAnalysisParams
 from dendritic_modeling.models import BaseModel
 from dendritic_modeling.networks import (
+    DendriticBranchLayer,
     ExcitationInhibitionNetwork,
-    DendriticBranchLayer
 )
-from dendritic_modeling.config import SingleLayerContributionAnalysisParams
 from dendritic_modeling.training.utils.evaluation import (
     evaluate_accuracy,
     evaluate_auc,
     evaluate_categorical_loglikelihood,
-    evaluate_mse,
     evaluate_cosine_similarity,
+    evaluate_mse,
 )
 from dendritic_modeling.utils import save_dict
 
@@ -57,7 +58,7 @@ class SingleLayerContributionAnalyzer:
     ):
         results_dict[contribution_type][module_name] = {}
         results_dict[contribution_type][module_name]["depth"] = module.layer_idx
-    
+
         for mod, name in model.named_modules():
             if isinstance(mod, DendriticBranchLayer):
                 if (
@@ -67,12 +68,12 @@ class SingleLayerContributionAnalyzer:
                 ):
                     mod.branch_excitation.pre_w.data.fill_(-1000)
                     mod.branch_inhibition.pre_w.data.fill_(-1000)
-        
+
         if contribution_type == "excitation":
             module.branch_inhibition.pre_w.data.fill_(-1000)
         if contribution_type == "inhibition":
             module.branch_excitation.pre_w.data.fill_(-1000)
-        
+
         def _evaluate_metric(metric_func: Callable, metric_key: str):
             metric_score = metric_func(
                 model, test_ds=test_dataset, move_device=False
@@ -104,10 +105,10 @@ class SingleLayerContributionAnalyzer:
                 metric_func=evaluate_cosine_similarity,
                 metric_key="cosine similarity"
             )
-        
+
         model.load_state_dict(state_dict)
-        
-        return results_dict        
+
+        return results_dict
 
     def analyze(
         self,
@@ -137,7 +138,7 @@ class SingleLayerContributionAnalyzer:
         test_dataset = TensorDataset(inputs, labels)
 
         state_dict = deepcopy(model.state_dict())
-        
+
         results = {}
         if self.excitation_contribution:
             results["excitation"] = {}
@@ -145,8 +146,8 @@ class SingleLayerContributionAnalyzer:
             results["inhibition"] = {}
         if self.both_contribution:
             results["both"] = {}
-        
-        for name, module in model.named_modules():
+
+        for _name, module in model.named_modules():
             if (
                 isinstance(module, DendriticBranchLayer)
                 and module.branch_excitation is not None
@@ -162,7 +163,7 @@ class SingleLayerContributionAnalyzer:
                         results_dict=results,
                         state_dict=state_dict
                     )
-                
+
                 if self.excitation_contribution:
                     results = self.evaluate_layer_contribution(
                         model=model,
@@ -184,7 +185,7 @@ class SingleLayerContributionAnalyzer:
                         results_dict=results,
                         state_dict=state_dict
                     )
-        
+
         if save_path is not None:
             save_dict(results, save_path, filename)
         else:

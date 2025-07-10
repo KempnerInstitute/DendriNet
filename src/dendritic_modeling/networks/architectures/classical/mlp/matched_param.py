@@ -7,10 +7,12 @@ at least as many parameters as an equivalent EINet configuration.
 
 import torch
 from torch import nn
-import torchinfo
 
-from dendritic_modeling.networks.architectures.excitation_inhibition import ExcitationInhibitionNetwork
 from dendritic_modeling.networks.activations.factory import ActivationFactory
+from dendritic_modeling.networks.architectures.excitation_inhibition import (
+    ExcitationInhibitionNetwork,
+)
+
 
 class MatchedParamMLP(nn.Module):
     """
@@ -29,13 +31,15 @@ class MatchedParamMLP(nn.Module):
         ee_synapses_per_branch_per_layer,
         ei_synapses_per_branch_per_layer,
         ie_synapses_per_branch_per_layer,
-        ii_synapses_per_branch_per_layer=[],
+        ii_synapses_per_branch_per_layer=None,
         reactivate=False,
         somatic_synapses=True,
         activation: str = "relu",
         **kwargs  # Accept but ignore other EINet parameters
     ):
-        super(MatchedParamMLP, self).__init__()
+        if ii_synapses_per_branch_per_layer is None:
+            ii_synapses_per_branch_per_layer = []
+        super().__init__()
 
         # Create EINet to get parameter count and number of layers
         einet = ExcitationInhibitionNetwork(
@@ -53,7 +57,7 @@ class MatchedParamMLP(nn.Module):
             **kwargs,
         )
 
-        summary = torchinfo.summary(einet, verbose=0)
+        # summary = torchinfo.summary(einet, verbose=0)  # Summary for debugging
         target_params = summary.trainable_params
 
         # Get number of branch layers
@@ -107,7 +111,7 @@ class MatchedParamMLP(nn.Module):
             nn.init.xavier_normal_(fc_linear.weight)
             nn.init.zeros_(fc_linear.bias)
         layers.extend([
-            fc_linear, 
+            fc_linear,
             activation_factory.create(
                 act_type=activation,
                 output_dim=hidden_width
@@ -124,7 +128,7 @@ class MatchedParamMLP(nn.Module):
                 nn.init.xavier_normal_(fc_linear.weight)
                 nn.init.zeros_(fc_linear.bias)
             layers.extend([
-                fc_linear, 
+                fc_linear,
                 activation_factory.create(
                     act_type=activation,
                     output_dim=hidden_width
@@ -138,5 +142,4 @@ class MatchedParamMLP(nn.Module):
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         return self.hidden(x)
 
-
-__all__ = ["MatchedParamMLP"] 
+__all__ = ["MatchedParamMLP"]

@@ -4,93 +4,88 @@ Configuration module for dendritic modeling.
 This module contains configuration dataclasses and utilities.
 """
 
-from dendritic_modeling.config.base import BaseConfig
-
-from dendritic_modeling.config.model import (
-    TransferFunctionParams,
-    EINetParameters,
-    CoreNetworkConfig,
-    EncoderNetworkParameters,
-    EncoderNetworkConfig,
-    DecoderNetworkConfig,
-    ModelConfig
-)
-
-from dendritic_modeling.config.training import (
-    ParamGroupsConfig,
-    TrainerConfig,
-    EncoderTrainConfig,
-    MainTrainConfig,
-    TrainConfig
-)
-
 from dendritic_modeling.config.analysis import (
-    PerformanceAnalysisParams,
-    PerformanceAnalysisConfig,
-    InformationAnalysisParams,
-    InformationAnalysisConfig,
-    SynapseTurnoverAnalysisConfig,
-    NoisePerturbationAnalysisParams,
-    NoisePerturbationAnalysisConfig,
-    AblationAnalysisParams,
     AblationAnalysisConfig,
-    WeightAnalysisParams,
-    WeightAnalysisConfig,
-    SynapticActivationAnalysisParams,
-    SynapticActivationAnalysisConfig,
-    BranchActivationAnalysisParams,
+    AblationAnalysisParams,
+    AnalysisConfig,
     BranchActivationAnalysisConfig,
-    SingleLayerContributionAnalysisParams,
+    BranchActivationAnalysisParams,
+    InformationAnalysisConfig,
+    InformationAnalysisParams,
+    NoisePerturbationAnalysisConfig,
+    NoisePerturbationAnalysisParams,
+    PerformanceAnalysisConfig,
+    PerformanceAnalysisParams,
     SingleLayerContributionAnalysisConfig,
-    AnalysisConfig
+    SingleLayerContributionAnalysisParams,
+    SynapseTurnoverAnalysisConfig,
+    SynapticActivationAnalysisConfig,
+    SynapticActivationAnalysisParams,
+    WeightAnalysisConfig,
+    WeightAnalysisParams,
 )
-
+from dendritic_modeling.config.base import BaseConfig
 from dendritic_modeling.config.config import (
+    Config,
+    OutputsConfig,
+    TaskConfig,
     VisualizationConfig,
     WandbConfig,
-    TaskConfig,
-    OutputsConfig,
-    Config,
-    load_config
+    load_config,
+)
+from dendritic_modeling.config.model import (
+    CoreNetworkConfig,
+    DecoderNetworkConfig,
+    EINetParameters,
+    EncoderNetworkConfig,
+    EncoderNetworkParameters,
+    ModelConfig,
+    TransferFunctionParams,
+)
+from dendritic_modeling.config.training import (
+    EncoderTrainConfig,
+    MainTrainConfig,
+    ParamGroupsConfig,
+    TrainConfig,
+    TrainerConfig,
 )
 
 __all__ = [
-    "BaseConfig",
-    "EINetParameters",
-    "CoreNetworkConfig",
-    "EncoderNetworkParameters",
-    "EncoderNetworkConfig",
-    "DecoderNetworkConfig",
-    "TransferFunctionParams",
-    "ModelConfig",
-
-    "TrainerConfig",
-    "TrainConfig",
-    "ParamGroupsConfig",
-    "EncoderTrainConfig",
-    "MainTrainConfig",
-    "VisualizationConfig",
-    "WandbConfig",
-    "TaskConfig",
-    "OutputsConfig",
-    "PerformanceAnalysisParams",
-    "PerformanceAnalysisConfig",
-    "InformationAnalysisParams",
-    "InformationAnalysisConfig",
-    "SynapseTurnoverAnalysisConfig",
-    "NoisePerturbationAnalysisParams",
-    "NoisePerturbationAnalysisConfig",
-    "AblationAnalysisParams",
-    "AblationAnalysisConfig",
-    "WeightAnalysisParams",
-    "WeightAnalysisConfig",
-    "SynapticActivationAnalysisParams",
-    "SynapticActivationAnalysisConfig",
-    "BranchActivationAnalysisParams",
-    "BranchActivationAnalysisConfig",
-    "SingleLayerContributionAnalysisParams",
-    "SingleLayerContributionAnalysisConfig",
-    "AnalysisConfig",
-    "Config",
+    "AblationAnalysisConfig"
+    "AblationAnalysisParams"
+    "AnalysisConfig"
+    "BaseConfig"
+    "BranchActivationAnalysisConfig"
+    "BranchActivationAnalysisParams"
+    "Config"
+    "CoreNetworkConfig"
+    "DecoderNetworkConfig"
+    "EINetParameters"
+    "EncoderNetworkConfig"
+    "EncoderNetworkParameters"
+    "EncoderTrainConfig"
+    "InformationAnalysisConfig"
+    "InformationAnalysisParams"
     "load_config"
+    "MainTrainConfig"
+    "ModelConfig"
+    "NoisePerturbationAnalysisConfig"
+    "NoisePerturbationAnalysisParams"
+    "OutputsConfig"
+    "ParamGroupsConfig"
+    "PerformanceAnalysisConfig"
+    "PerformanceAnalysisParams"
+    "SingleLayerContributionAnalysisConfig"
+    "SingleLayerContributionAnalysisParams"
+    "SynapseTurnoverAnalysisConfig"
+    "SynapticActivationAnalysisConfig"
+    "SynapticActivationAnalysisParams"
+    "TaskConfig"
+    "TrainConfig"
+    "TrainerConfig"
+    "TransferFunctionParams"
+    "VisualizationConfig"
+    "WandbConfig"
+    "WeightAnalysisConfig"
+    "WeightAnalysisParams"
 ]

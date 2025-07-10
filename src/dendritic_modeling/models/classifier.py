@@ -4,9 +4,10 @@ Standard classification models.
 This module contains standard classifiers using cross-entropy loss.
 """
 
+from typing import Optional
+
 import torch
 import torch.nn as nn
-from typing import Optional
 
 from dendritic_modeling.models.base import BaseModel
 from dendritic_modeling.networks.base import BaseNetwork
@@ -24,7 +25,7 @@ class Classifier(BaseModel):
         core_network: BaseNetwork,
         decoder_network: Optional[BaseNetwork]
     ):
-        super(Classifier, self).__init__(
+        super().__init__(
             encoder_network,
             core_network,
             decoder_network
@@ -34,9 +35,9 @@ class Classifier(BaseModel):
             self.log_output_scale = nn.Parameter(
                 torch.zeros((self.core_network.output_dim,)), requires_grad=True
             )
-        
+
         self.final = nn.LogSoftmax(dim=-1)
-        
+
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         x = super().forward(x)
 
@@ -50,6 +51,5 @@ class Classifier(BaseModel):
         with torch.no_grad():
             logits = self.forward(x)
             return logits.argmax(dim=-1)
-
 
 __all__ = ["Classifier"]

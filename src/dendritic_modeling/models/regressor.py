@@ -22,12 +22,12 @@ class Regressor(BaseModel):
         core_network: BaseNetwork,
         decoder_network: Optional[BaseNetwork]
     ):
-        super(Regressor, self).__init__(
+        super().__init__(
             encoder_network,
             core_network,
             decoder_network
         )
-    
+
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         return super().forward(x)
 
@@ -35,5 +35,4 @@ class Regressor(BaseModel):
         with torch.no_grad():
             return self.forward(x)
 
-
-__all__ = ["Regressor"] 
+__all__ = ["Regressor"]

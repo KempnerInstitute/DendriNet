@@ -1,31 +1,30 @@
 import unittest
+from typing import Optional
 
 import torch
-from torch.distributions import Categorical, Normal
 import torch.nn as nn
+from torch.distributions import Categorical, Normal
 
-from dendritic_modeling.models import Classifier
 from dendritic_modeling.models.base import BaseModel
 
 
 # Mock probabilistic classes for testing
 class ProbabilisticModel(BaseModel):
     """Mock probabilistic model for testing."""
-    
+
     def __init__(self):
         super().__init__(nn.Identity(), nn.Identity(), nn.Identity())
-    
+
     def log_prob(self, x: torch.Tensor, y: torch.Tensor) -> torch.Tensor:
         raise NotImplementedError("Subclasses must implement log_prob method.")
 
-
 class ProbabilisticClassifier(ProbabilisticModel):
     """Mock probabilistic classifier for testing."""
-    
+
     def forward(self, x):
         # Return a categorical distribution
         return Categorical(logits=torch.randn(x.size(0), 2))
-    
+
     def predict(self, x: torch.Tensor, stochastic: bool = False) -> torch.Tensor:
         with torch.no_grad():
             dist = self.forward(x)
@@ -34,14 +33,13 @@ class ProbabilisticClassifier(ProbabilisticModel):
             else:
                 return dist.logits.argmax(dim=-1)
 
-
 class ProbabilisticRegressor(ProbabilisticModel):
     """Mock probabilistic regressor for testing."""
-    
+
     def forward(self, x):
         mean = x.mean(dim=-1, keepdim=True)
         return Normal(loc=mean, scale=torch.ones_like(mean))
-    
+
     def predict(self, x: torch.Tensor, stochastic: bool = False) -> torch.Tensor:
         with torch.no_grad():
             dist = self.forward(x)
@@ -50,10 +48,9 @@ class ProbabilisticRegressor(ProbabilisticModel):
             else:
                 return dist.mean
 
-
 class EINetClassifier(ProbabilisticClassifier):
     """Mock EINet classifier for testing."""
-    
+
     def __init__(
         self,
         input_dim: int,
@@ -61,10 +58,10 @@ class EINetClassifier(ProbabilisticClassifier):
         inhibitory_layer_sizes: list,
         excitatory_branch_factors: list,
         inhibitory_branch_factors: list,
-        ee_synapses_per_branch_per_layer: list = None,
-        ei_synapses_per_branch_per_layer: list = None,
-        ie_synapses_per_branch_per_layer: list = None,
-        ii_synapses_per_branch_per_layer: list = None,
+        ee_synapses_per_branch_per_layer: Optional[list] = None,
+        ei_synapses_per_branch_per_layer: Optional[list] = None,
+        ie_synapses_per_branch_per_layer: Optional[list] = None,
+        ii_synapses_per_branch_per_layer: Optional[list] = None,
         reactivate: bool = True,
         somatic_synapses: bool = True,
         **kwargs
@@ -72,7 +69,6 @@ class EINetClassifier(ProbabilisticClassifier):
         super().__init__()
         self.input_dim = input_dim
         self.output_dim = excitatory_layer_sizes[-1] if excitatory_layer_sizes else 10
-
 
 class ProbabilisticModelTest(unittest.TestCase):
     def setUp(self):
@@ -84,7 +80,6 @@ class ProbabilisticModelTest(unittest.TestCase):
         # test that the method raises a NotImplementedError
         with self.assertRaises(NotImplementedError):
             self.model.log_prob(x, y)
-
 
 class ProbabilisticClassifierTest(unittest.TestCase):
     def setUp(self):
@@ -102,7 +97,6 @@ class ProbabilisticClassifierTest(unittest.TestCase):
         self.assertEqual(preds.shape, (5,))
         self.assertTrue(((preds == 0) | (preds == 1)).all())
 
-
 class ProbabilisticRegressorTest(unittest.TestCase):
     def setUp(self):
         self.model = ProbabilisticRegressor()
@@ -116,7 +110,6 @@ class ProbabilisticRegressorTest(unittest.TestCase):
         x = torch.randn(5, 10)
         preds = self.model.predict(x, stochastic=True)
         self.assertEqual(preds.shape, (5, 1))
-
 
 class EINetClassifierTest(unittest.TestCase):
     def setUp(self):
