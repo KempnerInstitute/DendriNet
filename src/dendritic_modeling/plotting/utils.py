@@ -422,6 +422,10 @@ def split_MNIST_inputs(inputs, labels):
     Returns:
         List of input tensors, one for each digit class
     """
+    # Handle empty input case
+    if len(inputs) == 0:
+        return []
+    
     input_list = []
     for digit in range(10):
         digit_mask = (labels == digit)

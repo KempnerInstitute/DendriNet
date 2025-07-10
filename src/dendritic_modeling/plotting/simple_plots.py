@@ -13,18 +13,26 @@ import torch
 from mpl_toolkits.axes_grid1 import make_axes_locatable
 
 
-def plotWithColor(data, title: str = "") -> None:
+def plotWithColor(data, title: str = "", ax=None, **kwargs):
     """
     Plot an image with a scale color bar.
     
     Args:
         data: Data to plot (tensor or array)
         title: Plot title
+        ax: Matplotlib axes to plot on (optional)
+        **kwargs: Additional keyword arguments (for compatibility)
+        
+    Returns:
+        The image object created by imshow
     """
     if torch.is_tensor(data):
         data = data.cpu().numpy()
+    
+    created_subplot = ax is None
+    if ax is None:
+        ax = plt.subplot()
         
-    ax = plt.subplot()
     im = ax.imshow(data)
     divider = make_axes_locatable(ax)
     cax = divider.append_axes("right", size="5%", pad=0.05)
@@ -32,18 +40,21 @@ def plotWithColor(data, title: str = "") -> None:
     plt.colorbar(im, cax=cax)
 
     if len(title) > 0:
-        plt.title(title)
+        ax.set_title(title)
 
-    plt.show()
+    if created_subplot:  # Only show if we created the subplot
+        plt.show()
+        
+    return im
 
 
 def add_colorbars(
     fig,
     ax_iterable,
     im_iterable,
-    position: str,
-    size: str,
-    pad: float,
+    position: str = "right",
+    size: str = "5%",
+    pad: float = 0.05,
 ) -> None:
     """
     Add colorbars to multiple axes.
