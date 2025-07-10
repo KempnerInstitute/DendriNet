@@ -12,7 +12,7 @@ import logging
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from enum import Enum
-from typing import Any, Optional, Union
+from typing import Any, Optional, Union, Dict, ClassVar
 
 import numpy as np
 from sklearn.feature_selection import mutual_info_classif, mutual_info_regression
@@ -348,7 +348,7 @@ class CopulaEstimator(BaseInformationEstimator):
 class InformationEstimatorFactory:
     """Factory for creating information estimators based on configuration."""
 
-    _estimators = {
+    _estimators: ClassVar[Dict[EstimationMethod, type]] = {
         EstimationMethod.KRASKOV: KraskovEstimator,
         EstimationMethod.SKLEARN: SklearnEstimator,
         EstimationMethod.COPULA: CopulaEstimator,
