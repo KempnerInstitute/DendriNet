@@ -1,7 +1,6 @@
 import unittest
 
 import torch
-import torch.nn as nn
 
 from dendritic_modeling.networks import BlockLinear, DendriticBranchLayer, TopKLinear
 
@@ -136,7 +135,6 @@ class TestDendriticBranchLayer(unittest.TestCase):
         self.assertEqual(
             pruned_weights[1].shape, (self.output_dim, self.inhibitory_input_dim)
         )
-
 
 if __name__ == "__main__":
     unittest.main()

@@ -5,18 +5,21 @@ This module implements the base InputNetTransform class that maps
 raw inputs to excitatory and inhibitory pathways.
 """
 
+import logging
+from typing import Optional
+
 import torch
 import torch.nn as nn
-from typing import Optional, List, Tuple
-import logging
 
-from dendritic_modeling.networks.architectures.excitation_inhibition.input_transform.index import IndexInputTransform
+from dendritic_modeling.networks.architectures.excitation_inhibition.input_transform.index import (
+    IndexInputTransform,
+)
+
 # from dendritic_modeling.networks.architectures.classical.mlp.mlp import MLPInputTransform
 # from dendritic_modeling.networks.architectures.classical.cnn.cnn import CNNInputTransform
 # from dendritic_modeling.networks.architectures.classical.cnn.alexnet import AlexNetInputTransform
 
 logger = logging.getLogger(__name__)
-
 
 class InputNetTransform(nn.Module):
     """
@@ -26,20 +29,20 @@ class InputNetTransform(nn.Module):
     """
 
     def __init__(
-        self, 
-        input_dim: Optional[int] = None, 
-        hidden_dims: Optional[List[int]] = None, 
+        self,
+        input_dim: Optional[int] = None,
+        hidden_dims: Optional[list[int]] = None,
         independent_heads: bool = False,
-        excitatory_dim: Optional[int] = None, 
-        inhibitory_dim: Optional[int] = None, 
+        excitatory_dim: Optional[int] = None,
+        inhibitory_dim: Optional[int] = None,
         output_dim: Optional[int] = None,
-        input_shape: Optional[Tuple[int, int, int]] = None,
-        excitatory_hidden_dims: Optional[List[int]] = None,
-        inhibitory_hidden_dims: Optional[List[int]] = None,
-        excitatory_kernel_sizes: Optional[List[int]] = None,
-        inhibitory_kernel_sizes: Optional[List[int]] = None,
-        excitatory_strides: Optional[List[int]] = None,
-        inhibitory_strides: Optional[List[int]] = None,
+        input_shape: Optional[tuple[int, int, int]] = None,
+        excitatory_hidden_dims: Optional[list[int]] = None,
+        inhibitory_hidden_dims: Optional[list[int]] = None,
+        excitatory_kernel_sizes: Optional[list[int]] = None,
+        inhibitory_kernel_sizes: Optional[list[int]] = None,
+        excitatory_strides: Optional[list[int]] = None,
+        inhibitory_strides: Optional[list[int]] = None,
         network_type: str = "MLPInputTransform",
     ):
         super().__init__()
@@ -59,7 +62,7 @@ class InputNetTransform(nn.Module):
                 excitatory_dim=excitatory_dim,
                 inhibitory_dim=inhibitory_dim,
             )
-        
+
         elif network_type == "FeatureExtractorMLP":
             from ..mlp import FeatureExtractorMLP
             self.input_transform = FeatureExtractorMLP(
@@ -134,5 +137,4 @@ class InputNetTransform(nn.Module):
         else:
             raise ValueError(f"Unknown source: {source}")
 
-
-__all__ = ["InputNetTransform"] 
+__all__ = ["InputNetTransform"]

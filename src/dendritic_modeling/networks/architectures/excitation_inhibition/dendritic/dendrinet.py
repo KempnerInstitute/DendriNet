@@ -5,11 +5,14 @@ This module implements the DendriNet and DendriNetWithOutputs classes
 which generate linear layers of neurons with sequential dendritic branches.
 """
 
-import torch
-import torch.nn as nn
 from copy import deepcopy
 
-from dendritic_modeling.networks.architectures.excitation_inhibition.dendritic.branch_layer import DendriticBranchLayer
+import torch
+import torch.nn as nn
+
+from dendritic_modeling.networks.architectures.excitation_inhibition.dendritic.branch_layer import (
+    DendriticBranchLayer,
+)
 
 
 class DendriNet(nn.Module):
@@ -59,7 +62,7 @@ class DendriNet(nn.Module):
         weight_threshold=1e-6,
         **kwargs,
     ):
-        super(DendriNet, self).__init__()
+        super().__init__()
 
         if not isinstance(n_soma, int):
             raise TypeError("n_soma must be an integer")
@@ -222,7 +225,7 @@ class DendriNet(nn.Module):
         self.input_inhibitory = inhibitory_input_dim is not None
         self.n_soma = n_soma
         self.somatic_synapses = somatic_synapses
-    
+
     def apply_rewiring(self):
         for layer in self.branch_layers:
             layer.apply_rewiring()
@@ -287,5 +290,4 @@ class DendriNet(nn.Module):
             exc_total = self.sum_weights(pruned=pruned)
             return (exc_total + 1e-8).log()
 
-
-__all__ = ["DendriNet"] 
+__all__ = ["DendriNet"]

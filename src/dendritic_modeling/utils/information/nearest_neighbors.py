@@ -69,7 +69,6 @@ def compute_mi_cc(x: np.ndarray, y: np.ndarray, n_neighbors: int) -> float:
 
     return max(0, mi)
 
-
 def compute_mi_cd(c: np.ndarray, d: np.ndarray, n_neighbors: int) -> float:
     """Compute mutual information between continuous and discrete variables.
 
@@ -150,8 +149,7 @@ def compute_mi_cd(c: np.ndarray, d: np.ndarray, n_neighbors: int) -> float:
 
     return max(0, mi)
 
-
-def compute_EI_MI(
+def compute_ei_mi(
     excitation: np.ndarray,
     inhibition: np.ndarray,
     mi_E_I: bool = False,
@@ -211,7 +209,6 @@ def compute_EI_MI(
 
     return mi_dict
 
-
 def compute_pairwise_sr(
     x: np.ndarray,
     y: np.ndarray,
@@ -250,7 +247,6 @@ def compute_pairwise_sr(
     synergy = max(0.0, mi_xy - mi_x - mi_y)
     return synergy, redundancy, mi_xy, mi_x, mi_y
 
-
 def compute_pairwise_sr_with_mi(
     x: np.ndarray,
     y: np.ndarray,
@@ -258,7 +254,6 @@ def compute_pairwise_sr_with_mi(
     n_neighbors: int = 10,
 ):
     return compute_pairwise_sr(x, y, target, n_neighbors)
-
 
 def build_sr_matrix(sources: np.ndarray, target: np.ndarray, n_neighbors: int = 10):
     """Build pairwise synergy and redundancy matrices.
@@ -291,7 +286,6 @@ def build_sr_matrix(sources: np.ndarray, target: np.ndarray, n_neighbors: int = 
             redundancy_matrix[i, j] = redundancy_matrix[j, i] = red
 
     return synergy_matrix, redundancy_matrix
-
 
 def compute_synaptic_information(
     exc_weights: np.ndarray,

@@ -11,29 +11,31 @@ import os
 import traceback
 
 from dendritic_modeling.plotting.analysis import plot_einet_activations
-from dendritic_modeling.plotting.network import plot_dendrinet_gradients, plot_einet_params
-from dendritic_modeling.plotting.utils import split_MNIST_inputs
+from dendritic_modeling.plotting.network import (
+    plot_dendrinet_gradients,
+    plot_einet_params,
+)
+
 # from dendritic_modeling.analysis.branch_interactive import InteractiveBranchAnalyzer
 # from dendritic_modeling.analysis.dendrite_comprehensive import ComprehensiveDendriticAnalyzer
 
 logger = logging.getLogger(__name__)
 
-
 class PlotManager:
     """
     Refactored plot manager for dendritic model analysis and visualization.
-    
+
     This class provides a unified interface for all visualization and analysis
     functions, while delegating actual implementation to organized modules.
     Maintains backward compatibility with the original monolithic PlotManager.
-    
+
     Args:
         model: The trained dendritic network model
         data: Dictionary containing 'train', 'valid', 'test' datasets
         args: Configuration arguments
         device: Device to run analysis on
     """
-    
+
     def __init__(self, model, data, args, device="cpu"):
         self.model = model
         self.data = data
@@ -41,18 +43,18 @@ class PlotManager:
         self.device = device
         self.save_path = args.save_path
         self.file_name = getattr(args, 'file_name', None)
-        
+
         os.makedirs(self.save_path, exist_ok=True)
         logging.basicConfig(
             filename=os.path.join(self.save_path, "visualization.log"),
             level=logging.INFO,
             format="%(asctime)s - %(levelname)s - %(message)s",
         )
-        
+
         # Initialize specialized analyzers
         # self.branch_analyzer = InteractiveBranchAnalyzer(device=device)
         # self.dendritic_analyzer = ComprehensiveDendriticAnalyzer(device=device)
-        
+
         # Define available plot methods
         self.plot_methods = {
             "weights": self._plot_weights,
@@ -73,7 +75,7 @@ class PlotManager:
     def run_plot(self, plot_name, epoch=None):
         """
         Execute a specific analysis or visualization.
-        
+
         Args:
             plot_name: Name of the analysis/plot to run
             epoch: Optional epoch number for logging
@@ -82,7 +84,7 @@ class PlotManager:
             logging.info(f"At epoch {epoch}: generating plot '{plot_name}'...")
         else:
             logging.info(f"Generating plot '{plot_name}'...")
-            
+
         func = self.plot_methods.get(plot_name, None)
         if func is not None:
             self.current_plot = plot_name
@@ -114,7 +116,7 @@ class PlotManager:
         if hasattr(self.model, "net"):
             save_dir = os.path.join(self.save_path, "param_visuals")
             os.makedirs(save_dir, exist_ok=True)
-            
+
             save_path = os.path.join(save_dir, f"{self.file_name}_params.png" if self.file_name else "params.png")
             plot_einet_params(
                 model=self.model.net,
@@ -130,10 +132,10 @@ class PlotManager:
         if hasattr(self.model, "net"):
             save_dir = os.path.join(self.save_path, "activation_visuals")
             os.makedirs(save_dir, exist_ok=True)
-            
+
             train_input, train_label = self.data["train"][:]
-            input_list = split_MNIST_inputs(train_input, train_label)
-            
+            input_list = split_mnist_inputs(train_input, train_label)
+
             plot_einet_activations(
                 einet=self.model.net,
                 input_list=input_list,
@@ -149,7 +151,7 @@ class PlotManager:
         if hasattr(self.model, "net"):
             save_dir = os.path.join(self.save_path, "grad_visuals")
             os.makedirs(save_dir, exist_ok=True)
-            
+
             save_path = os.path.join(save_dir, f"{self.file_name}_gradients.png" if self.file_name else "gradients.png")
             plot_dendrinet_gradients(
                 model=self.model,
@@ -222,6 +224,5 @@ class PlotManager:
             data=self.data,
             save_path=save_dir
         )
-
 
 __all__ = ["PlotManager"]

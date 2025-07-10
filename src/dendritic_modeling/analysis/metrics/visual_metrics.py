@@ -7,24 +7,22 @@ They operate on *numpy arrays* or *PyTorch tensors*; tensors are detached
 and moved to CPU automatically.
 """
 
-from typing import Sequence
+from collections.abc import Sequence
 
 import numpy as np
 import torch
 
 __all__ = [
-    "orientation_selectivity_index",
-    "direction_selectivity_index",
-    "size_tuning_index",
-    "length_selectivity_index",
+    "direction_selectivity_index"
+    "length_selectivity_index"
+    "orientation_selectivity_index"
+    "size_tuning_index"
 ]
-
 
 def _to_numpy(x):
     if isinstance(x, torch.Tensor):
         return x.detach().cpu().numpy()
     return np.asarray(x)
-
 
 def orientation_selectivity_index(responses: Sequence[float], orientations: Sequence[float]) -> float:
     """Classic OSI = (R_pref - R_orth) / (R_pref + R_orth).
@@ -45,7 +43,6 @@ def orientation_selectivity_index(responses: Sequence[float], orientations: Sequ
     idx_orth = int(np.argmin(np.abs(((orientations - orth_angle + np.pi) % np.pi) - np.pi / 2)))
     return float((r[idx_pref] - r[idx_orth]) / (r[idx_pref] + r[idx_orth] + 1e-9))
 
-
 def direction_selectivity_index(responses: Sequence[float], directions: Sequence[float]) -> float:
     """DSI = (R_pref - R_null) / (R_pref + R_null)."""
     r = _to_numpy(responses).ravel()
@@ -55,7 +52,6 @@ def direction_selectivity_index(responses: Sequence[float], directions: Sequence
     idx_null = int(np.argmin(np.abs((directions - null_angle) % (2 * np.pi))))
     return float((r[idx_pref] - r[idx_null]) / (r[idx_pref] + r[idx_null] + 1e-9))
 
-
 def size_tuning_index(responses: Sequence[float]) -> float:
     """Suppression index for centre–surround size tuning.
 
@@ -64,8 +60,7 @@ def size_tuning_index(responses: Sequence[float]) -> float:
     responses = _to_numpy(responses).ravel()
     return float(1.0 - responses[-1] / (responses.max() + 1e-9))
 
-
 def length_selectivity_index(responses: Sequence[float]) -> float:
     """LSI = (R_pref - R_long) / (R_pref + R_long)."""
     responses = _to_numpy(responses).ravel()
-    return float((responses.max() - responses[-1]) / (responses.max() + responses[-1] + 1e-9)) 
+    return float((responses.max() - responses[-1]) / (responses.max() + responses[-1] + 1e-9))

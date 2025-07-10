@@ -5,42 +5,44 @@ This module contains classes for evaluating model robustness under various noise
 including uniform and Gaussian noise perturbations.
 """
 
-from typing import Optional, Callable
+from typing import Callable, Optional
+
 import torch
 from torch.utils.data import TensorDataset
+
+from dendritic_modeling.config import NoisePerturbationAnalysisParams
+from dendritic_modeling.datasets.augmentation.noise import (
+    add_gaussian_noise,
+    add_uniform_noise,
+)
 from dendritic_modeling.models import BaseModel
 from dendritic_modeling.training.utils.evaluation import (
     evaluate_accuracy,
     evaluate_auc,
     evaluate_categorical_loglikelihood,
-    evaluate_mse,
     evaluate_cosine_similarity,
-)
-from dendritic_modeling.datasets.augmentation.noise import (
-    add_gaussian_noise,
-    add_uniform_noise,
+    evaluate_mse,
 )
 from dendritic_modeling.utils import save_dict
-from dendritic_modeling.config import NoisePerturbationAnalysisParams
 
 
 class NoisePerturbationAnalyzer:
     """
     Analyzer for evaluating model robustness under noise perturbations.
-    
+
     Supports uniform and Gaussian noise at various magnitudes, evaluating
     accuracy and categorical log-likelihood on perturbed test data.
     """
-    
+
     def __init__(self, params: NoisePerturbationAnalysisParams):
         """
         Initialize the noise perturbation analyzer.
-        
+
         Args:
             uniform_noise: Whether to evaluate uniform noise robustness
-            uniform_magnitudes: List of uniform noise magnitudes to test
+            uniform_magnitudes: list of uniform noise magnitudes to test
             gaussian_noise: Whether to evaluate Gaussian noise robustness
-            gaussian_sdevs: List of Gaussian noise standard deviations to test
+            gaussian_sdevs: list of Gaussian noise standard deviations to test
             n_samples: Number of noise samples to generate per test point
             accuracy: Whether to compute accuracy on noisy data
             categorical_loglikelihood: Whether to compute categorical log-likelihood on noisy data
@@ -66,14 +68,14 @@ class NoisePerturbationAnalyzer:
     ):
         """
         Analyze model robustness under noise perturbations.
-        
+
         Args:
             model: The model to evaluate
             test_dataset: Test dataset to perturb with noise
             device: Device to run evaluation on
             save_path: Path to save results (optional)
             filename: Filename for saved results
-            
+
         Returns:
             Dictionary containing noise robustness results if save_path is None, otherwise None
         """
@@ -198,4 +200,4 @@ class NoisePerturbationAnalyzer:
         if save_path is not None:
             save_dict(noise_results, save_path, filename)
         else:
-            return noise_results 
+            return noise_results

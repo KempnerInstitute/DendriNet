@@ -9,86 +9,83 @@ architectures, activations, and input transforms.
 from dendritic_modeling.networks.activations import (
     ActivationFactory,
     ParametricActivation,
-    ParametricTanh,
-    ParametricTanhOnlyM,
     ParametricLinearSigmoid,
     ParametricLinearTanh,
-    ParametricLinearTanhTransition
+    ParametricLinearTanhTransition,
+    ParametricTanh,
+    ParametricTanhOnlyM,
 )
-
 from dendritic_modeling.networks.architectures import (
-    Identity,
-    AlexNet,
-    CNNUpsample,
-    CNNDownsample,
     MLP,
-    MatchedParamMLP,
+    AlexNet,
+    BlockLinear,
+    CNNDownsample,
+    CNNUpsample,
+    DeepstLinear,
+    DendriNet,
+    DendriticBranchLayer,
     ExcitationInhibitionLayer,
     ExcitationInhibitionNetwork,
+    GradientScaler,
+    Identity,
     IdentityInputTransform,
     IndexInputTransform,
-    TransferLayer,
-    TopKLinear,
+    MatchedParamMLP,
     StochasticTopKLinear,
+    TopKLinear,
+    TransferLayer,
     VarianceTopKLinear,
-    DeepstLinear,
-    BlockLinear,
-    DendriticBranchLayer,
-    DendriNet,
-    GradientScaler,
-    initialize_dendritic_branch_layer
+    initialize_dendritic_branch_layer,
 )
-
-from dendritic_modeling.networks.input_network import (
-    InputNetTransform,
-    SigmoidOutputNetwork
-)
-
-from dendritic_modeling.networks.base import BaseNetwork
 from dendritic_modeling.networks.architectures.classical.autoencoder.base import (
     BaseAutoencoder,
+    CNNAutoencoder,
     MLPAutoencoder,
-    CNNAutoencoder
 )
 from dendritic_modeling.networks.architectures.classical.autoencoder.vae import (
+    CNNVariationalAutoencoder,
     MLPVariationalAutoencoder,
-    CNNVariationalAutoencoder
+)
+from dendritic_modeling.networks.base import BaseNetwork
+from dendritic_modeling.networks.input_network import (
+    InputNetTransform,
+    SigmoidOutputNetwork,
 )
 
 __all__ = [
-    "ActivationFactory",
-    "ParametricActivation",
-    "ParametricTanh",
-    "ParametricTanhOnlyM",
-    "ParametricLinearSigmoid",
-    "ParametricLinearTanh",
-    "ParametricLinearTanhTransition",
-    "BaseNetwork",
-    "Identity",
-    "AlexNet",
-    "CNNUpsample",
-    "CNNDownsample",
-    "MLP",
-    "MatchedParamMLP",
-    "ExcitationInhibitionLayer",
-    "ExcitationInhibitionNetwork",
-    "IdentityInputTransform",
-    "IndexInputTransform",
-    "TransferLayer",
-    "TopKLinear",
-    "StochasticTopKLinear",
-    "VarianceTopKLinear",
-    "DeepstLinear",
-    "BlockLinear",
-    "DendriticBranchLayer",
-    "DendriNet",
-    "GradientScaler",
-    "initialize_dendritic_branch_layer",
-    "BaseAutoencoder",
-    "MLPAutoencoder",
-    "CNNAutoencoder",
-    "MLPVariationalAutoencoder",
-    "CNNVariationalAutoencoder",
-    "InputNetTransform",
+    "ActivationFactory"
+    "AlexNet"
+    "BaseAutoencoder"
+    "BaseNetwork"
+    "BlockLinear"
+    "CNNAutoencoder"
+    "CNNDownsample"
+    "CNNUpsample"
+    "CNNVariationalAutoencoder"
+    "DeepstLinear"
+    "DendriNet"
+    "DendriticBranchLayer"
+    "ExcitationInhibitionLayer"
+    "ExcitationInhibitionNetwork"
+    "GradientScaler"
+    "Identity"
+    "IdentityInputTransform"
+    "IndexInputTransform"
+    "initialize_dendritic_branch_layer"
+    "InputNetTransform"
+    "MatchedParamMLP"
+    "MLP"
+    "MLPAutoencoder"
+    "MLPVariationalAutoencoder"
+    "ParametricActivation"
+    "ParametricLinearSigmoid"
+    "ParametricLinearTanh"
+    "ParametricLinearTanhTransition"
+    "ParametricTanh"
+    "ParametricTanhOnlyM"
     "SigmoidOutputNetwork"
+    "StochasticTopKLinear"
+    "TopKLinear"
+    "TransferLayer"
+    "VarianceTopKLinear"
 ]

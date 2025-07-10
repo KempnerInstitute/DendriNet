@@ -1,6 +1,7 @@
 # synthetic_datasets.py
 
 import os
+from typing import Optional
 
 import numpy as np
 import torch
@@ -12,7 +13,6 @@ from torchvision.datasets import MNIST
 # Original tasks: line, center_surround, orientation_bars, multi_xor, plus standard MNIST
 ########################################
 
-
 # Create a centralized function to get or create a data directory
 def get_data_directory(data_type, custom_path=None, output_dir=None, task_data_path=None, outputs_dir=None):
     """
@@ -20,7 +20,7 @@ def get_data_directory(data_type, custom_path=None, output_dir=None, task_data_p
 
     Priority order:
     1. task_data_path (from task.data_path config)
-    2. outputs_dir (from outputs.dir config)  
+    2. outputs_dir (from outputs.dir config)
     3. custom_path (legacy parameter)
     4. output_dir (legacy parameter)
     5. Default 'data' directory
@@ -38,7 +38,7 @@ def get_data_directory(data_type, custom_path=None, output_dir=None, task_data_p
     # Priority 1: task.data_path
     if task_data_path and task_data_path.strip():
         data_path = os.path.join(task_data_path, "datasets", data_type)
-    # Priority 2: outputs.dir  
+    # Priority 2: outputs.dir
     elif outputs_dir and outputs_dir.strip():
         data_path = os.path.join(outputs_dir, "datasets", data_type)
     # Priority 3: custom_path (legacy)
@@ -55,7 +55,6 @@ def get_data_directory(data_type, custom_path=None, output_dir=None, task_data_p
     os.makedirs(data_path, exist_ok=True)
 
     return data_path
-
 
 class LineDataset(Dataset):
     def __init__(self, n_samples=10000, image_size=10):
@@ -84,7 +83,6 @@ class LineDataset(Dataset):
 
     def __getitem__(self, idx):
         return self.data[idx], self.labels[idx]
-
 
 class CenterSurroundDataset(Dataset):
     def __init__(self, n_samples=10000, image_size=15):
@@ -132,7 +130,6 @@ class CenterSurroundDataset(Dataset):
     def __getitem__(self, idx):
         return self.data[idx], self.labels[idx]
 
-
 class OrientationBarsDataset(Dataset):
     def __init__(self, n_samples=10000, image_size=16, n_orient_classes=8):
         super().__init__()
@@ -164,7 +161,6 @@ class OrientationBarsDataset(Dataset):
     def __getitem__(self, idx):
         return self.data[idx], self.labels[idx]
 
-
 class MultiXORDataset(Dataset):
     def __init__(self, n_samples=10000, n_bits=8):
         super().__init__()
@@ -188,7 +184,6 @@ class MultiXORDataset(Dataset):
 
     def __getitem__(self, idx):
         return self.data[idx], self.labels[idx]
-
 
 def load_mnist_as_datasets(
     train_valid_split=0.8,
@@ -261,10 +256,9 @@ def load_mnist_as_datasets(
 
     return train_ds, valid_ds, test_ds
 
-
-def load_MNIST_modulo10(
-    shuffle_iterations=2, 
-    train_valid_split=1, 
+def load_mnist_modulo10(
+    shuffle_iterations=2,
+    train_valid_split=1,
     flatten=False,
     normalize=False,
     cache_dir=None,
@@ -273,9 +267,9 @@ def load_MNIST_modulo10(
     outputs_dir=None
 ):
     train_ds, valid_ds, test_ds = load_mnist_as_datasets(
-        train_valid_split=train_valid_split, 
-        flatten=flatten, 
-        normalize=normalize, 
+        train_valid_split=train_valid_split,
+        flatten=flatten,
+        normalize=normalize,
         data_path=cache_dir,  # Legacy parameter
         output_dir=output_dir,  # Legacy parameter
         task_data_path=task_data_path,
@@ -313,7 +307,6 @@ def load_MNIST_modulo10(
 
     return data
 
-
 class InfoShuntingDataset(Dataset):
     """
     half = Gaussian, half = Uniform; label=0 or 1
@@ -344,7 +337,6 @@ class InfoShuntingDataset(Dataset):
 
     def __getitem__(self, idx):
         return self.data[idx], self.labels[idx]
-
 
 class NoisyLineDataset(Dataset):
     """
@@ -381,7 +373,6 @@ class NoisyLineDataset(Dataset):
     def __getitem__(self, idx):
         return self.data[idx], self.labels[idx]
 
-
 class SparseMNISTDataset(Dataset):
     """
     binarize MNIST
@@ -400,7 +391,6 @@ class SparseMNISTDataset(Dataset):
         arr = np.array(img, dtype=np.float32) / 255.0
         bin_arr = (arr > self.threshold).astype(np.float32)
         return torch.tensor(bin_arr.flatten(), dtype=torch.float32), label
-
 
 class ContextualFigureGroundMNIST(Dataset):
     """
@@ -423,7 +413,6 @@ class ContextualFigureGroundMNIST(Dataset):
         boundary = w // 2
         new_img[:, boundary:] = img_arr[:, boundary:]
         return torch.tensor(new_img.flatten(), dtype=torch.float32), label
-
 
 class MultiTaskLineDataset(Dataset):
     """
@@ -472,7 +461,6 @@ class MultiTaskLineDataset(Dataset):
     def __getitem__(self, idx):
         return self.data[idx], self.labels[idx]
 
-
 class CompositionalMNIST(Dataset):
     """
     merges two MNIST digits horizontally => label = digit1*10+digit2
@@ -508,7 +496,6 @@ class CompositionalMNIST(Dataset):
     def __getitem__(self, idx):
         return self.data[idx], self.labels[idx]
 
-
 def load_cifar10_as_datasets(
     train_valid_split=1.0,
     flatten=False,
@@ -533,7 +520,7 @@ def load_cifar10_as_datasets(
     if normalize:
         tf_list.append(transforms.Normalize(
             (0.4914, 0.4822, 0.4465), (0.2470, 0.2435, 0.2616)))
-    
+
     transform = transforms.Compose(tf_list)
 
     cifar_dir = get_data_directory("cifar", data_path, output_dir, task_data_path, outputs_dir)
@@ -582,13 +569,11 @@ def load_cifar10_as_datasets(
 
     return train_ds, valid_ds, test_ds
 
-
 ########################################
 # The single get_unified_datasets(...) function
 ########################################
 
-
-def applyRandomFlip(images, labels, setAll=False, setValue=0):
+def apply_random_flip(images, labels, setAll=False, setValue=0):
     """
     This function modifies images and labels in-place to flip the label
     or shift it. The 'first 3 pixels' logic sets a code:
@@ -641,10 +626,9 @@ def applyRandomFlip(images, labels, setAll=False, setValue=0):
 
         return images_flip, labels_flip, randFlips
 
-
 class RandomFlipMNISTDataset(Dataset):
     """
-    Loads standard MNIST and applies the applyRandomFlip() transform
+    Loads standard MNIST and applies the apply_random_flip() transform
     to each sample in __getitem__ if random_flip=True.
     This modifies the first 3 pixels and possibly flips/shifts the label.
     """
@@ -712,17 +696,16 @@ class RandomFlipMNISTDataset(Dataset):
 
         if self.random_flip:
             if self.setAll is not None:
-                x, y, _ = applyRandomFlip(
+                x, y, _ = apply_random_flip(
                     x.unsqueeze(0), y.unsqueeze(0), setAll=True, setValue=self.setAll
                 )
                 x = x.squeeze(0)
                 y = y.squeeze(0)
             else:
-                x, y, _ = applyRandomFlip(x.unsqueeze(0), y.unsqueeze(0), setAll=False)
+                x, y, _ = apply_random_flip(x.unsqueeze(0), y.unsqueeze(0), setAll=False)
                 x = x.squeeze(0)
                 y = y.squeeze(0)
         return x, y
-
 
 class PoissonGeneratorDataset(Dataset):
     def __init__(
@@ -737,7 +720,7 @@ class PoissonGeneratorDataset(Dataset):
 
     def __len__(self):
         return len(self.base_inputs)
-    
+
     def __getitem__(self, idx):
         input = self.base_inputs[idx]
         label = self.base_labels[idx]
@@ -746,16 +729,15 @@ class PoissonGeneratorDataset(Dataset):
         noisy_input = noisy_scaled_input / self.rate_multiplier
         return noisy_input, label
 
-
 def load_poisson_generator_datasets(
     base_dataset: str,
     rate_multiplier: float = 1,
     train_valid_split: float = 0.8,
     flatten: bool = False,
-    data_path: str = None,
-    output_dir: str = None,
-    task_data_path: str = None,
-    outputs_dir: str = None
+    data_path: Optional[str] = None,
+    output_dir: Optional[str] = None,
+    task_data_path: Optional[str] = None,
+    outputs_dir: Optional[str] = None
 ):
     """
     Generate a dataset of Poisson-distributed samples from a base dataset.
@@ -781,7 +763,7 @@ def load_poisson_generator_datasets(
             output_dir=output_dir,  # Legacy parameter
             task_data_path=task_data_path,
             outputs_dir=outputs_dir
-        )    
+        )
     elif base_dataset == "cifar10":
         train_ds, valid_ds, test_ds = load_cifar10_as_datasets(
             train_valid_split=train_valid_split,
@@ -794,13 +776,12 @@ def load_poisson_generator_datasets(
         )
     else:
         raise ValueError(f"Unknown base dataset: {base_dataset}")
-    
+
     train_ds = PoissonGeneratorDataset(*train_ds[:], rate_multiplier=rate_multiplier)
     valid_ds = PoissonGeneratorDataset(*valid_ds[:], rate_multiplier=rate_multiplier)
     test_ds = PoissonGeneratorDataset(*test_ds[:], rate_multiplier=rate_multiplier)
 
     return train_ds, valid_ds, test_ds
-
 
 class OrthoNet(torch.nn.Module):
     """ Orthogonal sigmoid network (Invertible network) """
@@ -820,18 +801,16 @@ class OrthoNet(torch.nn.Module):
         else:
             raise ValueError(f"Invalid nonlinearity: {nonlinearity}")
 
-
     def forward(self,x):
         for i in range(self.nb_layer):
             Q = getattr(self,f'Q_{i}')
             x = self.nonlinearity(x @ Q)
         return x
-    
+
     def rand_ortho(self,d):
         """ Generate a random orthogonal matrix of dimension d """
         Q, R = torch.linalg.qr(torch.randn(d,d))
         return Q
-    
 
 class OrthoNetRepeat(torch.nn.Module):
     """ Orthogonal sigmoid network with repeated layer weights plus noise """
@@ -841,7 +820,7 @@ class OrthoNetRepeat(torch.nn.Module):
         # Generate the first layer's orthogonal matrix
         base_Q = self.rand_ortho(d)
         self.register_buffer('Q_0', base_Q)
-        
+
         # Create subsequent layers by adding noise to the first layer
         for i in range(1, nb_layers):
             noise = torch.randn_like(base_Q) * noise_std
@@ -849,7 +828,7 @@ class OrthoNetRepeat(torch.nn.Module):
             # Re-orthogonalize the matrix
             Q, R = torch.linalg.qr(noisy_Q)
             self.register_buffer(f'Q_{i}', Q)
-            
+
         self.nb_layer = nb_layers
         if nonlinearity is None:
             self.nonlinearity = torch.tanh
@@ -865,19 +844,19 @@ class OrthoNetRepeat(torch.nn.Module):
             Q = getattr(self, f'Q_{i}')
             x = self.nonlinearity(x @ Q)
         return x
-    
+
     def rand_ortho(self, d):
         """ Generate a random orthogonal matrix of dimension d """
         Q, R = torch.linalg.qr(torch.randn(d, d))
         return Q
-    
+
 class OrthoNetDataset(Dataset):
     """
     Dataset that generates data using invertible nonlinear transformations.
     Input data is uniformly random in [-1,1]^d, transformed through an OrthoNet network.
     Labels are the original inputs, making this an inverse problem dataset.
     """
-    def __init__(self, n_samples=10000, input_dim=10, n_layers=5, nonlinearity='sigmoid', 
+    def __init__(self, n_samples=10000, input_dim=10, n_layers=5, nonlinearity='sigmoid',
                  positive_input=True, seed=None, repeat_layers=False, noise_std=0.1):
         super().__init__()
         self.n_samples = n_samples
@@ -891,7 +870,7 @@ class OrthoNetDataset(Dataset):
 
         if seed is not None:
             self.set_seed(seed)
-            
+
         self.data, self.labels = self._generate_data()
 
     def set_seed(self, seed):
@@ -908,17 +887,17 @@ class OrthoNetDataset(Dataset):
             X = torch.rand(self.n_samples, self.input_dim)
         else:
             X = 2 * torch.rand(self.n_samples, self.input_dim) - 1
-        
+
         # Create and apply transformation
         if self.repeat_layers:
-            F = OrthoNetRepeat(self.input_dim, self.n_layers, 
+            F = OrthoNetRepeat(self.input_dim, self.n_layers,
                              self.nonlinearity, self.noise_std)
         else:
             F = OrthoNet(self.input_dim, self.n_layers, self.nonlinearity)
-            
+
         with torch.no_grad():
             Y = F(X)
-        
+
         return Y, X
 
     def __len__(self):
@@ -929,14 +908,13 @@ class OrthoNetDataset(Dataset):
         #     return self.data[idx], self.labels[idx]
         return self.data[idx], self.labels[idx]
 
-
 def get_unified_datasets(task_cfg, train_cfg, output_dir=None, outputs_cfg=None):
     """
     Get datasets based on configuration.
 
     Args:
         task_cfg: Task configuration
-        train_cfg: Training configuration  
+        train_cfg: Training configuration
         output_dir: Output directory from config to store datasets (legacy)
         outputs_cfg: Outputs configuration containing dir
 
@@ -961,12 +939,12 @@ def get_unified_datasets(task_cfg, train_cfg, output_dir=None, outputs_cfg=None)
     # If task_data_path is empty string, set it to None
     if task_data_path == "":
         task_data_path = None
-        
+
     # If outputs_dir is empty string, set it to None
     if outputs_dir == "":
         outputs_dir = None
 
-    # Legacy fallback: If both task_data_path and outputs_dir are None, and output_dir is not provided, 
+    # Legacy fallback: If both task_data_path and outputs_dir are None, and output_dir is not provided,
     # use the outputs directory in project root instead of current working directory
     if task_data_path is None and outputs_dir is None and output_dir is None:
         project_root = os.path.dirname(
@@ -1004,7 +982,7 @@ def get_unified_datasets(task_cfg, train_cfg, output_dir=None, outputs_cfg=None)
         return random_split(full_ds, [train_size, valid_size, test_size])
     elif dataset_name == "mnist":
         train_ds, valid_ds, test_ds = load_mnist_as_datasets(
-            train_valid_split=train_valid_split, 
+            train_valid_split=train_valid_split,
             flatten=flatten,
             normalize=normalize,
             data_path=None,  # Legacy parameter
@@ -1030,8 +1008,8 @@ def get_unified_datasets(task_cfg, train_cfg, output_dir=None, outputs_cfg=None)
         )
         return train_dataset, valid_dataset, test_dataset
     elif dataset_name == "mnist_modulo10":
-        data = load_MNIST_modulo10(
-            train_valid_split=train_valid_split, 
+        data = load_mnist_modulo10(
+            train_valid_split=train_valid_split,
             flatten=flatten,
             normalize=normalize,
             cache_dir=None,  # Legacy parameter
@@ -1066,7 +1044,7 @@ def get_unified_datasets(task_cfg, train_cfg, output_dir=None, outputs_cfg=None)
         else:
             temp_data_path = os.path.join("data", "mnist")
         os.makedirs(temp_data_path, exist_ok=True)
-        
+
         base_mnist = MNIST(root=temp_data_path, train=True, download=True)
         full_ds = SparseMNISTDataset(base_mnist, threshold=0.3)
         return random_split(full_ds, [train_size, valid_size, test_size])
@@ -1082,7 +1060,7 @@ def get_unified_datasets(task_cfg, train_cfg, output_dir=None, outputs_cfg=None)
         else:
             temp_data_path = os.path.join("data", "mnist")
         os.makedirs(temp_data_path, exist_ok=True)
-        
+
         base_mnist = MNIST(root=temp_data_path, train=True, download=True)
         full_ds = ContextualFigureGroundMNIST(base_mnist, noise_level=0.1)
         return random_split(full_ds, [train_size, valid_size, test_size])
@@ -1101,13 +1079,13 @@ def get_unified_datasets(task_cfg, train_cfg, output_dir=None, outputs_cfg=None)
         else:
             temp_data_path = os.path.join("data", "mnist")
         os.makedirs(temp_data_path, exist_ok=True)
-        
+
         base_mnist = MNIST(root=temp_data_path, train=True, download=True)
         full_ds = CompositionalMNIST(base_mnist, n_samples=total)
         return random_split(full_ds, [train_size, valid_size, test_size])
     elif dataset_name == "cifar10":
         return load_cifar10_as_datasets(
-            train_valid_split=train_valid_split, 
+            train_valid_split=train_valid_split,
             flatten=flatten,
             normalize=normalize,
             data_path=None,  # Legacy parameter
@@ -1135,22 +1113,24 @@ def get_unified_datasets(task_cfg, train_cfg, output_dir=None, outputs_cfg=None)
         noise_std = p.get('noise_std', 0.1)
         seed = getattr(train_cfg, 'seed', 0)
         full_ds = OrthoNetDataset(
-            n_samples=total, 
-            input_dim=input_dim, 
-            n_layers=n_layers, 
-            nonlinearity=nonlinearity, 
+            n_samples=total,
+            input_dim=input_dim,
+            n_layers=n_layers,
+            nonlinearity=nonlinearity,
             seed=seed,
             repeat_layers=repeat_layers,
             noise_std=noise_std
         )
         return random_split(full_ds, [train_size, valid_size, test_size])
     elif dataset_name == "synthetic_correlated":
-        from dendritic_modeling.datasets.synthetic_correlated import SyntheticCorrelatedDataset
+        from dendritic_modeling.datasets.synthetic_correlated import (
+            SyntheticCorrelatedDataset,
+        )
         input_dim = p.get('input_dim', 300)
         correlation_range = (p.get('corr_min', -0.1), p.get('corr_max', 0.1))
         mean_magnitude = p.get('mean_magnitude', 0.5)
         seed = getattr(train_cfg, 'seed', 0)
-        
+
         train_ds = SyntheticCorrelatedDataset(
             n_samples=train_size // 2,  # Per class
             input_dim=input_dim,

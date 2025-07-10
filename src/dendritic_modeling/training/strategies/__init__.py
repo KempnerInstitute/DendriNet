@@ -5,26 +5,27 @@ This module contains various training strategies and algorithms
 for dendritic network models.
 """
 
-from dendritic_modeling.training.strategies.standard import Trainer
-from dendritic_modeling.training.strategies.local_learning import LocalCreditAssignment
-from dendritic_modeling.training.strategies.two_step import TwoStepTrainer, TwoStepTrainerWithKL
 from dendritic_modeling.training.strategies.layerwise import LayerWiseTrainer
+from dendritic_modeling.training.strategies.local_learning import LocalCreditAssignment
 from dendritic_modeling.training.strategies.specialized import (
-    VoltageStabilizationTrainer, 
-    TrainOnlyMReactivation
+    TrainOnlyMReactivation,
+    VoltageStabilizationTrainer,
+)
+from dendritic_modeling.training.strategies.standard import Trainer
+from dendritic_modeling.training.strategies.two_step import (
+    TwoStepTrainer,
+    TwoStepTrainerWithKL,
 )
 
 __all__ = [
-    # Base classes and utilities
-    "Trainer", 
-    
+    "LayerWiseTrainer"
     # Main training strategies
-    "LocalCreditAssignment",
-    "TwoStepTrainer",
-    "TwoStepTrainerWithKL",
-    "LayerWiseTrainer",
-    
+    "LocalCreditAssignment"
+    # Base classes and utilities
+    "Trainer"
+    "TrainOnlyMReactivation"
+    "TwoStepTrainer"
+    "TwoStepTrainerWithKL"
     # Specialized training strategies
-    "VoltageStabilizationTrainer",
-    "TrainOnlyMReactivation",
-] 
+    "VoltageStabilizationTrainer"
+]

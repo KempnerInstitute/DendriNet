@@ -3,21 +3,21 @@ Baseline MLP models.
 
 This module contains simple MLP implementations for baseline comparisons.
 """
-from typing import List, Optional
 from copy import deepcopy
+from typing import Optional
 
 import torch
 from torch import nn
 
-from dendritic_modeling.networks.base import BaseNetwork
 from dendritic_modeling.networks.activations.factory import ActivationFactory
+from dendritic_modeling.networks.base import BaseNetwork
 
 
 class MLP(BaseNetwork):
     def __init__(
-        self, 
-        input_dim: int, 
-        hidden_dims: List[int],
+        self,
+        input_dim: int,
+        hidden_dims: list[int],
         activation: str = "relu",
         output_dim: Optional[int] = None,
         **kwargs
@@ -41,7 +41,7 @@ class MLP(BaseNetwork):
                 nn.init.xavier_normal_(fc_linear.weight)
                 nn.init.zeros_(fc_linear.bias)
             layers.append(fc_linear)
-            
+
             layers.append(
                 activation_factory.create(
                     act_type=activation,
@@ -56,8 +56,7 @@ class MLP(BaseNetwork):
 
         self.layers = nn.Sequential(*layers)
 
-    def forward(self, x: torch.Tensor) -> torch.Tensor:        
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
         return self.layers(x)
 
-
-__all__ = ["MLP"] 
+__all__ = ["MLP"]

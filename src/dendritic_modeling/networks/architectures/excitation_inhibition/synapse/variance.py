@@ -1,12 +1,15 @@
 """
 Variance-based TopK Linear Layer for Dendritic Networks.
 
-This module implements a variance-based TopK approach that tracks input 
+This module implements a variance-based TopK approach that tracks input
 activation statistics and selects weights based on input variance.
 """
 
 import torch
-from dendritic_modeling.networks.architectures.excitation_inhibition.synapse.topk import TopKLinear
+
+from dendritic_modeling.networks.architectures.excitation_inhibition.synapse.topk import (
+    TopKLinear,
+)
 
 
 class VarianceTopKLinear(TopKLinear):
@@ -146,5 +149,4 @@ class VarianceTopKLinear(TopKLinear):
         self.stats_tracking = False
         return self
 
-
-__all__ = ["VarianceTopKLinear"] 
+__all__ = ["VarianceTopKLinear"]

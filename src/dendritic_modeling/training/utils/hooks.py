@@ -6,7 +6,7 @@ the "Backward hook for Modules where no input requires gradient" error.
 """
 
 import functools
-from typing import Callable, Optional, Tuple
+from typing import Callable, Optional
 
 import torch.nn as nn
 
@@ -55,7 +55,6 @@ def safe_backward_hook(hook_fn: Callable) -> Callable:
 
     return safe_hook_fn
 
-
 def safe_register_hooks(module: nn.Module) -> None:
     """
     Recursively register safe hooks on a module and all its submodules.
@@ -100,7 +99,6 @@ def safe_register_hooks(module: nn.Module) -> None:
     for child in module.children():
         safe_register_hooks(child)
 
-
 def register_safe_hook(module: nn.Module, hook_fn: Callable) -> None:
     """
     Register a safe hook on a module
@@ -123,21 +121,19 @@ def register_safe_hook(module: nn.Module, hook_fn: Callable) -> None:
     safe_hook = safe_backward_hook(hook_fn)
     module.register_full_backward_hook(safe_hook)
 
-
-def safe_hook_fn(module: nn.Module, grad_input: Tuple, grad_output: Tuple) -> Optional[Tuple]:
+def safe_hook_fn(module: nn.Module, grad_input: tuple, grad_output: tuple) -> Optional[tuple]:
     """
     Simple safe hook function that just returns grad_input unchanged.
-    
+
     Args:
         module: The module the hook is attached to
         grad_input: Gradients with respect to inputs
         grad_output: Gradients with respect to outputs
-        
+
     Returns:
         Original grad_input unchanged
     """
     return grad_input
-
 
 class SafeHookModule(nn.Module):
     """
@@ -155,4 +151,4 @@ class SafeHookModule(nn.Module):
 
     def forward(self, *args, **kwargs):
         """Forward pass through the wrapped module."""
-        return self.module(*args, **kwargs) 
+        return self.module(*args, **kwargs)

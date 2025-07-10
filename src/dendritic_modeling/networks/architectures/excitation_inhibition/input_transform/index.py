@@ -1,23 +1,23 @@
 """
 Index-based Input Transform for neural networks.
 
-This module implements IndexInputTransform which randomly splits 
+This module implements IndexInputTransform which randomly splits
 input dimensions into excitatory and inhibitory channels.
 """
 
+import logging
+from typing import Optional
+
 import torch
 import torch.nn as nn
-import logging
-from typing import Optional, Tuple
 
 logger = logging.getLogger(__name__)
 
-
 class IndexInputTransform(nn.Module):
     def __init__(
-        self, 
-        input_dim: int, 
-        excitatory_dim: Optional[int] = None, 
+        self,
+        input_dim: int,
+        excitatory_dim: Optional[int] = None,
         inhibitory_dim: Optional[int] = None
     ):
         super().__init__()
@@ -36,7 +36,7 @@ class IndexInputTransform(nn.Module):
             excitatory_dim = int(input_dim - inhibitory_dim)
         if inhibitory_dim is None:
             inhibitory_dim = int(input_dim - excitatory_dim)
-        
+
         try:
             assert excitatory_dim + inhibitory_dim == input_dim, (
                 "error in IndexInputTransform: "
@@ -59,7 +59,7 @@ class IndexInputTransform(nn.Module):
         self.excitatory_dim = excitatory_dim
         self.inhibitory_dim = inhibitory_dim
 
-    def forward(self, x: torch.Tensor) -> Tuple[torch.Tensor, torch.Tensor]:
+    def forward(self, x: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor]:
         if x.dim() == 1:
             x = x[None, :]
 
@@ -67,5 +67,4 @@ class IndexInputTransform(nn.Module):
         inhibitory_input = x[..., self.inh_dims]
         return excitatory_input, inhibitory_input
 
-
-__all__ = ["IndexInputTransform"] 
+__all__ = ["IndexInputTransform"]
