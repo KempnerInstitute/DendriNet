@@ -1,9 +1,9 @@
 import unittest
 
 import torch
-import torch.nn as nn
 
 from dendritic_modeling.networks import BlockLinear, DendriticBranchLayer, TopKLinear
+
 
 class TestDendriticBranchLayer(unittest.TestCase):
     def setUp(self):

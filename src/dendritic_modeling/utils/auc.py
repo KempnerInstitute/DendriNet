@@ -1,5 +1,7 @@
 from typing import Optional
+
 import torch
+
 
 def _binary_roc_auc_pytorch(
     y_true: torch.Tensor,

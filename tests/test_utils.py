@@ -1,21 +1,16 @@
-import os
 import tempfile
 import unittest
 
 import torch
 import torch.nn as nn
 
-from dendritic_modeling.utils import (
-    Shaper,
-    convert_to_serializable,
-    set_seed,
-    save_dict
-)
+from dendritic_modeling.datasets import load_MNIST_modulo10
+from dendritic_modeling.plotting.utils import split_MNIST_inputs
 
 # Import functions from their actual locations
 from dendritic_modeling.training.utils.evaluation import accuracy_score
-from dendritic_modeling.plotting.utils import split_MNIST_inputs
-from dendritic_modeling.datasets import load_MNIST_modulo10
+from dendritic_modeling.utils import Shaper
+
 
 class TestShaper(unittest.TestCase):
     def test_initialization(self):

@@ -1,13 +1,13 @@
 """Noise stimulus generators for receptive field mapping."""
 
+from typing import Union
+
 import numpy as np
-from scipy import signal
-from typing import Optional, Union
 
 __all__ = [
-    "create_white_noise",
     "create_colored_noise",
     "create_sparse_dots",
+    "create_white_noise",
 ]
 
 def create_white_noise(

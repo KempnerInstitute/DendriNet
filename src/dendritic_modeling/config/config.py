@@ -6,17 +6,19 @@ This module defines the configuration dataclasses for the model, training, task,
 It loads and saves configurations using OmegaConf.
 """
 from dataclasses import dataclass, field
+
 from omegaconf import OmegaConf as om
 
-from dendritic_modeling.config.base import BaseConfig
 from dendritic_modeling.config.analysis import AnalysisConfig
+from dendritic_modeling.config.base import BaseConfig
 from dendritic_modeling.config.model import ModelConfig
 from dendritic_modeling.config.training import TrainConfig
+
 
 @dataclass
 class VisualizationConfig(BaseConfig):
     enabled: bool = False
-    visualize_epochs: list[int] = field(default_factory=lambda: [])
+    visualize_epochs: list[int] = field(default_factory=list)
     plots: list[str] = field(default_factory=lambda: ["branch_info", "ablation"])
     parameters: dict = field(default_factory=dict)
 

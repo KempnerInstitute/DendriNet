@@ -15,7 +15,7 @@ import os
 import matplotlib.pyplot as plt
 import numpy as np
 import torch
-from typing import , , Optional, Any, 
+from typing import Optional, Any
 from dendritic_modeling.plotting.base import (
     PlotConfig,
     LinePlotter,

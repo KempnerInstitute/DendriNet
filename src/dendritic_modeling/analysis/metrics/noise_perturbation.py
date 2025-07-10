@@ -5,23 +5,26 @@ This module contains classes for evaluating model robustness under various noise
 including uniform and Gaussian noise perturbations.
 """
 
-from typing import Optional, Callable
+from typing import Callable, Optional
+
 import torch
 from torch.utils.data import TensorDataset
+
+from dendritic_modeling.config import NoisePerturbationAnalysisParams
+from dendritic_modeling.datasets.augmentation.noise import (
+    add_gaussian_noise,
+    add_uniform_noise,
+)
 from dendritic_modeling.models import BaseModel
 from dendritic_modeling.training.utils.evaluation import (
     evaluate_accuracy,
     evaluate_auc,
     evaluate_categorical_loglikelihood,
-    evaluate_mse,
     evaluate_cosine_similarity,
-)
-from dendritic_modeling.datasets.augmentation.noise import (
-    add_gaussian_noise,
-    add_uniform_noise,
+    evaluate_mse,
 )
 from dendritic_modeling.utils import save_dict
-from dendritic_modeling.config import NoisePerturbationAnalysisParams
+
 
 class NoisePerturbationAnalyzer:
     """

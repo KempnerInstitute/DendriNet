@@ -1,11 +1,11 @@
 import unittest
 
 import torch
-from torch.distributions import Categorical, Normal
 import torch.nn as nn
+from torch.distributions import Categorical, Normal
 
-from dendritic_modeling.models import Classifier
 from dendritic_modeling.models.base import BaseModel
+
 
 # Mock probabilistic classes for testing
 class ProbabilisticModel(BaseModel):

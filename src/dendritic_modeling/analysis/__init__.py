@@ -25,11 +25,24 @@ Classifiers:
 """
 
 # Core analyzers
+# Classifiers
+from .classifiers import (
+    MLPClassifier,
+    analyze_layerwise_ablation,
+    evaluate_classifier,
+    get_ablated_activations,
+    get_layer_activations,
+    train_and_evaluate_classifier,
+    train_classifier,
+)
 from .core import (
     AblationAnalyzer,
     BranchActivationAnalyzer,
     InformationAnalyzer,
 )
+
+# Manager
+from .managers.analysis_manager import AnalysisManager
 
 # Metrics
 from .metrics import (
@@ -49,20 +62,6 @@ from .tools import (
     SynapticTurnoverAnalyzer,
     WeightAnalyzer,
 )
-
-# Classifiers
-from .classifiers import (
-    MLPClassifier,
-    analyze_layerwise_ablation,
-    evaluate_classifier,
-    get_ablated_activations,
-    get_layer_activations,
-    train_and_evaluate_classifier,
-    train_classifier,
-)
-
-# Manager
-from .managers.analysis_manager import AnalysisManager
 
 __all__ = [
     # Core

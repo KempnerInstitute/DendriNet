@@ -28,7 +28,7 @@ logger = logger_manager.get_logger()
 __version__ = "0.1.0"
 
 # Core imports for convenience
-from dendritic_modeling import (
+from dendritic_modeling import (  # noqa: E402
     analysis,
     config,
     datasets,

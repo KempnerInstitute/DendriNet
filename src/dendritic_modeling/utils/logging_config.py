@@ -6,8 +6,8 @@ package.
 """
 
 import logging
-import sys
 import os
+import sys
 
 LOGGER_NAME = "dendritic_modeling"
 

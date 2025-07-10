@@ -6,9 +6,14 @@ with Brownian motion-like weight evolution and dynamic rewiring.
 """
 
 import math
+
 import torch
 import torch.nn as nn
-from dendritic_modeling.networks.architectures.excitation_inhibition.synapse.topk import TOPK_INIT_METHODS
+
+from dendritic_modeling.networks.architectures.excitation_inhibition.synapse.topk import (
+    TOPK_INIT_METHODS,
+)
+
 
 class DeepstLinear(nn.Module):
     def __init__(
@@ -345,6 +350,5 @@ class DeepstLinear(nn.Module):
         Args:
             weight_decay: float, weight decay rate (default: 0.1)
         """
-        pass
 
 __all__ = ["DeepstLinear"]

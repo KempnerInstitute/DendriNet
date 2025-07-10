@@ -7,11 +7,16 @@ tracking the dynamics of active, stable, and transient synapses over time.
 
 from copy import deepcopy
 from typing import Optional
+
 import torch
+
 from dendritic_modeling.models import BaseModel
-from dendritic_modeling.networks import ExcitationInhibitionNetwork
-from dendritic_modeling.networks import DendriticBranchLayer
+from dendritic_modeling.networks import (
+    DendriticBranchLayer,
+    ExcitationInhibitionNetwork,
+)
 from dendritic_modeling.utils import save_dict
+
 
 class SynapticTurnoverAnalyzer:
     """

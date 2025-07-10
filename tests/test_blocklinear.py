@@ -4,6 +4,7 @@ import torch
 
 from dendritic_modeling.networks import BlockLinear
 
+
 class TestBlockLinear(unittest.TestCase):
     def test_basic_functionality(self):
         """Test the basic functionality with standard input data."""

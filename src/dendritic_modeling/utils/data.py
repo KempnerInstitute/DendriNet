@@ -9,8 +9,7 @@ and basic data transformations.
 import json
 import os
 import random
-from typing import Any, 
-
+from typing import Any
 import numpy as np
 import torch
 from omegaconf import DictConfig, ListConfig

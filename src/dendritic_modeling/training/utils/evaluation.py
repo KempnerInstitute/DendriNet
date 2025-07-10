@@ -6,7 +6,7 @@ This module contains utility functions for evaluating model performance
 using various metrics including accuracy, log-likelihood, and MSE.
 """
 
-from typing import Optional, Union, 
+from typing import Optional, Union 
 import torch
 from torch.distributions import Categorical
 import torch.nn.functional as F

@@ -5,13 +5,14 @@ This module implements AlexNetInputTransform which uses a pre-trained AlexNet
 to transform inputs into excitatory and inhibitory pathways.
 """
 
+from typing import Optional
+
 import torch
 from torch import nn
 from torchvision import models
 
-from typing import Optional
-
 from dendritic_modeling.networks.base import BaseNetwork
+
 
 class AlexNet(BaseNetwork):
 

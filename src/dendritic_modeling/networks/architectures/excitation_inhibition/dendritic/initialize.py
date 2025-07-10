@@ -4,6 +4,7 @@ import torch
 from scipy.stats import norm
 from torch.nn.init import _no_grad_normal_
 
+
 def compute_expectation_truncated_log_normal(
     mean,
     std,

@@ -4,12 +4,13 @@ Plotting utility functions.
 This module contains utility functions for visualization including CSV export and tree visualization.
 """
 
-import os
 import csv
+import logging
+import os
+
 import matplotlib.pyplot as plt
 import numpy as np
 import torch
-import logging
 
 try:
     import networkx as nx
@@ -21,6 +22,7 @@ except ImportError:
     nx = None
 
 from dendritic_modeling.plotting.analysis import einet_activations_todict
+
 
 def reverse_layer_indices(layer_indices: list[int]) -> list[int]:
     """

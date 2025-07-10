@@ -8,11 +8,11 @@ This script provides a unified interface for running tests with various configur
 - Integration with CI/CD pipelines
 """
 
-import sys
-import os
-import unittest
 import argparse
+import os
 import subprocess
+import sys
+import unittest
 from pathlib import Path
 
 # Add the src directory to the path for imports
@@ -229,7 +229,7 @@ def print_test_summary(result):
     skipped = len(result.skipped) if hasattr(result, 'skipped') else 0
 
     print(f"\n{'='*60}")
-    print(f"TEST SUMMARY")
+    print("TEST SUMMARY")
     print(f"{'='*60}")
     print(f"Total tests run: {total_tests}")
     print(f"Successes: {total_tests - failures - errors - skipped}")
@@ -242,7 +242,7 @@ def print_test_summary(result):
     if errors > 0:
         print(f"\n{errors} test(s) had errors")
     if failures == 0 and errors == 0:
-        print(f"\nAll tests passed!")
+        print("\nAll tests passed!")
 
 def main():
     """Main test runner function."""

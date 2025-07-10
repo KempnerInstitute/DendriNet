@@ -4,12 +4,14 @@ Standard classification models.
 This module contains standard classifiers using cross-entropy loss.
 """
 
+from typing import Optional
+
 import torch
 import torch.nn as nn
-from typing import Optional
 
 from dendritic_modeling.models.base import BaseModel
 from dendritic_modeling.networks.base import BaseNetwork
+
 
 class Classifier(BaseModel):
     """

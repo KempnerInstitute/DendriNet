@@ -5,9 +5,11 @@ This module implements a custom linear layer that aggregates information
 from converging branches in a previous branch layer.
 """
 
+from math import floor
+
 import torch
 import torch.nn as nn
-from math import floor
+
 
 class BlockLinear(nn.Module):
     """

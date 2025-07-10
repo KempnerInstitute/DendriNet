@@ -8,32 +8,32 @@ This module tests all dataset functionality including:
 - Data path handling
 """
 
-import unittest
-import tempfile
-import torch
-import numpy as np
 import os
+import tempfile
+import unittest
 from unittest.mock import Mock, patch
 
+import torch
+
 from dendritic_modeling.datasets import (
-    get_unified_datasets,
-    load_mnist_as_datasets,
-    load_cifar10_as_datasets,
-    load_MNIST_modulo10,
-    LineDataset,
     CenterSurroundDataset,
-    OrientationBarsDataset,
-    MultiXORDataset,
-    InfoShuntingDataset,
-    NoisyLineDataset,
-    SparseMNISTDataset,
     CompositionalMNIST,
+    InfoShuntingDataset,
+    LineDataset,
+    MultiXORDataset,
+    NoisyLineDataset,
+    OrientationBarsDataset,
     OrthoNetDataset,
-    RandomFlipMNISTDataset,
     PoissonGeneratorDataset,
-    get_data_directory
+    RandomFlipMNISTDataset,
+    get_data_directory,
+    get_unified_datasets,
+    load_cifar10_as_datasets,
+    load_mnist_as_datasets,
+    load_MNIST_modulo10,
 )
 from dendritic_modeling.plotting.utils import split_MNIST_inputs
+
 
 class TestSyntheticDatasets(unittest.TestCase):
     """Test synthetic dataset classes."""
