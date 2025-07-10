@@ -11,6 +11,7 @@ This user guide covers practical workflows—dataset prep, experiment configurat
    architecture_and_models
    training_and_configuration
    analysis_and_visualization
+   information_analysis_guide
 
 Overview
 --------
@@ -23,5 +24,6 @@ Sections
 * **Architecture & Models** – Factory APIs, pre-defined templates, conversion tools.
 * **Training & Configuration** – YAML schema, branch-wise vs. joint training, WandB integration.
 * **Analysis & Visualisation** – Information-theoretic metrics, layer ablations, plotting utilities.
+* **Information Analysis Guide** – Comprehensive guide to information-theoretic analysis of EI networks.
 
 Quick Reference snippets and configuration examples remain in their respective sub-pages to avoid duplication.

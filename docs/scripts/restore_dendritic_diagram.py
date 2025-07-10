@@ -347,7 +347,7 @@ def create_clean_dendritic_neuron(output_file="clean_dendritic_diagram"):
     save_figure(fig, output_file)
     plt.close(fig)
     
-    print(f"✓ Professional dendritic diagram saved as {output_file}.png and {output_file}.svg")
+    print(f"Professional dendritic diagram saved as {output_file}.png and {output_file}.svg")
     return output_file
 
 def create_basic_dendritic_neuron(branching=(2, 3), syn_probs=None, output_file="dendritic_diagram"):
@@ -506,7 +506,7 @@ def create_basic_dendritic_neuron(branching=(2, 3), syn_probs=None, output_file=
     save_figure(fig, output_file)
     plt.close(fig)
     
-    print(f"✓ Dendritic diagram saved as {output_file}.png and {output_file}.svg")
+    print(f"Dendritic diagram saved as {output_file}.png and {output_file}.svg")
     return output_file
 
 def main():
@@ -525,9 +525,9 @@ def main():
     )
     
     print("=" * 50)
-    print("✓ Dendritic diagrams generated successfully!")
-    print(f"✓ Clean version (no text): {clean_file}.png, {clean_file}.svg")
-    print(f"✓ Comprehensive version: {comprehensive_file}.png, {comprehensive_file}.svg")
+    print("Dendritic diagrams generated successfully!")
+    print(f"Clean version (no text): {clean_file}.png, {clean_file}.svg")
+    print(f"Comprehensive version: {comprehensive_file}.png, {comprehensive_file}.svg")
     print("\nTo copy to your original location:")
     print(f"cp {clean_file}.png docs/source/_static/dendritic_diagram.png")
 
