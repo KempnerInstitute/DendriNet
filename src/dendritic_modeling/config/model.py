@@ -67,7 +67,8 @@ class EncoderNetworkParameters(BaseConfig):
     encoder_hidden_dims: List[int] = field(default_factory=lambda: [128, 64])
     encoder_kernel_sizes: List[int] = field(default_factory=lambda: [3, 3])
     encoder_strides: List[int] = field(default_factory=lambda: [2, 2])
-    latent_dim: int = 10
+    latent_dim: int = None
+    latent_shape: Tuple[int, int, int] = None
     decoder_hidden_dims: List[int] = field(default_factory=lambda: [64, 128])
     activation: str = "relu"
 

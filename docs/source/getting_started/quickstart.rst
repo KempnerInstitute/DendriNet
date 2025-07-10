@@ -151,7 +151,7 @@ This implements:
 Network Architecture
 ~~~~~~~~~~~~~~~~~~~~
 
-.. figure:: ../../_static/basic_dendritic_neuron.png
+.. figure:: ../_static/dendritic_diagram.png
    :align: center
    :width: 60%
    :alt: Dendritic Neuron

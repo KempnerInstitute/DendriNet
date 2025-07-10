@@ -63,15 +63,15 @@ class CNNDownsample(BaseNetwork):
             current_h = ((current_h - kernel_size) // stride) + 1
             current_w = ((current_w - kernel_size) // stride) + 1
 
-        self.output_dim = (hidden_dims[-1], current_h, current_w)
+        final_hidden_flat = hidden_dims[-1] * current_h * current_w
 
         if output_dim is not None:
             layers.append(nn.Flatten(start_dim=-3))
-            final_hidden_flat = 1
-            for dim in self.output_dim:
-                final_hidden_flat *= dim
             layers.append(nn.Linear(final_hidden_flat, output_dim))
-            self.output_dim = (output_dim,)
+            self.output_dim = output_dim
+        else:
+            self.output_shape = (hidden_dims[-1], current_h, current_w)
+            self.output_dim = final_hidden_flat
        
         self.layers = nn.Sequential(*layers)
 
@@ -84,7 +84,10 @@ class CNNDownsample(BaseNetwork):
         x = x.reshape(-1, *x.shape[-3:])
         
         output: torch.Tensor = self.layers(x)
-        return output.reshape(*batch_shape, *self.output_dim)
+        if hasattr(self, "output_shape"):
+            return output.reshape(*batch_shape, *self.output_shape)
+        else:
+            return output.reshape(*batch_shape, self.output_dim)
 
 
 
@@ -143,7 +146,8 @@ class CNNUpsample(BaseNetwork):
             in_channels = out_channels
             
         self.layers = nn.Sequential(*layers)
-        self.output_dim = (target_c, target_h, target_w)
+        self.output_shape = (target_c, target_h, target_w)
+        self.output_dim = target_c * target_h * target_w
         
     def _calculate_transpose_params(
         self, 
@@ -151,89 +155,72 @@ class CNNUpsample(BaseNetwork):
         target_size: int, 
         num_layers: int
     ) -> Tuple[List[int], List[int], List[int]]:
-        """Calculate transpose convolution parameters from input_size to target_size."""
+        """Calculate transpose convolution parameters from input_size to target_size.
+        
+        This method GUARANTEES exact target_size by doing exhaustive search.
+        """
         
         if input_size == target_size:
-            # No upsampling needed, just use 1x1 convs
             kernels = [1] * num_layers
             strides = [1] * num_layers
             paddings = [0] * num_layers
             return kernels, strides, paddings
         
-        # Work backwards from target to input to ensure exact sizing
-        kernels = []
-        strides = []
-        paddings = []
+        if input_size > target_size:
+            raise ValueError(f"Input size {input_size} must be <= target size {target_size}")
         
-        # Calculate intermediate sizes working backwards
-        sizes = [target_size]
-        current_size = target_size
+        # Find exact solution by working forward and doing exhaustive search
+        def find_exact_params(current_size: int, remaining_target: int, remaining_layers: int) -> List[Tuple[int, int, int]]:
+            """Recursively find kernel, stride, padding combinations that reach exact target."""
+            if remaining_layers == 0:
+                return [] if current_size == remaining_target else None
+            
+            if remaining_layers == 1:
+                # Last layer - must reach exact target
+                for stride in range(1, 9):  # Try strides 1-8
+                    for kernel in range(1, 21):  # Try kernels 1-20
+                        for padding in range(0, min(kernel, 11)):  # Try reasonable paddings
+                            # Formula: output = (input - 1) * stride - 2 * padding + kernel
+                            output = (current_size - 1) * stride - 2 * padding + kernel
+                            if output == remaining_target:
+                                return [(kernel, stride, padding)]
+                return None
+            
+            # Try different parameters for this layer
+            for stride in range(1, 9):
+                for kernel in range(1, 21):
+                    for padding in range(0, min(kernel, 11)):
+                        output = (current_size - 1) * stride - 2 * padding + kernel
+                        
+                        # Must be reasonable step toward target
+                        if output > current_size and output <= remaining_target:
+                            # Recursively try to reach target from this output
+                            rest = find_exact_params(output, remaining_target, remaining_layers - 1)
+                            if rest is not None:
+                                return [(kernel, stride, padding)] + rest
+            
+            return None
         
-        # Work backwards to find intermediate sizes
-        for i in range(num_layers):
-            if i == num_layers - 1:
-                current_size = input_size
-            else:
-                # Try to divide by 2 (most common upsampling factor)
-                if current_size % 2 == 0 and current_size // 2 >= input_size:
-                    current_size = current_size // 2
-                else:
-                    # If can't divide by 2, find the best divisor
-                    best_divisor = 2
-                    for divisor in [3, 5, 7, 11, 13, 17, 19]:
-                        if current_size >= divisor and current_size // divisor >= input_size:
-                            best_divisor = divisor
-                            break
-                    current_size = max(input_size, current_size // best_divisor)
-            sizes.append(current_size)
+        # Find exact parameters
+        exact_params = find_exact_params(input_size, target_size, num_layers)
         
-        # Ensure we end at input_size
-        sizes.reverse()  # Now goes from input_size to target_size
+        if exact_params is None:
+            raise ValueError(
+                f"Cannot find exact upsampling from {input_size} to {target_size} "
+                f"in {num_layers} layers. Try different latent_shape spatial dimensions "
+                f"or decoder_hidden_dims length."
+            )
         
-        # Calculate parameters for each transition
-        for i in range(num_layers):
-            input_s = sizes[i]
-            output_s = sizes[i + 1]
-            
-            stride = output_s // input_s
-            
-            # Choose kernel based on stride
-            if stride == 1:
-                kernel = 1
-                padding = 0
-            elif stride == 2:
-                kernel = 4
-                padding = 1
-            elif stride <= 4:
-                kernel = stride * 2
-                padding = kernel // 2 - 1
-            else:
-                kernel = stride + 2
-                padding = 1
-            
-            # Verify the math works out
-            # output_size = (input_size - 1) * stride - 2 * padding + kernel
-            expected_output = (input_s - 1) * stride - 2 * padding + kernel
-            
-            # Adjust padding if needed to hit exact target
-            if expected_output != output_s:
-                padding = max(0, ((input_s - 1) * stride + kernel - output_s) // 2)
-            
-            kernels.append(kernel)
-            strides.append(stride)
-            paddings.append(padding)
-        
-        return kernels, strides, paddings
+        kernels, strides, paddings = zip(*exact_params)
+        return list(kernels), list(strides), list(paddings)
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         if x.dim() == 3:
             x = x[None, ...]
-        
         batch_shape = x.shape[:-3]
         x = x.reshape(-1, *x.shape[-3:])
-        
         output: torch.Tensor = self.layers(x)
-        return output.reshape(*batch_shape, *self.output_dim)
+        return output.reshape(*batch_shape, *self.output_shape)
 
 
 __all__ = ["CNNDownsample", "CNNUpsample"] 
