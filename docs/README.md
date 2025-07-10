@@ -1,37 +1,81 @@
 # Documentation
 
-This directory contains the documentation for the Dendritic Modeling Framework.
+This directory contains the comprehensive documentation for the Dendritic Modeling Framework.
 
 ## Structure
 
+### Core Documentation
 - `index.rst` - Main documentation homepage
-- `installation.rst` - Installation instructions
-- `tutorials.rst` - Hands-on tutorials
-- `api_reference.rst` - API documentation
-- `theory.rst` - Scientific background
-- `examples.rst` - Practical examples
+- `installation.rst` - Simple conda-based installation guide
+- `tutorials.rst` - Step-by-step tutorials including quickstart with config_exp.yaml
+- `examples.rst` - Practical examples and use cases
+
+### Technical Guides
+- `NETWORK_ARCHITECTURES.md` - Detailed guide to all network components (EINet, DendriNet, etc.)
+- `CONFIGURATION_GUIDE.md` - Complete configuration reference with examples
+- `TRAINING_STRATEGIES.md` - All training strategies explained
+- `MODEL_ARCHITECTURES.md` - Model architecture details
+
+### Reference
+- `api_reference.rst` - Complete API documentation
+- `theory.rst` - Scientific background and theory
+- `available_components.md` - Quick reference of all implemented components
 - `contributing.rst` - Contribution guidelines
-- `available_components.md` - List of all implemented components
 
 ## Figures
 
 All figures are stored in the `figures/` directory:
-- `figures/architecture/` - Network architecture diagrams
-- `figures/README.md` - Information about the figures
+- `figures/architecture/` - Network architecture diagrams including:
+  - EINet architecture diagrams
+  - Dendritic neuron schematics
+  - Shunting inhibition mechanisms
+  - Sparse connectivity patterns
+  - Block linear architecture
+  - Computation flow diagrams
 
 ## Building Documentation
 
 To build the documentation locally:
 
 ```bash
+# Make sure you're in the dendritic_env conda environment
+conda activate dendritic_env
+
+# Navigate to docs directory
 cd docs
+
+# Build HTML documentation
 make html
 ```
 
-The built documentation will be in `_build/html/`.
+The built documentation will be in `_build/html/`. Open `_build/html/index.html` in your browser to view.
 
-## Notes
+## Quick Start Example
 
-- The documentation has been updated to accurately reflect what's implemented in the codebase
-- Components that were mentioned but not implemented (like DendriticRNN, DendriticTransformer, etc.) have been removed
-- All examples now use actual components from the codebase 
+The documentation includes a comprehensive quickstart guide that demonstrates:
+1. Setting up the environment with conda
+2. Running your first experiment with `config_exp.yaml`
+3. Understanding the output and results
+4. Customizing configurations
+
+## Documentation Standards
+
+- All network components are documented with:
+  - Clear descriptions
+  - Parameter explanations
+  - Usage examples
+  - Relevant figures/diagrams
+  
+- Configuration options include:
+  - YAML examples
+  - Parameter descriptions
+  - Default values
+  - Common use cases
+
+## Continuous Integration
+
+Documentation is automatically built and checked on every pull request to ensure:
+- All links are valid
+- Code examples work
+- Figures are properly referenced
+- No build errors occur 
