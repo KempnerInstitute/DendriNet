@@ -92,4 +92,4 @@ __all__ = [
     "size_tuning_index",
     "train_and_evaluate_classifier",
     "train_classifier",
-] 
+]

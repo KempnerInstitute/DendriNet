@@ -23,7 +23,6 @@ from dendritic_modeling.training.utils.evaluation import (
 )
 from dendritic_modeling.utils import save_dict
 
-
 class AblationAnalyzer:
     def __init__(self, params: AblationAnalysisParams):
         self.layer_ablation = getattr(params, "layer_ablation", False)
@@ -37,7 +36,7 @@ class AblationAnalyzer:
         self.categorical_ll = getattr(params, "categorical_loglikelihood", False)
         self.mse = getattr(params, "mse", False)
         self.cosine_similarity = getattr(params, "cosine_similarity", False)
-    
+
     def ablate_layer_and_evaluate(
         self,
         test_dataset: torch.utils.data.Dataset,
@@ -58,7 +57,7 @@ class AblationAnalyzer:
             module.branch_inhibition.pre_w.data.fill_(-1000)
         if ablation_type == "upstream":
             module.branches_to_output.log_weight.data.fill_(-1000)
-        
+
         def _evaluate_metric(metric_func: Callable, metric_key: str):
             metric_score = metric_func(
                 model, test_ds=test_dataset, move_device=False
@@ -88,14 +87,14 @@ class AblationAnalyzer:
             )
         if self.cosine_similarity:
             _evaluate_metric(
-                metric_func=evaluate_cosine_similarity, 
+                metric_func=evaluate_cosine_similarity,
                 metric_key="cosine similarity"
             )
-                
+
         model.load_state_dict(state_dict)
 
         return results_dict
-    
+
     def ablate_compartment_and_evaluate(
         self,
         test_dataset: torch.utils.data.Dataset,
@@ -129,7 +128,7 @@ class AblationAnalyzer:
             mse_list = []
         if self.cosine_similarity:
             cosine_similarity_list = []
-        
+
         def _evaluate_metric(metric_func: Callable, metric_key: str, metric_list: list):
             metric_score = metric_func(
                 model, test_ds=test_dataset, move_device=False
@@ -174,9 +173,9 @@ class AblationAnalyzer:
                     metric_key="cosine similarity",
                     metric_list=cosine_similarity_list
                 )
-                
+
             model.load_state_dict(state_dict)
-        
+
         if self.accuracy:
             results_dict[ablation_type][module_name]["accuracy drop"] = accuracy_list
         if self.auc:
@@ -189,8 +188,6 @@ class AblationAnalyzer:
             results_dict[ablation_type][module_name]["cosine similarity drop"] = cosine_similarity_list
 
         return results_dict
-    
-
 
     def analyze(
         self,
@@ -249,7 +246,7 @@ class AblationAnalyzer:
                 # Skip cosine similarity for non-regressor models
                 print(f"Warning: Cosine similarity evaluation skipped for {type(model).__name__} model")
                 self.cosine_similarity = False
-        
+
         if self.layer_ablation:
             layer_results = {}
             if self.ablate_all_synapses:

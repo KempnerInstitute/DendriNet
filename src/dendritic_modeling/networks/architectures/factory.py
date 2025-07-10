@@ -1,6 +1,5 @@
 
 
-
 from dendritic_modeling.networks.architectures.classical.cnn import (
     AlexNet,
     CNNUpsample,
@@ -22,7 +21,6 @@ from dendritic_modeling.networks.architectures.classical.autoencoder import (
 from dendritic_modeling.networks.architectures.classical.identity import Identity
 
 from dendritic_modeling.networks.architectures.excitation_inhibition import ExcitationInhibitionNetwork
-
 
 def get_architecture(type: str, parameters: dict):
     type = type.lower()
@@ -50,8 +48,4 @@ def get_architecture(type: str, parameters: dict):
         return ExcitationInhibitionNetwork(**parameters)
     else:
         raise ValueError(f"Invalid architecture type: {type}")
-
-
-
-
 

@@ -4,7 +4,6 @@ import torch
 
 from dendritic_modeling.networks import BlockLinear, DendriNet, DendriticBranchLayer
 
-
 class TestDendriNet(unittest.TestCase):
     def test_initialization_valid_parameters(self):
         """Test that DendriNet initializes correctly with valid parameters."""
@@ -437,7 +436,6 @@ class TestDendriNet(unittest.TestCase):
 
         # Pruned weights should also yield a positive total
         self.assertTrue(exc_total.sum().item() > 0)
-
 
 if __name__ == "__main__":
     unittest.main()

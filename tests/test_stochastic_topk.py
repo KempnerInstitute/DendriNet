@@ -4,7 +4,6 @@ import torch
 
 from dendritic_modeling.networks import StochasticTopKLinear, VarianceTopKLinear
 
-
 class TestStochasticTopKLinear(unittest.TestCase):
     """Test cases for the StochasticTopKLinear class."""
 
@@ -165,7 +164,6 @@ class TestStochasticTopKLinear(unittest.TestCase):
         self.assertTrue(torch.any(model.pre_w.grad != 0))
         self.assertTrue(torch.any(x.grad != 0))
 
-
 class TestVarianceTopKLinear(unittest.TestCase):
     """Test cases for the VarianceTopKLinear class."""
 
@@ -260,7 +258,6 @@ class TestVarianceTopKLinear(unittest.TestCase):
 
         # More connections should go to high-variance inputs
         self.assertGreater(high_var_connections, low_var_connections)
-
 
 if __name__ == "__main__":
     unittest.main(argv=[""], exit=False)

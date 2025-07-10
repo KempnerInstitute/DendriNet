@@ -13,19 +13,18 @@ from dendritic_modeling.networks import DendriticBranchLayer
 from dendritic_modeling.utils import save_dict
 from dendritic_modeling.config import WeightAnalysisParams
 
-
 class WeightAnalyzer:
     """
     Analyzer for computing statistical distributions of synaptic weights.
-    
+
     Analyzes the weight distributions of excitatory synapses, inhibitory synapses,
     and branch-to-output connections across all dendritic branch layers in the network.
     """
-    
+
     def __init__(self, params: WeightAnalysisParams):
         """
         Initialize the weight analyzer.
-        
+
         Args:
             synapse_weights: Whether to analyze excitatory and inhibitory synapse weights
             branch_weights: Whether to analyze branch-to-output connection weights
@@ -38,12 +37,12 @@ class WeightAnalyzer:
     ):
         """
         Analyze weight distributions in the model.
-        
+
         Args:
             model: The model to analyze (must have ExcitationInhibitionNetwork)
             save_path: Path to save results (optional)
             filename: Filename for saved results
-            
+
         Returns:
             Dictionary containing weight statistics if save_path is None, otherwise None
         """
@@ -64,13 +63,13 @@ class WeightAnalyzer:
                     exc_w = module.branch_excitation.pruned_weight().flatten()
                     exc_w = exc_w[exc_w > 1e-3].cpu()  # Filter out very small weights
                     exc_weights.append(exc_w)
-                    
+
                 # Collect inhibitory synapse weights
                 if self.synapse_weights and module.branch_inhibition is not None:
                     inh_w = module.branch_inhibition.pruned_weight().flatten()
                     inh_w = inh_w[inh_w > 1e-3].cpu()  # Filter out very small weights
                     inh_weights.append(inh_w)
-                    
+
                 # Collect branch-to-output weights
                 if self.branch_weights and hasattr(module, "branches_to_output"):
                     branch_w = module.branches_to_output.log_weight.exp().flatten()
@@ -78,7 +77,7 @@ class WeightAnalyzer:
                     branch_weights.append(branch_w)
 
         weights = {}
-        
+
         # Compute statistics for excitatory weights
         if len(exc_weights) > 0:
             exc_weights = torch.cat(exc_weights, dim=0)
@@ -118,4 +117,4 @@ class WeightAnalyzer:
         if save_path is not None:
             save_dict(weights, save_path, filename)
         else:
-            return weights 
+            return weights

@@ -8,7 +8,6 @@ a sigmoid activation to ensure values are in [0, 1] range.
 import torch
 from dendritic_modeling.networks.base import BaseNetwork
 
-
 class SigmoidOutputNetwork(BaseNetwork):
     """
     Extension of InputNetTransform that applies a sigmoid activation to the output,
@@ -27,5 +26,4 @@ class SigmoidOutputNetwork(BaseNetwork):
         x = self.net(x)
         return torch.sigmoid(x)
 
-
-__all__ = ["SigmoidOutputNetwork"] 
+__all__ = ["SigmoidOutputNetwork"]

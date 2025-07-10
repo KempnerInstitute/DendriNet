@@ -11,7 +11,6 @@ from typing import Optional
 from dendritic_modeling.models.base import BaseModel
 from dendritic_modeling.networks.base import BaseNetwork
 
-
 class Classifier(BaseModel):
     """
     A standard classifier that returns raw logits;
@@ -34,9 +33,9 @@ class Classifier(BaseModel):
             self.log_output_scale = nn.Parameter(
                 torch.zeros((self.core_network.output_dim,)), requires_grad=True
             )
-        
+
         self.final = nn.LogSoftmax(dim=-1)
-        
+
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         x = super().forward(x)
 
@@ -50,6 +49,5 @@ class Classifier(BaseModel):
         with torch.no_grad():
             logits = self.forward(x)
             return logits.argmax(dim=-1)
-
 
 __all__ = ["Classifier"]

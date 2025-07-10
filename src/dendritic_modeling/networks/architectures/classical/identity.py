@@ -1,6 +1,5 @@
 from dendritic_modeling.networks.base import BaseNetwork
 
-
 class Identity(BaseNetwork):
     def __init__(self, input_dim: int, **kwargs):
         super().__init__()

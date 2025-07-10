@@ -9,4 +9,4 @@ from dendritic_modeling.networks.architectures.classical.mlp.matched_param impor
 __all__ = [
     "MLP",
     "MatchedParamMLP",
-] 
+]

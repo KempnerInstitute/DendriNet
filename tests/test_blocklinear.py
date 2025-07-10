@@ -4,7 +4,6 @@ import torch
 
 from dendritic_modeling.networks import BlockLinear
 
-
 class TestBlockLinear(unittest.TestCase):
     def test_basic_functionality(self):
         """Test the basic functionality with standard input data."""
@@ -77,7 +76,6 @@ class TestBlockLinear(unittest.TestCase):
         with self.assertRaises(RuntimeError) as context:
             output = model(x)
         self.assertIn("cannot be multiplied", str(context.exception))
-
 
 if __name__ == "__main__":
     unittest.main()

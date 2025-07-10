@@ -4,7 +4,6 @@ import torch
 from scipy.stats import norm
 from torch.nn.init import _no_grad_normal_
 
-
 def compute_expectation_truncated_log_normal(
     mean,
     std,
@@ -19,7 +18,6 @@ def compute_expectation_truncated_log_normal(
 
     expectation = numerator / denominator
     return expectation
-
 
 def initialize_dendritic_branch_layer(dbl):
     with torch.no_grad():
@@ -118,7 +116,6 @@ def initialize_dendritic_branch_layer(dbl):
                     device=dbl.branches_to_output.log_weight.device,
                 )
             )
-
 
         # if dbl.reactivate:
         #     dbl.reactivation.initialize(1.8, log(E_Vinf))

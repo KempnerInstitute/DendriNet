@@ -12,18 +12,17 @@ from dendritic_modeling.models import BaseModel
 from dendritic_modeling.training.strategies import Trainer
 from dendritic_modeling.training.loss.functions import VoltageStabilizationLoss
 
-
 class VoltageStabilizationTrainer(Trainer):
     """
     Voltage Stabilization Training Strategy.
-    
+
     This trainer includes a warm-up phase that stabilizes dendritic voltages
     to target values before proceeding with normal training. This can help
     with training stability in dendritic networks.
     """
     pretrain_epochs: int = 1
     target_voltage: float = 0.5
-    
+
     def train(
         self,
         model: BaseModel,
@@ -32,12 +31,12 @@ class VoltageStabilizationTrainer(Trainer):
     ):
         """
         Train the model with voltage stabilization warm-up.
-        
+
         Args:
             model: The model to train
             train_data: Training dataset
             valid_data: Validation dataset
-            
+
         Returns:
             Dictionary containing training results and metrics
         """
@@ -65,7 +64,7 @@ class VoltageStabilizationTrainer(Trainer):
         self.epochs = default_epochs
         self.filename_prefix = ""
         self.best_loss = float("inf")
-        
+
         logger.info(
             "=== VoltageStabilization: "
             f"Starting normal training for {self.epochs} epochs ==="
@@ -79,15 +78,14 @@ class VoltageStabilizationTrainer(Trainer):
         )
         return final_results
 
-
 class TrainOnlyMReactivation(Trainer):
     """
     Training strategy that focuses only on M-reactivation parameters.
-    
+
     This trainer freezes log_b parameters and trains all other parameters,
     which can be useful for specific dendritic network configurations.
     """
-    
+
     def train(
         self,
         model: BaseModel,
@@ -96,28 +94,28 @@ class TrainOnlyMReactivation(Trainer):
     ):
         """
         Train the model with M-reactivation focus.
-        
+
         Args:
             model: The model to train
             train_data: Training dataset
             valid_data: Validation dataset
-            
+
         Returns:
             Dictionary containing training results and metrics
         """
-        
+
         logger.info(
             "TrainOnlyMReactivation: "
             "Freezing log_b and training all other parameters."
         )
-        
+
         # Freeze log_b parameters, unfreeze all others
         for name, param in model.named_parameters():
             if "log_b" in name:
                 param.requires_grad = False
             else:
                 param.requires_grad = True
-        
+
         self.filename_prefix = "train_only_m_reactivation_"
         results = super().train(model, train_data, valid_data)
         return results
