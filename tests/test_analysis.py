@@ -50,7 +50,7 @@ class TestPerformanceAnalyzer(unittest.TestCase):
         # Create a simple test model
         transfer_params = TransferFunctionParams().asdict()
         self.model = Classifier(
-            encoder_network=Identity(),
+            encoder_network=Identity(input_dim=10),
             core_network=ExcitationInhibitionNetwork(
                 input_dim=10,
                 transfer_params=transfer_params,
@@ -63,7 +63,7 @@ class TestPerformanceAnalyzer(unittest.TestCase):
                 ie_synapses_per_branch_per_layer=[1],
                 ii_synapses_per_branch_per_layer=[]
             ),
-            decoder_network=Identity()
+            decoder_network=Identity(input_dim=4)
         )
         
         # Create test data
@@ -119,7 +119,7 @@ class TestAblationAnalyzer(unittest.TestCase):
         # Create test model with multiple layers
         transfer_params = TransferFunctionParams().asdict()
         self.model = Classifier(
-            encoder_network=Identity(),
+            encoder_network=Identity(input_dim=10),
             core_network=ExcitationInhibitionNetwork(
                 input_dim=10,
                 transfer_params=transfer_params,
@@ -132,7 +132,7 @@ class TestAblationAnalyzer(unittest.TestCase):
                 ie_synapses_per_branch_per_layer=[1, 1],
                 ii_synapses_per_branch_per_layer=[]
             ),
-            decoder_network=Identity()
+            decoder_network=Identity(input_dim=4)
         )
         
         # Create test dataset
