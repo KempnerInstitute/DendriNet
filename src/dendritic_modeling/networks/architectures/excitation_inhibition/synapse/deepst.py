@@ -31,7 +31,7 @@ class DeepstLinear(nn.Module):
             freeze_connectivity=False,  # New: flag to freeze synapse locations
             weight_threshold=1e-6  # New: threshold for weight pruning
         ):
-        super(DeepstLinear, self).__init__()
+        super().__init__()
 
         self.in_features = in_features
         self.out_features = out_features

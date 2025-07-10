@@ -10,7 +10,8 @@ external dependency is available.
 from __future__ import annotations
 
 import logging
-# typing imports removed - not needed  
+
+# typing imports removed - not needed
 import numpy as np
 
 try:
@@ -56,7 +57,7 @@ def pid_synergy_redundancy(
     # The exact API will depend on the external library.  Here we
     # demonstrate a generic usage pattern expected from typical PID
     # implementations.
-    data = np.hstack(sources + [target])
+    data = np.hstack([*sources, target])
     pid_obj = PID(data)
 
     try:

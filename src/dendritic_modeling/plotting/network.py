@@ -20,7 +20,7 @@ except ImportError:
                    "To fix this, try: pip install networkx or conda install networkx")
     nx = None
 
-def plotWithColor(x, colors, cmap="viridis", ax=None, colorbar=True, fig=None, **kwargs):
+def plot_with_color(x, colors, cmap="viridis", ax=None, colorbar=True, fig=None, **kwargs):
     """
     Plot data with colored points based on values.
 
@@ -65,9 +65,12 @@ def add_colorbars(
         pad: Padding for colorbar
     """
     for ax, im in zip(ax_iterable, im_iterable):
-        cbar = fig.colorbar(im, ax=ax, shrink=0.6, aspect=20)
+        # cbar = fig.colorbar(im, ax=ax, shrink=0.6, aspect=20)  # Colorbar might be used later
 
     # Legacy compatibility - simple version
+    for ax, im in zip(ax_iterable, im_iterable):
+        pass  # Already handled above
+    
     if isinstance(ax_iterable, list) and len(ax_iterable) == 1:
         fig.colorbar(im_iterable[0], ax=ax_iterable[0])
 

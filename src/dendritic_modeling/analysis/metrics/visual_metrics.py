@@ -13,10 +13,10 @@ import numpy as np
 import torch
 
 __all__ = [
-    "direction_selectivity_index",
-    "length_selectivity_index",
-    "orientation_selectivity_index",
-    "size_tuning_index",
+    "direction_selectivity_index"
+    "length_selectivity_index"
+    "orientation_selectivity_index"
+    "size_tuning_index"
 ]
 
 def _to_numpy(x):

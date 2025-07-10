@@ -31,24 +31,24 @@ from dendritic_modeling.networks.architectures.excitation_inhibition import (
 )
 
 __all__ = [
-    "MLP",
-    "AlexNet",
-    "BlockLinear",
-    "CNNDownsample",
-    "CNNUpsample",
-    "DeepstLinear",
-    "DendriNet",
-    "DendriticBranchLayer",
-    "ExcitationInhibitionLayer",
-    "ExcitationInhibitionNetwork",
-    "GradientScaler",
-    "Identity",
-    "IdentityInputTransform",
-    "IndexInputTransform",
-    "MatchedParamMLP",
-    "StochasticTopKLinear",
-    "TopKLinear",
-    "TransferLayer",
-    "VarianceTopKLinear",
+    "AlexNet"
+    "BlockLinear"
+    "CNNDownsample"
+    "CNNUpsample"
+    "DeepstLinear"
+    "DendriNet"
+    "DendriticBranchLayer"
+    "ExcitationInhibitionLayer"
+    "ExcitationInhibitionNetwork"
+    "GradientScaler"
+    "Identity"
+    "IdentityInputTransform"
+    "IndexInputTransform"
     "initialize_dendritic_branch_layer"
+    "MatchedParamMLP"
+    "MLP"
+    "StochasticTopKLinear"
+    "TopKLinear"
+    "TransferLayer"
+    "VarianceTopKLinear"
 ]

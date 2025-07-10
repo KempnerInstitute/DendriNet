@@ -62,7 +62,7 @@ class DendriNet(nn.Module):
         weight_threshold=1e-6,
         **kwargs,
     ):
-        super(DendriNet, self).__init__()
+        super().__init__()
 
         if not isinstance(n_soma, int):
             raise TypeError("n_soma must be an integer")

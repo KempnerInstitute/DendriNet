@@ -9,6 +9,6 @@ from dendritic_modeling.networks.architectures.classical.mlp.matched_param impor
 from dendritic_modeling.networks.architectures.classical.mlp.mlp import MLP
 
 __all__ = [
-    "MLP",
-    "MatchedParamMLP",
+    "MatchedParamMLP"
+    "MLP"
 ]

@@ -14,10 +14,10 @@ from dendritic_modeling.scripts.train_experiments import (
 )
 
 __all__ = [
-    "initialize_model",
-    "load_model",
-    "main",
-    "run_analysis",
-    "save_model",
-    "setup_environment",
+    "initialize_model"
+    "load_model"
+    "main"
+    "run_analysis"
+    "save_model"
+    "setup_environment"
 ]

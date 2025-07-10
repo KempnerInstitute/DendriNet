@@ -1,8 +1,11 @@
-from torch import nn
 from typing import Union
+
+from torch import nn
+
+
 class BaseNetwork(nn.Module):
     def __init__(self):
-        super(BaseNetwork, self).__init__()
+        super().__init__()
         self.output_dim: Union[int, tuple[int, ...]]
 
     def forward(self, x):

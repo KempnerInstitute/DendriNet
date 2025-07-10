@@ -129,23 +129,23 @@ class InformationAnalyzer:
     def _compute_pairwise_mi(
         self,
         E: np.ndarray,
-        I: np.ndarray,
+        I_var: np.ndarray,
         Vout: np.ndarray,
         Vinf: Optional[np.ndarray] = None
     ) -> dict[str, float]:
         """Compute pairwise mutual information between variables."""
         metrics = {}
         # I(E;I)
-        metrics["I(E;I)"] = self.estimator.mutual_information(E, I)
+        metrics["I(E;I)"] = self.estimator.mutual_information(E, I_var)
         # I(E;Vout)
         metrics["I(E;Vout)"] = self.estimator.mutual_information(E, Vout)
         # I(I;Vout)
-        metrics["I(I;Vout)"] = self.estimator.mutual_information(I, Vout)
+        metrics["I(I;Vout)"] = self.estimator.mutual_information(I_var, Vout)
         if Vinf is not None and self.include_vinf:
             # I(E;Vinf)
             metrics["I(E;Vinf)"] = self.estimator.mutual_information(E, Vinf)
             # I(I;Vinf)
-            metrics["I(I;Vinf)"] = self.estimator.mutual_information(I, Vinf)
+            metrics["I(I;Vinf)"] = self.estimator.mutual_information(I_var, Vinf)
             # I(Vout;Vinf)
             metrics["I(Vout;Vinf)"] = self.estimator.mutual_information(Vout, Vinf)
         return metrics
@@ -153,7 +153,7 @@ class InformationAnalyzer:
     def _compute_conditional_mi(
         self,
         E: np.ndarray,
-        I: np.ndarray,
+        I_var: np.ndarray,
         Vout: np.ndarray,
         C: np.ndarray,
         Vinf: Optional[np.ndarray] = None
@@ -162,7 +162,7 @@ class InformationAnalyzer:
         metrics = {}
         # I(E;I|C)
         metrics["I(E;I|C)"] = self.estimator.conditional_mutual_information(
-            E, I, C.reshape(-1, 1)
+            E, I_var, C.reshape(-1, 1)
         )
         # I(E;Vout|C)
         metrics["I(E;Vout|C)"] = self.estimator.conditional_mutual_information(
@@ -186,7 +186,7 @@ class InformationAnalyzer:
     def _compute_pid(
         self,
         E: np.ndarray,
-        I: np.ndarray,
+        I_var: np.ndarray,
         Vout: np.ndarray,
         C: np.ndarray
     ) -> dict[str, Any]:
@@ -196,7 +196,7 @@ class InformationAnalyzer:
         # Prepare data for PID (may need binarization)
         if self.pid_binarize:
             E_pid = self._binarize(E)
-            I_pid = self._binarize(I)
+            I_pid = self._binarize(I_var)
             Vout_pid = self._binarize(Vout)
             C_pid = self._binarize(C.reshape(-1, 1))
         else:
@@ -259,7 +259,7 @@ class InformationAnalyzer:
     def _validate_inputs(
         self,
         E: np.ndarray,
-        I: np.ndarray,
+        I_var: np.ndarray,
         Vout: np.ndarray,
         C: np.ndarray,
         Vinf: Optional[np.ndarray] = None
@@ -267,8 +267,8 @@ class InformationAnalyzer:
         """Validate input arrays."""
         n_samples = len(E)
 
-        if len(I) != n_samples:
-            raise ValueError(f"I must have same number of samples as E: {len(I)} vs {n_samples}")
+        if len(I_var) != n_samples:
+            raise ValueError(f"I must have same number of samples as E: {len(I_var)} vs {n_samples}")
         if len(Vout) != n_samples:
             raise ValueError(f"Vout must have same number of samples as E: {len(Vout)} vs {n_samples}")
         if len(C) != n_samples:
@@ -323,7 +323,7 @@ class InformationAnalyzer:
     def compute_metrics(
         self,
         E: np.ndarray,
-        I: np.ndarray,
+        I_var: np.ndarray,
         Vout: np.ndarray,
         C: np.ndarray,
         Vinf: Optional[np.ndarray] = None
@@ -349,11 +349,11 @@ class InformationAnalyzer:
             Dictionary containing all computed metrics
         """
         # Validate inputs
-        self._validate_inputs(E, I, Vout, C, Vinf)
+        self._validate_inputs(E, I_var, Vout, C, Vinf)
 
         # Ensure all arrays are properly shaped
         E = self._ensure_2d(E)
-        I_var = self._ensure_2d(I)
+        I_var = self._ensure_2d(I_var)
         Vout = self._ensure_2d(Vout)
         C = C.ravel()  # Labels are always 1D
 
@@ -369,28 +369,28 @@ class InformationAnalyzer:
         if self.compute_basic_mi:
             self.logger.info("Computing basic MI metrics...")
             results["basic_mi"] = self._compute_basic_mi(
-                E, I, Vout, C, Vinf
+                E, I_var, Vout, C, Vinf
             )
 
         # 2. Pairwise mutual information
         if self.compute_pairwise_mi:
             self.logger.info("Computing pairwise MI metrics...")
             results["pairwise_mi"] = self._compute_pairwise_mi(
-                E, I, Vout, Vinf
+                E, I_var, Vout, Vinf
             )
 
         # 3. Conditional mutual information
         if self.compute_conditional_mi:
             self.logger.info("Computing conditional MI metrics...")
             results["conditional_mi"] = self._compute_conditional_mi(
-                E, I, Vout, C, Vinf
+                E, I_var, Vout, C, Vinf
             )
 
         # 4. PID decomposition
         if self.compute_pid and self.pid_available:
             self.logger.info("Computing PID metrics...")
             results["pid"] = self._compute_pid(
-                E, I, Vout, C
+                E, I_var, Vout, C
             )
 
         return results
@@ -451,7 +451,7 @@ class InformationAnalyzer:
         self.data_dict = {}
 
         handles = []
-        for name, module in model.named_modules():
+        for _name, module in model.named_modules():
             if isinstance(module, DendriticBranchLayer):
                 if (
                     module.branch_excitation is not None
@@ -511,7 +511,7 @@ class InformationAnalyzer:
             analyze(model, test_dataset, device, save_path, filename)
 
         Legacy API (for backward compatibility):
-            analyze(E, I, Vout, C, Vinf=None)
+            analyze(E, I_var, Vout, C, Vinf=None)
         """
         # Handle keyword arguments for new API
         if model is not None:
@@ -523,14 +523,14 @@ class InformationAnalyzer:
 
         # Check if this is the legacy API call (numpy arrays)
         if isinstance(model_or_E, np.ndarray):
-            # Legacy API: analyze(E, I, Vout, C, Vinf=None)
+            # Legacy API: analyze(E, I_var, Vout, C, Vinf=None)
             E = model_or_E
             I_var = test_dataset_or_I
             Vout = device_or_Vout
             C = save_path_or_C
             Vinf = filename_or_Vinf
 
-            return self.compute_metrics(E, I, Vout, C, Vinf)
+            return self.compute_metrics(E, I_var, Vout, C, Vinf)
 
         # New API: analyze(model, test_dataset, device, save_path, filename)
         model = model_or_E
@@ -680,7 +680,7 @@ class InformationAnalyzer:
                         Vinf = final_output.detach().cpu().numpy()
 
                 # Run information analysis on aggregated data
-                results = self.compute_metrics(E, I, Vout, C, Vinf)
+                results = self.compute_metrics(E, I_var, Vout, C, Vinf)
                 results["aggregation_method"] = self.branch_aggregation
                 results["num_branches_aggregated"] = len(excitation_list)
 

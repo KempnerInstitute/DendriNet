@@ -6,8 +6,10 @@ including layer-wise ablation and contribution analysis.
 """
 import os
 from typing import Optional
-import numpy as np
+
 import matplotlib.pyplot as plt
+import numpy as np
+
 
 def plot_layerwise_ablation(
     results: dict[str, list[float]],

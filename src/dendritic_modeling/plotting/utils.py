@@ -190,7 +190,7 @@ def build_dendritic_tree_graph(model, branch_info=None, ablation_info=None):
             if hasattr(layer, 'excitatory_cells'):
                 exc_cell = layer.excitatory_cells
                 if hasattr(exc_cell, 'branch_layers'):
-                    for branch_idx, branch in enumerate(exc_cell.branch_layers):
+                    for branch_idx, _branch in enumerate(exc_cell.branch_layers):
                         branch_name = f'layer_{layer_idx}_branch_{branch_idx}'
                         G.add_node(branch_name, node_type='branch',
                                   layer=layer_idx, branch=branch_idx)
@@ -369,7 +369,7 @@ def plot_voltage_before_activation(einet, input_list, save_root=None):
 
                 # Box plot of activations by input type
                 activation_by_input = []
-                for i, input_tensor in enumerate(input_list):
+                for i, _input_tensor in enumerate(input_list):
                     # Get activations for this specific input
                     layer_acts = []
                     for soma_key in exc_data.keys():
@@ -403,7 +403,7 @@ def plot_voltage_before_activation(einet, input_list, save_root=None):
                 else:
                     plt.show()
 
-def split_MNIST_inputs(inputs, labels):
+def split_mnist_inputs(inputs, labels):
     """
     Split MNIST inputs by digit class.
 

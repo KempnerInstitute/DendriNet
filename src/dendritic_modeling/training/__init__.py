@@ -14,10 +14,10 @@ from dendritic_modeling.training.optimizers import CustomWeightDecayOptimizer
 from dendritic_modeling.training.strategies import Trainer
 
 __all__ = [
-    "CustomWeightDecayOptimizer",
-    "GradientScaler",
-    "Trainer",
-    "extract_weights_from_simple_mlp",
-    "get_trainer",
+    "CustomWeightDecayOptimizer"
+    "extract_weights_from_simple_mlp"
+    "get_trainer"
+    "GradientScaler"
+    "Trainer"
     "transfer_mlp_weights_to_input_net"
 ]

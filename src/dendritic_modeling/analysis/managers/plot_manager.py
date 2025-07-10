@@ -15,7 +15,6 @@ from dendritic_modeling.plotting.network import (
     plot_dendrinet_gradients,
     plot_einet_params,
 )
-from dendritic_modeling.plotting.utils import split_MNIST_inputs
 
 # from dendritic_modeling.analysis.branch_interactive import InteractiveBranchAnalyzer
 # from dendritic_modeling.analysis.dendrite_comprehensive import ComprehensiveDendriticAnalyzer
@@ -135,7 +134,7 @@ class PlotManager:
             os.makedirs(save_dir, exist_ok=True)
 
             train_input, train_label = self.data["train"][:]
-            input_list = split_MNIST_inputs(train_input, train_label)
+            input_list = split_mnist_inputs(train_input, train_label)
 
             plot_einet_activations(
                 einet=self.model.net,

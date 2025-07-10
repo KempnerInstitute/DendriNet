@@ -1,6 +1,7 @@
 # synthetic_datasets.py
 
 import os
+from typing import Optional
 
 import numpy as np
 import torch
@@ -255,7 +256,7 @@ def load_mnist_as_datasets(
 
     return train_ds, valid_ds, test_ds
 
-def load_MNIST_modulo10(
+def load_mnist_modulo10(
     shuffle_iterations=2,
     train_valid_split=1,
     flatten=False,
@@ -572,7 +573,7 @@ def load_cifar10_as_datasets(
 # The single get_unified_datasets(...) function
 ########################################
 
-def applyRandomFlip(images, labels, setAll=False, setValue=0):
+def apply_random_flip(images, labels, setAll=False, setValue=0):
     """
     This function modifies images and labels in-place to flip the label
     or shift it. The 'first 3 pixels' logic sets a code:
@@ -627,7 +628,7 @@ def applyRandomFlip(images, labels, setAll=False, setValue=0):
 
 class RandomFlipMNISTDataset(Dataset):
     """
-    Loads standard MNIST and applies the applyRandomFlip() transform
+    Loads standard MNIST and applies the apply_random_flip() transform
     to each sample in __getitem__ if random_flip=True.
     This modifies the first 3 pixels and possibly flips/shifts the label.
     """
@@ -695,13 +696,13 @@ class RandomFlipMNISTDataset(Dataset):
 
         if self.random_flip:
             if self.setAll is not None:
-                x, y, _ = applyRandomFlip(
+                x, y, _ = apply_random_flip(
                     x.unsqueeze(0), y.unsqueeze(0), setAll=True, setValue=self.setAll
                 )
                 x = x.squeeze(0)
                 y = y.squeeze(0)
             else:
-                x, y, _ = applyRandomFlip(x.unsqueeze(0), y.unsqueeze(0), setAll=False)
+                x, y, _ = apply_random_flip(x.unsqueeze(0), y.unsqueeze(0), setAll=False)
                 x = x.squeeze(0)
                 y = y.squeeze(0)
         return x, y
@@ -733,10 +734,10 @@ def load_poisson_generator_datasets(
     rate_multiplier: float = 1,
     train_valid_split: float = 0.8,
     flatten: bool = False,
-    data_path: str = None,
-    output_dir: str = None,
-    task_data_path: str = None,
-    outputs_dir: str = None
+    data_path: Optional[str] = None,
+    output_dir: Optional[str] = None,
+    task_data_path: Optional[str] = None,
+    outputs_dir: Optional[str] = None
 ):
     """
     Generate a dataset of Poisson-distributed samples from a base dataset.
@@ -1007,7 +1008,7 @@ def get_unified_datasets(task_cfg, train_cfg, output_dir=None, outputs_cfg=None)
         )
         return train_dataset, valid_dataset, test_dataset
     elif dataset_name == "mnist_modulo10":
-        data = load_MNIST_modulo10(
+        data = load_mnist_modulo10(
             train_valid_split=train_valid_split,
             flatten=flatten,
             normalize=normalize,

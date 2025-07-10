@@ -16,7 +16,7 @@ class LoggerManager:
 
     def __new__(cls, *args, **kwargs):
         if cls._instance is None:
-            cls._instance = super(LoggerManager, cls).__new__(cls)
+            cls._instance = super().__new__(cls)
             cls._instance._initialize_logger()
         return cls._instance
 

@@ -5,7 +5,7 @@ from dendritic_modeling.networks.architectures.classical.cnn.cnn import (
 )
 
 __all__ = [
-    "AlexNet",
-    "CNNDownsample",
+    "AlexNet"
+    "CNNDownsample"
     "CNNUpsample"
 ]

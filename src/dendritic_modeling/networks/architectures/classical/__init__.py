@@ -7,10 +7,10 @@ from dendritic_modeling.networks.architectures.classical.identity import Identit
 from dendritic_modeling.networks.architectures.classical.mlp import MLP, MatchedParamMLP
 
 __all__ = [
-    "MLP",
-    "AlexNet",
-    "CNNDownsample",
-    "CNNUpsample",
-    "Identity",
+    "AlexNet"
+    "CNNDownsample"
+    "CNNUpsample"
+    "Identity"
     "MatchedParamMLP"
+    "MLP"
 ]

@@ -5,12 +5,16 @@ This module implements the base InputNetTransform class that maps
 raw inputs to excitatory and inhibitory pathways.
 """
 
+import logging
+from typing import Optional
+
 import torch
 import torch.nn as nn
-from typing import Optional, , 
-import logging
 
-from dendritic_modeling.networks.architectures.excitation_inhibition.input_transform.index import IndexInputTransform
+from dendritic_modeling.networks.architectures.excitation_inhibition.input_transform.index import (
+    IndexInputTransform,
+)
+
 # from dendritic_modeling.networks.architectures.classical.mlp.mlp import MLPInputTransform
 # from dendritic_modeling.networks.architectures.classical.cnn.cnn import CNNInputTransform
 # from dendritic_modeling.networks.architectures.classical.cnn.alexnet import AlexNetInputTransform

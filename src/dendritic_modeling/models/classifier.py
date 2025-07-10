@@ -25,7 +25,7 @@ class Classifier(BaseModel):
         core_network: BaseNetwork,
         decoder_network: Optional[BaseNetwork]
     ):
-        super(Classifier, self).__init__(
+        super().__init__(
             encoder_network,
             core_network,
             decoder_network

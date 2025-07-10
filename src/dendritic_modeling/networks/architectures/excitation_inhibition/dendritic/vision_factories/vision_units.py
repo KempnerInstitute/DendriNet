@@ -12,14 +12,14 @@ from scipy.ndimage import gaussian_filter
 from dendritic_modeling.networks.layers.dendritic_conv2d import DendriteConv2d
 
 __all__ = [
-    "create_gabor_unit",
-    "create_center_surround_unit",
-    "create_motion_unit",
-    "create_end_stopped_unit",
+    "create_center_surround_unit"
+    "create_end_stopped_unit"
+    "create_gabor_unit"
+    "create_motion_unit"
+    "rf_gabor"
+    "rf_off_center"
     # Target RF templates
-    "rf_on_center",
-    "rf_off_center",
-    "rf_gabor",
+    "rf_on_center"
 ]
 
 def _gabor_kernel(size: int, wavelength: float, orientation: float, phase: float, sigma: float,
@@ -33,11 +33,11 @@ def _gabor_kernel(size: int, wavelength: float, orientation: float, phase: float
     g = np.exp(-(Xr ** 2 + (Yr / aspect_ratio) ** 2) / (2 * sigma ** 2))
     return g * np.cos(2 * np.pi * Xr / wavelength + phase)
 
-def _push_pull_layer(E: np.ndarray, I: np.ndarray) -> DendriteConv2d:
+def _push_pull_layer(E: np.ndarray, I_var: np.ndarray) -> DendriteConv2d:
     layer = DendriteConv2d(1, 1, E.shape[0], padding=E.shape[0] // 2, bias=False)
     with torch.no_grad():
         layer.weight_E_raw.data[0, 0] = torch.log(torch.tensor(E, dtype=torch.float32) + 1e-6)
-        layer.weight_I_raw.data[0, 0] = torch.log(torch.tensor(I, dtype=torch.float32) + 1e-6)
+        layer.weight_I_raw.data[0, 0] = torch.log(torch.tensor(I_var, dtype=torch.float32) + 1e-6)
     return layer
 
 # Target RF templates for fitting
@@ -91,7 +91,7 @@ def create_gabor_unit(orientation: float, *, kernel_size: int = 11, wavelength: 
     gabor = _gabor_kernel(kernel_size, wavelength, orientation, 0.0, sigma)
     E = np.maximum(gabor, 0.0)
     I_var = np.maximum(-gabor, 0.0) + 0.1
-    return _push_pull_layer(E, I)
+    return _push_pull_layer(E, I_var)
 
 def create_center_surround_unit(kind: str = "on", *, kernel_size: int = 15, center_size: int = 5,
                                 surround_size: int = 11) -> DendriteConv2d:
@@ -106,7 +106,7 @@ def create_center_surround_unit(kind: str = "on", *, kernel_size: int = 15, cent
         E, I_var = center * 10.0, surround * 8.0 + 0.1
     else:
         E, I_var = surround * 10.0, center * 8.0 + 0.1
-    return _push_pull_layer(E, I)
+    return _push_pull_layer(E, I_var)
 
 def create_motion_unit(direction: str = "rightward", *, kernel_size: int = 15) -> DendriteConv2d:
     E = np.zeros((kernel_size, kernel_size))
@@ -119,7 +119,7 @@ def create_motion_unit(direction: str = "rightward", *, kernel_size: int = 15) -
         I[:, : kernel_size // 2] = gaussian_filter(np.ones((kernel_size, kernel_size // 2 + 1)), 2)
     E = E / (E.max() + 1e-6)
     I_var = I / (I.max() + 1e-6) + 0.1
-    return _push_pull_layer(E, I)
+    return _push_pull_layer(E, I_var)
 
 def create_end_stopped_unit(preferred_length: int = 20, *, orientation: float = 90.0) -> DendriteConv2d:
     k = 25
@@ -138,4 +138,4 @@ def create_end_stopped_unit(preferred_length: int = 20, *, orientation: float = 
     I_sides = np.exp(-((Xr + 6) ** 2) / (2 * 3 ** 2)) + np.exp(-((Xr - 6) ** 2) / (2 * 3 ** 2))
     E = E_center * 5
     I_var = I_ends * 3 + I_sides * 0.5 + 0.1
-    return _push_pull_layer(E, I)
+    return _push_pull_layer(E, I_var)

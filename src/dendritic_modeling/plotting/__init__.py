@@ -93,69 +93,63 @@ from dendritic_modeling.plotting.utils import (
 )
 
 __all__ = [
-    # Base classes and configuration
-    "PlotConfig",
-    "BasePlotter",
-    "LinePlotter",
-    "BarPlotter",
-    "BoxPlotter",
-    "ComparisonPlotter",
-
+    "AblationPlotter"
+    "ActivationPlotter"
+    "add_colorbars"
+    "BarPlotter"
+    "BasePlotter"
+    "BoxPlotter"
+    "build_dendritic_tree_graph"
+    "ComparisonPlotter"
+    "dendrinet_activations_to_csv"
+    "dendrinet_activations_todict"
+    "dendrinet_gradients_todict"
+    "dendrinet_params_todict"
+    "einet_activations_to_csv"
+    "einet_activations_todict"
+    "einet_gradients_todict"
+    "einet_params_todict"
+    "format_layer_labels"
+    "InformationAnalysisPlotter"
     # Analysis plotting classes
-    "LayerAnalysisPlotter",
-    "AblationPlotter",
-    "NoiseAnalysisPlotter",
-    "WeightDistributionPlotter",
-    "InformationAnalysisPlotter",
-    "ActivationPlotter",
-
-    # Analysis convenience functions
-    "plot_layer_contributions",
-    "plot_ablation_results",
-    "plot_noise_robustness",
-    "plot_weight_distributions",
-    "plot_information_analysis",
-    "plot_dendrinet_activations",
-    "plot_einet_activations",
-    "dendrinet_activations_todict",
-    "einet_activations_todict",
-
-    # Training plotting functions
-    "plot_loss_curves",
-    "plot_ei_sweep_results",
-    "plot_branch_sweep_results",
-    "plot_noise_sweep_ei_results",
-    "plot_noise_sweep_branch_results",
-
+    "LayerAnalysisPlotter"
+    "LinePlotter"
+    "NoiseAnalysisPlotter"
+    "plot_ablation_results"
+    "plot_activation_tuning"
+    "plot_branch_gradients"
+    "plot_branch_sweep_results"
+    "plot_branch_weights"
+    "plot_dendrinet_activations"
+    "plot_dendrinet_gradients"
     # Network plotting functions
-    "plot_dendrinet_params",
-    "plot_einet_params",
-    "plot_branch_weights",
-    "plot_excitation_inhibition_weights",
-    "visualize_dendritic_tree",
-    "plot_dendrinet_gradients",
-    "plot_branch_gradients",
-    "plot_excitation_inhibition_gradients",
-    "plotWithColor",
-    "add_colorbars",
-    "dendrinet_params_todict",
-    "einet_params_todict",
-    "dendrinet_gradients_todict",
-    "einet_gradients_todict",
-
-    # Basic plotting functions (excluding plotWithColor and add_colorbars as they're in network)
-    "shape_helper",
-    "plot_NLL_loss_curves",
-
+    "plot_dendrinet_params"
+    "plot_depth_info"
+    "plot_ei_sweep_results"
+    "plot_einet_activations"
+    "plot_einet_params"
+    "plot_excitation_inhibition_gradients"
+    "plot_excitation_inhibition_weights"
+    "plot_information_analysis"
+    # Analysis convenience functions
+    "plot_layer_contributions"
+    # Training plotting functions
+    "plot_loss_curves"
+    "plot_NLL_loss_curves"
+    "plot_noise_robustness"
+    "plot_noise_sweep_branch_results"
+    "plot_noise_sweep_ei_results"
+    "plot_voltage_before_activation"
+    "plot_weight_distributions"
+    # Base classes and configuration
+    "PlotConfig"
+    "plotWithColor"
     # Utility functions
-    "reverse_layer_indices",
-    "format_layer_labels",
-    "dendrinet_activations_to_csv",
-    "einet_activations_to_csv",
-    "build_dendritic_tree_graph",
-    "visualize_dendritic_tree",
-    "plot_activation_tuning",
-    "plot_voltage_before_activation",
-    "split_MNIST_inputs",
-    "plot_depth_info",
+    "reverse_layer_indices"
+    # Basic plotting functions (excluding plotWithColor and add_colorbars as they're in network)
+    "shape_helper"
+    "split_MNIST_inputs"
+    "visualize_dendritic_tree"
+    "visualize_dendritic_tree"
+    "WeightDistributionPlotter"
 ]

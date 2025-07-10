@@ -35,7 +35,6 @@ import logging
 import traceback
 from dataclasses import asdict
 from datetime import datetime
-from typing import Optional
 
 import torch
 
@@ -213,7 +212,7 @@ def run_analysis(
     test_ds: torch.utils.data.Dataset,
     visualization_cfg: VisualizationConfig,
     run_save_path: str,
-    analysis_manager: Optional[AnalysisManager] = None,
+    analysis_manager: AnalysisManager | None = None,
 ):
     data = {"train": train_ds, "valid": valid_ds, "test": test_ds}
     device = "cuda" if torch.cuda.is_available() else "cpu"

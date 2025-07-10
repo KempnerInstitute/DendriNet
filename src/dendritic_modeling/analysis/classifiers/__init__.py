@@ -11,11 +11,11 @@ from .classification import (
 )
 
 __all__ = [
-    "MLPClassifier",
-    "analyze_layerwise_ablation",
-    "evaluate_classifier",
-    "get_ablated_activations",
-    "get_layer_activations",
-    "train_and_evaluate_classifier",
-    "train_classifier",
+    "analyze_layerwise_ablation"
+    "evaluate_classifier"
+    "get_ablated_activations"
+    "get_layer_activations"
+    "MLPClassifier"
+    "train_and_evaluate_classifier"
+    "train_classifier"
 ]

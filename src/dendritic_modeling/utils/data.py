@@ -10,11 +10,13 @@ import json
 import os
 import random
 from typing import Any
+
 import numpy as np
 import torch
 from omegaconf import DictConfig, ListConfig
 
-class Shaper(object):
+
+class Shaper:
     """
     A utility class for reshaping input data to a specified shape.
 

@@ -5,14 +5,20 @@ This module implements the ExcitationInhibitionNetwork which uses separate
 excitatory and inhibitory pathways with dendritic computation.
 """
 
+from copy import deepcopy
+from typing import Any, Optional
+
 import torch
 import torch.nn as nn
-from typing import Any
-from copy import deepcopy
 
-from dendritic_modeling.networks.architectures.excitation_inhibition.input_transform.transfer import TransferLayer
-from dendritic_modeling.networks.architectures.excitation_inhibition.ei_layer import ExcitationInhibitionLayer
+from dendritic_modeling.networks.architectures.excitation_inhibition.ei_layer import (
+    ExcitationInhibitionLayer,
+)
+from dendritic_modeling.networks.architectures.excitation_inhibition.input_transform.transfer import (
+    TransferLayer,
+)
 from dendritic_modeling.networks.base import BaseNetwork
+
 
 class ExcitationInhibitionNetwork(BaseNetwork):
     """
@@ -32,10 +38,10 @@ class ExcitationInhibitionNetwork(BaseNetwork):
         reactivation_init_m: float = 1.5,
         reactivation_init_b: float = 0.5,
         somatic_synapses: bool = True,
-        ee_synapses_per_branch_per_layer: list[int] = None,
-        ei_synapses_per_branch_per_layer: list[int] = None,
-        ie_synapses_per_branch_per_layer: list[int] = None,
-        ii_synapses_per_branch_per_layer: list[int] = None,
+        ee_synapses_per_branch_per_layer: Optional[list[int]] = None,
+        ei_synapses_per_branch_per_layer: Optional[list[int]] = None,
+        ie_synapses_per_branch_per_layer: Optional[list[int]] = None,
+        ii_synapses_per_branch_per_layer: Optional[list[int]] = None,
         use_shunting: bool = True,
         reactivation_type: str = "param_tanh",
         reactivation_strategy: str = "inverse",
