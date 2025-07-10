@@ -19,10 +19,10 @@ from tests.test_dendritic_conv2d import run_all_tests
 if __name__ == "__main__":
     print("Running Dendritic Convolution Test Suite...")
     print("=" * 60)
-    
+
     try:
         run_all_tests()
         print("\nAll tests completed successfully!")
     except Exception as e:
         print(f"\nTest failed with error: {e}")
-        raise 
+        raise

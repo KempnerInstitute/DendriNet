@@ -7,13 +7,12 @@ excitatory and inhibitory pathways with dendritic computation.
 
 import torch
 import torch.nn as nn
-from typing import List, Dict, Any
+from typing import , , Any
 from copy import deepcopy
 
 from dendritic_modeling.networks.architectures.excitation_inhibition.input_transform.transfer import TransferLayer
 from dendritic_modeling.networks.architectures.excitation_inhibition.ei_layer import ExcitationInhibitionLayer
 from dendritic_modeling.networks.base import BaseNetwork
-
 
 class ExcitationInhibitionNetwork(BaseNetwork):
     """
@@ -24,19 +23,19 @@ class ExcitationInhibitionNetwork(BaseNetwork):
     def __init__(
         self,
         input_dim: int,
-        transfer_params: Dict[str, Any],
-        excitatory_layer_sizes: List[int],
-        inhibitory_layer_sizes: List[int],
-        excitatory_branch_factors: List[int],
-        inhibitory_branch_factors: List[int],
+        transfer_params: dict[str, Any],
+        excitatory_layer_sizes: list[int],
+        inhibitory_layer_sizes: list[int],
+        excitatory_branch_factors: list[int],
+        inhibitory_branch_factors: list[int],
         reactivate: bool = True,
         reactivation_init_m: float = 1.5,
         reactivation_init_b: float = 0.5,
         somatic_synapses: bool = True,
-        ee_synapses_per_branch_per_layer: List[int] = None,
-        ei_synapses_per_branch_per_layer: List[int] = None,
-        ie_synapses_per_branch_per_layer: List[int] = None,
-        ii_synapses_per_branch_per_layer: List[int] = None,
+        ee_synapses_per_branch_per_layer: list[int] = None,
+        ei_synapses_per_branch_per_layer: list[int] = None,
+        ie_synapses_per_branch_per_layer: list[int] = None,
+        ii_synapses_per_branch_per_layer: list[int] = None,
         use_shunting: bool = True,
         reactivation_type: str = "param_tanh",
         reactivation_strategy: str = "inverse",
@@ -273,5 +272,4 @@ class ExcitationInhibitionNetwork(BaseNetwork):
         """Get the number of branch layers"""
         return len(self.branch_layers)
 
-
-__all__ = ["ExcitationInhibitionNetwork"] 
+__all__ = ["ExcitationInhibitionNetwork"]

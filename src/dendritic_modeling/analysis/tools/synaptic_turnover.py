@@ -6,30 +6,29 @@ tracking the dynamics of active, stable, and transient synapses over time.
 """
 
 from copy import deepcopy
-from typing import Optional, Tuple
+from typing import Optional
 import torch
 from dendritic_modeling.models import BaseModel
 from dendritic_modeling.networks import ExcitationInhibitionNetwork
 from dendritic_modeling.networks import DendriticBranchLayer
 from dendritic_modeling.utils import save_dict
 
-
 class SynapticTurnoverAnalyzer:
     """
     Analyzer for tracking synaptic turnover and plasticity during training.
-    
+
     Collects snapshots of synaptic weight masks over time and computes turnover
     statistics including active, stable, and transient synapses for both
     excitatory and inhibitory connections.
     """
-    
+
     def __init__(self, model: BaseModel):
         """
         Initialize the synaptic turnover analyzer.
-        
+
         Args:
             model: The model to analyze (must have ExcitationInhibitionNetwork)
-            
+
         Note:
             This automatically takes an initial snapshot of the model's synaptic masks.
         """
@@ -50,14 +49,14 @@ class SynapticTurnoverAnalyzer:
     ):
         """
         Analyze synaptic turnover by taking snapshots or computing statistics.
-        
+
         Args:
             model: The model to analyze
             training: If True, takes a snapshot of current synaptic masks.
                      If False, computes turnover statistics from collected snapshots.
             save_path: Path to save results (optional)
             filename: Filename for saved results
-            
+
         Returns:
             Dictionary containing turnover statistics if training=False and save_path is None
         """
@@ -94,17 +93,17 @@ class SynapticTurnoverAnalyzer:
                 total_active: int,
                 total_stable: int,
                 total_transient: int,
-            ) -> Tuple[int, int, int]:
+            ) -> tuple[int, int, int]:
                 """
                 Helper function to compute turnover statistics between two masks.
-                
+
                 Args:
                     prev_mask: Previous time step's weight mask
                     curr_mask: Current time step's weight mask
                     total_active: Running total of active synapses
                     total_stable: Running total of stable synapses
                     total_transient: Running total of transient synapses
-                    
+
                 Returns:
                     Tuple of updated (total_active, total_stable, total_transient)
                 """
@@ -123,7 +122,7 @@ class SynapticTurnoverAnalyzer:
                 "inh": {"active": [], "stable": [], "transient": []},
                 "both": {"active": [], "stable": [], "transient": []},
             }
-            
+
             # Compare consecutive snapshots to compute turnover
             for i in range(1, len(self.data_dict_list)):
                 prev_data_dict: dict = self.data_dict_list[i - 1]
@@ -198,4 +197,4 @@ class SynapticTurnoverAnalyzer:
             if save_path is not None:
                 save_dict(turnover_dict, save_path, filename)
             else:
-                return turnover_dict 
+                return turnover_dict

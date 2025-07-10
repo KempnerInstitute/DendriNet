@@ -3,7 +3,7 @@ Plotting package for dendritic modeling.
 
 This package contains visualization and plotting utilities organized into logical modules:
 - analysis: Unified analysis plotting with object-oriented design for all analysis types
-- training: Training-related plotting functions (loss curves, sweeps, metrics)  
+- training: Training-related plotting functions (loss curves, sweeps, metrics)
 - network: Network visualization functions (parameters, weights, architecture)
 - basic: Basic plotting utilities
 - utils: Utility functions (CSV export, tree visualization, helper functions)
@@ -14,11 +14,11 @@ Each module contains focused plotting functions for specific aspects of dendriti
 
 # Import base classes and configuration
 from dendritic_modeling.plotting.base import (
-    PlotConfig, 
-    BasePlotter, 
-    LinePlotter, 
-    BarPlotter, 
-    BoxPlotter, 
+    PlotConfig,
+    BasePlotter,
+    LinePlotter,
+    BarPlotter,
+    BoxPlotter,
     ComparisonPlotter
 )
 
@@ -96,12 +96,12 @@ from dendritic_modeling.plotting.utils import (
 __all__ = [
     # Base classes and configuration
     "PlotConfig",
-    "BasePlotter", 
+    "BasePlotter",
     "LinePlotter",
     "BarPlotter",
     "BoxPlotter",
     "ComparisonPlotter",
-    
+
     # Analysis plotting classes
     "LayerAnalysisPlotter",
     "AblationPlotter",
@@ -109,7 +109,7 @@ __all__ = [
     "WeightDistributionPlotter",
     "InformationAnalysisPlotter",
     "ActivationPlotter",
-    
+
     # Analysis convenience functions
     "plot_layer_contributions",
     "plot_ablation_results",
@@ -120,14 +120,14 @@ __all__ = [
     "plot_einet_activations",
     "dendrinet_activations_todict",
     "einet_activations_todict",
-    
+
     # Training plotting functions
     "plot_loss_curves",
     "plot_ei_sweep_results",
     "plot_branch_sweep_results",
     "plot_noise_sweep_ei_results",
     "plot_noise_sweep_branch_results",
-    
+
     # Network plotting functions
     "plot_dendrinet_params",
     "plot_einet_params",
@@ -143,11 +143,11 @@ __all__ = [
     "einet_params_todict",
     "dendrinet_gradients_todict",
     "einet_gradients_todict",
-    
+
     # Basic plotting functions (excluding plotWithColor and add_colorbars as they're in network)
     "shape_helper",
     "plot_NLL_loss_curves",
-    
+
     # Utility functions
     "reverse_layer_indices",
     "format_layer_labels",
@@ -159,4 +159,4 @@ __all__ = [
     "plot_voltage_before_activation",
     "split_MNIST_inputs",
     "plot_depth_info",
-] 
+]

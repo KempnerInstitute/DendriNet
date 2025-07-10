@@ -18,4 +18,4 @@ __all__ = [
     "direction_selectivity_index",
     "size_tuning_index",
     "length_selectivity_index"
-] 
+]

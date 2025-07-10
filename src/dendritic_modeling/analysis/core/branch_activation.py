@@ -5,7 +5,7 @@ This module contains classes for analyzing both synaptic and branch-level activa
 during forward passes, providing detailed statistical analysis at multiple levels.
 """
 
-from typing import List, Optional, Tuple
+from typing import Optional
 import torch
 from dendritic_modeling.models import BaseModel
 from dendritic_modeling.networks import ExcitationInhibitionNetwork
@@ -13,19 +13,18 @@ from dendritic_modeling.networks import DendriticBranchLayer
 from dendritic_modeling.config import BranchActivationAnalysisParams
 from dendritic_modeling.utils import save_dict
 
-
 class BranchActivationAnalyzer:
     """
     Analyzer for tracking both synaptic and branch activation patterns during model inference.
-    
+
     Uses forward hooks to collect excitatory synaptic activations, inhibitory synaptic activations,
     and branch output activations, computing detailed statistical summaries at multiple levels.
     """
-    
+
     def __init__(self, params: BranchActivationAnalysisParams):
         """
         Initialize the branch activation analyzer.
-        
+
         Args:
             synapse_activations: Whether to collect excitatory and inhibitory synapse activations
             branch_activations: Whether to collect branch output activations (Vout)
@@ -50,10 +49,10 @@ class BranchActivationAnalyzer:
     def attach_forward_hooks(self, model: BaseModel):
         """
         Attach forward hooks to collect branch activations.
-        
+
         Args:
             model: The model to attach hooks to
-            
+
         Returns:
             List of hook handles for later removal
         """
@@ -67,7 +66,7 @@ class BranchActivationAnalyzer:
                     handles.append(handle)
         return handles
 
-    def remove_forward_hooks(self, handles: List[torch.utils.hooks.RemovableHandle]):
+    def remove_forward_hooks(self, handles: list[torch.utils.hooks.RemovableHandle]):
         """Remove forward hooks."""
         for handle in handles:
             handle.remove()
@@ -75,12 +74,12 @@ class BranchActivationAnalyzer:
     def forward_hook(
         self,
         module: DendriticBranchLayer,
-        input: Tuple[torch.Tensor, torch.Tensor, Optional[torch.Tensor]],
+        input: tuple[torch.Tensor, torch.Tensor, Optional[torch.Tensor]],
         output: torch.Tensor,
     ):
         """
         Forward hook to collect branch activations.
-        
+
         Args:
             module: The dendritic branch layer
             input: Input tuple (excitatory, inhibitory, optional)
@@ -111,14 +110,14 @@ class BranchActivationAnalyzer:
     ):
         """
         Analyze branch activations in the model.
-        
+
         Args:
             model: The model to analyze
             test_dataset: Test dataset for analysis
             device: Device to run analysis on
             save_path: Path to save results (optional)
             filename: Filename for saved results
-            
+
         Returns:
             Dictionary containing branch activation analysis if save_path is None, otherwise None
         """
@@ -283,4 +282,4 @@ class BranchActivationAnalyzer:
         if save_path is not None:
             save_dict(results, save_path, filename)
         else:
-            return results 
+            return results

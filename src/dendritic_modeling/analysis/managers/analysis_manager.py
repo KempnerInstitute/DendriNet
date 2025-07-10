@@ -7,7 +7,7 @@ all the different analysis tools in the dendritic modeling package.
 
 import logging
 import os
-from typing import Dict, Optional
+from typing import Optional
 import numpy as np
 
 import torch
@@ -26,20 +26,19 @@ from dendritic_modeling.analysis.core.branch_activation import BranchActivationA
 from dendritic_modeling.analysis.core.information import InformationAnalyzer
 from dendritic_modeling.analysis.tools.correlation_analysis import CorrelationAnalyzer
 
-
 class AnalysisManager:
     """
     Coordinates and orchestrates all analysis tools for dendritic modeling.
-    
+
     This class manages the initialization and execution of various analysis tools
     based on configuration settings, providing a unified interface for running
     comprehensive model analysis.
     """
-    
+
     def __init__(
         self,
         model: BaseModel,
-        data: Dict[str, torch.utils.data.Dataset],
+        data: dict[str, torch.utils.data.Dataset],
         analysis_config: AnalysisConfig,
         save_root: Optional[str] = None,
         device: str = "cpu",
@@ -117,14 +116,14 @@ class AnalysisManager:
     def run_analysis(self, filename: str = "final", training: bool = False):
         """
         Run all enabled analysis tools.
-        
+
         Args:
             filename: Base filename for saving analysis results
             training: Whether this is being called during training (affects which analyses run)
         """
         # Performance Analysis
         if self.config.performance_analysis.enabled and (
-            (self.config.performance_analysis.training and training) 
+            (self.config.performance_analysis.training and training)
             or not training
         ):
             self.performance_analyzer.analyze(
@@ -249,11 +248,11 @@ class AnalysisManager:
                 dataset=self.data["test"],
                 device=self.device
             )
-            
+
             # Get information results if available
             information_results = None
             accuracy = None
-            
+
             # Try to load information analysis results if they exist
             info_results_path = os.path.join(self.save_root, "information_analysis", f"{filename}.npz")
             if os.path.exists(info_results_path):
@@ -263,13 +262,13 @@ class AnalysisManager:
                     self.logger.info("Loaded information analysis results for correlation analysis")
                 except Exception as e:
                     self.logger.warning(f"Failed to load information results: {e}")
-            
+
             # Try to get accuracy from recent training
             if hasattr(self.model, 'last_test_accuracy'):
                 accuracy = self.model.last_test_accuracy
             elif hasattr(self, 'last_test_accuracy'):
                 accuracy = self.last_test_accuracy
-            
+
             correlation_analyzer.analyze(
                 save_dir=os.path.join(self.save_root, "correlation_analysis"),
                 information_results=information_results,

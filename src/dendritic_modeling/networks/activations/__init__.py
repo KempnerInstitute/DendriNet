@@ -25,4 +25,4 @@ __all__ = [
     "ParametricLinearSigmoid",
     "ParametricLinearTanh",
     "ParametricLinearTanhTransition"
-] 
+]

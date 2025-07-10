@@ -23,7 +23,6 @@ from dendritic_modeling.utils.information.pid import (
     pid_synergy_redundancy
 )
 
-
 __all__ = [
     # Core computation functions
     "compute_mi_cc",
@@ -36,4 +35,4 @@ __all__ = [
     # PID utilities
     "check_pid_available",
     "pid_synergy_redundancy"
-] 
+]

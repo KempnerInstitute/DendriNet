@@ -26,7 +26,6 @@ from dendritic_modeling.training.utils.evaluation import (
 )
 from dendritic_modeling.utils import save_dict
 
-
 class SingleLayerContributionAnalyzer:
     """
     Analyzes the contribution of individual layers by isolating them.
@@ -57,7 +56,7 @@ class SingleLayerContributionAnalyzer:
     ):
         results_dict[contribution_type][module_name] = {}
         results_dict[contribution_type][module_name]["depth"] = module.layer_idx
-    
+
         for mod, name in model.named_modules():
             if isinstance(mod, DendriticBranchLayer):
                 if (
@@ -67,12 +66,12 @@ class SingleLayerContributionAnalyzer:
                 ):
                     mod.branch_excitation.pre_w.data.fill_(-1000)
                     mod.branch_inhibition.pre_w.data.fill_(-1000)
-        
+
         if contribution_type == "excitation":
             module.branch_inhibition.pre_w.data.fill_(-1000)
         if contribution_type == "inhibition":
             module.branch_excitation.pre_w.data.fill_(-1000)
-        
+
         def _evaluate_metric(metric_func: Callable, metric_key: str):
             metric_score = metric_func(
                 model, test_ds=test_dataset, move_device=False
@@ -104,10 +103,10 @@ class SingleLayerContributionAnalyzer:
                 metric_func=evaluate_cosine_similarity,
                 metric_key="cosine similarity"
             )
-        
+
         model.load_state_dict(state_dict)
-        
-        return results_dict        
+
+        return results_dict
 
     def analyze(
         self,
@@ -137,7 +136,7 @@ class SingleLayerContributionAnalyzer:
         test_dataset = TensorDataset(inputs, labels)
 
         state_dict = deepcopy(model.state_dict())
-        
+
         results = {}
         if self.excitation_contribution:
             results["excitation"] = {}
@@ -145,7 +144,7 @@ class SingleLayerContributionAnalyzer:
             results["inhibition"] = {}
         if self.both_contribution:
             results["both"] = {}
-        
+
         for name, module in model.named_modules():
             if (
                 isinstance(module, DendriticBranchLayer)
@@ -162,7 +161,7 @@ class SingleLayerContributionAnalyzer:
                         results_dict=results,
                         state_dict=state_dict
                     )
-                
+
                 if self.excitation_contribution:
                     results = self.evaluate_layer_contribution(
                         model=model,
@@ -184,7 +183,7 @@ class SingleLayerContributionAnalyzer:
                         results_dict=results,
                         state_dict=state_dict
                     )
-        
+
         if save_path is not None:
             save_dict(results, save_path, filename)
         else:

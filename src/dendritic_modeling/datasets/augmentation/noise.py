@@ -6,9 +6,7 @@ This module contains utility functions for adding various types of noise
 to input data, useful for robustness testing and data augmentation.
 """
 
-from typing import Tuple
 import torch
-
 
 def add_gaussian_noise(
     x: torch.Tensor,
@@ -17,7 +15,7 @@ def add_gaussian_noise(
 ) -> torch.Tensor:
     """
     Add Gaussian noise to input tensor.
-    
+
     This function is useful for testing model robustness and for data augmentation.
     The noise is added to multiple samples of the input.
 
@@ -36,7 +34,6 @@ def add_gaussian_noise(
     # Clamp values to [0,1] to maintain valid input range
     return torch.clamp(noisy_x, 0, 1)
 
-
 def add_uniform_noise(
     x: torch.Tensor,
     spread: float = 0.1,
@@ -44,7 +41,7 @@ def add_uniform_noise(
 ) -> torch.Tensor:
     """
     Add uniform noise to input tensor.
-    
+
     Adds noise sampled from a uniform distribution with specified spread.
 
     Args:
@@ -62,7 +59,6 @@ def add_uniform_noise(
     # Clamp values to [0,1] to maintain valid input range
     return torch.clamp(noisy_x, 0, 1)
 
-
 def add_poisson_noise(
     x: torch.Tensor,
     rate: float = 1.0,
@@ -70,7 +66,7 @@ def add_poisson_noise(
 ) -> torch.Tensor:
     """
     Add Poisson noise to input tensor, simulating photon noise.
-    
+
     This type of noise is particularly relevant for modeling biological
     neural systems and optical imaging scenarios.
 
@@ -91,17 +87,16 @@ def add_poisson_noise(
     # Clamp values to [0,1] to maintain valid input range
     return torch.clamp(noisy_x, 0, 1)
 
-
 def add_frequency_noise(
     x: torch.Tensor,
     std: float = 0.1,
     n_samples: int = 1,
     n_channels: int = 1,
-    image_shape: Tuple[int, int] = (28, 28),
+    image_shape: tuple[int, int] = (28, 28),
 ) -> torch.Tensor:
     """
     Add noise in the frequency domain with separate real and imaginary components.
-    
+
     This function applies noise in the Fourier domain, which can create
     different types of spatial corruption patterns.
 
@@ -117,13 +112,13 @@ def add_frequency_noise(
     """
     batch = x.shape[:-1]
     height, width = image_shape
-    
+
     # Reshape to image format for FFT
     images = x.view(*batch, n_channels, height, width)
-    
+
     # Compute 2D FFT
     fft = torch.fft.fft2(images)
-    
+
     # Generate complex noise
     real_noise = (
         torch.randn(n_samples, *batch, n_channels, height, width, device=x.device) * std
@@ -132,13 +127,13 @@ def add_frequency_noise(
         torch.randn(n_samples, *batch, n_channels, height, width, device=x.device) * std
     )
     freq_noise = torch.complex(real_noise, imag_noise)
-    
+
     # Add noise in frequency domain
     noisy_fft = fft[None, ...] + freq_noise
-    
+
     # Inverse FFT to get back to spatial domain
     noisy_images = torch.fft.ifft2(noisy_fft).real
-    
+
     # Reshape back to original format and clamp
     noisy_x = noisy_images.reshape(n_samples, *batch, -1)
-    return torch.clamp(noisy_x, 0, 1) 
+    return torch.clamp(noisy_x, 0, 1)

@@ -20,4 +20,4 @@ __all__ = [
     # textures
     "create_portilla_simoncelli_texture",
     "create_contour_fragments",
-] 
+]

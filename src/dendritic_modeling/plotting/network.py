@@ -18,11 +18,10 @@ except ImportError:
                    "To fix this, try: pip install networkx or conda install networkx")
     nx = None
 
-
 def plotWithColor(x, colors, cmap="viridis", ax=None, colorbar=True, fig=None, **kwargs):
     """
     Plot data with colored points based on values.
-    
+
     Args:
         x: Data to plot
         colors: Values to determine colors
@@ -34,16 +33,15 @@ def plotWithColor(x, colors, cmap="viridis", ax=None, colorbar=True, fig=None, *
     """
     if ax is None:
         fig, ax = plt.subplots()
-    
+
     scatter = ax.scatter(range(len(x)), x, c=colors, cmap=cmap, **kwargs)
-    
+
     if colorbar:
         if fig is None:
             fig = plt.gcf()
         fig.colorbar(scatter, ax=ax)
-    
-    return scatter
 
+    return scatter
 
 def add_colorbars(
     fig,
@@ -55,7 +53,7 @@ def add_colorbars(
 ):
     """
     Add multiple colorbars to a figure.
-    
+
     Args:
         fig: Figure object
         ax_iterable: Iterable of axes
@@ -66,16 +64,15 @@ def add_colorbars(
     """
     for ax, im in zip(ax_iterable, im_iterable):
         cbar = fig.colorbar(im, ax=ax, shrink=0.6, aspect=20)
-        
+
     # Legacy compatibility - simple version
     if isinstance(ax_iterable, list) and len(ax_iterable) == 1:
         fig.colorbar(im_iterable[0], ax=ax_iterable[0])
 
-
 def plot_dendrinet_params(model, save_path=None, show=True):
     """
     Plot DendriNet parameters including weights and biases.
-    
+
     Args:
         model: DendriNet model
         save_path: Path to save the plot (optional)
@@ -83,18 +80,18 @@ def plot_dendrinet_params(model, save_path=None, show=True):
     """
     # Get model parameters
     params = dendrinet_params_todict(model)
-    
+
     # Create subplots for different parameter types
     n_layers = len(params['layer_weights'])
     n_branches = len(params['branch_weights'][0]) if params['branch_weights'] else 0
-    
+
     # Adjust figure size based on network structure
     fig_height = max(12, 4 + 2 * n_layers)
     fig_width = max(15, 5 + 2 * n_branches)
-    
+
     fig, axes = plt.subplots(2, 2, figsize=(fig_width, fig_height))
     fig.suptitle('DendriNet Parameters', fontsize=16)
-    
+
     # Plot layer weights
     if params['layer_weights']:
         for i, weights in enumerate(params['layer_weights']):
@@ -103,16 +100,16 @@ def plot_dendrinet_params(model, save_path=None, show=True):
             axes[0, 0].set_xlabel('Input Features')
             axes[0, 0].set_ylabel('Output Features')
         fig.colorbar(im1, ax=axes[0, 0])
-    
+
     # Plot branch weights
     if params['branch_weights']:
-        branch_data = np.concatenate([w.flatten() for layer_branches in params['branch_weights'] 
+        branch_data = np.concatenate([w.flatten() for layer_branches in params['branch_weights']
                                     for w in layer_branches])
         axes[0, 1].hist(branch_data, bins=50, alpha=0.7, color='blue')
         axes[0, 1].set_title('Branch Weights Distribution')
         axes[0, 1].set_xlabel('Weight Value')
         axes[0, 1].set_ylabel('Frequency')
-    
+
     # Plot biases
     if params['layer_biases']:
         bias_data = np.concatenate([b.flatten() for b in params['layer_biases']])
@@ -120,7 +117,7 @@ def plot_dendrinet_params(model, save_path=None, show=True):
         axes[1, 0].set_title('Layer Biases Distribution')
         axes[1, 0].set_xlabel('Bias Value')
         axes[1, 0].set_ylabel('Frequency')
-    
+
     # Plot output weights
     if params['output_weights'] is not None:
         im4 = axes[1, 1].imshow(params['output_weights'], aspect='auto', cmap='RdBu_r')
@@ -128,23 +125,22 @@ def plot_dendrinet_params(model, save_path=None, show=True):
         axes[1, 1].set_xlabel('Input Features')
         axes[1, 1].set_ylabel('Output Classes')
         fig.colorbar(im4, ax=axes[1, 1])
-    
+
     plt.tight_layout()
-    
+
     if save_path:
         os.makedirs(os.path.dirname(save_path), exist_ok=True)
         plt.savefig(save_path, dpi=300, bbox_inches='tight')
-    
+
     if show:
         plt.show()
     else:
         plt.close()
 
-
 def plot_einet_params(model=None, einet=None, save_path=None, save_root=None, save_in_dir=False, filename=None, show=True):
     """
     Plot EINet parameters including excitatory and inhibitory weights.
-    
+
     Args:
         model: EINet model (alternative: use einet parameter)
         einet: EINet model (alternative: use model parameter)
@@ -159,8 +155,8 @@ def plot_einet_params(model=None, einet=None, save_path=None, save_root=None, sa
         model = einet
     if model is None:
         raise ValueError("Must provide either 'model' or 'einet' parameter")
-    
-    # Handle save path flexibility 
+
+    # Handle save path flexibility
     if save_root is not None and save_path is None:
         if save_in_dir:
             os.makedirs(save_root, exist_ok=True)
@@ -170,10 +166,10 @@ def plot_einet_params(model=None, einet=None, save_path=None, save_root=None, sa
                 save_path = os.path.join(save_root, "einet_params.png")
     # Get model parameters
     params = einet_params_todict(model)
-    
+
     fig, axes = plt.subplots(2, 2, figsize=(15, 12))
     fig.suptitle('EINet Parameters', fontsize=16)
-    
+
     # Plot excitatory weights
     if params['excitatory_weights']:
         exc_data = np.concatenate([w.flatten() for w in params['excitatory_weights']])
@@ -181,7 +177,7 @@ def plot_einet_params(model=None, einet=None, save_path=None, save_root=None, sa
         axes[0, 0].set_title('Excitatory Weights Distribution')
         axes[0, 0].set_xlabel('Weight Value')
         axes[0, 0].set_ylabel('Frequency')
-    
+
     # Plot inhibitory weights
     if params['inhibitory_weights']:
         inh_data = np.concatenate([w.flatten() for w in params['inhibitory_weights']])
@@ -189,14 +185,14 @@ def plot_einet_params(model=None, einet=None, save_path=None, save_root=None, sa
         axes[0, 1].set_title('Inhibitory Weights Distribution')
         axes[0, 1].set_xlabel('Weight Value')
         axes[0, 1].set_ylabel('Frequency')
-    
+
     # Plot E/I ratio across layers
     if params['ei_ratios']:
         axes[1, 0].bar(range(len(params['ei_ratios'])), params['ei_ratios'], alpha=0.7, color='purple')
         axes[1, 0].set_title('E/I Ratios by Layer')
         axes[1, 0].set_xlabel('Layer')
         axes[1, 0].set_ylabel('E/I Ratio')
-    
+
     # Plot biases
     if params['biases']:
         bias_data = np.concatenate([b.flatten() for b in params['biases']])
@@ -204,23 +200,22 @@ def plot_einet_params(model=None, einet=None, save_path=None, save_root=None, sa
         axes[1, 1].set_title('Biases Distribution')
         axes[1, 1].set_xlabel('Bias Value')
         axes[1, 1].set_ylabel('Frequency')
-    
+
     plt.tight_layout()
-    
+
     if save_path:
         os.makedirs(os.path.dirname(save_path), exist_ok=True)
         plt.savefig(save_path, dpi=300, bbox_inches='tight')
-    
+
     if show:
         plt.show()
     else:
         plt.close()
 
-
 def plot_branch_weights(model, layer_idx=0, save_path=None, show=True):
     """
     Plot branch weights for a specific layer.
-    
+
     Args:
         model: Model with branch structure
         layer_idx: Index of layer to plot
@@ -232,14 +227,14 @@ def plot_branch_weights(model, layer_idx=0, save_path=None, show=True):
         layer = model.net.layers[layer_idx]
         if hasattr(layer, 'excitatory_cells') and hasattr(layer.excitatory_cells, 'branch_layers'):
             branch_layers = layer.excitatory_cells.branch_layers
-            
+
             n_branches = len(branch_layers)
             fig, axes = plt.subplots(1, n_branches, figsize=(5*n_branches, 4))
             if n_branches == 1:
                 axes = [axes]
-            
+
             fig.suptitle(f'Branch Weights - Layer {layer_idx}', fontsize=16)
-            
+
             for i, branch in enumerate(branch_layers):
                 weights = branch.weight.detach().cpu().numpy()
                 im = axes[i].imshow(weights, aspect='auto', cmap='RdBu_r')
@@ -247,23 +242,22 @@ def plot_branch_weights(model, layer_idx=0, save_path=None, show=True):
                 axes[i].set_xlabel('Input Features')
                 axes[i].set_ylabel('Output Features')
                 fig.colorbar(im, ax=axes[i])
-            
+
             plt.tight_layout()
-            
+
             if save_path:
                 os.makedirs(os.path.dirname(save_path), exist_ok=True)
                 plt.savefig(save_path, dpi=300, bbox_inches='tight')
-            
+
             if show:
                 plt.show()
             else:
                 plt.close()
 
-
 def plot_excitation_inhibition_weights(model, layer_idx=0, save_path=None, show=True):
     """
     Plot excitatory and inhibitory weights separately.
-    
+
     Args:
         model: EINet model
         layer_idx: Index of layer to plot
@@ -272,10 +266,10 @@ def plot_excitation_inhibition_weights(model, layer_idx=0, save_path=None, show=
     """
     if hasattr(model, 'net') and hasattr(model.net, 'layers'):
         layer = model.net.layers[layer_idx]
-        
+
         fig, axes = plt.subplots(1, 2, figsize=(12, 5))
         fig.suptitle(f'Excitatory vs Inhibitory Weights - Layer {layer_idx}', fontsize=16)
-        
+
         # Plot excitatory weights
         if hasattr(layer, 'excitatory_weights'):
             exc_weights = layer.excitatory_weights.detach().cpu().numpy()
@@ -284,7 +278,7 @@ def plot_excitation_inhibition_weights(model, layer_idx=0, save_path=None, show=
             axes[0].set_xlabel('Input Features')
             axes[0].set_ylabel('Excitatory Neurons')
             fig.colorbar(im1, ax=axes[0])
-        
+
         # Plot inhibitory weights
         if hasattr(layer, 'inhibitory_weights'):
             inh_weights = layer.inhibitory_weights.detach().cpu().numpy()
@@ -293,27 +287,26 @@ def plot_excitation_inhibition_weights(model, layer_idx=0, save_path=None, show=
             axes[1].set_xlabel('Input Features')
             axes[1].set_ylabel('Inhibitory Neurons')
             fig.colorbar(im2, ax=axes[1])
-        
+
         plt.tight_layout()
-        
+
         if save_path:
             os.makedirs(os.path.dirname(save_path), exist_ok=True)
             plt.savefig(save_path, dpi=300, bbox_inches='tight')
-        
+
         if show:
             plt.show()
         else:
             plt.close()
 
-
 def build_dendritic_tree_graph(model, layer_idx=0):
     """
     Build a NetworkX graph representation of the dendritic tree structure.
-    
+
     Args:
         model: Model with dendritic structure
         layer_idx: Index of layer to visualize
-        
+
     Returns:
         G: NetworkX graph object
         pos: Node positions for plotting
@@ -321,29 +314,29 @@ def build_dendritic_tree_graph(model, layer_idx=0):
     if not NETWORKX_AVAILABLE:
         logging.warning("NetworkX is not available. Cannot build dendritic tree graph.")
         return None, None
-        
+
     G = nx.DiGraph()
-    
+
     if hasattr(model, 'net') and hasattr(model.net, 'layers'):
         layer = model.net.layers[layer_idx]
-        
+
         if hasattr(layer, 'excitatory_cells') and hasattr(layer.excitatory_cells, 'branch_layers'):
             branch_layers = layer.excitatory_cells.branch_layers
             n_branches = len(branch_layers)
-            
+
             # Add soma node
             G.add_node('soma', node_type='soma')
-            
+
             # Add branch nodes
             for i in range(n_branches):
                 branch_name = f'branch_{i}'
                 G.add_node(branch_name, node_type='branch')
                 G.add_edge(branch_name, 'soma')
-            
+
             # Create hierarchical layout
             pos = {}
             pos['soma'] = (0, 0)
-            
+
             # Position branches in a circle around soma
             for i in range(n_branches):
                 angle = 2 * np.pi * i / n_branches
@@ -351,14 +344,13 @@ def build_dendritic_tree_graph(model, layer_idx=0):
                 x = radius * np.cos(angle)
                 y = radius * np.sin(angle)
                 pos[f'branch_{i}'] = (x, y)
-    
-    return G, pos
 
+    return G, pos
 
 def visualize_dendritic_tree(model, layer_idx=0, save_path=None, show=True):
     """
     Visualize the dendritic tree structure of a layer.
-    
+
     Args:
         model: Model with dendritic structure
         layer_idx: Index of layer to visualize
@@ -368,61 +360,60 @@ def visualize_dendritic_tree(model, layer_idx=0, save_path=None, show=True):
     if not NETWORKX_AVAILABLE:
         logging.warning("NetworkX is not available. Cannot visualize dendritic tree.")
         return
-        
+
     G, pos = build_dendritic_tree_graph(model, layer_idx)
-    
+
     if G is None or len(G.nodes) == 0:
         print(f"No dendritic structure found in layer {layer_idx}")
         return
-    
+
     fig, ax = plt.subplots(figsize=(10, 10))
-    
+
     # Draw nodes with different colors for different types
     soma_nodes = [n for n, d in G.nodes(data=True) if d.get('node_type') == 'soma']
     branch_nodes = [n for n, d in G.nodes(data=True) if d.get('node_type') == 'branch']
-    
-    nx.draw_networkx_nodes(G, pos, nodelist=soma_nodes, node_color='red', 
+
+    nx.draw_networkx_nodes(G, pos, nodelist=soma_nodes, node_color='red',
                           node_size=1000, ax=ax, label='Soma')
-    nx.draw_networkx_nodes(G, pos, nodelist=branch_nodes, node_color='blue', 
+    nx.draw_networkx_nodes(G, pos, nodelist=branch_nodes, node_color='blue',
                           node_size=500, ax=ax, label='Branches')
-    
+
     # Draw edges
     nx.draw_networkx_edges(G, pos, edge_color='gray', ax=ax)
-    
+
     # Draw labels
     nx.draw_networkx_labels(G, pos, ax=ax)
-    
+
     ax.set_title(f'Dendritic Tree Structure - Layer {layer_idx}', fontsize=16)
     ax.legend()
     ax.axis('off')
-    
+
     plt.tight_layout()
-    
+
     if save_path:
         os.makedirs(os.path.dirname(save_path), exist_ok=True)
         plt.savefig(save_path, dpi=300, bbox_inches='tight')
-    
+
     if show:
         plt.show()
     else:
         plt.close()
 
-
 # Gradient plotting functions
 def plot_dendrinet_gradients(model, save_path=None, show=True):
     """
     Plot DendriNet gradients.
-    
+
     Args:
         model: DendriNet model
         save_path: Path to save the plot (optional)
         show: Whether to display the plot
     """
     gradients = dendrinet_gradients_todict(model)
-    
+
     fig, axes = plt.subplots(2, 2, figsize=(15, 12))
     fig.suptitle('DendriNet Gradients', fontsize=16)
-    
+
     # Plot layer weight gradients
     if gradients['layer_weight_grads']:
         grad_data = np.concatenate([g.flatten() for g in gradients['layer_weight_grads'] if g is not None])
@@ -431,7 +422,7 @@ def plot_dendrinet_gradients(model, save_path=None, show=True):
             axes[0, 0].set_title('Layer Weight Gradients')
             axes[0, 0].set_xlabel('Gradient Value')
             axes[0, 0].set_ylabel('Frequency')
-    
+
     # Plot branch weight gradients
     if gradients['branch_weight_grads']:
         branch_grad_data = []
@@ -444,7 +435,7 @@ def plot_dendrinet_gradients(model, save_path=None, show=True):
             axes[0, 1].set_title('Branch Weight Gradients')
             axes[0, 1].set_xlabel('Gradient Value')
             axes[0, 1].set_ylabel('Frequency')
-    
+
     # Plot bias gradients
     if gradients['layer_bias_grads']:
         bias_grad_data = np.concatenate([g.flatten() for g in gradients['layer_bias_grads'] if g is not None])
@@ -453,25 +444,24 @@ def plot_dendrinet_gradients(model, save_path=None, show=True):
             axes[1, 0].set_title('Layer Bias Gradients')
             axes[1, 0].set_xlabel('Gradient Value')
             axes[1, 0].set_ylabel('Frequency')
-    
+
     # Plot output weight gradients
     if gradients['output_weight_grads'] is not None:
         axes[1, 1].hist(gradients['output_weight_grads'].flatten(), bins=50, alpha=0.7, color='purple')
         axes[1, 1].set_title('Output Weight Gradients')
         axes[1, 1].set_xlabel('Gradient Value')
         axes[1, 1].set_ylabel('Frequency')
-    
+
     plt.tight_layout()
-    
+
     if save_path:
         os.makedirs(os.path.dirname(save_path), exist_ok=True)
         plt.savefig(save_path, dpi=300, bbox_inches='tight')
-    
+
     if show:
         plt.show()
     else:
         plt.close()
-
 
 # Helper functions that need to be imported from utils
 def shape_helper(tensor):
@@ -485,7 +475,6 @@ def shape_helper(tensor):
         'min': tensor.min().item() if tensor.numel() > 0 else 0,
         'max': tensor.max().item() if tensor.numel() > 0 else 0,
     }
-
 
 # Actual implementations from plot_utils
 def dendrinet_params_todict(dendrinet, logspace=False):
@@ -577,7 +566,6 @@ def dendrinet_params_todict(dendrinet, logspace=False):
 
     return plot_dict
 
-
 def einet_params_todict(einet, logspace=False):
     """Extract EINet parameters to dictionary."""
     einet = einet.to("cpu")
@@ -600,7 +588,6 @@ def einet_params_todict(einet, logspace=False):
         )
 
     return plot_dict
-
 
 def dendrinet_gradients_todict(dendrinet):
     """Extract DendriNet gradients to dictionary."""
@@ -650,7 +637,6 @@ def dendrinet_gradients_todict(dendrinet):
 
     return plot_dict
 
-
 def einet_gradients_todict(model, inputs, labels):
     """Extract EINet gradients to dictionary."""
     device = "cuda" if torch.cuda.is_available() else "cpu"
@@ -682,7 +668,6 @@ def einet_gradients_todict(model, inputs, labels):
     model.eval()
 
     return plot_dict
-
 
 def plot_branch_gradients(
     save_path,
@@ -716,7 +701,6 @@ def plot_branch_gradients(
 
     fig.savefig(file_path)
     plt.close(fig)
-
 
 def plot_excitation_inhibition_gradients(
     soma_branch,
@@ -876,4 +860,4 @@ def plot_excitation_inhibition_gradients(
         os.makedirs(save_path, exist_ok=True)
 
     fig.savefig(file_path)
-    plt.close(fig) 
+    plt.close(fig)

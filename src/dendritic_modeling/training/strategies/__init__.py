@@ -10,21 +10,21 @@ from dendritic_modeling.training.strategies.local_learning import LocalCreditAss
 from dendritic_modeling.training.strategies.two_step import TwoStepTrainer, TwoStepTrainerWithKL
 from dendritic_modeling.training.strategies.layerwise import LayerWiseTrainer
 from dendritic_modeling.training.strategies.specialized import (
-    VoltageStabilizationTrainer, 
+    VoltageStabilizationTrainer,
     TrainOnlyMReactivation
 )
 
 __all__ = [
     # Base classes and utilities
-    "Trainer", 
-    
+    "Trainer",
+
     # Main training strategies
     "LocalCreditAssignment",
     "TwoStepTrainer",
     "TwoStepTrainerWithKL",
     "LayerWiseTrainer",
-    
+
     # Specialized training strategies
     "VoltageStabilizationTrainer",
     "TrainOnlyMReactivation",
-] 
+]

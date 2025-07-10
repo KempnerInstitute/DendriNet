@@ -30,4 +30,4 @@ __all__ = [
     "mse_score",
     "evaluate_mse",
     "evaluate_cosine_similarity",
-] 
+]

@@ -5,7 +5,7 @@ This module contains classes for analyzing synaptic activation patterns during f
 tracking excitatory and inhibitory synaptic activations with comprehensive statistical summaries.
 """
 
-from typing import List, Optional, Tuple
+from typing import Optional
 import torch
 from dendritic_modeling.models import BaseModel
 from dendritic_modeling.networks import ExcitationInhibitionNetwork
@@ -13,19 +13,18 @@ from dendritic_modeling.networks import DendriticBranchLayer
 from dendritic_modeling.utils import save_dict
 from dendritic_modeling.config import SynapticActivationAnalysisParams
 
-
 class SynapticActivationAnalyzer:
     """
     Analyzer for tracking synaptic activation patterns during model inference.
-    
+
     Uses forward hooks to collect excitatory and inhibitory synaptic activations
     and computes detailed statistical summaries at network, layer, and branch levels.
     """
-    
-    def __init__(self, params: SynapticActivationAnalysisParams):   
+
+    def __init__(self, params: SynapticActivationAnalysisParams):
         """
         Initialize the synaptic activation analyzer.
-        
+
         Args:
             network_summary: Whether to compute network-wide activation statistics
             layer_summary: Whether to compute per-layer activation statistics
@@ -46,10 +45,10 @@ class SynapticActivationAnalyzer:
     def attach_forward_hooks(self, model: BaseModel):
         """
         Attach forward hooks to collect synaptic activations.
-        
+
         Args:
             model: The model to attach hooks to
-            
+
         Returns:
             List of hook handles for later removal
         """
@@ -63,7 +62,7 @@ class SynapticActivationAnalyzer:
                     handles.append(handle)
         return handles
 
-    def remove_forward_hooks(self, handles: List[torch.utils.hooks.RemovableHandle]):
+    def remove_forward_hooks(self, handles: list[torch.utils.hooks.RemovableHandle]):
         """Remove forward hooks."""
         for handle in handles:
             handle.remove()
@@ -71,12 +70,12 @@ class SynapticActivationAnalyzer:
     def forward_hook(
         self,
         module: DendriticBranchLayer,
-        input: Tuple[torch.Tensor, torch.Tensor, Optional[torch.Tensor]],
+        input: tuple[torch.Tensor, torch.Tensor, Optional[torch.Tensor]],
         output: torch.Tensor,
     ):
         """
         Forward hook to collect synaptic activations.
-        
+
         Args:
             module: The dendritic branch layer
             input: Input tuple (excitatory, inhibitory, optional)
@@ -116,14 +115,14 @@ class SynapticActivationAnalyzer:
     ):
         """
         Analyze synaptic activations in the model.
-        
+
         Args:
             model: The model to analyze
             test_dataset: Test dataset for analysis
             device: Device to run analysis on
             save_path: Path to save results (optional)
             filename: Filename for saved results
-            
+
         Returns:
             Dictionary containing activation analysis if save_path is None, otherwise None
         """
@@ -254,4 +253,4 @@ class SynapticActivationAnalyzer:
         if save_path is not None:
             save_dict(results, save_path, filename)
         else:
-            return results 
+            return results

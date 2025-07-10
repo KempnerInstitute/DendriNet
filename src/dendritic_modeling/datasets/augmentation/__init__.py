@@ -16,4 +16,4 @@ __all__ = [
     "add_uniform_noise",
     "add_poisson_noise",
     "add_frequency_noise"
-] 
+]

@@ -6,6 +6,6 @@ from .information import InformationAnalyzer
 
 __all__ = [
     "AblationAnalyzer",
-    "BranchActivationAnalyzer", 
+    "BranchActivationAnalyzer",
     "InformationAnalyzer"
-] 
+]

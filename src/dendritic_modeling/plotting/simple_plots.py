@@ -6,33 +6,32 @@ color management, and loss curve plotting.
 """
 
 import os
-from typing import List, Optional, Callable, Any
+from typing import , Optional, Callable, Any
 
 import matplotlib.pyplot as plt
 import torch
 from mpl_toolkits.axes_grid1 import make_axes_locatable
 
-
 def plotWithColor(data, title: str = "", ax=None, **kwargs):
     """
     Plot an image with a scale color bar.
-    
+
     Args:
         data: Data to plot (tensor or array)
         title: Plot title
         ax: Matplotlib axes to plot on (optional)
         **kwargs: Additional keyword arguments (for compatibility)
-        
+
     Returns:
         The image object created by imshow
     """
     if torch.is_tensor(data):
         data = data.cpu().numpy()
-    
+
     created_subplot = ax is None
     if ax is None:
         ax = plt.subplot()
-        
+
     im = ax.imshow(data)
     divider = make_axes_locatable(ax)
     cax = divider.append_axes("right", size="5%", pad=0.05)
@@ -44,9 +43,8 @@ def plotWithColor(data, title: str = "", ax=None, **kwargs):
 
     if created_subplot:  # Only show if we created the subplot
         plt.show()
-        
-    return im
 
+    return im
 
 def add_colorbars(
     fig,
@@ -58,7 +56,7 @@ def add_colorbars(
 ) -> None:
     """
     Add colorbars to multiple axes.
-    
+
     Args:
         fig: Figure object
         ax_iterable: Iterable of axes
@@ -72,16 +70,15 @@ def add_colorbars(
         cax = divider.append_axes(position=position, size=size, pad=pad)
         fig.colorbar(im, cax=cax)
 
-
-def shape_helper(condition: bool, reshape_fn: Optional[Callable], tensors: List[Any]) -> List[Any]:
+def shape_helper(condition: bool, reshape_fn: Optional[Callable], tensors: list[Any]) -> list[Any]:
     """
     Helper function for reshaping tensors based on conditions.
-    
+
     Args:
         condition: Whether to apply reshape function
         reshape_fn: Function to reshape tensors
-        tensors: List of tensors to potentially reshape
-        
+        tensors: list of tensors to potentially reshape
+
     Returns:
         List of reshaped or processed tensors
     """
@@ -98,19 +95,18 @@ def shape_helper(condition: bool, reshape_fn: Optional[Callable], tensors: List[
                 ret.append(tensor)
         return ret
 
-
 def plot_NLL_loss_curves(
-    Train_losses: List[float], 
-    Valid_losses: List[float], 
-    num_epochs: int, 
+    Train_losses: list[float],
+    Valid_losses: list[float],
+    num_epochs: int,
     save_dir: Optional[str]
 ) -> None:
     """
     Plot the negative log-likelihood loss curves for training and validation.
 
     Args:
-        Train_losses: List of training losses
-        Valid_losses: List of validation losses
+        Train_losses: list of training losses
+        Valid_losses: list of validation losses
         num_epochs: Number of epochs
         save_dir: Directory to save the plot
     """
@@ -159,4 +155,4 @@ def plot_NLL_loss_curves(
         os.makedirs(save_dir, exist_ok=True)
         plt.savefig(os.path.join(save_dir, "loss_curves.png"))
 
-    plt.close() 
+    plt.close()

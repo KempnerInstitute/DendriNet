@@ -4,7 +4,6 @@ import torch
 
 from dendritic_modeling.networks import TopKLinear
 
-
 class TestTopKLinear(unittest.TestCase):
     # def test_basic_functionality(self):
     #     """Test the basic functionality with standard input data."""
@@ -228,7 +227,6 @@ class TestTopKLinear(unittest.TestCase):
     #     torch.testing.assert_close(result,
     #                                expected_weighted_synapses,
     #                                rtol=1e-5, atol=1e-5)
-
 
 if __name__ == "__main__":
     unittest.main(argv=[""], exit=False)

@@ -1,8 +1,7 @@
 from dataclasses import dataclass, field
-from typing import List, Optional
+from typing import Optional
 
 from dendritic_modeling.config.base import BaseConfig
-
 
 @dataclass
 class PerformanceAnalysisParams(BaseConfig):
@@ -12,7 +11,6 @@ class PerformanceAnalysisParams(BaseConfig):
     mse: bool = False
     cosine_similarity: bool = False
 
-
 @dataclass
 class PerformanceAnalysisConfig(BaseConfig):
     enabled: bool = True
@@ -20,7 +18,6 @@ class PerformanceAnalysisConfig(BaseConfig):
     params: PerformanceAnalysisParams = field(
         default_factory=PerformanceAnalysisParams
     )
-
 
 @dataclass
 class InformationAnalysisParams(BaseConfig):
@@ -30,23 +27,23 @@ class InformationAnalysisParams(BaseConfig):
 
     # Optional: limit the number of samples to analyze
     max_samples: Optional[int] = None
-    
+
     # Method-specific parameters
     n_neighbors: int = 10  # For Kraskov
     n_bins: int = 20  # For sklearn histogram
     copula_type: str = "gaussian"  # For copula
-    
+
     # Which metrics to compute
     compute_basic_mi: bool = True  # I(E;C), I(I;C), I(Vout;C)
     compute_pairwise_mi: bool = True  # I(E;I), I(E;Vout), I(I;Vout)
     compute_conditional_mi: bool = True  # I(E;I|C), I(E;Vout|C), etc.
     compute_pid: bool = False  # Partial Information Decomposition
-    
+
     # PID settings
     pid_binarize: bool = True
     pid_binarize_method: str = "median"  # "median", "mean", "quantile"
     pid_binarize_threshold: float = 0.5
-    
+
     # Additional options
     include_vinf: bool = True  # Include soma activation
     normalize_mi: bool = False  # Normalize by entropy
@@ -63,21 +60,19 @@ class InformationAnalysisConfig(BaseConfig):
         default_factory=InformationAnalysisParams
     )
 
-
 @dataclass
 class SynapseTurnoverAnalysisConfig(BaseConfig):
     enabled: bool = False
     training: bool = False
 
-
 @dataclass
 class NoisePerturbationAnalysisParams(BaseConfig):
     uniform_noise: bool = True
-    uniform_magnitudes: List[float] = field(
+    uniform_magnitudes: list[float] = field(
         default_factory=lambda: [0.1, 0.2]
     )
     gaussian_noise: bool = True
-    gaussian_sdevs: List[float] = field(
+    gaussian_sdevs: list[float] = field(
         default_factory=lambda: [0.1, 0.2]
     )
     n_samples: int = 10
@@ -87,7 +82,6 @@ class NoisePerturbationAnalysisParams(BaseConfig):
     mse: bool = True
     cosine_similarity: bool = True
 
-
 @dataclass
 class NoisePerturbationAnalysisConfig(BaseConfig):
     enabled: bool = False
@@ -95,7 +89,6 @@ class NoisePerturbationAnalysisConfig(BaseConfig):
     params: NoisePerturbationAnalysisParams = field(
         default_factory=NoisePerturbationAnalysisParams
     )
-
 
 @dataclass
 class AblationAnalysisParams(BaseConfig):
@@ -111,7 +104,6 @@ class AblationAnalysisParams(BaseConfig):
     mse: bool = True
     cosine_similarity: bool = True
 
-
 @dataclass
 class AblationAnalysisConfig(BaseConfig):
     enabled: bool = False
@@ -120,12 +112,10 @@ class AblationAnalysisConfig(BaseConfig):
         default_factory=AblationAnalysisParams
     )
 
-
 @dataclass
 class WeightAnalysisParams(BaseConfig):
     synapse_weights: bool = True
     branch_weights: bool = True
-
 
 @dataclass
 class WeightAnalysisConfig(BaseConfig):
@@ -134,7 +124,6 @@ class WeightAnalysisConfig(BaseConfig):
     params: WeightAnalysisParams = field(
         default_factory=WeightAnalysisParams
     )
-
 
 @dataclass
 class SynapticActivationAnalysisParams(BaseConfig):
@@ -146,7 +135,6 @@ class SynapticActivationAnalysisParams(BaseConfig):
     downsample: bool = True
     samples: int = 5
 
-
 @dataclass
 class SynapticActivationAnalysisConfig(BaseConfig):
     enabled: bool = False
@@ -154,7 +142,6 @@ class SynapticActivationAnalysisConfig(BaseConfig):
     params: SynapticActivationAnalysisParams = field(
         default_factory=SynapticActivationAnalysisParams
     )
-
 
 @dataclass
 class BranchActivationAnalysisParams(BaseConfig):
@@ -168,7 +155,6 @@ class BranchActivationAnalysisParams(BaseConfig):
     downsample: bool = True
     samples: int = 5
 
-
 @dataclass
 class BranchActivationAnalysisConfig(BaseConfig):
     enabled: bool = False
@@ -176,7 +162,6 @@ class BranchActivationAnalysisConfig(BaseConfig):
     params: BranchActivationAnalysisParams = field(
         default_factory=BranchActivationAnalysisParams
     )
-
 
 @dataclass
 class SingleLayerContributionAnalysisParams(BaseConfig):
@@ -189,7 +174,6 @@ class SingleLayerContributionAnalysisParams(BaseConfig):
     mse: bool = True
     cosine_similarity: bool = True
 
-
 @dataclass
 class SingleLayerContributionAnalysisConfig(BaseConfig):
     enabled: bool = False
@@ -198,13 +182,11 @@ class SingleLayerContributionAnalysisConfig(BaseConfig):
         default_factory=SingleLayerContributionAnalysisParams
     )
 
-
 @dataclass
 class CorrelationAnalysisParams(BaseConfig):
     compute_synaptic_correlations: bool = True
     compute_tuning_curves: bool = True
     save_plots: bool = True
-
 
 @dataclass
 class CorrelationAnalysisConfig(BaseConfig):
@@ -213,7 +195,6 @@ class CorrelationAnalysisConfig(BaseConfig):
     params: CorrelationAnalysisParams = field(
         default_factory=CorrelationAnalysisParams
     )
-
 
 @dataclass
 class AnalysisConfig(BaseConfig):

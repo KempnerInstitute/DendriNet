@@ -10,7 +10,6 @@ import torch
 from dendritic_modeling.models.base import BaseModel
 from dendritic_modeling.networks.base import BaseNetwork
 
-
 class Regressor(BaseModel):
     """
     A standard regressor that returns continuous outputs;
@@ -27,7 +26,7 @@ class Regressor(BaseModel):
             core_network,
             decoder_network
         )
-    
+
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         return super().forward(x)
 
@@ -35,5 +34,4 @@ class Regressor(BaseModel):
         with torch.no_grad():
             return self.forward(x)
 
-
-__all__ = ["Regressor"] 
+__all__ = ["Regressor"]

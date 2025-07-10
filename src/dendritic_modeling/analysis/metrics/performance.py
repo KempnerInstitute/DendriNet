@@ -21,15 +21,14 @@ from dendritic_modeling.training.utils.evaluation import (
 from dendritic_modeling.utils import save_dict
 from dendritic_modeling.config import PerformanceAnalysisParams
 
-
 class PerformanceAnalyzer:
     """
     Analyzer for evaluating model performance on various metrics.
-    
+
     Supports accuracy, categorical log-likelihood, and MSE evaluation
     on train, validation, and test datasets.
     """
-    
+
     def __init__(self, params: PerformanceAnalysisParams):
         self.accuracy = getattr(params, "accuracy", False)
         self.auc = getattr(params, "auc", False)
@@ -49,7 +48,7 @@ class PerformanceAnalyzer:
     ):
         """
         Analyze model performance on specified datasets.
-        
+
         Args:
             model: The model to evaluate
             train_ds: Training dataset (optional)
@@ -58,7 +57,7 @@ class PerformanceAnalyzer:
             device: Device to run evaluation on
             save_path: Path to save results (optional)
             filename: Filename for saved results
-            
+
         Returns:
             Dictionary containing results if save_path is None, otherwise None
         """
@@ -72,7 +71,7 @@ class PerformanceAnalyzer:
                 labels: torch.Tensor = labels.to(device)
                 return TensorDataset(inputs, labels)
             return None
-        
+
         results = {}
 
         def _evaluate_metric(metric_func: Callable, metric_key: str):
@@ -90,11 +89,11 @@ class PerformanceAnalyzer:
                 results[metric_key]["valid"] = valid_metric
             if test_ds is not None:
                 results[metric_key]["test"] = test_metric
-                
+
         train_ds = _dataset_to_device(train_ds, device)
         valid_ds = _dataset_to_device(valid_ds, device)
         test_ds = _dataset_to_device(test_ds, device)
-        
+
         if self.accuracy:
             _evaluate_metric(
                 metric_func=evaluate_accuracy,
@@ -106,19 +105,19 @@ class PerformanceAnalyzer:
                 metric_func=evaluate_auc,
                 metric_key="auc"
             )
-        
+
         if self.categorical_loglikelihood:
             _evaluate_metric(
                 metric_func=evaluate_categorical_loglikelihood,
                 metric_key="categorical_loglikelihood"
-            ) 
+            )
 
         if self.mse:
             _evaluate_metric(
                 metric_func=evaluate_mse,
                 metric_key="mse"
             )
-        
+
         if self.cosine_similarity:
             _evaluate_metric(
                 metric_func=evaluate_cosine_similarity,
@@ -128,4 +127,4 @@ class PerformanceAnalyzer:
         if save_path is not None:
             save_dict(results, save_path, filename)
         else:
-            return results 
+            return results

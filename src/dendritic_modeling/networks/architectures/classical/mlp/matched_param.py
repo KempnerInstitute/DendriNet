@@ -107,7 +107,7 @@ class MatchedParamMLP(nn.Module):
             nn.init.xavier_normal_(fc_linear.weight)
             nn.init.zeros_(fc_linear.bias)
         layers.extend([
-            fc_linear, 
+            fc_linear,
             activation_factory.create(
                 act_type=activation,
                 output_dim=hidden_width
@@ -124,7 +124,7 @@ class MatchedParamMLP(nn.Module):
                 nn.init.xavier_normal_(fc_linear.weight)
                 nn.init.zeros_(fc_linear.bias)
             layers.extend([
-                fc_linear, 
+                fc_linear,
                 activation_factory.create(
                     act_type=activation,
                     output_dim=hidden_width
@@ -138,5 +138,4 @@ class MatchedParamMLP(nn.Module):
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         return self.hidden(x)
 
-
-__all__ = ["MatchedParamMLP"] 
+__all__ = ["MatchedParamMLP"]

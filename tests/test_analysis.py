@@ -3,7 +3,7 @@ Test suite for dendritic_modeling.analysis module.
 
 This module tests all analysis functionality including:
 - Performance analysis
-- Ablation studies  
+- Ablation studies
 - Information analysis
 - Branch analysis
 - Activation analysis
@@ -29,7 +29,7 @@ from dendritic_modeling.analysis.tools import (
 from dendritic_modeling.networks import ExcitationInhibitionNetwork, Identity
 from dendritic_modeling.models import Classifier
 from dendritic_modeling.config import (
-    TransferFunctionParams, 
+    TransferFunctionParams,
     PerformanceAnalysisParams,
     AblationAnalysisParams,
     BranchActivationAnalysisParams,
@@ -37,16 +37,15 @@ from dendritic_modeling.config import (
     AnalysisConfig
 )
 
-
 class TestPerformanceAnalyzer(unittest.TestCase):
     """Test the PerformanceAnalyzer class."""
-    
+
     def setUp(self):
         """Set up test fixtures."""
         self.device = "cpu"
         params = PerformanceAnalysisParams()
         self.analyzer = PerformanceAnalyzer(params)
-        
+
         # Create a simple test model
         transfer_params = TransferFunctionParams().asdict()
         self.model = Classifier(
@@ -65,23 +64,23 @@ class TestPerformanceAnalyzer(unittest.TestCase):
             ),
             decoder_network=Identity(input_dim=4)
         )
-        
+
         # Create test data
         self.test_data = torch.utils.data.TensorDataset(
             torch.randn(100, 10),
             torch.randint(0, 2, (100,))
         )
-    
+
     def test_analyzer_initialization(self):
         """Test that the analyzer initializes correctly."""
         self.assertIsInstance(self.analyzer, PerformanceAnalyzer)
-    
+
     def test_analyzer_has_required_attributes(self):
         """Test that the analyzer has the required attributes."""
         # Check that the analyzer has the expected attributes from params
         self.assertTrue(hasattr(self.analyzer, 'accuracy'))
         self.assertTrue(hasattr(self.analyzer, 'categorical_loglikelihood'))
-    
+
     def test_evaluate_model(self):
         """Test model evaluation on dataset."""
         with tempfile.TemporaryDirectory() as tmpdir:
@@ -92,10 +91,10 @@ class TestPerformanceAnalyzer(unittest.TestCase):
                 device=self.device,
                 save_path=tmpdir
             )
-            
+
             # When save_path is provided, results should be None
             self.assertIsNone(results)
-            
+
             # When save_path is None, it should return results
             results = self.analyzer.analyze(
                 model=self.model,
@@ -103,19 +102,18 @@ class TestPerformanceAnalyzer(unittest.TestCase):
                 device=self.device,
                 save_path=None
             )
-            
+
             # Check that results is a dictionary
             self.assertIsInstance(results, dict)
 
-
 class TestAblationAnalyzer(unittest.TestCase):
     """Test the AblationAnalyzer class."""
-    
+
     def setUp(self):
         """Set up test fixtures."""
         params = AblationAnalysisParams()
         self.analyzer = AblationAnalyzer(params)
-        
+
         # Create test model with multiple layers
         transfer_params = TransferFunctionParams().asdict()
         self.model = Classifier(
@@ -134,17 +132,17 @@ class TestAblationAnalyzer(unittest.TestCase):
             ),
             decoder_network=Identity(input_dim=4)
         )
-        
+
         # Create test dataset
         self.test_data = torch.utils.data.TensorDataset(
             torch.randn(50, 10),
             torch.randint(0, 2, (50,))
         )
-    
+
     def test_analyzer_initialization(self):
         """Test analyzer initialization."""
         self.assertIsInstance(self.analyzer, AblationAnalyzer)
-    
+
     def test_branch_ablation(self):
         """Test branch ablation functionality."""
         with tempfile.TemporaryDirectory() as tmpdir:
@@ -154,10 +152,10 @@ class TestAblationAnalyzer(unittest.TestCase):
                 device="cpu",
                 save_path=tmpdir
             )
-            
+
             # When save_path is provided, results should be None
             self.assertIsNone(results)
-    
+
     def test_layer_ablation(self):
         """Test layer-wise ablation."""
         with tempfile.TemporaryDirectory() as tmpdir:
@@ -167,20 +165,19 @@ class TestAblationAnalyzer(unittest.TestCase):
                 device="cpu",
                 save_path=tmpdir
             )
-            
+
             # When save_path is provided, results should be None
             self.assertIsNone(results)
 
-
 class TestInformationAnalyzer(unittest.TestCase):
     """Test the Information Analyzer class."""
-    
+
     def setUp(self):
         """Set up test fixtures."""
         from dendritic_modeling.config import InformationAnalysisParams
         params = InformationAnalysisParams()
         self.analyzer = InformationAnalyzer(params)
-        
+
         # Create test model
         transfer_params = TransferFunctionParams().asdict()
         self.model = Classifier(
@@ -199,17 +196,17 @@ class TestInformationAnalyzer(unittest.TestCase):
             ),
             decoder_network=Identity(input_dim=4)
         )
-        
+
         # Create test data
         self.test_data = torch.utils.data.TensorDataset(
             torch.randn(30, 8),
             torch.randint(0, 2, (30,))
         )
-    
+
     def test_analyzer_initialization(self):
         """Test analyzer initialization."""
         self.assertIsInstance(self.analyzer, InformationAnalyzer)
-    
+
     def test_mutual_information_analysis(self):
         """Test mutual information computation."""
         with tempfile.TemporaryDirectory() as tmpdir:
@@ -220,7 +217,7 @@ class TestInformationAnalyzer(unittest.TestCase):
                     "n_samples": 30,
                     "basic_mi": {"I(E;C)": 0.5, "I(I;C)": 0.3}
                 }
-                
+
                 results = self.analyzer.analyze(
                     model=self.model,
                     test_dataset=self.test_data,
@@ -228,22 +225,20 @@ class TestInformationAnalyzer(unittest.TestCase):
                     save_path=tmpdir,
                     filename="test"
                 )
-                
+
                 # When save_path is provided, results should be None
                 self.assertIsNone(results)
 
-
-
 class TestActivationAnalyzers(unittest.TestCase):
     """Test the activation analyzer classes."""
-    
+
     def setUp(self):
         """Set up test fixtures."""
         synaptic_params = SynapticActivationAnalysisParams()
         self.synaptic_analyzer = SynapticActivationAnalyzer(synaptic_params)
         branch_params = BranchActivationAnalysisParams()
         self.branch_analyzer = BranchActivationAnalyzer(branch_params)
-        
+
         # Create test model
         transfer_params = TransferFunctionParams().asdict()
         self.model = Classifier(
@@ -262,13 +257,13 @@ class TestActivationAnalyzers(unittest.TestCase):
             ),
             decoder_network=Identity(input_dim=4)
         )
-        
+
         # Create test data
         self.test_data = torch.utils.data.TensorDataset(
             torch.randn(30, 8),
             torch.randint(0, 2, (30,))
         )
-    
+
     def test_synaptic_activation_analyzer(self):
         """Test synaptic activation analysis."""
         with tempfile.TemporaryDirectory() as tmpdir:
@@ -278,10 +273,10 @@ class TestActivationAnalyzers(unittest.TestCase):
                 device="cpu",
                 save_path=tmpdir
             )
-            
+
             # When save_path is provided, results should be None
             self.assertIsNone(results)
-    
+
     def test_branch_activation_analyzer(self):
         """Test branch activation analysis."""
         with tempfile.TemporaryDirectory() as tmpdir:
@@ -291,14 +286,13 @@ class TestActivationAnalyzers(unittest.TestCase):
                 device="cpu",
                 save_path=tmpdir
             )
-            
+
             # When save_path is provided, results should be None
             self.assertIsNone(results)
 
-
 class TestAnalysisManager(unittest.TestCase):
     """Test the Analysis Manager class."""
-    
+
     def setUp(self):
         """Set up test fixtures."""
         # Create test model
@@ -319,7 +313,7 @@ class TestAnalysisManager(unittest.TestCase):
             ),
             decoder_network=Identity(input_dim=4)
         )
-        
+
         # Create test data
         train_data = torch.utils.data.TensorDataset(
             torch.randn(30, 8),
@@ -333,16 +327,16 @@ class TestAnalysisManager(unittest.TestCase):
             torch.randn(25, 8),
             torch.randint(0, 2, (25,))
         )
-        
+
         self.data = {
             "train": train_data,
             "valid": valid_data,
             "test": test_data
         }
-        
+
         # Create analysis config
         self.analysis_config = AnalysisConfig()
-        
+
         # Initialize manager
         self.manager = AnalysisManager(
             model=self.model,
@@ -350,30 +344,29 @@ class TestAnalysisManager(unittest.TestCase):
             analysis_config=self.analysis_config,
             save_root="/tmp/test_analysis"
         )
-    
+
     def test_manager_initialization(self):
         """Test that the analysis manager initializes correctly."""
         self.assertIsInstance(self.manager, AnalysisManager)
         self.assertEqual(self.manager.model, self.model)
         self.assertEqual(self.manager.data, self.data)
-    
+
     def test_run_performance_analysis(self):
         """Test running performance analysis through manager."""
         with tempfile.TemporaryDirectory() as tmpdir:
             self.manager.save_root = tmpdir
-            
+
             # Mock the performance analyzer
             with patch.object(self.manager, 'performance_analyzer') as mock_analyzer:
                 mock_analyzer.analyze.return_value = {
                     'accuracy': 0.85,
                     'categorical_loglikelihood': -0.5
                 }
-                
+
                 results = self.manager.run_analysis()
-                
+
                 # The method doesn't return results, so just check it doesn't crash
                 self.assertIsNone(results)
 
-
 if __name__ == '__main__':
-    unittest.main() 
+    unittest.main()

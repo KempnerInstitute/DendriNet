@@ -1,6 +1,6 @@
 import os
 import hashlib
-from typing import Union, Optional, List
+from typing import Union, Optional, 
 import logging
 import argparse
 
@@ -23,18 +23,17 @@ from dendritic_modeling.training import get_trainer
 from dendritic_modeling.datasets import get_unified_datasets
 from dendritic_modeling.config import (
     TrainConfig,
-    EncoderTrainConfig, 
+    EncoderTrainConfig,
     EncoderNetworkConfig,
     TaskConfig,
     load_config
 )
 from dendritic_modeling.utils import set_seed, save_dict
 
-
 def dict_to_hash_text(
-    d: dict, 
+    d: dict,
     hash_text: str = "",
-    exclude_keys: List[str] = []
+    exclude_keys: list[str] = []
 ) -> str:
     for key, value in d.items():
         if isinstance(value, dict):
@@ -43,7 +42,6 @@ def dict_to_hash_text(
             if key not in exclude_keys:
                 hash_text += f"{key}{value}"
     return hash_text
-
 
 def get_load_save_path(
     encoder_network_config: EncoderNetworkConfig,
@@ -64,8 +62,8 @@ def get_load_save_path(
         encoder_train_config_dict,
         hash_text=hash_text,
         exclude_keys=[
-            "load_save_root", "pretrain_epochs", "target_voltage", 
-            "kl_weight", "reverse_training", "epochs_per_layer", 
+            "load_save_root", "pretrain_epochs", "target_voltage",
+            "kl_weight", "reverse_training", "epochs_per_layer",
             "epochs_per_branch", "final_tune_epochs"
         ]
     )
@@ -75,14 +73,13 @@ def get_load_save_path(
         exclude_keys=["data_path"]
     )
     hash_id = hashlib.md5(hash_text.encode()).hexdigest()
-    
+
     load_save_path = os.path.join(
         encoder_train_config.load_save_root,
         hash_id
     )
     logger.info(f"Encoder network hash ID: {hash_id}")
     return load_save_path
-
 
 def setup_environment(
     encoder_network_config: EncoderNetworkConfig,
@@ -144,7 +141,6 @@ def setup_environment(
 
     return load_save_path, train_ds, valid_ds, test_ds, encoder_network
 
-
 def load_train_encoder_network(
     encoder_network: BaseAutoencoder,
     encoder_train_config: EncoderTrainConfig,
@@ -155,9 +151,9 @@ def load_train_encoder_network(
     task_config: Optional[TaskConfig] = None,
     load_save_path: Optional[str] = None
 ) -> tuple[
-    BaseAutoencoder, 
-    torch.utils.data.Dataset, 
-    torch.utils.data.Dataset, 
+    BaseAutoencoder,
+    torch.utils.data.Dataset,
+    torch.utils.data.Dataset,
     torch.utils.data.Dataset
 ]:
     if isinstance(encoder_network, Identity):
@@ -199,12 +195,12 @@ def load_train_encoder_network(
                 encoder_train_config.trainer,
                 resolve=True
             )
-            
+
             optimizer = torch.optim.Adam(
                 encoder_network.parameters(),
                 lr=getattr(encoder_train_config, "lr", 0.001)
             )
-            
+
             encoder_trainer = get_trainer(
                 strategy="standard",
                 optimizer=optimizer,
@@ -216,7 +212,7 @@ def load_train_encoder_network(
                 train_data=auto_train_ds,
                 valid_data=auto_valid_ds
             )
-        
+
         encoder_network = encoder_network.cpu()
 
         with torch.no_grad():
@@ -238,12 +234,11 @@ def load_train_encoder_network(
             param.requires_grad = False
 
         return (
-            encoder_network, 
-            encoded_train_ds, 
-            encoded_valid_ds, 
+            encoder_network,
+            encoded_train_ds,
+            encoded_valid_ds,
             encoded_test_ds
         )
-
 
 def encoder_network_analysis(
     encoder_network: BaseNetwork,
@@ -255,7 +250,6 @@ def encoder_network_analysis(
     # TODO: Implement encoder network analysis
     #   Maybe make analyzer classes specifically for encoder networks
     pass
-
 
 def main(config_path: str):
     config = load_config(config_path)
@@ -309,7 +303,7 @@ def main(config_path: str):
     save_dict({"nparams": nparams}, load_save_path, "nparams")
 
     encoder_network_config_dict = OmegaConf.to_container(
-        encoder_network_config, 
+        encoder_network_config,
         resolve=True
     )
     encoder_train_config_dict = OmegaConf.to_container(
@@ -336,7 +330,6 @@ def main(config_path: str):
     )
 
     logger.info("Encoder network training completed successfully")
-
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(
