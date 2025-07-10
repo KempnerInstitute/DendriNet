@@ -3,7 +3,7 @@ Shunting Inhibition: The Core Computational Mechanism
 
 Shunting inhibition represents the fundamental computational principle underlying the Dendritic Modeling Framework. Unlike traditional neural networks that rely on simple weighted summation, our framework implements divisive normalization through the biologically-inspired shunting inhibition mechanism.
 
-.. figure:: ../../figures/architecture/shunting_inhibition_diagram.svg
+.. figure:: ../../_static/shunting_inhibition_diagram.png
    :align: center
    :width: 90%
    :alt: Professional Shunting Inhibition Diagram
