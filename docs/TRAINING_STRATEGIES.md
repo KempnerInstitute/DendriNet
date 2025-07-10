@@ -1,33 +1,43 @@
 # Training Strategies Guide
 
-This guide covers all training strategies available in the Dendritic Modeling Framework, from standard backpropagation to biologically-inspired local learning approaches.
+This guide provides comprehensive coverage of all training strategies available in the Dendritic Modeling Framework, including their theoretical foundations, biological motivation, and practical implementation details.
 
 ## Table of Contents
 
-1. [Overview](#overview)
-2. [Standard Training](#standard-training)
-3. [Local Learning Strategies](#local-learning-strategies)
-4. [Multi-Stage Training](#multi-stage-training)
-5. [Specialized Strategies](#specialized-strategies)
-6. [Optimizer Configuration](#optimizer-configuration)
-7. [Training Parameters](#training-parameters)
-8. [Strategy Selection Guide](#strategy-selection-guide)
+1. [Standard Training](#standard-training)
+2. [Layer-wise Training](#layer-wise-training)
+3. [Branch-wise Training (Local Credit Assignment)](#branch-wise-training-local-credit-assignment)
+4. [Two-Step Training](#two-step-training)
+5. [Voltage Stabilization](#voltage-stabilization)
+6. [Specialized Training Strategies](#specialized-training-strategies)
+7. [Strategy Selection Guide](#strategy-selection-guide)
+8. [Optimization and Hyperparameters](#optimization-and-hyperparameters)
 
-## Overview
-
-The framework provides multiple training strategies designed for different network architectures and learning objectives:
-
-- **Standard Training**: Traditional backpropagation
-- **Local Learning**: Layer-wise and branch-wise training
-- **Multi-Stage Training**: Sequential training phases
-- **Specialized Training**: Biologically-motivated approaches
-- **Custom Training**: User-defined strategies
-
-Each strategy can be configured with specific parameters and combined with various optimization techniques.
+---
 
 ## Standard Training
 
-**Standard training** uses traditional backpropagation with gradient-based optimization.
+### Overview
+
+Standard training uses traditional backpropagation with gradient descent, adapted for dendritic architectures with specialized gradient scaling strategies.
+
+### Theoretical Foundation
+
+- **Global optimization**: All parameters updated simultaneously
+- **End-to-end gradient flow**: Gradients flow from output to input
+- **Gradient scaling**: Custom scaling for different dendritic components
+- **Regularization**: L2 weight decay on log-transformed weights
+
+### Mathematical Formulation
+
+```
+θ_{t+1} = θ_t - α ∇L(θ_t) - λ ||log(θ_t)||²
+```
+
+Where:
+- `α` is the learning rate (component-specific if `split_params=true`)
+- `λ` is the weight decay rate
+- `∇L` includes gradient scaling for dendritic components
 
 ### Configuration
 
@@ -35,643 +45,740 @@ Each strategy can be configured with specific parameters and combined with vario
 train:
   learning_strategy: standard
   
+  # Optimizer settings
+  optim_dict:
+    split_params: true                    # Component-specific learning rates
+    input_net_lr: 0.001                  # Input network parameters
+    topk_lr: 0.005                       # Synaptic weights
+    blocklinear_lr: 0.001                # Branch aggregation weights
+    reactivation_lr: 0.01                # Activation parameters
+    output_layer_lr: 0.001               # Output layer
+  
+  weight_decay_rate: 0.1                 # L2 regularization strength
+  
   trainer:
     epochs: 100
     batch_size: 128
     loss_function: categorical_nll
     early_stopping: true
     patience: 10
-    grad_clip_value: 5.0
+    grad_clip_value: 5.0                 # Gradient clipping
 ```
 
-### Key Features
+### Gradient Scaling Strategies
 
-- **End-to-end training**: All parameters updated simultaneously
-- **Global optimization**: Uses full network gradients
-- **Efficient**: Fastest training approach
-- **Stable**: Well-established convergence properties
+```yaml
+model:
+  network:
+    parameters:
+      # Reactivation gradient scaling
+      reactivation_strategy: inverse      # Scale by 1/derivative
+      
+      # TopK layer gradient scaling
+      topk_strategy: conductance_dynamic  # Scale by total conductance
+      
+      # Branch layer gradient scaling  
+      blocklinear_strategy: distal_upweight_by_idx  # Upweight distal branches
+```
 
-### When to Use
+### Use Cases
 
-- **Simple networks**: MLPs and basic EINets
-- **Standard tasks**: Classification and regression
-- **Baseline experiments**: Comparison with other strategies
-- **Production**: When training speed is critical
+- **Standard neural networks**: When biological constraints are not critical
+- **Baseline comparisons**: Establishing performance benchmarks
+- **Simple architectures**: Single-layer EINets or MLPs
+- **Fast prototyping**: Quick experimental iterations
+
+### Advantages
+
+- Fast convergence for well-behaved problems
+- Stable training dynamics
+- Well-understood optimization properties
+- Good for parameter-matched comparisons
+
+### Disadvantages
+
+- May struggle with deep dendritic hierarchies
+- Potential gradient flow issues in complex architectures
+- Less biologically plausible than local learning approaches
+
+---
+
+## Layer-wise Training
+
+### Overview
+
+Layer-wise training (freeze layers strategy) trains network layers sequentially, either from soma to input (standard) or input to soma (reversed).
+
+### Biological Motivation
+
+- **Developmental learning**: Mimics how neural circuits develop over time
+- **Local plasticity**: Each layer adapts to its immediate input statistics
+- **Reduced interference**: Prevents catastrophic forgetting between layers
+- **Hierarchical learning**: Natural progression from simple to complex features
 
 ### Mathematical Formulation
 
-For standard backpropagation:
-
-1. **Forward pass**: Compute outputs and loss
-2. **Backward pass**: Compute gradients via chain rule
-3. **Parameter update**: Apply optimizer step
+For standard layer-wise training (soma to input):
 
 ```
-L = loss(f(x; θ), y)
-∇θ = ∂L/∂θ
-θ ← θ - α∇θ
+Phase 1: Train only layer 1, freeze layers 2,...,N
+Phase 2: Train layers 1-2, freeze layers 3,...,N  
+...
+Phase N: Train all layers together (fine-tuning)
 ```
 
-## Local Learning Strategies
-
-Local learning strategies train network components sequentially, enabling better gradient flow and biologically-plausible learning.
-
-### Layer-wise Training
-
-**Layer-wise training** (freeze_layers) trains network layers sequentially from soma to input.
-
-#### Configuration
+### Configuration
 
 ```yaml
 train:
   learning_strategy: freeze_layers
   
   trainer:
-    epochs: 100                 # Total epochs
-    pretrain_epochs: 20         # Full network pretraining
-    epochs_per_layer: 10        # Epochs per layer
-    final_tune_epochs: 20       # Final fine-tuning
-    reverse_training: false     # Train soma→input (false) or input→soma (true)
-```
-
-#### Training Process
-
-1. **Pretraining**: Train full network for initialization
-2. **Layer freezing**: Freeze all layers except current
-3. **Sequential training**: Train each layer individually
-4. **Final tuning**: Train full network with best weights
-
-#### Example
-
-```yaml
-# Layer-wise training example
-train:
-  learning_strategy: freeze_layers
-  
-  trainer:
-    epochs: 80
-    pretrain_epochs: 10
-    epochs_per_layer: 15
-    final_tune_epochs: 25
-    reverse_training: false     # Train from soma outward
+    # Pre-training phase
+    pretrain_epochs: 10                   # Full network warm-up
+    
+    # Layer-wise phases
+    epochs_per_layer: 10                  # Training epochs per layer
+    reverse_training: false               # false: soma→input, true: input→soma
+    
+    # Fine-tuning phase
+    final_tune_epochs: 20                 # End-to-end fine-tuning
     
     # Standard training parameters
     batch_size: 128
     loss_function: categorical_nll
-    grad_clip_value: 1.0
+    early_stopping: true
+    patience: 10
 ```
 
-### Branch-wise Training
+### Training Phases
 
-**Branch-wise training** (freeze_branches) trains dendritic branches sequentially for local credit assignment.
+#### Phase 1: Pre-training (Optional)
+```yaml
+pretrain_epochs: 10    # Train all layers together briefly
+```
+- Initializes all layers with end-to-end signal
+- Provides stable starting point
+- Can be skipped for some architectures
 
-#### Configuration
+#### Phase 2: Layer-wise Training
+```yaml
+epochs_per_layer: 10   # Train each layer individually
+```
+
+**Standard Direction (soma→input):**
+1. Train layer closest to output (soma)
+2. Add next layer toward input
+3. Continue until all layers included
+
+**Reverse Direction (input→soma):**
+1. Train layer closest to input
+2. Add next layer toward output
+3. Continue until all layers included
+
+#### Phase 3: Fine-tuning
+```yaml
+final_tune_epochs: 20  # End-to-end optimization
+```
+- All layers trainable
+- Global optimization
+- Refines layer interactions
+
+### Advanced Options
+
+#### Gradual Unfreezing
+```yaml
+# Custom phase durations
+phase_epochs: [5, 10, 15, 20]           # Increasing epochs per phase
+```
+
+#### Learning Rate Scheduling
+```yaml
+optim_dict:
+  phase_lr_schedule:
+    phase_1: 0.01
+    phase_2: 0.005
+    phase_3: 0.001                       # Decreasing rates
+```
+
+### Use Cases
+
+- **Deep dendritic networks**: Networks with 3+ layers
+- **Hierarchical feature learning**: When layer specialization is desired
+- **Gradient flow issues**: When standard training shows vanishing gradients
+- **Interpretable learning**: Understanding layer-by-layer development
+
+### Advantages
+
+- Better gradient flow in deep networks
+- More stable training dynamics
+- Clear layer specialization
+- Reduced overfitting risk
+
+### Disadvantages
+
+- Longer total training time
+- Complex hyperparameter tuning
+- May suboptimal global solutions
+- Requires careful phase management
+
+---
+
+## Branch-wise Training (Local Credit Assignment)
+
+### Overview
+
+Branch-wise training implements local credit assignment by training dendritic branches sequentially, allowing each branch to specialize independently.
+
+### Biological Motivation
+
+- **Local synaptic plasticity**: Synapses modify based on local signals
+- **Branch independence**: Each dendritic branch can learn different features
+- **Spike-timing dependent plasticity**: Local temporal correlations drive learning
+- **Compartmentalized learning**: Separate learning in different dendritic compartments
+
+### Mathematical Formulation
+
+For a network with `B` branches:
+
+```
+Phase 1: Train branch 1, freeze branches 2,...,B
+Phase 2: Train branches 1-2, freeze branches 3,...,B
+...
+Phase B: Train all branches together
+```
+
+Each branch optimizes local objectives while maintaining global coherence.
+
+### Configuration
 
 ```yaml
 train:
   learning_strategy: freeze_branches
   
   trainer:
-    epochs: 100
-    pretrain_epochs: 15
-    epochs_per_branch: 8
-    final_tune_epochs: 25
-    reverse_training: false     # Train soma→input (false) or input→soma (true)
+    # Pre-training phase
+    pretrain_epochs: 10                   # Full network initialization
+    
+    # Branch-wise phases  
+    epochs_per_branch: 10                 # Training epochs per branch
+    reverse_training: false               # false: proximal→distal, true: distal→proximal
+    
+    # Fine-tuning phase
+    final_tune_epochs: 20                 # Global optimization
+    
+    # Standard parameters
+    batch_size: 128
+    loss_function: categorical_nll
 ```
 
-#### Training Process
+### Training Phases
 
-1. **Pretraining**: Initialize with full network training
-2. **Branch identification**: Find all dendritic branch layers
-3. **Sequential training**: Train each branch independently
-4. **Final tuning**: Global fine-tuning with best weights
+#### Phase 1: Pre-training
+- Brief end-to-end training
+- Establishes global signal flow
+- Provides branch initialization
 
-#### Benefits
+#### Phase 2: Sequential Branch Training
 
-- **Local credit assignment**: Each branch learns specific features
-- **Better gradient flow**: Avoids vanishing gradients
-- **Biological plausibility**: Mimics local synaptic plasticity
-- **Stable training**: Reduces optimization landscape complexity
+**Standard Direction (proximal→distal):**
+1. Train branches closest to soma
+2. Progressively add more distal branches
+3. Maintains output signal quality
 
-## Multi-Stage Training
+**Reverse Direction (distal→proximal):**
+1. Train most distal branches first
+2. Add branches toward soma
+3. Builds features from bottom up
 
-Multi-stage strategies combine local and global training phases for improved performance.
+#### Phase 3: Global Fine-tuning
+- All branches trainable
+- Optimizes branch interactions
+- Refines global performance
 
-### Two-Step Training
+### Local Credit Assignment Variants
 
-**Two-step training** combines local pretraining with global fine-tuning.
+#### Information-Based Credit Assignment
+```yaml
+trainer:
+  credit_assignment_type: information
+  branch_info_weight: 0.5               # Weight for information-based objectives
+```
 
-#### Configuration
+#### Correlation-Based Assignment
+```yaml
+trainer:
+  credit_assignment_type: correlation
+  correlation_target: 0.8               # Target correlation between branches
+```
+
+### Use Cases
+
+- **Multi-branch dendritic networks**: DendriNet with complex branching
+- **Feature specialization**: When branch-specific features are desired  
+- **Biological modeling**: Studying local plasticity mechanisms
+- **Interpretable representations**: Understanding branch-specific computations
+
+### Advantages
+
+- Natural branch specialization
+- Biologically realistic learning
+- Robust to local optima
+- Clear interpretability
+
+### Disadvantages
+
+- Computationally expensive
+- Complex coordination between branches
+- May sacrifice global optimality
+- Requires careful branch identification
+
+---
+
+## Two-Step Training
+
+### Overview
+
+Two-step training combines local pre-training with global fine-tuning, using auxiliary supervision heads for each layer during the pre-training phase.
+
+### Theoretical Foundation
+
+- **Local supervision**: Each layer receives direct supervision
+- **Hierarchical representations**: Layers learn meaningful features independently
+- **Global coordination**: Fine-tuning aligns layer representations
+- **Auxiliary heads**: Temporary supervision heads provide local gradients
+
+### Mathematical Formulation
+
+#### Phase 1: Local Pre-training
+```
+L_total = Σᵢ λᵢ L_local(hᵢ, y)
+```
+Where `hᵢ` is the output of auxiliary head at layer `i`.
+
+#### Phase 2: Global Fine-tuning
+```
+L_total = L_global(f(x), y)
+```
+Where `f(x)` is the full network output.
+
+### Configuration
 
 ```yaml
 train:
   learning_strategy: two_step
   
   trainer:
-    epochs: 100                 # Global training epochs
-    pretrain_epochs: 30         # Local pretraining epochs
+    # Phase 1: Local pre-training
+    pretrain_epochs: 20                   # Local supervision epochs
+    
+    # Phase 2: Global fine-tuning
+    epochs: 100                           # End-to-end training epochs
+    
+    # Standard parameters
+    batch_size: 128
+    loss_function: categorical_nll
 ```
 
-#### Training Process
+### Two-Step with KL Divergence
 
-**Stage 1: Local Pretraining**
-1. Create local supervision heads for each layer
-2. Train each layer with local classification loss
-3. Learn layer-specific representations
-
-**Stage 2: Global Fine-tuning**
-1. Remove local supervision heads
-2. Train full network end-to-end
-3. Refine global representations
-
-#### Mathematical Details
-
-**Local pretraining loss:**
-```
-L_local = Σ_i CE(h_i(x), y)
-```
-where `h_i` are local classification heads.
-
-**Global fine-tuning loss:**
-```
-L_global = CE(f(x), y)
-```
-where `f` is the full network.
-
-### Two-Step with KL Regularization
-
-**Two-step KL training** adds regularization during local pretraining.
-
-#### Configuration
+Enhanced version with KL regularization between local and global representations:
 
 ```yaml
 train:
   learning_strategy: two_step_kl
   
   trainer:
+    pretrain_epochs: 20
     epochs: 100
-    pretrain_epochs: 30
-    kl_weight: 0.1              # KL divergence weight
+    kl_weight: 0.1                        # KL divergence weight
+    temperature: 3.0                      # Softmax temperature for KL
 ```
 
-#### Loss Function
-
-Combines classification loss with KL divergence regularization:
-
+#### KL Regularization Loss
 ```
-L_total = L_classification + λ * KL(p_local || p_global)
+L_total = L_classification + λ_KL Σᵢ KL(p_local^i || p_global^i)
 ```
 
-- **Classification loss**: Standard cross-entropy
-- **KL regularization**: Encourages consistency between local and global predictions
-- **λ (kl_weight)**: Balance between the two terms
+### Auxiliary Head Architecture
 
-#### Benefits
+The framework automatically creates auxiliary heads for each layer:
 
-- **Consistency**: Local and global representations align
-- **Regularization**: Prevents overfitting during pretraining
-- **Stability**: Smoother transition between training phases
+```python
+# Automatic head creation based on layer output dimensions
+for layer in network.layers:
+    head = Linear(layer.output_dim, num_classes)
+    auxiliary_heads.append(head)
+```
 
-## Specialized Strategies
+### Advanced Two-Step Variants
 
-### Voltage Stabilization
+#### Hierarchical Two-Step
+```yaml
+trainer:
+  hierarchical_pretraining: true
+  layer_pretrain_schedule:
+    layer_1: 10                          # Epochs for first layer
+    layer_2: 15                          # More epochs for deeper layers
+    layer_3: 20
+```
 
-**Voltage stabilization** includes a biologically-motivated warm-up phase.
+#### Progressive Two-Step
+```yaml
+trainer:
+  progressive_supervision: true
+  supervision_decay: 0.9                 # Gradually reduce local supervision
+```
 
-#### Configuration
+### Use Cases
+
+- **Deep networks**: Networks with multiple processing stages
+- **Representation learning**: When interpretable intermediate features are needed
+- **Gradient flow issues**: When deep networks struggle to train
+- **Transfer learning**: Pre-trained layers can be reused
+
+### Advantages
+
+- Excellent gradient flow
+- Meaningful intermediate representations
+- Robust training dynamics
+- Good for deep architectures
+
+### Disadvantages
+
+- Additional computational overhead
+- More complex implementation
+- Auxiliary head tuning required
+- May over-regularize representations
+
+---
+
+## Voltage Stabilization
+
+### Overview
+
+Voltage stabilization implements a biologically-motivated warm-up procedure that stabilizes dendritic voltages before standard training.
+
+### Biological Motivation
+
+- **Homeostatic plasticity**: Neurons maintain stable activity levels
+- **Voltage regulation**: Dendritic voltages are actively controlled
+- **Developmental stability**: Young networks require stabilization
+- **Excitation-inhibition balance**: Proper E-I balance is established
+
+### Mathematical Formulation
+
+#### Stabilization Loss
+```
+L_stabilization = Σᵢ (V_dendritic^i - V_target)² + L_classification
+```
+
+Where `V_target` is the desired dendritic voltage level.
+
+### Configuration
 
 ```yaml
 train:
   learning_strategy: voltage_stabilization
   
   trainer:
-    epochs: 100                 # Main training epochs
-    pretrain_epochs: 15         # Voltage stabilization epochs
-    target_voltage: 0.5         # Target dendritic voltage
-```
-
-#### Training Process
-
-**Phase 1: Voltage Stabilization**
-1. Use specialized voltage stabilization loss
-2. Target specific dendritic voltage levels
-3. Establish stable baseline activity
-
-**Phase 2: Standard Training**
-1. Switch to classification/regression loss
-2. Train with stabilized voltage dynamics
-3. Maintain dendritic stability
-
-#### Voltage Stabilization Loss
-
-```
-L_voltage = MSE(V_dendrite, V_target)
-```
-
-where `V_dendrite` are dendritic voltages and `V_target` is the target voltage.
-
-#### Benefits
-
-- **Stable dynamics**: Prevents unstable dendritic activity
-- **Biological realism**: Mimics dendritic homeostasis
-- **Better convergence**: Establishes good initialization
-
-### Specialized Parameter Training
-
-**Train only M reactivation** focuses on specific parameter subsets.
-
-#### Configuration
-
-```yaml
-train:
-  learning_strategy: specialized
-  
-  # Custom trainer parameters
-  trainer:
-    train_only_m_reactivation: true  # Train only slope parameters
-    freeze_log_b: true               # Freeze bias parameters
-```
-
-#### Use Cases
-
-- **Parameter analysis**: Study specific parameter importance
-- **Transfer learning**: Fine-tune specific components
-- **Ablation studies**: Isolate parameter contributions
-
-## Optimizer Configuration
-
-### Basic Optimization
-
-```yaml
-train:
-  optim_dict:
-    split_params: false         # Single learning rate
-    lr: 0.001                  # Learning rate
-```
-
-### Parameter Group Optimization
-
-Different parameter types can use different learning rates:
-
-```yaml
-train:
-  optim_dict:
-    split_params: true
+    # Stabilization phase
+    pretrain_epochs: 10                   # Voltage stabilization epochs
+    target_voltage: 0.5                   # Target dendritic voltage
     
-    # Component-specific learning rates
-    input_net_lr: 0.001        # Input transformation network
-    topk_lr: 0.005             # Synaptic weights (TopK layers)
-    blocklinear_lr: 0.001      # Branch aggregation weights
-    reactivation_lr: 0.01      # Activation parameters
-    output_layer_lr: 0.001     # Final classification layer
-```
-
-### Parameter Group Benefits
-
-- **Balanced learning**: Different components learn at appropriate rates
-- **Stability**: Prevents some parameters from dominating
-- **Efficiency**: Faster convergence with proper rates
-- **Flexibility**: Adapt to different network components
-
-### Weight Decay Configuration
-
-```yaml
-train:
-  weight_decay_rate: 0.1        # L2 regularization strength
-  
-  # Applied to log-space weights in TopK layers
-  # Promotes sparse connectivity patterns
-```
-
-## Training Parameters
-
-### Basic Training Configuration
-
-```yaml
-train:
-  trainer:
-    # Training duration
-    epochs: 100                 # Number of training epochs
-    batch_size: 128            # Batch size
+    # Standard training phase  
+    epochs: 100                           # Normal training epochs
     
-    # Data handling
-    shuffle: true              # Shuffle training data
-    
-    # Loss and optimization
-    loss_function: categorical_nll  # Loss function
-    grad_clip_value: 5.0       # Gradient clipping threshold
+    # Standard parameters
+    batch_size: 128
+    loss_function: categorical_nll
 ```
 
-### Early Stopping
+### Stabilization Process
 
+#### Phase 1: Voltage Stabilization
+1. **Voltage monitoring**: Track dendritic voltages across branches
+2. **Stability objective**: Minimize deviation from target voltage
+3. **E-I balancing**: Adjust excitation-inhibition ratios
+4. **Gradual transition**: Smoothly transition to classification objective
+
+#### Phase 2: Standard Training
+1. **Remove voltage constraint**: Switch to pure classification objective
+2. **Fine-tune dynamics**: Optimize with stable voltage baseline
+3. **Maintain stability**: Monitor for voltage drift
+
+### Advanced Stabilization Options
+
+#### Multi-Target Stabilization
 ```yaml
-train:
-  trainer:
-    early_stopping: true       # Enable early stopping
-    patience: 10               # Epochs to wait for improvement
-    load_best_state_dict: true # Load best model after training
-```
-
-### Logging and Visualization
-
-```yaml
-train:
-  trainer:
-    # Output control
-    plot_losses: true          # Plot training curves
-    suppress_prints: false     # Console output
-    print_every: 10           # Print frequency (epochs)
-    
-    # Model saving
-    save_path: ./checkpoints   # Checkpoint directory
-```
-
-### Available Loss Functions
-
-| Loss Function | Use Case | Configuration |
-|---------------|----------|---------------|
-| `categorical_nll` | Multi-class classification | Default for classification |
-| `mse` | Regression | `loss_function: mse` |
-| `cross_entropy` | Classification (alternative) | `loss_function: cross_entropy` |
-| `bce` | Binary classification | `loss_function: bce` |
-
-## Strategy Selection Guide
-
-### Decision Tree
-
-```
-Network Type?
-├── MLP
-│   └── Use: standard
-├── Simple EINet (1-2 layers)
-│   └── Use: standard or freeze_layers
-└── Complex EINet (3+ layers)
-    ├── Fast training needed?
-    │   └── Use: standard
-    ├── Better performance needed?
-    │   └── Use: two_step or freeze_layers
-    └── Biological realism needed?
-        └── Use: voltage_stabilization or freeze_branches
-```
-
-### Performance Comparison
-
-| Strategy | Speed | Performance | Biological Realism | Complexity |
-|----------|-------|-------------|-------------------|------------|
-| **standard** | ⭐⭐⭐⭐⭐ | ⭐⭐⭐ | ⭐ | ⭐ |
-| **freeze_layers** | ⭐⭐⭐ | ⭐⭐⭐⭐ | ⭐⭐ | ⭐⭐ |
-| **freeze_branches** | ⭐⭐ | ⭐⭐⭐⭐ | ⭐⭐⭐⭐ | ⭐⭐⭐ |
-| **two_step** | ⭐⭐ | ⭐⭐⭐⭐⭐ | ⭐⭐ | ⭐⭐⭐ |
-| **two_step_kl** | ⭐⭐ | ⭐⭐⭐⭐⭐ | ⭐⭐ | ⭐⭐⭐⭐ |
-| **voltage_stabilization** | ⭐⭐ | ⭐⭐⭐⭐ | ⭐⭐⭐⭐⭐ | ⭐⭐⭐ |
-
-### Task-Specific Recommendations
-
-#### Image Classification
-```yaml
-# MNIST (simple)
-learning_strategy: standard
-
-# CIFAR-10 (complex)
-learning_strategy: two_step
 trainer:
-  pretrain_epochs: 25
-  epochs: 75
+  voltage_targets:
+    excitatory: 0.6                      # Target for excitatory dendrites
+    inhibitory: 0.4                      # Target for inhibitory dendrites
 ```
 
-#### Synthetic Tasks
+#### Adaptive Stabilization
 ```yaml
-# XOR, line detection, etc.
-learning_strategy: freeze_branches
 trainer:
-  epochs_per_branch: 12
-  final_tune_epochs: 30
+  adaptive_voltage: true
+  voltage_adaptation_rate: 0.01          # How quickly targets adapt
 ```
 
-#### Regression Tasks
+#### Layer-Specific Stabilization
 ```yaml
-learning_strategy: standard
 trainer:
-  loss_function: mse
-  epochs: 150
-  early_stopping: true
+  layer_voltage_targets: [0.3, 0.5, 0.7] # Different targets per layer
 ```
 
-#### Research/Analysis
-```yaml
-learning_strategy: voltage_stabilization
-trainer:
-  pretrain_epochs: 20
-  target_voltage: 0.4
-  epochs: 120
-```
+### Use Cases
 
-### Architecture-Specific Guidelines
+- **EINet training**: When E-I balance is critical
+- **Biological modeling**: Modeling homeostatic mechanisms
+- **Unstable dynamics**: When training shows voltage instability
+- **Deep dendritic networks**: Multi-layer dendritic architectures
 
-#### EINet with Standard TopK
+### Advantages
+
+- Stable training dynamics
+- Biologically realistic
+- Prevents pathological states
+- Good for E-I networks
+
+### Disadvantages
+
+- Additional hyperparameter tuning
+- Longer training time
+- May constrain learning
+- Requires voltage monitoring
+
+---
+
+## Specialized Training Strategies
+
+### Train Only M Reactivation
+
+Specialized strategy that focuses training on slope parameters while freezing bias terms.
+
 ```yaml
 train:
-  learning_strategy: standard    # Simple and effective
+  learning_strategy: train_only_m_reactivation
   
-  optim_dict:
-    split_params: true
-    topk_lr: 0.005
-    reactivation_lr: 0.01
+  # Automatically freezes log_b parameters
+  # Trains all other parameters normally
 ```
 
-#### EINet with Stochastic TopK
-```yaml
-train:
-  learning_strategy: two_step    # Handle exploration better
-  
-  trainer:
-    pretrain_epochs: 30
-    epochs: 80
-```
+**Use Cases:**
+- Studying slope vs. bias parameter importance
+- Constrained optimization experiments
+- Reactivation function analysis
 
-#### EINet with DeepST
-```yaml
-train:
-  learning_strategy: freeze_layers  # Stable for rewiring
-  
-  trainer:
-    epochs_per_layer: 15
-    final_tune_epochs: 40
-```
+### Custom Training Strategies
 
-#### Multi-Layer EINet (3+ layers)
-```yaml
-train:
-  learning_strategy: freeze_branches
-  
-  trainer:
-    pretrain_epochs: 20
-    epochs_per_branch: 10
-    final_tune_epochs: 30
-    reverse_training: false    # Train soma→input
-```
+The framework supports custom training strategies through the factory pattern:
 
-## Advanced Training Techniques
+```python
+# Custom strategy implementation
+class CustomTrainer(Trainer):
+    def train(self, model, train_data, valid_data):
+        # Custom training logic
+        pass
 
-### Curriculum Learning
-
-```yaml
-# Start with easier examples, progress to harder ones
-train:
-  learning_strategy: two_step
-  
-  trainer:
-    pretrain_epochs: 20        # Learn basics first
-    epochs: 60                # Then full complexity
-    
-task:
-  # Use synthetic tasks for pretraining, real data for fine-tuning
-  dataset: line               # Simple patterns first
-```
-
-### Transfer Learning
-
-```yaml
-train:
-  learning_strategy: specialized
-  
-  # Fine-tune specific components
-  trainer:
-    freeze_encoder: true       # Keep pre-trained features
-    train_only_decoder: true   # Update only output layers
-```
-
-### Multi-Task Learning
-
-```yaml
-train:
-  learning_strategy: freeze_branches
-  
-  # Different branches can specialize for different tasks
-  trainer:
-    epochs_per_branch: 15
-    task_rotation: true        # Rotate between tasks
-```
-
-### Hyperparameter Optimization
-
-#### Learning Rate Scheduling
-
-```yaml
-train:
-  optim_dict:
-    split_params: true
-    
-    # Start high, decay during training
-    topk_lr: 0.01             # Initial rate
-    lr_decay: 0.95            # Decay factor
-    decay_every: 20           # Decay frequency
-```
-
-#### Adaptive Training
-
-```yaml
-train:
-  trainer:
-    # Adjust training based on performance
-    adaptive_epochs: true     # Extend if improving
-    min_epochs: 50           # Minimum training
-    max_epochs: 200          # Maximum training
-```
-
-## Troubleshooting Training Issues
-
-### Common Problems
-
-#### Vanishing Gradients
-**Symptoms**: Loss plateaus early, poor performance
-**Solutions**:
-```yaml
-train:
-  learning_strategy: freeze_branches  # Use local learning
-  
-  optim_dict:
-    reactivation_lr: 0.02            # Higher activation LR
-    
-model:
-  core_network:
-    parameters:
-      reactivation_strategy: inverse  # Gradient scaling
-```
-
-#### Exploding Gradients
-**Symptoms**: NaN loss, unstable training
-**Solutions**:
-```yaml
-train:
-  trainer:
-    grad_clip_value: 1.0             # Strong clipping
-    
-  optim_dict:
-    topk_lr: 0.001                   # Lower learning rates
-```
-
-#### Slow Convergence
-**Symptoms**: Very slow learning, many epochs needed
-**Solutions**:
-```yaml
-train:
-  learning_strategy: two_step        # Better initialization
-  
-  optim_dict:
-    split_params: true
-    topk_lr: 0.01                    # Higher synaptic LR
-    
-model:
-  core_network:
-    parameters:
-      topk_strategy: conductance_dynamic  # Better gradients
-```
-
-#### Overfitting
-**Symptoms**: Large train/validation gap
-**Solutions**:
-```yaml
-train:
-  weight_decay_rate: 0.2             # Stronger regularization
-  
-  trainer:
-    early_stopping: true
-    patience: 5                      # Stop early
-    
-analysis:
-  noise_perturbation_analysis:
-    enabled: true                    # Test robustness
-```
-
-### Debugging Strategies
-
-#### Gradient Analysis
-```yaml
-model:
-  core_network:
-    parameters:
-      print_hooks: true              # Print gradient stats
-```
-
-#### Learning Curve Analysis
-```yaml
-train:
-  trainer:
-    plot_losses: true                # Visualize training
-    print_every: 5                   # Frequent logging
-```
-
-#### Component Analysis
-```yaml
-train:
-  learning_strategy: specialized
-  
-  # Test individual components
-  trainer:
-    train_only_m_reactivation: true
+# Registration
+def get_trainer(strategy, ...):
+    if strategy == "custom":
+        return CustomTrainer(...)
 ```
 
 ---
 
-This guide covers all training strategies available in the Dendritic Modeling Framework. Each strategy is designed for specific use cases and network architectures. Choose the strategy that best matches your experimental goals and computational constraints. 
+## Strategy Selection Guide
+
+### Task-Based Selection
+
+| Task Characteristics | Recommended Strategy | Rationale |
+|---------------------|---------------------|-----------|
+| **Simple datasets** | Standard | Fast convergence, well-understood |
+| **Deep networks (3+ layers)** | Layer-wise or Two-step | Better gradient flow |
+| **Multi-branch architectures** | Branch-wise | Natural branch specialization |
+| **EINet with E-I dynamics** | Voltage stabilization | Stable E-I balance |
+| **Representation learning** | Two-step | Interpretable intermediate features |
+| **Biological modeling** | Branch-wise or Voltage stabilization | More realistic learning |
+| **Large datasets** | Standard with split_params | Efficient component-specific learning |
+
+### Architecture-Based Selection
+
+| Architecture | Primary Strategy | Alternative | Notes |
+|-------------|-----------------|-------------|-------|
+| **Single-layer EINet** | Standard | Voltage stabilization | Simple enough for standard training |
+| **Multi-layer EINet** | Layer-wise | Two-step | Manage layer interactions |
+| **DendriNet** | Branch-wise | Two-step | Leverage branch structure |
+| **Hybrid CNN+EINet** | Two-step | Standard | Complex representations need local supervision |
+| **MLP** | Standard | - | Standard backprop is optimal |
+
+### Performance Considerations
+
+| Factor | Standard | Layer-wise | Branch-wise | Two-step | Voltage Stab. |
+|--------|----------|------------|-------------|----------|---------------|
+| **Training Speed** | Fast | Medium | Slow | Medium | Medium |
+| **Memory Usage** | Low | Low | Medium | High | Low |
+| **Convergence Quality** | Good | Very Good | Good | Excellent | Good |
+| **Biological Realism** | Low | Medium | High | Medium | High |
+| **Interpretability** | Low | Medium | High | High | Medium |
+
+### Debugging Strategy Issues
+
+#### Poor Convergence
+1. Try two-step training for better initialization
+2. Use layer-wise if deep network struggles
+3. Check learning rates for each component
+
+#### Training Instability
+1. Use voltage stabilization for E-I networks
+2. Add gradient clipping
+3. Reduce learning rates
+
+#### Overfitting
+1. Add weight decay
+2. Use early stopping
+3. Try branch-wise training for regularization
+
+---
+
+## Optimization and Hyperparameters
+
+### Learning Rate Strategies
+
+#### Component-Specific Learning Rates
+```yaml
+optim_dict:
+  split_params: true
+  input_net_lr: 0.001      # Usually lower for input processing
+  topk_lr: 0.005           # Higher for sparse synaptic weights
+  blocklinear_lr: 0.001    # Standard for dense layers
+  reactivation_lr: 0.01    # Higher for activation parameters
+  output_layer_lr: 0.001   # Standard for final layer
+```
+
+#### Learning Rate Scheduling
+```yaml
+trainer:
+  lr_scheduler:
+    type: StepLR
+    step_size: 30
+    gamma: 0.1               # Reduce LR by 10x every 30 epochs
+```
+
+### Weight Decay
+
+#### Standard Weight Decay
+```yaml
+weight_decay_rate: 0.1     # L2 regularization on log-weights
+```
+
+#### Component-Specific Decay
+```yaml
+weight_decay:
+  topk_weights: 0.1
+  branch_weights: 0.05
+  activation_params: 0.01
+```
+
+### Gradient Management
+
+#### Gradient Clipping
+```yaml
+trainer:
+  grad_clip_value: 5.0     # Clip gradients to prevent explosion
+  grad_clip_norm: 10.0     # Alternatively, clip by norm
+```
+
+#### Gradient Scaling
+```yaml
+parameters:
+  reactivation_strategy: inverse        # Scale by 1/derivative
+  topk_strategy: conductance_dynamic    # Scale by conductance
+  blocklinear_strategy: distal_upweight_by_idx  # Upweight distal
+```
+
+### Training Monitoring
+
+#### Early Stopping
+```yaml
+trainer:
+  early_stopping: true
+  patience: 10             # Stop if no improvement for 10 epochs
+  min_delta: 0.001         # Minimum improvement threshold
+```
+
+#### Loss Plotting
+```yaml
+trainer:
+  plot_losses: true        # Generate loss curves
+  save_path: "./plots"     # Save location
+```
+
+### Advanced Optimization
+
+#### Custom Optimizers
+```yaml
+train:
+  optimizer_type: CustomWeightDecayOptimizer
+  base_optimizer: Adam
+  optimizer_kwargs:
+    betas: [0.9, 0.999]
+    eps: 1e-8
+```
+
+#### Parameter Groups
+```python
+# Automatic parameter grouping
+param_groups = model.get_param_groups(config.param_groups)
+optimizer = torch.optim.Adam(param_groups)
+```
+
+---
+
+## Best Practices
+
+### Training Strategy Selection
+
+1. **Start simple**: Begin with standard training
+2. **Add complexity gradually**: Move to specialized strategies as needed
+3. **Match strategy to architecture**: Use biological strategies for biological architectures
+4. **Monitor training dynamics**: Watch for convergence issues
+5. **Compare strategies**: Try multiple approaches for important experiments
+
+### Hyperparameter Tuning
+
+1. **Learning rates**: Start with component-specific rates
+2. **Batch sizes**: Adjust based on memory constraints
+3. **Weight decay**: Balance regularization vs. performance
+4. **Training duration**: Use early stopping to prevent overfitting
+
+### Debugging Training
+
+1. **Check gradients**: Monitor gradient magnitudes and directions
+2. **Visualize training**: Use loss plots and activation monitoring
+3. **Validate implementation**: Compare with simpler baselines
+4. **Monitor resources**: Watch memory and compute usage
+
+### Experiment Design
+
+1. **Control variables**: Change one strategy aspect at a time
+2. **Multiple seeds**: Run experiments with different random seeds
+3. **Comprehensive evaluation**: Use multiple metrics and analysis tools
+4. **Document choices**: Record strategy selection rationale
+
+---
+
+## Summary
+
+The Dendritic Modeling Framework provides a comprehensive suite of training strategies:
+
+- **Standard**: Fast, reliable, good for most tasks
+- **Layer-wise**: Better for deep networks, hierarchical learning
+- **Branch-wise**: Biologically realistic, good for interpretability
+- **Two-step**: Excellent for representation learning and deep networks
+- **Voltage stabilization**: Essential for stable E-I dynamics
+
+Choose strategies based on your architecture, task complexity, and research goals. Start with standard training and add biological constraints as needed for your specific research questions. 
