@@ -1,9 +1,11 @@
 import os
-import numpy as np
-import matplotlib.pyplot as plt
-import matplotlib.patches as mpatches
 from abc import ABC, abstractmethod
-from typing import Any, Union
+from typing import Any, Optional, Union
+
+import matplotlib.patches as mpatches
+import matplotlib.pyplot as plt
+import numpy as np
+
 
 class PlotConfig:
     """Configuration for plot appearance and behavior."""
@@ -13,13 +15,15 @@ class PlotConfig:
         figsize: tuple[float, float] = (10, 6),
         dpi: int = 300,
         style: str = "standard",
-        fontsize: dict[str, int] = None,
-        colors: dict[str, str] = None,
-        save_formats: list[str] = ["png"],
+        fontsize: Optional[dict[str, int]] = None,
+        colors: Optional[dict[str, str]] = None,
+        save_formats: Optional[list[str]] = None,
         tight_layout: bool = True,
         grid: bool = True,
         grid_alpha: float = 0.3,
     ):
+        if save_formats is None:
+            save_formats = ["png"]
         self.figsize = figsize
         self.dpi = dpi
         self.style = style
@@ -66,9 +70,8 @@ class BasePlotter(ABC):
     @abstractmethod
     def plot(self, data: Any, **kwargs) -> plt.Figure:
         """Create the plot. Must be implemented by subclasses."""
-        pass
 
-    def save(self, fig: plt.Figure, filepath: str, metadata: dict[str, Any] = None):
+    def save(self, fig: plt.Figure, filepath: str, metadata: Optional[dict[str, Any]] = None):
         """Save the figure with optional metadata."""
         # Save in requested formats
         base_path = os.path.splitext(filepath)[0]
@@ -85,8 +88,8 @@ class BasePlotter(ABC):
             with open(meta_path, 'w') as f:
                 json.dump(metadata, f, indent=2)
 
-    def format_axis(self, ax: plt.Axes, xlabel: str = None, ylabel: str = None,
-                    title: str = None, xlim: tuple = None, ylim: tuple = None):
+    def format_axis(self, ax: plt.Axes, xlabel: Optional[str] = None, ylabel: Optional[str] = None,
+                    title: Optional[str] = None, xlim: Optional[tuple] = None, ylim: Optional[tuple] = None):
         """Apply consistent formatting to an axis."""
         if xlabel:
             ax.set_xlabel(xlabel, fontsize=self.config.fontsize["label"])
@@ -111,15 +114,15 @@ class LinePlotter(BasePlotter):
     def plot(
         self,
         data: dict[str, list[float]],
-        x_values: list[float] = None,
+        x_values: Optional[list[float]] = None,
         xlabel: str = "X",
         ylabel: str = "Y",
         title: str = "Line Plot",
-        markers: dict[str, str] = None,
-        baseline: float = None,
+        markers: Optional[dict[str, str]] = None,
+        baseline: Optional[float] = None,
         baseline_label: str = "Baseline",
-        xlim: tuple = None,
-        ylim: tuple = None,
+        xlim: Optional[tuple] = None,
+        ylim: Optional[tuple] = None,
         ax: plt.Axes = None,
     ) -> Union[plt.Figure, plt.Axes]:
         """
@@ -197,11 +200,11 @@ class BarPlotter(BasePlotter):
         xlabel: str = "Category",
         ylabel: str = "Value",
         title: str = "Bar Plot",
-        errors: dict[str, list[float]] = None,
+        errors: Optional[dict[str, list[float]]] = None,
         bar_width: float = 0.25,
         show_values: bool = False,
-        xlim: tuple = None,
-        ylim: tuple = None,
+        xlim: Optional[tuple] = None,
+        ylim: Optional[tuple] = None,
         ax: plt.Axes = None,
     ) -> Union[plt.Figure, plt.Axes]:
         """
@@ -284,15 +287,15 @@ class BoxPlotter(BasePlotter):
         self,
         data: list[list[float]],
         labels: list[str],
-        group_labels: list[str] = None,
+        group_labels: Optional[list[str]] = None,
         xlabel: str = "Category",
         ylabel: str = "Value",
         title: str = "Box Plot",
-        positions: list[float] = None,
+        positions: Optional[list[float]] = None,
         widths: float = 0.5,
-        colors: list[str] = None,
-        xlim: tuple = None,
-        ylim: tuple = None,
+        colors: Optional[list[str]] = None,
+        xlim: Optional[tuple] = None,
+        ylim: Optional[tuple] = None,
         ax: plt.Axes = None,
     ) -> Union[plt.Figure, plt.Axes]:
         """

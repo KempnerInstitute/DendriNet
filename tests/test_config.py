@@ -8,31 +8,26 @@ This module tests all configuration functionality including:
 - Configuration validation and error handling
 """
 
-import unittest
-import tempfile
 import os
-from dataclasses import dataclass, field
-from typing import Optional, Any
-from unittest.mock import Mock, patch
+import tempfile
+import unittest
+
 import yaml
 
-from omegaconf import OmegaConf, DictConfig
-
 from dendritic_modeling.config import (
-    Config,
-    ModelConfig,
-    TrainConfig,
-    TaskConfig,
     AnalysisConfig,
+    Config,
+    CoreNetworkConfig,
+    EINetParameters,
+    ModelConfig,
+    OutputsConfig,
+    TaskConfig,
+    TrainConfig,
     VisualizationConfig,
     WandbConfig,
-    OutputsConfig,
-    EINetParameters,
-    CoreNetworkConfig,
-    TransferFunctionParams,
     load_config,
-    BaseConfig
 )
+
 
 class TestConfigDataclasses(unittest.TestCase):
     """Test configuration dataclass structures."""

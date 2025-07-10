@@ -1,10 +1,11 @@
-import os
-import hashlib
-from typing import Union, Optional 
-import logging
 import argparse
+import hashlib
+import logging
+import os
+from typing import Optional, Union
 
 import torch
+
 try:
     import torchinfo
     TORCHINFO_AVAILABLE = True
@@ -14,27 +15,31 @@ except ImportError:
 
 from omegaconf import OmegaConf
 
-from dendritic_modeling import logger
-from dendritic_modeling import logger_manager
+from dendritic_modeling import logger, logger_manager
+from dendritic_modeling.config import (
+    EncoderNetworkConfig,
+    EncoderTrainConfig,
+    TaskConfig,
+    TrainConfig,
+    load_config,
+)
+from dendritic_modeling.datasets import get_unified_datasets
 from dendritic_modeling.networks import BaseNetwork, Identity
-from dendritic_modeling.networks.architectures.classical.autoencoder import BaseAutoencoder
+from dendritic_modeling.networks.architectures.classical.autoencoder import (
+    BaseAutoencoder,
+)
 from dendritic_modeling.networks.architectures.factory import get_architecture
 from dendritic_modeling.training import get_trainer
-from dendritic_modeling.datasets import get_unified_datasets
-from dendritic_modeling.config import (
-    TrainConfig,
-    EncoderTrainConfig,
-    EncoderNetworkConfig,
-    TaskConfig,
-    load_config
-)
-from dendritic_modeling.utils import set_seed, save_dict
+from dendritic_modeling.utils import save_dict, set_seed
+
 
 def dict_to_hash_text(
     d: dict,
     hash_text: str = "",
-    exclude_keys: list[str] = []
+    exclude_keys: Optional[list[str]] = None
 ) -> str:
+    if exclude_keys is None:
+        exclude_keys = []
     for key, value in d.items():
         if isinstance(value, dict):
             hash_text = dict_to_hash_text(value, hash_text + f"{key}.", exclude_keys)
@@ -274,7 +279,7 @@ def main(config_path: str):
     try:
         sample_input: torch.Tensor = train_ds[0][0]
         if TORCHINFO_AVAILABLE:
-            summary = torchinfo.summary(
+            torchinfo.summary(
                 encoder_network,
                 input_size=(100, *sample_input.shape),
                 col_names=["input_size", "output_size", "num_params"],

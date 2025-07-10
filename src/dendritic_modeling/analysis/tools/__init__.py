@@ -6,8 +6,8 @@ from .synaptic_turnover import SynapticTurnoverAnalyzer
 from .weight import WeightAnalyzer
 
 __all__ = [
-    "CorrelationAnalyzer",
-    "SynapticActivationAnalyzer",
-    "SynapticTurnoverAnalyzer",
+    "CorrelationAnalyzer"
+    "SynapticActivationAnalyzer"
+    "SynapticTurnoverAnalyzer"
     "WeightAnalyzer"
 ]

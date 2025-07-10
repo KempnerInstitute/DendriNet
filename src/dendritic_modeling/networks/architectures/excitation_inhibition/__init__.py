@@ -30,18 +30,18 @@ from dendritic_modeling.networks.architectures.excitation_inhibition.synapse imp
 )
 
 __all__ = [
-    "BlockLinear",
-    "DeepstLinear",
-    "DendriNet",
-    "DendriticBranchLayer",
-    "ExcitationInhibitionLayer",
-    "ExcitationInhibitionNetwork",
-    "GradientScaler",
-    "IdentityInputTransform",
-    "IndexInputTransform",
-    "StochasticTopKLinear",
-    "TopKLinear",
-    "TransferLayer",
-    "VarianceTopKLinear",
+    "BlockLinear"
+    "DeepstLinear"
+    "DendriNet"
+    "DendriticBranchLayer"
+    "ExcitationInhibitionLayer"
+    "ExcitationInhibitionNetwork"
+    "GradientScaler"
+    "IdentityInputTransform"
+    "IndexInputTransform"
     "initialize_dendritic_branch_layer"
+    "StochasticTopKLinear"
+    "TopKLinear"
+    "TransferLayer"
+    "VarianceTopKLinear"
 ]

@@ -31,7 +31,7 @@ class BaseModel(nn.Module):
         core_network: BaseNetwork,
         decoder_network: BaseNetwork
     ):
-        super(BaseModel, self).__init__()
+        super().__init__()
 
         self.encoder_network = encoder_network
 

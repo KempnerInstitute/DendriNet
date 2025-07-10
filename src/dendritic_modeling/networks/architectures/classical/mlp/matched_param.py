@@ -6,7 +6,6 @@ at least as many parameters as an equivalent EINet configuration.
 """
 
 import torch
-import torchinfo
 from torch import nn
 
 from dendritic_modeling.networks.activations.factory import ActivationFactory
@@ -32,13 +31,15 @@ class MatchedParamMLP(nn.Module):
         ee_synapses_per_branch_per_layer,
         ei_synapses_per_branch_per_layer,
         ie_synapses_per_branch_per_layer,
-        ii_synapses_per_branch_per_layer=[],
+        ii_synapses_per_branch_per_layer=None,
         reactivate=False,
         somatic_synapses=True,
         activation: str = "relu",
         **kwargs  # Accept but ignore other EINet parameters
     ):
-        super(MatchedParamMLP, self).__init__()
+        if ii_synapses_per_branch_per_layer is None:
+            ii_synapses_per_branch_per_layer = []
+        super().__init__()
 
         # Create EINet to get parameter count and number of layers
         einet = ExcitationInhibitionNetwork(
@@ -56,7 +57,7 @@ class MatchedParamMLP(nn.Module):
             **kwargs,
         )
 
-        summary = torchinfo.summary(einet, verbose=0)
+        # summary = torchinfo.summary(einet, verbose=0)  # Summary for debugging
         target_params = summary.trainable_params
 
         # Get number of branch layers

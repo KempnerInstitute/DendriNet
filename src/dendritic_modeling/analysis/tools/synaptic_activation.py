@@ -58,7 +58,7 @@ class SynapticActivationAnalyzer:
             List of hook handles for later removal
         """
         handles = []
-        for name, module in model.named_modules():
+        for _name, module in model.named_modules():
             if isinstance(module, DendriticBranchLayer):
                 if name not in self.data_dict.keys():
                     self.data_dict[name] = {}

@@ -22,7 +22,7 @@ class Regressor(BaseModel):
         core_network: BaseNetwork,
         decoder_network: Optional[BaseNetwork]
     ):
-        super(Regressor, self).__init__(
+        super().__init__(
             encoder_network,
             core_network,
             decoder_network

@@ -6,19 +6,16 @@ This module contains utility functions for evaluating model performance
 using various metrics including accuracy, log-likelihood, and MSE.
 """
 
-from typing import Optional, Union 
-import torch
-from torch.distributions import Categorical
-import torch.nn.functional as F
-from dendritic_modeling.utils.auc import roc_auc_score
+from typing import Callable, Optional, Union
 
-from dendritic_modeling.models import (
-    Classifier,
-    Regressor
-)
+import torch
+import torch.nn.functional as F
+from torch.distributions import Categorical
+
+from dendritic_modeling.models import Classifier, Regressor
+from dendritic_modeling.utils.auc import roc_auc_score
 from dendritic_modeling.utils.data import save_dict
 
-from typing import Union, Callable
 
 def _compute_metric_score(
     computation_func: Callable,

@@ -147,7 +147,7 @@ class SingleLayerContributionAnalyzer:
         if self.both_contribution:
             results["both"] = {}
 
-        for name, module in model.named_modules():
+        for _name, module in model.named_modules():
             if (
                 isinstance(module, DendriticBranchLayer)
                 and module.branch_excitation is not None

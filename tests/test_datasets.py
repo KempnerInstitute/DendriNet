@@ -30,9 +30,8 @@ from dendritic_modeling.datasets import (
     get_unified_datasets,
     load_cifar10_as_datasets,
     load_mnist_as_datasets,
-    load_MNIST_modulo10,
+    load_mnist_modulo10,
 )
-from dendritic_modeling.plotting.utils import split_MNIST_inputs
 
 
 class TestSyntheticDatasets(unittest.TestCase):
@@ -226,7 +225,7 @@ class TestRealDatasets(unittest.TestCase):
         with patch('dendritic_modeling.datasets.synthetic_datasets.load_mnist_as_datasets') as mock_load:
             mock_load.return_value = (mock_train, mock_valid, mock_test)
 
-            data = load_MNIST_modulo10(
+            data = load_mnist_modulo10(
                 shuffle_iterations=1,
                 train_valid_split=0.8,
                 flatten=True,
@@ -277,7 +276,7 @@ class TestDatasetUtilities(unittest.TestCase):
             torch.full((30,), 2, dtype=torch.long)  # 30 samples of class 2
         ])
 
-        input_list = split_MNIST_inputs(inputs, labels)
+        input_list = split_mnist_inputs(inputs, labels)
 
         # Check that we got the right number of classes (function returns 10 for all digits 0-9)
         self.assertEqual(len(input_list), 10)

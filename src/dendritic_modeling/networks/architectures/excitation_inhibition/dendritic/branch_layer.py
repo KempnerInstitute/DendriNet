@@ -98,7 +98,7 @@ class DendriticBranchLayer(nn.Module):
         weight_threshold=1e-6,
         **kwargs,
     ):
-        super(DendriticBranchLayer, self).__init__()
+        super().__init__()
         self.layer_idx = layer_idx
         self.reactivation_strategy = reactivation_strategy
         self.blocklinear_strategy = blocklinear_strategy

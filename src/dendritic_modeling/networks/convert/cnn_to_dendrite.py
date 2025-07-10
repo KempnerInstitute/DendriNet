@@ -50,7 +50,7 @@ def conv2d_to_dendrite(
 
     with torch.no_grad():
         layer.weight_E_raw.copy_(torch.log(torch.tensor(E) + eps))
-        layer.weight_I_raw.copy_(torch.log(torch.tensor(I) + eps))
+        layer.weight_I_raw.copy_(torch.log(torch.tensor(I_var) + eps))
         if copy_bias and conv.bias is not None:
             layer.bias_E.copy_(conv.bias)
     return layer

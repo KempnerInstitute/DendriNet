@@ -1,21 +1,27 @@
-from typing import Any
+from typing import Any, Optional
 
 import torch
 from torch import nn
 
-from dendritic_modeling.networks.architectures.excitation_inhibition.dendritic.dendrinet import DendriNet
+from dendritic_modeling.networks.architectures.excitation_inhibition.dendritic.dendrinet import (
+    DendriNet,
+)
+from dendritic_modeling.networks.architectures.excitation_inhibition.input_transform.identity import (
+    IdentityInputTransform,
+)
+from dendritic_modeling.networks.architectures.excitation_inhibition.input_transform.index import (
+    IndexInputTransform,
+)
 
-from dendritic_modeling.networks.architectures.excitation_inhibition.input_transform.identity import IdentityInputTransform
-from dendritic_modeling.networks.architectures.excitation_inhibition.input_transform.index import IndexInputTransform
 
 class TransferLayer(nn.Module):
     def __init__(
         self,
         input_dim: int,
         transfer_params: dict[str, Any],
-        n_inhibitory_cells: int = None,
-        inhibitory_branch_factors: list[int] = None,
-        excitatory_synapses_per_branch: int = None,
+        n_inhibitory_cells: Optional[int] = None,
+        inhibitory_branch_factors: Optional[list[int]] = None,
+        excitatory_synapses_per_branch: Optional[int] = None,
         reactivate: bool = True,
         reactivation_init_m: float = 1.5,
         reactivation_init_b: float = 0.5,
@@ -35,7 +41,7 @@ class TransferLayer(nn.Module):
         sigma: float = 0.05,
         rewiring_mode: str = "global",
         rewire_frequency: int = 1,
-        synapses_per_branch: list[int] = None,
+        synapses_per_branch: Optional[list[int]] = None,
         freeze_excitatory_connectivity: bool = False,
         freeze_inhibitory_connectivity: bool = False,
         init_method: str = "xavier_normal",

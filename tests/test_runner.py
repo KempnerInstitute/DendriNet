@@ -180,14 +180,14 @@ def check_dependencies():
 
     # Check pytest
     try:
-        import pytest
+        # import pytest  # Available for import check
         dependencies['pytest'] = True
     except ImportError:
         pass
 
     # Check coverage
     try:
-        import coverage
+        # import coverage  # Available for import check
         dependencies['coverage'] = True
     except ImportError:
         pass

@@ -26,17 +26,17 @@ from .vision_units import (
 )
 
 __all__ = [
-    # Vision units
-    "create_gabor_unit",
-    "create_center_surround_unit",
-    "create_motion_unit",
-    "create_end_stopped_unit",
-    "rf_on_center",
-    "rf_off_center",
-    "rf_gabor",
     # Factory functions
-    "build_neuron_from_yaml",
-    "load_properties_config",
-    "get_stimulus_params",
-    "get_criterion",
+    "build_neuron_from_yaml"
+    "create_center_surround_unit"
+    "create_end_stopped_unit"
+    # Vision units
+    "create_gabor_unit"
+    "create_motion_unit"
+    "get_criterion"
+    "get_stimulus_params"
+    "load_properties_config"
+    "rf_gabor"
+    "rf_off_center"
+    "rf_on_center"
 ]

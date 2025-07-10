@@ -6,9 +6,10 @@ the "Backward hook for Modules where no input requires gradient" error.
 """
 
 import functools
-from typing import Callable, Optional 
+from typing import Callable, Optional, Tuple
 
 import torch.nn as nn
+
 
 def safe_backward_hook(hook_fn: Callable) -> Callable:
     """

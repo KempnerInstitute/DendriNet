@@ -61,7 +61,7 @@ class WeightAnalyzer:
         inh_weights = []
         branch_weights = []
 
-        for name, module in model.named_modules():
+        for _name, module in model.named_modules():
             if isinstance(module, DendriticBranchLayer):
                 # Collect excitatory synapse weights
                 if self.synapse_weights and module.branch_excitation is not None:

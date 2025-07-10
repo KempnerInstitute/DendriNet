@@ -59,7 +59,7 @@ class BlockLinear(nn.Module):
     """
 
     def __init__(self, in_features, out_features):
-        super(BlockLinear, self).__init__()
+        super().__init__()
 
         block_size = floor(in_features / out_features)
         assert (

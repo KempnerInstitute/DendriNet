@@ -270,7 +270,7 @@ class AblationAnalyzer:
             if self.ablate_upstream:
                 compartment_results["upstream"] = {}
 
-        for name, module in model.named_modules():
+        for _name, module in model.named_modules():
             if (
                 isinstance(module, DendriticBranchLayer)
                 and module.branch_excitation is not None

@@ -60,7 +60,7 @@ class TopKLinear(nn.Module):
         init_gain=1.0,
         noise_level=0.0,
     ):
-        super(TopKLinear, self).__init__()
+        super().__init__()
 
         self.in_features = in_features
         self.out_features = out_features

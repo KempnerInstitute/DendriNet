@@ -5,8 +5,10 @@ This module contains plotting functions for visualizing ablation study results.
 """
 import os
 from typing import Optional
-import numpy as np
+
 import matplotlib.pyplot as plt
+import numpy as np
+
 
 def plot_layer_ablation(
     layer_results: dict,

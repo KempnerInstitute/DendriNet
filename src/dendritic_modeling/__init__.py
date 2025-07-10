@@ -41,23 +41,23 @@ from dendritic_modeling import (  # noqa: E402
 )
 
 __all__ = [
-    "__version__",
-    "analysis",
-    "config",
-    "datasets",
-    "logger",
-    "models",
-    "networks",
-    "plotting",
-    "scripts",
-    "training",
-    "utils",
+    "__version__"
+    "analysis"
+    "config"
+    "datasets"
+    "logger"
+    "models"
+    "networks"
+    "plotting"
+    "scripts"
+    "training"
+    "utils"
 ]
 
 # from dendritic_modeling import pid_utils
 # from dendritic_modeling.information import (
 #     build_sr_matrix,
-#     compute_EI_MI,
+#     compute_ei_mi,
 #     compute_mi_cc,
 #     compute_mi_cd,
 #     compute_pairwise_sr,
