@@ -8,13 +8,13 @@ import torch.nn.functional as F
 import numpy as np
 from typing import Optional
 __all__ = [
+    "compute_bio_losses",
+    "loss_DSI",
     "loss_DoG",
     "loss_OSI",
-    "loss_DSI",
-    "loss_phase_invariance",
     "loss_endstop",
+    "loss_phase_invariance",
     "loss_sparsity",
-    "compute_bio_losses",
 ]
 
 def loss_DoG(sta: torch.Tensor, target_ratio: float = 1.6) -> torch.Tensor:
