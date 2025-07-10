@@ -12,7 +12,7 @@ from torch.nn.utils import clip_grad_value_
 
 from dendritic_modeling import logger
 from dendritic_modeling.models import BaseModel
-from dendritic_modeling.training.strategies import Trainer
+from dendritic_modeling.training.strategies.standard import Trainer
 
 
 def _initialize_local_heads(net_obj, model, device):

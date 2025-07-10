@@ -18,14 +18,14 @@ from dendritic_modeling.training.strategies.two_step import (
 )
 
 __all__ = [
-    "LayerWiseTrainer"
     # Main training strategies
-    "LocalCreditAssignment"
+    "LayerWiseTrainer",
+    "LocalCreditAssignment",
     # Base classes and utilities
-    "Trainer"
-    "TrainOnlyMReactivation"
-    "TwoStepTrainer"
-    "TwoStepTrainerWithKL"
+    "Trainer",
+    "TrainOnlyMReactivation",
+    "TwoStepTrainer",
+    "TwoStepTrainerWithKL",
     # Specialized training strategies
-    "VoltageStabilizationTrainer"
+    "VoltageStabilizationTrainer",
 ]
