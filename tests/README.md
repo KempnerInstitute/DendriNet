@@ -8,6 +8,7 @@ Comprehensive test suite for the dendritic modeling framework.
 tests/
 ├── README.md                    # This file
 ├── test_runner.py              # Custom test runner with advanced features
+├── run_dendritic_conv2d_tests.py # Test runner for dendritic convolution tests
 ├── test_analysis.py            # Tests for analysis modules
 ├── test_datasets.py            # Tests for dataset loading and processing
 ├── test_training_strategies.py # Tests for training strategies and optimizers
@@ -16,6 +17,7 @@ tests/
 ├── test_models.py              # Tests for model classes (existing)
 ├── test_networks.py            # Tests for network architectures (existing)
 ├── test_utils.py               # Tests for utility functions (existing)
+├── test_dendritic_conv2d.py    # Tests for dendritic convolution layers
 ├── test_*.py                   # Additional test modules
 └── __init__.py                 # Test package initialization
 ```
@@ -61,6 +63,9 @@ python tests/test_runner.py --test-type coverage --html-coverage
 
 # Check testing dependencies
 python tests/test_runner.py --check-deps
+
+# Run dendritic convolution test suite
+python tests/run_dendritic_conv2d_tests.py
 ```
 
 ## Coverage Reports

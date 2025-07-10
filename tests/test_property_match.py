@@ -228,9 +228,9 @@ def test_all_properties():
             print(f"{prop_name}: PASSED")
             
         except AssertionError as e:
-            print(f"✗ {prop_name}: FAILED - {str(e)}")
+            print(f"{prop_name}: FAILED - {str(e)}")
         except Exception as e:
-            print(f"✗ {prop_name}: ERROR - {str(e)}")
+            print(f"{prop_name}: ERROR - {str(e)}")
             
     print("-" * 50)
 

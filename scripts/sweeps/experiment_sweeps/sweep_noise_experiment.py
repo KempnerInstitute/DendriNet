@@ -20,7 +20,7 @@ from torch.utils.data import TensorDataset
 
 from dendritic_modeling import logger, logger_manager
 from dendritic_modeling.config import load_config
-from dendritic_modeling.models import Classifier, ProbabilisticClassifier
+from dendritic_modeling.models import Classifier
 from dendritic_modeling.networks import ExcitationInhibitionNetwork, MatchedParamMLP
 from dendritic_modeling.plotting.utils import (
     plot_activation_tuning,
@@ -36,10 +36,10 @@ from dendritic_modeling.datasets.augmentation.noise import (
     add_uniform_noise,
 )
 from dendritic_modeling.utils import (
-    get_data_directory,
     save_dict,
     set_seed,
 )
+from dendritic_modeling.datasets import get_data_directory
 
 
 def initialize_model(model_cfg):
@@ -59,10 +59,7 @@ def initialize_model(model_cfg):
         if net_type == "MLP":
             net = MatchedParamMLP(**net_params)
             output_dim = net_params.get("output_dim", 10)
-            if probabilistic:
-                return ProbabilisticClassifier(net, output_dim)
-            else:
-                return Classifier(net)
+            return Classifier(net)
         elif net_type == "EINet":
             net = ExcitationInhibitionNetwork(
                 enable_branch_outputs=enable_branch_outputs,
@@ -71,10 +68,7 @@ def initialize_model(model_cfg):
             )
 
             output_dim = net_params["excitatory_layer_sizes"][-1]
-            if probabilistic:
-                return ProbabilisticClassifier(net, output_dim)
-            else:
-                return Classifier(net)
+            return Classifier(net)
         else:
             raise ValueError(f"Invalid network type: {net_type}")
     else:
@@ -452,20 +446,9 @@ def main():
     noise_df = pd.DataFrame(noise_results)
     noise_df.to_csv(output_path, index=False)
 
-    logger.info("Plotting results...")
-    if is_branch_sweep:
-        for noise_type in ["gaussian", "uniform", "poisson", "frequency"]:
-            plot_noise_sweep_results(
-                results_csv_path=output_path,
-                noise_type=noise_type,
-            )
-    else:
-        for noise_type in ["gaussian", "uniform", "poisson", "frequency"]:
-            plot_noise_sweep_results(
-                results_csv_path=output_path,
-                noise_type=noise_type,
-            )
-    logger.info("  done...")
+    logger.info("Noise robustness analysis completed.")
+    logger.info(f"Results saved to: {output_path}")
+    # Note: Plotting functions for noise sweep results are not yet implemented
 
 
 if __name__ == "__main__":

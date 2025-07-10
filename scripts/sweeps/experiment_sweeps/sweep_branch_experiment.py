@@ -22,8 +22,9 @@ import torch
 from dendritic_modeling import logger, logger_manager
 from dendritic_modeling.config import load_config
 from dendritic_modeling.training.factory import get_trainer
-from dendritic_modeling.training.strategies import TrainerMLE
-from dendritic_modeling.models import Classifier, ProbabilisticClassifier
+from dendritic_modeling.training.strategies import Trainer
+from dendritic_modeling.training.optimizers import CustomWeightDecayOptimizer
+from dendritic_modeling.models import Classifier
 from dendritic_modeling.networks import ExcitationInhibitionNetwork, MatchedParamMLP
 from dendritic_modeling.plotting.utils import plot_activation_tuning
 from dendritic_modeling.datasets import get_unified_datasets
@@ -48,10 +49,7 @@ def initialize_model(model_cfg):
         if net_type == "MLP":
             net = MatchedParamMLP(**net_params)
             output_dim = net_params.get("output_dim", 10)
-            if probabilistic:
-                return ProbabilisticClassifier(net, output_dim)
-            else:
-                return Classifier(net)
+            return Classifier(net)
         elif net_type == "EINet":
             net = ExcitationInhibitionNetwork(
                 enable_branch_outputs=enable_branch_outputs,
@@ -60,10 +58,7 @@ def initialize_model(model_cfg):
             )
 
             output_dim = net_params["excitatory_layer_sizes"][-1]
-            if probabilistic:
-                return ProbabilisticClassifier(net, output_dim)
-            else:
-                return Classifier(net)
+            return Classifier(net)
         else:
             raise ValueError(f"Invalid network type: {net_type}")
     else:

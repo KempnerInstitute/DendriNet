@@ -9,14 +9,15 @@ import torch
 import matplotlib.pyplot as plt
 from pathlib import Path
 
-# Add src to path
+# Add project root to path
 import sys
-sys.path.append(str(Path(__file__).parent.parent / 'src'))
+project_root = Path(__file__).parent.parent.parent
+sys.path.append(str(project_root))
 
 from dendritic_modeling.networks.layers.dendritic_conv2d import DendriteConv2d
 from dendritic_modeling.networks.architectures.excitation_inhibition.dendritic.vision_factories.vision_units import create_motion_unit
 from dendritic_modeling.datasets.stimuli.bars import create_moving_bar
-from dendritic_modeling.utils.visual_metrics import direction_selectivity_index
+from dendritic_modeling.analysis.metrics.visual_metrics import direction_selectivity_index
 
 
 def test_direction_selectivity(neuron: DendriteConv2d, directions: np.ndarray) -> np.ndarray:
