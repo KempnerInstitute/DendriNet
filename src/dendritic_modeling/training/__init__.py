@@ -11,11 +11,13 @@ from dendritic_modeling.training.factory import (
     transfer_mlp_weights_to_input_net,
     extract_weights_from_simple_mlp,
 )
+from dendritic_modeling.networks import GradientScaler
 
 __all__ = [
     "CustomWeightDecayOptimizer",
     "get_trainer",
     "transfer_mlp_weights_to_input_net",
     "extract_weights_from_simple_mlp",
-    "Trainer"
+    "Trainer",
+    "GradientScaler"
 ] 
