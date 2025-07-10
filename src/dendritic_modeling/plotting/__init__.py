@@ -37,6 +37,8 @@ from dendritic_modeling.plotting.analysis import (
     plot_noise_robustness,
     plot_weight_distributions,
     plot_information_analysis,
+    plot_dendrinet_activations,
+    plot_einet_activations,
     # Helper functions
     dendrinet_activations_todict,
     einet_activations_todict
@@ -114,6 +116,8 @@ __all__ = [
     "plot_noise_robustness",
     "plot_weight_distributions",
     "plot_information_analysis",
+    "plot_dendrinet_activations",
+    "plot_einet_activations",
     "dendrinet_activations_todict",
     "einet_activations_todict",
     

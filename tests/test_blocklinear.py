@@ -62,7 +62,7 @@ class TestBlockLinear(unittest.TestCase):
         in_features = -8
         out_features = 2
 
-        with self.assertRaises(AssertionError):
+        with self.assertRaises(RuntimeError):
             model = BlockLinear(in_features, out_features)
 
     def test_input_shape_mismatch(self):
