@@ -9,9 +9,10 @@ import torch
 import matplotlib.pyplot as plt
 from pathlib import Path
 
-# Add src to path
+# Add project root to path
 import sys
-sys.path.append(str(Path(__file__).parent.parent / 'src'))
+project_root = Path(__file__).parent.parent.parent
+sys.path.append(str(project_root))
 
 from dendritic_modeling.networks.layers.dendritic_conv2d import DendriteConv2d
 

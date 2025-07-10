@@ -48,7 +48,9 @@ from dendritic_modeling.networks.base import BaseNetwork
 from dendritic_modeling.networks.architectures.classical.autoencoder.base import (
     BaseAutoencoder,
     MLPAutoencoder,
-    CNNAutoencoder,
+    CNNAutoencoder
+)
+from dendritic_modeling.networks.architectures.classical.autoencoder.vae import (
     MLPVariationalAutoencoder,
     CNNVariationalAutoencoder
 )
