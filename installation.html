@@ -48,56 +48,42 @@
 <li class="toctree-l1 current"><a class="current reference internal" href="#">Installation Guide</a><ul>
 <li class="toctree-l2"><a class="reference internal" href="#requirements">Requirements</a><ul>
 <li class="toctree-l3"><a class="reference internal" href="#system-requirements">System Requirements</a></li>
-<li class="toctree-l3"><a class="reference internal" href="#python-dependencies">Python Dependencies</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#prerequisites">Prerequisites</a></li>
 </ul>
 </li>
 <li class="toctree-l2"><a class="reference internal" href="#quick-installation">Quick Installation</a><ul>
-<li class="toctree-l3"><a class="reference internal" href="#using-pip">Using pip</a></li>
-<li class="toctree-l3"><a class="reference internal" href="#using-conda">Using conda</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#step-1-clone-the-repository">Step 1: Clone the Repository</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#step-2-create-conda-environment">Step 2: Create Conda Environment</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#step-3-install-the-package">Step 3: Install the Package</a></li>
 </ul>
 </li>
-<li class="toctree-l2"><a class="reference internal" href="#development-installation">Development Installation</a><ul>
-<li class="toctree-l3"><a class="reference internal" href="#clone-and-install">Clone and Install</a></li>
-<li class="toctree-l3"><a class="reference internal" href="#using-poetry">Using Poetry</a></li>
-</ul>
-</li>
-<li class="toctree-l2"><a class="reference internal" href="#platform-specific-instructions">Platform-Specific Instructions</a><ul>
-<li class="toctree-l3"><a class="reference internal" href="#linux">Linux</a></li>
-<li class="toctree-l3"><a class="reference internal" href="#macos">macOS</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#gpu-support">GPU Support</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#platform-specific-notes">Platform-Specific Notes</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#macos-with-apple-silicon">macOS with Apple Silicon</a></li>
 <li class="toctree-l3"><a class="reference internal" href="#windows">Windows</a></li>
 </ul>
 </li>
-<li class="toctree-l2"><a class="reference internal" href="#gpu-setup">GPU Setup</a><ul>
-<li class="toctree-l3"><a class="reference internal" href="#nvidia-gpus">NVIDIA GPUs</a></li>
-<li class="toctree-l3"><a class="reference internal" href="#amd-gpus">AMD GPUs</a></li>
-<li class="toctree-l3"><a class="reference internal" href="#apple-silicon">Apple Silicon</a></li>
-</ul>
-</li>
-<li class="toctree-l2"><a class="reference internal" href="#docker-installation">Docker Installation</a><ul>
-<li class="toctree-l3"><a class="reference internal" href="#using-pre-built-image">Using Pre-built Image</a></li>
-<li class="toctree-l3"><a class="reference internal" href="#building-custom-image">Building Custom Image</a></li>
-</ul>
-</li>
-<li class="toctree-l2"><a class="reference internal" href="#cluster-installation">Cluster Installation</a><ul>
-<li class="toctree-l3"><a class="reference internal" href="#slurm-systems">SLURM Systems</a></li>
-<li class="toctree-l3"><a class="reference internal" href="#distributed-setup">Distributed Setup</a></li>
-</ul>
-</li>
+<li class="toctree-l2"><a class="reference internal" href="#cluster-installation">Cluster Installation</a></li>
 <li class="toctree-l2"><a class="reference internal" href="#verification">Verification</a><ul>
-<li class="toctree-l3"><a class="reference internal" href="#basic-test">Basic Test</a></li>
-<li class="toctree-l3"><a class="reference internal" href="#gpu-test">GPU Test</a></li>
-</ul>
-</li>
-<li class="toctree-l2"><a class="reference internal" href="#troubleshooting">Troubleshooting</a><ul>
 <li class="toctree-l3"><a class="reference internal" href="#common-issues">Common Issues</a></li>
-<li class="toctree-l3"><a class="reference internal" href="#getting-help">Getting Help</a></li>
 </ul>
 </li>
-<li class="toctree-l2"><a class="reference internal" href="#environment-variables">Environment Variables</a></li>
 <li class="toctree-l2"><a class="reference internal" href="#next-steps">Next Steps</a></li>
 </ul>
 </li>
 <li class="toctree-l1"><a class="reference internal" href="tutorials.html">Tutorials</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="tutorials.html#quick-start-tutorial">Quick Start Tutorial</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="tutorials.html#step-1-setup-environment">Step 1: Setup Environment</a></li>
+<li class="toctree-l3"><a class="reference internal" href="tutorials.html#step-2-understanding-config-exp-yaml">Step 2: Understanding config_exp.yaml</a></li>
+<li class="toctree-l3"><a class="reference internal" href="tutorials.html#step-3-run-your-first-experiment">Step 3: Run Your First Experiment</a></li>
+<li class="toctree-l3"><a class="reference internal" href="tutorials.html#step-4-understanding-the-output">Step 4: Understanding the Output</a></li>
+<li class="toctree-l3"><a class="reference internal" href="tutorials.html#step-5-customizing-your-experiment">Step 5: Customizing Your Experiment</a></li>
+<li class="toctree-l3"><a class="reference internal" href="tutorials.html#step-6-analyzing-results">Step 6: Analyzing Results</a></li>
+<li class="toctree-l3"><a class="reference internal" href="tutorials.html#step-7-creating-your-own-configuration">Step 7: Creating Your Own Configuration</a></li>
+<li class="toctree-l3"><a class="reference internal" href="tutorials.html#common-configuration-patterns">Common Configuration Patterns</a></li>
+<li class="toctree-l3"><a class="reference internal" href="tutorials.html#next-steps">Next Steps</a></li>
+</ul>
+</li>
 <li class="toctree-l2"><a class="reference internal" href="tutorials.html#basic-e-i-network">Basic E/I Network</a></li>
 <li class="toctree-l2"><a class="reference internal" href="tutorials.html#working-with-dendritic-branches">Working with Dendritic Branches</a></li>
 <li class="toctree-l2"><a class="reference internal" href="tutorials.html#sparse-connectivity-with-topk">Sparse Connectivity with TopK</a></li>
@@ -107,7 +93,7 @@
 <li class="toctree-l2"><a class="reference internal" href="tutorials.html#analysis-tools">Analysis Tools</a></li>
 <li class="toctree-l2"><a class="reference internal" href="tutorials.html#working-with-datasets">Working with Datasets</a></li>
 <li class="toctree-l2"><a class="reference internal" href="tutorials.html#configuration-management">Configuration Management</a></li>
-<li class="toctree-l2"><a class="reference internal" href="tutorials.html#next-steps">Next Steps</a></li>
+<li class="toctree-l2"><a class="reference internal" href="tutorials.html#id1">Next Steps</a></li>
 </ul>
 </li>
 <li class="toctree-l1"><a class="reference internal" href="api_reference.html">API Reference</a><ul>
@@ -275,285 +261,117 @@
              
   <section id="installation-guide">
 <h1>Installation Guide<a class="headerlink" href="#installation-guide" title="Link to this heading"></a></h1>
-<p>This guide provides detailed instructions for installing the Dendritic Modeling Framework on various platforms and configurations.</p>
+<p>This guide provides simple instructions for installing the Dendritic Modeling Framework using conda.</p>
 <section id="requirements">
 <h2>Requirements<a class="headerlink" href="#requirements" title="Link to this heading"></a></h2>
 <section id="system-requirements">
 <h3>System Requirements<a class="headerlink" href="#system-requirements" title="Link to this heading"></a></h3>
 <ul class="simple">
 <li><p><strong>Operating System</strong>: Linux, macOS, or Windows</p></li>
-<li><p><strong>Python</strong>: 3.8 or higher</p></li>
+<li><p><strong>Python</strong>: 3.12</p></li>
 <li><p><strong>CUDA</strong> (optional): 11.0+ for GPU acceleration</p></li>
 <li><p><strong>Memory</strong>: 8GB RAM minimum (16GB+ recommended)</p></li>
 <li><p><strong>Storage</strong>: 2GB free space</p></li>
 </ul>
 </section>
-<section id="python-dependencies">
-<h3>Python Dependencies<a class="headerlink" href="#python-dependencies" title="Link to this heading"></a></h3>
-<p>Core dependencies:</p>
+<section id="prerequisites">
+<h3>Prerequisites<a class="headerlink" href="#prerequisites" title="Link to this heading"></a></h3>
 <ul class="simple">
-<li><p>PyTorch &gt;= 1.10.0</p></li>
-<li><p>NumPy &gt;= 1.19.0</p></li>
-<li><p>SciPy &gt;= 1.5.0</p></li>
-<li><p>Matplotlib &gt;= 3.3.0</p></li>
-<li><p>Seaborn &gt;= 0.11.0</p></li>
-<li><p>tqdm &gt;= 4.62.0</p></li>
-</ul>
-<p>Optional dependencies:</p>
-<ul class="simple">
-<li><p>CUDA Toolkit (for GPU support)</p></li>
-<li><p>Weights &amp; Biases (for experiment tracking)</p></li>
-<li><p>TensorBoard (for visualization)</p></li>
-<li><p>Jupyter (for notebooks)</p></li>
+<li><p>Anaconda or Miniconda installed on your system</p></li>
+<li><p>Git for cloning the repository</p></li>
 </ul>
 </section>
 </section>
 <section id="quick-installation">
 <h2>Quick Installation<a class="headerlink" href="#quick-installation" title="Link to this heading"></a></h2>
-<section id="using-pip">
-<h3>Using pip<a class="headerlink" href="#using-pip" title="Link to this heading"></a></h3>
-<p>The simplest way to install:</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>pip<span class="w"> </span>install<span class="w"> </span>dendritic-modeling
-</pre></div>
-</div>
-<p>For GPU support:</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>pip<span class="w"> </span>install<span class="w"> </span>dendritic-modeling<span class="o">[</span>gpu<span class="o">]</span>
-</pre></div>
-</div>
-</section>
-<section id="using-conda">
-<h3>Using conda<a class="headerlink" href="#using-conda" title="Link to this heading"></a></h3>
-<p>With conda/mamba:</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>conda<span class="w"> </span>install<span class="w"> </span>-c<span class="w"> </span>conda-forge<span class="w"> </span>dendritic-modeling
-</pre></div>
-</div>
-</section>
-</section>
-<section id="development-installation">
-<h2>Development Installation<a class="headerlink" href="#development-installation" title="Link to this heading"></a></h2>
-<section id="clone-and-install">
-<h3>Clone and Install<a class="headerlink" href="#clone-and-install" title="Link to this heading"></a></h3>
-<p>For the latest development version:</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># Clone the repository</span>
-git<span class="w"> </span>clone<span class="w"> </span>https://github.com/yourusername/dendritic-modeling.git
+<section id="step-1-clone-the-repository">
+<h3>Step 1: Clone the Repository<a class="headerlink" href="#step-1-clone-the-repository" title="Link to this heading"></a></h3>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>git<span class="w"> </span>clone<span class="w"> </span>https://github.com/KempnerInstitute/dendritic-modeling.git
 <span class="nb">cd</span><span class="w"> </span>dendritic-modeling
-
-<span class="c1"># Create virtual environment</span>
-python<span class="w"> </span>-m<span class="w"> </span>venv<span class="w"> </span>venv
-<span class="nb">source</span><span class="w"> </span>venv/bin/activate<span class="w">  </span><span class="c1"># On Windows: venv\Scripts\activate</span>
-
-<span class="c1"># Install in development mode</span>
-pip<span class="w"> </span>install<span class="w"> </span>-e<span class="w"> </span><span class="s2">&quot;.[dev]&quot;</span>
 </pre></div>
 </div>
 </section>
-<section id="using-poetry">
-<h3>Using Poetry<a class="headerlink" href="#using-poetry" title="Link to this heading"></a></h3>
-<p>If you prefer Poetry for dependency management:</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># Clone repository</span>
-git<span class="w"> </span>clone<span class="w"> </span>https://github.com/yourusername/dendritic-modeling.git
-<span class="nb">cd</span><span class="w"> </span>dendritic-modeling
+<section id="step-2-create-conda-environment">
+<h3>Step 2: Create Conda Environment<a class="headerlink" href="#step-2-create-conda-environment" title="Link to this heading"></a></h3>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># Create the environment from the provided environment.yml file</span>
+conda<span class="w"> </span>env<span class="w"> </span>create<span class="w"> </span>-f<span class="w"> </span>environment.yml
 
-<span class="c1"># Install dependencies</span>
-poetry<span class="w"> </span>install
-
-<span class="c1"># Activate environment</span>
-poetry<span class="w"> </span>shell
+<span class="c1"># Activate the environment</span>
+conda<span class="w"> </span>activate<span class="w"> </span>dendritic_env
 </pre></div>
 </div>
 </section>
-</section>
-<section id="platform-specific-instructions">
-<h2>Platform-Specific Instructions<a class="headerlink" href="#platform-specific-instructions" title="Link to this heading"></a></h2>
-<section id="linux">
-<h3>Linux<a class="headerlink" href="#linux" title="Link to this heading"></a></h3>
-<p>Ubuntu/Debian:</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># System dependencies</span>
-sudo<span class="w"> </span>apt-get<span class="w"> </span>update
-sudo<span class="w"> </span>apt-get<span class="w"> </span>install<span class="w"> </span>python3-dev<span class="w"> </span>python3-pip
-
-<span class="c1"># Install framework</span>
-pip3<span class="w"> </span>install<span class="w"> </span>dendritic-modeling
+<section id="step-3-install-the-package">
+<h3>Step 3: Install the Package<a class="headerlink" href="#step-3-install-the-package" title="Link to this heading"></a></h3>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># Install the package in development mode</span>
+pip<span class="w"> </span>install<span class="w"> </span>-e<span class="w"> </span>.
 </pre></div>
 </div>
-<p>Red Hat/CentOS:</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># System dependencies</span>
-sudo<span class="w"> </span>yum<span class="w"> </span>install<span class="w"> </span>python3-devel
-
-<span class="c1"># Install framework</span>
-pip3<span class="w"> </span>install<span class="w"> </span>dendritic-modeling
-</pre></div>
-</div>
-</section>
-<section id="macos">
-<h3>macOS<a class="headerlink" href="#macos" title="Link to this heading"></a></h3>
-<p>Using Homebrew:</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># Install Python if needed</span>
-brew<span class="w"> </span>install<span class="w"> </span>python@3.9
-
-<span class="c1"># Install framework</span>
-pip3<span class="w"> </span>install<span class="w"> </span>dendritic-modeling
-</pre></div>
-</div>
-<p>For Apple Silicon (M1/M2):</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># Install with Metal Performance Shaders support</span>
-pip3<span class="w"> </span>install<span class="w"> </span>dendritic-modeling<span class="o">[</span>mps<span class="o">]</span>
-</pre></div>
-</div>
-</section>
-<section id="windows">
-<h3>Windows<a class="headerlink" href="#windows" title="Link to this heading"></a></h3>
-<p>Using Anaconda (recommended):</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># Create new environment</span>
-conda<span class="w"> </span>create<span class="w"> </span>-n<span class="w"> </span>dendritic<span class="w"> </span><span class="nv">python</span><span class="o">=</span><span class="m">3</span>.9
-conda<span class="w"> </span>activate<span class="w"> </span>dendritic
-
-<span class="c1"># Install PyTorch (CPU)</span>
-conda<span class="w"> </span>install<span class="w"> </span>pytorch<span class="w"> </span>torchvision<span class="w"> </span>cpuonly<span class="w"> </span>-c<span class="w"> </span>pytorch
-
-<span class="c1"># Install framework</span>
-pip<span class="w"> </span>install<span class="w"> </span>dendritic-modeling
-</pre></div>
-</div>
-<p>For GPU support on Windows:</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># Install CUDA-enabled PyTorch</span>
-conda<span class="w"> </span>install<span class="w"> </span>pytorch<span class="w"> </span>torchvision<span class="w"> </span><span class="nv">cudatoolkit</span><span class="o">=</span><span class="m">11</span>.3<span class="w"> </span>-c<span class="w"> </span>pytorch
-
-<span class="c1"># Install framework</span>
-pip<span class="w"> </span>install<span class="w"> </span>dendritic-modeling<span class="o">[</span>gpu<span class="o">]</span>
-</pre></div>
-</div>
+<p>That’s it! The framework is now installed and ready to use.</p>
 </section>
 </section>
-<section id="gpu-setup">
-<h2>GPU Setup<a class="headerlink" href="#gpu-setup" title="Link to this heading"></a></h2>
-<section id="nvidia-gpus">
-<h3>NVIDIA GPUs<a class="headerlink" href="#nvidia-gpus" title="Link to this heading"></a></h3>
-<ol class="arabic">
-<li><p>Install CUDA Toolkit:</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># Check CUDA version</span>
-nvidia-smi
-
-<span class="c1"># Install matching PyTorch</span>
-pip<span class="w"> </span>install<span class="w"> </span><span class="nv">torch</span><span class="o">==</span><span class="m">1</span>.12.0+cu116<span class="w"> </span>-f<span class="w"> </span>https://download.pytorch.org/whl/torch_stable.html
-</pre></div>
-</div>
-</li>
-<li><p>Verify installation:</p>
+<section id="gpu-support">
+<h2>GPU Support<a class="headerlink" href="#gpu-support" title="Link to this heading"></a></h2>
+<p>The environment.yml file includes PyTorch with CUDA support. To verify GPU availability:</p>
 <div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">import</span><span class="w"> </span><span class="nn">torch</span>
-<span class="nb">print</span><span class="p">(</span><span class="n">torch</span><span class="o">.</span><span class="n">cuda</span><span class="o">.</span><span class="n">is_available</span><span class="p">())</span>  <span class="c1"># Should print True</span>
+<span class="nb">print</span><span class="p">(</span><span class="n">torch</span><span class="o">.</span><span class="n">cuda</span><span class="o">.</span><span class="n">is_available</span><span class="p">())</span>  <span class="c1"># Should print True if GPU is available</span>
 <span class="nb">print</span><span class="p">(</span><span class="n">torch</span><span class="o">.</span><span class="n">cuda</span><span class="o">.</span><span class="n">device_count</span><span class="p">())</span>  <span class="c1"># Number of GPUs</span>
 </pre></div>
 </div>
-</li>
-</ol>
-</section>
-<section id="amd-gpus">
-<h3>AMD GPUs<a class="headerlink" href="#amd-gpus" title="Link to this heading"></a></h3>
-<p>For ROCm support:</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># Install ROCm-enabled PyTorch</span>
-pip<span class="w"> </span>install<span class="w"> </span>torch<span class="w"> </span>-f<span class="w"> </span>https://download.pytorch.org/whl/rocm5.2/torch_stable.html
-
-<span class="c1"># Install framework</span>
-pip<span class="w"> </span>install<span class="w"> </span>dendritic-modeling
+<p>If you need a different CUDA version, modify the <code class="docutils literal notranslate"><span class="pre">pytorch-cuda</span></code> version in environment.yml before creating the environment:</p>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">dependencies</span><span class="p">:</span>
+<span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">pytorch-cuda=11.8</span><span class="w">  </span><span class="c1"># Change to your CUDA version</span>
 </pre></div>
 </div>
 </section>
-<section id="apple-silicon">
-<h3>Apple Silicon<a class="headerlink" href="#apple-silicon" title="Link to this heading"></a></h3>
-<p>For M1/M2 Macs:</p>
+<section id="platform-specific-notes">
+<h2>Platform-Specific Notes<a class="headerlink" href="#platform-specific-notes" title="Link to this heading"></a></h2>
+<section id="macos-with-apple-silicon">
+<h3>macOS with Apple Silicon<a class="headerlink" href="#macos-with-apple-silicon" title="Link to this heading"></a></h3>
+<p>For M1/M2/M3 Macs, PyTorch will automatically use Metal Performance Shaders (MPS):</p>
 <div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">import</span><span class="w"> </span><span class="nn">torch</span>
 <span class="nb">print</span><span class="p">(</span><span class="n">torch</span><span class="o">.</span><span class="n">backends</span><span class="o">.</span><span class="n">mps</span><span class="o">.</span><span class="n">is_available</span><span class="p">())</span>  <span class="c1"># Should print True</span>
 </pre></div>
 </div>
 </section>
-</section>
-<section id="docker-installation">
-<h2>Docker Installation<a class="headerlink" href="#docker-installation" title="Link to this heading"></a></h2>
-<section id="using-pre-built-image">
-<h3>Using Pre-built Image<a class="headerlink" href="#using-pre-built-image" title="Link to this heading"></a></h3>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># Pull image</span>
-docker<span class="w"> </span>pull<span class="w"> </span>dendriticmodeling/framework:latest
-
-<span class="c1"># Run container</span>
-docker<span class="w"> </span>run<span class="w"> </span>-it<span class="w"> </span>--gpus<span class="w"> </span>all<span class="w"> </span>dendriticmodeling/framework:latest
-</pre></div>
-</div>
-</section>
-<section id="building-custom-image">
-<h3>Building Custom Image<a class="headerlink" href="#building-custom-image" title="Link to this heading"></a></h3>
-<p>Create a <code class="docutils literal notranslate"><span class="pre">Dockerfile</span></code>:</p>
-<div class="highlight-dockerfile notranslate"><div class="highlight"><pre><span></span><span class="k">FROM</span><span class="w"> </span><span class="s">pytorch/pytorch:1.12.0-cuda11.3-cudnn8-runtime</span>
-
-<span class="c"># Install dependencies</span>
-<span class="k">RUN</span><span class="w"> </span>pip<span class="w"> </span>install<span class="w"> </span>dendritic-modeling<span class="o">[</span>gpu<span class="o">]</span>
-
-<span class="c"># Set working directory</span>
-<span class="k">WORKDIR</span><span class="w"> </span><span class="s">/workspace</span>
-
-<span class="c"># Copy your code</span>
-<span class="k">COPY</span><span class="w"> </span>.<span class="w"> </span>.
-
-<span class="k">CMD</span><span class="w"> </span><span class="p">[</span><span class="s2">&quot;python&quot;</span><span class="p">,</span><span class="w"> </span><span class="s2">&quot;train.py&quot;</span><span class="p">]</span>
-</pre></div>
-</div>
-<p>Build and run:</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>docker<span class="w"> </span>build<span class="w"> </span>-t<span class="w"> </span>my-dendritic-app<span class="w"> </span>.
-docker<span class="w"> </span>run<span class="w"> </span>-it<span class="w"> </span>--gpus<span class="w"> </span>all<span class="w"> </span>my-dendritic-app
-</pre></div>
-</div>
+<section id="windows">
+<h3>Windows<a class="headerlink" href="#windows" title="Link to this heading"></a></h3>
+<p>On Windows, use Anaconda Prompt or PowerShell to run the installation commands.</p>
 </section>
 </section>
 <section id="cluster-installation">
 <h2>Cluster Installation<a class="headerlink" href="#cluster-installation" title="Link to this heading"></a></h2>
-<section id="slurm-systems">
-<h3>SLURM Systems<a class="headerlink" href="#slurm-systems" title="Link to this heading"></a></h3>
-<p>Example installation script:</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="ch">#!/bin/bash</span>
-<span class="c1">#SBATCH --job-name=install</span>
-<span class="c1">#SBATCH --time=01:00:00</span>
-<span class="c1">#SBATCH --mem=16GB</span>
+<p>For HPC clusters with module systems:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># Load required modules (example)</span>
+module<span class="w"> </span>load<span class="w"> </span>anaconda3
+module<span class="w"> </span>load<span class="w"> </span>cuda/11.8
 
-<span class="c1"># Load modules</span>
-module<span class="w"> </span>load<span class="w"> </span>python/3.9
-module<span class="w"> </span>load<span class="w"> </span>cuda/11.3
+<span class="c1"># Create and activate environment</span>
+conda<span class="w"> </span>env<span class="w"> </span>create<span class="w"> </span>-f<span class="w"> </span>environment.yml
+conda<span class="w"> </span>activate<span class="w"> </span>dendritic_env
 
-<span class="c1"># Create virtual environment</span>
-python<span class="w"> </span>-m<span class="w"> </span>venv<span class="w"> </span>~/dendritic-env
-<span class="nb">source</span><span class="w"> </span>~/dendritic-env/bin/activate
-
-<span class="c1"># Install framework</span>
-pip<span class="w"> </span>install<span class="w"> </span>dendritic-modeling<span class="o">[</span>gpu<span class="o">]</span>
+<span class="c1"># Install package</span>
+pip<span class="w"> </span>install<span class="w"> </span>-e<span class="w"> </span>.
 </pre></div>
 </div>
-</section>
-<section id="distributed-setup">
-<h3>Distributed Setup<a class="headerlink" href="#distributed-setup" title="Link to this heading"></a></h3>
-<p>For multi-node training:</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># Install with MPI support</span>
-pip<span class="w"> </span>install<span class="w"> </span>dendritic-modeling<span class="o">[</span>distributed<span class="o">]</span>
-
-<span class="c1"># Install Horovod</span>
-<span class="nv">HOROVOD_GPU_OPERATIONS</span><span class="o">=</span>NCCL<span class="w"> </span>pip<span class="w"> </span>install<span class="w"> </span>horovod
-</pre></div>
-</div>
-</section>
 </section>
 <section id="verification">
 <h2>Verification<a class="headerlink" href="#verification" title="Link to this heading"></a></h2>
-<section id="basic-test">
-<h3>Basic Test<a class="headerlink" href="#basic-test" title="Link to this heading"></a></h3>
-<p>Verify installation:</p>
-<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">import</span><span class="w"> </span><span class="nn">dendritic_modeling</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">dm</span>
-
-<span class="c1"># Check version</span>
+<p>Verify your installation:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="c1"># Test import</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">dendritic_modeling</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">dm</span>
 <span class="nb">print</span><span class="p">(</span><span class="n">dm</span><span class="o">.</span><span class="n">__version__</span><span class="p">)</span>
 
-<span class="c1"># Create simple model</span>
-<span class="n">model</span> <span class="o">=</span> <span class="n">dm</span><span class="o">.</span><span class="n">networks</span><span class="o">.</span><span class="n">ExcitationInhibitionNetwork</span><span class="p">(</span>
+<span class="c1"># Create a simple model</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">dendritic_modeling.networks</span><span class="w"> </span><span class="kn">import</span> <span class="n">ExcitationInhibitionNetwork</span>
+
+<span class="n">model</span> <span class="o">=</span> <span class="n">ExcitationInhibitionNetwork</span><span class="p">(</span>
     <span class="n">input_dim</span><span class="o">=</span><span class="mi">100</span><span class="p">,</span>
+    <span class="n">transfer_params</span><span class="o">=</span><span class="p">{</span><span class="s2">&quot;type&quot;</span><span class="p">:</span> <span class="s2">&quot;identity&quot;</span><span class="p">},</span>
     <span class="n">excitatory_layer_sizes</span><span class="o">=</span><span class="p">[</span><span class="mi">64</span><span class="p">,</span> <span class="mi">32</span><span class="p">],</span>
-    <span class="n">inhibitory_layer_sizes</span><span class="o">=</span><span class="p">[</span><span class="mi">16</span><span class="p">,</span> <span class="mi">8</span><span class="p">]</span>
+    <span class="n">inhibitory_layer_sizes</span><span class="o">=</span><span class="p">[</span><span class="mi">32</span><span class="p">,</span> <span class="mi">16</span><span class="p">],</span>
+    <span class="n">excitatory_branch_factors</span><span class="o">=</span><span class="p">[</span><span class="mi">2</span><span class="p">],</span>
+    <span class="n">inhibitory_branch_factors</span><span class="o">=</span><span class="p">[</span><span class="mi">2</span><span class="p">]</span>
 <span class="p">)</span>
 
 <span class="c1"># Test forward pass</span>
@@ -563,100 +381,36 @@ pip<span class="w"> </span>install<span class="w"> </span>dendritic-modeling<spa
 <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Output shape: </span><span class="si">{</span><span class="n">output</span><span class="o">.</span><span class="n">shape</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
 </pre></div>
 </div>
-</section>
-<section id="gpu-test">
-<h3>GPU Test<a class="headerlink" href="#gpu-test" title="Link to this heading"></a></h3>
-<p>Test GPU functionality:</p>
-<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">import</span><span class="w"> </span><span class="nn">torch</span>
-<span class="kn">import</span><span class="w"> </span><span class="nn">dendritic_modeling</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">dm</span>
-
-<span class="c1"># Check GPU</span>
-<span class="n">device</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">device</span><span class="p">(</span><span class="s2">&quot;cuda&quot;</span> <span class="k">if</span> <span class="n">torch</span><span class="o">.</span><span class="n">cuda</span><span class="o">.</span><span class="n">is_available</span><span class="p">()</span> <span class="k">else</span> <span class="s2">&quot;cpu&quot;</span><span class="p">)</span>
-<span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Using device: </span><span class="si">{</span><span class="n">device</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
-
-<span class="c1"># Create model on GPU</span>
-<span class="n">model</span> <span class="o">=</span> <span class="n">dm</span><span class="o">.</span><span class="n">networks</span><span class="o">.</span><span class="n">ExcitationInhibitionNetwork</span><span class="p">(</span>
-    <span class="n">input_dim</span><span class="o">=</span><span class="mi">100</span><span class="p">,</span>
-    <span class="n">excitatory_layer_sizes</span><span class="o">=</span><span class="p">[</span><span class="mi">64</span><span class="p">,</span> <span class="mi">32</span><span class="p">],</span>
-    <span class="n">inhibitory_layer_sizes</span><span class="o">=</span><span class="p">[</span><span class="mi">16</span><span class="p">,</span> <span class="mi">8</span><span class="p">]</span>
-<span class="p">)</span><span class="o">.</span><span class="n">to</span><span class="p">(</span><span class="n">device</span><span class="p">)</span>
-
-<span class="c1"># Test on GPU</span>
-<span class="n">x</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">randn</span><span class="p">(</span><span class="mi">10</span><span class="p">,</span> <span class="mi">100</span><span class="p">)</span><span class="o">.</span><span class="n">to</span><span class="p">(</span><span class="n">device</span><span class="p">)</span>
-<span class="n">output</span> <span class="o">=</span> <span class="n">model</span><span class="p">(</span><span class="n">x</span><span class="p">)</span>
-<span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;GPU computation successful: </span><span class="si">{</span><span class="n">output</span><span class="o">.</span><span class="n">is_cuda</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
-</pre></div>
-</div>
-</section>
-</section>
-<section id="troubleshooting">
-<h2>Troubleshooting<a class="headerlink" href="#troubleshooting" title="Link to this heading"></a></h2>
 <section id="common-issues">
 <h3>Common Issues<a class="headerlink" href="#common-issues" title="Link to this heading"></a></h3>
 <dl class="simple">
-<dt><strong>ImportError: No module named ‘dendritic_modeling’</strong></dt><dd><ul class="simple">
-<li><p>Solution: Ensure installation completed successfully</p></li>
-<li><p>Try: <code class="docutils literal notranslate"><span class="pre">pip</span> <span class="pre">install</span> <span class="pre">--upgrade</span> <span class="pre">dendritic-modeling</span></code></p></li>
+<dt><strong>Import errors after installation</strong></dt><dd><ul class="simple">
+<li><p>Make sure you activated the conda environment: <code class="docutils literal notranslate"><span class="pre">conda</span> <span class="pre">activate</span> <span class="pre">dendritic_env</span></code></p></li>
+<li><p>Verify installation: <code class="docutils literal notranslate"><span class="pre">pip</span> <span class="pre">list</span> <span class="pre">|</span> <span class="pre">grep</span> <span class="pre">dendritic</span></code></p></li>
 </ul>
 </dd>
-<dt><strong>CUDA out of memory</strong></dt><dd><ul class="simple">
-<li><p>Solution: Reduce batch size or model size</p></li>
-<li><p>Try: <code class="docutils literal notranslate"><span class="pre">torch.cuda.empty_cache()</span></code></p></li>
+<dt><strong>CUDA/GPU not detected</strong></dt><dd><ul class="simple">
+<li><p>Check CUDA installation: <code class="docutils literal notranslate"><span class="pre">nvidia-smi</span></code></p></li>
+<li><p>Ensure PyTorch CUDA version matches your system CUDA version</p></li>
 </ul>
 </dd>
-<dt><strong>Slow performance</strong></dt><dd><ul class="simple">
-<li><p>Check: GPU is being used (<code class="docutils literal notranslate"><span class="pre">model.cuda()</span></code>)</p></li>
-<li><p>Verify: CUDA and cuDNN are properly installed</p></li>
-</ul>
-</dd>
-<dt><strong>Version conflicts</strong></dt><dd><ul class="simple">
-<li><p>Solution: Create fresh virtual environment</p></li>
-<li><p>Use: <code class="docutils literal notranslate"><span class="pre">pip</span> <span class="pre">install</span> <span class="pre">--upgrade</span> <span class="pre">--force-reinstall</span> <span class="pre">dendritic-modeling</span></code></p></li>
+<dt><strong>Memory errors during training</strong></dt><dd><ul class="simple">
+<li><p>Reduce batch size in your configuration</p></li>
+<li><p>Use gradient accumulation for larger effective batch sizes</p></li>
 </ul>
 </dd>
 </dl>
 </section>
-<section id="getting-help">
-<h3>Getting Help<a class="headerlink" href="#getting-help" title="Link to this heading"></a></h3>
-<p>If you encounter issues:</p>
-<ol class="arabic simple">
-<li><p>Check the <a class="reference external" href="faq.html">FAQ</a></p></li>
-<li><p>Search <a class="reference external" href="https://github.com/yourusername/dendritic-modeling/issues">GitHub Issues</a></p></li>
-<li><p>Join our <a class="reference external" href="https://discord.gg/dendritic">Discord community</a></p></li>
-<li><p>Post a detailed issue report</p></li>
-</ol>
-</section>
-</section>
-<section id="environment-variables">
-<h2>Environment Variables<a class="headerlink" href="#environment-variables" title="Link to this heading"></a></h2>
-<p>Optional configuration:</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># Set device preference</span>
-<span class="nb">export</span><span class="w"> </span><span class="nv">DENDRITE_DEVICE</span><span class="o">=</span><span class="s2">&quot;cuda:0&quot;</span>
-
-<span class="c1"># Enable debug mode</span>
-<span class="nb">export</span><span class="w"> </span><span class="nv">DENDRITE_DEBUG</span><span class="o">=</span><span class="s2">&quot;1&quot;</span>
-
-<span class="c1"># Set random seed</span>
-<span class="nb">export</span><span class="w"> </span><span class="nv">DENDRITE_SEED</span><span class="o">=</span><span class="s2">&quot;42&quot;</span>
-
-<span class="c1"># Configure logging</span>
-<span class="nb">export</span><span class="w"> </span><span class="nv">DENDRITE_LOG_LEVEL</span><span class="o">=</span><span class="s2">&quot;INFO&quot;</span>
-</pre></div>
-</div>
 </section>
 <section id="next-steps">
 <h2>Next Steps<a class="headerlink" href="#next-steps" title="Link to this heading"></a></h2>
-<p>After installation:</p>
 <ol class="arabic simple">
-<li><p>Follow the <a class="reference external" href="tutorials.html#quick-start">Quick Start Tutorial</a></p></li>
-<li><p>Explore <a class="reference external" href="examples.html">Example Scripts</a></p></li>
-<li><p>Read the <a class="reference external" href="api_reference.html">API Reference</a></p></li>
-<li><p>Join the community!</p></li>
+<li><p>Follow the <a class="reference internal" href="tutorials.html"><span class="doc">Quick Start Tutorial</span></a> to run your first experiment</p></li>
+<li><p>Read about <span class="xref std std-doc">Network Architectures</span></p></li>
+<li><p>Learn about <span class="xref std std-doc">Training Strategies</span></p></li>
+<li><p>Explore <a class="reference internal" href="examples.html"><span class="doc">Example Configurations</span></a></p></li>
 </ol>
-<div class="admonition note">
-<p class="admonition-title">Note</p>
-<p>For the latest updates and announcements, follow our <a class="reference external" href="https://github.com/yourusername/dendritic-modeling">GitHub repository</a> and star the project!</p>
-</div>
+<p>For help, please check our <a class="reference external" href="https://github.com/KempnerInstitute/dendritic-modeling/issues">GitHub Issues</a> or create a new issue with your question.</p>
 </section>
 </section>
 
