@@ -298,7 +298,7 @@ class TestAnalysisManager(unittest.TestCase):
         # Create test model
         transfer_params = TransferFunctionParams().asdict()
         self.model = Classifier(
-            encoder_network=Identity(),
+            encoder_network=Identity(input_dim=8),
             core_network=ExcitationInhibitionNetwork(
                 input_dim=8,
                 transfer_params=transfer_params,
@@ -311,7 +311,7 @@ class TestAnalysisManager(unittest.TestCase):
                 ie_synapses_per_branch_per_layer=[1],
                 ii_synapses_per_branch_per_layer=[]
             ),
-            decoder_network=Identity()
+            decoder_network=Identity(input_dim=4)
         )
         
         # Create test data
