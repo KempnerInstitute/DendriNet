@@ -3,8 +3,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib.patches as mpatches
 from abc import ABC, abstractmethod
-from typing import Optional, Any, Union
-import seaborn as sns
+from typing import Any, Union
 
 class PlotConfig:
     """Configuration for plot appearance and behavior."""
