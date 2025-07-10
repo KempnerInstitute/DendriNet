@@ -29,8 +29,8 @@ def load_properties_config(config_path: str = None) -> Dict[str, Any]:
         Properties configuration
     """
     if config_path is None:
-        # Use default config - now need to go up more directories
-        config_path = Path(__file__).parent.parent.parent.parent.parent.parent.parent / "configs" / "properties.yaml"
+        # Use default config - go up to project root then into configs
+        config_path = Path(__file__).parent.parent.parent.parent.parent.parent.parent.parent / "configs" / "properties.yaml"
         
     with open(config_path, 'r') as f:
         config = yaml.safe_load(f)

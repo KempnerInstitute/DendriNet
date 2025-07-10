@@ -66,7 +66,7 @@ class InformationAnalyzer:
         self.pid_binarize_method = getattr(params, "pid_binarize_method", "median")
         self.pid_binarize_threshold = getattr(params, "pid_binarize_threshold", 0.5)
         
-        self.include_vinf = getattr(params, "include_vinf", False)
+        self.include_vinf = getattr(params, "include_vinf", True)  # Default to True for backward compatibility
         self.normalize_mi = getattr(params, "normalize_mi", False)
         self.verbose = getattr(params, "verbose", False)
 
@@ -489,13 +489,57 @@ class InformationAnalyzer:
 
     def analyze(
         self,
-        model: BaseModel,
-        test_dataset: torch.utils.data.Dataset,
-        device: str,
-        save_path: str,
-        filename: str
+        model_or_E=None,
+        test_dataset_or_I=None,
+        device_or_Vout=None,
+        save_path_or_C=None,
+        filename_or_Vinf=None,
+        *,
+        model=None,
+        test_dataset=None,
+        device=None,
+        save_path=None,
+        filename=None
     ):
-        """Run integrated information analysis on the model."""
+        """Run integrated information analysis on the model or compute metrics from arrays.
+        
+        This method supports both the new API (model-based) and legacy API (array-based).
+        
+        New API (using keyword arguments):
+            analyze(model=model, test_dataset=test_dataset, device=device, save_path=save_path, filename=filename)
+        
+        New API (using positional arguments):
+            analyze(model, test_dataset, device, save_path, filename)
+        
+        Legacy API (for backward compatibility):
+            analyze(E, I, Vout, C, Vinf=None)
+        """
+        # Handle keyword arguments for new API
+        if model is not None:
+            model_or_E = model
+            test_dataset_or_I = test_dataset
+            device_or_Vout = device
+            save_path_or_C = save_path
+            filename_or_Vinf = filename
+        
+        # Check if this is the legacy API call (numpy arrays)
+        if isinstance(model_or_E, np.ndarray):
+            # Legacy API: analyze(E, I, Vout, C, Vinf=None)
+            E = model_or_E
+            I = test_dataset_or_I 
+            Vout = device_or_Vout
+            C = save_path_or_C
+            Vinf = filename_or_Vinf
+            
+            return self.compute_metrics(E, I, Vout, C, Vinf)
+        
+        # New API: analyze(model, test_dataset, device, save_path, filename)
+        model = model_or_E
+        test_dataset = test_dataset_or_I
+        device = device_or_Vout
+        save_path = save_path_or_C
+        filename = filename_or_Vinf
+        
         try:
             # Check if model has ExcitationInhibitionNetwork
             if not isinstance(model.core_network, ExcitationInhibitionNetwork):

@@ -141,15 +141,33 @@ def plot_dendrinet_params(model, save_path=None, show=True):
         plt.close()
 
 
-def plot_einet_params(model, save_path=None, show=True):
+def plot_einet_params(model=None, einet=None, save_path=None, save_root=None, save_in_dir=False, filename=None, show=True):
     """
     Plot EINet parameters including excitatory and inhibitory weights.
     
     Args:
-        model: EINet model
+        model: EINet model (alternative: use einet parameter)
+        einet: EINet model (alternative: use model parameter)
         save_path: Path to save the plot (optional)
+        save_root: Root directory for saving (alternative to save_path)
+        save_in_dir: Whether to save in directory structure
+        filename: Custom filename for saving
         show: Whether to display the plot
     """
+    # Handle parameter flexibility
+    if einet is not None:
+        model = einet
+    if model is None:
+        raise ValueError("Must provide either 'model' or 'einet' parameter")
+    
+    # Handle save path flexibility 
+    if save_root is not None and save_path is None:
+        if save_in_dir:
+            os.makedirs(save_root, exist_ok=True)
+            if filename:
+                save_path = os.path.join(save_root, f"{filename}.png")
+            else:
+                save_path = os.path.join(save_root, "einet_params.png")
     # Get model parameters
     params = einet_params_todict(model)
     
