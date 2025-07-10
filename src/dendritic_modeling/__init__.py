@@ -66,8 +66,5 @@ __all__ = [
 
 # Import utility functions
 # from dendritic_modeling.utils import (
-#     SafeHookModule,
-#     register_safe_hook,
-#     safe_backward_hook,
-#     safe_register_hooks,
+#     # Utility functions would be imported here if needed
 # )
