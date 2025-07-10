@@ -1,7 +1,7 @@
 Neuron & Dendrite Model
 ========================
 
-.. figure:: ../../figures/architecture/dendritic_diagram.svg
+.. figure:: ../../_static/dendritic_diagram.png
    :align: center
    :width: 60%
    :alt: Multi-dendrite neuron schematic
@@ -20,12 +20,12 @@ where \(\varepsilon\) prevents division by zero and can be tuned as a learnable 
 
 Implementation
 --------------
-The class :pyclass:`dendritic_modeling.networks.dendrites.ShuntingDendrite` encapsulates this behaviour.
-Key arguments:
+The dendritic computation is implemented within the ``DendriticBranchLayer`` and ``DendriNet`` classes.
+Key features:
 
-* ``nonlinearity`` – optional additional activation after the ratio.
-* ``gradient_scaling`` – apply magnitude scaling to stabilise back-prop.
-* ``epsilon`` – small constant or learnable tensor.
+* **Shunting inhibition** – Divisive normalization E/(E+I+ε)
+* **Sequential processing** – Dendrites process inputs from distal to proximal
+* **Sparse connectivity** – TopK and DEEPST algorithms for sparse connections
 
 Morphology
 ~~~~~~~~~~

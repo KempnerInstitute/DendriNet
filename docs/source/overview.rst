@@ -1,7 +1,7 @@
 Overview
 ========
 
-.. figure:: ../figures/architecture/network_architecture_overview.svg
+.. figure:: _static/network_architecture_overview.png
    :align: center
    :width: 80%
    :alt: Dendritic Modeling Framework Architecture
