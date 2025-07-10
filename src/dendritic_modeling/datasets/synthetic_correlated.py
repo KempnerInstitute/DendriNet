@@ -5,7 +5,7 @@ Synthetic dataset with correlated Gaussian inputs for studying synaptic correlat
 import numpy as np
 import torch
 from torch.utils.data import Dataset, DataLoader
-from typing import Optional, , Any
+from typing import Optional, Any
 import logging
 
 logger = logging.getLogger(__name__)

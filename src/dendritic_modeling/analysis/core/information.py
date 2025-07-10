@@ -98,7 +98,7 @@ class InformationAnalyzer:
     def _compute_basic_mi(
         self,
         E: np.ndarray,
-        I: np.ndarray,
+        I_var: np.ndarray,
         Vout: np.ndarray,
         C: np.ndarray,
         Vinf: Optional[np.ndarray] = None
@@ -108,14 +108,14 @@ class InformationAnalyzer:
         # I(E;C)
         metrics["I(E;C)"] = self.estimator.mutual_information(E, C)
         # I(I;C)
-        metrics["I(I;C)"] = self.estimator.mutual_information(I, C)
+        metrics["I(I;C)"] = self.estimator.mutual_information(I_var, C)
         # I(Vout;C)
         metrics["I(Vout;C)"] = self.estimator.mutual_information(Vout, C)
         # I(Vinf;C) if available
         if Vinf is not None and self.include_vinf:
             metrics["I(Vinf;C)"] = self.estimator.mutual_information(Vinf, C)
         # Joint MI: I(E,I;C)
-        EI = np.hstack([E, I])
+        EI = np.hstack([E, I_var])
         metrics["I(E,I;C)"] = self.estimator.mutual_information(EI, C)
         # Optionally normalize by entropy
         if self.normalize_mi:
