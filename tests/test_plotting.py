@@ -25,7 +25,6 @@ from dendritic_modeling.plotting import (
     plot_branch_sweep_results,
     plot_einet_params,
     plot_einet_activations,
-    plot_einet_profiles,
     plot_dendrinet_gradients,
     plotWithColor,
     add_colorbars,
@@ -33,8 +32,9 @@ from dendritic_modeling.plotting import (
     activation_means,
     split_MNIST_inputs
 )
-from dendritic_modeling.networks import ExcitationInhibitionNetwork
-from dendritic_modeling.models import ProbabilisticClassifier
+from dendritic_modeling.networks import ExcitationInhibitionNetwork, Identity
+from dendritic_modeling.models import Classifier
+from dendritic_modeling.config import TransferFunctionParams
 
 
 class TestTrainingPlots(unittest.TestCase):
@@ -129,16 +129,22 @@ class TestNetworkPlots(unittest.TestCase):
         self.temp_dir = tempfile.mkdtemp()
         
         # Create test model
-        self.model = ProbabilisticClassifier(
-            net=ExcitationInhibitionNetwork(
+        transfer_params = TransferFunctionParams().asdict()
+        self.model = Classifier(
+            encoder_network=Identity(input_dim=20),
+            core_network=ExcitationInhibitionNetwork(
                 input_dim=20,
+                transfer_params=transfer_params,
                 excitatory_layer_sizes=[8],
                 inhibitory_layer_sizes=[6],
                 excitatory_branch_factors=[2],
                 inhibitory_branch_factors=[2],
-                output_dim=3
+                ee_synapses_per_branch_per_layer=[1],
+                ei_synapses_per_branch_per_layer=[1],
+                ie_synapses_per_branch_per_layer=[1],
+                ii_synapses_per_branch_per_layer=[]
             ),
-            output_dim=3
+            decoder_network=Identity(input_dim=8)
         )
         
         # Create test data
@@ -154,7 +160,7 @@ class TestNetworkPlots(unittest.TestCase):
     def test_plot_einet_params(self):
         """Test EINet parameter plotting."""
         plot_einet_params(
-            einet=self.model.net,
+            einet=self.model.core_network,
             save_root=self.temp_dir,
             save_in_dir=True,
             filename="test_params"
@@ -170,7 +176,7 @@ class TestNetworkPlots(unittest.TestCase):
         input_list = split_MNIST_inputs(self.test_inputs, self.test_labels)
         
         plot_einet_activations(
-            einet=self.model.net,
+            einet=self.model.core_network,
             input_list=input_list,
             save_root=self.temp_dir,
             save_in_dir=True,
