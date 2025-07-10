@@ -4,7 +4,7 @@ import pytest
 import numpy as np
 from unittest.mock import patch, MagicMock
 
-from src.dendritic_modeling.analysis.information import (
+from dendritic_modeling.analysis.information import (
     InformationAnalyzer,
     IntegratedAnalyzerConfig,
     EstimatorConfig,
@@ -185,8 +185,8 @@ class TestIntegratedAnalyzer:
         # In this case, E and I are conditionally independent given C
         assert results["conditional_mi"]["I(E;I|C)"] < results2["pairwise_mi"]["I(E;I)"]
         
-    @patch('src.dendritic_modeling.analysis.information.pid_utils.check_pid_available')
-    @patch('src.dendritic_modeling.analysis.information.pid_utils.pid_synergy_redundancy')
+    @patch('dendritic_modeling.analysis.information.pid_utils.check_pid_available')
+    @patch('dendritic_modeling.analysis.information.pid_utils.pid_synergy_redundancy')
     def test_pid_analysis(self, mock_pid_sr, mock_check_pid):
         """Test PID analysis."""
         # Mock PID functions

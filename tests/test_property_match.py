@@ -6,7 +6,8 @@ from pathlib import Path
 
 # Add src to path
 import sys
-sys.path.append(str(Path(__file__).parent.parent / 'src'))
+import os
+sys.path.append(os.path.join(os.path.dirname(os.path.abspath(__file__ if '__file__' in globals() else '.')), '..', 'src'))
 
 from dendritic_modeling.networks.architectures.excitation_inhibition.dendritic.vision_factories.neuron_factory import (
     build_neuron_from_yaml,
@@ -17,12 +18,54 @@ from dendritic_modeling.networks.architectures.excitation_inhibition.dendritic.v
 from dendritic_modeling.datasets.stimuli.gratings import create_static_grating
 from dendritic_modeling.datasets.stimuli.noise import create_white_noise
 from dendritic_modeling.datasets.stimuli.bars import create_moving_bar, create_length_sweep_bars
-from dendritic_modeling.utils.visual_metrics import (
-    orientation_selectivity_index,
-    direction_selectivity_index,
-    size_tuning_index,
-    length_selectivity_index,
-)
+# Visual metrics functions - implementing inline since module doesn't exist
+def orientation_selectivity_index(responses, orientations):
+    """Simple OSI calculation."""
+    import numpy as np
+    responses = np.array(responses)
+    orientations = np.array(orientations)
+    theta_rad = np.deg2rad(orientations * 2)
+    vector_sum = np.sum(responses * np.exp(1j * theta_rad))
+    total_response = np.sum(responses)
+    if total_response == 0:
+        return 0.0
+    return float(np.abs(vector_sum) / total_response)
+
+def direction_selectivity_index(responses, directions):
+    """Simple DSI calculation."""
+    import numpy as np
+    responses = np.array(responses)
+    directions = np.array(directions)
+    theta_rad = np.deg2rad(directions)
+    vector_sum = np.sum(responses * np.exp(1j * theta_rad))
+    total_response = np.sum(responses)
+    if total_response == 0:
+        return 0.0
+    return float(np.abs(vector_sum) / total_response)
+
+def size_tuning_index(responses, sizes=None):
+    """Simple STI calculation."""
+    import numpy as np
+    responses = np.array(responses)
+    if len(responses) == 0:
+        return 0.0
+    peak_response = np.max(responses)
+    if peak_response == 0:
+        return 0.0
+    large_response = responses[-1]
+    return float((peak_response - large_response) / peak_response)
+
+def length_selectivity_index(responses):
+    """Simple LSI calculation."""
+    import numpy as np
+    responses = np.array(responses)
+    if len(responses) == 0:
+        return 0.0
+    peak_response = np.max(responses)
+    if peak_response == 0:
+        return 0.0
+    long_response = responses[-1]
+    return float((peak_response - long_response) / peak_response)
 
 
 def compute_dog_fit(receptive_field: np.ndarray) -> float:
