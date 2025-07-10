@@ -79,22 +79,22 @@ class TestAccuracyScore(unittest.TestCase):
     def test_accuracy_all_correct(self):
         inputs = torch.randn(10, 784)
         labels = torch.ones(10, dtype=torch.long)
-        accuracy = accuracy_score(self.classifier, inputs, labels)
-        self.assertEqual(accuracy, 1.0)
+        accuracy = accuracy_score(self.classifier, inputs, labels, move_device=False)
+        self.assertEqual(accuracy.item(), 1.0)
 
     def test_accuracy_all_incorrect(self):
         inputs = torch.randn(10, 784)
         labels = torch.zeros(10, dtype=torch.long)
-        accuracy = accuracy_score(self.classifier, inputs, labels)
-        self.assertEqual(accuracy, 0.0)
+        accuracy = accuracy_score(self.classifier, inputs, labels, move_device=False)
+        self.assertEqual(accuracy.item(), 0.0)
 
     def test_accuracy_half_correct(self):
         inputs = torch.randn(10, 784)
         labels = torch.cat(
             [torch.ones(5, dtype=torch.long), torch.zeros(5, dtype=torch.long)]
         )
-        accuracy = accuracy_score(self.classifier, inputs, labels)
-        self.assertAlmostEqual(accuracy, 0.5)  # 50% accuracy
+        accuracy = accuracy_score(self.classifier, inputs, labels, move_device=False)
+        self.assertAlmostEqual(accuracy.item(), 0.5)  # 50% accuracy
 
 
 class TestLoadMNISTModulo10(unittest.TestCase):
