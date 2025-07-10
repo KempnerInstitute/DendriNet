@@ -12,7 +12,7 @@ class TestBlockLinear(unittest.TestCase):
         out_features = 2
 
         # model = BlockLinear(in_features, out_features)  # Model creation for error testing
-        x = torch.randn(batch_size, in_features)
+        torch.randn(batch_size, in_features)
         # output = model(x)  # Output for error testing
 
         # Check output shape
@@ -27,7 +27,7 @@ class TestBlockLinear(unittest.TestCase):
         out_features = 1
 
         # model = BlockLinear(in_features, out_features)  # Model creation for error testing
-        x = torch.randn(batch_size, in_features)
+        torch.randn(batch_size, in_features)
         # output = model(x)  # Output for error testing
 
         self.assertEqual(output.shape, (batch_size, out_features))
@@ -39,7 +39,7 @@ class TestBlockLinear(unittest.TestCase):
         out_features = 100
 
         # model = BlockLinear(in_features, out_features)  # Model creation for error testing
-        x = torch.randn(batch_size, in_features)
+        torch.randn(batch_size, in_features)
         # output = model(x)  # Output for error testing
 
         self.assertEqual(output.shape, (batch_size, out_features))
@@ -67,7 +67,6 @@ class TestBlockLinear(unittest.TestCase):
     def test_input_shape_mismatch(self):
         """Test error handling when input shape does not match in_features."""
         in_features = 8
-        out_features = 2
 
         # model = BlockLinear(in_features, out_features)  # Model creation for error testing
         x = torch.randn(batch_size, in_features + 1)  # Incorrect input size

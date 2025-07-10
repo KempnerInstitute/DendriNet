@@ -1,6 +1,6 @@
 import os
 from abc import ABC, abstractmethod
-from typing import Any, Optional, Union, Dict
+from typing import Any, Optional, Union
 
 import matplotlib.patches as mpatches
 import matplotlib.pyplot as plt
@@ -404,7 +404,7 @@ class ComparisonPlotter(BasePlotter):
 
         return fig, axes[:n_plots]
 
-    def plot(self, plotters_and_data: list[tuple[BasePlotter, Dict]], **kwargs):
+    def plot(self, plotters_and_data: list[tuple[BasePlotter, dict]], **kwargs):
         """
         Create comparison plots using multiple plotters.
 

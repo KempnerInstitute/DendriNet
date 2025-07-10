@@ -1,8 +1,9 @@
 
+from typing import Optional
+
 import torch
 from torch import nn
 from torch.distributions import Categorical, Normal
-from typing import Optional
 
 from dendritic_modeling.models import BaseModel
 from dendritic_modeling.networks import DendriticBranchLayer

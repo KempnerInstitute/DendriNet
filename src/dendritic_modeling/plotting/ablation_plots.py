@@ -4,7 +4,7 @@ Ablation analysis plotting utilities.
 This module contains plotting functions for visualizing ablation study results.
 """
 import os
-from typing import Optional, Dict
+from typing import Optional
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -138,7 +138,7 @@ def plot_compartment_ablation(
         return fig_list
 
 def plot_ablation_summary(
-    results: dict[str, Dict],
+    results: dict[str, dict],
     save_path: Optional[str] = None,
     filename: str = "ablation_summary"
 ) -> Optional[plt.Figure]:
