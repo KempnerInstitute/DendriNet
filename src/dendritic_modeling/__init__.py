@@ -37,21 +37,21 @@ from dendritic_modeling import (
     plotting,
     scripts,
     training,
-    utils
+    utils,
 )
 
 __all__ = [
+    "__version__",
     "analysis",
-    "config", 
+    "config",
     "datasets",
+    "logger",
     "models",
     "networks",
     "plotting",
     "scripts",
     "training",
     "utils",
-    "logger",
-    "__version__",
 ]
 
 # from dendritic_modeling import pid_utils
