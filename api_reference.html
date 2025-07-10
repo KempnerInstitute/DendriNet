@@ -1,0 +1,758 @@
+
+
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" data-content_root="./">
+<head>
+  <meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>API Reference &mdash; Dendritic Modeling Framework 0.1.0 documentation</title>
+      <link rel="stylesheet" type="text/css" href="_static/pygments.css?v=03e43079" />
+      <link rel="stylesheet" type="text/css" href="_static/css/theme.css?v=e59714d7" />
+
+  
+      <script src="_static/jquery.js?v=5d32c60e"></script>
+      <script src="_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
+      <script src="_static/documentation_options.js?v=01f34227"></script>
+      <script src="_static/doctools.js?v=9bcbadda"></script>
+      <script src="_static/sphinx_highlight.js?v=dc90522c"></script>
+    <script src="_static/js/theme.js"></script>
+    <link rel="author" title="About these documents" href="about.html" />
+    <link rel="index" title="Index" href="genindex.html" />
+    <link rel="search" title="Search" href="search.html" />
+    <link rel="next" title="Theory and Background" href="theory.html" />
+    <link rel="prev" title="Tutorials" href="tutorials.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+
+          
+          
+          <a href="index.html" class="icon icon-home">
+            Dendritic Modeling Framework
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <p class="caption" role="heading"><span class="caption-text">Contents:</span></p>
+<ul class="current">
+<li class="toctree-l1"><a class="reference internal" href="installation.html">Installation Guide</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="installation.html#requirements">Requirements</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="installation.html#system-requirements">System Requirements</a></li>
+<li class="toctree-l3"><a class="reference internal" href="installation.html#python-dependencies">Python Dependencies</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="installation.html#quick-installation">Quick Installation</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="installation.html#using-pip">Using pip</a></li>
+<li class="toctree-l3"><a class="reference internal" href="installation.html#using-conda">Using conda</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="installation.html#development-installation">Development Installation</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="installation.html#clone-and-install">Clone and Install</a></li>
+<li class="toctree-l3"><a class="reference internal" href="installation.html#using-poetry">Using Poetry</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="installation.html#platform-specific-instructions">Platform-Specific Instructions</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="installation.html#linux">Linux</a></li>
+<li class="toctree-l3"><a class="reference internal" href="installation.html#macos">macOS</a></li>
+<li class="toctree-l3"><a class="reference internal" href="installation.html#windows">Windows</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="installation.html#gpu-setup">GPU Setup</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="installation.html#nvidia-gpus">NVIDIA GPUs</a></li>
+<li class="toctree-l3"><a class="reference internal" href="installation.html#amd-gpus">AMD GPUs</a></li>
+<li class="toctree-l3"><a class="reference internal" href="installation.html#apple-silicon">Apple Silicon</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="installation.html#docker-installation">Docker Installation</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="installation.html#using-pre-built-image">Using Pre-built Image</a></li>
+<li class="toctree-l3"><a class="reference internal" href="installation.html#building-custom-image">Building Custom Image</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="installation.html#cluster-installation">Cluster Installation</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="installation.html#slurm-systems">SLURM Systems</a></li>
+<li class="toctree-l3"><a class="reference internal" href="installation.html#distributed-setup">Distributed Setup</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="installation.html#verification">Verification</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="installation.html#basic-test">Basic Test</a></li>
+<li class="toctree-l3"><a class="reference internal" href="installation.html#gpu-test">GPU Test</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="installation.html#troubleshooting">Troubleshooting</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="installation.html#common-issues">Common Issues</a></li>
+<li class="toctree-l3"><a class="reference internal" href="installation.html#getting-help">Getting Help</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="installation.html#environment-variables">Environment Variables</a></li>
+<li class="toctree-l2"><a class="reference internal" href="installation.html#next-steps">Next Steps</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="tutorials.html">Tutorials</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="tutorials.html#basic-e-i-network">Basic E/I Network</a></li>
+<li class="toctree-l2"><a class="reference internal" href="tutorials.html#working-with-dendritic-branches">Working with Dendritic Branches</a></li>
+<li class="toctree-l2"><a class="reference internal" href="tutorials.html#sparse-connectivity-with-topk">Sparse Connectivity with TopK</a></li>
+<li class="toctree-l2"><a class="reference internal" href="tutorials.html#vision-models-with-dendriteconv2d">Vision Models with DendriteConv2d</a></li>
+<li class="toctree-l2"><a class="reference internal" href="tutorials.html#pre-built-vision-units">Pre-built Vision Units</a></li>
+<li class="toctree-l2"><a class="reference internal" href="tutorials.html#training-strategies">Training Strategies</a></li>
+<li class="toctree-l2"><a class="reference internal" href="tutorials.html#analysis-tools">Analysis Tools</a></li>
+<li class="toctree-l2"><a class="reference internal" href="tutorials.html#working-with-datasets">Working with Datasets</a></li>
+<li class="toctree-l2"><a class="reference internal" href="tutorials.html#configuration-management">Configuration Management</a></li>
+<li class="toctree-l2"><a class="reference internal" href="tutorials.html#next-steps">Next Steps</a></li>
+</ul>
+</li>
+<li class="toctree-l1 current"><a class="current reference internal" href="#">API Reference</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="#core-networks">Core Networks</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#excitationinhibitionnetwork">ExcitationInhibitionNetwork</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#dendrinet">DendriNet</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#dendriticbranchlayer">DendriticBranchLayer</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="#sparse-connectivity">Sparse Connectivity</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#topklinear">TopKLinear</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#stochastictopklinear">StochasticTopKLinear</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#variancetopklinear">VarianceTopKLinear</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#deepstlinear">DeepstLinear</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#blocklinear">BlockLinear</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="#models">Models</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#classifier">Classifier</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#regressor">Regressor</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="#training-strategies">Training Strategies</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#trainer">Trainer</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#layerwisetrainer">LayerWiseTrainer</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#twosteptrainer">TwoStepTrainer</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="#analysis-tools">Analysis Tools</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#ablationanalyzer">AblationAnalyzer</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#branchactivationanalyzer">BranchActivationAnalyzer</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#informationanalyzer">InformationAnalyzer</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="#visualization">Visualization</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#plotting-functions">Plotting Functions</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="#configuration">Configuration</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#transferfunctionparams">TransferFunctionParams</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#modelconfig">ModelConfig</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="#utilities">Utilities</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#data-loading">Data Loading</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#model-persistence">Model Persistence</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#experiment-tracking">Experiment Tracking</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="#vision-neuron-factories">Vision Neuron Factories</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#create-gabor-units">Create Gabor Units</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#create-center-surround-units">Create Center-Surround Units</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#create-motion-units">Create Motion Units</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="#best-practices">Best Practices</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#model-design">Model Design</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#training-tips">Training Tips</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#performance-optimization">Performance Optimization</a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="theory.html">Theory and Background</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="theory.html#biological-foundations">Biological Foundations</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="theory.html#dendritic-computation">Dendritic Computation</a></li>
+<li class="toctree-l3"><a class="reference internal" href="theory.html#shunting-inhibition">Shunting Inhibition</a></li>
+<li class="toctree-l3"><a class="reference internal" href="theory.html#excitation-inhibition-balance">Excitation-Inhibition Balance</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="theory.html#mathematical-framework">Mathematical Framework</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="theory.html#dendritic-integration">Dendritic Integration</a></li>
+<li class="toctree-l3"><a class="reference internal" href="theory.html#network-dynamics">Network Dynamics</a></li>
+<li class="toctree-l3"><a class="reference internal" href="theory.html#sparse-connectivity">Sparse Connectivity</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="theory.html#implementation-details">Implementation Details</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="theory.html#computational-efficiency">Computational Efficiency</a></li>
+<li class="toctree-l3"><a class="reference internal" href="theory.html#stability-considerations">Stability Considerations</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="theory.html#key-advantages">Key Advantages</a></li>
+<li class="toctree-l2"><a class="reference internal" href="theory.html#references">References</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="examples.html">Examples</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="examples.html#mnist-classification-with-e-i-network">MNIST Classification with E/I Network</a></li>
+<li class="toctree-l2"><a class="reference internal" href="examples.html#vision-tasks-with-dendriteconv2d">Vision Tasks with DendriteConv2d</a></li>
+<li class="toctree-l2"><a class="reference internal" href="examples.html#sparse-networks-with-deepst">Sparse Networks with DEEPST</a></li>
+<li class="toctree-l2"><a class="reference internal" href="examples.html#biological-vision-units">Biological Vision Units</a></li>
+<li class="toctree-l2"><a class="reference internal" href="examples.html#analysis-and-ablation-studies">Analysis and Ablation Studies</a></li>
+<li class="toctree-l2"><a class="reference internal" href="examples.html#custom-training-strategies">Custom Training Strategies</a></li>
+<li class="toctree-l2"><a class="reference internal" href="examples.html#working-with-synthetic-datasets">Working with Synthetic Datasets</a></li>
+<li class="toctree-l2"><a class="reference internal" href="examples.html#configuration-based-experiments">Configuration-Based Experiments</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="contributing.html">Contributing Guide</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="contributing.html#code-of-conduct">Code of Conduct</a></li>
+<li class="toctree-l2"><a class="reference internal" href="contributing.html#getting-started">Getting Started</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="contributing.html#setting-up-development-environment">Setting Up Development Environment</a></li>
+<li class="toctree-l3"><a class="reference internal" href="contributing.html#development-workflow">Development Workflow</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="contributing.html#contributing-code">Contributing Code</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="contributing.html#architecture-guidelines">Architecture Guidelines</a></li>
+<li class="toctree-l3"><a class="reference internal" href="contributing.html#code-style">Code Style</a></li>
+<li class="toctree-l3"><a class="reference internal" href="contributing.html#testing-requirements">Testing Requirements</a></li>
+<li class="toctree-l3"><a class="reference internal" href="contributing.html#performance-considerations">Performance Considerations</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="contributing.html#contributing-documentation">Contributing Documentation</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="contributing.html#documentation-standards">Documentation Standards</a></li>
+<li class="toctree-l3"><a class="reference internal" href="contributing.html#adding-tutorials">Adding Tutorials</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="contributing.html#contributing-examples">Contributing Examples</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="contributing.html#example-requirements">Example Requirements</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="contributing.html#research-contributions">Research Contributions</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="contributing.html#publishing-research">Publishing Research</a></li>
+<li class="toctree-l3"><a class="reference internal" href="contributing.html#proposing-new-features">Proposing New Features</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="contributing.html#review-process">Review Process</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="contributing.html#pull-request-checklist">Pull Request Checklist</a></li>
+<li class="toctree-l3"><a class="reference internal" href="contributing.html#review-timeline">Review Timeline</a></li>
+<li class="toctree-l3"><a class="reference internal" href="contributing.html#what-reviewers-look-for">What Reviewers Look For</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="contributing.html#community">Community</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="contributing.html#getting-help">Getting Help</a></li>
+<li class="toctree-l3"><a class="reference internal" href="contributing.html#regular-events">Regular Events</a></li>
+<li class="toctree-l3"><a class="reference internal" href="contributing.html#recognition">Recognition</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="contributing.html#thank-you">Thank You!</a></li>
+</ul>
+</li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="index.html">Dendritic Modeling Framework</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="index.html" class="icon icon-home" aria-label="Home"></a></li>
+      <li class="breadcrumb-item active">API Reference</li>
+      <li class="wy-breadcrumbs-aside">
+            <a href="_sources/api_reference.rst.txt" rel="nofollow"> View page source</a>
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <section id="api-reference">
+<h1>API Reference<a class="headerlink" href="#api-reference" title="Link to this heading"></a></h1>
+<p>This document provides a comprehensive API reference for the Dendritic Modeling Framework, organized by module and functionality.</p>
+<section id="core-networks">
+<h2>Core Networks<a class="headerlink" href="#core-networks" title="Link to this heading"></a></h2>
+<section id="excitationinhibitionnetwork">
+<h3>ExcitationInhibitionNetwork<a class="headerlink" href="#excitationinhibitionnetwork" title="Link to this heading"></a></h3>
+<p>The primary network class implementing dendritic computation with E/I separation.</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span><span class="w"> </span><span class="nn">dendritic_modeling.networks</span><span class="w"> </span><span class="kn">import</span> <span class="n">ExcitationInhibitionNetwork</span>
+
+<span class="c1"># Create E/I network with dendritic branches</span>
+<span class="n">model</span> <span class="o">=</span> <span class="n">ExcitationInhibitionNetwork</span><span class="p">(</span>
+    <span class="n">input_dim</span><span class="o">=</span><span class="mi">784</span><span class="p">,</span>
+    <span class="n">excitatory_layer_sizes</span><span class="o">=</span><span class="p">[</span><span class="mi">512</span><span class="p">,</span> <span class="mi">256</span><span class="p">,</span> <span class="mi">128</span><span class="p">],</span>
+    <span class="n">inhibitory_layer_sizes</span><span class="o">=</span><span class="p">[</span><span class="mi">128</span><span class="p">,</span> <span class="mi">64</span><span class="p">,</span> <span class="mi">32</span><span class="p">],</span>
+    <span class="n">excitatory_branch_factors</span><span class="o">=</span><span class="p">[</span><span class="mi">8</span><span class="p">,</span> <span class="mi">4</span><span class="p">,</span> <span class="mi">2</span><span class="p">],</span>
+    <span class="n">inhibitory_branch_factors</span><span class="o">=</span><span class="p">[</span><span class="mi">4</span><span class="p">,</span> <span class="mi">2</span><span class="p">,</span> <span class="mi">1</span><span class="p">],</span>
+    <span class="n">ee_synapses_per_branch</span><span class="o">=</span><span class="p">[</span><span class="mi">64</span><span class="p">,</span> <span class="mi">32</span><span class="p">,</span> <span class="mi">16</span><span class="p">],</span>
+    <span class="n">ei_synapses_per_branch</span><span class="o">=</span><span class="p">[</span><span class="mi">32</span><span class="p">,</span> <span class="mi">16</span><span class="p">,</span> <span class="mi">8</span><span class="p">],</span>
+    <span class="n">ie_synapses_per_branch</span><span class="o">=</span><span class="p">[</span><span class="mi">16</span><span class="p">,</span> <span class="mi">8</span><span class="p">,</span> <span class="mi">4</span><span class="p">],</span>
+    <span class="n">use_shunting</span><span class="o">=</span><span class="kc">True</span>
+<span class="p">)</span>
+</pre></div>
+</div>
+</section>
+<section id="dendrinet">
+<h3>DendriNet<a class="headerlink" href="#dendrinet" title="Link to this heading"></a></h3>
+<p>Multi-layer dendritic network with sequential branch processing.</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span><span class="w"> </span><span class="nn">dendritic_modeling.networks</span><span class="w"> </span><span class="kn">import</span> <span class="n">DendriNet</span>
+
+<span class="n">dendrinet</span> <span class="o">=</span> <span class="n">DendriNet</span><span class="p">(</span>
+    <span class="n">n_soma</span><span class="o">=</span><span class="mi">100</span><span class="p">,</span>
+    <span class="n">branch_factors</span><span class="o">=</span><span class="p">[</span><span class="mi">8</span><span class="p">,</span> <span class="mi">4</span><span class="p">,</span> <span class="mi">2</span><span class="p">],</span>
+    <span class="n">excitatory_input_dim</span><span class="o">=</span><span class="mi">784</span><span class="p">,</span>
+    <span class="n">excitatory_synapses_per_branch</span><span class="o">=</span><span class="mi">64</span><span class="p">,</span>
+    <span class="n">inhibitory_input_dim</span><span class="o">=</span><span class="mi">200</span><span class="p">,</span>
+    <span class="n">inhibitory_synapses_per_branch</span><span class="o">=</span><span class="mi">32</span><span class="p">,</span>
+    <span class="n">use_shunting</span><span class="o">=</span><span class="kc">True</span>
+<span class="p">)</span>
+</pre></div>
+</div>
+</section>
+<section id="dendriticbranchlayer">
+<h3>DendriticBranchLayer<a class="headerlink" href="#dendriticbranchlayer" title="Link to this heading"></a></h3>
+<p>Individual layer implementing dendritic branch computation.</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span><span class="w"> </span><span class="nn">dendritic_modeling.networks</span><span class="w"> </span><span class="kn">import</span> <span class="n">DendriticBranchLayer</span>
+
+<span class="n">layer</span> <span class="o">=</span> <span class="n">DendriticBranchLayer</span><span class="p">(</span>
+    <span class="n">output_dim</span><span class="o">=</span><span class="mi">100</span><span class="p">,</span>
+    <span class="n">excitatory_input_dim</span><span class="o">=</span><span class="mi">784</span><span class="p">,</span>
+    <span class="n">excitatory_synapses_per_branch</span><span class="o">=</span><span class="mi">64</span><span class="p">,</span>
+    <span class="n">inhibitory_input_dim</span><span class="o">=</span><span class="mi">200</span><span class="p">,</span>
+    <span class="n">inhibitory_synapses_per_branch</span><span class="o">=</span><span class="mi">32</span><span class="p">,</span>
+    <span class="n">input_branch_factor</span><span class="o">=</span><span class="mi">4</span><span class="p">,</span>
+    <span class="n">use_shunting</span><span class="o">=</span><span class="kc">True</span>
+<span class="p">)</span>
+</pre></div>
+</div>
+</section>
+</section>
+<section id="sparse-connectivity">
+<h2>Sparse Connectivity<a class="headerlink" href="#sparse-connectivity" title="Link to this heading"></a></h2>
+<section id="topklinear">
+<h3>TopKLinear<a class="headerlink" href="#topklinear" title="Link to this heading"></a></h3>
+<p>Standard deterministic top-K sparse connectivity.</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span><span class="w"> </span><span class="nn">dendritic_modeling.networks</span><span class="w"> </span><span class="kn">import</span> <span class="n">TopKLinear</span>
+
+<span class="n">sparse_layer</span> <span class="o">=</span> <span class="n">TopKLinear</span><span class="p">(</span>
+    <span class="n">in_features</span><span class="o">=</span><span class="mi">512</span><span class="p">,</span>
+    <span class="n">out_features</span><span class="o">=</span><span class="mi">256</span><span class="p">,</span>
+    <span class="n">K</span><span class="o">=</span><span class="mi">10</span>  <span class="c1"># Each output connects to only 10 inputs</span>
+<span class="p">)</span>
+</pre></div>
+</div>
+</section>
+<section id="stochastictopklinear">
+<h3>StochasticTopKLinear<a class="headerlink" href="#stochastictopklinear" title="Link to this heading"></a></h3>
+<p>Probabilistic top-K selection based on weight rank.</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span><span class="w"> </span><span class="nn">dendritic_modeling.networks</span><span class="w"> </span><span class="kn">import</span> <span class="n">StochasticTopKLinear</span>
+
+<span class="n">stochastic_layer</span> <span class="o">=</span> <span class="n">StochasticTopKLinear</span><span class="p">(</span>
+    <span class="n">in_features</span><span class="o">=</span><span class="mi">512</span><span class="p">,</span>
+    <span class="n">out_features</span><span class="o">=</span><span class="mi">256</span><span class="p">,</span>
+    <span class="n">K</span><span class="o">=</span><span class="mi">10</span><span class="p">,</span>
+    <span class="n">temperature</span><span class="o">=</span><span class="mf">0.5</span><span class="p">,</span>
+    <span class="n">ultrafast</span><span class="o">=</span><span class="kc">False</span>
+<span class="p">)</span>
+</pre></div>
+</div>
+</section>
+<section id="variancetopklinear">
+<h3>VarianceTopKLinear<a class="headerlink" href="#variancetopklinear" title="Link to this heading"></a></h3>
+<p>Selection based on input activation variance and weight magnitude.</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span><span class="w"> </span><span class="nn">dendritic_modeling.networks</span><span class="w"> </span><span class="kn">import</span> <span class="n">VarianceTopKLinear</span>
+
+<span class="n">variance_layer</span> <span class="o">=</span> <span class="n">VarianceTopKLinear</span><span class="p">(</span>
+    <span class="n">in_features</span><span class="o">=</span><span class="mi">512</span><span class="p">,</span>
+    <span class="n">out_features</span><span class="o">=</span><span class="mi">256</span><span class="p">,</span>
+    <span class="n">K</span><span class="o">=</span><span class="mi">10</span>
+<span class="p">)</span>
+</pre></div>
+</div>
+</section>
+<section id="deepstlinear">
+<h3>DeepstLinear<a class="headerlink" href="#deepstlinear" title="Link to this heading"></a></h3>
+<p>Dynamic sparse connectivity with adaptive rewiring.</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span><span class="w"> </span><span class="nn">dendritic_modeling.networks</span><span class="w"> </span><span class="kn">import</span> <span class="n">DeepstLinear</span>
+
+<span class="n">deepst_layer</span> <span class="o">=</span> <span class="n">DeepstLinear</span><span class="p">(</span>
+    <span class="n">in_features</span><span class="o">=</span><span class="mi">512</span><span class="p">,</span>
+    <span class="n">out_features</span><span class="o">=</span><span class="mi">256</span><span class="p">,</span>
+    <span class="n">K</span><span class="o">=</span><span class="mi">10</span><span class="p">,</span>
+    <span class="n">use_noise</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+    <span class="n">sigma</span><span class="o">=</span><span class="mf">0.05</span><span class="p">,</span>
+    <span class="n">rewiring_mode</span><span class="o">=</span><span class="s1">&#39;global&#39;</span>
+<span class="p">)</span>
+</pre></div>
+</div>
+</section>
+<section id="blocklinear">
+<h3>BlockLinear<a class="headerlink" href="#blocklinear" title="Link to this heading"></a></h3>
+<p>Block-structured sparse connections.</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span><span class="w"> </span><span class="nn">dendritic_modeling.networks</span><span class="w"> </span><span class="kn">import</span> <span class="n">BlockLinear</span>
+
+<span class="n">block_layer</span> <span class="o">=</span> <span class="n">BlockLinear</span><span class="p">(</span>
+    <span class="n">in_features</span><span class="o">=</span><span class="mi">512</span><span class="p">,</span>
+    <span class="n">out_features</span><span class="o">=</span><span class="mi">256</span><span class="p">,</span>
+    <span class="n">block_size_input</span><span class="o">=</span><span class="mi">64</span><span class="p">,</span>
+    <span class="n">block_size_output</span><span class="o">=</span><span class="mi">32</span>
+<span class="p">)</span>
+</pre></div>
+</div>
+</section>
+</section>
+<section id="models">
+<h2>Models<a class="headerlink" href="#models" title="Link to this heading"></a></h2>
+<section id="classifier">
+<h3>Classifier<a class="headerlink" href="#classifier" title="Link to this heading"></a></h3>
+<p>Classification wrapper for networks.</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span><span class="w"> </span><span class="nn">dendritic_modeling.models</span><span class="w"> </span><span class="kn">import</span> <span class="n">Classifier</span>
+
+<span class="n">classifier</span> <span class="o">=</span> <span class="n">Classifier</span><span class="p">(</span>
+    <span class="n">encoder_network</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>  <span class="c1"># Optional encoder</span>
+    <span class="n">core_network</span><span class="o">=</span><span class="n">model</span><span class="p">,</span>    <span class="c1"># Your E/I network</span>
+    <span class="n">decoder_network</span><span class="o">=</span><span class="kc">None</span>   <span class="c1"># Optional decoder</span>
+<span class="p">)</span>
+
+<span class="c1"># Training</span>
+<span class="n">outputs</span> <span class="o">=</span> <span class="n">classifier</span><span class="p">(</span><span class="n">inputs</span><span class="p">)</span>
+<span class="n">loss</span> <span class="o">=</span> <span class="n">criterion</span><span class="p">(</span><span class="n">outputs</span><span class="p">,</span> <span class="n">labels</span><span class="p">)</span>
+</pre></div>
+</div>
+</section>
+<section id="regressor">
+<h3>Regressor<a class="headerlink" href="#regressor" title="Link to this heading"></a></h3>
+<p>Regression wrapper for networks.</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span><span class="w"> </span><span class="nn">dendritic_modeling.models</span><span class="w"> </span><span class="kn">import</span> <span class="n">Regressor</span>
+
+<span class="n">regressor</span> <span class="o">=</span> <span class="n">Regressor</span><span class="p">(</span>
+    <span class="n">encoder_network</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+    <span class="n">core_network</span><span class="o">=</span><span class="n">model</span><span class="p">,</span>
+    <span class="n">decoder_network</span><span class="o">=</span><span class="kc">None</span>
+<span class="p">)</span>
+</pre></div>
+</div>
+</section>
+</section>
+<section id="training-strategies">
+<h2>Training Strategies<a class="headerlink" href="#training-strategies" title="Link to this heading"></a></h2>
+<section id="trainer">
+<h3>Trainer<a class="headerlink" href="#trainer" title="Link to this heading"></a></h3>
+<p>Standard backpropagation training.</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span><span class="w"> </span><span class="nn">dendritic_modeling.training</span><span class="w"> </span><span class="kn">import</span> <span class="n">Trainer</span>
+
+<span class="n">trainer</span> <span class="o">=</span> <span class="n">Trainer</span><span class="p">(</span>
+    <span class="n">model</span><span class="o">=</span><span class="n">classifier</span><span class="p">,</span>
+    <span class="n">optimizer</span><span class="o">=</span><span class="n">optimizer</span><span class="p">,</span>
+    <span class="n">criterion</span><span class="o">=</span><span class="n">criterion</span><span class="p">,</span>
+    <span class="n">device</span><span class="o">=</span><span class="s1">&#39;cuda&#39;</span>
+<span class="p">)</span>
+
+<span class="n">trainer</span><span class="o">.</span><span class="n">train</span><span class="p">(</span><span class="n">train_loader</span><span class="p">,</span> <span class="n">val_loader</span><span class="p">,</span> <span class="n">epochs</span><span class="o">=</span><span class="mi">100</span><span class="p">)</span>
+</pre></div>
+</div>
+</section>
+<section id="layerwisetrainer">
+<h3>LayerWiseTrainer<a class="headerlink" href="#layerwisetrainer" title="Link to this heading"></a></h3>
+<p>Train layers sequentially.</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span><span class="w"> </span><span class="nn">dendritic_modeling.training</span><span class="w"> </span><span class="kn">import</span> <span class="n">LayerWiseTrainer</span>
+
+<span class="n">layerwise_trainer</span> <span class="o">=</span> <span class="n">LayerWiseTrainer</span><span class="p">(</span>
+    <span class="n">model</span><span class="o">=</span><span class="n">model</span><span class="p">,</span>
+    <span class="n">num_epochs_per_layer</span><span class="o">=</span><span class="mi">10</span>
+<span class="p">)</span>
+</pre></div>
+</div>
+</section>
+<section id="twosteptrainer">
+<h3>TwoStepTrainer<a class="headerlink" href="#twosteptrainer" title="Link to this heading"></a></h3>
+<p>Two-phase training with local supervision.</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span><span class="w"> </span><span class="nn">dendritic_modeling.training</span><span class="w"> </span><span class="kn">import</span> <span class="n">TwoStepTrainer</span>
+
+<span class="n">two_step_trainer</span> <span class="o">=</span> <span class="n">TwoStepTrainer</span><span class="p">(</span>
+    <span class="n">model</span><span class="o">=</span><span class="n">model</span><span class="p">,</span>
+    <span class="n">local_epochs</span><span class="o">=</span><span class="mi">50</span><span class="p">,</span>
+    <span class="n">global_epochs</span><span class="o">=</span><span class="mi">50</span>
+<span class="p">)</span>
+</pre></div>
+</div>
+</section>
+</section>
+<section id="analysis-tools">
+<h2>Analysis Tools<a class="headerlink" href="#analysis-tools" title="Link to this heading"></a></h2>
+<section id="ablationanalyzer">
+<h3>AblationAnalyzer<a class="headerlink" href="#ablationanalyzer" title="Link to this heading"></a></h3>
+<p>Systematic ablation studies.</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span><span class="w"> </span><span class="nn">dendritic_modeling.analysis</span><span class="w"> </span><span class="kn">import</span> <span class="n">AblationAnalyzer</span>
+
+<span class="n">analyzer</span> <span class="o">=</span> <span class="n">AblationAnalyzer</span><span class="p">(</span><span class="n">model</span><span class="p">)</span>
+<span class="n">results</span> <span class="o">=</span> <span class="n">analyzer</span><span class="o">.</span><span class="n">ablate_components</span><span class="p">(</span>
+    <span class="n">test_loader</span><span class="p">,</span>
+    <span class="n">components</span><span class="o">=</span><span class="p">[</span><span class="s1">&#39;shunting&#39;</span><span class="p">,</span> <span class="s1">&#39;sparsity&#39;</span><span class="p">,</span> <span class="s1">&#39;dendrites&#39;</span><span class="p">]</span>
+<span class="p">)</span>
+</pre></div>
+</div>
+</section>
+<section id="branchactivationanalyzer">
+<h3>BranchActivationAnalyzer<a class="headerlink" href="#branchactivationanalyzer" title="Link to this heading"></a></h3>
+<p>Analyze dendritic branch activations.</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span><span class="w"> </span><span class="nn">dendritic_modeling.analysis</span><span class="w"> </span><span class="kn">import</span> <span class="n">BranchActivationAnalyzer</span>
+
+<span class="n">branch_analyzer</span> <span class="o">=</span> <span class="n">BranchActivationAnalyzer</span><span class="p">()</span>
+<span class="n">activations</span> <span class="o">=</span> <span class="n">branch_analyzer</span><span class="o">.</span><span class="n">analyze</span><span class="p">(</span><span class="n">model</span><span class="p">,</span> <span class="n">data_loader</span><span class="p">)</span>
+</pre></div>
+</div>
+</section>
+<section id="informationanalyzer">
+<h3>InformationAnalyzer<a class="headerlink" href="#informationanalyzer" title="Link to this heading"></a></h3>
+<p>Information-theoretic analysis.</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span><span class="w"> </span><span class="nn">dendritic_modeling.analysis</span><span class="w"> </span><span class="kn">import</span> <span class="n">InformationAnalyzer</span>
+
+<span class="n">info_analyzer</span> <span class="o">=</span> <span class="n">InformationAnalyzer</span><span class="p">(</span>
+    <span class="n">model</span><span class="o">=</span><span class="n">model</span><span class="p">,</span>
+    <span class="n">n_bins</span><span class="o">=</span><span class="mi">30</span>
+<span class="p">)</span>
+
+<span class="n">mutual_info</span> <span class="o">=</span> <span class="n">info_analyzer</span><span class="o">.</span><span class="n">compute_mutual_information</span><span class="p">(</span>
+    <span class="n">inputs</span><span class="p">,</span> <span class="n">outputs</span>
+<span class="p">)</span>
+</pre></div>
+</div>
+</section>
+</section>
+<section id="visualization">
+<h2>Visualization<a class="headerlink" href="#visualization" title="Link to this heading"></a></h2>
+<section id="plotting-functions">
+<h3>Plotting Functions<a class="headerlink" href="#plotting-functions" title="Link to this heading"></a></h3>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span><span class="w"> </span><span class="nn">dendritic_modeling.plotting</span><span class="w"> </span><span class="kn">import</span> <span class="p">(</span>
+    <span class="n">plot_dendrinet_activations</span><span class="p">,</span>
+    <span class="n">plot_branch_weights</span><span class="p">,</span>
+    <span class="n">plot_branch_gradients</span><span class="p">,</span>
+    <span class="n">plot_weight_distributions</span><span class="p">,</span>
+    <span class="n">plot_activation_maps</span>
+<span class="p">)</span>
+
+<span class="c1"># Plot branch activations</span>
+<span class="n">plot_dendrinet_activations</span><span class="p">(</span>
+    <span class="n">dendrinet</span><span class="p">,</span>
+    <span class="n">exc_input_list</span><span class="p">,</span>
+    <span class="n">inh_input_list</span>
+<span class="p">)</span>
+
+<span class="c1"># Plot weight distributions</span>
+<span class="n">plot_branch_weights</span><span class="p">(</span><span class="n">model</span><span class="p">,</span> <span class="n">layer_idx</span><span class="o">=</span><span class="mi">0</span><span class="p">)</span>
+
+<span class="c1"># Plot gradient flow</span>
+<span class="n">plot_branch_gradients</span><span class="p">(</span><span class="n">model</span><span class="p">,</span> <span class="n">layer_idx</span><span class="o">=</span><span class="mi">0</span><span class="p">)</span>
+</pre></div>
+</div>
+</section>
+</section>
+<section id="configuration">
+<h2>Configuration<a class="headerlink" href="#configuration" title="Link to this heading"></a></h2>
+<section id="transferfunctionparams">
+<h3>TransferFunctionParams<a class="headerlink" href="#transferfunctionparams" title="Link to this heading"></a></h3>
+<p>Configure transfer function behavior.</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span><span class="w"> </span><span class="nn">dendritic_modeling.config</span><span class="w"> </span><span class="kn">import</span> <span class="n">TransferFunctionParams</span>
+
+<span class="n">transfer_params</span> <span class="o">=</span> <span class="n">TransferFunctionParams</span><span class="p">(</span>
+    <span class="n">input_mode</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span>
+    <span class="n">multiplicative</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+    <span class="n">shunting_inhibition</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+    <span class="n">use_shunting</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+    <span class="n">epsilon</span><span class="o">=</span><span class="mf">1e-6</span>
+<span class="p">)</span>
+</pre></div>
+</div>
+</section>
+<section id="modelconfig">
+<h3>ModelConfig<a class="headerlink" href="#modelconfig" title="Link to this heading"></a></h3>
+<p>Type-safe model configuration.</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span><span class="w"> </span><span class="nn">dendritic_modeling.config</span><span class="w"> </span><span class="kn">import</span> <span class="n">ModelConfig</span>
+
+<span class="n">config</span> <span class="o">=</span> <span class="n">ModelConfig</span><span class="p">(</span>
+    <span class="n">model_type</span><span class="o">=</span><span class="s1">&#39;EINetClassifier&#39;</span><span class="p">,</span>
+    <span class="n">core_network</span><span class="o">=</span><span class="p">{</span>
+        <span class="s1">&#39;type&#39;</span><span class="p">:</span> <span class="s1">&#39;ExcitationInhibitionNetwork&#39;</span><span class="p">,</span>
+        <span class="s1">&#39;parameters&#39;</span><span class="p">:</span> <span class="p">{</span>
+            <span class="s1">&#39;input_dim&#39;</span><span class="p">:</span> <span class="mi">784</span><span class="p">,</span>
+            <span class="s1">&#39;excitatory_layer_sizes&#39;</span><span class="p">:</span> <span class="p">[</span><span class="mi">512</span><span class="p">,</span> <span class="mi">256</span><span class="p">,</span> <span class="mi">10</span><span class="p">],</span>
+            <span class="s1">&#39;inhibitory_layer_sizes&#39;</span><span class="p">:</span> <span class="p">[</span><span class="mi">128</span><span class="p">,</span> <span class="mi">64</span><span class="p">,</span> <span class="mi">0</span><span class="p">],</span>
+            <span class="s1">&#39;use_shunting&#39;</span><span class="p">:</span> <span class="kc">True</span>
+        <span class="p">}</span>
+    <span class="p">}</span>
+<span class="p">)</span>
+</pre></div>
+</div>
+</section>
+</section>
+<section id="utilities">
+<h2>Utilities<a class="headerlink" href="#utilities" title="Link to this heading"></a></h2>
+<section id="data-loading">
+<h3>Data Loading<a class="headerlink" href="#data-loading" title="Link to this heading"></a></h3>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span><span class="w"> </span><span class="nn">dendritic_modeling.utils</span><span class="w"> </span><span class="kn">import</span> <span class="n">create_dataset</span><span class="p">,</span> <span class="n">create_dataloader</span>
+
+<span class="c1"># Create dataset</span>
+<span class="n">train_dataset</span> <span class="o">=</span> <span class="n">create_dataset</span><span class="p">(</span>
+    <span class="n">name</span><span class="o">=</span><span class="s1">&#39;CIFAR10&#39;</span><span class="p">,</span>
+    <span class="n">root</span><span class="o">=</span><span class="s1">&#39;./data&#39;</span><span class="p">,</span>
+    <span class="n">train</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+    <span class="n">transform</span><span class="o">=</span><span class="n">transforms</span>
+<span class="p">)</span>
+
+<span class="c1"># Create dataloader</span>
+<span class="n">train_loader</span> <span class="o">=</span> <span class="n">create_dataloader</span><span class="p">(</span>
+    <span class="n">dataset</span><span class="o">=</span><span class="n">train_dataset</span><span class="p">,</span>
+    <span class="n">batch_size</span><span class="o">=</span><span class="mi">64</span><span class="p">,</span>
+    <span class="n">shuffle</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+    <span class="n">num_workers</span><span class="o">=</span><span class="mi">4</span>
+<span class="p">)</span>
+</pre></div>
+</div>
+</section>
+<section id="model-persistence">
+<h3>Model Persistence<a class="headerlink" href="#model-persistence" title="Link to this heading"></a></h3>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span><span class="w"> </span><span class="nn">dendritic_modeling.utils</span><span class="w"> </span><span class="kn">import</span> <span class="n">save_checkpoint</span><span class="p">,</span> <span class="n">load_checkpoint</span>
+
+<span class="c1"># Save model</span>
+<span class="n">save_checkpoint</span><span class="p">(</span>
+    <span class="n">model</span><span class="o">=</span><span class="n">model</span><span class="p">,</span>
+    <span class="n">optimizer</span><span class="o">=</span><span class="n">optimizer</span><span class="p">,</span>
+    <span class="n">epoch</span><span class="o">=</span><span class="mi">50</span><span class="p">,</span>
+    <span class="n">loss</span><span class="o">=</span><span class="mf">0.05</span><span class="p">,</span>
+    <span class="n">path</span><span class="o">=</span><span class="s1">&#39;checkpoint.pth&#39;</span>
+<span class="p">)</span>
+
+<span class="c1"># Load model</span>
+<span class="n">checkpoint</span> <span class="o">=</span> <span class="n">load_checkpoint</span><span class="p">(</span><span class="s1">&#39;checkpoint.pth&#39;</span><span class="p">)</span>
+<span class="n">model</span><span class="o">.</span><span class="n">load_state_dict</span><span class="p">(</span><span class="n">checkpoint</span><span class="p">[</span><span class="s1">&#39;model_state_dict&#39;</span><span class="p">])</span>
+</pre></div>
+</div>
+</section>
+<section id="experiment-tracking">
+<h3>Experiment Tracking<a class="headerlink" href="#experiment-tracking" title="Link to this heading"></a></h3>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span><span class="w"> </span><span class="nn">dendritic_modeling.utils</span><span class="w"> </span><span class="kn">import</span> <span class="n">ExperimentTracker</span>
+
+<span class="n">tracker</span> <span class="o">=</span> <span class="n">ExperimentTracker</span><span class="p">(</span>
+    <span class="n">experiment_name</span><span class="o">=</span><span class="s1">&#39;dendritic_mnist&#39;</span><span class="p">,</span>
+    <span class="n">log_dir</span><span class="o">=</span><span class="s1">&#39;./logs&#39;</span>
+<span class="p">)</span>
+
+<span class="c1"># Log metrics</span>
+<span class="n">tracker</span><span class="o">.</span><span class="n">log_metrics</span><span class="p">({</span>
+    <span class="s1">&#39;loss&#39;</span><span class="p">:</span> <span class="mf">0.05</span><span class="p">,</span>
+    <span class="s1">&#39;accuracy&#39;</span><span class="p">:</span> <span class="mf">0.95</span>
+<span class="p">},</span> <span class="n">step</span><span class="o">=</span><span class="mi">100</span><span class="p">)</span>
+</pre></div>
+</div>
+</section>
+</section>
+<section id="vision-neuron-factories">
+<h2>Vision Neuron Factories<a class="headerlink" href="#vision-neuron-factories" title="Link to this heading"></a></h2>
+<section id="create-gabor-units">
+<h3>Create Gabor Units<a class="headerlink" href="#create-gabor-units" title="Link to this heading"></a></h3>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span><span class="w"> </span><span class="nn">dendritic_modeling.networks</span><span class="w"> </span><span class="kn">import</span> <span class="n">create_gabor_unit</span>
+
+<span class="n">gabor_unit</span> <span class="o">=</span> <span class="n">create_gabor_unit</span><span class="p">(</span>
+    <span class="n">input_channels</span><span class="o">=</span><span class="mi">3</span><span class="p">,</span>
+    <span class="n">num_orientations</span><span class="o">=</span><span class="mi">8</span><span class="p">,</span>
+    <span class="n">num_scales</span><span class="o">=</span><span class="mi">4</span>
+<span class="p">)</span>
+</pre></div>
+</div>
+</section>
+<section id="create-center-surround-units">
+<h3>Create Center-Surround Units<a class="headerlink" href="#create-center-surround-units" title="Link to this heading"></a></h3>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span><span class="w"> </span><span class="nn">dendritic_modeling.networks</span><span class="w"> </span><span class="kn">import</span> <span class="n">create_center_surround_unit</span>
+
+<span class="n">cs_unit</span> <span class="o">=</span> <span class="n">create_center_surround_unit</span><span class="p">(</span>
+    <span class="n">input_channels</span><span class="o">=</span><span class="mi">3</span><span class="p">,</span>
+    <span class="n">center_size</span><span class="o">=</span><span class="mi">3</span><span class="p">,</span>
+    <span class="n">surround_size</span><span class="o">=</span><span class="mi">7</span>
+<span class="p">)</span>
+</pre></div>
+</div>
+</section>
+<section id="create-motion-units">
+<h3>Create Motion Units<a class="headerlink" href="#create-motion-units" title="Link to this heading"></a></h3>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span><span class="w"> </span><span class="nn">dendritic_modeling.networks</span><span class="w"> </span><span class="kn">import</span> <span class="n">create_motion_unit</span>
+
+<span class="n">motion_unit</span> <span class="o">=</span> <span class="n">create_motion_unit</span><span class="p">(</span>
+    <span class="n">input_channels</span><span class="o">=</span><span class="mi">3</span><span class="p">,</span>
+    <span class="n">num_directions</span><span class="o">=</span><span class="mi">8</span><span class="p">,</span>
+    <span class="n">temporal_window</span><span class="o">=</span><span class="mi">5</span>
+<span class="p">)</span>
+</pre></div>
+</div>
+</section>
+</section>
+<section id="best-practices">
+<h2>Best Practices<a class="headerlink" href="#best-practices" title="Link to this heading"></a></h2>
+<section id="model-design">
+<h3>Model Design<a class="headerlink" href="#model-design" title="Link to this heading"></a></h3>
+<ol class="arabic simple">
+<li><p><strong>Start Simple</strong>: Begin with fewer dendrites and layers</p></li>
+<li><p><strong>Gradual Complexity</strong>: Add dendrites as needed</p></li>
+<li><p><strong>Monitor Sparsity</strong>: Ensure reasonable connectivity levels</p></li>
+<li><p><strong>Validate Dynamics</strong>: Check activation patterns</p></li>
+</ol>
+</section>
+<section id="training-tips">
+<h3>Training Tips<a class="headerlink" href="#training-tips" title="Link to this heading"></a></h3>
+<ol class="arabic simple">
+<li><p><strong>Learning Rate</strong>: Start with 1e-4 for dendritic networks</p></li>
+<li><p><strong>Batch Size</strong>: Larger batches (128+) often work better</p></li>
+<li><p><strong>Regularization</strong>: Use weight decay and dropout carefully</p></li>
+<li><p><strong>Initialization</strong>: Proper initialization is crucial</p></li>
+</ol>
+</section>
+<section id="performance-optimization">
+<h3>Performance Optimization<a class="headerlink" href="#performance-optimization" title="Link to this heading"></a></h3>
+<ol class="arabic simple">
+<li><p><strong>Sparse Operations</strong>: Use sparse implementations when sparsity &gt; 90%</p></li>
+<li><p><strong>Mixed Precision</strong>: Use automatic mixed precision for speed</p></li>
+<li><p><strong>Gradient Accumulation</strong>: For memory-limited scenarios</p></li>
+<li><p><strong>Distributed Training</strong>: Use DataParallel or DistributedDataParallel</p></li>
+</ol>
+</section>
+</section>
+</section>
+
+
+           </div>
+          </div>
+          <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
+        <a href="tutorials.html" class="btn btn-neutral float-left" title="Tutorials" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
+        <a href="theory.html" class="btn btn-neutral float-right" title="Theory and Background" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright 2025, Research and Engineering at Kempner.</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>

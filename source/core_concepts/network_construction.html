@@ -1,0 +1,368 @@
+
+
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" data-content_root="../../">
+<head>
+  <meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Network Construction &mdash; Dendritic Modeling Framework 0.1.0 documentation</title>
+      <link rel="stylesheet" type="text/css" href="../../_static/pygments.css?v=03e43079" />
+      <link rel="stylesheet" type="text/css" href="../../_static/css/theme.css?v=e59714d7" />
+
+  
+      <script src="../../_static/jquery.js?v=5d32c60e"></script>
+      <script src="../../_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
+      <script src="../../_static/documentation_options.js?v=01f34227"></script>
+      <script src="../../_static/doctools.js?v=9bcbadda"></script>
+      <script src="../../_static/sphinx_highlight.js?v=dc90522c"></script>
+      <script async="async" src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+    <script src="../../_static/js/theme.js"></script>
+    <link rel="author" title="About these documents" href="../../about.html" />
+    <link rel="index" title="Index" href="../../genindex.html" />
+    <link rel="search" title="Search" href="../../search.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+
+          
+          
+          <a href="../../index.html" class="icon icon-home">
+            Dendritic Modeling Framework
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <p class="caption" role="heading"><span class="caption-text">Contents:</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../installation.html">Installation Guide</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="../../installation.html#requirements">Requirements</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="../../installation.html#system-requirements">System Requirements</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../installation.html#python-dependencies">Python Dependencies</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="../../installation.html#quick-installation">Quick Installation</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="../../installation.html#using-pip">Using pip</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../installation.html#using-conda">Using conda</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="../../installation.html#development-installation">Development Installation</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="../../installation.html#clone-and-install">Clone and Install</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../installation.html#using-poetry">Using Poetry</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="../../installation.html#platform-specific-instructions">Platform-Specific Instructions</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="../../installation.html#linux">Linux</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../installation.html#macos">macOS</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../installation.html#windows">Windows</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="../../installation.html#gpu-setup">GPU Setup</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="../../installation.html#nvidia-gpus">NVIDIA GPUs</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../installation.html#amd-gpus">AMD GPUs</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../installation.html#apple-silicon">Apple Silicon</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="../../installation.html#docker-installation">Docker Installation</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="../../installation.html#using-pre-built-image">Using Pre-built Image</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../installation.html#building-custom-image">Building Custom Image</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="../../installation.html#cluster-installation">Cluster Installation</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="../../installation.html#slurm-systems">SLURM Systems</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../installation.html#distributed-setup">Distributed Setup</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="../../installation.html#verification">Verification</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="../../installation.html#basic-test">Basic Test</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../installation.html#gpu-test">GPU Test</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="../../installation.html#troubleshooting">Troubleshooting</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="../../installation.html#common-issues">Common Issues</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../installation.html#getting-help">Getting Help</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="../../installation.html#environment-variables">Environment Variables</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../installation.html#next-steps">Next Steps</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="../../tutorials.html">Tutorials</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="../../tutorials.html#basic-e-i-network">Basic E/I Network</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../tutorials.html#working-with-dendritic-branches">Working with Dendritic Branches</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../tutorials.html#sparse-connectivity-with-topk">Sparse Connectivity with TopK</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../tutorials.html#vision-models-with-dendriteconv2d">Vision Models with DendriteConv2d</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../tutorials.html#pre-built-vision-units">Pre-built Vision Units</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../tutorials.html#training-strategies">Training Strategies</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../tutorials.html#analysis-tools">Analysis Tools</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../tutorials.html#working-with-datasets">Working with Datasets</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../tutorials.html#configuration-management">Configuration Management</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../tutorials.html#next-steps">Next Steps</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="../../api_reference.html">API Reference</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="../../api_reference.html#core-networks">Core Networks</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="../../api_reference.html#excitationinhibitionnetwork">ExcitationInhibitionNetwork</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../api_reference.html#dendrinet">DendriNet</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../api_reference.html#dendriticbranchlayer">DendriticBranchLayer</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="../../api_reference.html#sparse-connectivity">Sparse Connectivity</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="../../api_reference.html#topklinear">TopKLinear</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../api_reference.html#stochastictopklinear">StochasticTopKLinear</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../api_reference.html#variancetopklinear">VarianceTopKLinear</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../api_reference.html#deepstlinear">DeepstLinear</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../api_reference.html#blocklinear">BlockLinear</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="../../api_reference.html#models">Models</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="../../api_reference.html#classifier">Classifier</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../api_reference.html#regressor">Regressor</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="../../api_reference.html#training-strategies">Training Strategies</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="../../api_reference.html#trainer">Trainer</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../api_reference.html#layerwisetrainer">LayerWiseTrainer</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../api_reference.html#twosteptrainer">TwoStepTrainer</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="../../api_reference.html#analysis-tools">Analysis Tools</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="../../api_reference.html#ablationanalyzer">AblationAnalyzer</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../api_reference.html#branchactivationanalyzer">BranchActivationAnalyzer</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../api_reference.html#informationanalyzer">InformationAnalyzer</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="../../api_reference.html#visualization">Visualization</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="../../api_reference.html#plotting-functions">Plotting Functions</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="../../api_reference.html#configuration">Configuration</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="../../api_reference.html#transferfunctionparams">TransferFunctionParams</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../api_reference.html#modelconfig">ModelConfig</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="../../api_reference.html#utilities">Utilities</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="../../api_reference.html#data-loading">Data Loading</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../api_reference.html#model-persistence">Model Persistence</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../api_reference.html#experiment-tracking">Experiment Tracking</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="../../api_reference.html#vision-neuron-factories">Vision Neuron Factories</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="../../api_reference.html#create-gabor-units">Create Gabor Units</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../api_reference.html#create-center-surround-units">Create Center-Surround Units</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../api_reference.html#create-motion-units">Create Motion Units</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="../../api_reference.html#best-practices">Best Practices</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="../../api_reference.html#model-design">Model Design</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../api_reference.html#training-tips">Training Tips</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../api_reference.html#performance-optimization">Performance Optimization</a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="../../theory.html">Theory and Background</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="../../theory.html#biological-foundations">Biological Foundations</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="../../theory.html#dendritic-computation">Dendritic Computation</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../theory.html#shunting-inhibition">Shunting Inhibition</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../theory.html#excitation-inhibition-balance">Excitation-Inhibition Balance</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="../../theory.html#mathematical-framework">Mathematical Framework</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="../../theory.html#dendritic-integration">Dendritic Integration</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../theory.html#network-dynamics">Network Dynamics</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../theory.html#sparse-connectivity">Sparse Connectivity</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="../../theory.html#implementation-details">Implementation Details</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="../../theory.html#computational-efficiency">Computational Efficiency</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../theory.html#stability-considerations">Stability Considerations</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="../../theory.html#key-advantages">Key Advantages</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../theory.html#references">References</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="../../examples.html">Examples</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="../../examples.html#mnist-classification-with-e-i-network">MNIST Classification with E/I Network</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../examples.html#vision-tasks-with-dendriteconv2d">Vision Tasks with DendriteConv2d</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../examples.html#sparse-networks-with-deepst">Sparse Networks with DEEPST</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../examples.html#biological-vision-units">Biological Vision Units</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../examples.html#analysis-and-ablation-studies">Analysis and Ablation Studies</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../examples.html#custom-training-strategies">Custom Training Strategies</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../examples.html#working-with-synthetic-datasets">Working with Synthetic Datasets</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../examples.html#configuration-based-experiments">Configuration-Based Experiments</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="../../contributing.html">Contributing Guide</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="../../contributing.html#code-of-conduct">Code of Conduct</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../contributing.html#getting-started">Getting Started</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="../../contributing.html#setting-up-development-environment">Setting Up Development Environment</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../contributing.html#development-workflow">Development Workflow</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="../../contributing.html#contributing-code">Contributing Code</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="../../contributing.html#architecture-guidelines">Architecture Guidelines</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../contributing.html#code-style">Code Style</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../contributing.html#testing-requirements">Testing Requirements</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../contributing.html#performance-considerations">Performance Considerations</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="../../contributing.html#contributing-documentation">Contributing Documentation</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="../../contributing.html#documentation-standards">Documentation Standards</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../contributing.html#adding-tutorials">Adding Tutorials</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="../../contributing.html#contributing-examples">Contributing Examples</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="../../contributing.html#example-requirements">Example Requirements</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="../../contributing.html#research-contributions">Research Contributions</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="../../contributing.html#publishing-research">Publishing Research</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../contributing.html#proposing-new-features">Proposing New Features</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="../../contributing.html#review-process">Review Process</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="../../contributing.html#pull-request-checklist">Pull Request Checklist</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../contributing.html#review-timeline">Review Timeline</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../contributing.html#what-reviewers-look-for">What Reviewers Look For</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="../../contributing.html#community">Community</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="../../contributing.html#getting-help">Getting Help</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../contributing.html#regular-events">Regular Events</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../contributing.html#recognition">Recognition</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="../../contributing.html#thank-you">Thank You!</a></li>
+</ul>
+</li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../../index.html">Dendritic Modeling Framework</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="../../index.html" class="icon icon-home" aria-label="Home"></a></li>
+      <li class="breadcrumb-item active">Network Construction</li>
+      <li class="wy-breadcrumbs-aside">
+            <a href="../../_sources/source/core_concepts/network_construction.rst.txt" rel="nofollow"> View page source</a>
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <section id="network-construction">
+<h1>Network Construction<a class="headerlink" href="#network-construction" title="Link to this heading"></a></h1>
+<p>The <em>Excitation–Inhibition Network</em> (EINet) factory is located in
+<a href="#id1"><span class="problematic" id="id2">:pyfile:`src/dendritic_modeling/networks/architectures/excitation_inhibition/einet.py`</span></a> and is wrapped by higher-level models such as <a href="#id3"><span class="problematic" id="id4">:pyclass:`dendritic_modeling.models.Classifier`</span></a>.</p>
+<section id="defining-a-network">
+<h2>Defining a Network<a class="headerlink" href="#defining-a-network" title="Link to this heading"></a></h2>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span><span class="w"> </span><span class="nn">dendritic_modeling.networks</span><span class="w"> </span><span class="kn">import</span> <span class="n">ExcitationInhibitionNetwork</span>
+<span class="n">ei_net</span> <span class="o">=</span> <span class="n">ExcitationInhibitionNetwork</span><span class="p">(</span>
+    <span class="n">input_dim</span><span class="o">=</span><span class="mi">784</span><span class="p">,</span>
+    <span class="n">layer_sizes</span><span class="o">=</span><span class="p">[</span><span class="mi">512</span><span class="p">,</span> <span class="mi">256</span><span class="p">,</span> <span class="mi">64</span><span class="p">],</span>
+    <span class="n">excitatory_branch_factors</span><span class="o">=</span><span class="p">[</span><span class="mi">5</span><span class="p">,</span> <span class="mi">3</span><span class="p">,</span> <span class="mi">1</span><span class="p">],</span>
+    <span class="n">inhibitory_branch_factors</span><span class="o">=</span><span class="p">[</span><span class="mi">3</span><span class="p">,</span> <span class="mi">2</span><span class="p">,</span> <span class="mi">0</span><span class="p">],</span>
+    <span class="n">ee_synapses_per_branch_per_layer</span><span class="o">=</span><span class="p">[</span><span class="mi">10</span><span class="p">,</span> <span class="mi">6</span><span class="p">,</span> <span class="mi">2</span><span class="p">],</span>
+    <span class="n">ei_synapses_per_branch_per_layer</span><span class="o">=</span><span class="p">[</span><span class="mi">5</span><span class="p">,</span> <span class="mi">3</span><span class="p">,</span> <span class="mi">1</span><span class="p">],</span>
+    <span class="n">ei_weight_init</span><span class="o">=</span><span class="s2">&quot;xavier_uniform&quot;</span><span class="p">,</span>
+<span class="p">)</span>
+</pre></div>
+</div>
+</section>
+<section id="branch-factors">
+<h2>Branch Factors<a class="headerlink" href="#branch-factors" title="Link to this heading"></a></h2>
+<p><code class="docutils literal notranslate"><span class="pre">branch_factors</span></code> control dendrite <em>fan-out</em>.  Higher factors increase dendritic integration capacity but also parameter count.</p>
+</section>
+<section id="layer-api">
+<h2>Layer API<a class="headerlink" href="#layer-api" title="Link to this heading"></a></h2>
+<p>Each layer instance of <a href="#id5"><span class="problematic" id="id6">:pyclass:`dendritic_modeling.networks.layers.DendriticLinear`</span></a> contains two populations:</p>
+<ul class="simple">
+<li><p><strong>Excitatory (E)</strong> – weight matrix <code class="docutils literal notranslate"><span class="pre">W_E</span></code> (learned)</p></li>
+<li><p><strong>Inhibitory (I)</strong> – weight matrix <code class="docutils literal notranslate"><span class="pre">W_I</span></code> (learned)</p></li>
+</ul>
+<p>Within-layer inhibitory control is implemented as:</p>
+<div class="math notranslate nohighlight">
+\[ \begin{align}\begin{aligned}h^{(l)}_E \; = \; \sigma\!\left( W_E x^{(l-1)} \right)
+\quad\text{and}\quad
+h^{(l)}_I \; = \; W_I x^{(l-1)}\\x^{(l)} \; = \; \frac{h^{(l)}_E}{h^{(l)}_E + \alpha h^{(l)}_I + \varepsilon}\end{aligned}\end{align} \]</div>
+<p><code class="docutils literal notranslate"><span class="pre">alpha</span></code> is a learnable gain for flexibility.</p>
+</section>
+<section id="between-layer-connectivity">
+<h2>Between-Layer Connectivity<a class="headerlink" href="#between-layer-connectivity" title="Link to this heading"></a></h2>
+<p>E neurons project to both E and I neurons in the next layer, whereas I neurons project only within-layer (enforcing Dale’s principle).  This pattern is hard-coded in the module <a href="#id7"><span class="problematic" id="id8">:pyfile:`dendritic_modeling/networks/layers/routing.py`</span></a>.</p>
+<section id="templates">
+<h3>Templates<a class="headerlink" href="#templates" title="Link to this heading"></a></h3>
+<p>Factory helpers in <a href="#id9"><span class="problematic" id="id10">:pyfile:`dendritic_modeling/networks/architectures/factory.py`</span></a> instantiate:</p>
+<ul class="simple">
+<li><p><strong>MLP-EINet</strong> – fully-connected layers with Top-K sparsity</p></li>
+<li><p><strong>Conv-EINet</strong> – convolutional dendrites using <a href="#id11"><span class="problematic" id="id12">:pyclass:`dendritic_modeling.networks.layers.DendriteConv2d`</span></a></p></li>
+<li><p><strong>ViT-EINet</strong> – patch tokens processed by dendrite-aware attention</p></li>
+</ul>
+<p>Selecting a template in YAML:</p>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">core_network</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">type</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">ConvEINet</span>
+<span class="w">  </span><span class="nt">params</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">backbone</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">resnet18</span><span class="w">          </span><span class="c1"># uses torchvision resnet as encoder</span>
+<span class="w">    </span><span class="nt">dendrite_layers</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">4</span>
+<span class="w">    </span><span class="nt">K</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">32</span><span class="w">                       </span><span class="c1"># Top-K per conv layer</span>
+</pre></div>
+</div>
+</section>
+</section>
+<section id="gradient-scaling">
+<h2>Gradient Scaling<a class="headerlink" href="#gradient-scaling" title="Link to this heading"></a></h2>
+<p>Large ratios in (tfrac{E}{E+I}) can saturate; enabling <em>gradient scaling</em> normalises layer-wise gradient norms.  Activate by setting <cite>gradient_scaling: true</cite> in the config or passing the flag to layer constructors.</p>
+</section>
+</section>
+
+
+           </div>
+          </div>
+          <footer>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright 2025, Research and Engineering at Kempner.</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>

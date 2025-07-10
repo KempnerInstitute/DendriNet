@@ -3,7 +3,7 @@ Training and Configuration
 
 This comprehensive guide covers training strategies, configuration systems, and experiment management for the Dendritic Modeling Framework.
 
-.. figure:: ../../_static/training_workflow_diagram.svg
+.. figure:: ../../../_static/training_workflow_diagram.svg
    :align: center
    :width: 90%
    :alt: Training Workflow Overview

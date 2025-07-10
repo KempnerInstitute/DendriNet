@@ -1,0 +1,561 @@
+
+
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" data-content_root="../../">
+<head>
+  <meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>&lt;no title&gt; &mdash; Dendritic Modeling Framework 0.1.0 documentation</title>
+      <link rel="stylesheet" type="text/css" href="../../_static/pygments.css?v=03e43079" />
+      <link rel="stylesheet" type="text/css" href="../../_static/css/theme.css?v=e59714d7" />
+
+  
+      <script src="../../_static/jquery.js?v=5d32c60e"></script>
+      <script src="../../_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
+      <script src="../../_static/documentation_options.js?v=01f34227"></script>
+      <script src="../../_static/doctools.js?v=9bcbadda"></script>
+      <script src="../../_static/sphinx_highlight.js?v=dc90522c"></script>
+    <script src="../../_static/js/theme.js"></script>
+    <link rel="author" title="About these documents" href="../../about.html" />
+    <link rel="index" title="Index" href="../../genindex.html" />
+    <link rel="search" title="Search" href="../../search.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+
+          
+          
+          <a href="../../index.html" class="icon icon-home">
+            Dendritic Modeling Framework
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <p class="caption" role="heading"><span class="caption-text">Contents:</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../installation.html">Installation Guide</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="../../installation.html#requirements">Requirements</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="../../installation.html#system-requirements">System Requirements</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../installation.html#python-dependencies">Python Dependencies</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="../../installation.html#quick-installation">Quick Installation</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="../../installation.html#using-pip">Using pip</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../installation.html#using-conda">Using conda</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="../../installation.html#development-installation">Development Installation</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="../../installation.html#clone-and-install">Clone and Install</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../installation.html#using-poetry">Using Poetry</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="../../installation.html#platform-specific-instructions">Platform-Specific Instructions</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="../../installation.html#linux">Linux</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../installation.html#macos">macOS</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../installation.html#windows">Windows</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="../../installation.html#gpu-setup">GPU Setup</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="../../installation.html#nvidia-gpus">NVIDIA GPUs</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../installation.html#amd-gpus">AMD GPUs</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../installation.html#apple-silicon">Apple Silicon</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="../../installation.html#docker-installation">Docker Installation</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="../../installation.html#using-pre-built-image">Using Pre-built Image</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../installation.html#building-custom-image">Building Custom Image</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="../../installation.html#cluster-installation">Cluster Installation</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="../../installation.html#slurm-systems">SLURM Systems</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../installation.html#distributed-setup">Distributed Setup</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="../../installation.html#verification">Verification</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="../../installation.html#basic-test">Basic Test</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../installation.html#gpu-test">GPU Test</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="../../installation.html#troubleshooting">Troubleshooting</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="../../installation.html#common-issues">Common Issues</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../installation.html#getting-help">Getting Help</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="../../installation.html#environment-variables">Environment Variables</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../installation.html#next-steps">Next Steps</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="../../tutorials.html">Tutorials</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="../../tutorials.html#basic-e-i-network">Basic E/I Network</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../tutorials.html#working-with-dendritic-branches">Working with Dendritic Branches</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../tutorials.html#sparse-connectivity-with-topk">Sparse Connectivity with TopK</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../tutorials.html#vision-models-with-dendriteconv2d">Vision Models with DendriteConv2d</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../tutorials.html#pre-built-vision-units">Pre-built Vision Units</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../tutorials.html#training-strategies">Training Strategies</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../tutorials.html#analysis-tools">Analysis Tools</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../tutorials.html#working-with-datasets">Working with Datasets</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../tutorials.html#configuration-management">Configuration Management</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../tutorials.html#next-steps">Next Steps</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="../../api_reference.html">API Reference</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="../../api_reference.html#core-networks">Core Networks</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="../../api_reference.html#excitationinhibitionnetwork">ExcitationInhibitionNetwork</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../api_reference.html#dendrinet">DendriNet</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../api_reference.html#dendriticbranchlayer">DendriticBranchLayer</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="../../api_reference.html#sparse-connectivity">Sparse Connectivity</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="../../api_reference.html#topklinear">TopKLinear</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../api_reference.html#stochastictopklinear">StochasticTopKLinear</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../api_reference.html#variancetopklinear">VarianceTopKLinear</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../api_reference.html#deepstlinear">DeepstLinear</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../api_reference.html#blocklinear">BlockLinear</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="../../api_reference.html#models">Models</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="../../api_reference.html#classifier">Classifier</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../api_reference.html#regressor">Regressor</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="../../api_reference.html#training-strategies">Training Strategies</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="../../api_reference.html#trainer">Trainer</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../api_reference.html#layerwisetrainer">LayerWiseTrainer</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../api_reference.html#twosteptrainer">TwoStepTrainer</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="../../api_reference.html#analysis-tools">Analysis Tools</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="../../api_reference.html#ablationanalyzer">AblationAnalyzer</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../api_reference.html#branchactivationanalyzer">BranchActivationAnalyzer</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../api_reference.html#informationanalyzer">InformationAnalyzer</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="../../api_reference.html#visualization">Visualization</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="../../api_reference.html#plotting-functions">Plotting Functions</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="../../api_reference.html#configuration">Configuration</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="../../api_reference.html#transferfunctionparams">TransferFunctionParams</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../api_reference.html#modelconfig">ModelConfig</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="../../api_reference.html#utilities">Utilities</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="../../api_reference.html#data-loading">Data Loading</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../api_reference.html#model-persistence">Model Persistence</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../api_reference.html#experiment-tracking">Experiment Tracking</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="../../api_reference.html#vision-neuron-factories">Vision Neuron Factories</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="../../api_reference.html#create-gabor-units">Create Gabor Units</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../api_reference.html#create-center-surround-units">Create Center-Surround Units</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../api_reference.html#create-motion-units">Create Motion Units</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="../../api_reference.html#best-practices">Best Practices</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="../../api_reference.html#model-design">Model Design</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../api_reference.html#training-tips">Training Tips</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../api_reference.html#performance-optimization">Performance Optimization</a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="../../theory.html">Theory and Background</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="../../theory.html#biological-foundations">Biological Foundations</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="../../theory.html#dendritic-computation">Dendritic Computation</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../theory.html#shunting-inhibition">Shunting Inhibition</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../theory.html#excitation-inhibition-balance">Excitation-Inhibition Balance</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="../../theory.html#mathematical-framework">Mathematical Framework</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="../../theory.html#dendritic-integration">Dendritic Integration</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../theory.html#network-dynamics">Network Dynamics</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../theory.html#sparse-connectivity">Sparse Connectivity</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="../../theory.html#implementation-details">Implementation Details</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="../../theory.html#computational-efficiency">Computational Efficiency</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../theory.html#stability-considerations">Stability Considerations</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="../../theory.html#key-advantages">Key Advantages</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../theory.html#references">References</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="../../examples.html">Examples</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="../../examples.html#mnist-classification-with-e-i-network">MNIST Classification with E/I Network</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../examples.html#vision-tasks-with-dendriteconv2d">Vision Tasks with DendriteConv2d</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../examples.html#sparse-networks-with-deepst">Sparse Networks with DEEPST</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../examples.html#biological-vision-units">Biological Vision Units</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../examples.html#analysis-and-ablation-studies">Analysis and Ablation Studies</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../examples.html#custom-training-strategies">Custom Training Strategies</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../examples.html#working-with-synthetic-datasets">Working with Synthetic Datasets</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../examples.html#configuration-based-experiments">Configuration-Based Experiments</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="../../contributing.html">Contributing Guide</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="../../contributing.html#code-of-conduct">Code of Conduct</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../contributing.html#getting-started">Getting Started</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="../../contributing.html#setting-up-development-environment">Setting Up Development Environment</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../contributing.html#development-workflow">Development Workflow</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="../../contributing.html#contributing-code">Contributing Code</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="../../contributing.html#architecture-guidelines">Architecture Guidelines</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../contributing.html#code-style">Code Style</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../contributing.html#testing-requirements">Testing Requirements</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../contributing.html#performance-considerations">Performance Considerations</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="../../contributing.html#contributing-documentation">Contributing Documentation</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="../../contributing.html#documentation-standards">Documentation Standards</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../contributing.html#adding-tutorials">Adding Tutorials</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="../../contributing.html#contributing-examples">Contributing Examples</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="../../contributing.html#example-requirements">Example Requirements</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="../../contributing.html#research-contributions">Research Contributions</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="../../contributing.html#publishing-research">Publishing Research</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../contributing.html#proposing-new-features">Proposing New Features</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="../../contributing.html#review-process">Review Process</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="../../contributing.html#pull-request-checklist">Pull Request Checklist</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../contributing.html#review-timeline">Review Timeline</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../contributing.html#what-reviewers-look-for">What Reviewers Look For</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="../../contributing.html#community">Community</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="../../contributing.html#getting-help">Getting Help</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../contributing.html#regular-events">Regular Events</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../contributing.html#recognition">Recognition</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="../../contributing.html#thank-you">Thank You!</a></li>
+</ul>
+</li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../../index.html">Dendritic Modeling Framework</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="../../index.html" class="icon icon-home" aria-label="Home"></a></li>
+      <li class="breadcrumb-item active">&lt;no title&gt;</li>
+      <li class="wy-breadcrumbs-aside">
+            <a href="../../_sources/source/user_guide/information_analysis_guide.rst.txt" rel="nofollow"> View page source</a>
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <p># Information-Theoretic Analysis Guide for Dendritic Networks</p>
+<p>This guide explains how to train Excitation-Inhibition (EI) networks and compute information-theoretic measures between network components.</p>
+<p>## Quick Start</p>
+<p>### 1. Basic Training with Information Analysis</p>
+<p>To train an EI network and compute information values, use the quick-start configuration:</p>
+<p><a href="#id1"><span class="problematic" id="id2">``</span></a><a href="#id3"><span class="problematic" id="id4">`</span></a>bash
+python -m dendritic_modeling.scripts.train_experiments </p>
+<blockquote>
+<div><p>–config configs/ei_network_info_analysis_quickstart.yaml</p>
+</div></blockquote>
+<p><a href="#id5"><span class="problematic" id="id6">``</span></a><a href="#id7"><span class="problematic" id="id8">`</span></a></p>
+<p>This will:
+- Train a small EI network on MNIST for 20 epochs
+- Compute mutual information between E/I inputs, branch outputs, and class labels
+- Save results to <cite>./outputs/ei_info_quickstart/</cite></p>
+<p>### 2. Understanding the Results</p>
+<p>After training, check the output directory:</p>
+<p><a href="#id9"><span class="problematic" id="id10">``</span></a>`
+outputs/ei_info_quickstart/
+├── models/           # Saved model checkpoints
+├── logs/             # Training logs
+└── analysis/         # Analysis results</p>
+<blockquote>
+<div><p>├── information_analysis/
+│   ├── information_analysis_results.json  # Raw MI values
+│   └── information_analysis_summary.txt   # Human-readable summary
+└── performance_analysis/</p>
+<blockquote>
+<div><p>└── test_metrics.json                  # Final accuracy</p>
+</div></blockquote>
+</div></blockquote>
+<p><a href="#id11"><span class="problematic" id="id12">``</span></a><a href="#id13"><span class="problematic" id="id14">`</span></a></p>
+<p>The summary file will contain values like:
+- <cite>I(E;C)</cite>: Mutual information between excitatory inputs and class labels
+- <cite>I(I;C)</cite>: Mutual information between inhibitory inputs and class labels
+- <cite>I(E;I)</cite>: Mutual information between E and I (their dependence)
+- <cite>I(Vout;C)</cite>: Information carried by branch outputs about the class
+- <cite>I(Vinf;C)</cite>: Information at the soma level</p>
+<p>## Configuration Options</p>
+<p>### Information Analysis Parameters</p>
+<p>The key configuration section is <cite>analysis.information_analysis</cite>:</p>
+<p><a href="#id15"><span class="problematic" id="id16">``</span></a><a href="#id17"><span class="problematic" id="id18">`</span></a>yaml
+analysis:</p>
+<blockquote>
+<div><dl>
+<dt>information_analysis:</dt><dd><p># Estimation method
+method: kraskov      # Options: kraskov, sklearn, copula, auto</p>
+<p># Method-specific parameters
+n_neighbors: 10      # For kraskov (k-NN estimator)
+n_bins: 20          # For sklearn (histogram bins)
+copula_type: gaussian # For copula</p>
+<p># What to compute
+compute_basic_mi: true      # I(X;C) for all variables X
+compute_pairwise_mi: true   # I(X;Y) between all pairs
+compute_conditional_mi: true # I(X;Y|C) conditioned on class
+compute_pid: false          # Partial Information Decomposition</p>
+<p># Additional options
+include_vinf: true     # Include soma activation
+normalize_mi: false    # Normalize by entropy
+verbose: true         # Print progress</p>
+</dd>
+</dl>
+</div></blockquote>
+<p><a href="#id19"><span class="problematic" id="id20">``</span></a><a href="#id21"><span class="problematic" id="id22">`</span></a></p>
+<p>### Choosing an Estimation Method</p>
+<ol class="arabic simple">
+<li><p><strong>Kraskov</strong> (Recommended for most cases)
+- Best for: Continuous multivariate data
+- Pros: Non-parametric, handles high dimensions
+- Cons: Can be slow for large datasets
+<code class="docutils literal notranslate"><span class="pre">`yaml</span>
+<span class="pre">method:</span> <span class="pre">kraskov</span>
+<span class="pre">n_neighbors:</span> <span class="pre">10</span>&#160; <span class="pre">#</span> <span class="pre">5-15</span> <span class="pre">is</span> <span class="pre">typical</span>
+<span class="pre">`</span></code></p></li>
+<li><p><strong>Sklearn</strong> (Fast but less accurate)
+- Best for: Quick exploration or mixed data types
+- Pros: Fast, handles discrete variables
+- Cons: Less accurate for complex distributions
+<code class="docutils literal notranslate"><span class="pre">`yaml</span>
+<span class="pre">method:</span> <span class="pre">sklearn</span>
+<span class="pre">n_bins:</span> <span class="pre">20</span>&#160; <span class="pre">#</span> <span class="pre">Adjust</span> <span class="pre">based</span> <span class="pre">on</span> <span class="pre">data</span> <span class="pre">size</span>
+<span class="pre">`</span></code></p></li>
+<li><p><strong>Copula</strong> (For complex dependencies)
+- Best for: Non-linear relationships
+- Pros: Captures complex dependencies
+- Cons: Currently limited to bivariate
+<code class="docutils literal notranslate"><span class="pre">`yaml</span>
+<span class="pre">method:</span> <span class="pre">copula</span>
+<span class="pre">copula_type:</span> <span class="pre">gaussian</span>&#160; <span class="pre">#</span> <span class="pre">or</span> <span class="pre">t,</span> <span class="pre">clayton,</span> <span class="pre">gumbel,</span> <span class="pre">frank</span>
+<span class="pre">`</span></code></p></li>
+</ol>
+<p>## Network Architecture for Information Analysis</p>
+<p>For meaningful information analysis, configure your EI network appropriately:</p>
+<p><a href="#id23"><span class="problematic" id="id24">``</span></a><a href="#id25"><span class="problematic" id="id26">`</span></a>yaml
+model:</p>
+<blockquote>
+<div><dl>
+<dt>network:</dt><dd><p>type: EINet
+parameters:</p>
+<blockquote>
+<div><p># Use input_mode 0 for clear E/I separation
+input_mode: 0  # E gets input, I gets nothing</p>
+<p># Enable shunting for biologically plausible computation
+use_shunting: true  # V = E/(E+I+1)</p>
+<p># Ensure sufficient connectivity
+ee_synapses_per_branch_per_layer: [50]   # E→E
+ei_synapses_per_branch_per_layer: [100]  # E→I
+ie_synapses_per_branch_per_layer: [20]   # I→E
+ii_synapses_per_branch_per_layer: [0]    # I→I (usually 0)</p>
+</div></blockquote>
+</dd>
+</dl>
+</div></blockquote>
+<p><a href="#id27"><span class="problematic" id="id28">``</span></a><a href="#id29"><span class="problematic" id="id30">`</span></a></p>
+<p>## Advanced Use Cases</p>
+<p>### 1. Detailed Analysis (Slow but Thorough)</p>
+<p><a href="#id31"><span class="problematic" id="id32">``</span></a><a href="#id33"><span class="problematic" id="id34">`</span></a>yaml
+analysis:</p>
+<blockquote>
+<div><dl class="simple">
+<dt>information_analysis:</dt><dd><p>method: kraskov
+n_neighbors: 15
+compute_basic_mi: true
+compute_pairwise_mi: true
+compute_conditional_mi: true
+compute_pid: true  # Requires external PID package
+verbose: true</p>
+</dd>
+</dl>
+</div></blockquote>
+<p><a href="#id35"><span class="problematic" id="id36">``</span></a><a href="#id37"><span class="problematic" id="id38">`</span></a></p>
+<p>### 2. Quick Exploration (Fast)</p>
+<p><a href="#id39"><span class="problematic" id="id40">``</span></a><a href="#id41"><span class="problematic" id="id42">`</span></a>yaml
+analysis:</p>
+<blockquote>
+<div><dl class="simple">
+<dt>information_analysis:</dt><dd><p>method: sklearn
+n_bins: 15
+compute_basic_mi: true
+compute_pairwise_mi: false
+compute_conditional_mi: false
+compute_pid: false</p>
+</dd>
+</dl>
+</div></blockquote>
+<p><a href="#id43"><span class="problematic" id="id44">``</span></a><a href="#id45"><span class="problematic" id="id46">`</span></a></p>
+<p>### 3. Focus on E/I Interactions</p>
+<p><a href="#id47"><span class="problematic" id="id48">``</span></a><a href="#id49"><span class="problematic" id="id50">`</span></a>yaml
+analysis:</p>
+<blockquote>
+<div><dl class="simple">
+<dt>information_analysis:</dt><dd><p>method: kraskov
+n_neighbors: 10
+compute_basic_mi: false     # Skip I(X;C)
+compute_pairwise_mi: true   # Focus on I(E;I), etc.
+compute_conditional_mi: true # I(E;I|C)
+compute_pid: false</p>
+</dd>
+</dl>
+</div></blockquote>
+<p><a href="#id51"><span class="problematic" id="id52">``</span></a><a href="#id53"><span class="problematic" id="id54">`</span></a></p>
+<p>## Interpreting Results</p>
+<p>### Basic Mutual Information
+- <strong>I(E;C)</strong>: How much excitatory activity predicts the class</p>
+<blockquote>
+<div><ul class="simple">
+<li><p>High values (&gt;1.5 nats): Strong class information in E</p></li>
+<li><p>Low values (&lt;0.5 nats): Weak class information</p></li>
+</ul>
+</div></blockquote>
+<ul class="simple">
+<li><p><strong>I(I;C)</strong>: How much inhibitory activity predicts the class
+- Often lower than I(E;C) if I serves modulatory role</p></li>
+<li><p><strong>I(Vout;C)</strong>: Information at branch outputs
+- Should be ≥ max(I(E;C), I(I;C)) if integration is effective</p></li>
+</ul>
+<p>### Pairwise Information
+- <strong>I(E;I)</strong>: Dependence between E and I</p>
+<blockquote>
+<div><ul class="simple">
+<li><p>High values: E and I are strongly coupled</p></li>
+<li><p>Low values: E and I process information independently</p></li>
+</ul>
+</div></blockquote>
+<ul class="simple">
+<li><p><strong>I(E;Vout)</strong>, <strong>I(I;Vout)</strong>: How inputs influence outputs
+- Indicates which pathway contributes more</p></li>
+</ul>
+<p>### Conditional Information
+- <strong>I(E;I|C)</strong>: E/I dependence after accounting for class</p>
+<blockquote>
+<div><ul class="simple">
+<li><p>High values: E/I interact differently for different classes</p></li>
+<li><p>Low values: E/I relationship is class-independent</p></li>
+</ul>
+</div></blockquote>
+<p>## Common Issues and Solutions</p>
+<p>### 1. Low Information Values
+- <strong>Problem</strong>: All MI values are near zero
+- <strong>Solutions</strong>:</p>
+<blockquote>
+<div><ul class="simple">
+<li><p>Check if network is trained properly (accuracy &gt; chance)</p></li>
+<li><p>Increase connectivity (more synapses)</p></li>
+<li><p>Use <cite>input_mode: 0</cite> for clear E/I separation</p></li>
+<li><p>Ensure sufficient data samples</p></li>
+</ul>
+</div></blockquote>
+<p>### 2. Estimation Errors
+- <strong>Problem</strong>: Negative MI values or unrealistic numbers
+- <strong>Solutions</strong>:</p>
+<blockquote>
+<div><ul class="simple">
+<li><p>Increase <cite>n_neighbors</cite> for kraskov method</p></li>
+<li><p>Use more data samples</p></li>
+<li><p>Try different estimation method</p></li>
+<li><p>Check for numerical issues in activations</p></li>
+</ul>
+</div></blockquote>
+<p>### 3. Slow Computation
+- <strong>Problem</strong>: Analysis takes too long
+- <strong>Solutions</strong>:</p>
+<blockquote>
+<div><ul class="simple">
+<li><p>Reduce test set size</p></li>
+<li><p>Use sklearn method for quick estimates</p></li>
+<li><p>Disable conditional MI or PID</p></li>
+<li><p>Use fewer neighbors for kraskov</p></li>
+</ul>
+</div></blockquote>
+<p>## Example Configurations</p>
+<p>### Minimal Configuration
+See: <cite>configs/ei_network_info_analysis_quickstart.yaml</cite></p>
+<p>### Detailed Analysis
+See: <cite>configs/example_information_analysis_documented.yaml</cite></p>
+<p>### Parameter Sweeps
+See: <cite>.vscode/sweep_params_seeds_ei_documented.yaml</cite></p>
+<p>## Running Parameter Sweeps</p>
+<p>To systematically explore how network parameters affect information flow:</p>
+<ol class="arabic simple">
+<li><p>Create a sweep configuration (see documented examples)</p></li>
+<li><p>Use SLURM scripts for HPC clusters</p></li>
+<li><p>Aggregate results across seeds for statistical analysis</p></li>
+</ol>
+<p>## Best Practices</p>
+<ol class="arabic simple">
+<li><p><strong>Always verify model performance first</strong>
+- Ensure accuracy is above chance before analyzing information</p></li>
+<li><p><strong>Use multiple seeds</strong>
+- Information values can vary; use 3-5 seeds minimum</p></li>
+<li><p><strong>Start simple</strong>
+- Begin with basic MI before adding conditional/PID</p></li>
+<li><p><strong>Validate with known cases</strong>
+- Test on simple datasets where expected MI is known</p></li>
+<li><p><strong>Document your configuration</strong>
+- Use the documented YAML files as templates
+- Record all parameter choices for reproducibility</p></li>
+</ol>
+
+
+           </div>
+          </div>
+          <footer>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright 2025, Research and Engineering at Kempner.</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>
