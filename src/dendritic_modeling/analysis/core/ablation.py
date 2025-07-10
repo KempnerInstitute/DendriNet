@@ -228,13 +228,27 @@ class AblationAnalyzer:
                 classifier=model, test_ds=test_dataset, move_device=False
             )[-1]
         if self.mse:
-            baselines["mse"] = evaluate_mse(
-                classifier=model, test_ds=test_dataset, move_device=False
-            )[-1]
+            # Check if model is a regressor before using MSE
+            from dendritic_modeling.models import Regressor
+            if isinstance(model, Regressor):
+                baselines["mse"] = evaluate_mse(
+                    regressor=model, test_ds=test_dataset, move_device=False
+                )[-1]
+            else:
+                # Skip MSE for non-regressor models
+                print(f"Warning: MSE evaluation skipped for {type(model).__name__} model")
+                self.mse = False
         if self.cosine_similarity:
-            baselines["cosine similarity"] = evaluate_cosine_similarity(
-                classifier=model, test_ds=test_dataset, move_device=False
-            )[-1]
+            # Check if model is a regressor before using cosine similarity
+            from dendritic_modeling.models import Regressor
+            if isinstance(model, Regressor):
+                baselines["cosine similarity"] = evaluate_cosine_similarity(
+                    regressor=model, test_ds=test_dataset, move_device=False
+                )[-1]
+            else:
+                # Skip cosine similarity for non-regressor models
+                print(f"Warning: Cosine similarity evaluation skipped for {type(model).__name__} model")
+                self.cosine_similarity = False
         
         if self.layer_ablation:
             layer_results = {}

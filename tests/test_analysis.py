@@ -214,17 +214,23 @@ class TestInformationAnalyzer(unittest.TestCase):
         """Test mutual information computation."""
         with tempfile.TemporaryDirectory() as tmpdir:
             # Mock the MI computation since it requires complex dependencies
-            with patch.object(self.analyzer, '_compute_mutual_information') as mock_mi:
-                mock_mi.return_value = 0.5
+            with patch.object(self.analyzer, 'compute_metrics') as mock_mi:
+                mock_mi.return_value = {
+                    "method": "kraskov",
+                    "n_samples": 30,
+                    "basic_mi": {"I(E;C)": 0.5, "I(I;C)": 0.3}
+                }
                 
                 results = self.analyzer.analyze(
                     model=self.model,
                     test_dataset=self.test_data,
                     device="cpu",
-                    save_path=tmpdir
+                    save_path=tmpdir,
+                    filename="test"
                 )
                 
-                self.assertIsInstance(results, dict)
+                # When save_path is provided, results should be None
+                self.assertIsNone(results)
 
 
 
