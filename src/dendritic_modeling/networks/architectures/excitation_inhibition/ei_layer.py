@@ -7,8 +7,7 @@ excitatory and inhibitory cell populations.
 
 import torch
 import torch.nn as nn
-from typing import Optional, 
-
+from typing import Optional
 from dendritic_modeling.networks.architectures.excitation_inhibition.dendritic.dendrinet import DendriNet
 
 class ExcitationInhibitionLayer(nn.Module):

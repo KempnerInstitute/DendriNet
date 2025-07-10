@@ -2,9 +2,7 @@ import torch
 import torch.nn as nn
 
 from copy import deepcopy
-from typing import , 
-
-from dendritic_modeling.networks.base import BaseNetwork
+from typing import from dendritic_modeling.networks.base import BaseNetwork
 from dendritic_modeling.networks.architectures.classical.cnn.cnn import (
     CNNDownsample,
     CNNUpsample

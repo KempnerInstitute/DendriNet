@@ -8,8 +8,7 @@ input dimensions into excitatory and inhibitory channels.
 import torch
 import torch.nn as nn
 import logging
-from typing import Optional, 
-
+from typing import Optional
 logger = logging.getLogger(__name__)
 
 class IndexInputTransform(nn.Module):

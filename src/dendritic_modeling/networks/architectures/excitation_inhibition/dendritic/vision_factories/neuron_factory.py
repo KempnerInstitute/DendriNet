@@ -2,7 +2,7 @@
 
 import yaml
 from pathlib import Path
-from typing import , Any
+from typing import Any
 
 from dendritic_modeling.networks.layers.dendritic_conv2d import DendriteConv2d
 from .vision_units import (
