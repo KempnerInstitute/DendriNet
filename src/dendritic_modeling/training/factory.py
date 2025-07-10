@@ -6,18 +6,20 @@ This module contains factory functions for creating training strategies
 and utility functions for training simple MLPs and weight transfer.
 """
 
-import torch
 from typing import Optional
+
+import torch
 
 from dendritic_modeling import logger
 from dendritic_modeling.training.strategies import (
-    Trainer,
+    LayerWiseTrainer,
     LocalCreditAssignment,
+    Trainer,
     TwoStepTrainer,
     TwoStepTrainerWithKL,
     VoltageStabilizationTrainer,
-    LayerWiseTrainer
 )
+
 
 def get_trainer(
     strategy: str,

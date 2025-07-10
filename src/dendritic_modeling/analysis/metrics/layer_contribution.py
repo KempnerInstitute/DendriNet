@@ -7,24 +7,26 @@ model performance by testing each layer in isolation and measuring its individua
 
 import logging
 from copy import deepcopy
-from typing import Optional, Callable
+from typing import Callable, Optional
+
 import torch
 from torch.utils.data import TensorDataset
 
+from dendritic_modeling.config import SingleLayerContributionAnalysisParams
 from dendritic_modeling.models import BaseModel
 from dendritic_modeling.networks import (
+    DendriticBranchLayer,
     ExcitationInhibitionNetwork,
-    DendriticBranchLayer
 )
-from dendritic_modeling.config import SingleLayerContributionAnalysisParams
 from dendritic_modeling.training.utils.evaluation import (
     evaluate_accuracy,
     evaluate_auc,
     evaluate_categorical_loglikelihood,
-    evaluate_mse,
     evaluate_cosine_similarity,
+    evaluate_mse,
 )
 from dendritic_modeling.utils import save_dict
+
 
 class SingleLayerContributionAnalyzer:
     """

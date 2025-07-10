@@ -6,8 +6,7 @@ All functions are differentiable and can be used in gradient-based optimization.
 import torch
 import torch.nn.functional as F
 import numpy as np
-from typing import Optional, , 
-
+from typing import Optional
 __all__ = [
     "loss_DoG",
     "loss_OSI",

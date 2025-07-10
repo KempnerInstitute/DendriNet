@@ -9,21 +9,20 @@ vision neurons using dendritic computation, including:
 - End-stopped cells
 """
 
-from .vision_units import (
-    create_gabor_unit,
-    create_center_surround_unit,
-    create_motion_unit,
-    create_end_stopped_unit,
-    rf_on_center,
-    rf_off_center,
-    rf_gabor,
-)
-
 from .neuron_factory import (
     build_neuron_from_yaml,
-    load_properties_config,
-    get_stimulus_params,
     get_criterion,
+    get_stimulus_params,
+    load_properties_config,
+)
+from .vision_units import (
+    create_center_surround_unit,
+    create_end_stopped_unit,
+    create_gabor_unit,
+    create_motion_unit,
+    rf_gabor,
+    rf_off_center,
+    rf_on_center,
 )
 
 __all__ = [

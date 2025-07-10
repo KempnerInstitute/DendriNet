@@ -4,6 +4,7 @@ import torch
 
 from dendritic_modeling.networks import BlockLinear, DendriNet, DendriticBranchLayer
 
+
 class TestDendriNet(unittest.TestCase):
     def test_initialization_valid_parameters(self):
         """Test that DendriNet initializes correctly with valid parameters."""

@@ -6,12 +6,17 @@ across the dendritic network, including excitatory weights, inhibitory weights, 
 """
 
 from typing import Optional
+
 import torch
-from dendritic_modeling.models import BaseModel
-from dendritic_modeling.networks import ExcitationInhibitionNetwork
-from dendritic_modeling.networks import DendriticBranchLayer
-from dendritic_modeling.utils import save_dict
+
 from dendritic_modeling.config import WeightAnalysisParams
+from dendritic_modeling.models import BaseModel
+from dendritic_modeling.networks import (
+    DendriticBranchLayer,
+    ExcitationInhibitionNetwork,
+)
+from dendritic_modeling.utils import save_dict
+
 
 class WeightAnalyzer:
     """

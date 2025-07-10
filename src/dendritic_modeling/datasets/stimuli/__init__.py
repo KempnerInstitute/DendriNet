@@ -1,8 +1,8 @@
 """Visual stimulus generators for testing dendritic neurons."""
 
+from .bars import *
 from .gratings import *
 from .noise import *
-from .bars import *
 from .textures import *
 
 __all__ = [

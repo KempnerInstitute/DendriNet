@@ -8,6 +8,7 @@ to input data, useful for robustness testing and data augmentation.
 
 import torch
 
+
 def add_gaussian_noise(
     x: torch.Tensor,
     std: float = 0.1,

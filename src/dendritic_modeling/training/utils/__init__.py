@@ -6,17 +6,17 @@ This module provides utilities for training dendritic models including:
 - Evaluation functions for model performance
 """
 
-from .hooks import safe_backward_hook
 from .evaluation import (
     accuracy_score,
+    categorical_loglikelihood_score,
     evaluate_accuracy,
     evaluate_auc,
-    categorical_loglikelihood_score,
     evaluate_categorical_loglikelihood,
-    mse_score,
+    evaluate_cosine_similarity,
     evaluate_mse,
-    evaluate_cosine_similarity
+    mse_score,
 )
+from .hooks import safe_backward_hook
 
 __all__ = [
     # Hooks

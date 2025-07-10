@@ -2,13 +2,15 @@
 Network visualization and plotting functions.
 """
 
+import logging
 import os
+
 import matplotlib.pyplot as plt
 import numpy as np
 import torch
 from matplotlib.colors import TwoSlopeNorm
 from matplotlib.gridspec import GridSpec
-import logging
+
 try:
     import networkx as nx
     NETWORKX_AVAILABLE = True

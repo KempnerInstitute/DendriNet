@@ -6,12 +6,14 @@ with the refactored codebase structure.
 """
 
 import unittest
+
 import torch
 import torch.nn as nn
 
-from dendritic_modeling.models import Classifier
-from dendritic_modeling.networks import ExcitationInhibitionNetwork, MLP
 from dendritic_modeling.config import TransferFunctionParams
+from dendritic_modeling.models import Classifier
+from dendritic_modeling.networks import MLP, ExcitationInhibitionNetwork
+
 
 class TestCoreModels(unittest.TestCase):
     """Test the core model functionality."""

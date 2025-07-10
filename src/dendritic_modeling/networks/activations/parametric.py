@@ -10,6 +10,7 @@ import math
 import torch
 import torch.nn as nn
 
+
 class ParametricActivation(nn.Module):
     """
     Base class for parametric activation functions.
@@ -227,7 +228,7 @@ class ParametricLinearTanhTransition(ParametricActivation):
         clamped_transition_slope_vals = torch.clamp(transition_slope_vals, min=1e-9)
         if torch.any(transition_slope_vals <= 0):
             logging.warning(
-                f"Some initial transition slopes were <= 0. They were clamped to min=1e-9."
+                "Some initial transition slopes were <= 0. They were clamped to min=1e-9."
             )
 
         if trainable_transition_slope:
@@ -301,9 +302,9 @@ class ParametricLinearTanhTransition(ParametricActivation):
         )
 
 __all__ = [
-    "ParametricTanh",
-    "ParametricTanhOnlyM",
     "ParametricLinearSigmoid",
     "ParametricLinearTanh",
     "ParametricLinearTanhTransition",
+    "ParametricTanh",
+    "ParametricTanhOnlyM",
 ]

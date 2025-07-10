@@ -1,12 +1,13 @@
 """Texture stimulus generators for higher-order visual processing."""
 
-import numpy as np
-from scipy import signal, ndimage
 from typing import Optional, Union
 
+import numpy as np
+from scipy import signal
+
 __all__ = [
-    "create_portilla_simoncelli_texture",
     "create_contour_fragments",
+    "create_portilla_simoncelli_texture",
 ]
 
 def create_portilla_simoncelli_texture(

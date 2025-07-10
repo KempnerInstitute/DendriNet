@@ -6,7 +6,9 @@ a sigmoid activation to ensure values are in [0, 1] range.
 """
 
 import torch
+
 from dendritic_modeling.networks.base import BaseNetwork
+
 
 class SigmoidOutputNetwork(BaseNetwork):
     """

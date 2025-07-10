@@ -6,9 +6,10 @@ strongest synaptic weights for each output neuron, simulating selective
 synaptic connectivity in dendritic computation.
 """
 
+from math import log
+
 import torch
 import torch.nn as nn
-from math import log
 
 TOPK_INIT_METHODS = {
     "xavier_normal": nn.init.xavier_normal_,
@@ -176,4 +177,4 @@ class TopKLinear(nn.Module):
         weighted_synapses = cell_weights[:, None] * synapse_weights
         return weighted_synapses.sum(dim=0)
 
-__all__ = ["TopKLinear", "TOPK_INIT_METHODS"]
+__all__ = ["TOPK_INIT_METHODS", "TopKLinear"]

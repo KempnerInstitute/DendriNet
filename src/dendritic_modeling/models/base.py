@@ -5,12 +5,15 @@ This module contains the abstract BaseModel class that provides common functiona
 for all model wrappers including parameter grouping and weight decay.
 """
 
-import torch
-import torch.nn as nn
 from itertools import chain
 from typing import Union
 
+import torch
+import torch.nn as nn
+
+from dendritic_modeling.config import ParamGroupsConfig
 from dendritic_modeling.networks import (
+    BaseNetwork,
     # TopKLinear,
     # DeepstLinear,
     # BlockLinear,
@@ -18,9 +21,8 @@ from dendritic_modeling.networks import (
     DendriticBranchLayer,
     # DendriNet,
     ExcitationInhibitionNetwork,
-    BaseNetwork
 )
-from dendritic_modeling.config import ParamGroupsConfig
+
 
 class BaseModel(nn.Module):
     def __init__(

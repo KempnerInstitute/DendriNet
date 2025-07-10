@@ -1,5 +1,7 @@
-from omegaconf import OmegaConf as om
 from dataclasses import asdict
+
+from omegaconf import OmegaConf as om
+
 
 class BaseConfig:
     @classmethod

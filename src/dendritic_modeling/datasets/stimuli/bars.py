@@ -1,11 +1,12 @@
 """Bar stimulus generators for motion and length tuning."""
 
+from typing import Optional, Union
+
 import numpy as np
-from typing import Optional, Union 
 
 __all__ = [
-    "create_moving_bar",
     "create_length_sweep_bars",
+    "create_moving_bar",
 ]
 
 def create_moving_bar(

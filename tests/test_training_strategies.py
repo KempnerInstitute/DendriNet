@@ -9,26 +9,20 @@ This module tests all training functionality including:
 """
 
 import unittest
-import tempfile
-import torch
-import numpy as np
-import os
-from unittest.mock import Mock, patch, MagicMock
 
-from dendritic_modeling.training import (
-    get_trainer,
-    CustomWeightDecayOptimizer,
-    Trainer
-)
+import torch
+
+from dendritic_modeling.config import TransferFunctionParams
+from dendritic_modeling.models import Classifier
+from dendritic_modeling.networks import ExcitationInhibitionNetwork, Identity
+from dendritic_modeling.training import Trainer, get_trainer
 from dendritic_modeling.training.strategies import (
+    LocalCreditAssignment,
     TwoStepTrainer,
     TwoStepTrainerWithKL,
     VoltageStabilizationTrainer,
-    LocalCreditAssignment
 )
-from dendritic_modeling.networks import ExcitationInhibitionNetwork, Identity
-from dendritic_modeling.models import Classifier
-from dendritic_modeling.config import TransferFunctionParams
+
 
 class TestTrainerFactory(unittest.TestCase):
     """Test the trainer factory function."""

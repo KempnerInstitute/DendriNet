@@ -1,26 +1,22 @@
 
 
+from dendritic_modeling.networks.architectures.classical.autoencoder import (
+    CNNAutoencoder,
+    CNNVariationalAutoencoder,
+    MLPAutoencoder,
+    MLPVariationalAutoencoder,
+)
 from dendritic_modeling.networks.architectures.classical.cnn import (
     AlexNet,
+    CNNDownsample,
     CNNUpsample,
-    CNNDownsample
 )
-
-from dendritic_modeling.networks.architectures.classical.mlp import (
-    MLP,
-    MatchedParamMLP
-)
-
-from dendritic_modeling.networks.architectures.classical.autoencoder import (
-    MLPAutoencoder,
-    CNNAutoencoder,
-    MLPVariationalAutoencoder,
-    CNNVariationalAutoencoder
-)
-
 from dendritic_modeling.networks.architectures.classical.identity import Identity
+from dendritic_modeling.networks.architectures.classical.mlp import MLP, MatchedParamMLP
+from dendritic_modeling.networks.architectures.excitation_inhibition import (
+    ExcitationInhibitionNetwork,
+)
 
-from dendritic_modeling.networks.architectures.excitation_inhibition import ExcitationInhibitionNetwork
 
 def get_architecture(type: str, parameters: dict):
     type = type.lower()

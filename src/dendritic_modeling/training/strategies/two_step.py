@@ -14,6 +14,7 @@ from dendritic_modeling import logger
 from dendritic_modeling.models import BaseModel
 from dendritic_modeling.training.strategies import Trainer
 
+
 def _initialize_local_heads(net_obj, model, device):
     """Initialize local supervision heads for each layer."""
     local_heads = []

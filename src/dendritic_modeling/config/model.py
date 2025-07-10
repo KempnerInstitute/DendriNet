@@ -3,6 +3,7 @@ from typing import Optional
 
 from dendritic_modeling.config.base import BaseConfig
 
+
 @dataclass
 class TransferFunctionParams(BaseConfig):
     input_mode: int = 0
@@ -19,11 +20,11 @@ class EINetParameters(BaseConfig):
     excitatory_layer_sizes: list[int] = field(default_factory=lambda: [10])
     inhibitory_layer_sizes: list[int] = field(default_factory=lambda: [20])
     excitatory_branch_factors: list[int] = field(default_factory=lambda: [2, 2])
-    inhibitory_branch_factors: list[int] = field(default_factory=lambda: [])
+    inhibitory_branch_factors: list[int] = field(default_factory=list)
     ee_synapses_per_branch_per_layer: list[int] = field(default_factory=lambda: [24])
     ei_synapses_per_branch_per_layer: list[int] = field(default_factory=lambda: [200])
     ie_synapses_per_branch_per_layer: list[int] = field(default_factory=lambda: [1])
-    ii_synapses_per_branch_per_layer: list[int] = field(default_factory=lambda: [])
+    ii_synapses_per_branch_per_layer: list[int] = field(default_factory=list)
     reactivate: bool = True
     reactivation_init_m: float = 1.5
     reactivation_init_b: float = 0.5

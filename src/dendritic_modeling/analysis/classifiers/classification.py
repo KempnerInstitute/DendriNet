@@ -5,16 +5,16 @@ This module provides MLP classifiers and training utilities for analyzing
 neural network activations and performing classification tasks.
 """
 
+import json
 import logging
 import os
-import json
-from typing import Optional, Dict, Tuple
+from typing import Dict, Optional, Tuple
 
 import numpy as np
 import torch
 import torch.nn as nn
-from sklearn.model_selection import train_test_split
 from sklearn.metrics import accuracy_score
+from sklearn.model_selection import train_test_split
 from torch.optim import Adam
 from torch.utils.data import DataLoader, TensorDataset
 

@@ -10,6 +10,7 @@ import torch
 from dendritic_modeling.models.base import BaseModel
 from dendritic_modeling.networks.base import BaseNetwork
 
+
 class Regressor(BaseModel):
     """
     A standard regressor that returns continuous outputs;

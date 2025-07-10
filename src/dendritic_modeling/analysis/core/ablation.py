@@ -4,24 +4,25 @@ Ablation analysis module.
 This module contains classes for evaluating model performance by systematically
 disabling or ablating different network components to understand their contributions.
 """
-import os
 from copy import deepcopy
-from typing import Optional, Callable
+from typing import Callable, Optional
 
 import torch
 from torch.utils.data import TensorDataset
+
+from dendritic_modeling.config.analysis import AblationAnalysisParams
 from dendritic_modeling.models import BaseModel
 from dendritic_modeling.networks import ExcitationInhibitionNetwork
 from dendritic_modeling.networks.architectures import DendriticBranchLayer
-from dendritic_modeling.config.analysis import AblationAnalysisParams
 from dendritic_modeling.training.utils.evaluation import (
     evaluate_accuracy,
     evaluate_auc,
     evaluate_categorical_loglikelihood,
+    evaluate_cosine_similarity,
     evaluate_mse,
-    evaluate_cosine_similarity
 )
 from dendritic_modeling.utils import save_dict
+
 
 class AblationAnalyzer:
     def __init__(self, params: AblationAnalysisParams):
@@ -380,7 +381,9 @@ class AblationAnalyzer:
             save_dict(results, save_path, filename)
             if self.layer_ablation:
                 # Import plotting function
-                from dendritic_modeling.plotting.ablation_plots import plot_layer_ablation
+                from dendritic_modeling.plotting.ablation_plots import (
+                    plot_layer_ablation,
+                )
                 plot_layer_ablation(
                     layer_results=layer_results,
                     save_path=save_path,

@@ -6,50 +6,49 @@ dendritic, excitation-inhibition, and MLP-based models.
 """
 
 from dendritic_modeling.networks.architectures.classical import (
-    AlexNet,
-    CNNUpsample,
-    CNNDownsample,
     MLP,
+    AlexNet,
+    CNNDownsample,
+    CNNUpsample,
+    Identity,
     MatchedParamMLP,
-    Identity
 )
-
 from dendritic_modeling.networks.architectures.excitation_inhibition import (
+    BlockLinear,
+    DeepstLinear,
+    DendriNet,
+    DendriticBranchLayer,
     ExcitationInhibitionLayer,
     ExcitationInhibitionNetwork,
+    GradientScaler,
     IdentityInputTransform,
     IndexInputTransform,
-    TransferLayer,
-    TopKLinear,
     StochasticTopKLinear,
+    TopKLinear,
+    TransferLayer,
     VarianceTopKLinear,
-    DeepstLinear,
-    BlockLinear,
-    DendriticBranchLayer,
-    DendriNet,
-    GradientScaler,
-    initialize_dendritic_branch_layer
+    initialize_dendritic_branch_layer,
 )
 
 __all__ = [
-    "AlexNet",
-    "CNNUpsample",
-    "CNNDownsample",
     "MLP",
-    "MatchedParamMLP",
+    "AlexNet",
+    "BlockLinear",
+    "CNNDownsample",
+    "CNNUpsample",
+    "DeepstLinear",
+    "DendriNet",
+    "DendriticBranchLayer",
     "ExcitationInhibitionLayer",
     "ExcitationInhibitionNetwork",
+    "GradientScaler",
+    "Identity",
     "IdentityInputTransform",
     "IndexInputTransform",
-    "TransferLayer",
-    "TopKLinear",
+    "MatchedParamMLP",
     "StochasticTopKLinear",
+    "TopKLinear",
+    "TransferLayer",
     "VarianceTopKLinear",
-    "DeepstLinear",
-    "BlockLinear",
-    "DendriticBranchLayer",
-    "DendriNet",
-    "GradientScaler",
-    "initialize_dendritic_branch_layer",
-    "Identity"
+    "initialize_dendritic_branch_layer"
 ]

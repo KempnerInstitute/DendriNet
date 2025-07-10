@@ -7,16 +7,16 @@ They operate on *numpy arrays* or *PyTorch tensors*; tensors are detached
 and moved to CPU automatically.
 """
 
-from typing import Sequence
+from collections.abc import Sequence
 
 import numpy as np
 import torch
 
 __all__ = [
-    "orientation_selectivity_index",
     "direction_selectivity_index",
-    "size_tuning_index",
     "length_selectivity_index",
+    "orientation_selectivity_index",
+    "size_tuning_index",
 ]
 
 def _to_numpy(x):
