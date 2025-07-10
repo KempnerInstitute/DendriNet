@@ -6,7 +6,7 @@ This module provides comprehensive analysis tools for dendritic networks, includ
 
 Core Analysis:
 - Ablation studies
-- Branch activation analysis  
+- Branch activation analysis
 - Information-theoretic analysis
 
 Metrics:
@@ -28,37 +28,37 @@ Classifiers:
 from .core import (
     AblationAnalyzer,
     BranchActivationAnalyzer,
-    InformationAnalyzer
+    InformationAnalyzer,
 )
 
 # Metrics
 from .metrics import (
+    NoisePerturbationAnalyzer,
     PerformanceAnalyzer,
     SingleLayerContributionAnalyzer,
-    NoisePerturbationAnalyzer,
-    orientation_selectivity_index,
     direction_selectivity_index,
+    length_selectivity_index,
+    orientation_selectivity_index,
     size_tuning_index,
-    length_selectivity_index
 )
 
 # Tools
 from .tools import (
     CorrelationAnalyzer,
-    WeightAnalyzer,
     SynapticActivationAnalyzer,
-    SynapticTurnoverAnalyzer
+    SynapticTurnoverAnalyzer,
+    WeightAnalyzer,
 )
 
 # Classifiers
 from .classifiers import (
     MLPClassifier,
-    train_classifier,
-    evaluate_classifier,
-    get_layer_activations,
-    get_ablated_activations,
     analyze_layerwise_ablation,
-    train_and_evaluate_classifier
+    evaluate_classifier,
+    get_ablated_activations,
+    get_layer_activations,
+    train_and_evaluate_classifier,
+    train_classifier,
 )
 
 # Manager
@@ -67,29 +67,29 @@ from .managers.analysis_manager import AnalysisManager
 __all__ = [
     # Core
     "AblationAnalyzer",
+    # Manager
+    "AnalysisManager",
     "BranchActivationAnalyzer",
-    "InformationAnalyzer",
-    # Metrics
-    "PerformanceAnalyzer",
-    "SingleLayerContributionAnalyzer",
-    "NoisePerturbationAnalyzer",
-    "orientation_selectivity_index",
-    "direction_selectivity_index",
-    "size_tuning_index",
-    "length_selectivity_index",
     # Tools
     "CorrelationAnalyzer",
-    "WeightAnalyzer",
-    "SynapticActivationAnalyzer",
-    "SynapticTurnoverAnalyzer",
+    "InformationAnalyzer",
     # Classifiers
     "MLPClassifier",
-    "train_classifier",
-    "evaluate_classifier",
-    "get_layer_activations",
-    "get_ablated_activations",
+    # Metrics
+    "NoisePerturbationAnalyzer",
+    "PerformanceAnalyzer",
+    "SingleLayerContributionAnalyzer",
+    "SynapticActivationAnalyzer",
+    "SynapticTurnoverAnalyzer",
+    "WeightAnalyzer",
     "analyze_layerwise_ablation",
+    "direction_selectivity_index",
+    "evaluate_classifier",
+    "get_ablated_activations",
+    "get_layer_activations",
+    "length_selectivity_index",
+    "orientation_selectivity_index",
+    "size_tuning_index",
     "train_and_evaluate_classifier",
-    # Manager
-    "AnalysisManager"
+    "train_classifier",
 ] 
