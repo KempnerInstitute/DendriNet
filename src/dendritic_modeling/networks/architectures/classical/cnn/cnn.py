@@ -7,7 +7,7 @@ to transform inputs into excitatory and inhibitory pathways.
 
 import torch
 import torch.nn as nn
-from typing import , , Optional
+from typing import Optional
 
 from dendritic_modeling.networks.base import BaseNetwork
 from dendritic_modeling.networks.activations.factory import ActivationFactory

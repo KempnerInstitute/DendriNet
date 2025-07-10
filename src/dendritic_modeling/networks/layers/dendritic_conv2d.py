@@ -9,8 +9,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import numpy as np
-from typing import Optional, 
-
+from typing import Optional
 class DendriteConv2d(nn.Module):
     """
     Dendritic Convolution Layer with E/I balance and divisive normalization.

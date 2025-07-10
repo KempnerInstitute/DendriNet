@@ -5,7 +5,7 @@ This module contains training strategies that train network layers sequentially,
 either from soma to input or from input to soma.
 """
 
-from typing import  
+# typing imports removed - not needed  
 import torch
 
 from dendritic_modeling import logger
