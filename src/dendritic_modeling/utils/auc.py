@@ -134,7 +134,7 @@ def _multiclass_roc_auc_pytorch(
     if dim != -1:
         # Move dim to last position temporarily for shape calculation
         y_true_temp = y_true.moveaxis(dim, -1)
-        original_shape = y_true_temp.shape[:-1]
+        y_true_temp.shape[:-1]
     else:
         pass  # original_shape already set above
 

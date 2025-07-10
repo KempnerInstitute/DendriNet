@@ -36,10 +36,9 @@ class TestTopKLinear(unittest.TestCase):
         """Test with very small input data."""
         in_features = 1
         out_features = 1
-        K = 1
 
         # model = TopKLinear(in_features, out_features, K)  # Model creation for error testing
-        x = torch.randn(batch_size, in_features)
+        torch.randn(batch_size, in_features)
         # output = model(x)  # Output for error testing
 
         self.assertEqual(output.shape, (batch_size, out_features))
@@ -52,7 +51,7 @@ class TestTopKLinear(unittest.TestCase):
         K = 50
 
         # model = TopKLinear(in_features, out_features, K)  # Model creation for error testing
-        x = torch.randn(batch_size, in_features)
+        torch.randn(batch_size, in_features)
         # output = model(x)  # Output for error testing
 
         self.assertEqual(output.shape, (batch_size, out_features))
@@ -66,12 +65,10 @@ class TestTopKLinear(unittest.TestCase):
     def test_edge_cases_empty_input(self):
         """Test with empty input data."""
         in_features = 0
-        out_features = 0
-        K = 0
 
         with self.assertRaises(Exception):
             # model = TopKLinear(in_features, out_features, K)  # Model creation for error testing
-            x = torch.randn(batch_size, in_features)
+            torch.randn(batch_size, in_features)
             # output = model(x)  # Output for error testing
 
     def test_error_handling_negative_k(self):
@@ -86,18 +83,13 @@ class TestTopKLinear(unittest.TestCase):
     def test_error_handling_k_greater_than_in_features(self):
         """Test handling when K is greater than in_features."""
         in_features = 5
-        out_features = 3
-        K = 10
         with self.assertRaises(ValueError):
             # model = TopKLinear(in_features, out_features, K)  # Model creation for error testing
-            x = torch.randn(2, in_features)
+            torch.randn(2, in_features)
             # output = model(x)  # Output for error testing
 
     def test_error_handling_non_integer_k(self):
         """Test handling when K is non-integer."""
-        in_features = 10
-        out_features = 5
-        K = 2.5  # Non-integer K
         # Current implementation converts non-integer K to int
         # model = TopKLinear(in_features, out_features, K)  # Model creation for error testing
         # Verify that K was converted to integer
@@ -106,8 +98,6 @@ class TestTopKLinear(unittest.TestCase):
     def test_error_handling_incorrect_input_shape(self):
         """Test handling of incorrect input shapes."""
         in_features = 10
-        out_features = 5
-        K = 3
         # model = TopKLinear(in_features, out_features, K)  # Model creation for error testing
         x = torch.randn(4, in_features + 1)  # Incorrect input size
 

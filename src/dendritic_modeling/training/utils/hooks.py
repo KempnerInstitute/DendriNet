@@ -6,7 +6,7 @@ the "Backward hook for Modules where no input requires gradient" error.
 """
 
 import functools
-from typing import Callable, Optional, Tuple
+from typing import Callable, Optional
 
 import torch.nn as nn
 
@@ -121,7 +121,7 @@ def register_safe_hook(module: nn.Module, hook_fn: Callable) -> None:
     safe_hook = safe_backward_hook(hook_fn)
     module.register_full_backward_hook(safe_hook)
 
-def safe_hook_fn(module: nn.Module, grad_input: tuple, grad_output: tuple) -> Optional[Tuple]:
+def safe_hook_fn(module: nn.Module, grad_input: tuple, grad_output: tuple) -> Optional[tuple]:
     """
     Simple safe hook function that just returns grad_input unchanged.
 
