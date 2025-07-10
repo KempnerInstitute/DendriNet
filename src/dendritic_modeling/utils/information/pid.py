@@ -10,7 +10,7 @@ external dependency is available.
 from __future__ import annotations
 
 import logging
-from typing import  
+# typing imports removed - not needed  
 import numpy as np
 
 try:

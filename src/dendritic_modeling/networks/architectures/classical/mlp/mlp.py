@@ -3,7 +3,7 @@ Baseline MLP models.
 
 This module contains simple MLP implementations for baseline comparisons.
 """
-from typing import , Optional
+from typing import Optional
 from copy import deepcopy
 
 import torch
