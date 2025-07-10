@@ -6,12 +6,17 @@ during forward passes, providing detailed statistical analysis at multiple level
 """
 
 from typing import Optional
+
 import torch
-from dendritic_modeling.models import BaseModel
-from dendritic_modeling.networks import ExcitationInhibitionNetwork
-from dendritic_modeling.networks import DendriticBranchLayer
+
 from dendritic_modeling.config import BranchActivationAnalysisParams
+from dendritic_modeling.models import BaseModel
+from dendritic_modeling.networks import (
+    DendriticBranchLayer,
+    ExcitationInhibitionNetwork,
+)
 from dendritic_modeling.utils import save_dict
+
 
 class BranchActivationAnalyzer:
     """

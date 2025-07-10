@@ -3,6 +3,7 @@ from typing import Optional
 
 from dendritic_modeling.config.base import BaseConfig
 
+
 @dataclass
 class ParamGroupsConfig(BaseConfig):
     lr: float = 0.001

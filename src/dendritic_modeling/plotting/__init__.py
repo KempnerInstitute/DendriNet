@@ -13,84 +13,83 @@ Each module contains focused plotting functions for specific aspects of dendriti
 """
 
 # Import base classes and configuration
-from dendritic_modeling.plotting.base import (
-    PlotConfig,
-    BasePlotter,
-    LinePlotter,
-    BarPlotter,
-    BoxPlotter,
-    ComparisonPlotter
-)
-
 # Import analysis plotting classes and functions
 from dendritic_modeling.plotting.analysis import (
+    AblationPlotter,
+    ActivationPlotter,
+    InformationAnalysisPlotter,
     # Plotter classes
     LayerAnalysisPlotter,
-    AblationPlotter,
     NoiseAnalysisPlotter,
     WeightDistributionPlotter,
-    InformationAnalysisPlotter,
-    ActivationPlotter,
-    # Convenience functions
-    plot_layer_contributions,
-    plot_ablation_results,
-    plot_noise_robustness,
-    plot_weight_distributions,
-    plot_information_analysis,
-    plot_dendrinet_activations,
-    plot_einet_activations,
     # Helper functions
     dendrinet_activations_todict,
-    einet_activations_todict
+    einet_activations_todict,
+    plot_ablation_results,
+    plot_dendrinet_activations,
+    plot_einet_activations,
+    plot_information_analysis,
+    # Convenience functions
+    plot_layer_contributions,
+    plot_noise_robustness,
+    plot_weight_distributions,
 )
-
-# Import training plotting functions
-from dendritic_modeling.plotting.training import (
-    plot_loss_curves,
-    plot_ei_sweep_results,
-    plot_branch_sweep_results,
-    plot_noise_sweep_ei_results,
-    plot_noise_sweep_branch_results
+from dendritic_modeling.plotting.base import (
+    BarPlotter,
+    BasePlotter,
+    BoxPlotter,
+    ComparisonPlotter,
+    LinePlotter,
+    PlotConfig,
 )
 
 # Import network plotting functions
 from dendritic_modeling.plotting.network import (
+    add_colorbars,
+    dendrinet_gradients_todict,
+    dendrinet_params_todict,
+    einet_gradients_todict,
+    einet_params_todict,
+    plot_branch_gradients,
+    plot_branch_weights,
+    plot_dendrinet_gradients,
     plot_dendrinet_params,
     plot_einet_params,
-    plot_branch_weights,
-    plot_excitation_inhibition_weights,
-    visualize_dendritic_tree,
-    plot_dendrinet_gradients,
-    plot_branch_gradients,
     plot_excitation_inhibition_gradients,
+    plot_excitation_inhibition_weights,
     plotWithColor,
-    add_colorbars,
-    dendrinet_params_todict,
-    einet_params_todict,
-    dendrinet_gradients_todict,
-    einet_gradients_todict
+    visualize_dendritic_tree,
 )
 
 # Import basic plotting functions
 from dendritic_modeling.plotting.simple_plots import (
-    plotWithColor,
     add_colorbars,
-    shape_helper,
     plot_NLL_loss_curves,
+    plotWithColor,
+    shape_helper,
+)
+
+# Import training plotting functions
+from dendritic_modeling.plotting.training import (
+    plot_branch_sweep_results,
+    plot_ei_sweep_results,
+    plot_loss_curves,
+    plot_noise_sweep_branch_results,
+    plot_noise_sweep_ei_results,
 )
 
 # Import utility functions
 from dendritic_modeling.plotting.utils import (
-    reverse_layer_indices,
-    format_layer_labels,
+    build_dendritic_tree_graph,
     dendrinet_activations_to_csv,
     einet_activations_to_csv,
-    build_dendritic_tree_graph,
-    visualize_dendritic_tree,
+    format_layer_labels,
     plot_activation_tuning,
+    plot_depth_info,
     plot_voltage_before_activation,
+    reverse_layer_indices,
     split_MNIST_inputs,
-    plot_depth_info
+    visualize_dendritic_tree,
 )
 
 __all__ = [

@@ -4,8 +4,7 @@ Local learning training strategies.
 This module implements local learning approaches for training dendritic networks.
 """
 
-from typing import , 
-
+from typing import  
 import torch
 
 from dendritic_modeling import logger

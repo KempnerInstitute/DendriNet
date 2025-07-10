@@ -4,7 +4,6 @@ from __future__ import annotations
 layers so that the forward pass is (almost) equivalent.
 """
 
-from typing import Optional
 
 import torch
 from torch import nn

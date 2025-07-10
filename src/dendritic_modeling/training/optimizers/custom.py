@@ -9,6 +9,7 @@ from torch.optim import Optimizer
 
 from dendritic_modeling.models import BaseModel
 
+
 class CustomWeightDecayOptimizer:
     """
     Custom weight decay optimizer wrapper.

@@ -4,6 +4,7 @@ import torch
 
 from dendritic_modeling.networks import TopKLinear
 
+
 class TestTopKLinear(unittest.TestCase):
     # def test_basic_functionality(self):
     #     """Test the basic functionality with standard input data."""

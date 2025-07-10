@@ -9,33 +9,31 @@ This module tests all analysis functionality including:
 - Activation analysis
 """
 
-import unittest
 import tempfile
+import unittest
+from unittest.mock import patch
+
 import torch
-import numpy as np
-import os
-from unittest.mock import Mock, patch, MagicMock
 
 from dendritic_modeling.analysis import (
-    PerformanceAnalyzer,
     AblationAnalyzer,
-    InformationAnalyzer,
+    AnalysisManager,
     BranchActivationAnalyzer,
-    AnalysisManager
+    InformationAnalyzer,
+    PerformanceAnalyzer,
 )
-from dendritic_modeling.analysis.tools import (
-    SynapticActivationAnalyzer
-)
-from dendritic_modeling.networks import ExcitationInhibitionNetwork, Identity
-from dendritic_modeling.models import Classifier
+from dendritic_modeling.analysis.tools import SynapticActivationAnalyzer
 from dendritic_modeling.config import (
-    TransferFunctionParams,
-    PerformanceAnalysisParams,
     AblationAnalysisParams,
+    AnalysisConfig,
     BranchActivationAnalysisParams,
+    PerformanceAnalysisParams,
     SynapticActivationAnalysisParams,
-    AnalysisConfig
+    TransferFunctionParams,
 )
+from dendritic_modeling.models import Classifier
+from dendritic_modeling.networks import ExcitationInhibitionNetwork, Identity
+
 
 class TestPerformanceAnalyzer(unittest.TestCase):
     """Test the PerformanceAnalyzer class."""

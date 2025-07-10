@@ -3,6 +3,7 @@ from typing import Optional
 
 from dendritic_modeling.config.base import BaseConfig
 
+
 @dataclass
 class PerformanceAnalysisParams(BaseConfig):
     accuracy: bool = True

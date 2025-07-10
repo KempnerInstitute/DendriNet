@@ -7,6 +7,7 @@ various gradient-scaling strategies for BlockLinear or other modules.
 
 import functools
 
+
 def safe_hook(hook_fn):
     """
     Decorator for backward hooks to ensure they return None when no inputs require gradients.
@@ -214,7 +215,7 @@ class GradientScaler:
                     return scale_layer_input_gradients_elementwise(
                         module, grad_input, grad_output
                     )
-                except Exception as e:
+                except Exception:
                     # If there's any error in computing the scale, return the original gradients
                     return grad_input
 
@@ -224,7 +225,7 @@ class GradientScaler:
                     return scale_layer_gradients_scalar(
                         module, grad_input, grad_output, scale_val
                     )
-                except Exception as e:
+                except Exception:
                     # If there's any error in applying the scale, return the original gradients
                     return grad_input
 
@@ -239,7 +240,7 @@ class GradientScaler:
                     return scale_layer_param_gradients_elementwise(
                         grad, block_linear_layer.param_scale_vec, self.print_hooks
                     )
-                except Exception as e:
+                except Exception:
                     # If there's any error in applying the scale, return the original gradients
                     return grad
 
@@ -282,7 +283,7 @@ class GradientScaler:
                     return scale_layer_input_gradients_elementwise(
                         module, grad_input, grad_output
                     )
-                except Exception as e:
+                except Exception:
                     # If there's any error in computing the scale, return the original gradients
                     return grad_input
 
@@ -292,7 +293,7 @@ class GradientScaler:
                     return scale_layer_gradients_scalar(
                         module, grad_input, grad_output, scale_val
                     )
-                except Exception as e:
+                except Exception:
                     # If there's any error in applying the scale, return the original gradients
                     return grad_input
 
@@ -307,7 +308,7 @@ class GradientScaler:
                     return scale_layer_param_gradients_elementwise(
                         grad, topk_layer.param_scale_vec, self.print_hooks
                     )
-                except Exception as e:
+                except Exception:
                     # If there's any error in applying the scale, return the original gradients
                     return grad
 

@@ -1122,7 +1122,9 @@ def get_unified_datasets(task_cfg, train_cfg, output_dir=None, outputs_cfg=None)
         )
         return random_split(full_ds, [train_size, valid_size, test_size])
     elif dataset_name == "synthetic_correlated":
-        from dendritic_modeling.datasets.synthetic_correlated import SyntheticCorrelatedDataset
+        from dendritic_modeling.datasets.synthetic_correlated import (
+            SyntheticCorrelatedDataset,
+        )
         input_dim = p.get('input_dim', 300)
         correlation_range = (p.get('corr_min', -0.1), p.get('corr_max', 0.1))
         mean_magnitude = p.get('mean_magnitude', 0.5)

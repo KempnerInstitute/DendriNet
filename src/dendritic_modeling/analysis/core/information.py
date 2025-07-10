@@ -5,31 +5,31 @@ metrics using the multivariate methods from information.py. It integrates seamle
 with the main configuration system.
 """
 
-from typing import Optional, Any, Union
 import logging
 import os
 import traceback
+from typing import Any, Optional, Union
 
 import numpy as np
 import torch
+
+from dendritic_modeling.config import InformationAnalysisParams
 from dendritic_modeling.models import BaseModel
 from dendritic_modeling.networks import (
     DendriticBranchLayer,
-    ExcitationInhibitionNetwork
+    ExcitationInhibitionNetwork,
 )
-
-from dendritic_modeling.config import InformationAnalysisParams
+from dendritic_modeling.plotting.analysis import plot_information_analysis
+from dendritic_modeling.utils import save_dict
 from dendritic_modeling.utils.information.estimators import (
     EstimatorConfig,
-    InformationEstimatorFactory
+    InformationEstimatorFactory,
 )
 from dendritic_modeling.utils.information.pid import (
     check_pid_available,
-    pid_synergy_redundancy
+    pid_synergy_redundancy,
 )
 
-from dendritic_modeling.utils import save_dict
-from dendritic_modeling.plotting.analysis import plot_information_analysis
 
 class InformationAnalyzer:
     """Unified analyzer for computing information-theoretic metrics in dendritic networks.
@@ -289,7 +289,7 @@ class InformationAnalyzer:
     ) -> str:
         """Generate a summary string of the results."""
         summary_lines = [
-            f"Information Analysis Summary",
+            "Information Analysis Summary",
             f"Method: {results['method']}",
             f"Samples: {results['n_samples']}",
             ""

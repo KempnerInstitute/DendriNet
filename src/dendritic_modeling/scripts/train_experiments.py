@@ -26,6 +26,7 @@ from __future__ import annotations
 
 # Suppress TensorFlow warnings for cleaner output
 import os
+
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'  # Suppress TensorFlow INFO and WARNING messages
 os.environ['TF_ENABLE_ONEDNN_OPTS'] = '0'  # Disable oneDNN optimizations warnings
 
@@ -37,45 +38,36 @@ from datetime import datetime
 from typing import Optional
 
 import torch
+
 try:
     import torchinfo
     TORCHINFO_AVAILABLE = True
 except ImportError:
     TORCHINFO_AVAILABLE = False
     torchinfo = None
+import wandb
 from omegaconf import OmegaConf
 
-import wandb
-from dendritic_modeling import logger
-from dendritic_modeling import logger_manager
+from dendritic_modeling import logger, logger_manager
 from dendritic_modeling.analysis import AnalysisManager
+from dendritic_modeling.analysis.managers import PlotManager
 from dendritic_modeling.config import (
-    load_config,
     ModelConfig,
+    OutputsConfig,
+    TaskConfig,
     TrainConfig,
     VisualizationConfig,
-    OutputsConfig,
     WandbConfig,
-    TaskConfig
+    load_config,
 )
-from dendritic_modeling.training import (
-    CustomWeightDecayOptimizer,
-    get_trainer
-)
-from dendritic_modeling.models import (
-    BaseModel,
-    Classifier,
-    Regressor
-)
-from dendritic_modeling.networks import Identity
 from dendritic_modeling.datasets import get_unified_datasets
-from dendritic_modeling.utils import (
-    save_dict,
-    set_seed
-)
-from dendritic_modeling.analysis.managers import PlotManager
+from dendritic_modeling.models import BaseModel, Classifier, Regressor
+from dendritic_modeling.networks import Identity
 from dendritic_modeling.networks.architectures.factory import get_architecture
 from dendritic_modeling.scripts.train_encoder_network import load_train_encoder_network
+from dendritic_modeling.training import CustomWeightDecayOptimizer, get_trainer
+from dendritic_modeling.utils import save_dict, set_seed
+
 
 def initialize_model(model_config: ModelConfig):
     encoder_network_config = model_config.encoder_network

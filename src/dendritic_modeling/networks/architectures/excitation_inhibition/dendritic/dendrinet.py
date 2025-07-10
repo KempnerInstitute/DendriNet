@@ -5,11 +5,15 @@ This module implements the DendriNet and DendriNetWithOutputs classes
 which generate linear layers of neurons with sequential dendritic branches.
 """
 
-import torch
-import torch.nn as nn
 from copy import deepcopy
 
-from dendritic_modeling.networks.architectures.excitation_inhibition.dendritic.branch_layer import DendriticBranchLayer
+import torch
+import torch.nn as nn
+
+from dendritic_modeling.networks.architectures.excitation_inhibition.dendritic.branch_layer import (
+    DendriticBranchLayer,
+)
+
 
 class DendriNet(nn.Module):
     """

@@ -5,7 +5,7 @@ Training-related plotting functions.
 import os
 import matplotlib.pyplot as plt
 import pandas as pd
-from typing import , Optional
+from typing import Optional
 
 def plot_loss_curves(
     train_losses: list[float],

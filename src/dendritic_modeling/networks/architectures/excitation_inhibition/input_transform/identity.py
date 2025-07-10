@@ -4,9 +4,10 @@ Identity Input Transform for neural networks.
 This module implements IdentityInputTransform which returns the input as is.
 """
 
+import logging
+
 import torch
 import torch.nn as nn
-import logging
 
 logger = logging.getLogger(__name__)
 

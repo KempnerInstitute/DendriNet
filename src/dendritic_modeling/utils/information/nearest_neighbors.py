@@ -4,6 +4,7 @@ import numpy as np
 from scipy.special import digamma
 from sklearn.neighbors import KDTree, NearestNeighbors
 
+
 def compute_mi_cc(x: np.ndarray, y: np.ndarray, n_neighbors: int) -> float:
     """Compute mutual information between two continuous (potentially multivariate) variables.
 

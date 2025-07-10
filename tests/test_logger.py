@@ -1,7 +1,7 @@
 import unittest
-from unittest.mock import MagicMock, patch
 
 from dendritic_modeling import LoggerManager
+
 
 class TestLoggerManager(unittest.TestCase):
     def setUp(self):

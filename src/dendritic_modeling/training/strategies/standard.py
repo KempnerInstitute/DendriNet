@@ -8,8 +8,7 @@ for all training strategies in the dendritic modeling framework.
 import os
 import time
 from copy import deepcopy
-from typing import Optional, , 
-
+from typing import Optional
 import wandb
 
 import torch

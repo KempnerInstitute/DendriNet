@@ -15,6 +15,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 from torch.utils.data import DataLoader
 
+
 def record_branch_activations(model, dataset, batch_size: int = 64, device: str = "cpu") -> tuple[Dict, torch.Tensor]:
     """
     For a given DendriNetWithOutputs, forward the entire dataset and record
@@ -580,7 +581,7 @@ def analyze_dendritic_information(
                     else:
                         branch_activations.append(batch_acts)
             except Exception as e:
-                logging.error(f"Error in forward_with_branch_outputs: {str(e)}")
+                logging.error(f"Error in forward_with_branch_outputs: {e!s}")
                 logging.error(traceback.format_exc())
                 # Return placeholder results
                 placeholder_results = {
@@ -600,7 +601,6 @@ def analyze_dendritic_information(
     }
 
     # Import classification functions from the classification module to avoid circular imports
-    from .classification import MLPClassifier, train_classifier
 
     # Simple MLP classifier
     class BranchClassifier(nn.Module):
