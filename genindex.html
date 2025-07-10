@@ -55,11 +55,6 @@
 </ul>
 </li>
 <li class="toctree-l2"><a class="reference internal" href="installation.html#gpu-support">GPU Support</a></li>
-<li class="toctree-l2"><a class="reference internal" href="installation.html#platform-specific-notes">Platform-Specific Notes</a><ul>
-<li class="toctree-l3"><a class="reference internal" href="installation.html#macos-with-apple-silicon">macOS with Apple Silicon</a></li>
-<li class="toctree-l3"><a class="reference internal" href="installation.html#windows">Windows</a></li>
-</ul>
-</li>
 <li class="toctree-l2"><a class="reference internal" href="installation.html#cluster-installation">Cluster Installation</a></li>
 <li class="toctree-l2"><a class="reference internal" href="installation.html#verification">Verification</a><ul>
 <li class="toctree-l3"><a class="reference internal" href="installation.html#common-issues">Common Issues</a></li>
@@ -282,24 +277,30 @@
   <td style="width: 33%; vertical-align: top;"><ul>
       <li><a href="source/reference/glossary.html#term-ablation-study"><strong>ablation study</strong></a>
 </li>
-  </ul></td>
-  <td style="width: 33%; vertical-align: top;"><ul>
       <li><a href="source/reference/glossary.html#term-activation-function"><strong>activation function</strong></a>
 </li>
-      <li><a href="source/api/networks.html#dendritic_modeling.networks.ExcitationInhibitionNetwork.apply_rewiring">apply_rewiring() (dendritic_modeling.networks.ExcitationInhibitionNetwork method)</a>
+  </ul></td>
+  <td style="width: 33%; vertical-align: top;"><ul>
+      <li><a href="source/api/models.html#dendritic_modeling.models.BaseModel.apply_rewiring">apply_rewiring() (dendritic_modeling.models.BaseModel method)</a>
+
+      <ul>
+        <li><a href="source/api/networks.html#dendritic_modeling.networks.ExcitationInhibitionNetwork.apply_rewiring">(dendritic_modeling.networks.ExcitationInhibitionNetwork method)</a>
 </li>
+      </ul></li>
   </ul></td>
 </tr></table>
 
 <h2 id="B">B</h2>
 <table style="width: 100%" class="indextable genindextable"><tr>
   <td style="width: 33%; vertical-align: top;"><ul>
-      <li><a href="source/reference/glossary.html#term-block-conductance"><strong>block conductance</strong></a>
+      <li><a href="source/api/models.html#dendritic_modeling.models.BaseModel">BaseModel (class in dendritic_modeling.models)</a>
 </li>
-      <li><a href="source/reference/glossary.html#term-BlockLinear"><strong>BlockLinear</strong></a>
+      <li><a href="source/reference/glossary.html#term-block-conductance"><strong>block conductance</strong></a>
 </li>
   </ul></td>
   <td style="width: 33%; vertical-align: top;"><ul>
+      <li><a href="source/reference/glossary.html#term-BlockLinear"><strong>BlockLinear</strong></a>
+</li>
       <li><a href="source/reference/glossary.html#term-branch-factor"><strong>branch factor</strong></a>
 </li>
       <li><a href="source/api/networks.html#dendritic_modeling.networks.ExcitationInhibitionNetwork.branch_layers">branch_layers (dendritic_modeling.networks.ExcitationInhibitionNetwork property)</a>
@@ -322,8 +323,12 @@
 <h2 id="D">D</h2>
 <table style="width: 100%" class="indextable genindextable"><tr>
   <td style="width: 33%; vertical-align: top;"><ul>
-      <li><a href="source/api/networks.html#dendritic_modeling.networks.ExcitationInhibitionNetwork.decay_weights">decay_weights() (dendritic_modeling.networks.ExcitationInhibitionNetwork method)</a>
+      <li><a href="source/api/models.html#dendritic_modeling.models.BaseModel.decay_weights">decay_weights() (dendritic_modeling.models.BaseModel method)</a>
+
+      <ul>
+        <li><a href="source/api/networks.html#dendritic_modeling.networks.ExcitationInhibitionNetwork.decay_weights">(dendritic_modeling.networks.ExcitationInhibitionNetwork method)</a>
 </li>
+      </ul></li>
       <li><a href="source/reference/glossary.html#term-dendritic-branch"><strong>dendritic branch</strong></a>
 </li>
       <li><a href="source/reference/glossary.html#term-dendritic-computing"><strong>dendritic computing</strong></a>
@@ -333,6 +338,13 @@
 
       <ul>
         <li><a href="source/api/dendritic_modeling.html#module-dendritic_modeling.config">module</a>
+</li>
+      </ul></li>
+      <li>
+    dendritic_modeling.models
+
+      <ul>
+        <li><a href="source/api/dendritic_modeling.html#module-dendritic_modeling.models">module</a>
 </li>
       </ul></li>
   </ul></td>
@@ -380,13 +392,21 @@
 <h2 id="F">F</h2>
 <table style="width: 100%" class="indextable genindextable"><tr>
   <td style="width: 33%; vertical-align: top;"><ul>
-      <li><a href="source/api/networks.html#dendritic_modeling.networks.ExcitationInhibitionNetwork.forward">forward() (dendritic_modeling.networks.ExcitationInhibitionNetwork method)</a>
+      <li><a href="source/api/models.html#dendritic_modeling.models.BaseModel.forward">forward() (dendritic_modeling.models.BaseModel method)</a>
+
+      <ul>
+        <li><a href="source/api/networks.html#dendritic_modeling.networks.ExcitationInhibitionNetwork.forward">(dendritic_modeling.networks.ExcitationInhibitionNetwork method)</a>
 </li>
+      </ul></li>
   </ul></td>
 </tr></table>
 
 <h2 id="G">G</h2>
 <table style="width: 100%" class="indextable genindextable"><tr>
+  <td style="width: 33%; vertical-align: top;"><ul>
+      <li><a href="source/api/models.html#dendritic_modeling.models.BaseModel.get_param_groups">get_param_groups() (dendritic_modeling.models.BaseModel method)</a>
+</li>
+  </ul></td>
   <td style="width: 33%; vertical-align: top;"><ul>
       <li><a href="source/reference/glossary.html#term-gradient-scaling"><strong>gradient scaling</strong></a>
 </li>
@@ -426,6 +446,8 @@
       <ul>
         <li><a href="source/api/dendritic_modeling.html#module-dendritic_modeling.config">dendritic_modeling.config</a>
 </li>
+        <li><a href="source/api/dendritic_modeling.html#module-dendritic_modeling.models">dendritic_modeling.models</a>
+</li>
         <li><a href="source/api/dendritic_modeling.html#module-dendritic_modeling.networks">dendritic_modeling.networks</a>
 </li>
         <li><a href="source/api/networks.html#module-dendritic_modeling.networks.convert.cnn_to_dendrite">dendritic_modeling.networks.convert.cnn_to_dendrite</a>
@@ -452,6 +474,10 @@
 <table style="width: 100%" class="indextable genindextable"><tr>
   <td style="width: 33%; vertical-align: top;"><ul>
       <li><a href="source/reference/glossary.html#term-ParametricTanh"><strong>ParametricTanh</strong></a>
+</li>
+  </ul></td>
+  <td style="width: 33%; vertical-align: top;"><ul>
+      <li><a href="source/api/models.html#dendritic_modeling.models.BaseModel.predict">predict() (dendritic_modeling.models.BaseModel method)</a>
 </li>
   </ul></td>
 </tr></table>

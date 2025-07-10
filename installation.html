@@ -58,11 +58,6 @@
 </ul>
 </li>
 <li class="toctree-l2"><a class="reference internal" href="#gpu-support">GPU Support</a></li>
-<li class="toctree-l2"><a class="reference internal" href="#platform-specific-notes">Platform-Specific Notes</a><ul>
-<li class="toctree-l3"><a class="reference internal" href="#macos-with-apple-silicon">macOS with Apple Silicon</a></li>
-<li class="toctree-l3"><a class="reference internal" href="#windows">Windows</a></li>
-</ul>
-</li>
 <li class="toctree-l2"><a class="reference internal" href="#cluster-installation">Cluster Installation</a></li>
 <li class="toctree-l2"><a class="reference internal" href="#verification">Verification</a><ul>
 <li class="toctree-l3"><a class="reference internal" href="#common-issues">Common Issues</a></li>
@@ -323,21 +318,6 @@ pip<span class="w"> </span>install<span class="w"> </span>-e<span class="w"> </s
 <span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">pytorch-cuda=11.8</span><span class="w">  </span><span class="c1"># Change to your CUDA version</span>
 </pre></div>
 </div>
-</section>
-<section id="platform-specific-notes">
-<h2>Platform-Specific Notes<a class="headerlink" href="#platform-specific-notes" title="Link to this heading"></a></h2>
-<section id="macos-with-apple-silicon">
-<h3>macOS with Apple Silicon<a class="headerlink" href="#macos-with-apple-silicon" title="Link to this heading"></a></h3>
-<p>For M1/M2/M3 Macs, PyTorch will automatically use Metal Performance Shaders (MPS):</p>
-<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">import</span><span class="w"> </span><span class="nn">torch</span>
-<span class="nb">print</span><span class="p">(</span><span class="n">torch</span><span class="o">.</span><span class="n">backends</span><span class="o">.</span><span class="n">mps</span><span class="o">.</span><span class="n">is_available</span><span class="p">())</span>  <span class="c1"># Should print True</span>
-</pre></div>
-</div>
-</section>
-<section id="windows">
-<h3>Windows<a class="headerlink" href="#windows" title="Link to this heading"></a></h3>
-<p>On Windows, use Anaconda Prompt or PowerShell to run the installation commands.</p>
-</section>
 </section>
 <section id="cluster-installation">
 <h2>Cluster Installation<a class="headerlink" href="#cluster-installation" title="Link to this heading"></a></h2>
