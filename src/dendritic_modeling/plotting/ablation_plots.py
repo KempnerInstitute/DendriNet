@@ -4,7 +4,7 @@ Ablation analysis plotting utilities.
 This module contains plotting functions for visualizing ablation study results.
 """
 import os
-from typing import Optional
+from typing import Optional, Dict
 
 import matplotlib.pyplot as plt
 import numpy as np

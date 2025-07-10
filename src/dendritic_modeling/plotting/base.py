@@ -1,6 +1,6 @@
 import os
 from abc import ABC, abstractmethod
-from typing import Any, Optional, Union
+from typing import Any, Optional, Union, Dict
 
 import matplotlib.patches as mpatches
 import matplotlib.pyplot as plt
