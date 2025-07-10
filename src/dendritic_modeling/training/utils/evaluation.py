@@ -6,19 +6,15 @@ This module contains utility functions for evaluating model performance
 using various metrics including accuracy, log-likelihood, and MSE.
 """
 
-from typing import Optional, Union, Tuple
+from typing import Callable, Optional, Union
+
 import torch
-from torch.distributions import Categorical
 import torch.nn.functional as F
+from torch.distributions import Categorical
+
+from dendritic_modeling.models import Classifier, Regressor
 from dendritic_modeling.utils.auc import roc_auc_score
-
-from dendritic_modeling.models import (
-    Classifier,
-    Regressor
-)
 from dendritic_modeling.utils.data import save_dict
-
-from typing import Union, Callable
 
 
 def _compute_metric_score(
@@ -32,7 +28,7 @@ def _compute_metric_score(
 ) -> torch.Tensor:
     """
     Generic function to compute any metric score with common boilerplate.
-    
+
     Args:
         computation_func: Function that computes the specific metric
         model: The model (classifier or regressor)
@@ -41,7 +37,7 @@ def _compute_metric_score(
         reduce_dim: Dimension along which to compute mean
         move_device: Whether to move tensors to device
         device: Device to use for computation
-        
+
     Returns:
         Computed metric tensor
     """
@@ -58,7 +54,6 @@ def _compute_metric_score(
         nan_tensor = nan_tensor.to(inputs.device)
         return nan_tensor
 
-
 def _evaluate_metric_generic(
     metric_func: Callable,
     metric_name: str,
@@ -72,14 +67,14 @@ def _evaluate_metric_generic(
     save_path: Optional[str] = None,
     filename: Optional[str] = None,
     **metric_kwargs
-) -> Tuple[
-    Optional[Union[float, torch.Tensor]], 
-    Optional[Union[float, torch.Tensor]], 
+) -> tuple[
+    Optional[Union[float, torch.Tensor]],
+    Optional[Union[float, torch.Tensor]],
     Optional[Union[float, torch.Tensor]]
 ]:
     """
     Generic function to evaluate any metric on multiple datasets.
-    
+
     Args:
         metric_func: The metric function to call (e.g., accuracy_score, auc_score)
         metric_name: Name of the metric for saving (e.g., "accuracy", "auc")
@@ -93,17 +88,17 @@ def _evaluate_metric_generic(
         save_path: Path to save results (optional)
         filename: Filename for saved results (defaults to metric_name)
         **metric_kwargs: Additional keyword arguments for the metric function
-        
+
     Returns:
         Tuple of (train_metric, valid_metric, test_metric)
     """
     if filename is None:
         filename = metric_name
-    
+
     # Compute metric for each dataset
     datasets = [train_ds, valid_ds, test_ds]
     results = []
-    
+
     for dataset in datasets:
         if dataset is not None:
             result: torch.Tensor = metric_func(
@@ -140,16 +135,14 @@ def _evaluate_metric_generic(
 
     return train_metric, valid_metric, test_metric
 
-
 def _compute_accuracy(
-    classifier: Classifier, 
+    classifier: Classifier,
     inputs: torch.Tensor,
-    labels: torch.Tensor, 
+    labels: torch.Tensor,
     reduce_dim: int = 0
 ) -> torch.Tensor:
     yhat = classifier.predict(inputs)
     return torch.mean((yhat == labels).float(), dim=reduce_dim)
-
 
 def accuracy_score(
     classifier: Classifier,
@@ -161,7 +154,7 @@ def accuracy_score(
 ) -> torch.Tensor:
     """
     Compute accuracy score for a classifier.
-    
+
     Args:
         classifier: The classifier model
         inputs: Input tensor
@@ -169,7 +162,7 @@ def accuracy_score(
         reduce_dim: Dimension along which to compute mean
         move_device: Whether to move tensors to device
         device: Device to use for computation
-        
+
     Returns:
         Accuracy tensor
     """
@@ -178,7 +171,6 @@ def accuracy_score(
         inputs=inputs, labels=labels, reduce_dim=reduce_dim,
         move_device=move_device, device=device
     )
-
 
 def evaluate_accuracy(
     classifier: Classifier,
@@ -190,14 +182,14 @@ def evaluate_accuracy(
     device: str = "cuda" if torch.cuda.is_available() else "cpu",
     save_path: Optional[str] = None,
     filename: Optional[str] = "accuracy",
-) -> Tuple[
-    Optional[Union[float, torch.Tensor]], 
-    Optional[Union[float, torch.Tensor]], 
+) -> tuple[
+    Optional[Union[float, torch.Tensor]],
+    Optional[Union[float, torch.Tensor]],
     Optional[Union[float, torch.Tensor]]
 ]:
     """
     Evaluate accuracy on multiple datasets.
-    
+
     Args:
         classifier: The classifier model
         train_ds: Training dataset (optional)
@@ -208,7 +200,7 @@ def evaluate_accuracy(
         device: Device to use for computation
         save_path: Path to save results (optional)
         filename: Filename for saved results
-        
+
     Returns:
         Tuple of (train_acc, valid_acc, test_acc)
     """
@@ -219,15 +211,13 @@ def evaluate_accuracy(
         save_path=save_path, filename=filename
     )
 
-
 def _compute_auc(
-    classifier: Classifier, 
+    classifier: Classifier,
     inputs: torch.Tensor,
-    labels: torch.Tensor, 
+    labels: torch.Tensor,
     reduce_dim: int = 0
 ) -> torch.Tensor:
     return roc_auc_score(labels, classifier(inputs), dim=reduce_dim)
-
 
 def auc_score(
     classifier: Classifier,
@@ -239,7 +229,7 @@ def auc_score(
 ) -> torch.Tensor:
     """
     Compute AUC score for a classifier.
-    
+
     Args:
         classifier: The classifier model
         inputs: Input tensor
@@ -247,7 +237,7 @@ def auc_score(
         reduce_dim: Dimension along which to compute mean
         move_device: Whether to move tensors to device
         device: Device to use for computation
-        
+
     Returns:
         AUC tensor
     """
@@ -256,7 +246,6 @@ def auc_score(
         inputs=inputs, labels=labels, reduce_dim=reduce_dim,
         move_device=move_device, device=device
     )
-
 
 def evaluate_auc(
     classifier: Classifier,
@@ -268,14 +257,14 @@ def evaluate_auc(
     device: str = "cuda" if torch.cuda.is_available() else "cpu",
     save_path: Optional[str] = None,
     filename: Optional[str] = "auc",
-) -> Tuple[
-    Optional[Union[float, torch.Tensor]], 
-    Optional[Union[float, torch.Tensor]], 
+) -> tuple[
+    Optional[Union[float, torch.Tensor]],
+    Optional[Union[float, torch.Tensor]],
     Optional[Union[float, torch.Tensor]]
 ]:
     """
     Evaluate AUC on multiple datasets.
-    
+
     Args:
         classifier: The classifier model
         train_ds: Training dataset (optional)
@@ -286,7 +275,7 @@ def evaluate_auc(
         device: Device to use for computation
         save_path: Path to save results (optional)
         filename: Filename for saved results
-        
+
     Returns:
         Tuple of (train_auc, valid_auc, test_auc)
     """
@@ -297,18 +286,16 @@ def evaluate_auc(
         save_path=save_path, filename=filename
     )
 
-
 def _compute_loglikelihood(
-    classifier: Classifier, 
+    classifier: Classifier,
     inputs: torch.Tensor,
-    labels: torch.Tensor, 
+    labels: torch.Tensor,
     reduce_dim: int = 0
 ) -> torch.Tensor:
     return torch.mean(
         Categorical(logits=classifier(inputs)).log_prob(labels),
         dim=reduce_dim
     )
-    
 
 def categorical_loglikelihood_score(
     classifier: Classifier,
@@ -320,7 +307,7 @@ def categorical_loglikelihood_score(
 ) -> torch.Tensor:
     """
     Compute categorical log-likelihood score for a classifier.
-    
+
     Args:
         classifier: The classifier model
         inputs: Input tensor
@@ -328,7 +315,7 @@ def categorical_loglikelihood_score(
         reduce_dim: Dimension along which to compute mean
         move_device: Whether to move tensors to device
         device: Device to use for computation
-        
+
     Returns:
         Log-likelihood tensor
     """
@@ -337,7 +324,6 @@ def categorical_loglikelihood_score(
         inputs=inputs, labels=labels, reduce_dim=reduce_dim,
         move_device=move_device, device=device
     )
-
 
 def evaluate_categorical_loglikelihood(
     classifier: Classifier,
@@ -349,14 +335,14 @@ def evaluate_categorical_loglikelihood(
     device: str = "cuda" if torch.cuda.is_available() else "cpu",
     save_path: Optional[str] = None,
     filename: Optional[str] = "loglikelihood",
-) -> Tuple[
-    Optional[Union[float, torch.Tensor]], 
-    Optional[Union[float, torch.Tensor]], 
+) -> tuple[
+    Optional[Union[float, torch.Tensor]],
+    Optional[Union[float, torch.Tensor]],
     Optional[Union[float, torch.Tensor]]
 ]:
     """
     Evaluate categorical log-likelihood on multiple datasets.
-    
+
     Args:
         classifier: The classifier model
         train_ds: Training dataset (optional)
@@ -367,7 +353,7 @@ def evaluate_categorical_loglikelihood(
         device: Device to use for computation
         save_path: Path to save results (optional)
         filename: Filename for saved results
-        
+
     Returns:
         Tuple of (train_ll, valid_ll, test_ll)
     """
@@ -378,15 +364,13 @@ def evaluate_categorical_loglikelihood(
         save_path=save_path, filename=filename
     )
 
-
 def _compute_mse(
-    regressor: Regressor, 
+    regressor: Regressor,
     inputs: torch.Tensor,
-    labels: torch.Tensor, 
+    labels: torch.Tensor,
     reduce_dim: int = 0
 ) -> torch.Tensor:
     return torch.mean((regressor.predict(inputs) - labels) ** 2, dim=reduce_dim)
-    
 
 def mse_score(
     regressor: Regressor,
@@ -398,7 +382,7 @@ def mse_score(
 ) -> torch.Tensor:
     """
     Compute mean squared error score for a regressor.
-    
+
     Args:
         regressor: The regressor model
         inputs: Input tensor
@@ -406,7 +390,7 @@ def mse_score(
         reduce_dim: Dimension along which to compute mean (not used in current implementation)
         move_device: Whether to move tensors to device
         device: Device to use for computation
-        
+
     Returns:
         MSE tensor
     """
@@ -426,14 +410,14 @@ def evaluate_mse(
     device: str = "cuda" if torch.cuda.is_available() else "cpu",
     save_path: Optional[str] = None,
     filename: Optional[str] = "mse",
-) -> Tuple[
-    Optional[Union[float, torch.Tensor]], 
-    Optional[Union[float, torch.Tensor]], 
+) -> tuple[
+    Optional[Union[float, torch.Tensor]],
+    Optional[Union[float, torch.Tensor]],
     Optional[Union[float, torch.Tensor]]
 ]:
     """
     Evaluate mean squared error on multiple datasets.
-    
+
     Args:
         regressor: The regressor model
         train_ds: Training dataset (optional)
@@ -444,7 +428,7 @@ def evaluate_mse(
         device: Device to use for computation
         save_path: Path to save results (optional)
         filename: Filename for saved results
-        
+
     Returns:
         Tuple of (train_mse, valid_mse, test_mse)
     """
@@ -455,18 +439,16 @@ def evaluate_mse(
         save_path=save_path, filename=filename
     )
 
-
 def _compute_cosine_similarity(
-    regressor: Regressor, 
+    regressor: Regressor,
     inputs: torch.Tensor,
-    labels: torch.Tensor, 
+    labels: torch.Tensor,
     reduce_dim: int = 0
 ) -> torch.Tensor:
     return torch.mean(
         F.cosine_similarity(regressor.predict(inputs), labels, dim=-1),
         dim=reduce_dim
     )
-    
 
 def cosine_similarity_score(
     regressor: Regressor,
@@ -478,7 +460,7 @@ def cosine_similarity_score(
 ) -> torch.Tensor:
     """
     Compute cosine similarity score for a regressor.
-    
+
     Args:
         regressor: The regressor model
         inputs: Input tensor
@@ -486,7 +468,7 @@ def cosine_similarity_score(
         reduce_dim: Dimension along which to compute mean (not used in current implementation)
         move_device: Whether to move tensors to device
         device: Device to use for computation
-        
+
     Returns:
         Cosine similarity tensor
     """
@@ -495,7 +477,6 @@ def cosine_similarity_score(
         inputs=inputs, labels=labels, reduce_dim=reduce_dim,
         move_device=move_device, device=device
     )
-
 
 def evaluate_cosine_similarity(
     regressor: Regressor,
@@ -507,14 +488,14 @@ def evaluate_cosine_similarity(
     device: str = "cuda" if torch.cuda.is_available() else "cpu",
     save_path: Optional[str] = None,
     filename: Optional[str] = "cosine_similarity",
-) -> Tuple[
-    Optional[Union[float, torch.Tensor]], 
-    Optional[Union[float, torch.Tensor]], 
+) -> tuple[
+    Optional[Union[float, torch.Tensor]],
+    Optional[Union[float, torch.Tensor]],
     Optional[Union[float, torch.Tensor]]
 ]:
     """
     Evaluate cosine similarity on multiple datasets.
-    
+
     Args:
         regressor: The regressor model
         train_ds: Training dataset (optional)
@@ -525,7 +506,7 @@ def evaluate_cosine_similarity(
         device: Device to use for computation
         save_path: Path to save results (optional)
         filename: Filename for saved results
-        
+
     Returns:
         Tuple of (train_cosine_similarity, valid_cosine_similarity, test_cosine_similarity)
     """

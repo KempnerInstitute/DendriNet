@@ -5,11 +5,14 @@ This module implements the ExcitationInhibitionLayer which models
 excitatory and inhibitory cell populations.
 """
 
+from typing import Optional
+
 import torch
 import torch.nn as nn
-from typing import Optional, Tuple
 
-from dendritic_modeling.networks.architectures.excitation_inhibition.dendritic.dendrinet import DendriNet
+from dendritic_modeling.networks.architectures.excitation_inhibition.dendritic.dendrinet import (
+    DendriNet,
+)
 
 
 class ExcitationInhibitionLayer(nn.Module):
@@ -137,7 +140,7 @@ class ExcitationInhibitionLayer(nn.Module):
         self,
         excitatory_x: torch.Tensor,
         inhibitory_x: Optional[torch.Tensor] = None,
-    ) -> Tuple[torch.Tensor, torch.Tensor]:
+    ) -> tuple[torch.Tensor, torch.Tensor]:
         """
         x: shape [batch, excitatory_input_dim]
         inhibitory_input: shape [batch, inhibitory_input_dim], or None
@@ -151,5 +154,4 @@ class ExcitationInhibitionLayer(nn.Module):
 
         return excitatory_x, inhibitory_x
 
-
-__all__ = ["ExcitationInhibitionLayer"] 
+__all__ = ["ExcitationInhibitionLayer"]

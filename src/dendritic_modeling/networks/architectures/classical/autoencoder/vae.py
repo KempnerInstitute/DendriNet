@@ -1,17 +1,18 @@
+from copy import deepcopy
+
 import torch
 import torch.nn as nn
 from torch.distributions import Normal
 
-from copy import deepcopy
-from typing import Tuple, List
-
-from dendritic_modeling.networks.base import BaseNetwork
+from dendritic_modeling.networks.architectures.classical.autoencoder.base import (
+    BaseAutoencoder,
+)
 from dendritic_modeling.networks.architectures.classical.cnn.cnn import (
     CNNDownsample,
-    CNNUpsample
+    CNNUpsample,
 )
 from dendritic_modeling.networks.architectures.classical.mlp.mlp import MLP
-from dendritic_modeling.networks.architectures.classical.autoencoder.base import BaseAutoencoder
+from dendritic_modeling.networks.base import BaseNetwork
 
 
 class VariationalEncoder(BaseNetwork):
@@ -35,11 +36,11 @@ class VariationalEncoder(BaseNetwork):
         self.fc_std = nn.Sequential(*fc_std)
 
         self.output_dim = latent_dim
-    
+
     def latent_distribution(
-        self, 
+        self,
         x: torch.Tensor
-    ) -> Tuple[torch.Tensor, torch.Tensor]:
+    ) -> tuple[torch.Tensor, torch.Tensor]:
         x = self.net(x)
         z_mu = self.fc_mean(x)
         z_sigma = self.fc_std(x)
@@ -50,20 +51,18 @@ class VariationalEncoder(BaseNetwork):
         z = torch.sigmoid(Normal(z_mu, z_sigma).sample())
         return z
 
-
 class BaseVariationalAutoencoder(BaseAutoencoder):
     def __init__(self):
         super().__init__()
         self.encoder: VariationalEncoder
-    
 
 class MLPVariationalAutoencoder(BaseVariationalAutoencoder):
     def __init__(
         self,
         input_dim: int,
-        encoder_hidden_dims: List[int],
+        encoder_hidden_dims: list[int],
         latent_dim: int,
-        decoder_hidden_dims: List[int],
+        decoder_hidden_dims: list[int],
         activation: str = "relu",
         **kwargs
     ):
@@ -85,12 +84,11 @@ class MLPVariationalAutoencoder(BaseVariationalAutoencoder):
         )
 
         self.output_dim = latent_dim
-    
+
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         z = self.encoder(x)
         x_reconstructed = self.decoder(z)
         return x_reconstructed
-
 
 class CNNVariationalEncoder(BaseNetwork):
     def __init__(
@@ -115,7 +113,7 @@ class CNNVariationalEncoder(BaseNetwork):
             stride=1,
             padding=0
         )
-        
+
         self.conv_std = nn.Sequential(
             nn.Conv2d(
                 in_channels=net_c,
@@ -131,9 +129,9 @@ class CNNVariationalEncoder(BaseNetwork):
         self.output_dim = net_c * net_h * net_w
 
     def latent_distribution(
-        self, 
+        self,
         x: torch.Tensor
-    ) -> Tuple[torch.Tensor, torch.Tensor]:
+    ) -> tuple[torch.Tensor, torch.Tensor]:
         """Return mean and std tensors for the latent distribution."""
         x = self.net(x)
         z_mu = self.conv_mean(x)
@@ -148,7 +146,6 @@ class CNNVariationalEncoder(BaseNetwork):
             z = torch.flatten(z, start_dim=-3)
         return z
 
-
 class CNNVariationalAutoencoder(BaseVariationalAutoencoder):
     """
     CNN Variational Autoencoder that maintains spatial structure in the latent space.
@@ -156,17 +153,17 @@ class CNNVariationalAutoencoder(BaseVariationalAutoencoder):
     """
     def __init__(
         self,
-        input_shape: Tuple[int, int, int],
-        encoder_hidden_dims: List[int],
-        latent_shape: Tuple[int, int, int],
-        decoder_hidden_dims: List[int],
+        input_shape: tuple[int, int, int],
+        encoder_hidden_dims: list[int],
+        latent_shape: tuple[int, int, int],
+        decoder_hidden_dims: list[int],
         activation: str = "relu",
         **kwargs
     ):
         super().__init__()
         encoder_hidden_dims = deepcopy(encoder_hidden_dims)
         encoder_hidden_dims.append(latent_shape[0])
-        
+
         # Calculate downsampling parameters from input_shape to latent_shape
         kernel_sizes, strides = self._calculate_downsample_params(
             input_shape, latent_shape, len(encoder_hidden_dims)
@@ -190,62 +187,62 @@ class CNNVariationalAutoencoder(BaseVariationalAutoencoder):
             )
 
         self.encoder = CNNVariationalEncoder(encoder_net)
-        
+
         self.decoder = CNNUpsample(
             input_shape=encoder_net.output_shape,
             target_shape=input_shape,
             hidden_dims=decoder_hidden_dims,
             activation=activation
         )
-        
+
         self.output_shape = input_shape
         self.output_dim = 1
         for size in input_shape:
             self.output_dim *= size
-    
+
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         z = self.encoder(x, flatten=False)
         x_reconstructed = self.decoder(z)
         return x_reconstructed
 
     def _calculate_downsample_params(
-        self, 
-        input_shape: Tuple[int, int, int], 
-        latent_shape: Tuple[int, int, int], 
+        self,
+        input_shape: tuple[int, int, int],
+        latent_shape: tuple[int, int, int],
         num_layers: int
-    ) -> Tuple[List[int], List[int]]:
+    ) -> tuple[list[int], list[int]]:
         """Calculate convolution parameters to downsample from input_shape to latent_shape.
-        
+
         Note: CNNDownsample uses padding=0, so we work with that constraint.
         Formula: output_size = (input_size - kernel_size) // stride + 1
         """
-        
+
         input_c, input_h, input_w = input_shape
         latent_c, latent_h, latent_w = latent_shape
-        
+
         if input_h != input_w or latent_h != latent_w:
             raise ValueError("Currently only supports square spatial dimensions")
-        
+
         if input_h < latent_h:
             raise ValueError("Input spatial size must be >= latent spatial size")
-        
+
         if input_h == latent_h:
             # No downsampling needed spatially, just use 1x1 convs
             kernels = [1] * num_layers
             strides = [1] * num_layers
             return kernels, strides
-        
+
         # Calculate the total downsampling factor needed
-        total_downsample_factor = input_h / latent_h
-        
+        input_h / latent_h
+
         # Distribute downsampling across layers
         # Try to use stride=2 as much as possible, then adjust for remaining factor
         kernels = []
         strides = []
-        
+
         current_size = input_h
         remaining_layers = num_layers
-        
+
         for i in range(num_layers):
             if i == num_layers - 1:
                 # Last layer - must reach exact target
@@ -259,11 +256,11 @@ class CNNVariationalAutoencoder(BaseVariationalAutoencoder):
                     remaining_factor = current_size / latent_h
                     per_layer_factor = remaining_factor ** (1.0 / remaining_layers)
                     target_size = max(latent_h, int(current_size / per_layer_factor))
-            
+
             # Find kernel_size and stride that work
             # Formula: target_size = (current_size - kernel_size) // stride + 1
             # Rearranged: kernel_size = current_size - stride * (target_size - 1)
-            
+
             if target_size == current_size:
                 # No spatial change needed
                 kernel = 1
@@ -272,7 +269,7 @@ class CNNVariationalAutoencoder(BaseVariationalAutoencoder):
                 # Try common stride values
                 best_kernel = None
                 best_stride = None
-                
+
                 for test_stride in [2, 3, 4, 5, 8]:
                     test_kernel = current_size - test_stride * (target_size - 1)
                     if test_kernel >= 1 and test_kernel <= current_size:
@@ -282,7 +279,7 @@ class CNNVariationalAutoencoder(BaseVariationalAutoencoder):
                             best_kernel = test_kernel
                             best_stride = test_stride
                             break
-                
+
                 if best_kernel is None:
                     # Fallback: use simple approach
                     stride = max(1, current_size // target_size)
@@ -291,12 +288,12 @@ class CNNVariationalAutoencoder(BaseVariationalAutoencoder):
                 else:
                     kernel = best_kernel
                     stride = best_stride
-            
+
             kernels.append(kernel)
             strides.append(stride)
-            
+
             # Update current size for next iteration
             current_size = (current_size - kernel) // stride + 1
             remaining_layers -= 1
-        
+
         return kernels, strides

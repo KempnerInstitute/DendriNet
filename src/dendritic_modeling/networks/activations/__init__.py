@@ -8,21 +8,21 @@ to build the desired activation function from config.
 from dendritic_modeling.networks.activations.factory import ActivationFactory
 from dendritic_modeling.networks.activations.parametric import (
     ParametricActivation,
-    ParametricTanh,
-    ParametricTanhOnlyM,
     ParametricLinearSigmoid,
     ParametricLinearTanh,
     ParametricLinearTanhTransition,
+    ParametricTanh,
+    ParametricTanhOnlyM,
 )
 
 __all__ = [
     # Factory
-    "ActivationFactory",
+    "ActivationFactory"
     # Parametric activations
-    "ParametricActivation",
-    "ParametricTanh",
-    "ParametricTanhOnlyM",
-    "ParametricLinearSigmoid",
-    "ParametricLinearTanh",
+    "ParametricActivation"
+    "ParametricLinearSigmoid"
+    "ParametricLinearTanh"
     "ParametricLinearTanhTransition"
-] 
+    "ParametricTanh"
+    "ParametricTanhOnlyM"
+]

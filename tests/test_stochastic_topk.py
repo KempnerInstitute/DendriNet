@@ -13,7 +13,6 @@ class TestStochasticTopKLinear(unittest.TestCase):
         in_features = 100
         out_features = 10
         K = 5
-        batch_size = 8
 
         # Create model with moderate temperature
         model = StochasticTopKLinear(
@@ -26,8 +25,8 @@ class TestStochasticTopKLinear(unittest.TestCase):
         model.initialize()
 
         # Test forward pass
-        x = torch.randn(batch_size, in_features)
-        output = model(x)
+        torch.randn(batch_size, in_features)
+        # output = model(x)  # Output for error testing
 
         # Check output shape
         self.assertEqual(output.shape, (batch_size, out_features))
@@ -54,7 +53,6 @@ class TestStochasticTopKLinear(unittest.TestCase):
         in_features = 100
         out_features = 10
         K = 5
-        batch_size = 8
 
         # Create model with ultrafast enabled
         model = StochasticTopKLinear(
@@ -67,8 +65,8 @@ class TestStochasticTopKLinear(unittest.TestCase):
         model.initialize()
 
         # Test forward pass
-        x = torch.randn(batch_size, in_features)
-        output = model(x)
+        torch.randn(batch_size, in_features)
+        # output = model(x)  # Output for error testing
 
         # Check output shape
         self.assertEqual(output.shape, (batch_size, out_features))
@@ -91,7 +89,7 @@ class TestStochasticTopKLinear(unittest.TestCase):
         in_features = 100
         out_features = 10
         K = 5
-        batch_size = 8
+
         torch.manual_seed(42)  # For reproducibility
 
         # Create models with different temperatures
@@ -135,7 +133,6 @@ class TestStochasticTopKLinear(unittest.TestCase):
         in_features = 50
         out_features = 5
         K = 10
-        batch_size = 4
 
         # Create model
         model = StochasticTopKLinear(
@@ -151,7 +148,7 @@ class TestStochasticTopKLinear(unittest.TestCase):
         x = torch.randn(batch_size, in_features, requires_grad=True)
 
         # Forward pass
-        output = model(x)
+        # output = model(x)  # Output for error testing
 
         # Create a loss and backpropagate
         loss = output.sum()
@@ -165,7 +162,6 @@ class TestStochasticTopKLinear(unittest.TestCase):
         self.assertTrue(torch.any(model.pre_w.grad != 0))
         self.assertTrue(torch.any(x.grad != 0))
 
-
 class TestVarianceTopKLinear(unittest.TestCase):
     """Test cases for the VarianceTopKLinear class."""
 
@@ -174,7 +170,6 @@ class TestVarianceTopKLinear(unittest.TestCase):
         in_features = 100
         out_features = 10
         K = 5
-        batch_size = 8
 
         # Create model
         model = VarianceTopKLinear(
@@ -184,8 +179,8 @@ class TestVarianceTopKLinear(unittest.TestCase):
 
         # Test forward pass with multiple batches to build statistics
         for _ in range(5):
-            x = torch.randn(batch_size, in_features)
-            output = model(x)
+            torch.randn(batch_size, in_features)
+            # output = model(x)  # Output for error testing
 
         # Check output shape of the last run
         self.assertEqual(output.shape, (batch_size, out_features))
@@ -205,7 +200,6 @@ class TestVarianceTopKLinear(unittest.TestCase):
         in_features = 100
         out_features = 10
         K = 5
-        batch_size = 8
 
         # Create model
         model = VarianceTopKLinear(
@@ -233,7 +227,6 @@ class TestVarianceTopKLinear(unittest.TestCase):
         in_features = 20
         out_features = 5
         K = 4
-        batch_size = 10
 
         # Create model
         model = VarianceTopKLinear(
@@ -260,7 +253,6 @@ class TestVarianceTopKLinear(unittest.TestCase):
 
         # More connections should go to high-variance inputs
         self.assertGreater(high_var_connections, low_var_connections)
-
 
 if __name__ == "__main__":
     unittest.main(argv=[""], exit=False)

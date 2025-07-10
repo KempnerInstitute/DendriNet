@@ -13,7 +13,6 @@ class ParamGroupsConfig(BaseConfig):
     reactivation_lr: float = 0.0001
     decoder_lr: float = 0.0001
 
-
 @dataclass
 class TrainerConfig(BaseConfig):
     loss_function: str = "mse"
@@ -37,13 +36,11 @@ class TrainerConfig(BaseConfig):
     epochs_per_branch: int = 50
     final_tune_epochs: int = 10
 
-
 @dataclass
 class EncoderTrainConfig(BaseConfig):
     load_save_root: Optional[str] = None
     lr: float = 0.001
     trainer: TrainerConfig = field(default_factory=TrainerConfig)
-
 
 @dataclass
 class MainTrainConfig(BaseConfig):
@@ -51,7 +48,6 @@ class MainTrainConfig(BaseConfig):
     weight_decay_rate: float = 0.01
     param_groups: ParamGroupsConfig = field(default_factory=ParamGroupsConfig)
     trainer: TrainerConfig = field(default_factory=TrainerConfig)
-
 
 @dataclass
 class TrainConfig(BaseConfig):

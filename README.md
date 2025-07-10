@@ -30,35 +30,67 @@ The Dendritic Modeling Framework provides a complete toolkit for building and an
 - **Comprehensive Analysis Suite**: Information-theoretic, correlation, ablation, and visualization tools
 - **Extensive Dataset Support**: Vision, synthetic, biological, and custom datasets with various preprocessing options
 
-## Quick Start
+## Installation
 
-### Installation
+### Prerequisites
+- Anaconda or Miniconda
+- Git
+
+### Quick Setup
 
 ```bash
-# Create conda environment
+# 1. Clone the repository
+git clone https://github.com/KempnerInstitute/dendritic-modeling.git
+cd dendritic-modeling
+
+# 2. Create conda environment
 conda env create -f environment.yml
 conda activate dendritic_env
 
-# Install the package in development mode
+# 3. Install the package
 pip install -e .
 ```
 
-### Basic Usage
+That's it! The framework is now ready to use.
+
+## Quick Start
+
+### Run Your First Experiment
 
 ```bash
-# Run a simple EINet experiment
+# Run a simple experiment with the example configuration
 python src/dendritic_modeling/scripts/train_experiments.py configs/config_exp.yaml
+```
 
-# Run with custom parameters
+This will train an EINet model on MNIST with default settings. Results will be saved in the `results/` directory.
+
+### Customize Your Experiment
+
+```bash
+# Run with different training strategy
 python src/dendritic_modeling/scripts/train_experiments.py configs/config_exp.yaml \
     --learning_strategy two_step \
     --output_dir ./my_results \
-    --run_name einet_experiment
+    --run_name my_experiment
+
+# Use a different configuration file
+python src/dendritic_modeling/scripts/train_experiments.py configs/ei_network_info_analysis_quickstart.yaml
 ```
+
+### Understanding Results
+
+After training, you'll find:
+- Model checkpoints in `results/[experiment_name]/checkpoints/`
+- Training logs and metrics in `results/[experiment_name]/logs/`
+- Visualizations in `results/[experiment_name]/figures/`
+
+For a detailed walkthrough, see the [documentation](docs/tutorials.rst).
 
 ## Network Architectures
 
 ### EINet (Excitation-Inhibition Networks)
+
+![EINet Architecture](docs/figures/architecture/network_architecture.png)
 
 The primary architecture featuring separate excitatory and inhibitory pathways with dendritic computation.
 
@@ -86,7 +118,11 @@ model:
 - `use_shunting: true`: V = E/(E+I+1) (biologically plausible divisive inhibition)
 - `use_shunting: false`: V = E-I (simple subtraction)
 
+![Shunting Inhibition](docs/figures/architecture/shunting_inhibition_mechanism.png)
+
 ### DendriNet (Pure Dendritic Networks)
+
+![Dendritic Neuron](docs/figures/architecture/dendritic_neuron_schematic.png)
 
 Multi-level branching networks with hierarchical dendritic processing.
 
@@ -121,6 +157,8 @@ For baseline comparisons and hybrid architectures:
 ### TopK Synapse Selection
 
 Controls which synapses are active based on weight ranking.
+
+![Sparse Connectivity Pattern](docs/figures/architecture/sparse_connectivity.png)
 
 ```yaml
 parameters:

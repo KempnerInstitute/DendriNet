@@ -1,9 +1,9 @@
 """Analysis managers module."""
 
-from .plot_manager import PlotManager
 from .analysis_manager import AnalysisManager
+from .plot_manager import PlotManager
 
 __all__ = [
-    "PlotManager",
     "AnalysisManager"
+    "PlotManager"
 ]

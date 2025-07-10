@@ -10,8 +10,8 @@ external dependency is available.
 from __future__ import annotations
 
 import logging
-from typing import List, Tuple
 
+# typing imports removed - not needed
 import numpy as np
 
 try:
@@ -25,7 +25,6 @@ except Exception as e:  # pragma: no cover - best effort
 else:
     _import_error = None
 
-
 def check_pid_available() -> None:
     """Raise an ImportError if the PID package is not available."""
 
@@ -35,10 +34,9 @@ def check_pid_available() -> None:
             "available in the 'external' directory."
         ) from _import_error
 
-
 def pid_synergy_redundancy(
-    sources: List[np.ndarray], target: np.ndarray
-) -> Tuple[float, float]:
+    sources: list[np.ndarray], target: np.ndarray
+) -> tuple[float, float]:
     """Compute synergy and redundancy using the external PID library.
 
     Parameters
@@ -59,7 +57,7 @@ def pid_synergy_redundancy(
     # The exact API will depend on the external library.  Here we
     # demonstrate a generic usage pattern expected from typical PID
     # implementations.
-    data = np.hstack(sources + [target])
+    data = np.hstack([*sources, target])
     pid_obj = PID(data)
 
     try:

@@ -5,7 +5,7 @@ from .branch_activation import BranchActivationAnalyzer
 from .information import InformationAnalyzer
 
 __all__ = [
-    "AblationAnalyzer",
-    "BranchActivationAnalyzer", 
+    "AblationAnalyzer"
+    "BranchActivationAnalyzer"
     "InformationAnalyzer"
-] 
+]

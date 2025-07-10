@@ -4,7 +4,6 @@ from __future__ import annotations
 layers so that the forward pass is (almost) equivalent.
 """
 
-from typing import Optional
 
 import torch
 from torch import nn
@@ -12,7 +11,6 @@ from torch import nn
 from dendritic_modeling.networks.layers.dendritic_conv2d import DendriteConv2d
 
 __all__ = ["conv2d_to_dendrite"]
-
 
 def conv2d_to_dendrite(
     conv: nn.Conv2d,
@@ -48,11 +46,11 @@ def conv2d_to_dendrite(
 
     W = conv.weight.detach().cpu().numpy()
     E = W.clip(min=0)
-    I = (-W).clip(min=0) + baseline_inhib
+    I_var = (-W).clip(min=0) + baseline_inhib
 
     with torch.no_grad():
         layer.weight_E_raw.copy_(torch.log(torch.tensor(E) + eps))
-        layer.weight_I_raw.copy_(torch.log(torch.tensor(I) + eps))
+        layer.weight_I_raw.copy_(torch.log(torch.tensor(I_var) + eps))
         if copy_bias and conv.bias is not None:
             layer.bias_E.copy_(conv.bias)
-    return layer 
+    return layer

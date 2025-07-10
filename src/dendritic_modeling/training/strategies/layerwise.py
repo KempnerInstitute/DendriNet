@@ -5,8 +5,7 @@ This module contains training strategies that train network layers sequentially,
 either from soma to input or from input to soma.
 """
 
-from typing import List, Tuple
-
+# typing imports removed - not needed
 import torch
 
 from dendritic_modeling import logger
@@ -18,7 +17,7 @@ from dendritic_modeling.training.strategies import Trainer
 class LayerWiseTrainer(Trainer):
     """
     Training strategy that trains network layers sequentially.
-    
+
     This trainer provides methods to train layers one at a time, either from
     soma to input or from input to soma, followed by full-network fine-tuning.
 
@@ -33,13 +32,13 @@ class LayerWiseTrainer(Trainer):
         model: BaseModel,
         train_data: torch.utils.data.Dataset,
         valid_data: torch.utils.data.Dataset
-    ) -> Tuple[List[float], List[float]]:
+    ) -> tuple[list[float], list[float]]:
         """
         Pretrain the model.
         """
         pretrain_train_losses = []
         pretrain_valid_losses = []
-        
+
         if self.pretrain_epochs > 0:
             logger.info(
                 f"Starting full network pretraining "
@@ -65,19 +64,19 @@ class LayerWiseTrainer(Trainer):
     ):
         """
         Train layers sequentially from soma to input.
-        
+
         This method trains each layer of the network separately, starting from the layer
         closest to the soma and moving outward toward the input.
-        
+
         Args:
             model: The model to train
             train_data: Training dataset
             valid_data: Validation dataset (optional)
-            
+
         Returns:
             Training results dictionary
         """
-        
+
         if not isinstance(model.net, ExcitationInhibitionNetwork):
             logger.info(
                 "Model has no 'net.layers'. "
@@ -87,10 +86,10 @@ class LayerWiseTrainer(Trainer):
 
         net_obj: ExcitationInhibitionNetwork = model.net
         n_layers = len(net_obj.layers)
-        
+
         total_epochs = (
-            self.pretrain_epochs + 
-            n_layers * self.epochs_per_layer + 
+            self.pretrain_epochs +
+            n_layers * self.epochs_per_layer +
             self.final_tune_epochs
         )
         self._initialize_attributes(model, total_epochs)
@@ -113,19 +112,19 @@ class LayerWiseTrainer(Trainer):
             for i, layer in enumerate(net_obj.layers):
                 layer_modules.append(layer)
                 layer_indices.append(i)
-        
+
         logger.info(
             f"Training with {learning_strategy} strategy: "
             f"found {n_layers} layers. "
         )
-        
+
         train_losses = []
         valid_losses = []
 
         train_loader, valid_loader = self._dataloaders(train_data, valid_data)
 
         self.filename_prefix = f"{learning_strategy.lower().replace('-', '_')}_"
-        
+
         for layer_idx, layer_module in zip(layer_indices, layer_modules):
             # Freeze all parameters
             for param in model.parameters():
@@ -138,7 +137,7 @@ class LayerWiseTrainer(Trainer):
                 f"Training only layer {layer_idx} for "
                 f"{self.epochs_per_layer} epochs."
             )
-            
+
             train_losses, valid_losses = self._run_training_loop(
                 n_epochs=self.epochs_per_layer,
                 model=model,
@@ -149,9 +148,9 @@ class LayerWiseTrainer(Trainer):
                 logger_info=f"[{learning_strategy}] layer={layer_idx}, ",
                 wandb_info={"layer": layer_idx}
             )
-        
+
         self._loss_plotting(train_losses, valid_losses)
-        
+
         logger.info(
             f"Finished {learning_strategy} training. "
             "Unfreezing all layers and loading best state."
@@ -159,7 +158,7 @@ class LayerWiseTrainer(Trainer):
         model.load_state_dict(self.best_state_dict)
         for param in model.parameters():
             param.requires_grad = True
-        
+
         train_losses = pretrain_train_losses + train_losses
         valid_losses = pretrain_valid_losses + valid_losses
 
@@ -183,6 +182,5 @@ class LayerWiseTrainer(Trainer):
             "valid_losses", []
         )
         return final_results
-    
 
 __all__ = ["LayerWiseTrainer"]

@@ -26,6 +26,7 @@ from __future__ import annotations
 
 # Suppress TensorFlow warnings for cleaner output
 import os
+
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'  # Suppress TensorFlow INFO and WARNING messages
 os.environ['TF_ENABLE_ONEDNN_OPTS'] = '0'  # Disable oneDNN optimizations warnings
 
@@ -34,48 +35,37 @@ import logging
 import traceback
 from dataclasses import asdict
 from datetime import datetime
-from typing import Optional
 
 import torch
+
 try:
     import torchinfo
     TORCHINFO_AVAILABLE = True
 except ImportError:
     TORCHINFO_AVAILABLE = False
     torchinfo = None
+import wandb
 from omegaconf import OmegaConf
 
-import wandb
-from dendritic_modeling import logger
-from dendritic_modeling import logger_manager
+from dendritic_modeling import logger, logger_manager
 from dendritic_modeling.analysis import AnalysisManager
+from dendritic_modeling.analysis.managers import PlotManager
 from dendritic_modeling.config import (
-    load_config, 
-    ModelConfig, 
+    ModelConfig,
+    OutputsConfig,
+    TaskConfig,
     TrainConfig,
     VisualizationConfig,
-    OutputsConfig,
     WandbConfig,
-    TaskConfig
+    load_config,
 )
-from dendritic_modeling.training import (
-    CustomWeightDecayOptimizer,
-    get_trainer
-)
-from dendritic_modeling.models import (
-    BaseModel,
-    Classifier,
-    Regressor
-)
-from dendritic_modeling.networks import Identity
 from dendritic_modeling.datasets import get_unified_datasets
-from dendritic_modeling.utils import (
-    save_dict,
-    set_seed
-)
-from dendritic_modeling.analysis.managers import PlotManager
+from dendritic_modeling.models import BaseModel, Classifier, Regressor
+from dendritic_modeling.networks import Identity
 from dendritic_modeling.networks.architectures.factory import get_architecture
 from dendritic_modeling.scripts.train_encoder_network import load_train_encoder_network
+from dendritic_modeling.training import CustomWeightDecayOptimizer, get_trainer
+from dendritic_modeling.utils import save_dict, set_seed
 
 
 def initialize_model(model_config: ModelConfig):
@@ -118,11 +108,10 @@ def initialize_model(model_config: ModelConfig):
         )
     else:
         raise ValueError(f"Invalid task: {model_config.task}")
-    
+
     logger.info(f"Initialized model: {type(model).__name__}")
 
     return model, encoder_network
-
 
 def save_model(model: torch.nn.Module, save_path: str, filename: str):
     os.makedirs(save_path, exist_ok=True)
@@ -131,12 +120,10 @@ def save_model(model: torch.nn.Module, save_path: str, filename: str):
     logger.info(f"Saved model to {full_path}")
     return full_path
 
-
 def load_model(model: torch.nn.Module, load_path: str):
     model.load_state_dict(torch.load(load_path))
     logger.info(f"Loaded model from {load_path}")
     return model
-
 
 def setup_environment(
     model_config: ModelConfig,
@@ -152,7 +139,7 @@ def setup_environment(
     run_save_path = os.path.join(outputs_config.dir, run_id)
     os.makedirs(run_save_path, exist_ok=True)
     logger.info(f"Created output directory: {run_save_path}")
-    
+
     # Set the logger manager to use the same directory for the main log file
     logger_manager.set_log_directory(run_save_path)
 
@@ -213,11 +200,10 @@ def setup_environment(
     input_sample: torch.Tensor = train_ds[0][0]
     model_config.encoder_network.parameters.input_dim = input_sample.numel()
     model_config.encoder_network.parameters.input_shape = tuple(input_sample.shape)
-    
+
     model, encoder_network = initialize_model(model_config)
 
     return run_save_path, train_ds, valid_ds, test_ds, model, encoder_network
-
 
 def run_analysis(
     model: BaseModel,
@@ -226,7 +212,7 @@ def run_analysis(
     test_ds: torch.utils.data.Dataset,
     visualization_cfg: VisualizationConfig,
     run_save_path: str,
-    analysis_manager: Optional[AnalysisManager] = None,
+    analysis_manager: AnalysisManager | None = None,
 ):
     data = {"train": train_ds, "valid": valid_ds, "test": test_ds}
     device = "cuda" if torch.cuda.is_available() else "cpu"
@@ -272,7 +258,6 @@ def run_analysis(
     logger.info("Running analyses...")
     if analysis_manager is not None:
         analysis_manager.run_analysis()
-
 
 def main(config_path: str, args=None):
     config = load_config(config_path)
@@ -339,11 +324,10 @@ def main(config_path: str, args=None):
 
     save_dict(asdict(config), run_save_path, "config.json")
 
-
     (
-        encoder_network, 
-        encoded_train_ds, 
-        encoded_valid_ds, 
+        encoder_network,
+        encoded_train_ds,
+        encoded_valid_ds,
         encoded_test_ds
     ) = load_train_encoder_network(
         encoder_network=encoder_network,
@@ -428,7 +412,6 @@ def main(config_path: str, args=None):
         wandb.finish()
 
     logger.info("Training experiment completed successfully")
-
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(

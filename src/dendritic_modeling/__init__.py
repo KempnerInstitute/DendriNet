@@ -28,7 +28,7 @@ logger = logger_manager.get_logger()
 __version__ = "0.1.0"
 
 # Core imports for convenience
-from dendritic_modeling import (
+from dendritic_modeling import (  # noqa: E402
     analysis,
     config,
     datasets,
@@ -37,27 +37,27 @@ from dendritic_modeling import (
     plotting,
     scripts,
     training,
-    utils
+    utils,
 )
 
 __all__ = [
-    "analysis",
-    "config", 
-    "datasets",
-    "models",
-    "networks",
-    "plotting",
-    "scripts",
-    "training",
-    "utils",
-    "logger",
-    "__version__",
+    "__version__"
+    "analysis"
+    "config"
+    "datasets"
+    "logger"
+    "models"
+    "networks"
+    "plotting"
+    "scripts"
+    "training"
+    "utils"
 ]
 
 # from dendritic_modeling import pid_utils
 # from dendritic_modeling.information import (
 #     build_sr_matrix,
-#     compute_EI_MI,
+#     compute_ei_mi,
 #     compute_mi_cc,
 #     compute_mi_cd,
 #     compute_pairwise_sr,

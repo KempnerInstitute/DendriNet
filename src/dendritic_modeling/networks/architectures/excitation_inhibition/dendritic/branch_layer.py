@@ -1,8 +1,8 @@
 """
 Dendritic Branch Layer for neural networks.
 
-This module implements the DendriticBranchLayer which emulates dendritic 
-computation along a layer of branches, modeling the interaction between 
+This module implements the DendriticBranchLayer which emulates dendritic
+computation along a layer of branches, modeling the interaction between
 excitatory and inhibitory inputs.
 """
 
@@ -10,18 +10,23 @@ import torch
 import torch.nn as nn
 
 from dendritic_modeling.networks.activations import ActivationFactory
-from dendritic_modeling.networks.architectures.excitation_inhibition.dendritic.gradient_scaling import GradientScaler
-from dendritic_modeling.networks.architectures.excitation_inhibition.dendritic.initialize import initialize_dendritic_branch_layer
+from dendritic_modeling.networks.architectures.excitation_inhibition.dendritic.blocklinear import (
+    BlockLinear,
+)
+from dendritic_modeling.networks.architectures.excitation_inhibition.dendritic.gradient_scaling import (
+    GradientScaler,
+)
+from dendritic_modeling.networks.architectures.excitation_inhibition.dendritic.initialize import (
+    initialize_dendritic_branch_layer,
+)
 
 # Import linear layer variants
 from dendritic_modeling.networks.architectures.excitation_inhibition.synapse import (
-    TopKLinear, 
-    StochasticTopKLinear, 
-    VarianceTopKLinear, 
-    DeepstLinear
+    DeepstLinear,
+    StochasticTopKLinear,
+    TopKLinear,
+    VarianceTopKLinear,
 )
-
-from dendritic_modeling.networks.architectures.excitation_inhibition.dendritic.blocklinear import BlockLinear
 
 
 class DendriticBranchLayer(nn.Module):
@@ -93,7 +98,7 @@ class DendriticBranchLayer(nn.Module):
         weight_threshold=1e-6,
         **kwargs,
     ):
-        super(DendriticBranchLayer, self).__init__()
+        super().__init__()
         self.layer_idx = layer_idx
         self.reactivation_strategy = reactivation_strategy
         self.blocklinear_strategy = blocklinear_strategy
@@ -117,7 +122,7 @@ class DendriticBranchLayer(nn.Module):
         self.freeze_inhibitory_connectivity = freeze_inhibitory_connectivity
         self.init_method = init_method
         self.weight_threshold = weight_threshold
-        
+
         gradient_scaler = GradientScaler(
             topk_strategy=topk_strategy,
             reactivation_strategy=reactivation_strategy,
@@ -300,12 +305,12 @@ class DendriticBranchLayer(nn.Module):
             self.step_counter += 1
             rewire_condition = self.step_counter % self.rewire_frequency == 0
             if (
-                rewire_condition and 
+                rewire_condition and
                 hasattr(self.branch_excitation, 'apply_noise_and_enforce_constraints')
             ):
                 self.branch_excitation.apply_noise_and_enforce_constraints()
             if (
-                rewire_condition and 
+                rewire_condition and
                 hasattr(self.branch_inhibition, 'apply_noise_and_enforce_constraints')
             ):
                 self.branch_inhibition.apply_noise_and_enforce_constraints()
@@ -376,8 +381,8 @@ class DendriticBranchLayer(nn.Module):
                         g_total[:, None] / self.branches_to_output.log_weight.exp()
                     ).flatten()
                     self.branches_to_output.param_scale_vec = g_total[:, None]
-                
-                if (self.branch_excitation is not None 
+
+                if (self.branch_excitation is not None
                     and self.topk_strategy == "conductance_dynamic"):
                     self.branch_excitation.input_scale_vec = (
                         g_total[:, None] / self.branch_excitation.weight()
@@ -455,5 +460,4 @@ class DendriticBranchLayer(nn.Module):
         else:
             return None
 
-
-__all__ = ["DendriticBranchLayer"] 
+__all__ = ["DendriticBranchLayer"]

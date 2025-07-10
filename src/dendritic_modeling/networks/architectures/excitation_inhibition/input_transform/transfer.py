@@ -1,22 +1,27 @@
-from typing import List, Tuple, Dict, Any
+from typing import Any, Optional
 
 import torch
 from torch import nn
 
-from dendritic_modeling.networks.architectures.excitation_inhibition.dendritic.dendrinet import DendriNet
-
-from dendritic_modeling.networks.architectures.excitation_inhibition.input_transform.identity import IdentityInputTransform
-from dendritic_modeling.networks.architectures.excitation_inhibition.input_transform.index import IndexInputTransform
+from dendritic_modeling.networks.architectures.excitation_inhibition.dendritic.dendrinet import (
+    DendriNet,
+)
+from dendritic_modeling.networks.architectures.excitation_inhibition.input_transform.identity import (
+    IdentityInputTransform,
+)
+from dendritic_modeling.networks.architectures.excitation_inhibition.input_transform.index import (
+    IndexInputTransform,
+)
 
 
 class TransferLayer(nn.Module):
     def __init__(
         self,
         input_dim: int,
-        transfer_params: Dict[str, Any],
-        n_inhibitory_cells: int = None,
-        inhibitory_branch_factors: List[int] = None,
-        excitatory_synapses_per_branch: int = None,
+        transfer_params: dict[str, Any],
+        n_inhibitory_cells: Optional[int] = None,
+        inhibitory_branch_factors: Optional[list[int]] = None,
+        excitatory_synapses_per_branch: Optional[int] = None,
         reactivate: bool = True,
         reactivation_init_m: float = 1.5,
         reactivation_init_b: float = 0.5,
@@ -36,7 +41,7 @@ class TransferLayer(nn.Module):
         sigma: float = 0.05,
         rewiring_mode: str = "global",
         rewire_frequency: int = 1,
-        synapses_per_branch: List[int] = None,
+        synapses_per_branch: Optional[list[int]] = None,
         freeze_excitatory_connectivity: bool = False,
         freeze_inhibitory_connectivity: bool = False,
         init_method: str = "xavier_normal",
@@ -61,7 +66,7 @@ class TransferLayer(nn.Module):
             excitatory_input_dim = input_dim
             inhibitory_input_dim = input_dim
             self.pathway_split = IdentityInputTransform()
-        
+
         if input_mode == 0:
             self.inhibitory_cells = DendriNet(
                 n_soma=n_inhibitory_cells,
@@ -94,7 +99,7 @@ class TransferLayer(nn.Module):
                 init_method=init_method,
                 weight_threshold=weight_threshold,
             )
-        
+
         self.excitatory_dim = excitatory_input_dim
 
         if input_mode == 0:
@@ -106,11 +111,10 @@ class TransferLayer(nn.Module):
         else:
             raise ValueError(f"Invalid input_mode: {input_mode}")
 
-    
-    def forward(self, x: torch.Tensor) -> Tuple[torch.Tensor, torch.Tensor]:
+    def forward(self, x: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor]:
         x1, x2 = self.pathway_split(x)
 
         if hasattr(self, "inhibitory_cells"):
             x2 = self.inhibitory_cells(x2)
-        
+
         return x1, x2

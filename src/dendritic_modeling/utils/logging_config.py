@@ -6,18 +6,17 @@ package.
 """
 
 import logging
-import sys
 import os
+import sys
 
 LOGGER_NAME = "dendritic_modeling"
-
 
 class LoggerManager:
     _instance = None
 
     def __new__(cls, *args, **kwargs):
         if cls._instance is None:
-            cls._instance = super(LoggerManager, cls).__new__(cls)
+            cls._instance = super().__new__(cls)
             cls._instance._initialize_logger()
         return cls._instance
 
@@ -40,7 +39,7 @@ class LoggerManager:
             # If relative path, make it relative to project root
             project_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
             default_log_dir = os.path.join(project_root, default_log_dir)
-        
+
         os.makedirs(default_log_dir, exist_ok=True)
         self.file_path = os.path.join(default_log_dir, LOGGER_NAME + ".log")
         self._set_file_handler(self.file_path)
@@ -54,7 +53,7 @@ class LoggerManager:
             log_dir = os.path.dirname(file_path)
             if log_dir:
                 os.makedirs(log_dir, exist_ok=True)
-                
+
             file_handler = logging.FileHandler(file_path)
             file_handler.setLevel(logging.DEBUG)
             file_format = logging.Formatter(
@@ -72,47 +71,45 @@ class LoggerManager:
 
     def get_logger(self):
         return self.logger
-    
+
     def set_log_directory(self, log_dir):
         """Set the directory where log files should be saved."""
         os.makedirs(log_dir, exist_ok=True)
         log_file = os.path.join(log_dir, os.path.basename(self.file_path))
         self.set_log_file(log_file)
 
-
 # Wrapper functions for backward compatibility
 def setup_logging(log_dir=None, debug=False):
     """Setup logging with optional directory and debug level.
-    
+
     Args:
-        log_dir (str, optional): Directory to save log files. 
+        log_dir (str, optional): Directory to save log files.
                                If None, uses default from environment or 'logs'
         debug (bool, optional): If True, sets console logging to DEBUG level
-    
+
     Returns:
         logging.Logger: The configured logger instance
     """
     manager = LoggerManager()
-    
+
     if log_dir:
         manager.set_log_directory(log_dir)
-    
+
     if debug:
         # Set console handler to DEBUG level
         for handler in manager.logger.handlers:
             if isinstance(handler, logging.StreamHandler) and not isinstance(handler, logging.FileHandler):
                 handler.setLevel(logging.DEBUG)
                 break
-    
-    return manager.get_logger()
 
+    return manager.get_logger()
 
 def get_logger(name=None):
     """Get the logger instance.
-    
+
     Args:
         name (str, optional): Logger name (ignored, maintained for compatibility)
-        
+
     Returns:
         logging.Logger: The configured logger instance
     """

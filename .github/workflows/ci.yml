@@ -196,8 +196,9 @@ jobs:
 
     - name: Build documentation
       run: |
-        # Add documentation build commands here if you have docs
-        echo "Documentation build would go here"
+        cd docs
+        make html
+        echo "Documentation built successfully!"
 
   performance-test:
     runs-on: ubuntu-latest
