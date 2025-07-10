@@ -91,13 +91,8 @@ def initialize_model(model_config: ModelConfig):
         encoder = encoder_network
     else:
         encoder = encoder_network.encoder
-    
-    if isinstance(encoder.output_dim, tuple):
-        encoder_output_dim = encoder.output_dim[0]
-    else:
-        encoder_output_dim = encoder.output_dim
 
-    core_network_config.parameters.input_dim = encoder_output_dim
+    core_network_config.parameters.input_dim = encoder.output_dim
     core_network = get_architecture(
         core_network_config.type,
         OmegaConf.to_container(core_network_config.parameters, resolve=True)

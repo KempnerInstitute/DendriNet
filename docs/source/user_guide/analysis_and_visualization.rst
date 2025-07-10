@@ -3,7 +3,7 @@ Analysis and Visualization
 
 This comprehensive guide covers the analysis tools, metrics, and visualization capabilities for understanding and interpreting dendritic networks.
 
-.. figure:: ../../_static/analysis_workflow_diagram.svg
+.. figure:: ../../../_static/analysis_workflow_diagram.svg
    :align: center
    :width: 90%
    :alt: Analysis Workflow Overview

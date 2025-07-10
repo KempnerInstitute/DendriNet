@@ -17,6 +17,10 @@
 
 # Dendritic Modeling Framework
 
+<p align="center">
+  <img src="docs/source/_static/dendritic_diagram.png" alt="Dendritic Neuron Architecture" width="600">
+</p>
+
 This Python package introduces a novel approach to artificial neural networks by emulating dendritic computation through the encoding of dendrite morphology into the network architecture. Inspired by the complexity and efficiency of biological neurons, our models aim to enhance traditional neural network architectures by incorporating dendrite-like structures.
 
 ## Key Features
