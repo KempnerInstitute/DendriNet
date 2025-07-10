@@ -72,8 +72,8 @@ class TestStage1ReceptiveField:
             output = layer(test_batch)
         
         # Verify response characteristics
-        max_response = output.max(dim=(2, 3), keepdim=False)[0].squeeze()
-        min_response = output.min(dim=(2, 3), keepdim=False)[0].squeeze()
+        max_response = output.max(dim=2)[0].max(dim=2)[0].squeeze()
+        min_response = output.min(dim=2)[0].min(dim=2)[0].squeeze()
         
         # Pass criterion: max - min >= 0.7
         response_range = (max_response - min_response).mean().item()
