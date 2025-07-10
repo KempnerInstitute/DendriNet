@@ -234,15 +234,25 @@ def load_mnist_as_datasets(
     x_train = torch.stack([img for img, _ in train_dataset])
     y_train = torch.tensor([label for _, label in train_dataset])
 
-    x_valid = torch.stack([img for img, _ in valid_dataset])
-    y_valid = torch.tensor([label for _, label in valid_dataset])
+    # Handle empty validation dataset when train_valid_split=1
+    if len(valid_dataset) > 0:
+        x_valid = torch.stack([img for img, _ in valid_dataset])
+        y_valid = torch.tensor([label for _, label in valid_dataset])
+    else:
+        # Create empty tensors with correct shape
+        sample_img, _ = train_dataset[0]
+        x_valid = torch.empty(0, *sample_img.shape)
+        y_valid = torch.empty(0, dtype=torch.long)
 
     x_test = torch.stack([img for img, _ in test_dataset])
     y_test = torch.tensor([label for _, label in test_dataset])
 
     if flatten:
         x_train = x_train.view(x_train.shape[0], -1)
-        x_valid = x_valid.view(x_valid.shape[0], -1)
+        if len(x_valid) > 0:
+            x_valid = x_valid.view(x_valid.shape[0], -1)
+        else:
+            x_valid = torch.empty(0, x_train.shape[1])
         x_test = x_test.view(x_test.shape[0], -1)
 
     train_ds = torch.utils.data.TensorDataset(x_train, y_train)
