@@ -107,9 +107,9 @@ def main():
     success &= build_docs()
     
     if success:
-        print("\n✓ Documentation generation completed successfully!")
+        print("\nDocumentation generation completed successfully!")
     else:
-        print("\n✗ Documentation generation failed!")
+        print("\nDocumentation generation failed!")
         sys.exit(1)
 
 
