@@ -26,8 +26,16 @@ from dendritic_modeling.analysis import (
 from dendritic_modeling.analysis.tools import (
     SynapticActivationAnalyzer
 )
-from dendritic_modeling.networks import ExcitationInhibitionNetwork
-from dendritic_modeling.models import ProbabilisticClassifier
+from dendritic_modeling.networks import ExcitationInhibitionNetwork, Identity
+from dendritic_modeling.models import Classifier
+from dendritic_modeling.config import (
+    TransferFunctionParams, 
+    PerformanceAnalysisParams,
+    AblationAnalysisParams,
+    BranchActivationAnalysisParams,
+    SynapticActivationAnalysisParams,
+    AnalysisConfig
+)
 
 
 class TestPerformanceAnalyzer(unittest.TestCase):
@@ -36,19 +44,26 @@ class TestPerformanceAnalyzer(unittest.TestCase):
     def setUp(self):
         """Set up test fixtures."""
         self.device = "cpu"
-        self.analyzer = PerformanceAnalyzer(device=self.device)
+        params = PerformanceAnalysisParams()
+        self.analyzer = PerformanceAnalyzer(params)
         
         # Create a simple test model
-        self.model = ProbabilisticClassifier(
-            net=ExcitationInhibitionNetwork(
+        transfer_params = TransferFunctionParams().asdict()
+        self.model = Classifier(
+            encoder_network=Identity(),
+            core_network=ExcitationInhibitionNetwork(
                 input_dim=10,
+                transfer_params=transfer_params,
                 excitatory_layer_sizes=[4],
                 inhibitory_layer_sizes=[4],
                 excitatory_branch_factors=[2],
                 inhibitory_branch_factors=[2],
-                output_dim=2
+                ee_synapses_per_branch_per_layer=[1],
+                ei_synapses_per_branch_per_layer=[1],
+                ie_synapses_per_branch_per_layer=[1],
+                ii_synapses_per_branch_per_layer=[]
             ),
-            output_dim=2
+            decoder_network=Identity()
         )
         
         # Create test data
@@ -85,9 +100,10 @@ class TestPerformanceAnalyzer(unittest.TestCase):
     def test_evaluate_model(self):
         """Test model evaluation on dataset."""
         with tempfile.TemporaryDirectory() as tmpdir:
-            results = self.analyzer.analyze_performance(
+            results = self.analyzer.analyze(
                 model=self.model,
-                test_data=self.test_data,
+                test_ds=self.test_data,
+                device=self.device,
                 save_path=tmpdir
             )
             
@@ -106,19 +122,26 @@ class TestAblationAnalyzer(unittest.TestCase):
     
     def setUp(self):
         """Set up test fixtures."""
-        self.analyzer = AblationAnalyzer(device="cpu")
+        params = AblationAnalysisParams()
+        self.analyzer = AblationAnalyzer(params)
         
         # Create test model with multiple layers
-        self.model = ProbabilisticClassifier(
-            net=ExcitationInhibitionNetwork(
+        transfer_params = TransferFunctionParams().asdict()
+        self.model = Classifier(
+            encoder_network=Identity(),
+            core_network=ExcitationInhibitionNetwork(
                 input_dim=10,
+                transfer_params=transfer_params,
                 excitatory_layer_sizes=[4, 4],
                 inhibitory_layer_sizes=[4, 4],
                 excitatory_branch_factors=[2, 2],
                 inhibitory_branch_factors=[2, 2],
-                output_dim=2
+                ee_synapses_per_branch_per_layer=[1, 1],
+                ei_synapses_per_branch_per_layer=[1, 1],
+                ie_synapses_per_branch_per_layer=[1, 1],
+                ii_synapses_per_branch_per_layer=[]
             ),
-            output_dim=2
+            decoder_network=Identity()
         )
         
         # Create test dataset
@@ -130,17 +153,15 @@ class TestAblationAnalyzer(unittest.TestCase):
     def test_analyzer_initialization(self):
         """Test analyzer initialization."""
         self.assertIsInstance(self.analyzer, AblationAnalyzer)
-        self.assertEqual(self.analyzer.device, "cpu")
     
     def test_branch_ablation(self):
         """Test branch ablation functionality."""
         with tempfile.TemporaryDirectory() as tmpdir:
-            results = self.analyzer.analyze_ablation(
+            results = self.analyzer.analyze(
                 model=self.model,
-                test_data=self.test_data,
-                save_path=tmpdir,
-                ablate_synapses=True,
-                ablate_branches=True
+                test_dataset=self.test_data,
+                device="cpu",
+                save_path=tmpdir
             )
             
             # Check results structure
@@ -150,12 +171,11 @@ class TestAblationAnalyzer(unittest.TestCase):
     def test_layer_ablation(self):
         """Test layer-wise ablation."""
         with tempfile.TemporaryDirectory() as tmpdir:
-            results = self.analyzer.analyze_ablation(
+            results = self.analyzer.analyze(
                 model=self.model,
-                test_data=self.test_data,
-                save_path=tmpdir,
-                ablate_synapses=False,
-                ablate_inhibition=True
+                test_dataset=self.test_data,
+                device="cpu",
+                save_path=tmpdir
             )
             
             self.assertIsInstance(results, dict)
@@ -171,16 +191,22 @@ class TestInformationAnalyzer(unittest.TestCase):
         self.analyzer = InformationAnalyzer(params)
         
         # Create test model
-        self.model = ProbabilisticClassifier(
-            net=ExcitationInhibitionNetwork(
+        transfer_params = TransferFunctionParams().asdict()
+        self.model = Classifier(
+            encoder_network=Identity(),
+            core_network=ExcitationInhibitionNetwork(
                 input_dim=8,
+                transfer_params=transfer_params,
                 excitatory_layer_sizes=[4],
                 inhibitory_layer_sizes=[4],
                 excitatory_branch_factors=[2],
                 inhibitory_branch_factors=[2],
-                output_dim=2
+                ee_synapses_per_branch_per_layer=[1],
+                ei_synapses_per_branch_per_layer=[1],
+                ie_synapses_per_branch_per_layer=[1],
+                ii_synapses_per_branch_per_layer=[]
             ),
-            output_dim=2
+            decoder_network=Identity()
         )
         
         # Create test data
@@ -216,20 +242,28 @@ class TestActivationAnalyzers(unittest.TestCase):
     
     def setUp(self):
         """Set up test fixtures."""
-        self.synaptic_analyzer = SynapticActivationAnalyzer(device="cpu")
-        self.branch_analyzer = BranchActivationAnalyzer(device="cpu")
+        synaptic_params = SynapticActivationAnalysisParams()
+        self.synaptic_analyzer = SynapticActivationAnalyzer(synaptic_params)
+        branch_params = BranchActivationAnalysisParams()
+        self.branch_analyzer = BranchActivationAnalyzer(branch_params)
         
         # Create test model
-        self.model = ProbabilisticClassifier(
-            net=ExcitationInhibitionNetwork(
+        transfer_params = TransferFunctionParams().asdict()
+        self.model = Classifier(
+            encoder_network=Identity(),
+            core_network=ExcitationInhibitionNetwork(
                 input_dim=8,
+                transfer_params=transfer_params,
                 excitatory_layer_sizes=[4],
                 inhibitory_layer_sizes=[4],
                 excitatory_branch_factors=[2],
                 inhibitory_branch_factors=[2],
-                output_dim=2
+                ee_synapses_per_branch_per_layer=[1],
+                ei_synapses_per_branch_per_layer=[1],
+                ie_synapses_per_branch_per_layer=[1],
+                ii_synapses_per_branch_per_layer=[]
             ),
-            output_dim=2
+            decoder_network=Identity()
         )
         
         # Create test data
@@ -241,9 +275,10 @@ class TestActivationAnalyzers(unittest.TestCase):
     def test_synaptic_activation_analyzer(self):
         """Test synaptic activation analysis."""
         with tempfile.TemporaryDirectory() as tmpdir:
-            results = self.synaptic_analyzer.analyze_synaptic_activations(
+            results = self.synaptic_analyzer.analyze(
                 model=self.model,
-                test_data=self.test_data,
+                test_dataset=self.test_data,
+                device="cpu",
                 save_path=tmpdir
             )
             
@@ -252,9 +287,10 @@ class TestActivationAnalyzers(unittest.TestCase):
     def test_branch_activation_analyzer(self):
         """Test branch activation analysis."""
         with tempfile.TemporaryDirectory() as tmpdir:
-            results = self.branch_analyzer.analyze_branch_activations(
+            results = self.branch_analyzer.analyze(
                 model=self.model,
-                test_data=self.test_data,
+                test_dataset=self.test_data,
+                device="cpu",
                 save_path=tmpdir
             )
             
@@ -267,49 +303,53 @@ class TestAnalysisManager(unittest.TestCase):
     def setUp(self):
         """Set up test fixtures."""
         # Create test model
-        self.model = ProbabilisticClassifier(
-            net=ExcitationInhibitionNetwork(
+        transfer_params = TransferFunctionParams().asdict()
+        self.model = Classifier(
+            encoder_network=Identity(),
+            core_network=ExcitationInhibitionNetwork(
                 input_dim=8,
+                transfer_params=transfer_params,
                 excitatory_layer_sizes=[4],
                 inhibitory_layer_sizes=[4],
                 excitatory_branch_factors=[2],
                 inhibitory_branch_factors=[2],
-                output_dim=2
+                ee_synapses_per_branch_per_layer=[1],
+                ei_synapses_per_branch_per_layer=[1],
+                ie_synapses_per_branch_per_layer=[1],
+                ii_synapses_per_branch_per_layer=[]
             ),
-            output_dim=2
+            decoder_network=Identity()
         )
         
         # Create test data
-        self.train_data = torch.utils.data.TensorDataset(
+        train_data = torch.utils.data.TensorDataset(
             torch.randn(30, 8),
             torch.randint(0, 2, (30,))
         )
-        self.valid_data = torch.utils.data.TensorDataset(
+        valid_data = torch.utils.data.TensorDataset(
             torch.randn(20, 8),
             torch.randint(0, 2, (20,))
         )
-        self.test_data = torch.utils.data.TensorDataset(
+        test_data = torch.utils.data.TensorDataset(
             torch.randn(25, 8),
             torch.randint(0, 2, (25,))
         )
         
-        # Create mock config
-        self.mock_config = Mock()
-        self.mock_config.performance_analysis = Mock()
-        self.mock_config.performance_analysis.enabled = True
-        self.mock_config.performance_analysis.params = {
-            'accuracy': True,
-            'categorical_loglikelihood': True
+        self.data = {
+            "train": train_data,
+            "valid": valid_data,
+            "test": test_data
         }
+        
+        # Create analysis config
+        self.analysis_config = AnalysisConfig()
         
         # Initialize manager
         self.manager = AnalysisManager(
             model=self.model,
-            train_data=self.train_data,
-            valid_data=self.valid_data,
-            test_data=self.test_data,
-            config=self.mock_config,
-            save_path="/tmp/test_analysis"
+            data=self.data,
+            analysis_config=self.analysis_config,
+            save_root="/tmp/test_analysis"
         )
     
     def test_manager_initialization(self):

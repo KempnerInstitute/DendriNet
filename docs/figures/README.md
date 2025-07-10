@@ -72,7 +72,7 @@ This script creates:
 
 ## Color Scheme
 
-- **Excitatory**: Crimson red (#DC143C)
+- **Excitatory**: Orange (#D55E00)
 - **Inhibitory**: Royal blue (#4169E1)
 - **Dendrites**: Dim gray (#696969)
 - **Soma**: Dark slate gray (#2F4F4F)
