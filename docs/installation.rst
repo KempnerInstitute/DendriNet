@@ -71,24 +71,6 @@ If you need a different CUDA version, modify the ``pytorch-cuda`` version in env
    dependencies:
      - pytorch-cuda=11.8  # Change to your CUDA version
 
-Platform-Specific Notes
-----------------------
-
-macOS with Apple Silicon
-~~~~~~~~~~~~~~~~~~~~~~~
-
-For M1/M2/M3 Macs, PyTorch will automatically use Metal Performance Shaders (MPS):
-
-.. code-block:: python
-
-   import torch
-   print(torch.backends.mps.is_available())  # Should print True
-
-Windows
-~~~~~~~
-
-On Windows, use Anaconda Prompt or PowerShell to run the installation commands.
-
 Cluster Installation
 -------------------
 
