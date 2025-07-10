@@ -15,15 +15,14 @@ import os
 import matplotlib.pyplot as plt
 import numpy as np
 import torch
-from typing import Dict, List, Optional, Any, Tuple
+from typing import , , Optional, Any, 
 from dendritic_modeling.plotting.base import (
-    PlotConfig, 
-    LinePlotter, 
-    BarPlotter, 
-    BoxPlotter, 
+    PlotConfig,
+    LinePlotter,
+    BarPlotter,
+    BoxPlotter,
     ComparisonPlotter
 )
-
 
 # ============================================================================
 # Helper Functions for Activation Extraction
@@ -36,12 +35,12 @@ def dendrinet_activations_todict(
 ):
     """
     Extract DendriNet activations to dictionary format.
-    
+
     Args:
         dendrinet: DendriNet model
-        exc_input_list: List of excitatory inputs
-        inh_input_list: List of inhibitory inputs
-        
+        exc_input_list: list of excitatory inputs
+        inh_input_list: list of inhibitory inputs
+
     Returns:
         Dictionary containing activations organized by soma and branch
     """
@@ -86,15 +85,14 @@ def dendrinet_activations_todict(
 
     return plot_dict
 
-
 def einet_activations_todict(einet, input_list):
     """
     Extract EINet activations to dictionary format.
-    
+
     Args:
         einet: EINet model
-        input_list: List of input tensors
-        
+        input_list: list of input tensors
+
     Returns:
         Dictionary containing activations organized by layer and cell type
     """
@@ -136,79 +134,78 @@ def einet_activations_todict(einet, input_list):
 
     return plot_dict
 
-
 # ============================================================================
 # Analysis Plotters
 # ============================================================================
 
 class LayerAnalysisPlotter:
     """Plotter for layer-wise contribution analysis."""
-    
+
     def __init__(self, config: PlotConfig = None):
         self.config = config or PlotConfig()
         self.line_plotter = LinePlotter(self.config)
         self.bar_plotter = BarPlotter(self.config)
-    
+
     def plot_layer_contributions(
         self,
-        results: Dict[str, Any],
-        metrics: List[str] = None,
+        results: dict[str, Any],
+        metrics: list[str] = None,
         save_path: Optional[str] = None,
         filename: str = "layer_contributions",
         reverse_layers: bool = True
-    ) -> Tuple[plt.Figure, plt.Axes]:
+    ) -> tuple[plt.Figure, plt.Axes]:
         """
         Plot layer contribution analysis with dual metrics.
-        
+
         Args:
             results: Dictionary containing 'accuracies' and 'losses' by layer
-            metrics: List of metrics to plot (default: ['accuracy', 'loss'])
+            metrics: list of metrics to plot (default: ['accuracy', 'loss'])
             save_path: Directory to save plots
             filename: Base filename
             reverse_layers: If True, reverse layer order (soma to distal)
-            
+
         Returns:
             Tuple of (figure, axes)
         """
         if metrics is None:
             metrics = ['accuracy', 'loss']
-        
+
         # Extract data
         layers = list(results.get('accuracies', results.get('accuracy', {})).keys())
         layer_indices = list(range(len(layers)))
-        
+
         if reverse_layers:
             layer_indices = layer_indices[::-1]
-        
+
         # Prepare data for plotting
         plot_data = {}
-        
+
         if 'accuracy' in metrics:
             accuracies = list(results.get('accuracies', results.get('accuracy', {})).values())
             if reverse_layers:
                 accuracies = accuracies[::-1]
             plot_data['Accuracy'] = (layer_indices, accuracies)
-        
+
         if 'loss' in metrics:
             losses = list(results.get('losses', results.get('loss', {})).values())
             if reverse_layers:
                 losses = losses[::-1]
             plot_data['Loss'] = (layer_indices, losses)
-        
+
         # Create figure with dual y-axes
         fig, ax1 = plt.subplots(figsize=self.config.figsize)
-        
+
         # Plot accuracy on primary axis
         if 'Accuracy' in plot_data:
             x, y = plot_data['Accuracy']
             color = self.config.colors.get('primary', 'blue')
             ax1.plot(x, y, 'o-', color=color, linewidth=2, markersize=8, label='Accuracy')
-            ax1.set_xlabel('Layer (Soma → Distal)' if reverse_layers else 'Layer Index', 
+            ax1.set_xlabel('Layer (Soma → Distal)' if reverse_layers else 'Layer Index',
                           fontsize=self.config.fontsize["label"])
             ax1.set_ylabel('Accuracy', color=color, fontsize=self.config.fontsize["label"])
             ax1.tick_params(axis='y', labelcolor=color)
             ax1.grid(True, alpha=0.3)
-        
+
         # Plot loss on secondary axis
         if 'Loss' in plot_data and len(plot_data) > 1:
             ax2 = ax1.twinx()
@@ -217,15 +214,15 @@ class LayerAnalysisPlotter:
             ax2.plot(x, y, 's-', color=color, linewidth=2, markersize=8, label='Loss')
             ax2.set_ylabel('Loss', color=color, fontsize=self.config.fontsize["label"])
             ax2.tick_params(axis='y', labelcolor=color)
-        
+
         # Customize plot
         ax1.set_title('Layer-wise Contribution Analysis', fontsize=self.config.fontsize["title"])
-        
+
         # Set x-axis labels
         if reverse_layers:
             ax1.set_xticks(layer_indices)
             ax1.set_xticklabels([f"L{i}" if i > 0 else "Soma" for i in layer_indices])
-        
+
         # Add legend
         if len(plot_data) > 1:
             lines1, labels1 = ax1.get_legend_handles_labels()
@@ -233,15 +230,15 @@ class LayerAnalysisPlotter:
             ax1.legend(lines1 + lines2, labels1 + labels2, loc='best')
         else:
             ax1.legend()
-        
+
         plt.tight_layout()
-        
+
         # Save if requested
         if save_path:
             self._save_plot(fig, save_path, filename)
-        
+
         return fig, (ax1, ax2) if 'ax2' in locals() else ax1
-    
+
     def _save_plot(self, fig: plt.Figure, save_path: str, filename: str):
         """Save plot with metadata."""
         os.makedirs(save_path, exist_ok=True)
@@ -252,43 +249,42 @@ class LayerAnalysisPlotter:
                 bbox_inches='tight'
             )
 
-
 class AblationPlotter:
     """Plotter for ablation study results."""
-    
+
     def __init__(self, config: PlotConfig = None):
         self.config = config or PlotConfig()
         self.bar_plotter = BarPlotter(self.config)
         self.comparison_plotter = ComparisonPlotter(self.config)
-    
+
     def plot_ablation_results(
         self,
-        results: Dict[str, Dict[str, float]],
+        results: dict[str, dict[str, float]],
         baseline_key: str = "baseline",
         save_path: Optional[str] = None,
         filename: str = "ablation_results"
-    ) -> Tuple[plt.Figure, plt.Axes]:
+    ) -> tuple[plt.Figure, plt.Axes]:
         """
         Plot ablation study results with baseline comparison.
-        
+
         Args:
             results: Dictionary of condition -> metrics
             baseline_key: Key for baseline condition
             save_path: Directory to save plots
             filename: Base filename
-            
+
         Returns:
             Tuple of (figure, axes)
         """
         # Extract baseline
         baseline = results.get(baseline_key, {})
         conditions = [k for k in results.keys() if k != baseline_key]
-        
+
         # Prepare data for comparison
         comparison_data = {}
         for condition in conditions:
             comparison_data[condition] = results[condition]
-        
+
         # Create comparison plot
         fig, axes = self.comparison_plotter.plot(
             data=comparison_data,
@@ -296,34 +292,34 @@ class AblationPlotter:
             title="Ablation Study Results",
             metric_names=list(baseline.keys()) if baseline else None
         )
-        
+
         # Save if requested
         if save_path:
             self._save_plot(fig, save_path, filename)
-        
+
         return fig, axes
-    
+
     def plot_relative_changes(
         self,
-        results: Dict[str, Dict[str, float]],
+        results: dict[str, dict[str, float]],
         baseline_key: str = "baseline",
         metric: str = "accuracy",
         save_path: Optional[str] = None,
         filename: str = "relative_changes"
-    ) -> Tuple[plt.Figure, plt.Axes]:
+    ) -> tuple[plt.Figure, plt.Axes]:
         """Plot relative changes from baseline."""
         baseline_value = results.get(baseline_key, {}).get(metric, 1.0)
-        
+
         conditions = []
         relative_changes = []
-        
+
         for condition, metrics in results.items():
             if condition != baseline_key:
                 conditions.append(condition)
                 value = metrics.get(metric, 0)
                 relative_change = ((value - baseline_value) / baseline_value) * 100
                 relative_changes.append(relative_change)
-        
+
         # Create bar plot
         fig, ax = self.bar_plotter.plot(
             data=relative_changes,
@@ -333,16 +329,16 @@ class AblationPlotter:
             ylabel="Relative Change (%)",
             colors=['red' if x < 0 else 'green' for x in relative_changes]
         )
-        
+
         # Add zero line
         ax.axhline(y=0, color='black', linestyle='-', alpha=0.3)
-        
+
         # Save if requested
         if save_path:
             self._save_plot(fig, save_path, filename)
-        
+
         return fig, ax
-    
+
     def _save_plot(self, fig: plt.Figure, save_path: str, filename: str):
         """Save plot with metadata."""
         os.makedirs(save_path, exist_ok=True)
@@ -353,27 +349,26 @@ class AblationPlotter:
                 bbox_inches='tight'
             )
 
-
 class NoiseAnalysisPlotter:
     """Plotter for noise robustness analysis."""
-    
+
     def __init__(self, config: PlotConfig = None):
         self.config = config or PlotConfig()
         self.line_plotter = LinePlotter(self.config)
-    
+
     def plot_noise_robustness(
         self,
-        results: Dict[str, List[float]],
-        noise_levels: List[float],
+        results: dict[str, list[float]],
+        noise_levels: list[float],
         save_path: Optional[str] = None,
         filename: str = "noise_robustness"
-    ) -> Tuple[plt.Figure, plt.Axes]:
+    ) -> tuple[plt.Figure, plt.Axes]:
         """Plot noise robustness curves for different models/conditions."""
         # Prepare data for line plotter
         plot_data = {}
         for label, values in results.items():
             plot_data[label] = (noise_levels, values)
-        
+
         # Create plot
         fig, ax = self.line_plotter.plot(
             data=plot_data,
@@ -382,17 +377,17 @@ class NoiseAnalysisPlotter:
             ylabel="Accuracy",
             legend_title="Model/Condition"
         )
-        
+
         # Customize
         ax.set_ylim(0, 1.05)
         ax.grid(True, alpha=0.3)
-        
+
         # Save if requested
         if save_path:
             self._save_plot(fig, save_path, filename)
-        
+
         return fig, ax
-    
+
     def _save_plot(self, fig: plt.Figure, save_path: str, filename: str):
         """Save plot with metadata."""
         os.makedirs(save_path, exist_ok=True)
@@ -403,17 +398,16 @@ class NoiseAnalysisPlotter:
                 bbox_inches='tight'
             )
 
-
 class WeightDistributionPlotter:
     """Plotter for weight distribution analysis."""
-    
+
     def __init__(self, config: PlotConfig = None):
         self.config = config or PlotConfig()
         self.box_plotter = BoxPlotter(self.config)
-    
+
     def plot_weight_distributions(
         self,
-        weight_data: Dict[str, List[np.ndarray]],
+        weight_data: dict[str, list[np.ndarray]],
         title: str = "Weight Distributions by Layer",
         save_path: Optional[str] = None,
         filename: str = "weight_distributions"
@@ -423,22 +417,22 @@ class WeightDistributionPlotter:
         data_arrays = []
         labels = []
         colors = []
-        
+
         color_map = {
             'excitatory': self.config.colors.get('excitatory', '#e74c3c'),
             'inhibitory': self.config.colors.get('inhibitory', '#3498db'),
             'combined': self.config.colors.get('combined', '#9b59b6')
         }
-        
+
         for layer_name, weights in weight_data.items():
             if isinstance(weights, list):
                 flattened = np.concatenate([w.flatten() for w in weights])
             else:
                 flattened = weights.flatten()
-            
+
             data_arrays.append(flattened)
             labels.append(layer_name)
-            
+
             # Determine color based on layer type
             if 'exc' in layer_name.lower():
                 colors.append(color_map['excitatory'])
@@ -446,7 +440,7 @@ class WeightDistributionPlotter:
                 colors.append(color_map['inhibitory'])
             else:
                 colors.append(color_map['combined'])
-        
+
         # Create plot
         fig, ax = self.box_plotter.plot(
             data=data_arrays,
@@ -455,13 +449,13 @@ class WeightDistributionPlotter:
             ylabel="Weight Value",
             colors=colors
         )
-        
+
         # Save if requested
         if save_path:
             self._save_plot(fig, save_path, filename)
-        
+
         return fig, ax
-    
+
     def _save_plot(self, fig: plt.Figure, save_path: str, filename: str):
         """Save plot with metadata."""
         os.makedirs(save_path, exist_ok=True)
@@ -472,86 +466,85 @@ class WeightDistributionPlotter:
                 bbox_inches='tight'
             )
 
-
 class InformationAnalysisPlotter:
     """Plotter for information-theoretic analysis results."""
-    
+
     def __init__(self, config: PlotConfig = None):
         self.config = config or PlotConfig()
         self.line_plotter = LinePlotter(self.config)
         self.bar_plotter = BarPlotter(self.config)
-        
+
     def plot_information_metrics(
         self,
-        results: Dict[str, Any],
+        results: dict[str, Any],
         save_path: Optional[str] = None,
         filename_prefix: str = "information"
-    ) -> Dict[str, Tuple[plt.Figure, plt.Axes]]:
+    ) -> dict[str, tuple[plt.Figure, plt.Axes]]:
         """
         Create multiple plots for information analysis results.
-        
+
         Args:
             results: Dictionary containing information analysis results
             save_path: Directory to save plots
             filename_prefix: Prefix for saved files
-            
+
         Returns:
             Dictionary mapping plot names to (figure, axes) tuples
         """
         plots = {}
-        
+
         # Extract number of layers
         num_layers = results.get('num_layers', 5)
         layer_indices = list(range(num_layers))
-        
+
         # 1. Main information metrics plot
         if any(key in results for key in ['I_E_C', 'I_I_C', 'I_V_C']):
             fig, ax = self._plot_main_metrics(results, layer_indices)
             plots['main_metrics'] = (fig, ax)
             if save_path:
                 self._save_plot(fig, save_path, f"{filename_prefix}_main_metrics")
-        
+
         # 2. Normalized information plot
         if 'H_C' in results:
             fig, ax = self._plot_normalized_metrics(results, layer_indices)
             plots['normalized_metrics'] = (fig, ax)
             if save_path:
                 self._save_plot(fig, save_path, f"{filename_prefix}_normalized")
-        
+
         # 3. Information decomposition plot
         if any(key in results for key in ['I_E_C_given_I', 'I_I_C_given_E']):
             fig, ax = self._plot_decomposition(results, layer_indices)
             plots['decomposition'] = (fig, ax)
             if save_path:
                 self._save_plot(fig, save_path, f"{filename_prefix}_decomposition")
-        
+
         # 4. Synergy/Redundancy plot (if PID analysis available)
         if 'synergy' in results or 'redundancy' in results:
             fig, ax = self._plot_synergy_redundancy(results, layer_indices)
             plots['synergy_redundancy'] = (fig, ax)
             if save_path:
                 self._save_plot(fig, save_path, f"{filename_prefix}_synergy_redundancy")
-        
+
         # 5. Layer comparison bar plot
         if any(key in results for key in ['I_E_C', 'I_I_C', 'I_V_C']):
             fig, ax = self._plot_layer_comparison(results)
             plots['layer_comparison'] = (fig, ax)
             if save_path:
                 self._save_plot(fig, save_path, f"{filename_prefix}_layer_comparison")
-        
+
         return plots
-    
-    def _plot_main_metrics(self, results: Dict, layer_indices: List[int]) -> Tuple[plt.Figure, plt.Axes]:
+
+    def _plot_main_metrics(self, results: dict, layer_indices: list[int]) -> tuple[plt.Figure, plt.Axes]:
         """Plot main information metrics (I(E;C), I(I;C), I(V;C))."""
         plot_data = {}
-        
+
         if 'I_E_C' in results:
             plot_data['I(E;C)'] = (layer_indices, results['I_E_C'])
         if 'I_I_C' in results:
             plot_data['I(I;C)'] = (layer_indices, results['I_I_C'])
         if 'I_V_C' in results:
             plot_data['I(V;C)'] = (layer_indices, results['I_V_C'])
-        
+
         fig, ax = self.line_plotter.plot(
             data=plot_data,
             title="Information Content Across Layers",
@@ -564,26 +557,26 @@ class InformationAnalysisPlotter:
                 'I(V;C)': self.config.colors.get('combined', '#9b59b6')
             }
         )
-        
+
         # Customize x-axis
         ax.set_xticks(layer_indices)
         ax.set_xticklabels([f"L{i}" if i > 0 else "Soma" for i in layer_indices])
         ax.grid(True, alpha=0.3)
-        
+
         return fig, ax
-    
-    def _plot_normalized_metrics(self, results: Dict, layer_indices: List[int]) -> Tuple[plt.Figure, plt.Axes]:
+
+    def _plot_normalized_metrics(self, results: dict, layer_indices: list[int]) -> tuple[plt.Figure, plt.Axes]:
         """Plot normalized information metrics."""
         H_C = results.get('H_C', 1.0)
         plot_data = {}
-        
+
         if 'I_E_C' in results:
             plot_data['I(E;C)/H(C)'] = (layer_indices, [i/H_C for i in results['I_E_C']])
         if 'I_I_C' in results:
             plot_data['I(I;C)/H(C)'] = (layer_indices, [i/H_C for i in results['I_I_C']])
         if 'I_V_C' in results:
             plot_data['I(V;C)/H(C)'] = (layer_indices, [i/H_C for i in results['I_V_C']])
-        
+
         fig, ax = self.line_plotter.plot(
             data=plot_data,
             title="Normalized Information Content",
@@ -596,25 +589,25 @@ class InformationAnalysisPlotter:
                 'I(V;C)/H(C)': self.config.colors.get('combined', '#9b59b6')
             }
         )
-        
+
         ax.set_ylim(0, 1.05)
         ax.set_xticks(layer_indices)
         ax.set_xticklabels([f"L{i}" if i > 0 else "Soma" for i in layer_indices])
         ax.grid(True, alpha=0.3)
-        
+
         return fig, ax
-    
-    def _plot_decomposition(self, results: Dict, layer_indices: List[int]) -> Tuple[plt.Figure, plt.Axes]:
+
+    def _plot_decomposition(self, results: dict, layer_indices: list[int]) -> tuple[plt.Figure, plt.Axes]:
         """Plot information decomposition (conditional MI and interactions)."""
         plot_data = {}
-        
+
         if 'I_E_C_given_I' in results:
             plot_data['I(E;C|I)'] = (layer_indices, results['I_E_C_given_I'])
         if 'I_I_C_given_E' in results:
             plot_data['I(I;C|E)'] = (layer_indices, results['I_I_C_given_E'])
         if 'I_E_I' in results:
             plot_data['I(E;I)'] = (layer_indices, results['I_E_I'])
-        
+
         fig, ax = self.line_plotter.plot(
             data=plot_data,
             title="Information Decomposition",
@@ -622,17 +615,17 @@ class InformationAnalysisPlotter:
             ylabel="Information (bits)",
             legend_title="Information Component"
         )
-        
+
         ax.set_xticks(layer_indices)
         ax.set_xticklabels([f"L{i}" if i > 0 else "Soma" for i in layer_indices])
         ax.grid(True, alpha=0.3)
-        
+
         return fig, ax
-    
-    def _plot_synergy_redundancy(self, results: Dict, layer_indices: List[int]) -> Tuple[plt.Figure, plt.Axes]:
+
+    def _plot_synergy_redundancy(self, results: dict, layer_indices: list[int]) -> tuple[plt.Figure, plt.Axes]:
         """Plot synergy and redundancy from PID analysis."""
         plot_data = {}
-        
+
         if 'synergy' in results:
             plot_data['Synergy'] = (layer_indices, results['synergy'])
         if 'redundancy' in results:
@@ -641,7 +634,7 @@ class InformationAnalysisPlotter:
             plot_data['Unique(E)'] = (layer_indices, results['unique_E'])
         if 'unique_I' in results:
             plot_data['Unique(I)'] = (layer_indices, results['unique_I'])
-        
+
         fig, ax = self.line_plotter.plot(
             data=plot_data,
             title="Partial Information Decomposition",
@@ -649,17 +642,17 @@ class InformationAnalysisPlotter:
             ylabel="Information (bits)",
             legend_title="PID Component"
         )
-        
+
         ax.set_xticks(layer_indices)
         ax.set_xticklabels([f"L{i}" if i > 0 else "Soma" for i in layer_indices])
         ax.grid(True, alpha=0.3)
-        
+
         return fig, ax
-    
-    def _plot_layer_comparison(self, results: Dict) -> Tuple[plt.Figure, plt.Axes]:
+
+    def _plot_layer_comparison(self, results: dict) -> tuple[plt.Figure, plt.Axes]:
         """Create bar plot comparing information metrics across layers."""
         num_layers = results.get('num_layers', 5)
-        
+
         # Prepare data for grouped bar plot
         metrics = []
         if 'I_E_C' in results:
@@ -668,20 +661,20 @@ class InformationAnalysisPlotter:
             metrics.append(('I(I;C)', results['I_I_C'], self.config.colors.get('inhibitory', '#3498db')))
         if 'I_V_C' in results:
             metrics.append(('I(V;C)', results['I_V_C'], self.config.colors.get('combined', '#9b59b6')))
-        
+
         if not metrics:
             return None, None
-        
+
         # Create grouped bar plot
         fig, ax = plt.subplots(figsize=self.config.figsize)
-        
+
         x = np.arange(num_layers)
         width = 0.8 / len(metrics)
-        
+
         for i, (label, values, color) in enumerate(metrics):
             offset = (i - len(metrics)/2 + 0.5) * width
             ax.bar(x + offset, values, width, label=label, color=color, alpha=0.8)
-        
+
         ax.set_xlabel('Layer (Soma → Distal)', fontsize=self.config.fontsize["label"])
         ax.set_ylabel('Mutual Information (bits)', fontsize=self.config.fontsize["label"])
         ax.set_title('Information Comparison Across Layers', fontsize=self.config.fontsize["title"])
@@ -689,11 +682,11 @@ class InformationAnalysisPlotter:
         ax.set_xticklabels([f"L{i}" if i > 0 else "Soma" for i in range(num_layers)])
         ax.legend()
         ax.grid(True, alpha=0.3, axis='y')
-        
+
         plt.tight_layout()
-        
+
         return fig, ax
-    
+
     def _save_plot(self, fig: plt.Figure, save_path: str, filename: str):
         """Save plot with metadata."""
         os.makedirs(save_path, exist_ok=True)
@@ -704,17 +697,16 @@ class InformationAnalysisPlotter:
                 bbox_inches='tight'
             )
 
-
 # ============================================================================
 # Specialized Activation Plotters
 # ============================================================================
 
 class ActivationPlotter:
     """Specialized plotter for neural activation patterns."""
-    
+
     def __init__(self, config: PlotConfig = None):
         self.config = config or PlotConfig()
-    
+
     def plot_dendrinet_activations(
         self,
         dendrinet,
@@ -725,15 +717,15 @@ class ActivationPlotter:
     ):
         """Plot DendriNet activations with hierarchical organization."""
         plot_dict = dendrinet_activations_todict(dendrinet, exc_input_list, inh_input_list)
-        
+
         # Create visualizations for each soma
         for soma_key, soma_data in plot_dict.items():
             fig, axes = plt.subplots(len(soma_data), 1, figsize=(12, 4*len(soma_data)))
             if len(soma_data) == 1:
                 axes = [axes]
-            
+
             fig.suptitle(f'DendriNet Activations - {soma_key}', fontsize=self.config.fontsize["title"])
-            
+
             for i, (level_key, level_data) in enumerate(soma_data.items()):
                 # Collect all branch activations for this level
                 all_activations = []
@@ -741,7 +733,7 @@ class ActivationPlotter:
                     if 'activation list' in branch_data:
                         for act in branch_data['activation list']:
                             all_activations.append(act.detach().cpu().numpy())
-                
+
                 if all_activations:
                     # Create heatmap
                     act_array = np.array(all_activations).T
@@ -750,14 +742,14 @@ class ActivationPlotter:
                     axes[i].set_xlabel('Input Sample')
                     axes[i].set_ylabel('Branch Activation')
                     plt.colorbar(im, ax=axes[i])
-            
+
             plt.tight_layout()
-            
+
             if save_path:
                 self._save_plot(fig, save_path, f"{filename}_{soma_key}")
-            
+
             plt.close()
-    
+
     def plot_einet_activations(
         self,
         einet,
@@ -767,12 +759,12 @@ class ActivationPlotter:
     ):
         """Plot EINet activations showing excitatory and inhibitory components."""
         plot_dict = einet_activations_todict(einet, input_list)
-        
+
         # Create visualizations for each layer
         for layer_key, layer_data in plot_dict.items():
             fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(16, 8))
             fig.suptitle(f'EINet Activations - {layer_key}', fontsize=self.config.fontsize["title"])
-            
+
             # Plot inhibitory cells
             if 'inh cells' in layer_data:
                 inh_acts = []
@@ -782,16 +774,16 @@ class ActivationPlotter:
                             if 'activation list' in branch_data:
                                 for act in branch_data['activation list']:
                                     inh_acts.append(act.detach().cpu().numpy())
-                
+
                 if inh_acts:
                     inh_array = np.array(inh_acts).T
-                    im1 = ax1.imshow(inh_array, aspect='auto', 
+                    im1 = ax1.imshow(inh_array, aspect='auto',
                                      cmap='Blues' if 'Blues' in plt.colormaps() else 'viridis')
                     ax1.set_title('Inhibitory Cells', fontsize=self.config.fontsize["label"])
                     ax1.set_xlabel('Activation Sample')
                     ax1.set_ylabel('Neuron Index')
                     plt.colorbar(im1, ax=ax1)
-            
+
             # Plot excitatory cells
             if 'exc cells' in layer_data:
                 exc_acts = []
@@ -801,23 +793,23 @@ class ActivationPlotter:
                             if 'activation list' in branch_data:
                                 for act in branch_data['activation list']:
                                     exc_acts.append(act.detach().cpu().numpy())
-                
+
                 if exc_acts:
                     exc_array = np.array(exc_acts).T
-                    im2 = ax2.imshow(exc_array, aspect='auto', 
+                    im2 = ax2.imshow(exc_array, aspect='auto',
                                      cmap='Reds' if 'Reds' in plt.colormaps() else 'viridis')
                     ax2.set_title('Excitatory Cells', fontsize=self.config.fontsize["label"])
                     ax2.set_xlabel('Activation Sample')
                     ax2.set_ylabel('Neuron Index')
                     plt.colorbar(im2, ax=ax2)
-            
+
             plt.tight_layout()
-            
+
             if save_path:
                 self._save_plot(fig, save_path, f"{filename}_{layer_key}")
-            
+
             plt.close()
-    
+
     def _save_plot(self, fig: plt.Figure, save_path: str, filename: str):
         """Save plot with metadata."""
         os.makedirs(save_path, exist_ok=True)
@@ -828,36 +820,31 @@ class ActivationPlotter:
                 bbox_inches='tight'
             )
 
-
 # ============================================================================
 # Convenience Functions (for backward compatibility)
 # ============================================================================
 
-def plot_layer_contributions(results: Dict[str, Any], **kwargs):
+def plot_layer_contributions(results: dict[str, Any], **kwargs):
     """Convenience function for layer contribution plotting."""
     plotter = LayerAnalysisPlotter()
     return plotter.plot_layer_contributions(results, **kwargs)
 
-
-def plot_ablation_results(results: Dict[str, Dict[str, float]], **kwargs):
+def plot_ablation_results(results: dict[str, dict[str, float]], **kwargs):
     """Convenience function for ablation results plotting."""
     plotter = AblationPlotter()
     return plotter.plot_ablation_results(results, **kwargs)
 
-
-def plot_noise_robustness(results: Dict[str, List[float]], noise_levels: List[float], **kwargs):
+def plot_noise_robustness(results: dict[str, list[float]], noise_levels: list[float], **kwargs):
     """Convenience function for noise robustness plotting."""
     plotter = NoiseAnalysisPlotter()
     return plotter.plot_noise_robustness(results, noise_levels, **kwargs)
 
-
-def plot_weight_distributions(weight_data: Dict[str, List[np.ndarray]], **kwargs):
+def plot_weight_distributions(weight_data: dict[str, list[np.ndarray]], **kwargs):
     """Convenience function for weight distribution plotting."""
     plotter = WeightDistributionPlotter()
     return plotter.plot_weight_distributions(weight_data, **kwargs)
 
-
-def plot_information_analysis(results: Dict[str, Any], **kwargs):
+def plot_information_analysis(results: dict[str, Any], **kwargs):
     """Convenience function for information analysis plotting."""
     plotter = InformationAnalysisPlotter()
     # Handle the filename/filename_prefix parameter mapping
@@ -865,14 +852,12 @@ def plot_information_analysis(results: Dict[str, Any], **kwargs):
         kwargs['filename_prefix'] = kwargs.pop('filename')
     return plotter.plot_information_metrics(results, **kwargs)
 
-
 def plot_dendrinet_activations(dendrinet, exc_input_list, inh_input_list, **kwargs):
     """Convenience function for DendriNet activation plotting."""
     plotter = ActivationPlotter()
     return plotter.plot_dendrinet_activations(dendrinet, exc_input_list, inh_input_list, **kwargs)
 
-
 def plot_einet_activations(einet, input_list, **kwargs):
     """Convenience function for EINet activation plotting."""
     plotter = ActivationPlotter()
-    return plotter.plot_einet_activations(einet, input_list, **kwargs) 
+    return plotter.plot_einet_activations(einet, input_list, **kwargs)

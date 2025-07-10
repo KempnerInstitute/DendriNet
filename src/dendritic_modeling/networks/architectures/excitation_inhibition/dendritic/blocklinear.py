@@ -1,14 +1,13 @@
 """
 Block Linear Layer for Dendritic Networks.
 
-This module implements a custom linear layer that aggregates information 
+This module implements a custom linear layer that aggregates information
 from converging branches in a previous branch layer.
 """
 
 import torch
 import torch.nn as nn
 from math import floor
-
 
 class BlockLinear(nn.Module):
     """
@@ -152,5 +151,4 @@ class BlockLinear(nn.Module):
     def sum_conductances(self):
         return self.log_weight.exp().sum(dim=1)
 
-
-__all__ = ["BlockLinear"] 
+__all__ = ["BlockLinear"]

@@ -14,7 +14,6 @@ from dendritic_modeling.networks.activations.parametric import (
     ParametricLinearTanhTransition,
 )
 
-
 class ActivationFactory:
     """
     A factory for building different activation/ reactivation modules.
@@ -115,5 +114,4 @@ class ActivationFactory:
         else:
             raise ValueError(f"Unknown activation type: {act_type}")
 
-
-__all__ = ["ActivationFactory"] 
+__all__ = ["ActivationFactory"]

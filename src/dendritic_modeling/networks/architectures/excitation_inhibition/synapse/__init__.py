@@ -17,4 +17,4 @@ __all__ = [
     "VarianceTopKLinear",
     "DeepstLinear",
     "TOPK_INIT_METHODS"
-] 
+]

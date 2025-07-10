@@ -12,7 +12,6 @@ from dendritic_modeling.models.classifier import Classifier
 # Regression models
 from dendritic_modeling.models.regressor import Regressor
 
-
 __all__ = [
     # Base
     "BaseModel",
@@ -20,4 +19,4 @@ __all__ = [
     "Classifier",
     # Regression
     "Regressor"
-] 
+]

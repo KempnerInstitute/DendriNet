@@ -9,7 +9,6 @@ chance to remain active.
 import torch
 from dendritic_modeling.networks.architectures.excitation_inhibition.synapse.topk import TopKLinear
 
-
 class StochasticTopKLinear(TopKLinear):
     """
     A variant of TopKLinear where we select top-K stochastically based on rank:
@@ -185,5 +184,4 @@ class StochasticTopKLinear(TopKLinear):
 
         return mask
 
-
-__all__ = ["StochasticTopKLinear"] 
+__all__ = ["StochasticTopKLinear"]

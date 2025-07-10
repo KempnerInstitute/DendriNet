@@ -4,7 +4,7 @@ Vision neuron factories for dendritic modeling.
 This module provides factory functions for creating biologically-inspired
 vision neurons using dendritic computation, including:
 - Gabor orientation-selective units
-- Center-surround receptive fields  
+- Center-surround receptive fields
 - Motion-selective units
 - End-stopped cells
 """
@@ -30,7 +30,7 @@ __all__ = [
     # Vision units
     "create_gabor_unit",
     "create_center_surround_unit",
-    "create_motion_unit", 
+    "create_motion_unit",
     "create_end_stopped_unit",
     "rf_on_center",
     "rf_off_center",
@@ -40,4 +40,4 @@ __all__ = [
     "load_properties_config",
     "get_stimulus_params",
     "get_criterion",
-] 
+]

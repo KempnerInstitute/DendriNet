@@ -1,7 +1,6 @@
 from omegaconf import OmegaConf as om
 from dataclasses import asdict
 
-
 class BaseConfig:
     @classmethod
     def load(cls, path: str):

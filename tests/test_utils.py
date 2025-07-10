@@ -17,7 +17,6 @@ from dendritic_modeling.training.utils.evaluation import accuracy_score
 from dendritic_modeling.plotting.utils import split_MNIST_inputs
 from dendritic_modeling.datasets import load_MNIST_modulo10
 
-
 class TestShaper(unittest.TestCase):
     def test_initialization(self):
         shape = (2, 3)
@@ -42,9 +41,7 @@ class TestShaper(unittest.TestCase):
         reshaped_x = shaper.reshape(x)
         self.assertEqual(reshaped_x.shape, torch.Size([2, 2, 3]))
 
-
 # TestLoadMNIST removed - load_MNIST function doesn't exist
-
 
 class TestSplitMNISTInputs(unittest.TestCase):
     def test_split_by_labels(self):
@@ -64,7 +61,6 @@ class TestSplitMNISTInputs(unittest.TestCase):
         labels = torch.empty(0, dtype=torch.long)
         input_list = split_MNIST_inputs(inputs, labels)
         self.assertEqual(len(input_list), 0)
-
 
 class TestAccuracyScore(unittest.TestCase):
     def setUp(self):
@@ -95,7 +91,6 @@ class TestAccuracyScore(unittest.TestCase):
         )
         accuracy = accuracy_score(self.classifier, inputs, labels, move_device=False)
         self.assertAlmostEqual(accuracy.item(), 0.5)  # 50% accuracy
-
 
 class TestLoadMNISTModulo10(unittest.TestCase):
     def setUp(self):
@@ -156,7 +151,6 @@ class TestLoadMNISTModulo10(unittest.TestCase):
         labels = [item[1].numpy().tolist() for item in data["train"]]
         mod_status = [(item >= 0) and (item < 10) for item in labels]
         self.assertTrue(all(mod_status))
-
 
 if __name__ == "__main__":
     unittest.main()

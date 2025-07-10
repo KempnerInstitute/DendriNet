@@ -4,7 +4,6 @@ from dendritic_modeling.networks.architectures.classical.cnn.cnn import (
     CNNDownsample
 )
 
-
 __all__ = [
     "AlexNet",
     "CNNUpsample",
