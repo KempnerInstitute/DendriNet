@@ -144,6 +144,9 @@ def create_clean_dendritic_neuron(output_file="clean_dendritic_diagram"):
     Create a professional, anatomically correct dendritic neuron diagram.
     Perfect for first page or minimal presentation.
     """
+    # Set random seed for reproducible diagram generation
+    np.random.seed(42)
+    
     fig, ax = plt.subplots(figsize=(8, 10))
     
     # Central soma - positioned in the center
