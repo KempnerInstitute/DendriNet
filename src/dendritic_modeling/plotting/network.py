@@ -64,8 +64,6 @@ def add_colorbars(
         size: Size of colorbar
         pad: Padding for colorbar
     """
-    for ax, im in zip(ax_iterable, im_iterable):
-        # cbar = fig.colorbar(im, ax=ax, shrink=0.6, aspect=20)  # Colorbar might be used later
 
     # Legacy compatibility - simple version
     for ax, im in zip(ax_iterable, im_iterable):

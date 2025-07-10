@@ -64,7 +64,7 @@ class BaseModel(nn.Module):
         if hasattr(self.core_network, 'apply_rewiring'):
             self.core_network.apply_rewiring()
 
-    def get_param_groups(self, param_groups_config: ParamGroupsConfig) -> list[Dict]:
+    def get_param_groups(self, param_groups_config: ParamGroupsConfig) -> list[dict]:
         """
         Get parameter groups for optimizer.
         """
