@@ -6,13 +6,14 @@ color management, and loss curve plotting.
 """
 
 import os
-from typing import Optional, Callable, Any
+from typing import Any, Callable, Optional
 
 import matplotlib.pyplot as plt
 import torch
 from mpl_toolkits.axes_grid1 import make_axes_locatable
 
-def plotWithColor(data, title: str = "", ax=None, **kwargs):
+
+def plot_with_color(data, title: str = "", ax=None, **kwargs):
     """
     Plot an image with a scale color bar.
 

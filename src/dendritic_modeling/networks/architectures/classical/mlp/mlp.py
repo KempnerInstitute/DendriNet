@@ -3,14 +3,15 @@ Baseline MLP models.
 
 This module contains simple MLP implementations for baseline comparisons.
 """
-from typing import Optional
 from copy import deepcopy
+from typing import Optional
 
 import torch
 from torch import nn
 
-from dendritic_modeling.networks.base import BaseNetwork
 from dendritic_modeling.networks.activations.factory import ActivationFactory
+from dendritic_modeling.networks.base import BaseNetwork
+
 
 class MLP(BaseNetwork):
     def __init__(

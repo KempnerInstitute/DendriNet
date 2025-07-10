@@ -5,10 +5,12 @@ This module implements IndexInputTransform which randomly splits
 input dimensions into excitatory and inhibitory channels.
 """
 
-import torch
-import torch.nn as nn
 import logging
 from typing import Optional
+
+import torch
+import torch.nn as nn
+
 logger = logging.getLogger(__name__)
 
 class IndexInputTransform(nn.Module):

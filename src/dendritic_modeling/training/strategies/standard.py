@@ -9,17 +9,17 @@ import os
 import time
 from copy import deepcopy
 from typing import Optional
-import wandb
 
 import torch
+import wandb
 from torch.nn.utils import clip_grad_value_
 from torch.utils.data import DataLoader
 
-from dendritic_modeling.training.loss.functions import get_loss_function
+from dendritic_modeling import logger
 from dendritic_modeling.models import BaseModel
 from dendritic_modeling.plotting import plot_loss_curves
-from dendritic_modeling.training.loss.functions import LossFunction
-from dendritic_modeling import logger
+from dendritic_modeling.training.loss.functions import LossFunction, get_loss_function
+
 
 class Trainer:
     def __init__(
@@ -149,8 +149,10 @@ class Trainer:
         train_losses: list[float],
         valid_losses: list[float],
         logger_info: str = "",
-        wandb_info: dict = {}
+        wandb_info: Optional[dict] = None
     ) -> tuple[list[float], list[float]]:
+        if wandb_info is None:
+            wandb_info = {}
         for _ in range(1, n_epochs + 1):
             train_losses, valid_losses = self._run_epoch(
                 model=model,
@@ -175,8 +177,10 @@ class Trainer:
         train_losses: list[float],
         valid_losses: list[float],
         logger_info: str = "",
-        wandb_info: dict = {}
+        wandb_info: Optional[dict] = None
     ) -> tuple[list[float], list[float]]:
+        if wandb_info is None:
+            wandb_info = {}
         self.epoch_counter += 1
 
         train_loss = self._epoch_train(model, train_loader)
@@ -266,8 +270,10 @@ class Trainer:
         train_loss: float,
         valid_loss: float,
         logger_info: str = "",
-        wandb_info: dict = {}
+        wandb_info: Optional[dict] = None
     ) -> None:
+        if wandb_info is None:
+            wandb_info = {}
         elapsed = time.time() - self.start_time
         if (
             not self.suppress_prints

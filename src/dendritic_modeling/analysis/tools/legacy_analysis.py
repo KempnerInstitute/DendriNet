@@ -60,7 +60,7 @@ def record_branch_activations(model, dataset, batch_size: int = 64, device: str 
 
     return branch_activations, all_labels
 
-def compute_MI(activations: torch.Tensor, labels: torch.Tensor, n_bins: int = 10) -> float:
+def compute_mi(activations: torch.Tensor, labels: torch.Tensor, n_bins: int = 10) -> float:
     """
     Estimate the mutual information I(activations; labels).
     Here, we do a 1D approach:
@@ -84,7 +84,6 @@ def compute_MI(activations: torch.Tensor, labels: torch.Tensor, n_bins: int = 10
     if activations.ndim > 1 and activations.shape[1] > 1:
         activations = activations.mean(dim=1)
 
-    N = len(activations)
     act_min, act_max = activations.min().item(), activations.max().item()
     if act_min == act_max:
         return 0.0
@@ -382,7 +381,7 @@ def compute_mutual_information(
     ratio = joint_prob / (marginal_x[:, None] * marginal_y[None, :])
     return (joint_prob * ratio.log2()).sum()
 
-def estimate_hidden_output_MI(model, data_loader: DataLoader, n_bins: int = 10) -> float:
+def estimate_hidden_output_mi(model, data_loader: DataLoader, n_bins: int = 10) -> float:
     """
     Discretize a hidden layer's activation into n_bins and estimate
     mutual information with the class label. This is a rough approximation:
@@ -438,7 +437,7 @@ def analyze_dendritic_information(
     model,
     dataset,
     device: str = "cuda",
-    mlp_hidden_dims: list[int] = [100, 50],
+    mlp_hidden_dims: Optional[list[int]] = None,
     training_epochs: int = 20,
     batch_size: int = 64,
     use_excitatory: bool = True,
@@ -474,6 +473,8 @@ def analyze_dendritic_information(
     dict
         Dictionary with branch depths and corresponding accuracies
     """
+    if mlp_hidden_dims is None:
+        mlp_hidden_dims = [100, 50]
     logging.info("Starting dendritic information analysis...")
 
     # Ensure model is on the right device
@@ -619,7 +620,7 @@ def analyze_dendritic_information(
             self.layers.append(nn.Linear(hidden_dims[-1], num_classes))
 
         def forward(self, x):
-            for i, layer in enumerate(self.layers[:-1]):
+            for _i, layer in enumerate(self.layers[:-1]):
                 x = F.relu(layer(x))
             x = self.layers[-1](x)
             return x
@@ -639,7 +640,7 @@ def analyze_dendritic_information(
         criterion = nn.CrossEntropyLoss()
 
         # Train
-        for epoch in range(training_epochs):
+        for _epoch in range(training_epochs):
             classifier.train()
             for inputs, targets in train_loader:
                 inputs, targets = inputs.to(device), targets.to(device)
@@ -667,19 +668,15 @@ def analyze_dendritic_information(
         return accuracy
 
     # Extract branch activations for each depth and train classifiers
-    num_classes = len(torch.unique(all_labels))
 
     # Separate train/valid sets
     train_size = int(0.8 * len(all_labels))
     valid_size = len(all_labels) - train_size
 
-    train_indices = torch.randperm(len(all_labels))[:train_size]
-    valid_indices = torch.randperm(len(all_labels))[
+    torch.randperm(len(all_labels))[:train_size]
+    torch.randperm(len(all_labels))[
         train_size : train_size + valid_size
     ]
-
-    train_labels = all_labels[train_indices]
-    valid_labels = all_labels[valid_indices]
 
     # For simplicity, create placeholder results that are realistic
     logging.info("Creating analysis results...")

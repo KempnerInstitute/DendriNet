@@ -3,9 +3,11 @@ Training-related plotting functions.
 """
 
 import os
+from typing import Optional
+
 import matplotlib.pyplot as plt
 import pandas as pd
-from typing import Optional
+
 
 def plot_loss_curves(
     train_losses: list[float],

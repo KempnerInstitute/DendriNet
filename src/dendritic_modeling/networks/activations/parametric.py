@@ -20,7 +20,7 @@ class ParametricActivation(nn.Module):
     """
 
     def __init__(self):
-        super(ParametricActivation, self).__init__()
+        super().__init__()
 
     def initialize(self, *args, **kwargs):
         """
@@ -302,9 +302,9 @@ class ParametricLinearTanhTransition(ParametricActivation):
         )
 
 __all__ = [
-    "ParametricLinearSigmoid",
-    "ParametricLinearTanh",
-    "ParametricLinearTanhTransition",
-    "ParametricTanh",
-    "ParametricTanhOnlyM",
+    "ParametricLinearSigmoid"
+    "ParametricLinearTanh"
+    "ParametricLinearTanhTransition"
+    "ParametricTanh"
+    "ParametricTanhOnlyM"
 ]

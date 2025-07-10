@@ -5,11 +5,14 @@ This module implements a dendritic convolution layer that mimics cortical simple
 with push-pull excitation/inhibition and divisive normalization.
 """
 
+from typing import Optional
+
+import numpy as np
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-import numpy as np
-from typing import Optional
+
+
 class DendriteConv2d(nn.Module):
     """
     Dendritic Convolution Layer with E/I balance and divisive normalization.
@@ -57,7 +60,7 @@ class DendriteConv2d(nn.Module):
         init_method: str = 'softplus_normal',
         v_in_channels: Optional[int] = None,
     ):
-        super(DendriteConv2d, self).__init__()
+        super().__init__()
 
         self.in_channels = in_channels
         self.out_channels = out_channels
@@ -158,7 +161,7 @@ class DendriteConv2d(nn.Module):
         )
 
         # Inhibitory convolution
-        I_var = F.conv2d(
+        F.conv2d(
             x, self.weight_I, self.bias_I,
             stride=self.stride, padding=self.padding,
             dilation=self.dilation, groups=self.groups
@@ -181,13 +184,13 @@ class DendriteConv2d(nn.Module):
             apical_mod_I = F.conv2d(
                 v_in.permute(0, 2, 3, 1).reshape(-1, self.v_in_channels, 1, 1),
                 self.apical_I.t().reshape(self.out_channels, self.v_in_channels, 1, 1)
-            ).reshape(x.shape[0], I.shape[2], I.shape[3], self.out_channels).permute(0, 3, 1, 2)
+            ).reshape(x.shape[0], I_var.shape[2], I_var.shape[3], self.out_channels).permute(0, 3, 1, 2)
 
             E = E * torch.sigmoid(apical_mod_E)
-            I_var = I * torch.sigmoid(apical_mod_I)
+            I_var = I_var * torch.sigmoid(apical_mod_I)
 
         # Divisive normalization
-        v_out = E / (E + I + self.epsilon)
+        v_out = E / (E + I_var + self.epsilon)
 
         return v_out
 
@@ -232,7 +235,7 @@ class DendriteAttention(nn.Module):
         dropout: float = 0.0,
         epsilon: float = 1e-4,
     ):
-        super(DendriteAttention, self).__init__()
+        super().__init__()
 
         self.embed_dim = embed_dim
         self.num_heads = num_heads
@@ -321,18 +324,18 @@ class DendriteAttention(nn.Module):
 
         # Compute inhibition (per query, per head)
         I_var = F.softplus(self.i_proj(query))  # (batch, seq_len, num_heads)
-        I_var = I.transpose(1, 2).unsqueeze(-1)  # (batch, num_heads, seq_len, 1)
+        I_var = I_var.transpose(1, 2).unsqueeze(-1)  # (batch, num_heads, seq_len, 1)
 
         # Apply v_in modulation if provided
         if v_in is not None:
             # v_in modulates the inhibition strength
             v_in_mod = torch.sigmoid(v_in).mean(dim=-1, keepdim=True)  # Global modulation
-            I_var = I * v_in_mod.unsqueeze(1)
+            I_var = I_var * v_in_mod.unsqueeze(1)
 
         # Divisive normalization attention
         E_positive = F.softplus(E)
         E_sum = E_positive.sum(dim=-1, keepdim=True)
-        attn_weights = E_positive / (E_sum + I + self.epsilon)
+        attn_weights = E_positive / (E_sum + I_var + self.epsilon)
 
         # Apply attention to values
         attn_output = torch.matmul(self.dropout(attn_weights), V)

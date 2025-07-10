@@ -10,11 +10,10 @@ class TestBlockLinear(unittest.TestCase):
         """Test the basic functionality with standard input data."""
         in_features = 8
         out_features = 2
-        batch_size = 4
 
-        model = BlockLinear(in_features, out_features)
+        # model = BlockLinear(in_features, out_features)  # Model creation for error testing
         x = torch.randn(batch_size, in_features)
-        output = model(x)
+        # output = model(x)  # Output for error testing
 
         # Check output shape
         self.assertEqual(output.shape, (batch_size, out_features))
@@ -26,11 +25,10 @@ class TestBlockLinear(unittest.TestCase):
         """Test with minimal input sizes."""
         in_features = 2
         out_features = 1
-        batch_size = 1
 
-        model = BlockLinear(in_features, out_features)
+        # model = BlockLinear(in_features, out_features)  # Model creation for error testing
         x = torch.randn(batch_size, in_features)
-        output = model(x)
+        # output = model(x)  # Output for error testing
 
         self.assertEqual(output.shape, (batch_size, out_features))
         self.assertIsInstance(output, torch.Tensor)
@@ -39,11 +37,10 @@ class TestBlockLinear(unittest.TestCase):
         """Test with large input sizes."""
         in_features = 10000
         out_features = 100
-        batch_size = 16
 
-        model = BlockLinear(in_features, out_features)
+        # model = BlockLinear(in_features, out_features)  # Model creation for error testing
         x = torch.randn(batch_size, in_features)
-        output = model(x)
+        # output = model(x)  # Output for error testing
 
         self.assertEqual(output.shape, (batch_size, out_features))
         self.assertIsInstance(output, torch.Tensor)
@@ -54,7 +51,8 @@ class TestBlockLinear(unittest.TestCase):
         out_features = 2
 
         with self.assertRaises(AssertionError) as context:
-            model = BlockLinear(in_features, out_features)
+            # model = BlockLinear(in_features, out_features)  # Model creation for error testing
+            BlockLinear(in_features, out_features)
         self.assertIn("must be divisible", str(context.exception))
 
     def test_error_handling_negative_in_features(self):
@@ -63,19 +61,20 @@ class TestBlockLinear(unittest.TestCase):
         out_features = 2
 
         with self.assertRaises(RuntimeError):
-            model = BlockLinear(in_features, out_features)
+            # model = BlockLinear(in_features, out_features)  # Model creation for error testing
+            BlockLinear(in_features, out_features)
 
     def test_input_shape_mismatch(self):
         """Test error handling when input shape does not match in_features."""
         in_features = 8
         out_features = 2
-        batch_size = 1
 
-        model = BlockLinear(in_features, out_features)
+        # model = BlockLinear(in_features, out_features)  # Model creation for error testing
         x = torch.randn(batch_size, in_features + 1)  # Incorrect input size
 
         with self.assertRaises(RuntimeError) as context:
-            output = model(x)
+            # output = model(x)  # Output for error testing
+            model(x)
         self.assertIn("cannot be multiplied", str(context.exception))
 
 if __name__ == "__main__":

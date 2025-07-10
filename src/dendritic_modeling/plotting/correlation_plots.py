@@ -4,11 +4,13 @@ Correlation analysis plotting utilities.
 This module contains plotting functions for visualizing correlation analysis results.
 """
 import os
-from typing import Optional, Any
-import numpy as np
+from typing import Any, Optional
+
 import matplotlib.pyplot as plt
+import numpy as np
 import seaborn as sns
 from matplotlib.gridspec import GridSpec
+
 
 def plot_correlation_matrices(
     correlation_results: dict[str, np.ndarray],
@@ -209,7 +211,7 @@ def plot_information_analysis(
 
             bars = ax4.bar(components, values)
             ax4.set_ylabel('Information (bits)')
-            ax4.set_title('PID: (E,I) → C')
+            ax4.set_title('PID: (E, I_var) → C')
             ax4.tick_params(axis='x', rotation=45)
 
             # Color code bars

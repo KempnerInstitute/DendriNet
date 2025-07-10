@@ -3,18 +3,20 @@
 All functions are differentiable and can be used in gradient-based optimization.
 """
 
+from typing import Optional
+
+import numpy as np
 import torch
 import torch.nn.functional as F
-import numpy as np
-from typing import Optional
+
 __all__ = [
-    "compute_bio_losses",
-    "loss_DSI",
-    "loss_DoG",
-    "loss_OSI",
-    "loss_endstop",
-    "loss_phase_invariance",
-    "loss_sparsity",
+    "compute_bio_losses"
+    "loss_DoG"
+    "loss_DSI"
+    "loss_endstop"
+    "loss_OSI"
+    "loss_phase_invariance"
+    "loss_sparsity"
 ]
 
 def loss_DoG(sta: torch.Tensor, target_ratio: float = 1.6) -> torch.Tensor:
@@ -338,7 +340,7 @@ def compute_bio_losses(
     if loss_weights.get('sparse', 0) > 0:
         # Collect all activations
         all_activations = []
-        for key, resp in model_responses.items():
+        for _key, resp in model_responses.items():
             all_activations.append(resp.flatten())
         activations = torch.cat(all_activations)
         losses['sparse'] = loss_sparsity(activations)

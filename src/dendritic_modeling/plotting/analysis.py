@@ -12,16 +12,18 @@ neural network models, including:
 """
 
 import os
+from typing import Any, Optional
+
 import matplotlib.pyplot as plt
 import numpy as np
 import torch
-from typing import Optional, Any
+
 from dendritic_modeling.plotting.base import (
-    PlotConfig,
-    LinePlotter,
     BarPlotter,
     BoxPlotter,
-    ComparisonPlotter
+    ComparisonPlotter,
+    LinePlotter,
+    PlotConfig,
 )
 
 # ============================================================================
@@ -149,7 +151,7 @@ class LayerAnalysisPlotter:
     def plot_layer_contributions(
         self,
         results: dict[str, Any],
-        metrics: list[str] = None,
+        metrics: Optional[list[str]] = None,
         save_path: Optional[str] = None,
         filename: str = "layer_contributions",
         reverse_layers: bool = True
@@ -633,7 +635,7 @@ class InformationAnalysisPlotter:
         if 'unique_E' in results:
             plot_data['Unique(E)'] = (layer_indices, results['unique_E'])
         if 'unique_I' in results:
-            plot_data['Unique(I)'] = (layer_indices, results['unique_I'])
+            plot_data['Unique(I_var)'] = (layer_indices, results['unique_I'])
 
         fig, ax = self.line_plotter.plot(
             data=plot_data,
@@ -729,7 +731,7 @@ class ActivationPlotter:
             for i, (level_key, level_data) in enumerate(soma_data.items()):
                 # Collect all branch activations for this level
                 all_activations = []
-                for branch_key, branch_data in level_data.items():
+                for _branch_key, branch_data in level_data.items():
                     if 'activation list' in branch_data:
                         for act in branch_data['activation list']:
                             all_activations.append(act.detach().cpu().numpy())

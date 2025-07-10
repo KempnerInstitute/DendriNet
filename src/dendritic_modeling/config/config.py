@@ -6,6 +6,7 @@ This module defines the configuration dataclasses for the model, training, task,
 It loads and saves configurations using OmegaConf.
 """
 from dataclasses import dataclass, field
+from typing import Optional
 
 from omegaconf import OmegaConf as om
 
@@ -51,7 +52,7 @@ class Config:
     task: TaskConfig = field(default_factory=TaskConfig)
     outputs: OutputsConfig = field(default_factory=OutputsConfig)
 
-def load_config(path: str = None) -> Config:
+def load_config(path: Optional[str] = None) -> Config:
     """Load configuration from a file or use defaults."""
     if path:
         raw_conf = om.load(path)

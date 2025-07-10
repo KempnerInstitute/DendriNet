@@ -8,7 +8,7 @@ neural network activations and performing classification tasks.
 import json
 import logging
 import os
-from typing import Dict, Optional, Tuple
+from typing import Optional
 
 import numpy as np
 import torch
@@ -93,7 +93,7 @@ def train_classifier(
     best_valid_acc = 0.0
     best_model_state = None
 
-    for epoch in range(epochs):
+    for _epoch in range(epochs):
         # Training
         model.train()
         for inputs, targets in train_loader:
@@ -165,7 +165,7 @@ def evaluate_classifier(model: nn.Module, data_loader: DataLoader, device: str =
 
     return accuracy_score(all_targets, all_preds)
 
-def get_layer_activations(model, data_loader: DataLoader, device: str = "cuda") -> dict[int, Tuple]:
+def get_layer_activations(model, data_loader: DataLoader, device: str = "cuda") -> dict[int, tuple]:
     """
     Get activations for each layer in the model.
 
@@ -219,7 +219,7 @@ def get_layer_activations(model, data_loader: DataLoader, device: str = "cuda") 
         for layer_idx, acts in activations_per_layer.items()
     }
 
-def get_ablated_activations(model, data_loader: DataLoader, ablation_type: str, device: str = "cuda") -> Dict:
+def get_ablated_activations(model, data_loader: DataLoader, ablation_type: str, device: str = "cuda") -> dict:
     """
     Get activations with specific inputs ablated.
 
@@ -332,7 +332,7 @@ def analyze_layerwise_ablation(
     test_data,
     save_path: str,
     device: str = "cuda"
-) -> Dict:
+) -> dict:
     """
     Run comprehensive ablation analysis on the dendritic network.
 
@@ -369,11 +369,11 @@ def analyze_layerwise_ablation(
     from ..utils import measure_performance
 
     # Create dataloaders with smaller batch size to avoid memory issues
-    batch_size = 32
+
     device = torch.device(device if torch.cuda.is_available() else "cpu")
-    train_loader = DataLoader(train_data, batch_size=batch_size, shuffle=False)
-    valid_loader = DataLoader(valid_data, batch_size=batch_size, shuffle=False)
-    test_loader = DataLoader(test_data, batch_size=batch_size, shuffle=False)
+    DataLoader(train_data, batch_size=batch_size, shuffle=False)
+    DataLoader(valid_data, batch_size=batch_size, shuffle=False)
+    DataLoader(test_data, batch_size=batch_size, shuffle=False)
 
     # Get baseline model performance
     baseline_acc = measure_performance(model, test_data, device=device)
@@ -541,7 +541,7 @@ def analyze_layerwise_ablation(
 def train_and_evaluate_classifier(
     X: np.ndarray,
     y: np.ndarray,
-    hidden_dims: list[int] = [100, 50],
+    hidden_dims: Optional[list[int]] = None,
     num_classes: int = 10,
     epochs: int = 20,
     batch_size: int = 64,
@@ -573,6 +573,8 @@ def train_and_evaluate_classifier(
         Classification accuracy
     """
     # Convert to torch tensors
+    if hidden_dims is None:
+        hidden_dims = [100, 50]
     X = torch.tensor(X, dtype=torch.float32)
     y = torch.tensor(y, dtype=torch.long)
 
@@ -601,7 +603,7 @@ def train_and_evaluate_classifier(
     best_val_acc = 0.0
     best_model_state = None
 
-    for epoch in range(epochs):
+    for _epoch in range(epochs):
         # Training
         model.train()
         for inputs, targets in train_loader:

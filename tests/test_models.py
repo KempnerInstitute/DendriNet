@@ -1,4 +1,5 @@
 import unittest
+from typing import Optional
 
 import torch
 import torch.nn as nn
@@ -57,10 +58,10 @@ class EINetClassifier(ProbabilisticClassifier):
         inhibitory_layer_sizes: list,
         excitatory_branch_factors: list,
         inhibitory_branch_factors: list,
-        ee_synapses_per_branch_per_layer: list = None,
-        ei_synapses_per_branch_per_layer: list = None,
-        ie_synapses_per_branch_per_layer: list = None,
-        ii_synapses_per_branch_per_layer: list = None,
+        ee_synapses_per_branch_per_layer: Optional[list] = None,
+        ei_synapses_per_branch_per_layer: Optional[list] = None,
+        ie_synapses_per_branch_per_layer: Optional[list] = None,
+        ii_synapses_per_branch_per_layer: Optional[list] = None,
         reactivate: bool = True,
         somatic_synapses: bool = True,
         **kwargs

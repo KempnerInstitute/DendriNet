@@ -5,9 +5,9 @@ from typing import Union
 import numpy as np
 
 __all__ = [
-    "create_colored_noise",
-    "create_sparse_dots",
-    "create_white_noise",
+    "create_colored_noise"
+    "create_sparse_dots"
+    "create_white_noise"
 ]
 
 def create_white_noise(

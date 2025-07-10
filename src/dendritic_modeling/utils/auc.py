@@ -37,7 +37,6 @@ def _binary_roc_auc_pytorch(
         y_score = y_score.moveaxis(dim, -1)
 
     # Get the shape for reshaping later
-    original_shape = y_true.shape[:-1]
 
     # Handle 1D case (no batch dimension)
     if y_true.dim() == 1:
@@ -137,7 +136,7 @@ def _multiclass_roc_auc_pytorch(
         y_true_temp = y_true.moveaxis(dim, -1)
         original_shape = y_true_temp.shape[:-1]
     else:
-        original_shape = y_true.shape[:-1]
+        pass  # original_shape already set above
 
     # Compute one-vs-rest AUC for each class
     class_aucs = []

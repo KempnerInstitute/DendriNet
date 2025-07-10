@@ -149,7 +149,7 @@ def compute_mi_cd(c: np.ndarray, d: np.ndarray, n_neighbors: int) -> float:
 
     return max(0, mi)
 
-def compute_EI_MI(
+def compute_ei_mi(
     excitation: np.ndarray,
     inhibition: np.ndarray,
     mi_E_I: bool = False,

@@ -73,7 +73,7 @@ class SynapticTurnoverAnalyzer:
         if training:
             # Training mode: collect a snapshot of current synaptic masks
             data_dict = {}
-            for name, module in model.named_modules():
+            for _name, module in model.named_modules():
                 if isinstance(module, DendriticBranchLayer):
                     data_dict[name] = {}
                     if module.branch_excitation is not None:

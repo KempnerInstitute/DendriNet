@@ -1,13 +1,15 @@
+from copy import deepcopy
+
 import torch
 import torch.nn as nn
 
-from copy import deepcopy
-from typing import from dendritic_modeling.networks.base import BaseNetwork
 from dendritic_modeling.networks.architectures.classical.cnn.cnn import (
     CNNDownsample,
-    CNNUpsample
+    CNNUpsample,
 )
 from dendritic_modeling.networks.architectures.classical.mlp.mlp import MLP
+from dendritic_modeling.networks.base import BaseNetwork
+
 
 class Encoder(BaseNetwork):
     def __init__(self, net: BaseNetwork):
@@ -142,7 +144,7 @@ class CNNAutoencoder(BaseAutoencoder):
             return kernels, strides
 
         # Calculate the total downsampling factor needed
-        total_downsample_factor = input_h / latent_h
+        input_h / latent_h
 
         # Distribute downsampling across layers
         # Try to use stride=2 as much as possible, then adjust for remaining factor

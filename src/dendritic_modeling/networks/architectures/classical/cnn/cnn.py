@@ -5,12 +5,13 @@ This module implements CNNInputTransform which uses convolutional neural network
 to transform inputs into excitatory and inhibitory pathways.
 """
 
-import torch
-import torch.nn as nn
 from typing import Optional
 
-from dendritic_modeling.networks.base import BaseNetwork
+import torch
+import torch.nn as nn
+
 from dendritic_modeling.networks.activations.factory import ActivationFactory
+from dendritic_modeling.networks.base import BaseNetwork
 
 # change nomenclature to encoder and decoder
 
@@ -117,7 +118,7 @@ class CNNUpsample(BaseNetwork):
         in_channels = input_c  # Start with input channels
         activation_factory = ActivationFactory()
 
-        for i, out_channels in enumerate(hidden_dims + [target_c]):
+        for i, out_channels in enumerate([*hidden_dims, target_c]):
             conv_transpose = nn.ConvTranspose2d(
                 in_channels=in_channels,
                 out_channels=out_channels,
@@ -176,7 +177,7 @@ class CNNUpsample(BaseNetwork):
                 # Last layer - must reach exact target
                 for stride in range(1, 9):  # Try strides 1-8
                     for kernel in range(1, 21):  # Try kernels 1-20
-                        for padding in range(0, min(kernel, 11)):  # Try reasonable paddings
+                        for padding in range(min(kernel, 11)):  # Try reasonable paddings
                             # Formula: output = (input - 1) * stride - 2 * padding + kernel
                             output = (current_size - 1) * stride - 2 * padding + kernel
                             if output == remaining_target:
@@ -186,7 +187,7 @@ class CNNUpsample(BaseNetwork):
             # Try different parameters for this layer
             for stride in range(1, 9):
                 for kernel in range(1, 21):
-                    for padding in range(0, min(kernel, 11)):
+                    for padding in range(min(kernel, 11)):
                         output = (current_size - 1) * stride - 2 * padding + kernel
 
                         # Must be reasonable step toward target
@@ -194,7 +195,7 @@ class CNNUpsample(BaseNetwork):
                             # Recursively try to reach target from this output
                             rest = find_exact_params(output, remaining_target, remaining_layers - 1)
                             if rest is not None:
-                                return [(kernel, stride, padding)] + rest
+                                return [(kernel, stride, padding), *rest]
 
             return None
 

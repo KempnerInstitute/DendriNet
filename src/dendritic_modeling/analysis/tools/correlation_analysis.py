@@ -2,15 +2,16 @@
 Correlation analysis for studying how EI networks learn input correlations.
 """
 
-import numpy as np
-import torch
-import matplotlib.pyplot as plt
-import seaborn as sns
-from typing import Any, Optional 
-import os
-import pandas as pd
-from scipy.stats import pearsonr
 import logging
+import os
+from typing import Any, Optional
+
+import matplotlib.pyplot as plt
+import numpy as np
+import pandas as pd
+import seaborn as sns
+import torch
+from scipy.stats import pearsonr
 
 logger = logging.getLogger(__name__)
 
@@ -221,13 +222,13 @@ class CorrelationAnalyzer:
 
         # For E-E connections
         if 'ee_weights' in weights and 'ee_indices' in weights:
-            ee_weights = weights['ee_weights'].numpy()
+            weights['ee_weights'].numpy()
             ee_indices = weights['ee_indices'].numpy()
 
             # Compute average correlation strength for connected vs unconnected pairs
             connected_corrs = []
             for neuron_idx in range(ee_indices.shape[0]):
-                for synapse_idx, input_idx in enumerate(ee_indices[neuron_idx]):
+                for _synapse_idx, input_idx in enumerate(ee_indices[neuron_idx]):
                     if input_idx >= 0:  # Valid connection
                         # Get correlations between this input and all other connected inputs
                         for other_idx in ee_indices[neuron_idx]:
@@ -588,28 +589,28 @@ class CorrelationAnalyzer:
 
         # Create a simple information flow diagram
         axes[0, 2].text(0.1, 0.7, 'E', ha='center', va='center', fontsize=20,
-                       bbox=dict(boxstyle="round,pad=0.3", facecolor='red', alpha=0.7))
+                       bbox={'boxstyle': "round,pad=0.3", 'facecolor': 'red', 'alpha': 0.7})
         axes[0, 2].text(0.1, 0.3, 'I', ha='center', va='center', fontsize=20,
-                       bbox=dict(boxstyle="round,pad=0.3", facecolor='blue', alpha=0.7))
+                       bbox={'boxstyle': "round,pad=0.3", 'facecolor': 'blue', 'alpha': 0.7})
         axes[0, 2].text(0.5, 0.5, 'Vout', ha='center', va='center', fontsize=16,
-                       bbox=dict(boxstyle="round,pad=0.3", facecolor='green', alpha=0.7))
+                       bbox={'boxstyle': "round,pad=0.3", 'facecolor': 'green', 'alpha': 0.7})
         axes[0, 2].text(0.9, 0.5, 'C', ha='center', va='center', fontsize=20,
-                       bbox=dict(boxstyle="round,pad=0.3", facecolor='gold', alpha=0.7))
+                       bbox={'boxstyle': "round,pad=0.3", 'facecolor': 'gold', 'alpha': 0.7})
 
         # Add arrows and MI values
         if pairwise_mi:
             axes[0, 2].annotate('', xy=(0.45, 0.6), xytext=(0.15, 0.7),
-                               arrowprops=dict(arrowstyle='->', lw=2, color='orange'))
+                               arrowprops={'arrowstyle': '->', 'lw': 2, 'color': 'orange'})
             axes[0, 2].text(0.3, 0.65, f"MI={pairwise_mi.get('I(E;Vout)', 0):.2f}",
                            ha='center', va='center', fontsize=10)
 
             axes[0, 2].annotate('', xy=(0.45, 0.4), xytext=(0.15, 0.3),
-                               arrowprops=dict(arrowstyle='->', lw=2, color='brown'))
+                               arrowprops={'arrowstyle': '->', 'lw': 2, 'color': 'brown'})
             axes[0, 2].text(0.3, 0.35, f"MI={pairwise_mi.get('I(I;Vout)', 0):.2f}",
                            ha='center', va='center', fontsize=10)
 
         axes[0, 2].annotate('', xy=(0.85, 0.5), xytext=(0.55, 0.5),
-                           arrowprops=dict(arrowstyle='->', lw=3, color='darkgreen'))
+                           arrowprops={'arrowstyle': '->', 'lw': 3, 'color': 'darkgreen'})
         axes[0, 2].text(0.7, 0.55, f"MI={basic_mi.get('I(Vout;C)', 0):.2f}",
                        ha='center', va='center', fontsize=12, fontweight='bold')
 
@@ -767,7 +768,7 @@ Integration Metrics:
             axes[1, 0].annotate(f'Accuracy: {accuracy:.3f}',
                                xy=(corr_ei, mi_ei), xytext=(10, 10),
                                textcoords='offset points', fontsize=12,
-                               bbox=dict(boxstyle='round,pad=0.3', facecolor='yellow', alpha=0.7))
+                               bbox={'boxstyle': 'round,pad=0.3', 'facecolor': 'yellow', 'alpha': 0.7})
 
         # 4. Summary comparison
         axes[1, 1].text(0.05, 0.95, 'Correlation vs Information Summary:',

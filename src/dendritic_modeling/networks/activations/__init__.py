@@ -17,12 +17,12 @@ from dendritic_modeling.networks.activations.parametric import (
 
 __all__ = [
     # Factory
-    "ActivationFactory",
+    "ActivationFactory"
     # Parametric activations
-    "ParametricActivation",
-    "ParametricTanh",
-    "ParametricTanhOnlyM",
-    "ParametricLinearSigmoid",
-    "ParametricLinearTanh",
+    "ParametricActivation"
+    "ParametricLinearSigmoid"
+    "ParametricLinearTanh"
     "ParametricLinearTanhTransition"
+    "ParametricTanh"
+    "ParametricTanhOnlyM"
 ]

@@ -8,17 +8,18 @@ and related metrics using different estimation methods:
 - PID (Partial Information Decomposition)
 """
 
-from abc import ABC, abstractmethod
-from typing import Optional, Union, Any
-import numpy as np
 import logging
+from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from enum import Enum
+from typing import Any, Optional, Union
 
+import numpy as np
+from sklearn.feature_selection import mutual_info_classif, mutual_info_regression
 from sklearn.metrics import mutual_info_score
-from sklearn.feature_selection import mutual_info_regression, mutual_info_classif
 
 from dendritic_modeling.utils.information import compute_mi_cc, compute_mi_cd
+
 
 class EstimationMethod(Enum):
     """Available estimation methods for mutual information."""
@@ -58,14 +59,12 @@ class BaseInformationEstimator(ABC):
     @abstractmethod
     def mutual_information(self, x: np.ndarray, y: np.ndarray) -> float:
         """Compute mutual information I(X;Y) between two variables."""
-        pass
 
     @abstractmethod
     def conditional_mutual_information(
         self, x: np.ndarray, y: np.ndarray, z: np.ndarray
     ) -> float:
         """Compute conditional mutual information I(X;Y|Z)."""
-        pass
 
     def entropy(self, x: np.ndarray) -> float:
         """Compute entropy H(X) of a variable."""
@@ -268,10 +267,10 @@ class CopulaEstimator(BaseInformationEstimator):
     def _check_dvc_available(self):
         """Check if DVC tensorflow is available."""
         try:
-            import tensorflow as tf
+            # import tensorflow as tf  # Available for import check
             # Check if DVC modules can be imported
-            import sys
             import os
+            import sys
             # Add external directory to path if needed
             external_dir = os.path.join(os.path.dirname(__file__), '../../../../external')
             if external_dir not in sys.path:

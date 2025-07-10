@@ -9,7 +9,7 @@ from dendritic_modeling.networks.architectures.excitation_inhibition.input_trans
 )
 
 __all__ = [
-    "IdentityInputTransform",
-    "IndexInputTransform",
+    "IdentityInputTransform"
+    "IndexInputTransform"
     "TransferLayer"
 ]

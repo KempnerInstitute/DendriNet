@@ -5,9 +5,9 @@ from typing import Optional
 import numpy as np
 
 __all__ = [
-    "create_drifting_grating",
-    "create_phase_offset_gratings",
-    "create_static_grating",
+    "create_drifting_grating"
+    "create_phase_offset_gratings"
+    "create_static_grating"
 ]
 
 def create_static_grating(
