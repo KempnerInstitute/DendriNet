@@ -3,6 +3,252 @@ Tutorials
 
 This section provides hands-on tutorials for using the Dendritic Modeling Framework.
 
+Quick Start Tutorial
+--------------------
+
+This tutorial will walk you through running your first experiment using the provided ``config_exp.yaml`` configuration file.
+
+Step 1: Setup Environment
+~~~~~~~~~~~~~~~~~~~~~~~~~
+
+First, make sure you have installed the framework following the installation guide:
+
+.. code-block:: bash
+
+   # Activate the conda environment
+   conda activate dendritic_env
+   
+   # Verify installation
+   python -c "import dendritic_modeling; print('Installation successful!')"
+
+Step 2: Understanding config_exp.yaml
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+The ``config_exp.yaml`` file contains a complete experiment configuration. Here are the key sections:
+
+**Model Configuration:**
+
+.. code-block:: yaml
+
+   model:
+     task: classification
+     core_network:
+       type: EINet  # Excitation-Inhibition Network
+       parameters:
+         excitatory_layer_sizes: [10]      # 10 excitatory neurons
+         inhibitory_layer_sizes: [40]      # 40 inhibitory neurons
+         excitatory_branch_factors: [2,2]  # Branching structure
+         use_shunting: true                # Shunting inhibition
+
+**Training Configuration:**
+
+.. code-block:: yaml
+
+   train:
+     learning_strategy: standard  # Standard backpropagation
+     main_trainer:
+       epochs: 10
+       batch_size: 128
+       loss_function: categorical_nll
+
+**Dataset Configuration:**
+
+.. code-block:: yaml
+
+   task:
+     dataset: cifar10
+     parameters:
+       flatten: false
+       normalize: false
+
+Step 3: Run Your First Experiment
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Execute the training script with the configuration file:
+
+.. code-block:: bash
+
+   python src/dendritic_modeling/scripts/train_experiments.py configs/config_exp.yaml
+
+You should see output like:
+
+.. code-block:: text
+
+   Loading configuration from configs/config_exp.yaml...
+   Creating EINet model...
+   Loading CIFAR-10 dataset...
+   Starting training...
+   Epoch 1/10: Loss: 2.301, Accuracy: 10.2%
+   Epoch 2/10: Loss: 2.245, Accuracy: 15.7%
+   ...
+   Training complete!
+   Results saved to: results/exp_run/
+
+Step 4: Understanding the Output
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+After training, check the results directory:
+
+.. code-block:: bash
+
+   ls results/exp_run/
+   # You'll see:
+   # - checkpoints/     # Model checkpoints
+   # - logs/           # Training logs
+   # - figures/        # Visualizations
+   # - analysis/       # Analysis results
+
+View the training progress:
+
+.. code-block:: python
+
+   import pandas as pd
+   import matplotlib.pyplot as plt
+   
+   # Load training log
+   log = pd.read_csv('results/exp_run/logs/training_log.csv')
+   
+   # Plot accuracy
+   plt.plot(log['epoch'], log['train_accuracy'], label='Train')
+   plt.plot(log['epoch'], log['val_accuracy'], label='Validation')
+   plt.xlabel('Epoch')
+   plt.ylabel('Accuracy')
+   plt.legend()
+   plt.show()
+
+Step 5: Customizing Your Experiment
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Try different configurations by modifying the YAML file or using command-line overrides:
+
+**Change the dataset to MNIST:**
+
+.. code-block:: bash
+
+   python src/dendritic_modeling/scripts/train_experiments.py configs/config_exp.yaml \
+       task.dataset=mnist \
+       task.parameters.flatten=true
+
+**Use a different training strategy:**
+
+.. code-block:: bash
+
+   python src/dendritic_modeling/scripts/train_experiments.py configs/config_exp.yaml \
+       train.learning_strategy=two_step \
+       train.main_trainer.pretrain_epochs=20
+
+**Enable visualization:**
+
+.. code-block:: bash
+
+   python src/dendritic_modeling/scripts/train_experiments.py configs/config_exp.yaml \
+       visualization.enabled=true \
+       visualization.plots=[weights,activations]
+
+Step 6: Analyzing Results
+~~~~~~~~~~~~~~~~~~~~~~~~~
+
+The configuration includes various analysis options. Enable them to get insights:
+
+.. code-block:: yaml
+
+   analysis:
+     information_analysis:
+       enabled: true
+       params:
+         compute_basic_mi: true
+         max_samples: 1000
+
+After training with analysis enabled, you'll find:
+
+- **Information metrics**: Mutual information between network components
+- **Ablation results**: Impact of removing different components
+- **Weight statistics**: Distribution of synaptic weights
+- **Activation patterns**: Neural response patterns
+
+Step 7: Creating Your Own Configuration
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Create a new configuration file based on ``config_exp.yaml``:
+
+.. code-block:: yaml
+
+   # my_experiment.yaml
+   model:
+     core_network:
+       type: EINet
+       parameters:
+         excitatory_layer_sizes: [64, 32]  # Two-layer network
+         inhibitory_layer_sizes: [32, 16]
+         excitatory_branch_factors: [4, 2]  # More branches
+         topk_type: stochastic             # Stochastic connectivity
+         topk_temperature: 0.3
+   
+   train:
+     learning_strategy: freeze_layers  # Layer-wise training
+     main_trainer:
+       epochs: 100
+       early_stopping: true
+       patience: 10
+   
+   task:
+     dataset: mnist
+     parameters:
+       flatten: true
+       normalize: true
+
+Run your custom experiment:
+
+.. code-block:: bash
+
+   python src/dendritic_modeling/scripts/train_experiments.py my_experiment.yaml
+
+Common Configuration Patterns
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+**For faster experimentation:**
+
+.. code-block:: yaml
+
+   train:
+     main_trainer:
+       epochs: 5
+       batch_size: 256
+   analysis:
+     information_analysis:
+       enabled: false  # Disable time-consuming analysis
+
+**For biological realism:**
+
+.. code-block:: yaml
+
+   model:
+     core_network:
+       parameters:
+         use_shunting: true
+         topk_type: deepst  # Dynamic sparse training
+         rewiring_mode: global
+         rewire_frequency: 10
+
+**For best performance:**
+
+.. code-block:: yaml
+
+   train:
+     learning_strategy: two_step
+     optim_dict:
+       split_params: true
+       topk_lr: 0.005
+       reactivation_lr: 0.01
+
+Next Steps
+~~~~~~~~~~
+
+- Explore different network architectures in :doc:`NETWORK_ARCHITECTURES`
+- Learn about training strategies in :doc:`TRAINING_STRATEGIES`
+- See the full configuration reference in :doc:`CONFIGURATION_GUIDE`
+- Check out more examples in :doc:`examples`
+
 Basic E/I Network
 -----------------
 

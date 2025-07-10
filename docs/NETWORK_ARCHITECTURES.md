@@ -2,6 +2,8 @@
 
 This guide provides detailed information about all network architectures available in the Dendritic Modeling Framework, their biological motivation, mathematical formulations, and practical usage guidelines.
 
+![Network Architecture Overview](figures/architecture/network_architecture_enhanced.png)
+
 ## Table of Contents
 
 1. [EINet (Excitation-Inhibition Networks)](#einet-excitation-inhibition-networks)
@@ -14,6 +16,8 @@ This guide provides detailed information about all network architectures availab
 
 ## EINet (Excitation-Inhibition Networks)
 
+![EINet Architecture](figures/architecture/network_architecture.png)
+
 ### Biological Motivation
 
 EINets model the fundamental excitation-inhibition dynamics found in biological neural circuits. They implement:
@@ -22,6 +26,8 @@ EINets model the fundamental excitation-inhibition dynamics found in biological 
 - **Dendritic integration**: Hierarchical synaptic integration across dendritic branches
 - **Shunting inhibition**: Biologically plausible divisive inhibition mechanisms
 - **Compartmentalized processing**: Different processing in dendritic vs somatic compartments
+
+![Shunting Inhibition Mechanism](figures/architecture/shunting_inhibition_mechanism.png)
 
 ### Mathematical Formulation
 
@@ -108,6 +114,8 @@ parameters:
 
 ## DendriNet (Pure Dendritic Networks)
 
+![Dendritic Neuron Architecture](figures/architecture/dendritic_neuron_schematic.png)
+
 ### Biological Motivation
 
 DendriNets focus purely on dendritic computation without explicit E-I separation:
@@ -116,6 +124,8 @@ DendriNets focus purely on dendritic computation without explicit E-I separation
 - **Branch-specific processing**: Each branch performs specialized computation  
 - **Synaptic integration**: Weighted combination of branch outputs
 - **Reactivation mechanisms**: Nonlinear activation after each integration step
+
+![Dendritic Computation Flow](figures/architecture/dendritic_computation_flow.png)
 
 ### Mathematical Formulation
 
@@ -447,6 +457,213 @@ input_mode: 2  # With CNNInputTransform
 4. **Enable comprehensive analysis** to understand model behavior
 5. **Compare with baselines** using MatchedParamMLP
 6. **Monitor training dynamics** with visualization enabled
+
+---
+
+## Input Transforms
+
+Input transforms preprocess raw inputs before they enter the dendritic networks, mapping them to excitatory and inhibitory pathways.
+
+### Available Input Transforms
+
+#### Identity Transform
+Simply passes input to both E and I pathways:
+```yaml
+parameters:
+  input_mode: 1  # Same input to both pathways
+```
+
+#### Index Transform  
+Randomly splits input dimensions between E and I:
+```yaml
+parameters:
+  input_mode: 2
+  input_net_dict:
+    type: IndexInputTransform
+    excitatory_dim: 300  # First 300 dimensions → E
+    inhibitory_dim: 200  # Remaining 200 → I
+```
+
+#### MLP Transform
+Learned transformation with separate E/I heads:
+```yaml
+parameters:
+  input_mode: 2
+  input_net_dict:
+    type: MLPInputTransform
+    input_dim: 784
+    hidden_dims: [512, 256]
+    excitatory_dim: 400
+    inhibitory_dim: 200
+```
+
+#### CNN Transform
+Convolutional preprocessing for images:
+```yaml
+parameters:
+  input_mode: 2
+  input_net_dict:
+    type: CNNInputTransform
+    input_shape: [3, 32, 32]
+    excitatory_hidden_dims: [32, 64]
+    inhibitory_hidden_dims: [16, 32]
+    excitatory_kernel_sizes: [5, 3]
+    inhibitory_kernel_sizes: [7, 5]
+    excitatory_strides: [1, 1]
+    inhibitory_strides: [1, 1]
+```
+
+#### AlexNet Transform
+Pre-trained features for transfer learning:
+```yaml
+parameters:
+  input_mode: 2
+  input_net_dict:
+    type: AlexNetTransform
+    excitatory_dim: 4096
+    inhibitory_dim: 2048
+```
+
+#### Feature Extractor MLP
+Pre-trained MLP features (frozen):
+```yaml
+parameters:
+  input_mode: 2
+  input_net_dict:
+    type: FeatureExtractorMLP
+    input_dim: 784
+    hidden_dims: [1024, 512]
+    output_dim: 256
+```
+
+#### Sigmoid Transform
+MLP with sigmoid output for bounded values:
+```yaml
+parameters:
+  input_mode: 2
+  input_net_dict:
+    type: SigmoidInputNetTransform
+    input_dim: 784
+    hidden_dims: [512, 256]
+    excitatory_dim: 200
+    inhibitory_dim: 100
+```
+
+### Input Mode Configuration
+
+The `input_mode` parameter controls how inputs are processed:
+
+| Mode | Description | Use Case |
+|------|-------------|----------|
+| **0** | Raw input → E, None → I | Pure excitatory processing |
+| **1** | Same input → both E and I | Balanced E/I input |
+| **2** | Transform inputs via input_net_dict | Learned/specialized pathways |
+
+### Training Input Networks
+
+Configure how input transforms are trained:
+
+```yaml
+train:
+  input_net_training:
+    training_mode: sequential       # 'joint' or 'sequential'
+    train_input_net: true          # Whether to train
+    input_net_epochs: 20           # Pre-training epochs
+    train_heads_independently: false  # Independent E/I heads
+    
+    # Objectives for inhibitory pathway
+    inhibitory_head_objective: diversity  # 'classification', 'diversity', 'combined'
+    diversity_weight: 0.5          # Weight for diversity loss
+```
+
+### Best Practices for Input Transforms
+
+1. **Image Data**: Use CNNInputTransform or AlexNetTransform
+2. **Tabular Data**: Use MLPInputTransform or IndexInputTransform  
+3. **Small Datasets**: Use simpler transforms to avoid overfitting
+4. **Transfer Learning**: Use pre-trained AlexNet or FeatureExtractorMLP
+5. **Biological Realism**: Use separate pathways with specialized processing
+
+---
+
+## Specialized Layers
+
+### DendriteConv2d
+
+A biologically-inspired convolutional layer with E/I balance and divisive normalization:
+
+```python
+from dendritic_modeling.networks.layers import DendriteConv2d
+
+# Create dendritic convolutional layer
+layer = DendriteConv2d(
+    in_channels=3,
+    out_channels=32,
+    kernel_size=5,
+    stride=1,
+    padding=2,
+    epsilon=1e-4,
+    init_method='softplus_normal'
+)
+```
+
+**Key Features:**
+- Implements divisive normalization: `v_out = E / (E + I + ε)`
+- Separate excitatory and inhibitory convolutions
+- Biologically plausible weight constraints (positive only)
+- Apical modulation support for contextual processing
+
+**Use Cases:**
+- Vision models with biological constraints
+- Studying cortical simple cell responses
+- Context-dependent visual processing
+
+### Vision Neuron Factories
+
+Pre-built biologically-inspired vision units:
+
+```python
+from dendritic_modeling.networks.architectures.excitation_inhibition.dendritic import (
+    create_gabor_unit,
+    create_center_surround_unit,
+    create_motion_unit,
+    create_end_stopped_unit
+)
+
+# Orientation-selective unit
+gabor = create_gabor_unit(
+    orientation=45.0,     # degrees
+    frequency=0.1,        # cycles per pixel
+    sigma=3.0            # Gaussian envelope width
+)
+
+# Center-surround receptive field
+cs_unit = create_center_surround_unit(
+    center_size=5,       # Center region diameter
+    surround_size=11     # Surround region diameter
+)
+
+# Motion detection unit
+motion = create_motion_unit(
+    direction="rightward",  # Motion direction
+    kernel_size=15         # Spatiotemporal kernel size
+)
+
+# End-stopped cell (hypercomplex)
+end_stopped = create_end_stopped_unit(
+    orientation=0.0,       # Preferred orientation
+    length=10,            # Optimal bar length
+    width=3               # Bar width
+)
+```
+
+**Configuration from YAML:**
+```yaml
+# Load neuron configuration from YAML
+from dendritic_modeling.networks.architectures.excitation_inhibition.dendritic import build_neuron_from_yaml
+
+neuron = build_neuron_from_yaml("configs/vision_neuron.yaml")
+```
 
 ---
 
