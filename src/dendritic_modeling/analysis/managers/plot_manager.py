@@ -134,7 +134,8 @@ class PlotManager:
             os.makedirs(save_dir, exist_ok=True)
 
             train_input, train_label = self.data["train"][:]
-            input_list = split_mnist_inputs(train_input, train_label)
+            # Create input list for visualization
+            input_list = [train_input[:10]]  # Use first 10 samples for visualization
 
             plot_einet_activations(
                 einet=self.model.net,
