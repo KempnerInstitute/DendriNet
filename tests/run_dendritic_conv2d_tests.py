@@ -13,9 +13,9 @@ from pathlib import Path
 project_root = Path(__file__).parent.parent
 sys.path.insert(0, str(project_root))
 
-from tests.test_dendritic_conv2d import run_all_tests
-
 if __name__ == "__main__":
+    from tests.test_dendritic_conv2d import run_all_tests
+
     print("Running Dendritic Convolution Test Suite...")
     print("=" * 60)
 

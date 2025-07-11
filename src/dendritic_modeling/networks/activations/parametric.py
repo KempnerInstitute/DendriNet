@@ -302,9 +302,9 @@ class ParametricLinearTanhTransition(ParametricActivation):
         )
 
 __all__ = [
-    "ParametricLinearSigmoid"
-    "ParametricLinearTanh"
-    "ParametricLinearTanhTransition"
-    "ParametricTanh"
-    "ParametricTanhOnlyM"
+    "ParametricLinearSigmoid",
+    "ParametricLinearTanh",
+    "ParametricLinearTanhTransition",
+    "ParametricTanh",
+    "ParametricTanhOnlyM",
 ]
