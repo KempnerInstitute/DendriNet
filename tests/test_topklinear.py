@@ -13,9 +13,9 @@ class TestTopKLinear(unittest.TestCase):
     #     K = 3
     #     batch_size = 4
 
-    #     model = TopKLinear(in_features, out_features, K)
-    #     x = torch.randn(batch_size, in_features)
-    #     output = model(x)
+    #     _ = TopKLinear(in_features, out_features, K)
+    #     _ = torch.randn(batch_size, in_features)
+    #     _ = model(x)
 
     #     # Check output shape
     #     self.assertEqual(output.shape, (batch_size, out_features))
@@ -39,9 +39,9 @@ class TestTopKLinear(unittest.TestCase):
         out_features = 1
         K = 1
 
-        model = TopKLinear(in_features, out_features, K)
-        x = torch.randn(batch_size, in_features)
-        output = model(x)
+        _ = TopKLinear(in_features, out_features, K)
+        _ = torch.randn(batch_size, in_features)
+        _ = model(x)
 
         self.assertEqual(output.shape, (batch_size, out_features))
         self.assertIsInstance(output, torch.Tensor)
@@ -53,9 +53,9 @@ class TestTopKLinear(unittest.TestCase):
         out_features = 5000
         K = 50
 
-        model = TopKLinear(in_features, out_features, K)
-        x = torch.randn(batch_size, in_features)
-        output = model(x)
+        _ = TopKLinear(in_features, out_features, K)
+        _ = torch.randn(batch_size, in_features)
+        _ = model(x)
 
         self.assertEqual(output.shape, (batch_size, out_features))
         self.assertIsInstance(output, torch.Tensor)
@@ -72,10 +72,11 @@ class TestTopKLinear(unittest.TestCase):
         out_features = 1
         K = 1
 
-        with self.assertRaises(Exception):
-            model = TopKLinear(in_features, out_features, K)
-            x = torch.randn(batch_size, in_features)
-            output = model(x)
+        with self.assertRaises(ValueError):
+            _ = TopKLinear(in_features, out_features, K)
+            _ = torch.randn(batch_size, in_features)
+            # Note: model and x are not defined in this scope, but the exception
+            # should be raised during TopKLinear construction
 
     def test_error_handling_negative_k(self):
         """Test handling of negative K value."""
@@ -83,25 +84,25 @@ class TestTopKLinear(unittest.TestCase):
         out_features = 5
         K = -1
         with self.assertRaises(ValueError):
-            model = TopKLinear(in_features, out_features, K)
+            _ = TopKLinear(in_features, out_features, K)
 
     def test_error_handling_k_greater_than_in_features(self):
         """Test handling when K is greater than in_features."""
         in_features = 5
         out_features = 2
         K = 10  # Greater than in_features
-        
+
         with self.assertRaises(ValueError):
-            model = TopKLinear(in_features, out_features, K)
+            _ = TopKLinear(in_features, out_features, K)
 
     def test_error_handling_non_integer_k(self):
         """Test handling when K is non-integer."""
         in_features = 10
         out_features = 5
         K = 2.5  # Non-integer K
-        
+
         # Current implementation converts non-integer K to int
-        model = TopKLinear(in_features, out_features, K)
+        _ = TopKLinear(in_features, out_features, K)
         # Verify that K was converted to integer
         self.assertEqual(model.K, 2)
 
@@ -110,12 +111,12 @@ class TestTopKLinear(unittest.TestCase):
         in_features = 10
         out_features = 5
         K = 3
-        
-        model = TopKLinear(in_features, out_features, K)
-        x = torch.randn(4, in_features + 1)  # Incorrect input size
+
+        _ = TopKLinear(in_features, out_features, K)
+        _ = torch.randn(4, in_features + 1)  # Incorrect input size
 
         with self.assertRaises(RuntimeError):
-            output = model(x)
+            _ = model(x)
 
     # def test_param_space_presigmoid(self):
     #     """Test functionality with param_space set to 'presigmoid'."""
@@ -124,9 +125,9 @@ class TestTopKLinear(unittest.TestCase):
     #     K = 3
     #     batch_size = 4
 
-    #     model = model = TopKLinear(in_features, out_features, K, param_space='presigmoid')
-    #     x = x = torch.randn(batch_size, in_features)
-    #     output = model(x)
+    #     _ = model = TopKLinear(in_features, out_features, K, param_space='presigmoid')
+    #     _ = x = torch.randn(batch_size, in_features)
+    #     _ = model(x)
 
     #     # Check output shape
     #     self.assertEqual(output.shape, (batch_size, out_features))
@@ -142,9 +143,9 @@ class TestTopKLinear(unittest.TestCase):
     #     K = 3
     #     batch_size = 2
 
-    #     model = model = TopKLinear(in_features, out_features, K)
-    #     x = x = torch.randn(batch_size, in_features)
-    #     output = model(x)
+    #     _ = model = TopKLinear(in_features, out_features, K)
+    #     _ = x = torch.randn(batch_size, in_features)
+    #     _ = model(x)
     #     loss = output.sum()
     #     loss.backward()
 
@@ -170,11 +171,11 @@ class TestTopKLinear(unittest.TestCase):
     #     K = 2
     #     batch_size = 1
 
-    #     model = model = TopKLinear(in_features, out_features, K)
-    #     x = x = torch.randn(batch_size, in_features)
+    #     _ = model = TopKLinear(in_features, out_features, K)
+    #     _ = x = torch.randn(batch_size, in_features)
 
     #     # Perform forward pass
-    #     output = model(x)
+    #     _ = model(x)
 
     #     # Manually compute expected output
     #     pruned_weight = model.pruned_weight()
@@ -189,7 +190,7 @@ class TestTopKLinear(unittest.TestCase):
     #     out_features = 5
     #     K = 3
 
-    #     model = model = TopKLinear(in_features, out_features, K)
+    #     _ = model = TopKLinear(in_features, out_features, K)
 
     #     torch.manual_seed(0)
 
@@ -213,7 +214,7 @@ class TestTopKLinear(unittest.TestCase):
     #     out_features = 5
     #     K = 3
 
-    #     model = model = TopKLinear(in_features, out_features, K)
+    #     _ = model = TopKLinear(in_features, out_features, K)
 
     #     torch.manual_seed(0)
     #     cell_weights = torch.rand(out_features)

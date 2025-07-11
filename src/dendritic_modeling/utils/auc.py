@@ -37,6 +37,7 @@ def _binary_roc_auc_pytorch(
         y_score = y_score.moveaxis(dim, -1)
 
     # Get the shape for reshaping later
+    original_shape = y_true.shape[:-1]
 
     # Handle 1D case (no batch dimension)
     if y_true.dim() == 1:
