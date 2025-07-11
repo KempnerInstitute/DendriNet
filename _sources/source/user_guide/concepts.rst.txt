@@ -147,6 +147,13 @@ These strategies can be selected through the ``topk_strategy`` parameter in the 
 BlockLinear Layer
 ~~~~~~~~~~~~~~~
 
+.. figure:: ../../_static/block_linear_accurate.png
+   :align: center
+   :width: 800px
+   :alt: Block Linear Architecture
+
+   **Block Linear Architecture**: Shows the detailed structure of the BlockLinear layer and how it handles information aggregation through the dendritic tree.
+
 The ``BlockLinear`` class handles information aggregation through the dendritic tree by:
 
 1. Generating structured masks based on branch factors

@@ -387,6 +387,13 @@ Where M is a binary mask retaining only the top k elements in each row of W.</p>
 </section>
 <section id="blocklinear-layer">
 <h3>BlockLinear Layer<a class="headerlink" href="#blocklinear-layer" title="Link to this heading"></a></h3>
+<figure class="align-center" id="id1">
+<a class="reference internal image-reference" href="_static/block_linear_accurate.png"><img alt="Block Linear Architecture" src="_static/block_linear_accurate.png" style="width: 800px;" />
+</a>
+<figcaption>
+<p><span class="caption-text"><strong>Block Linear Architecture</strong>: Shows the detailed structure of the BlockLinear layer and how it handles information aggregation through the dendritic tree.</span><a class="headerlink" href="#id1" title="Link to this image"></a></p>
+</figcaption>
+</figure>
 <p>The <code class="docutils literal notranslate"><span class="pre">BlockLinear</span></code> class handles information aggregation through the dendritic tree by:</p>
 <ol class="arabic simple">
 <li><p>Generating structured masks based on branch factors</p></li>
@@ -492,11 +499,11 @@ where m (multiplier) and b (bias) are learned during training.</p></li>
 <section id="example-xor-problem">
 <h3>Example: XOR Problem<a class="headerlink" href="#example-xor-problem" title="Link to this heading"></a></h3>
 <p>The XOR logical operation demonstrates the power of dendritic computation:</p>
-<figure class="align-center" id="id1">
+<figure class="align-center" id="id2">
 <a class="reference internal image-reference" href="../../_images/dendritic_computation_flow.png"><img alt="XOR Dendritic Solution" src="../../_images/dendritic_computation_flow.png" style="width: 400px;" />
 </a>
 <figcaption>
-<p><span class="caption-text">Dendritic solution to the XOR problem using branch-specific processing</span><a class="headerlink" href="#id1" title="Link to this image"></a></p>
+<p><span class="caption-text">Dendritic solution to the XOR problem using branch-specific processing</span><a class="headerlink" href="#id2" title="Link to this image"></a></p>
 </figcaption>
 </figure>
 </section>
