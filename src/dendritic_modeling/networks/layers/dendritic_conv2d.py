@@ -10,7 +10,7 @@ from typing import Optional
 import numpy as np
 import torch
 import torch.nn as nn
-import torch.nn.functional as F
+import torch.nn.functional as functional
 
 
 class DendriteConv2d(nn.Module):
@@ -127,14 +127,14 @@ class DendriteConv2d(nn.Module):
             nn.init.zeros_(self.bias_I)
 
     @property
-    def weight_E(self):
+    def weight_e(self):
         """Excitatory weights (constrained positive)."""
-        return F.softplus(self.weight_E_raw)
+        return functional.softplus(self.weight_E_raw)
 
     @property
-    def weight_I(self):
+    def weight_i(self):
         """Inhibitory weights (constrained positive)."""
-        return F.softplus(self.weight_I_raw)
+        return functional.softplus(self.weight_I_raw)
 
     def forward(self, x: torch.Tensor, v_in: Optional[torch.Tensor] = None) -> torch.Tensor:
         """
@@ -154,15 +154,15 @@ class DendriteConv2d(nn.Module):
             Output tensor of shape (batch, out_channels, height_out, width_out)
         """
         # Excitatory convolution
-        E = F.conv2d(
-            x, self.weight_E, self.bias_E,
+        E = functional.conv2d(
+            x, self.weight_e, self.bias_E,
             stride=self.stride, padding=self.padding,
             dilation=self.dilation, groups=self.groups
         )
 
         # Inhibitory convolution
-        F.conv2d(
-            x, self.weight_I, self.bias_I,
+        I_var = functional.conv2d(
+            x, self.weight_i, self.bias_I,
             stride=self.stride, padding=self.padding,
             dilation=self.dilation, groups=self.groups
         )
@@ -176,12 +176,12 @@ class DendriteConv2d(nn.Module):
 
             # Modulate E and I with apical input
             # Shape: (batch, out_channels, H, W) = (batch, v_in_channels, H, W) @ (v_in_channels, out_channels)
-            apical_mod_E = F.conv2d(
+            apical_mod_E = functional.conv2d(
                 v_in.permute(0, 2, 3, 1).reshape(-1, self.v_in_channels, 1, 1),
                 self.apical_E.t().reshape(self.out_channels, self.v_in_channels, 1, 1)
             ).reshape(x.shape[0], E.shape[2], E.shape[3], self.out_channels).permute(0, 3, 1, 2)
 
-            apical_mod_I = F.conv2d(
+            apical_mod_I = functional.conv2d(
                 v_in.permute(0, 2, 3, 1).reshape(-1, self.v_in_channels, 1, 1),
                 self.apical_I.t().reshape(self.out_channels, self.v_in_channels, 1, 1)
             ).reshape(x.shape[0], I_var.shape[2], I_var.shape[3], self.out_channels).permute(0, 3, 1, 2)
@@ -323,7 +323,7 @@ class DendriteAttention(nn.Module):
             E = E.masked_fill(attn_mask == 0, -1e9)
 
         # Compute inhibition (per query, per head)
-        I_var = F.softplus(self.i_proj(query))  # (batch, seq_len, num_heads)
+        I_var = functional.softplus(self.i_proj(query))  # (batch, seq_len, num_heads)
         I_var = I_var.transpose(1, 2).unsqueeze(-1)  # (batch, num_heads, seq_len, 1)
 
         # Apply v_in modulation if provided
@@ -333,7 +333,7 @@ class DendriteAttention(nn.Module):
             I_var = I_var * v_in_mod.unsqueeze(1)
 
         # Divisive normalization attention
-        E_positive = F.softplus(E)
+        E_positive = functional.softplus(E)
         E_sum = E_positive.sum(dim=-1, keepdim=True)
         attn_weights = E_positive / (E_sum + I_var + self.epsilon)
 
