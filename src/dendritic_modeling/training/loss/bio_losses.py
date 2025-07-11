@@ -11,9 +11,9 @@ import torch.nn.functional as F
 
 __all__ = [
     "compute_bio_losses",
-    "loss_DSI",
-    "loss_DoG",
-    "loss_OSI",
+    "loss_dsi",
+    "loss_dog",
+    "loss_osi",
     "loss_endstop",
     "loss_phase_invariance",
     "loss_sparsity",
@@ -312,19 +312,19 @@ def compute_bio_losses(
     # DoG loss (if dots/noise responses available)
     if 'dots' in model_responses and loss_weights.get('dog', 0) > 0:
         sta = model_responses['dots'].mean(0)  # Average over batch
-        losses['dog'] = loss_DoG(sta)
+        losses['dog'] = loss_dog(sta)
 
     # OSI loss (if grating responses available)
     if 'gratings' in model_responses and loss_weights.get('osi', 0) > 0:
         responses = model_responses['gratings'].mean(0)  # Average over batch
         orientations = torch.tensor(probe_metadata['orientations'])
-        losses['osi'] = loss_OSI(responses, orientations)
+        losses['osi'] = loss_osi(responses, orientations)
 
     # DSI loss (if motion responses available)
     if 'motion' in model_responses and loss_weights.get('dsi', 0) > 0:
         responses = model_responses['motion'].mean(0)
         directions = torch.tensor(probe_metadata['directions'])
-        losses['dsi'] = loss_DSI(responses, directions)
+        losses['dsi'] = loss_dsi(responses, directions)
 
     # Phase invariance loss
     if 'phases' in model_responses and loss_weights.get('phase', 0) > 0:
