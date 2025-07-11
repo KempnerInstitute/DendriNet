@@ -110,9 +110,7 @@ class Trainer:
             wandb_info={},
         )
 
-        logger.info(
-            f"Best epoch: {self.best_epoch}, " f"Best loss: {self.best_loss:.4f}"
-        )
+        logger.info(f"Best epoch: {self.best_epoch}, Best loss: {self.best_loss:.4f}")
         if self.load_best_state_dict:
             model.load_state_dict(self.best_state_dict)
             logger.info("Final model loaded from best checkpoint")
@@ -272,7 +270,7 @@ class Trainer:
         if self.early_stopping and self.patience_counter >= self.patience:
             if not self.suppress_prints:
                 logger.info(
-                    f"Early stopping triggered " f"after {self.epoch_counter} epochs."
+                    f"Early stopping triggered after {self.epoch_counter} epochs."
                 )
             return True
         else:
