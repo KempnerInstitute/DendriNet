@@ -1,9 +1,9 @@
-from __future__ import annotations
-
 """Factory functions that build reusable dendritic visual units used by higher-level
 architectures. Each function returns a configured ``DendriteConv2d`` whose
 E- and I-weights implement a classical visual receptive field (Gabor, centre
 surround, motion, end-stopped)."""
+
+from __future__ import annotations
 
 import numpy as np
 import torch
@@ -12,14 +12,13 @@ from scipy.ndimage import gaussian_filter
 from dendritic_modeling.networks.layers.dendritic_conv2d import DendriteConv2d
 
 __all__ = [
-    "create_center_surround_unit"
-    "create_end_stopped_unit"
-    "create_gabor_unit"
-    "create_motion_unit"
-    "rf_gabor"
-    "rf_off_center"
-    # Target RF templates
-    "rf_on_center"
+    "create_center_surround_unit",
+    "create_end_stopped_unit",
+    "create_gabor_unit",
+    "create_motion_unit",
+    "rf_gabor",
+    "rf_off_center",
+    "rf_on_center",
 ]
 
 def _gabor_kernel(size: int, wavelength: float, orientation: float, phase: float, sigma: float,
@@ -113,12 +112,12 @@ def create_motion_unit(direction: str = "rightward", *, kernel_size: int = 15) -
     I_var = np.zeros_like(E)
     if direction == "rightward":
         E[:, : kernel_size // 2] = gaussian_filter(np.ones((kernel_size, kernel_size // 2)), 2)
-        I[:, kernel_size // 2 :] = gaussian_filter(np.ones((kernel_size, kernel_size // 2 + 1)), 2)
+        I_var[:, kernel_size // 2 :] = gaussian_filter(np.ones((kernel_size, kernel_size // 2 + 1)), 2)
     else:
         E[:, kernel_size // 2 :] = gaussian_filter(np.ones((kernel_size, kernel_size // 2)), 2)
-        I[:, : kernel_size // 2] = gaussian_filter(np.ones((kernel_size, kernel_size // 2 + 1)), 2)
+        I_var[:, : kernel_size // 2] = gaussian_filter(np.ones((kernel_size, kernel_size // 2 + 1)), 2)
     E = E / (E.max() + 1e-6)
-    I_var = I / (I.max() + 1e-6) + 0.1
+    I_var = I_var / (I_var.max() + 1e-6) + 0.1
     return _push_pull_layer(E, I_var)
 
 def create_end_stopped_unit(preferred_length: int = 20, *, orientation: float = 90.0) -> DendriteConv2d:

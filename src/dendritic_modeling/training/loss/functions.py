@@ -102,7 +102,7 @@ class CategoricalNLLLoss(LossFunction):
         else:
             return nll
 
-class VAE_ELBOLoss(LossFunction):
+class VaeElboLoss(LossFunction):
     def __init__(self, reduction: str = "mean"):
         super().__init__(reduction)
         self._loss_name = "VAE ELBO"
@@ -246,7 +246,7 @@ def get_loss_function(loss_function: str) -> LossFunction:
     elif loss_function in ["cat_nll", "categorical_negative_log_likelihood"]:
         return CategoricalNLLLoss()
     elif loss_function in ["vae_elbo", "variational_autoencoder_elbo"]:
-        return VAE_ELBOLoss()
+        return VaeElboLoss()
     elif loss_function in ["neg_cos_sim", "negative_cosine_similarity"]:
         return NegativeCosineSimilarityLoss()
     elif loss_function in [
