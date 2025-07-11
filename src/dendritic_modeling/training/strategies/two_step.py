@@ -7,7 +7,7 @@ where models are first pre-trained with local supervision and then fine-tuned en
 """
 
 import torch
-import torch.nn.functional as F
+import torch.nn.functional as functional
 from torch.nn.utils import clip_grad_value_
 
 from dendritic_modeling import logger
@@ -331,10 +331,10 @@ class TwoStepTrainerWithKL(Trainer):
                         full_logits = model(x_batch)
 
                     # Combined loss: cross-entropy + KL divergence
-                    ce_loss = F.cross_entropy(local_logits, y_batch)
-                    kl_loss = F.kl_div(
-                        F.log_softmax(local_logits, dim=1),
-                        F.softmax(full_logits, dim=1),
+                    ce_loss = functional.cross_entropy(local_logits, y_batch)
+                    kl_loss = functional.kl_div(
+                        functional.log_softmax(local_logits, dim=1),
+                        functional.softmax(full_logits, dim=1),
                         reduction='batchmean'
                     )
                     loss = ce_loss + self.kl_weight * kl_loss
