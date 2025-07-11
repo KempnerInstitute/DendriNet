@@ -16,7 +16,7 @@ This guide provides detailed information about all network architectures availab
 
 ## EINet (Excitation-Inhibition Networks)
 
-![EINet Architecture](figures/architecture/network_architecture.png)
+![EINet Architecture](figures/architecture/network_architecture_enhanced.png)
 
 ### Biological Motivation
 
@@ -27,7 +27,7 @@ EINets model the fundamental excitation-inhibition dynamics found in biological 
 - **Shunting inhibition**: Biologically plausible divisive inhibition mechanisms
 - **Compartmentalized processing**: Different processing in dendritic vs somatic compartments
 
-![Shunting Inhibition Mechanism](figures/architecture/shunting_inhibition_mechanism.png)
+![Dendritic Computation Flow](figures/architecture/dendritic_computation_flow.png)
 
 ### Mathematical Formulation
 

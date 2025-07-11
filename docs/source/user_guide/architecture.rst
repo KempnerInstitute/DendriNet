@@ -34,12 +34,12 @@ Shunting Inhibition Mechanism
 
 Shunting inhibition provides a biologically plausible mechanism for gain control and normalization:
 
-.. figure:: ../../_static/shunting_inhibition_diagram.png
+.. figure:: ../../_static/dendritic_computation_flow.png
    :align: center
    :width: 800px
-   :alt: Shunting inhibition mechanism
+   :alt: Dendritic computation flow
 
-   **Shunting Inhibition in Dendritic Processing**: Shows how dendrites perform shunting inhibition computation. Each dendrite receives excitatory and inhibitory synaptic inputs and computes the divisive normalization locally. Dendrites can also receive inputs from previous dendritic layers. The soma integrates the processed outputs from all dendrites.
+   **Dendritic Computation Flow**: Shows how dendrites perform dendritic computation. Each dendrite receives excitatory and inhibitory synaptic inputs and computes the divisive normalization locally. Dendrites can also receive inputs from previous dendritic layers. The soma integrates the processed outputs from all dendrites.
 
 Network Architecture
 -------------------
@@ -73,7 +73,7 @@ Complete Architecture Flow
 
 The complete network architecture integrates all components:
 
-.. figure:: ../../_static/network_architecture_overview.png
+.. figure:: ../../_static/network_architecture_enhanced.png
    :align: center
    :width: 1000px
    :alt: Network architecture overview

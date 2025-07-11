@@ -77,6 +77,13 @@ Input Modes Comparison
 
 The framework supports different input transformation modes that can be visualized for comparison:
 
+.. figure:: ../../../_static/input_modes_complete.png
+   :align: center
+   :width: 800px
+   :alt: Input modes comparison
+
+   **Input Modes Comparison**: Visual comparison of different input transformation modes showing how inputs are processed differently in each mode.
+
 * **Mode 0**: Original input directly fed to the network
 * **Mode 1**: Same input used for both excitatory and inhibitory pathways
 * **Mode 2**: Separate transformation network for excitatory and inhibitory inputs
