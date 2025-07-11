@@ -9,6 +9,7 @@ from dendritic_modeling.datasets import load_mnist_modulo10
 # Import functions from their actual locations
 from dendritic_modeling.training.utils.evaluation import accuracy_score
 from dendritic_modeling.utils import Shaper
+from dendritic_modeling.plotting.utils import split_mnist_inputs
 
 
 class TestShaper(unittest.TestCase):
@@ -54,7 +55,10 @@ class TestSplitMNISTInputs(unittest.TestCase):
         inputs = torch.empty(0, 784)
         labels = torch.empty(0, dtype=torch.long)
         input_list = split_mnist_inputs(inputs, labels)
-        self.assertEqual(len(input_list), 0)
+        self.assertEqual(len(input_list), 10)  # Should always return 10 groups
+        # All groups should be empty
+        for group in input_list:
+            self.assertEqual(len(group), 0)
 
 class TestAccuracyScore(unittest.TestCase):
     def setUp(self):
