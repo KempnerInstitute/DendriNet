@@ -12,12 +12,11 @@ from typing import Optional
 import numpy as np
 import torch
 import torch.nn as nn
-import torch.nn.functional as F
+import torch.nn.functional as functional
 from torch.utils.data import DataLoader
-from typing import Dict, Optional
 
 
-def record_branch_activations(model, dataset, batch_size: int = 64, device: str = "cpu") -> tuple[Dict, torch.Tensor]:
+def record_branch_activations(model, dataset, batch_size: int = 64, device: str = "cpu") -> tuple[dict, torch.Tensor]:
     """
     For a given DendriNetWithOutputs, forward the entire dataset and record
     the dendritic branch activations at each layer.
@@ -622,7 +621,7 @@ def analyze_dendritic_information(
 
         def forward(self, x):
             for _i, layer in enumerate(self.layers[:-1]):
-                x = F.relu(layer(x))
+                x = functional.relu(layer(x))
             x = self.layers[-1](x)
             return x
 

@@ -18,7 +18,7 @@ from .functions import (
     LossFunction,
     MSELoss,
     NegativeCosineSimilarityLoss,
-    VAE_ELBOLoss,
+    VaeElboLoss,
     VoltageStabilizationLoss,
     get_loss_function,
 )
@@ -32,7 +32,7 @@ __all__ = [
     "LossFunction",
     "MSELoss",
     "NegativeCosineSimilarityLoss",
-    "VAE_ELBOLoss",
+    "VaeElboLoss",
     "VoltageStabilizationLoss",
     "compute_bio_losses",
     "get_loss_function",

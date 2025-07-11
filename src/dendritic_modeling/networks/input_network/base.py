@@ -15,6 +15,7 @@ from dendritic_modeling.networks.architectures.excitation_inhibition.input_trans
     IndexInputTransform,
 )
 
+# Commented out imports for undefined classes
 # from dendritic_modeling.networks.architectures.classical.mlp.mlp import MLPInputTransform
 # from dendritic_modeling.networks.architectures.classical.cnn.cnn import CNNInputTransform
 # from dendritic_modeling.networks.architectures.classical.cnn.alexnet import AlexNetInputTransform
@@ -56,12 +57,8 @@ class InputNetTransform(nn.Module):
             )
 
         elif network_type == "MLPInputTransform":
-            self.input_transform = MLPInputTransform(
-                input_dim=input_dim,
-                hidden_dims=hidden_dims,
-                excitatory_dim=excitatory_dim,
-                inhibitory_dim=inhibitory_dim,
-            )
+            # Placeholder - actual implementation would need the MLPInputTransform class
+            raise NotImplementedError("MLPInputTransform not implemented")
 
         elif network_type == "FeatureExtractorMLP":
             from ..mlp import FeatureExtractorMLP
@@ -72,21 +69,14 @@ class InputNetTransform(nn.Module):
             )
             self.input_transform.set_readout(False)
             self.input_transform.disable_grad()
+
         elif network_type == "AlexNetTransform":
-            self.input_transform = AlexNetInputTransform(
-                excitatory_dim=excitatory_dim, inhibitory_dim=inhibitory_dim
-            )
+            # Placeholder - actual implementation would need the AlexNetInputTransform class
+            raise NotImplementedError("AlexNetInputTransform not implemented")
 
         elif network_type == "CNNInputTransform":
-            self.input_transform = CNNInputTransform(
-                input_shape=input_shape,
-                excitatory_hidden_dims=excitatory_hidden_dims,
-                inhibitory_hidden_dims=inhibitory_hidden_dims,
-                excitatory_kernel_sizes=excitatory_kernel_sizes,
-                inhibitory_kernel_sizes=inhibitory_kernel_sizes,
-                excitatory_strides=excitatory_strides,
-                inhibitory_strides=inhibitory_strides,
-            )
+            # Placeholder - actual implementation would need the CNNInputTransform class
+            raise NotImplementedError("CNNInputTransform not implemented")
 
         else:
             raise ValueError(f"Unknown network type: {network_type}")
