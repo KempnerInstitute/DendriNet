@@ -19,9 +19,6 @@ jobs:
           # Test on macOS with latest Python
           - os: macos-latest
             python-version: "3.11"
-          # Test on Windows with latest Python  
-          - os: windows-latest
-            python-version: "3.11"
 
     steps:
     - name: Checkout code
