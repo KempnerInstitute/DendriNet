@@ -34,6 +34,7 @@ from dendritic_modeling.datasets.synthetic_datasets import (
 )
 
 __all__ = [
+    # Dataset classes (alphabetically sorted)
     "CenterSurroundDataset",
     "CompositionalMNIST",
     "ContextualFigureGroundMNIST",
@@ -50,6 +51,7 @@ __all__ = [
     "RandomFlipMNISTDataset",
     "SparseMNISTDataset",
     "SyntheticCorrelatedDataset",
+    # Utility functions (alphabetically sorted)
     "apply_random_flip",
     "get_data_directory",
     "get_unified_datasets",
