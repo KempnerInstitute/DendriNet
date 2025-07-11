@@ -372,9 +372,11 @@ def analyze_layerwise_ablation(
     batch_size = 32
 
     device = torch.device(device if torch.cuda.is_available() else "cpu")
-    train_loader = DataLoader(train_data, batch_size=batch_size, shuffle=False)
-    valid_loader = DataLoader(valid_data, batch_size=batch_size, shuffle=False)
-    test_loader = DataLoader(test_data, batch_size=batch_size, shuffle=False)
+    # Note: DataLoaders are created but not used in current implementation
+    # They could be used for future batch-wise analysis
+    _ = DataLoader(train_data, batch_size=batch_size, shuffle=False)
+    _ = DataLoader(valid_data, batch_size=batch_size, shuffle=False)
+    _ = DataLoader(test_data, batch_size=batch_size, shuffle=False)
 
     # Get baseline model performance
     baseline_acc = measure_performance(model, test_data, device=device)
