@@ -4,9 +4,24 @@ from .bio_losses import *
 from .functions import *
 
 __all__ = [
+    # From bio_losses.py
+    "compute_bio_losses",
+    "loss_dsi",
+    "loss_dog", 
+    "loss_osi",
+    "loss_endstop",
+    "loss_phase_invariance",
+    "loss_sparsity",
     # From functions.py
-    "compute_loss",
-    "cross_entropy_loss",
-    "mse_loss",
-    # Add bio_losses exports here when you know what they are
+    "LossFunction",
+    "MSELoss",
+    "LogMSELoss", 
+    "CrossEntropyLoss",
+    "BCELoss",
+    "CategoricalNLLLoss",
+    "VAE_ELBOLoss",
+    "NegativeCosineSimilarityLoss",
+    "LogAdjustedNegativeCosineSimilarityLoss",
+    "VoltageStabilizationLoss",
+    "get_loss_function",
 ]
