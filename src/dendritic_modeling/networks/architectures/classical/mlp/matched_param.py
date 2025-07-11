@@ -57,8 +57,8 @@ class MatchedParamMLP(nn.Module):
             **kwargs,
         )
 
-        # summary = torchinfo.summary(einet, verbose=0)  # Summary for debugging
-        target_params = summary.trainable_params
+        # summary_ = torchinfo.summary(einet, verbose=0)  # Summary for debugging
+        target_params = sum(p.numel() for p in einet.parameters() if p.requires_grad)
 
         # Get number of branch layers
         n_branch_layers = einet.n_branch_layers
