@@ -11,10 +11,10 @@ from copy import deepcopy
 from typing import Optional
 
 import torch
-import wandb
 from torch.nn.utils import clip_grad_value_
 from torch.utils.data import DataLoader
 
+import wandb
 from dendritic_modeling import logger
 from dendritic_modeling.models import BaseModel
 from dendritic_modeling.plotting import plot_loss_curves
