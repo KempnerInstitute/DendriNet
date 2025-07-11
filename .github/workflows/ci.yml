@@ -224,4 +224,4 @@ jobs:
         CUDA_VISIBLE_DEVICES: ""
       run: |
         # Run only fast performance tests on PR
-        python -m pytest tests/ -m "not slow" --benchmark-skip 
+        python -m pytest tests/ -m "not slow" --benchmark-skip # Force CI refresh
