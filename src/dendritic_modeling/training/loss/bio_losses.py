@@ -19,7 +19,7 @@ __all__ = [
     "loss_sparsity",
 ]
 
-def loss_DoG(sta: torch.Tensor, target_ratio: float = 1.6) -> torch.Tensor:
+def loss_dog(sta: torch.Tensor, target_ratio: float = 1.6) -> torch.Tensor:
     """Difference of Gaussians loss for center-surround organization.
 
     Fits the spatial receptive field to a DoG model and penalizes
@@ -83,7 +83,7 @@ def loss_DoG(sta: torch.Tensor, target_ratio: float = 1.6) -> torch.Tensor:
 
     return loss + 0.1 * ratio_loss
 
-def loss_OSI(responses: torch.Tensor, orientations: torch.Tensor,
+def loss_osi(responses: torch.Tensor, orientations: torch.Tensor,
              target_osi: float = 0.8) -> torch.Tensor:
     """Orientation selectivity index loss.
 
@@ -128,7 +128,7 @@ def loss_OSI(responses: torch.Tensor, orientations: torch.Tensor,
 
     return loss
 
-def loss_DSI(responses: torch.Tensor, directions: torch.Tensor,
+def loss_dsi(responses: torch.Tensor, directions: torch.Tensor,
              target_dsi: float = 0.5) -> torch.Tensor:
     """Direction selectivity index loss.
 

@@ -64,7 +64,7 @@ from dendritic_modeling.plotting.network import (
 # Import basic plotting functions
 from dendritic_modeling.plotting.simple_plots import (
     add_colorbars,
-    plot_NLL_loss_curves,
+    plot_nll_loss_curves,
     plot_with_color,
     shape_helper,
 )
@@ -123,7 +123,7 @@ __all__ = [
     "plot_with_color",
     # Training plotting functions
     "plot_loss_curves",
-    "plot_NLL_loss_curves",
+    "plot_nll_loss_curves",
     "plot_branch_sweep_results",
     "plot_ei_sweep_results",
     "plot_noise_sweep_branch_results",
