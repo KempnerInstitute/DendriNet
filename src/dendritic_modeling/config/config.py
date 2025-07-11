@@ -8,7 +8,7 @@ It loads and saves configurations using OmegaConf.
 from dataclasses import dataclass, field
 from typing import Optional
 
-from omegaconf import OmegaConf as om
+from omegaconf import OmegaConf
 
 from dendritic_modeling.config.analysis import AnalysisConfig
 from dendritic_modeling.config.base import BaseConfig
@@ -55,7 +55,7 @@ class Config:
 def load_config(path: Optional[str] = None) -> Config:
     """Load configuration from a file or use defaults."""
     if path:
-        raw_conf = om.load(path)
+        raw_conf = OmegaConf.load(path)
         return Config(
             model=ModelConfig(**raw_conf.get("model", {})),
             train=TrainConfig(**raw_conf.get("train", {})),
