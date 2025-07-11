@@ -5,6 +5,7 @@ Configuration file for dendritic_modeling.
 This module defines the configuration dataclasses for the model, training, task, etc.
 It loads and saves configurations using OmegaConf.
 """
+
 from dataclasses import dataclass, field
 from typing import Optional
 
@@ -23,6 +24,7 @@ class VisualizationConfig(BaseConfig):
     plots: list[str] = field(default_factory=lambda: ["branch_info", "ablation"])
     parameters: dict = field(default_factory=dict)
 
+
 @dataclass
 class WandbConfig(BaseConfig):
     entity: str = ""
@@ -31,16 +33,19 @@ class WandbConfig(BaseConfig):
     tags: list[str] = field(default_factory=list)
     use_wandb: bool = False
 
+
 @dataclass
 class TaskConfig(BaseConfig):
     dataset: str = "mnist"
     data_path: str = ""
     parameters: dict = field(default_factory=dict)
 
+
 @dataclass
 class OutputsConfig(BaseConfig):
     run_name: str = "exp_run"
     dir: str = "outputs"
+
 
 @dataclass
 class Config:
@@ -51,6 +56,7 @@ class Config:
     analysis: AnalysisConfig = field(default_factory=AnalysisConfig)
     task: TaskConfig = field(default_factory=TaskConfig)
     outputs: OutputsConfig = field(default_factory=OutputsConfig)
+
 
 def load_config(path: Optional[str] = None) -> Config:
     """Load configuration from a file or use defaults."""

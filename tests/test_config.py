@@ -43,7 +43,7 @@ class TestConfigDataclasses(unittest.TestCase):
             ee_synapses_per_branch_per_layer=[24, 24],
             ei_synapses_per_branch_per_layer=[200, 200],
             ie_synapses_per_branch_per_layer=[1, 1],
-            ii_synapses_per_branch_per_layer=[]
+            ii_synapses_per_branch_per_layer=[],
         )
 
         self.assertEqual(params.input_dim, 784)
@@ -65,8 +65,8 @@ class TestConfigDataclasses(unittest.TestCase):
                 ee_synapses_per_branch_per_layer=[24],
                 ei_synapses_per_branch_per_layer=[200],
                 ie_synapses_per_branch_per_layer=[1],
-                ii_synapses_per_branch_per_layer=[]
-            )
+                ii_synapses_per_branch_per_layer=[],
+            ),
         )
 
         self.assertEqual(network_config.type, "EINet")
@@ -88,9 +88,9 @@ class TestConfigDataclasses(unittest.TestCase):
                     ee_synapses_per_branch_per_layer=[24],
                     ei_synapses_per_branch_per_layer=[200],
                     ie_synapses_per_branch_per_layer=[1],
-                    ii_synapses_per_branch_per_layer=[]
-                )
-            )
+                    ii_synapses_per_branch_per_layer=[],
+                ),
+            ),
         )
 
         self.assertEqual(model_config.task, "classification")
@@ -98,10 +98,7 @@ class TestConfigDataclasses(unittest.TestCase):
 
     def test_train_config_creation(self):
         """Test TrainConfig dataclass creation."""
-        train_config = TrainConfig(
-            seed=42,
-            train_valid_split=0.8
-        )
+        train_config = TrainConfig(seed=42, train_valid_split=0.8)
 
         self.assertEqual(train_config.seed, 42)
         self.assertEqual(train_config.train_valid_split, 0.8)
@@ -113,16 +110,12 @@ class TestConfigDataclasses(unittest.TestCase):
         task_config = TaskConfig(
             dataset="mnist",
             data_path="/path/to/data",
-            parameters={
-                'flatten': True,
-                'normalize': False,
-                'train_size': 50000
-            }
+            parameters={"flatten": True, "normalize": False, "train_size": 50000},
         )
 
         self.assertEqual(task_config.dataset, "mnist")
         self.assertEqual(task_config.data_path, "/path/to/data")
-        self.assertEqual(task_config.parameters['flatten'], True)
+        self.assertEqual(task_config.parameters["flatten"], True)
 
     def test_wandb_config_creation(self):
         """Test WandbConfig dataclass creation."""
@@ -131,7 +124,7 @@ class TestConfigDataclasses(unittest.TestCase):
             project="test_project",
             group="test_group",
             tags=["tag1", "tag2"],
-            use_wandb=True
+            use_wandb=True,
         )
 
         self.assertEqual(wandb_config.entity, "test_entity")
@@ -156,33 +149,18 @@ class TestConfigDataclasses(unittest.TestCase):
                         ee_synapses_per_branch_per_layer=[24],
                         ei_synapses_per_branch_per_layer=[200],
                         ie_synapses_per_branch_per_layer=[1],
-                        ii_synapses_per_branch_per_layer=[]
-                    )
-                )
+                        ii_synapses_per_branch_per_layer=[],
+                    ),
+                ),
             ),
-            train=TrainConfig(
-                seed=42,
-                train_valid_split=0.8
-            ),
-            task=TaskConfig(
-                dataset="mnist",
-                data_path="",
-                parameters={}
-            ),
-            wandb=WandbConfig(
-                entity="",
-                project="test_project",
-                use_wandb=False
-            ),
-            outputs=OutputsConfig(
-                dir="/tmp/outputs"
-            ),
+            train=TrainConfig(seed=42, train_valid_split=0.8),
+            task=TaskConfig(dataset="mnist", data_path="", parameters={}),
+            wandb=WandbConfig(entity="", project="test_project", use_wandb=False),
+            outputs=OutputsConfig(dir="/tmp/outputs"),
             visualization=VisualizationConfig(
-                enabled=False,
-                visualize_epochs=[],
-                plots=[]
+                enabled=False, visualize_epochs=[], plots=[]
             ),
-            analysis=AnalysisConfig()
+            analysis=AnalysisConfig(),
         )
 
         self.assertIsInstance(complete_config, Config)
@@ -190,6 +168,7 @@ class TestConfigDataclasses(unittest.TestCase):
         self.assertIsInstance(complete_config.train, TrainConfig)
         self.assertIsInstance(complete_config.task, TaskConfig)
         self.assertIsInstance(complete_config.wandb, WandbConfig)
+
 
 class TestConfigLoading(unittest.TestCase):
     """Test configuration loading and parsing."""
@@ -200,71 +179,59 @@ class TestConfigLoading(unittest.TestCase):
 
         # Create a sample config YAML
         self.sample_config = {
-            'model': {
-                'task': 'classification',
-                'core_network': {
-                    'type': 'EINet',
-                    'parameters': {
-                        'input_dim': 784,
-                        'excitatory_layer_sizes': [64, 32],
-                        'inhibitory_layer_sizes': [32, 16],
-                        'excitatory_branch_factors': [2, 2],
-                        'inhibitory_branch_factors': [2, 2],
-                        'ee_synapses_per_branch_per_layer': [24, 24],
-                        'ei_synapses_per_branch_per_layer': [200, 200],
-                        'ie_synapses_per_branch_per_layer': [1, 1],
-                        'ii_synapses_per_branch_per_layer': [],
-                        'reactivate': True,
-                        'somatic_synapses': True
-                    }
-                }
+            "model": {
+                "task": "classification",
+                "core_network": {
+                    "type": "EINet",
+                    "parameters": {
+                        "input_dim": 784,
+                        "excitatory_layer_sizes": [64, 32],
+                        "inhibitory_layer_sizes": [32, 16],
+                        "excitatory_branch_factors": [2, 2],
+                        "inhibitory_branch_factors": [2, 2],
+                        "ee_synapses_per_branch_per_layer": [24, 24],
+                        "ei_synapses_per_branch_per_layer": [200, 200],
+                        "ie_synapses_per_branch_per_layer": [1, 1],
+                        "ii_synapses_per_branch_per_layer": [],
+                        "reactivate": True,
+                        "somatic_synapses": True,
+                    },
+                },
             },
-            'train': {
-                'seed': 42,
-                'train_valid_split': 0.8,
-                'main': {
-                    'learning_strategy': 'standard',
-                    'trainer': {
-                        'epochs': 100,
-                        'batch_size': 64
-                    }
-                }
+            "train": {
+                "seed": 42,
+                "train_valid_split": 0.8,
+                "main": {
+                    "learning_strategy": "standard",
+                    "trainer": {"epochs": 100, "batch_size": 64},
+                },
             },
-            'task': {
-                'dataset': 'mnist',
-                'data_path': '',
-                'parameters': {
-                    'flatten': True,
-                    'normalize': False
-                }
+            "task": {
+                "dataset": "mnist",
+                "data_path": "",
+                "parameters": {"flatten": True, "normalize": False},
             },
-            'wandb': {
-                'entity': '',
-                'project': 'test_project',
-                'use_wandb': False,
-                'group': '',
-                'tags': []
+            "wandb": {
+                "entity": "",
+                "project": "test_project",
+                "use_wandb": False,
+                "group": "",
+                "tags": [],
             },
-            'outputs': {
-                'run_name': 'test_run',
-                'dir': '/tmp/outputs'
-            },
-            'visualization': {
-                'enabled': False,
-                'visualize_epochs': [],
-                'plots': []
-            },
-            'analysis': {}
+            "outputs": {"run_name": "test_run", "dir": "/tmp/outputs"},
+            "visualization": {"enabled": False, "visualize_epochs": [], "plots": []},
+            "analysis": {},
         }
 
         # Write config to file
         self.config_file = os.path.join(self.temp_dir, "test_config.yaml")
-        with open(self.config_file, 'w') as f:
+        with open(self.config_file, "w") as f:
             yaml.dump(self.sample_config, f)
 
     def tearDown(self):
         """Clean up test fixtures."""
         import shutil
+
         shutil.rmtree(self.temp_dir, ignore_errors=True)
 
     def test_load_config_from_file(self):
@@ -297,10 +264,12 @@ class TestConfigLoading(unittest.TestCase):
     def test_load_config_invalid_yaml(self):
         """Test handling of invalid YAML content."""
         invalid_yaml_file = os.path.join(self.temp_dir, "invalid.yaml")
-        with open(invalid_yaml_file, 'w') as f:
+        with open(invalid_yaml_file, "w") as f:
             f.write("invalid: yaml: content: [")
 
-        with self.assertRaises((yaml.scanner.ScannerError, yaml.constructor.ConstructorError)):
+        with self.assertRaises(
+            (yaml.scanner.ScannerError, yaml.constructor.ConstructorError)
+        ):
             load_config(invalid_yaml_file)
 
     def test_create_default_config(self):
@@ -317,6 +286,7 @@ class TestConfigLoading(unittest.TestCase):
         self.assertEqual(default_config.train.main.learning_strategy, "standard")
         self.assertEqual(default_config.task.dataset, "mnist")
 
+
 class TestConfigValidation(unittest.TestCase):
     """Test configuration validation and error handling."""
 
@@ -332,7 +302,7 @@ class TestConfigValidation(unittest.TestCase):
             ee_synapses_per_branch_per_layer=[24],
             ei_synapses_per_branch_per_layer=[200],
             ie_synapses_per_branch_per_layer=[1],
-            ii_synapses_per_branch_per_layer=[]
+            ii_synapses_per_branch_per_layer=[],
         )
         self.assertEqual(valid_params.input_dim, 784)
 
@@ -343,10 +313,7 @@ class TestConfigValidation(unittest.TestCase):
     def test_train_config_validation(self):
         """Test TrainConfig validation."""
         # Test valid config
-        valid_config = TrainConfig(
-            seed=42,
-            train_valid_split=0.8
-        )
+        valid_config = TrainConfig(seed=42, train_valid_split=0.8)
         self.assertEqual(valid_config.seed, 42)
 
         # For now, just test that the constructor works
@@ -356,16 +323,13 @@ class TestConfigValidation(unittest.TestCase):
     def test_task_config_validation(self):
         """Test TaskConfig validation."""
         # Test valid config
-        valid_config = TaskConfig(
-            dataset="mnist",
-            data_path="",
-            parameters={}
-        )
+        valid_config = TaskConfig(dataset="mnist", data_path="", parameters={})
         self.assertEqual(valid_config.dataset, "mnist")
 
         # For now, just test that the constructor works
         # The actual validation would be in the dataset loading
         self.assertTrue(True)
+
 
 class TestConfigUpdating(unittest.TestCase):
     """Test configuration updating and merging."""
@@ -391,10 +355,16 @@ class TestConfigUpdating(unittest.TestCase):
         """Test updating nested configuration fields."""
         # Update network parameters
         self.base_config.model.core_network.parameters.input_dim = 1024
-        self.base_config.model.core_network.parameters.excitatory_layer_sizes = [128, 64]
+        self.base_config.model.core_network.parameters.excitatory_layer_sizes = [
+            128,
+            64,
+        ]
 
         self.assertEqual(self.base_config.model.core_network.parameters.input_dim, 1024)
-        self.assertEqual(self.base_config.model.core_network.parameters.excitatory_layer_sizes, [128, 64])
+        self.assertEqual(
+            self.base_config.model.core_network.parameters.excitatory_layer_sizes,
+            [128, 64],
+        )
 
     def test_param_groups_updates(self):
         """Test updating parameter group configuration."""
@@ -404,6 +374,7 @@ class TestConfigUpdating(unittest.TestCase):
 
         self.assertEqual(self.base_config.train.main.param_groups.lr, 0.005)
         self.assertEqual(self.base_config.train.main.param_groups.topk_lr, 0.001)
+
 
 class TestConfigSerialization(unittest.TestCase):
     """Test configuration serialization and deserialization."""
@@ -422,42 +393,36 @@ class TestConfigSerialization(unittest.TestCase):
     def tearDown(self):
         """Clean up test fixtures."""
         import shutil
+
         shutil.rmtree(self.temp_dir, ignore_errors=True)
 
     def test_config_to_yaml(self):
         """Test converting config to YAML format."""
         # Create a simple config dict manually to avoid OmegaConf validation issues
         simple_config = {
-            'model': {
-                'task': 'classification',
-                'core_network': {
-                    'type': 'EINet',
-                    'parameters': {
-                        'input_dim': 784,
-                        'excitatory_layer_sizes': [32],
-                        'inhibitory_layer_sizes': [24],
-                        'excitatory_branch_factors': [2],
-                        'inhibitory_branch_factors': [2],
-                        'ee_synapses_per_branch_per_layer': [24],
-                        'ei_synapses_per_branch_per_layer': [200],
-                        'ie_synapses_per_branch_per_layer': [1],
-                        'ii_synapses_per_branch_per_layer': []
-                    }
-                }
+            "model": {
+                "task": "classification",
+                "core_network": {
+                    "type": "EINet",
+                    "parameters": {
+                        "input_dim": 784,
+                        "excitatory_layer_sizes": [32],
+                        "inhibitory_layer_sizes": [24],
+                        "excitatory_branch_factors": [2],
+                        "inhibitory_branch_factors": [2],
+                        "ee_synapses_per_branch_per_layer": [24],
+                        "ei_synapses_per_branch_per_layer": [200],
+                        "ie_synapses_per_branch_per_layer": [1],
+                        "ii_synapses_per_branch_per_layer": [],
+                    },
+                },
             },
-            'train': {
-                'seed': 42,
-                'main': {
-                    'trainer': {
-                        'epochs': 50
-                    }
-                }
-            }
+            "train": {"seed": 42, "main": {"trainer": {"epochs": 50}}},
         }
 
         # Save to YAML
         yaml_file = os.path.join(self.temp_dir, "serialized_config.yaml")
-        with open(yaml_file, 'w') as f:
+        with open(yaml_file, "w") as f:
             yaml.dump(simple_config, f)
 
         self.assertTrue(os.path.exists(yaml_file))
@@ -471,39 +436,30 @@ class TestConfigSerialization(unittest.TestCase):
         """Test round-trip serialization/deserialization."""
         # Create a simple config dict manually
         config_dict = {
-            'model': {
-                'task': 'classification',
-                'core_network': {
-                    'type': 'EINet',
-                    'parameters': {
-                        'input_dim': 512,
-                        'excitatory_layer_sizes': [64],
-                        'inhibitory_layer_sizes': [48],
-                        'excitatory_branch_factors': [2],
-                        'inhibitory_branch_factors': [2],
-                        'ee_synapses_per_branch_per_layer': [24],
-                        'ei_synapses_per_branch_per_layer': [200],
-                        'ie_synapses_per_branch_per_layer': [1],
-                        'ii_synapses_per_branch_per_layer': []
-                    }
-                }
+            "model": {
+                "task": "classification",
+                "core_network": {
+                    "type": "EINet",
+                    "parameters": {
+                        "input_dim": 512,
+                        "excitatory_layer_sizes": [64],
+                        "inhibitory_layer_sizes": [48],
+                        "excitatory_branch_factors": [2],
+                        "inhibitory_branch_factors": [2],
+                        "ee_synapses_per_branch_per_layer": [24],
+                        "ei_synapses_per_branch_per_layer": [200],
+                        "ie_synapses_per_branch_per_layer": [1],
+                        "ii_synapses_per_branch_per_layer": [],
+                    },
+                },
             },
-            'train': {
-                'seed': 42,
-                'main': {
-                    'trainer': {
-                        'epochs': 150
-                    }
-                }
-            },
-            'task': {
-                'dataset': 'cifar10'
-            }
+            "train": {"seed": 42, "main": {"trainer": {"epochs": 150}}},
+            "task": {"dataset": "cifar10"},
         }
 
         # Save to file and load back
         yaml_file = os.path.join(self.temp_dir, "round_trip_config.yaml")
-        with open(yaml_file, 'w') as f:
+        with open(yaml_file, "w") as f:
             yaml.dump(config_dict, f)
 
         # Load from file
@@ -513,6 +469,7 @@ class TestConfigSerialization(unittest.TestCase):
         self.assertEqual(restored_config.train.main.trainer.epochs, 150)
         self.assertEqual(restored_config.model.core_network.parameters.input_dim, 512)
         self.assertEqual(restored_config.task.dataset, "cifar10")
+
 
 class TestConfigIntegration(unittest.TestCase):
     """Test configuration integration with other modules."""
@@ -530,10 +487,15 @@ class TestConfigIntegration(unittest.TestCase):
 
         # Check required fields exist
         required_fields = [
-            'input_dim', 'excitatory_layer_sizes', 'inhibitory_layer_sizes',
-            'excitatory_branch_factors', 'inhibitory_branch_factors',
-            'ee_synapses_per_branch_per_layer', 'ei_synapses_per_branch_per_layer',
-            'ie_synapses_per_branch_per_layer', 'ii_synapses_per_branch_per_layer'
+            "input_dim",
+            "excitatory_layer_sizes",
+            "inhibitory_layer_sizes",
+            "excitatory_branch_factors",
+            "inhibitory_branch_factors",
+            "ee_synapses_per_branch_per_layer",
+            "ei_synapses_per_branch_per_layer",
+            "ie_synapses_per_branch_per_layer",
+            "ii_synapses_per_branch_per_layer",
         ]
 
         for field in required_fields:
@@ -545,14 +507,14 @@ class TestConfigIntegration(unittest.TestCase):
         train_config = self.config.train
 
         # Check required training fields
-        required_fields = ['seed', 'train_valid_split', 'main', 'encoder']
+        required_fields = ["seed", "train_valid_split", "main", "encoder"]
 
         for field in required_fields:
             self.assertTrue(hasattr(train_config, field))
             self.assertIsNotNone(getattr(train_config, field))
 
         # Check main training config fields
-        main_fields = ['learning_strategy', 'param_groups', 'trainer']
+        main_fields = ["learning_strategy", "param_groups", "trainer"]
         for field in main_fields:
             self.assertTrue(hasattr(train_config.main, field))
 
@@ -562,9 +524,10 @@ class TestConfigIntegration(unittest.TestCase):
 
         # Check that analysis config exists and has expected structure
         self.assertIsNotNone(analysis_config)
-        self.assertTrue(hasattr(analysis_config, 'performance_analysis'))
-        self.assertTrue(hasattr(analysis_config, 'information_analysis'))
-        self.assertTrue(hasattr(analysis_config, 'ablation_analysis'))
+        self.assertTrue(hasattr(analysis_config, "performance_analysis"))
+        self.assertTrue(hasattr(analysis_config, "information_analysis"))
+        self.assertTrue(hasattr(analysis_config, "ablation_analysis"))
 
-if __name__ == '__main__':
+
+if __name__ == "__main__":
     unittest.main()

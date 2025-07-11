@@ -3,6 +3,7 @@ Ablation analysis plotting utilities.
 
 This module contains plotting functions for visualizing ablation study results.
 """
+
 import os
 from typing import Optional
 
@@ -11,9 +12,7 @@ import numpy as np
 
 
 def plot_layer_ablation(
-    layer_results: dict,
-    save_path: Optional[str] = None,
-    filename: str = "final"
+    layer_results: dict, save_path: Optional[str] = None, filename: str = "final"
 ) -> Optional[list[plt.Figure]]:
     """
     Plot layer ablation results showing accuracy/log-likelihood decrease vs depth.
@@ -29,10 +28,7 @@ def plot_layer_ablation(
     if save_path is None:
         fig_list = []
 
-    metric_mapping = {
-        "accuracy": "Accuracy",
-        "log likelihood": "Log Likelihood"
-    }
+    metric_mapping = {"accuracy": "Accuracy", "log likelihood": "Log Likelihood"}
 
     metrics = []
     for metric in metric_mapping.keys():
@@ -64,10 +60,7 @@ def plot_layer_ablation(
         for i, ablation_type in enumerate(synapse_ablation_types):
             x = np.array(depths) + width * (i - (n_ablation_types - 1) / 2)
             ax.bar(
-                x,
-                results[ablation_type]["decrease"],
-                width=width,
-                label=ablation_type
+                x, results[ablation_type]["decrease"], width=width, label=ablation_type
             )
         ax.set_xticks(depths)
         ax.set_xlabel("Depth")
@@ -88,10 +81,11 @@ def plot_layer_ablation(
     if save_path is None:
         return fig_list
 
+
 def plot_compartment_ablation(
     compartment_results: dict,
     save_path: Optional[str] = None,
-    filename: str = "compartment_ablation"
+    filename: str = "compartment_ablation",
 ) -> Optional[list[plt.Figure]]:
     """
     Plot compartment-wise ablation results.
@@ -126,9 +120,7 @@ def plot_compartment_ablation(
         plt.tight_layout()
 
         if save_path is not None:
-            plot_path = os.path.join(
-                save_path, f"{filename}_{ablation_type}.png"
-            )
+            plot_path = os.path.join(save_path, f"{filename}_{ablation_type}.png")
             fig.savefig(plot_path, dpi=300, bbox_inches="tight")
             plt.close()
         else:
@@ -137,10 +129,11 @@ def plot_compartment_ablation(
     if save_path is None:
         return fig_list
 
+
 def plot_ablation_summary(
     results: dict[str, dict],
     save_path: Optional[str] = None,
-    filename: str = "ablation_summary"
+    filename: str = "ablation_summary",
 ) -> Optional[plt.Figure]:
     """
     Create a summary plot of all ablation results.
@@ -170,8 +163,7 @@ def plot_ablation_summary(
 
                 # Sum accuracy drops across all layers
                 total_drop = sum(
-                    layer_data.get("accuracy drop", 0)
-                    for layer_data in layers.values()
+                    layer_data.get("accuracy drop", 0) for layer_data in layers.values()
                 )
                 total_drops.append(total_drop)
 

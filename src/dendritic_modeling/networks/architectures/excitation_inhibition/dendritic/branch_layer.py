@@ -86,7 +86,7 @@ class DendriticBranchLayer(nn.Module):
         print_hooks=False,
         # DEEPST specific parameters, clean up later
         use_noise=True,
-        rewiring_mode='global',
+        rewiring_mode="global",
         rewire_frequency=1,
         synapses_per_branch=None,
         sigma=0.05,
@@ -138,7 +138,7 @@ class DendriticBranchLayer(nn.Module):
                 K=excitatory_synapses_per_branch,
                 init_method=topk_init_method,
                 noise_level=topk_noise_level,
-                cell_type='exc',
+                cell_type="exc",
             )
             gradient_scaler.register_topk_dynamic(self.branch_excitation)
             self.excitatory_input_dim = excitatory_input_dim
@@ -153,7 +153,7 @@ class DendriticBranchLayer(nn.Module):
                 K=inhibitory_synapses_per_branch,
                 init_method=topk_init_method,
                 noise_level=topk_noise_level,
-                cell_type='inh',
+                cell_type="inh",
             )
             gradient_scaler.register_topk_dynamic(self.branch_inhibition)
             self.inhibitory_input_dim = inhibitory_input_dim
@@ -174,7 +174,7 @@ class DendriticBranchLayer(nn.Module):
                 output_dim=output_dim,
                 init_m=reactivation_init_m if use_shunting else 0.1,
                 init_b=reactivation_init_b if use_shunting else 0.1,
-                **kwargs
+                **kwargs,
             )
             if use_shunting:
                 gradient_scaler.register_reactivation_inverse(self.reactivation)
@@ -195,7 +195,7 @@ class DendriticBranchLayer(nn.Module):
         K,
         init_method,
         noise_level,
-        cell_type='exc',
+        cell_type="exc",
     ):
         """Helper function that picks which topk class to use based on strategy."""
         # For 'standard' strategy, use the original TopKLinear class exactly as before
@@ -243,14 +243,22 @@ class DendriticBranchLayer(nn.Module):
             return DeepstLinear(
                 in_features=in_features,
                 out_features=out_features,
-                target_density=self.excitatory_target_density if cell_type == 'exc' else self.inhibitory_target_density,
+                target_density=(
+                    self.excitatory_target_density
+                    if cell_type == "exc"
+                    else self.inhibitory_target_density
+                ),
                 sigma=self.sigma,
                 use_noise=self.use_noise,
                 rewiring_mode=self.rewiring_mode,
                 synapses_per_branch=self.synapses_per_branch,
-                param_space='log',
+                param_space="log",
                 init_method=self.init_method,
-                freeze_connectivity=self.freeze_excitatory_connectivity if cell_type == 'exc' else self.freeze_inhibitory_connectivity,
+                freeze_connectivity=(
+                    self.freeze_excitatory_connectivity
+                    if cell_type == "exc"
+                    else self.freeze_inhibitory_connectivity
+                ),
                 weight_threshold=self.weight_threshold,
             )
         else:
@@ -301,17 +309,15 @@ class DendriticBranchLayer(nn.Module):
         """
         Apply rewiring to all synaptic connections.
         """
-        if hasattr(self, 'step_counter'):
+        if hasattr(self, "step_counter"):
             self.step_counter += 1
             rewire_condition = self.step_counter % self.rewire_frequency == 0
-            if (
-                rewire_condition and
-                hasattr(self.branch_excitation, 'apply_noise_and_enforce_constraints')
+            if rewire_condition and hasattr(
+                self.branch_excitation, "apply_noise_and_enforce_constraints"
             ):
                 self.branch_excitation.apply_noise_and_enforce_constraints()
-            if (
-                rewire_condition and
-                hasattr(self.branch_inhibition, 'apply_noise_and_enforce_constraints')
+            if rewire_condition and hasattr(
+                self.branch_inhibition, "apply_noise_and_enforce_constraints"
             ):
                 self.branch_inhibition.apply_noise_and_enforce_constraints()
 
@@ -357,13 +363,14 @@ class DendriticBranchLayer(nn.Module):
                 voltage = voltage - self.branch_inhibition(inhibitory_input)
 
         if self.training and "conductance_dynamic" in [
-            self.topk_strategy, self.blocklinear_strategy]:
-            self.compute_grad_scales(
-                g_total = denominator if self.use_shunting else None)
+            self.topk_strategy,
+            self.blocklinear_strategy,
+        ]:
+            self.compute_grad_scales(g_total=denominator if self.use_shunting else None)
 
         return self.reactivation(voltage)
 
-    def compute_grad_scales(self, g_total = None):
+    def compute_grad_scales(self, g_total=None):
         """
         A conduction-based dynamic scale, returning a flattened vector so each weight
         can get a distinct multiplier. shape [out_features * block_size].
@@ -371,7 +378,7 @@ class DendriticBranchLayer(nn.Module):
         with torch.no_grad():
             if self.use_shunting:
                 if g_total.dim() > 1:
-                    g_total = g_total.mean(dim = tuple(range(g_total.dim() - 1)))
+                    g_total = g_total.mean(dim=tuple(range(g_total.dim() - 1)))
 
                 if (
                     hasattr(self, "branches_to_output")
@@ -382,11 +389,13 @@ class DendriticBranchLayer(nn.Module):
                     ).flatten()
                     self.branches_to_output.param_scale_vec = g_total[:, None]
 
-                if (self.branch_excitation is not None
-                    and self.topk_strategy == "conductance_dynamic"):
+                if (
+                    self.branch_excitation is not None
+                    and self.topk_strategy == "conductance_dynamic"
+                ):
                     self.branch_excitation.input_scale_vec = (
                         g_total[:, None] / self.branch_excitation.weight()
-                    ).mean(dim = 0)
+                    ).mean(dim=0)
                     self.branch_excitation.param_scale_vec = g_total[:, None]
 
                 if (
@@ -395,7 +404,7 @@ class DendriticBranchLayer(nn.Module):
                 ):
                     self.branch_inhibition.input_scale_vec = (
                         g_total[:, None] / self.branch_inhibition.weight()
-                    ).mean(dim = 0)
+                    ).mean(dim=0)
                     self.branch_inhibition.param_scale_vec = g_total[:, None]
 
     def get_weights(self):
@@ -459,5 +468,6 @@ class DendriticBranchLayer(nn.Module):
             return self.branch_inhibition.log_pruned_weight()
         else:
             return None
+
 
 __all__ = ["DendriticBranchLayer"]

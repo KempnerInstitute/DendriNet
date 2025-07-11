@@ -78,5 +78,6 @@ class TestBlockLinear(unittest.TestCase):
             _ = model(x)
         self.assertIn("cannot be multiplied", str(context.exception))
 
+
 if __name__ == "__main__":
     unittest.main()

@@ -54,7 +54,7 @@ class SingleLayerContributionAnalyzer:
         module_name: str,
         contribution_type: str,
         results_dict: dict,
-        state_dict: dict
+        state_dict: dict,
     ):
         results_dict[contribution_type][module_name] = {}
         results_dict[contribution_type][module_name]["depth"] = module.layer_idx
@@ -75,35 +75,25 @@ class SingleLayerContributionAnalyzer:
             module.branch_excitation.pre_w.data.fill_(-1000)
 
         def _evaluate_metric(metric_func: Callable, metric_key: str):
-            metric_score = metric_func(
-                model, test_ds=test_dataset, move_device=False
-            )[-1]
+            metric_score = metric_func(model, test_ds=test_dataset, move_device=False)[
+                -1
+            ]
             results_dict[contribution_type][module_name][metric_key] = metric_score
 
         if self.accuracy:
-            _evaluate_metric(
-                metric_func=evaluate_accuracy,
-                metric_key="accuracy"
-            )
+            _evaluate_metric(metric_func=evaluate_accuracy, metric_key="accuracy")
         if self.auc:
-            _evaluate_metric(
-                metric_func=evaluate_auc,
-                metric_key="auc"
-            )
+            _evaluate_metric(metric_func=evaluate_auc, metric_key="auc")
         if self.categorical_ll:
             _evaluate_metric(
                 metric_func=evaluate_categorical_loglikelihood,
-                metric_key="log likelihood"
+                metric_key="log likelihood",
             )
         if self.mse:
-            _evaluate_metric(
-                metric_func=evaluate_mse,
-                metric_key="mse"
-            )
+            _evaluate_metric(metric_func=evaluate_mse, metric_key="mse")
         if self.cosine_similarity:
             _evaluate_metric(
-                metric_func=evaluate_cosine_similarity,
-                metric_key="cosine similarity"
+                metric_func=evaluate_cosine_similarity, metric_key="cosine similarity"
             )
 
         model.load_state_dict(state_dict)
@@ -122,9 +112,11 @@ class SingleLayerContributionAnalyzer:
         self.logger.info("Starting single layer contribution analysis...")
 
         try:
-            assert isinstance(model.core_network, ExcitationInhibitionNetwork), \
-                "Model must be an instance of ExcitationInhibitionNetwork" + \
-                "but got " + str(type(model.core_network))
+            assert isinstance(model.core_network, ExcitationInhibitionNetwork), (
+                "Model must be an instance of ExcitationInhibitionNetwork"
+                + "but got "
+                + str(type(model.core_network))
+            )
         except AssertionError as e:
             self.logger.error(e)
             return
@@ -161,7 +153,7 @@ class SingleLayerContributionAnalyzer:
                         module_name=_name,
                         contribution_type="both",
                         results_dict=results,
-                        state_dict=state_dict
+                        state_dict=state_dict,
                     )
 
                 if self.excitation_contribution:
@@ -172,7 +164,7 @@ class SingleLayerContributionAnalyzer:
                         module_name=_name,
                         contribution_type="excitation",
                         results_dict=results,
-                        state_dict=state_dict
+                        state_dict=state_dict,
                     )
 
                 if self.inhibition_contribution:
@@ -183,7 +175,7 @@ class SingleLayerContributionAnalyzer:
                         module_name=_name,
                         contribution_type="inhibition",
                         results_dict=results,
-                        state_dict=state_dict
+                        state_dict=state_dict,
                     )
 
         if save_path is not None:

@@ -13,12 +13,13 @@ import torch.nn as nn
 
 logger = logging.getLogger(__name__)
 
+
 class IndexInputTransform(nn.Module):
     def __init__(
         self,
         input_dim: int,
         excitatory_dim: Optional[int] = None,
-        inhibitory_dim: Optional[int] = None
+        inhibitory_dim: Optional[int] = None,
     ):
         super().__init__()
 
@@ -66,5 +67,6 @@ class IndexInputTransform(nn.Module):
         excitatory_input = x[..., self.exc_dims]
         inhibitory_input = x[..., self.inh_dims]
         return excitatory_input, inhibitory_input
+
 
 __all__ = ["IndexInputTransform"]

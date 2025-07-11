@@ -52,6 +52,7 @@ def safe_hook(hook_fn):
 
     return safe_hook_fn
 
+
 def scale_activation_grad_hook(module, grad_input, grad_output):
     """
     A hook for reactivation functions. If inputs don't require gradients,
@@ -64,6 +65,7 @@ def scale_activation_grad_hook(module, grad_input, grad_output):
         print("\nscaling reactivation grad\n", flush=True)
 
     return grad_output
+
 
 def scale_layer_input_gradients_elementwise(module, grad_input, grad_output):
     """
@@ -90,6 +92,7 @@ def scale_layer_input_gradients_elementwise(module, grad_input, grad_output):
         grad * input_scale_vec if grad is not None else None for grad in grad_input
     )
 
+
 def scale_layer_param_gradients_elementwise(grad, param_scale_vec, print_hooks=False):
     """
     Apply element-wise scaling to the parameter gradients.
@@ -103,6 +106,7 @@ def scale_layer_param_gradients_elementwise(grad, param_scale_vec, print_hooks=F
             flush=True,
         )
     return grad * param_scale_vec if grad is not None else None
+
 
 def scale_layer_gradients_scalar(module, grad_input, grad_output, scale_factor):
     """
@@ -124,6 +128,7 @@ def scale_layer_gradients_scalar(module, grad_input, grad_output, scale_factor):
 
     return tuple(g * scale_factor if (g is not None) else None for g in grad_input)
 
+
 # Apply the safe_hook decorator to create safe versions
 # safe_scale_layer_input_gradients_elementwise = (
 #     lambda module, grad_input, grad_output: safe_hook(
@@ -136,6 +141,7 @@ def scale_layer_gradients_scalar(module, grad_input, grad_output, scale_factor):
 #         lambda m, gi, go: scale_layer_gradients_scalar(m, gi, go, scale_factor)
 #     )(module, grad_input, grad_output)
 # )
+
 
 class GradientScaler:
     """
@@ -328,6 +334,7 @@ class GradientScaler:
             # Register consistently with full backward hook
             # topk_layer.register_full_backward_hook(input_hook_fn)
             topk_layer.pre_w.register_hook(param_hook_fn)
+
 
 # Apply the safe_hook decorator to our existing functions
 # scale_activation_grad_hook = safe_hook(scale_activation_grad_hook)

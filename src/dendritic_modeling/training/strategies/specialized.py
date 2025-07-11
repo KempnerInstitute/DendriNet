@@ -21,6 +21,7 @@ class VoltageStabilizationTrainer(Trainer):
     to target values before proceeding with normal training. This can help
     with training stability in dendritic networks.
     """
+
     pretrain_epochs: int = 1
     target_voltage: float = 0.5
 
@@ -28,7 +29,7 @@ class VoltageStabilizationTrainer(Trainer):
         self,
         model: BaseModel,
         train_data: torch.utils.data.Dataset,
-        valid_data: torch.utils.data.Dataset
+        valid_data: torch.utils.data.Dataset,
     ):
         """
         Train the model with voltage stabilization warm-up.
@@ -42,8 +43,7 @@ class VoltageStabilizationTrainer(Trainer):
             Dictionary containing training results and metrics
         """
         voltage_stabilization_loss = VoltageStabilizationLoss(
-            target_voltage=self.target_voltage,
-            reduction=self.loss_function.reduction
+            target_voltage=self.target_voltage, reduction=self.loss_function.reduction
         )
 
         handles = voltage_stabilization_loss.attach_forward_hooks(model)
@@ -79,6 +79,7 @@ class VoltageStabilizationTrainer(Trainer):
         )
         return final_results
 
+
 class TrainOnlyMReactivation(Trainer):
     """
     Training strategy that focuses only on M-reactivation parameters.
@@ -91,7 +92,7 @@ class TrainOnlyMReactivation(Trainer):
         self,
         model: BaseModel,
         train_data: torch.utils.data.Dataset,
-        valid_data: torch.utils.data.Dataset
+        valid_data: torch.utils.data.Dataset,
     ):
         """
         Train the model with M-reactivation focus.

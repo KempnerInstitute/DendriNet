@@ -46,6 +46,7 @@ class PlotConfig:
         self.grid = grid
         self.grid_alpha = grid_alpha
 
+
 class BasePlotter(ABC):
     """Abstract base class for all plotters."""
 
@@ -71,7 +72,9 @@ class BasePlotter(ABC):
     def plot(self, data: Any, **kwargs) -> plt.Figure:
         """Create the plot. Must be implemented by subclasses."""
 
-    def save(self, fig: plt.Figure, filepath: str, metadata: Optional[dict[str, Any]] = None):
+    def save(
+        self, fig: plt.Figure, filepath: str, metadata: Optional[dict[str, Any]] = None
+    ):
         """Save the figure with optional metadata."""
         # Save in requested formats
         base_path = os.path.splitext(filepath)[0]
@@ -84,12 +87,20 @@ class BasePlotter(ABC):
         # Save metadata if provided
         if metadata:
             import json
+
             meta_path = f"{base_path}_metadata.json"
-            with open(meta_path, 'w') as f:
+            with open(meta_path, "w") as f:
                 json.dump(metadata, f, indent=2)
 
-    def format_axis(self, ax: plt.Axes, xlabel: Optional[str] = None, ylabel: Optional[str] = None,
-                    title: Optional[str] = None, xlim: Optional[tuple] = None, ylim: Optional[tuple] = None):
+    def format_axis(
+        self,
+        ax: plt.Axes,
+        xlabel: Optional[str] = None,
+        ylabel: Optional[str] = None,
+        title: Optional[str] = None,
+        xlim: Optional[tuple] = None,
+        ylim: Optional[tuple] = None,
+    ):
         """Apply consistent formatting to an axis."""
         if xlabel:
             ax.set_xlabel(xlabel, fontsize=self.config.fontsize["label"])
@@ -107,6 +118,7 @@ class BasePlotter(ABC):
             ax.set_xlim(xlim)
         if ylim:
             ax.set_ylim(ylim)
+
 
 class LinePlotter(BasePlotter):
     """Plotter for line plots with multiple series."""
@@ -165,7 +177,8 @@ class LinePlotter(BasePlotter):
             marker = markers.get(name, default_markers[i % len(default_markers)])
 
             ax.plot(
-                x_values, y_values,
+                x_values,
+                y_values,
                 marker=marker,
                 label=name,
                 linewidth=3,
@@ -181,7 +194,7 @@ class LinePlotter(BasePlotter):
                 color=self.config.colors.get("baseline", "k"),
                 linestyle="--",
                 linewidth=2,
-                label=f"{baseline_label} ({baseline:.3f})"
+                label=f"{baseline_label} ({baseline:.3f})",
             )
 
         # Format the axis
@@ -189,6 +202,7 @@ class LinePlotter(BasePlotter):
         ax.legend(fontsize=self.config.fontsize["legend"])
 
         return fig if return_fig else ax
+
 
 class BarPlotter(BasePlotter):
     """Plotter for grouped bar plots."""
@@ -238,9 +252,7 @@ class BarPlotter(BasePlotter):
 
         # Calculate bar positions
         offsets = np.linspace(
-            -(n_groups-1)*bar_width/2,
-            (n_groups-1)*bar_width/2,
-            n_groups
+            -(n_groups - 1) * bar_width / 2, (n_groups - 1) * bar_width / 2, n_groups
         )
 
         # Plot each group
@@ -264,12 +276,12 @@ class BarPlotter(BasePlotter):
                 for bar in bars:
                     height = bar.get_height()
                     ax.text(
-                        bar.get_x() + bar.get_width()/2,
+                        bar.get_x() + bar.get_width() / 2,
                         height,
-                        f'{height:.2f}',
-                        ha='center',
-                        va='bottom',
-                        fontsize=self.config.fontsize["tick"] - 2
+                        f"{height:.2f}",
+                        ha="center",
+                        va="bottom",
+                        fontsize=self.config.fontsize["tick"] - 2,
                     )
 
         # Format the axis
@@ -279,6 +291,7 @@ class BarPlotter(BasePlotter):
         ax.legend(fontsize=self.config.fontsize["legend"])
 
         return fig if return_fig else ax
+
 
 class BoxPlotter(BasePlotter):
     """Plotter for box plots."""
@@ -339,7 +352,7 @@ class BoxPlotter(BasePlotter):
 
         # Color the boxes
         if colors:
-            for patch, color in zip(bp['boxes'], colors):
+            for patch, color in zip(bp["boxes"], colors):
                 patch.set_facecolor(color)
                 patch.set_alpha(0.7)
 
@@ -361,6 +374,7 @@ class BoxPlotter(BasePlotter):
 
         return fig if return_fig else ax
 
+
 class ComparisonPlotter(BasePlotter):
     """Plotter for side-by-side comparison plots."""
 
@@ -369,7 +383,7 @@ class ComparisonPlotter(BasePlotter):
         n_plots: int,
         n_cols: int = 2,
         subplot_size: tuple[float, float] = (10, 6),
-        **subplot_kwargs
+        **subplot_kwargs,
     ) -> tuple[plt.Figure, list[plt.Axes]]:
         """
         Create a figure with multiple subplots.
@@ -386,11 +400,7 @@ class ComparisonPlotter(BasePlotter):
         n_rows = (n_plots + n_cols - 1) // n_cols
         figsize = (subplot_size[0] * n_cols, subplot_size[1] * n_rows)
 
-        fig, axes = plt.subplots(
-            n_rows, n_cols,
-            figsize=figsize,
-            **subplot_kwargs
-        )
+        fig, axes = plt.subplots(n_rows, n_cols, figsize=figsize, **subplot_kwargs)
 
         # Flatten axes array and remove extra
         if n_plots == 1:

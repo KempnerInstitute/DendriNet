@@ -22,6 +22,7 @@ from dendritic_modeling.networks.architectures.excitation_inhibition.input_trans
 
 logger = logging.getLogger(__name__)
 
+
 class InputNetTransform(nn.Module):
     """
     A transform that maps the raw input x to (excitatory_input, inhibitory_input).
@@ -62,10 +63,9 @@ class InputNetTransform(nn.Module):
 
         elif network_type == "FeatureExtractorMLP":
             from ..mlp import FeatureExtractorMLP
+
             self.input_transform = FeatureExtractorMLP(
-                input_dim = input_dim,
-                hidden_dims = hidden_dims,
-                output_dim = output_dim
+                input_dim=input_dim, hidden_dims=hidden_dims, output_dim=output_dim
             )
             self.input_transform.set_readout(False)
             self.input_transform.disable_grad()
@@ -126,5 +126,6 @@ class InputNetTransform(nn.Module):
                 raise ValueError(f"Unsupported PyTorch model: {pytorch_model}")
         else:
             raise ValueError(f"Unknown source: {source}")
+
 
 __all__ = ["InputNetTransform"]

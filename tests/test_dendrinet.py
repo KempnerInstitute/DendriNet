@@ -77,7 +77,9 @@ class TestDendriNet(unittest.TestCase):
         )
 
         x = torch.randn(batch_size, excitatory_input_dim)
-        inhibitory_input = inhibitory_input = torch.randn(batch_size, inhibitory_input_dim)
+        inhibitory_input = inhibitory_input = torch.randn(
+            batch_size, inhibitory_input_dim
+        )
         output = model(x, inhibitory_input)
 
         # Check that the output has the correct shape
@@ -437,6 +439,7 @@ class TestDendriNet(unittest.TestCase):
 
         # Pruned weights should also yield a positive total
         self.assertTrue(exc_total.sum().item() > 0)
+
 
 if __name__ == "__main__":
     unittest.main()

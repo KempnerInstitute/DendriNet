@@ -10,6 +10,7 @@ import os
 
 logger = logging.getLogger(__name__)
 
+
 class ComprehensiveDendriticAnalyzer:
     """
     Comprehensive dendritic analysis for dendritic network models.
@@ -47,8 +48,12 @@ class ComprehensiveDendriticAnalyzer:
         os.makedirs(save_path, exist_ok=True)
 
         if not hasattr(model, "net"):
-            print("ERROR: No 'net' attribute found on model. Skipping dendritic ablation analysis.")
-            logging.error("No 'net' attribute found on model. Skipping dendritic ablation analysis.")
+            print(
+                "ERROR: No 'net' attribute found on model. Skipping dendritic ablation analysis."
+            )
+            logging.error(
+                "No 'net' attribute found on model. Skipping dendritic ablation analysis."
+            )
             return {}
 
         # TODO: Extract complete implementation from PlotManager._dendritic_ablation_all
@@ -77,8 +82,12 @@ class ComprehensiveDendriticAnalyzer:
         os.makedirs(save_path, exist_ok=True)
 
         if not hasattr(model, "net"):
-            print("ERROR: No 'net' attribute found on model. Skipping dendritic information analysis.")
-            logging.error("No 'net' attribute found on model. Skipping dendritic information analysis.")
+            print(
+                "ERROR: No 'net' attribute found on model. Skipping dendritic information analysis."
+            )
+            logging.error(
+                "No 'net' attribute found on model. Skipping dendritic information analysis."
+            )
             return {}
 
         # TODO: Extract complete implementation from PlotManager._dendritic_information
@@ -107,8 +116,12 @@ class ComprehensiveDendriticAnalyzer:
         os.makedirs(save_path, exist_ok=True)
 
         if not hasattr(model, "net"):
-            print("ERROR: No 'net' attribute found on model. Skipping dendritic input information analysis.")
-            logging.error("No 'net' attribute found on model. Skipping dendritic input information analysis.")
+            print(
+                "ERROR: No 'net' attribute found on model. Skipping dendritic input information analysis."
+            )
+            logging.error(
+                "No 'net' attribute found on model. Skipping dendritic input information analysis."
+            )
             return {}
 
         # TODO: Extract complete implementation from PlotManager._dendritic_information_inputs
@@ -137,12 +150,17 @@ class ComprehensiveDendriticAnalyzer:
         os.makedirs(save_path, exist_ok=True)
 
         if not hasattr(model, "net"):
-            print("ERROR: No 'net' attribute found on model. Skipping dendritic activation information analysis.")
-            logging.error("No 'net' attribute found on model. Skipping dendritic activation information analysis.")
+            print(
+                "ERROR: No 'net' attribute found on model. Skipping dendritic activation information analysis."
+            )
+            logging.error(
+                "No 'net' attribute found on model. Skipping dendritic activation information analysis."
+            )
             return {}
 
         # TODO: Extract complete implementation from PlotManager._dendritic_information_activations
         print("Dendritic activation information analysis implementation pending...")
         return {"status": "dendritic_information_activations_structure_created"}
+
 
 __all__ = ["ComprehensiveDendriticAnalyzer"]
