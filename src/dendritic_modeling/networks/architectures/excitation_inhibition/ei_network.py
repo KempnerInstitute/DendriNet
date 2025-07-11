@@ -249,7 +249,7 @@ class ExcitationInhibitionNetwork(BaseNetwork):
         - mode=1 => excit=x, inhibitory=x at the first layer, but we skip building that layer's inhib net => no separate output
         - mode=2 => pass x into self.input_net => produce (excit, inhib)
                     skip that layer's inhib net => no separate output
-        Then subsequent layers do normal E–I if their inhib cells exist.
+        Then subsequent layers do normal E-I if their inhib cells exist.
         """
         excitatory_x, inhibitory_x = self.transfer_fn(x)
 

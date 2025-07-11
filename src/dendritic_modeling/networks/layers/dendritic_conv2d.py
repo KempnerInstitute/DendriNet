@@ -214,7 +214,7 @@ class DendriteAttention(nn.Module):
     Dendritic Attention mechanism with E/I balance.
 
     Replaces softmax attention with divisive normalization:
-        α_ij = E_ij / (Σ_k E_ik + I_i + ε)
+        a_ij = E_ij / (Σ_k E_ik + I_i + ε)
 
     Parameters
     ----------

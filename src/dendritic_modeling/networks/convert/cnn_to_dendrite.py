@@ -1,9 +1,8 @@
-from __future__ import annotations
-
-"""Helpers to convert ordinary *linear* Conv2d kernels into dendritic push–pull
+"""Helpers to convert ordinary *linear* Conv2d kernels into dendritic push-pull
 layers so that the forward pass is (almost) equivalent.
 """
 
+from __future__ import annotations
 
 import torch
 from torch import nn
@@ -19,7 +18,7 @@ def conv2d_to_dendrite(
     eps: float = 1e-6,
     copy_bias: bool = False,
 ) -> DendriteConv2d:
-    """Return a :class:`DendriteConv2d` whose E/I weights equal the push–pull
+    """Return a :class:`DendriteConv2d` whose E/I weights equal the push-pull
     decomposition of ``conv``.
 
     Parameters
