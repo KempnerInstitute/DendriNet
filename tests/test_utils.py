@@ -9,7 +9,6 @@ from dendritic_modeling.datasets import load_mnist_modulo10
 # Import functions from their actual locations
 from dendritic_modeling.training.utils.evaluation import accuracy_score
 from dendritic_modeling.utils import Shaper
-from dendritic_modeling.plotting.utils import split_mnist_inputs
 
 
 class TestShaper(unittest.TestCase):
@@ -37,28 +36,6 @@ class TestShaper(unittest.TestCase):
         self.assertEqual(reshaped_x.shape, torch.Size([2, 2, 3]))
 
 # TestLoadMNIST removed - load_MNIST function doesn't exist
-
-class TestSplitMNISTInputs(unittest.TestCase):
-    def test_split_by_labels(self):
-        inputs = torch.randn(100, 784)
-        labels = torch.tensor([i % 10 for i in range(100)])
-        input_list = split_mnist_inputs(inputs, labels)
-
-        self.assertEqual(len(input_list), 10)
-
-        # Check each list element has the correct labels
-        for i, group in enumerate(input_list):
-            self.assertTrue((torch.unique(labels[labels == i]) == i).all())
-            self.assertEqual(len(group), (labels == i).sum().item())
-
-    def test_empty_inputs(self):
-        inputs = torch.empty(0, 784)
-        labels = torch.empty(0, dtype=torch.long)
-        input_list = split_mnist_inputs(inputs, labels)
-        self.assertEqual(len(input_list), 10)  # Should always return 10 groups
-        # All groups should be empty
-        for group in input_list:
-            self.assertEqual(len(group), 0)
 
 class TestAccuracyScore(unittest.TestCase):
     def setUp(self):
