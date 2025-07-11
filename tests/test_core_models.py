@@ -22,16 +22,13 @@ class TestCoreModels(unittest.TestCase):
         """Test that we can create a basic classifier."""
         # Create simple MLP network
         core_network = MLP(
-            input_dim=10,
-            hidden_dims=[5],
-            output_dim=2,
-            activation='relu'
+            input_dim=10, hidden_dims=[5], output_dim=2, activation="relu"
         )
 
         classifier = Classifier(
             encoder_network=nn.Identity(),
             core_network=core_network,
-            decoder_network=nn.Identity()
+            decoder_network=nn.Identity(),
         )
 
         # Test forward pass
@@ -44,16 +41,13 @@ class TestCoreModels(unittest.TestCase):
     def test_classifier_prediction(self):
         """Test classifier prediction functionality."""
         core_network = MLP(
-            input_dim=10,
-            hidden_dims=[5],
-            output_dim=2,
-            activation='relu'
+            input_dim=10, hidden_dims=[5], output_dim=2, activation="relu"
         )
 
         classifier = Classifier(
             encoder_network=nn.Identity(),
             core_network=core_network,
-            decoder_network=nn.Identity()
+            decoder_network=nn.Identity(),
         )
 
         x = torch.randn(32, 10)
@@ -61,6 +55,7 @@ class TestCoreModels(unittest.TestCase):
 
         self.assertEqual(predictions.shape, (32,))
         self.assertTrue(torch.all((predictions >= 0) & (predictions < 2)))
+
 
 class TestEINetworkIntegration(unittest.TestCase):
     """Test EI Network integration with models."""
@@ -79,7 +74,7 @@ class TestEINetworkIntegration(unittest.TestCase):
             ee_synapses_per_branch_per_layer=[1],
             ei_synapses_per_branch_per_layer=[1],
             ie_synapses_per_branch_per_layer=[1],
-            ii_synapses_per_branch_per_layer=[]
+            ii_synapses_per_branch_per_layer=[],
         )
 
         self.assertIsInstance(ei_network, ExcitationInhibitionNetwork)
@@ -98,13 +93,13 @@ class TestEINetworkIntegration(unittest.TestCase):
             ee_synapses_per_branch_per_layer=[1],
             ei_synapses_per_branch_per_layer=[1],
             ie_synapses_per_branch_per_layer=[1],
-            ii_synapses_per_branch_per_layer=[]
+            ii_synapses_per_branch_per_layer=[],
         )
 
         classifier = Classifier(
             encoder_network=nn.Identity(),
             core_network=ei_network,
-            decoder_network=nn.Identity()
+            decoder_network=nn.Identity(),
         )
 
         # Test forward pass
@@ -117,6 +112,7 @@ class TestEINetworkIntegration(unittest.TestCase):
         # Test prediction
         predictions = classifier.predict(x)
         self.assertEqual(predictions.shape, (16,))
+
 
 class TestModelParameterGroups(unittest.TestCase):
     """Test model parameter grouping functionality."""
@@ -137,13 +133,13 @@ class TestModelParameterGroups(unittest.TestCase):
             ee_synapses_per_branch_per_layer=[1],
             ei_synapses_per_branch_per_layer=[1],
             ie_synapses_per_branch_per_layer=[1],
-            ii_synapses_per_branch_per_layer=[]
+            ii_synapses_per_branch_per_layer=[],
         )
 
         classifier = Classifier(
             encoder_network=nn.Identity(),
             core_network=ei_network,
-            decoder_network=nn.Identity()
+            decoder_network=nn.Identity(),
         )
 
         # Create parameter groups config
@@ -152,7 +148,7 @@ class TestModelParameterGroups(unittest.TestCase):
             topk_lr=0.001,
             blocklinear_lr=0.001,
             reactivation_lr=0.001,
-            decoder_lr=0.001
+            decoder_lr=0.001,
         )
 
         param_groups = classifier.get_param_groups(param_config)
@@ -163,8 +159,9 @@ class TestModelParameterGroups(unittest.TestCase):
 
         # Each group should have 'params' and 'lr' keys
         for group in param_groups:
-            self.assertIn('params', group)
-            self.assertIn('lr', group)
+            self.assertIn("params", group)
+            self.assertIn("lr", group)
+
 
 class TestModelSaving(unittest.TestCase):
     """Test model saving and loading functionality."""
@@ -172,16 +169,13 @@ class TestModelSaving(unittest.TestCase):
     def test_model_state_dict(self):
         """Test model state dict operations."""
         core_network = MLP(
-            input_dim=10,
-            hidden_dims=[5],
-            output_dim=2,
-            activation='relu'
+            input_dim=10, hidden_dims=[5], output_dim=2, activation="relu"
         )
 
         classifier = Classifier(
             encoder_network=nn.Identity(),
             core_network=core_network,
-            decoder_network=nn.Identity()
+            decoder_network=nn.Identity(),
         )
 
         # Get state dict
@@ -193,12 +187,9 @@ class TestModelSaving(unittest.TestCase):
         new_classifier = Classifier(
             encoder_network=nn.Identity(),
             core_network=MLP(
-                input_dim=10,
-                hidden_dims=[5],
-                output_dim=2,
-                activation='relu'
+                input_dim=10, hidden_dims=[5], output_dim=2, activation="relu"
             ),
-            decoder_network=nn.Identity()
+            decoder_network=nn.Identity(),
         )
 
         new_classifier.load_state_dict(state_dict)
@@ -211,5 +202,6 @@ class TestModelSaving(unittest.TestCase):
 
         self.assertTrue(torch.allclose(output1, output2))
 
-if __name__ == '__main__':
+
+if __name__ == "__main__":
     unittest.main()

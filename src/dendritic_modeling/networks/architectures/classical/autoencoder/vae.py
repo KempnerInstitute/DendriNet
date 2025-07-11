@@ -16,11 +16,7 @@ from dendritic_modeling.networks.base import BaseNetwork
 
 
 class VariationalEncoder(BaseNetwork):
-    def __init__(
-        self,
-        net: MLP,
-        latent_dim: int
-    ):
+    def __init__(self, net: MLP, latent_dim: int):
         super().__init__()
 
         self.net = net
@@ -37,10 +33,7 @@ class VariationalEncoder(BaseNetwork):
 
         self.output_dim = latent_dim
 
-    def latent_distribution(
-        self,
-        x: torch.Tensor
-    ) -> tuple[torch.Tensor, torch.Tensor]:
+    def latent_distribution(self, x: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor]:
         x = self.net(x)
         z_mu = self.fc_mean(x)
         z_sigma = self.fc_std(x)
@@ -51,10 +44,12 @@ class VariationalEncoder(BaseNetwork):
         z = torch.sigmoid(Normal(z_mu, z_sigma).sample())
         return z
 
+
 class BaseVariationalAutoencoder(BaseAutoencoder):
     def __init__(self):
         super().__init__()
         self.encoder: VariationalEncoder
+
 
 class MLPVariationalAutoencoder(BaseVariationalAutoencoder):
     def __init__(
@@ -64,14 +59,12 @@ class MLPVariationalAutoencoder(BaseVariationalAutoencoder):
         latent_dim: int,
         decoder_hidden_dims: list[int],
         activation: str = "relu",
-        **kwargs
+        **kwargs,
     ):
         super().__init__()
 
         encoder_net = MLP(
-            input_dim=input_dim,
-            hidden_dims=encoder_hidden_dims,
-            activation=activation
+            input_dim=input_dim, hidden_dims=encoder_hidden_dims, activation=activation
         )
 
         self.encoder = VariationalEncoder(encoder_net, latent_dim)
@@ -80,7 +73,7 @@ class MLPVariationalAutoencoder(BaseVariationalAutoencoder):
             input_dim=latent_dim,
             hidden_dims=decoder_hidden_dims,
             activation=activation,
-            output_dim=input_dim
+            output_dim=input_dim,
         )
 
         self.output_dim = latent_dim
@@ -90,11 +83,9 @@ class MLPVariationalAutoencoder(BaseVariationalAutoencoder):
         x_reconstructed = self.decoder(z)
         return x_reconstructed
 
+
 class CNNVariationalEncoder(BaseNetwork):
-    def __init__(
-        self,
-        net: CNNDownsample
-    ):
+    def __init__(self, net: CNNDownsample):
         super().__init__()
 
         self.net = net
@@ -111,7 +102,7 @@ class CNNVariationalEncoder(BaseNetwork):
             out_channels=net_c,  # Keep same number of channels
             kernel_size=1,  # 1x1 conv
             stride=1,
-            padding=0
+            padding=0,
         )
 
         self.conv_std = nn.Sequential(
@@ -120,18 +111,15 @@ class CNNVariationalEncoder(BaseNetwork):
                 out_channels=net_c,  # Keep same number of channels
                 kernel_size=1,
                 stride=1,
-                padding=0
+                padding=0,
             ),
-            nn.Softplus()  # Ensure positive std
+            nn.Softplus(),  # Ensure positive std
         )
 
         self.output_shape = latent_shape
         self.output_dim = net_c * net_h * net_w
 
-    def latent_distribution(
-        self,
-        x: torch.Tensor
-    ) -> tuple[torch.Tensor, torch.Tensor]:
+    def latent_distribution(self, x: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor]:
         """Return mean and std tensors for the latent distribution."""
         x = self.net(x)
         z_mu = self.conv_mean(x)
@@ -146,11 +134,13 @@ class CNNVariationalEncoder(BaseNetwork):
             z = torch.flatten(z, start_dim=-3)
         return z
 
+
 class CNNVariationalAutoencoder(BaseVariationalAutoencoder):
     """
     CNN Variational Autoencoder that maintains spatial structure in the latent space.
     Uses CNNVariationalEncoder instead of flattening to preserve spatial relationships.
     """
+
     def __init__(
         self,
         input_shape: tuple[int, int, int],
@@ -158,7 +148,7 @@ class CNNVariationalAutoencoder(BaseVariationalAutoencoder):
         latent_shape: tuple[int, int, int],
         decoder_hidden_dims: list[int],
         activation: str = "relu",
-        **kwargs
+        **kwargs,
     ):
         super().__init__()
         encoder_hidden_dims = deepcopy(encoder_hidden_dims)
@@ -174,7 +164,7 @@ class CNNVariationalAutoencoder(BaseVariationalAutoencoder):
             hidden_dims=encoder_hidden_dims,
             kernel_sizes=kernel_sizes,
             strides=strides,
-            activation=activation
+            activation=activation,
         )
         # VALIDATION: Check if parameter calculation worked
         actual_output_shape = encoder_net.output_shape
@@ -192,7 +182,7 @@ class CNNVariationalAutoencoder(BaseVariationalAutoencoder):
             input_shape=encoder_net.output_shape,
             target_shape=input_shape,
             hidden_dims=decoder_hidden_dims,
-            activation=activation
+            activation=activation,
         )
 
         self.output_shape = input_shape
@@ -209,7 +199,7 @@ class CNNVariationalAutoencoder(BaseVariationalAutoencoder):
         self,
         input_shape: tuple[int, int, int],
         latent_shape: tuple[int, int, int],
-        num_layers: int
+        num_layers: int,
     ) -> tuple[list[int], list[int]]:
         """Calculate convolution parameters to downsample from input_shape to latent_shape.
 
@@ -274,7 +264,9 @@ class CNNVariationalAutoencoder(BaseVariationalAutoencoder):
                     test_kernel = current_size - test_stride * (target_size - 1)
                     if test_kernel >= 1 and test_kernel <= current_size:
                         # Check if this gives exact target
-                        computed_output = (current_size - test_kernel) // test_stride + 1
+                        computed_output = (
+                            current_size - test_kernel
+                        ) // test_stride + 1
                         if computed_output == target_size:
                             best_kernel = test_kernel
                             best_stride = test_stride

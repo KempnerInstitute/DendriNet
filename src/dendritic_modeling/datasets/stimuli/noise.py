@@ -10,6 +10,7 @@ __all__ = [
     "create_white_noise",
 ]
 
+
 def create_white_noise(
     size: Union[int, tuple[int, int]],
     n_frames: int = 1,
@@ -44,6 +45,7 @@ def create_white_noise(
     noise = np.clip(noise, 0, 1)
 
     return noise
+
 
 def create_colored_noise(
     size: Union[int, tuple[int, int]],
@@ -107,6 +109,7 @@ def create_colored_noise(
 
     return noise
 
+
 def create_sparse_dots(
     size: Union[int, tuple[int, int]],
     n_dots: int,
@@ -141,8 +144,8 @@ def create_sparse_dots(
         img = np.zeros(size)
 
         # Random positions
-        y_pos = np.random.randint(dot_size//2, size[0] - dot_size//2, n_dots)
-        x_pos = np.random.randint(dot_size//2, size[1] - dot_size//2, n_dots)
+        y_pos = np.random.randint(dot_size // 2, size[0] - dot_size // 2, n_dots)
+        x_pos = np.random.randint(dot_size // 2, size[1] - dot_size // 2, n_dots)
 
         # Random polarities
         if polarity == "both":
@@ -154,8 +157,8 @@ def create_sparse_dots(
 
         # Draw dots
         for y, x, val in zip(y_pos, x_pos, values):
-            yy, xx = np.ogrid[:size[0], :size[1]]
-            mask = (yy - y)**2 + (xx - x)**2 <= (dot_size/2)**2
+            yy, xx = np.ogrid[: size[0], : size[1]]
+            mask = (yy - y) ** 2 + (xx - x) ** 2 <= (dot_size / 2) ** 2
             img[mask] = val
 
         # Normalize to [0, 1]

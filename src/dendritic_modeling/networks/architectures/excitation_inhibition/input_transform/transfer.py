@@ -45,7 +45,7 @@ class TransferLayer(nn.Module):
         freeze_excitatory_connectivity: bool = False,
         freeze_inhibitory_connectivity: bool = False,
         init_method: str = "xavier_normal",
-        weight_threshold: float = 1e-6
+        weight_threshold: float = 1e-6,
     ):
         super().__init__()
 
@@ -53,7 +53,9 @@ class TransferLayer(nn.Module):
         independent_pathways = transfer_params.get("independent_pathways", False)
 
         if independent_pathways:
-            excitatory_input_dim = transfer_params.get("excitatory_dim", int(input_dim / 2))
+            excitatory_input_dim = transfer_params.get(
+                "excitatory_dim", int(input_dim / 2)
+            )
             inhibitory_input_dim = transfer_params.get(
                 "inhibitory_dim", int(input_dim - excitatory_input_dim)
             )

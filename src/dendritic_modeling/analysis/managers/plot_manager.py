@@ -21,6 +21,7 @@ from dendritic_modeling.plotting.network import (
 
 logger = logging.getLogger(__name__)
 
+
 class PlotManager:
     """
     Refactored plot manager for dendritic model analysis and visualization.
@@ -42,7 +43,7 @@ class PlotManager:
         self.args = args
         self.device = device
         self.save_path = args.save_path
-        self.file_name = getattr(args, 'file_name', None)
+        self.file_name = getattr(args, "file_name", None)
 
         os.makedirs(self.save_path, exist_ok=True)
         logging.basicConfig(
@@ -117,12 +118,11 @@ class PlotManager:
             save_dir = os.path.join(self.save_path, "param_visuals")
             os.makedirs(save_dir, exist_ok=True)
 
-            save_path = os.path.join(save_dir, f"{self.file_name}_params.png" if self.file_name else "params.png")
-            plot_einet_params(
-                model=self.model.net,
-                save_path=save_path,
-                show=False
+            save_path = os.path.join(
+                save_dir,
+                f"{self.file_name}_params.png" if self.file_name else "params.png",
             )
+            plot_einet_params(model=self.model.net, save_path=save_path, show=False)
             logging.info(f"Saved parameter visualizations in {save_path}")
         else:
             logging.info("No 'net' attribute found on model. Skipping _plot_weights.")
@@ -141,7 +141,7 @@ class PlotManager:
                 einet=self.model.net,
                 input_list=input_list,
                 save_path=save_dir,
-                filename=self.file_name if self.file_name else "activations"
+                filename=self.file_name if self.file_name else "activations",
             )
             logging.info(f"Saved activation visualizations in {save_dir}")
         else:
@@ -153,12 +153,15 @@ class PlotManager:
             save_dir = os.path.join(self.save_path, "grad_visuals")
             os.makedirs(save_dir, exist_ok=True)
 
-            save_path = os.path.join(save_dir, f"{self.file_name}_gradients.png" if self.file_name else "gradients.png")
-            plot_dendrinet_gradients(
-                model=self.model,
-                save_path=save_path,
-                show=False
+            save_path = os.path.join(
+                save_dir,
+                (
+                    f"{self.file_name}_gradients.png"
+                    if self.file_name
+                    else "gradients.png"
+                ),
             )
+            plot_dendrinet_gradients(model=self.model, save_path=save_path, show=False)
             logging.info(f"Saved gradient visualizations in {save_path}")
         else:
             logging.info("No 'net' attribute found. Skipping gradient plotting.")
@@ -176,17 +179,14 @@ class PlotManager:
             model=self.model,
             data=self.data,
             save_path=save_dir,
-            file_name=self.file_name
+            file_name=self.file_name,
         )
 
     def _branch_ablation(self):
         """Perform branch ablation analysis - delegates to analysis.branches.interactive module."""
         save_dir = os.path.join(self.save_path, "branch_ablation_plots")
         self.branch_analyzer.analyze_branch_ablation(
-            model=self.model,
-            data=self.data,
-            save_path=save_dir,
-            args=self.args
+            model=self.model, data=self.data, save_path=save_dir, args=self.args
         )
 
     # Dendritic analysis methods - delegate to ComprehensiveDendriticAnalyzer
@@ -194,36 +194,29 @@ class PlotManager:
         """Perform comprehensive dendritic ablation - delegates to analysis.dendritic.comprehensive module."""
         save_dir = os.path.join(self.save_path, "dendritic_ablation_plots")
         self.dendritic_analyzer.analyze_dendritic_ablation_all(
-            model=self.model,
-            data=self.data,
-            save_path=save_dir
+            model=self.model, data=self.data, save_path=save_dir
         )
 
     def _dendritic_information(self):
         """Analyze dendritic information processing - delegates to analysis.dendritic.comprehensive module."""
         save_dir = os.path.join(self.save_path, "dendritic_information_plots")
         self.dendritic_analyzer.analyze_dendritic_information(
-            model=self.model,
-            data=self.data,
-            save_path=save_dir
+            model=self.model, data=self.data, save_path=save_dir
         )
 
     def _dendritic_information_inputs(self):
         """Analyze dendritic input information - delegates to analysis.dendritic.comprehensive module."""
         save_dir = os.path.join(self.save_path, "dendritic_input_info_plots")
         self.dendritic_analyzer.analyze_dendritic_information_inputs(
-            model=self.model,
-            data=self.data,
-            save_path=save_dir
+            model=self.model, data=self.data, save_path=save_dir
         )
 
     def _dendritic_information_activations(self):
         """Analyze dendritic activation information - delegates to analysis.dendritic.comprehensive module."""
         save_dir = os.path.join(self.save_path, "dendritic_activation_info_plots")
         self.dendritic_analyzer.analyze_dendritic_information_activations(
-            model=self.model,
-            data=self.data,
-            save_path=save_dir
+            model=self.model, data=self.data, save_path=save_dir
         )
+
 
 __all__ = ["PlotManager"]

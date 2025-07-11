@@ -22,6 +22,7 @@ TOPK_INIT_METHODS = {
     "eye": nn.init.eye_,
 }
 
+
 class TopKLinear(nn.Module):
     """
     A linear layer that retains only the top K strongest synaptic weights for
@@ -176,5 +177,6 @@ class TopKLinear(nn.Module):
 
         weighted_synapses = cell_weights[:, None] * synapse_weights
         return weighted_synapses.sum(dim=0)
+
 
 __all__ = ["TOPK_INIT_METHODS", "TopKLinear"]

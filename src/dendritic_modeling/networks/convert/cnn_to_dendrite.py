@@ -11,6 +11,7 @@ from dendritic_modeling.networks.layers.dendritic_conv2d import DendriteConv2d
 
 __all__ = ["conv2d_to_dendrite"]
 
+
 def conv2d_to_dendrite(
     conv: nn.Conv2d,
     *,

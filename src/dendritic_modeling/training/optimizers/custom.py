@@ -26,10 +26,7 @@ class CustomWeightDecayOptimizer:
     """
 
     def __init__(
-        self,
-        model: BaseModel,
-        optimizer: Optimizer,
-        weight_decay: float = 0.1
+        self, model: BaseModel, optimizer: Optimizer, weight_decay: float = 0.1
     ):
         self.model = model
         self.optimizer = optimizer
@@ -50,5 +47,6 @@ class CustomWeightDecayOptimizer:
         self.model.decay_weights(weight_decay=lr * self.weight_decay)
         self.model.apply_rewiring()
         self.optimizer.step()
+
 
 __all__ = ["CustomWeightDecayOptimizer"]

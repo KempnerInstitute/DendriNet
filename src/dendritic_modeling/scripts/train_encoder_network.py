@@ -8,6 +8,7 @@ import torch
 
 try:
     import torchinfo
+
     TORCHINFO_AVAILABLE = True
 except ImportError:
     TORCHINFO_AVAILABLE = False
@@ -34,9 +35,7 @@ from dendritic_modeling.utils import save_dict, set_seed
 
 
 def dict_to_hash_text(
-    d: dict,
-    hash_text: str = "",
-    exclude_keys: Optional[list[str]] = None
+    d: dict, hash_text: str = "", exclude_keys: Optional[list[str]] = None
 ) -> str:
     if exclude_keys is None:
         exclude_keys = []
@@ -48,18 +47,17 @@ def dict_to_hash_text(
                 hash_text += f"{key}{value}"
     return hash_text
 
+
 def get_load_save_path(
     encoder_network_config: EncoderNetworkConfig,
     encoder_train_config: EncoderTrainConfig,
-    task_config: TaskConfig
+    task_config: TaskConfig,
 ) -> str:
     encoder_net_config_dict = OmegaConf.to_container(
-        encoder_network_config,
-        resolve=True
+        encoder_network_config, resolve=True
     )
     encoder_train_config_dict = OmegaConf.to_container(
-        encoder_train_config,
-        resolve=True
+        encoder_train_config, resolve=True
     )
     task_config_dict = task_config.asdict()
     hash_text = dict_to_hash_text(encoder_net_config_dict)
@@ -67,39 +65,39 @@ def get_load_save_path(
         encoder_train_config_dict,
         hash_text=hash_text,
         exclude_keys=[
-            "load_save_root", "pretrain_epochs", "target_voltage",
-            "kl_weight", "reverse_training", "epochs_per_layer",
-            "epochs_per_branch", "final_tune_epochs"
-        ]
+            "load_save_root",
+            "pretrain_epochs",
+            "target_voltage",
+            "kl_weight",
+            "reverse_training",
+            "epochs_per_layer",
+            "epochs_per_branch",
+            "final_tune_epochs",
+        ],
     )
     hash_text = dict_to_hash_text(
-        task_config_dict,
-        hash_text=hash_text,
-        exclude_keys=["data_path"]
+        task_config_dict, hash_text=hash_text, exclude_keys=["data_path"]
     )
     hash_id = hashlib.md5(hash_text.encode()).hexdigest()
 
-    load_save_path = os.path.join(
-        encoder_train_config.load_save_root,
-        hash_id
-    )
+    load_save_path = os.path.join(encoder_train_config.load_save_root, hash_id)
     logger.info(f"Encoder network hash ID: {hash_id}")
     return load_save_path
+
 
 def setup_environment(
     encoder_network_config: EncoderNetworkConfig,
     train_config: TrainConfig,
-    task_config: TaskConfig
+    task_config: TaskConfig,
 ) -> tuple[
     str,
     torch.utils.data.Dataset,
     torch.utils.data.Dataset,
     torch.utils.data.Dataset,
-    Union[BaseNetwork, BaseAutoencoder]
+    Union[BaseNetwork, BaseAutoencoder],
 ]:
     train_ds, valid_ds, test_ds = get_unified_datasets(
-        task_cfg=task_config,
-        train_cfg=train_config
+        task_cfg=task_config, train_cfg=train_config
     )
     train_ds: torch.utils.data.Dataset
     valid_ds: torch.utils.data.Dataset
@@ -117,13 +115,13 @@ def setup_environment(
 
     encoder_network = get_architecture(
         encoder_network_config.type,
-        OmegaConf.to_container(encoder_network_config.parameters, resolve=True)
+        OmegaConf.to_container(encoder_network_config.parameters, resolve=True),
     )
 
     load_save_path = get_load_save_path(
         encoder_network_config=encoder_network_config,
         encoder_train_config=train_config.encoder,
-        task_config=task_config
+        task_config=task_config,
     )
 
     logger_manager.set_log_directory(load_save_path)
@@ -146,6 +144,7 @@ def setup_environment(
 
     return load_save_path, train_ds, valid_ds, test_ds, encoder_network
 
+
 def load_train_encoder_network(
     encoder_network: BaseAutoencoder,
     encoder_train_config: EncoderTrainConfig,
@@ -154,12 +153,12 @@ def load_train_encoder_network(
     test_ds: torch.utils.data.Dataset,
     encoder_network_config: Optional[EncoderNetworkConfig] = None,
     task_config: Optional[TaskConfig] = None,
-    load_save_path: Optional[str] = None
+    load_save_path: Optional[str] = None,
 ) -> tuple[
     BaseAutoencoder,
     torch.utils.data.Dataset,
     torch.utils.data.Dataset,
-    torch.utils.data.Dataset
+    torch.utils.data.Dataset,
 ]:
     if isinstance(encoder_network, Identity):
         return encoder_network, train_ds, valid_ds, test_ds
@@ -179,7 +178,7 @@ def load_train_encoder_network(
             load_save_path = get_load_save_path(
                 encoder_network_config=encoder_network_config,
                 encoder_train_config=encoder_train_config,
-                task_config=task_config
+                task_config=task_config,
             )
 
         model_path = os.path.join(load_save_path, "best_model.pt")
@@ -187,35 +186,30 @@ def load_train_encoder_network(
             encoder_network.load_state_dict(torch.load(model_path))
             logger.info(f"Loaded model from {model_path}")
         else:
-            auto_train_ds = torch.utils.data.TensorDataset(
-                train_input, train_input
-            )
-            auto_valid_ds = torch.utils.data.TensorDataset(
-                valid_input, valid_input
-            )
+            auto_train_ds = torch.utils.data.TensorDataset(train_input, train_input)
+            auto_valid_ds = torch.utils.data.TensorDataset(valid_input, valid_input)
 
             os.makedirs(load_save_path, exist_ok=True)
             encoder_train_config.trainer.save_path = load_save_path
             encoder_trainer_config_dict = OmegaConf.to_container(
-                encoder_train_config.trainer,
-                resolve=True
+                encoder_train_config.trainer, resolve=True
             )
 
             optimizer = torch.optim.Adam(
                 encoder_network.parameters(),
-                lr=getattr(encoder_train_config, "lr", 0.001)
+                lr=getattr(encoder_train_config, "lr", 0.001),
             )
 
             encoder_trainer = get_trainer(
                 strategy="standard",
                 optimizer=optimizer,
                 trainer_config_dict=encoder_trainer_config_dict,
-                analysis_manager=None
+                analysis_manager=None,
             )
             encoder_trainer.train(
                 model=encoder_network,
                 train_data=auto_train_ds,
-                valid_data=auto_valid_ds
+                valid_data=auto_valid_ds,
             )
 
         encoder_network = encoder_network.cpu()
@@ -231,30 +225,25 @@ def load_train_encoder_network(
         encoded_valid_ds = torch.utils.data.TensorDataset(
             encoded_valid_input, valid_label
         )
-        encoded_test_ds = torch.utils.data.TensorDataset(
-            encoded_test_input, test_label
-        )
+        encoded_test_ds = torch.utils.data.TensorDataset(encoded_test_input, test_label)
 
         for param in encoder_network.parameters():
             param.requires_grad = False
 
-        return (
-            encoder_network,
-            encoded_train_ds,
-            encoded_valid_ds,
-            encoded_test_ds
-        )
+        return (encoder_network, encoded_train_ds, encoded_valid_ds, encoded_test_ds)
+
 
 def encoder_network_analysis(
     encoder_network: BaseNetwork,
     train_ds: torch.utils.data.Dataset,
     valid_ds: torch.utils.data.Dataset,
     test_ds: torch.utils.data.Dataset,
-    load_save_path: str
+    load_save_path: str,
 ):
     # TODO: Implement encoder network analysis
     #   Maybe make analyzer classes specifically for encoder networks
     pass
+
 
 def main(config_path: str):
     config = load_config(config_path)
@@ -263,16 +252,10 @@ def main(config_path: str):
     encoder_network_config = config.model.encoder_network
     encoder_train_config = config.train.encoder
 
-    (
-        load_save_path,
-        train_ds,
-        valid_ds,
-        test_ds,
-        encoder_network
-    ) = setup_environment(
+    (load_save_path, train_ds, valid_ds, test_ds, encoder_network) = setup_environment(
         encoder_network_config=encoder_network_config,
         train_config=config.train,
-        task_config=config.task
+        task_config=config.task,
     )
 
     logger.info("Network architecture summary before training:")
@@ -285,7 +268,7 @@ def main(config_path: str):
                 col_names=["input_size", "output_size", "num_params"],
                 col_width=25,
                 row_settings=["depth"],
-                depth=7
+                depth=7,
             )
             logger.info("Model summary generated (see console output)")
         else:
@@ -299,7 +282,7 @@ def main(config_path: str):
         train_ds=train_ds,
         valid_ds=valid_ds,
         test_ds=test_ds,
-        load_save_path=load_save_path
+        load_save_path=load_save_path,
     )[0]
 
     nparams = 0
@@ -308,12 +291,10 @@ def main(config_path: str):
     save_dict({"nparams": nparams}, load_save_path, "nparams")
 
     encoder_network_config_dict = OmegaConf.to_container(
-        encoder_network_config,
-        resolve=True
+        encoder_network_config, resolve=True
     )
     encoder_train_config_dict = OmegaConf.to_container(
-        encoder_train_config,
-        resolve=True
+        encoder_train_config, resolve=True
     )
     task_config_dict = config.task.asdict()
     save_dict(
@@ -323,7 +304,7 @@ def main(config_path: str):
             "task": task_config_dict,
         },
         load_save_path,
-        "config.json"
+        "config.json",
     )
 
     encoder_network_analysis(
@@ -331,16 +312,14 @@ def main(config_path: str):
         train_ds=train_ds,
         valid_ds=valid_ds,
         test_ds=test_ds,
-        load_save_path=load_save_path
+        load_save_path=load_save_path,
     )
 
     logger.info("Encoder network training completed successfully")
 
+
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(
-        description="Train an encoder network."
-    )
+    parser = argparse.ArgumentParser(description="Train an encoder network.")
     parser.add_argument("config", help="Path to the configuration YAML file.")
     args = parser.parse_args()
     main(args.config)
-

@@ -11,6 +11,7 @@ class TransferFunctionParams(BaseConfig):
     excitatory_dim: Optional[int] = None
     inhibitory_dim: Optional[int] = None
 
+
 @dataclass
 class EINetParameters(BaseConfig):
     input_dim: int = 784
@@ -52,10 +53,12 @@ class EINetParameters(BaseConfig):
     init_method: str = "xavier_normal"
     weight_threshold: float = 1e-6
 
+
 @dataclass
 class CoreNetworkConfig(BaseConfig):
     type: str = "EINet"
     parameters: EINetParameters = field(default_factory=EINetParameters)
+
 
 @dataclass
 class EncoderNetworkParameters(BaseConfig):
@@ -69,12 +72,14 @@ class EncoderNetworkParameters(BaseConfig):
     decoder_hidden_dims: list[int] = field(default_factory=lambda: [64, 128])
     activation: str = "relu"
 
+
 @dataclass
 class EncoderNetworkConfig(BaseConfig):
     type: str = "MLPAutoencoder"
     parameters: EncoderNetworkParameters = field(
         default_factory=EncoderNetworkParameters
     )
+
 
 @dataclass
 class DecoderNetworkParameters(BaseConfig):
@@ -83,6 +88,7 @@ class DecoderNetworkParameters(BaseConfig):
     activation: str = "relu"
     output_dim: int = None
 
+
 @dataclass
 class DecoderNetworkConfig(BaseConfig):
     type: str = "MLP"
@@ -90,15 +96,10 @@ class DecoderNetworkConfig(BaseConfig):
         default_factory=DecoderNetworkParameters
     )
 
+
 @dataclass
 class ModelConfig(BaseConfig):
     task: str = "classification"
-    encoder_network: EncoderNetworkConfig = field(
-        default_factory=EncoderNetworkConfig
-    )
-    core_network: CoreNetworkConfig = field(
-        default_factory=CoreNetworkConfig
-    )
-    decoder_network: DecoderNetworkConfig = field(
-        default_factory=DecoderNetworkConfig
-    )
+    encoder_network: EncoderNetworkConfig = field(default_factory=EncoderNetworkConfig)
+    core_network: CoreNetworkConfig = field(default_factory=CoreNetworkConfig)
+    decoder_network: DecoderNetworkConfig = field(default_factory=DecoderNetworkConfig)

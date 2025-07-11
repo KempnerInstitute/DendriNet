@@ -18,6 +18,7 @@ from pathlib import Path
 # Add the src directory to the path for imports
 sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 
+
 def discover_tests(test_dir="tests", pattern="test_*.py"):
     """
     Discover all test cases in the test directory.
@@ -33,6 +34,7 @@ def discover_tests(test_dir="tests", pattern="test_*.py"):
     suite = loader.discover(test_dir, pattern=pattern)
     return suite
 
+
 def run_tests_basic(verbosity=2, failfast=False):
     """
     Run tests using basic unittest runner.
@@ -46,12 +48,11 @@ def run_tests_basic(verbosity=2, failfast=False):
     """
     suite = discover_tests()
     runner = unittest.TextTestRunner(
-        verbosity=verbosity,
-        failfast=failfast,
-        stream=sys.stdout
+        verbosity=verbosity, failfast=failfast, stream=sys.stdout
     )
     result = runner.run(suite)
     return result
+
 
 def run_tests_with_coverage(verbosity=2, coverage_report=True, html_report=False):
     """
@@ -65,24 +66,17 @@ def run_tests_with_coverage(verbosity=2, coverage_report=True, html_report=False
     Returns:
         Exit code from pytest
     """
-    cmd = [
-        "python", "-m", "pytest",
-        "tests/",
-        f"-{'v' * verbosity}",
-        "--tb=short"
-    ]
+    cmd = ["python", "-m", "pytest", "tests/", f"-{'v' * verbosity}", "--tb=short"]
 
     if coverage_report:
-        cmd.extend([
-            "--cov=src/dendritic_modeling",
-            "--cov-report=term-missing"
-        ])
+        cmd.extend(["--cov=src/dendritic_modeling", "--cov-report=term-missing"])
 
         if html_report:
             cmd.append("--cov-report=html")
 
     result = subprocess.run(cmd, capture_output=False)
     return result.returncode
+
 
 def run_specific_tests(test_modules, verbosity=2):
     """
@@ -108,7 +102,10 @@ def run_specific_tests(test_modules, verbosity=2):
             # Import the test module directly
             if os.path.exists(f"tests/{module_name}.py"):
                 import importlib.util
-                spec = importlib.util.spec_from_file_location(module_name, f"tests/{module_name}.py")
+
+                spec = importlib.util.spec_from_file_location(
+                    module_name, f"tests/{module_name}.py"
+                )
                 module = importlib.util.module_from_spec(spec)
                 spec.loader.exec_module(module)
                 # Load tests from the module
@@ -123,6 +120,7 @@ def run_specific_tests(test_modules, verbosity=2):
     result = runner.run(suite)
     return result
 
+
 def run_integration_tests(verbosity=2):
     """
     Run integration tests that test interactions between modules.
@@ -134,12 +132,10 @@ def run_integration_tests(verbosity=2):
         TestResult object
     """
     # Integration tests are typically marked with a pattern or in specific files
-    integration_modules = [
-        "test_train_experiments",
-        "test_end_to_end"  # If it exists
-    ]
+    integration_modules = ["test_train_experiments", "test_end_to_end"]  # If it exists
 
     return run_specific_tests(integration_modules, verbosity)
+
 
 def run_unit_tests(verbosity=2):
     """
@@ -159,10 +155,11 @@ def run_unit_tests(verbosity=2):
         "test_config",
         "test_models",
         "test_networks",
-        "test_utils"
+        "test_utils",
     ]
 
     return run_specific_tests(unit_test_modules, verbosity)
+
 
 def check_dependencies():
     """
@@ -172,40 +169,41 @@ def check_dependencies():
         Dictionary with dependency availability status
     """
     dependencies = {
-        'pytest': False,
-        'pytest-cov': False,
-        'coverage': False,
-        'unittest': True  # Built-in
+        "pytest": False,
+        "pytest-cov": False,
+        "coverage": False,
+        "unittest": True,  # Built-in
     }
 
     # Check pytest
     try:
         # import pytest  # Available for import check
-        dependencies['pytest'] = True
+        dependencies["pytest"] = True
     except ImportError:
         pass
 
     # Check coverage
     try:
         # import coverage  # Available for import check
-        dependencies['coverage'] = True
+        dependencies["coverage"] = True
     except ImportError:
         pass
 
     # Check pytest-cov (indirectly)
-    if dependencies['pytest']:
+    if dependencies["pytest"]:
         try:
             result = subprocess.run(
                 ["python", "-m", "pytest", "--cov", "--help"],
                 capture_output=True,
-                timeout=5
+                timeout=5,
             )
             if result.returncode == 0:
-                dependencies['pytest-cov'] = True
+                dependencies["pytest-cov"] = True
         except (subprocess.TimeoutExpired, FileNotFoundError):
             pass
 
     return dependencies
+
 
 def print_test_summary(result):
     """
@@ -226,7 +224,7 @@ def print_test_summary(result):
     total_tests = result.testsRun
     failures = len(result.failures)
     errors = len(result.errors)
-    skipped = len(result.skipped) if hasattr(result, 'skipped') else 0
+    skipped = len(result.skipped) if hasattr(result, "skipped") else 0
 
     print(f"\n{'='*60}")
     print("TEST SUMMARY")
@@ -244,53 +242,53 @@ def print_test_summary(result):
     if failures == 0 and errors == 0:
         print("\nAll tests passed!")
 
+
 def main():
     """Main test runner function."""
-    parser = argparse.ArgumentParser(description="Run tests for dendritic_modeling package")
+    parser = argparse.ArgumentParser(
+        description="Run tests for dendritic_modeling package"
+    )
 
     parser.add_argument(
         "--test-type",
         choices=["all", "unit", "integration", "coverage"],
         default="all",
-        help="Type of tests to run"
+        help="Type of tests to run",
     )
 
     parser.add_argument(
         "--modules",
         nargs="+",
-        help="Specific test modules to run (without test_ prefix or .py extension)"
+        help="Specific test modules to run (without test_ prefix or .py extension)",
     )
 
     parser.add_argument(
-        "--verbosity", "-v",
+        "--verbosity",
+        "-v",
         type=int,
         choices=[0, 1, 2],
         default=2,
-        help="Verbosity level (0=quiet, 1=normal, 2=verbose)"
+        help="Verbosity level (0=quiet, 1=normal, 2=verbose)",
     )
 
     parser.add_argument(
-        "--failfast", "-f",
-        action="store_true",
-        help="Stop on first failure"
+        "--failfast", "-f", action="store_true", help="Stop on first failure"
     )
 
     parser.add_argument(
         "--html-coverage",
         action="store_true",
-        help="Generate HTML coverage report (requires pytest-cov)"
+        help="Generate HTML coverage report (requires pytest-cov)",
     )
 
     parser.add_argument(
-        "--check-deps",
-        action="store_true",
-        help="Check testing dependencies and exit"
+        "--check-deps", action="store_true", help="Check testing dependencies and exit"
     )
 
     parser.add_argument(
         "--use-pytest",
         action="store_true",
-        help="Use pytest instead of unittest (recommended for coverage)"
+        help="Use pytest instead of unittest (recommended for coverage)",
     )
 
     args = parser.parse_args()
@@ -306,15 +304,16 @@ def main():
 
     # Check if we're in the right directory
     if not os.path.exists("tests"):
-        print("Error: tests directory not found. Run this script from the project root.")
+        print(
+            "Error: tests directory not found. Run this script from the project root."
+        )
         return 1
 
     # Run specific modules if requested
     if args.modules:
         # Add test_ prefix if not present
         modules = [
-            mod if mod.startswith("test_") else f"test_{mod}"
-            for mod in args.modules
+            mod if mod.startswith("test_") else f"test_{mod}" for mod in args.modules
         ]
         result = run_specific_tests(modules, args.verbosity)
         print_test_summary(result)
@@ -323,14 +322,16 @@ def main():
     # Run tests based on type
     if args.test_type == "coverage" or args.use_pytest:
         deps = check_dependencies()
-        if not deps['pytest']:
-            print("Error: pytest not available. Install with: pip install pytest pytest-cov")
+        if not deps["pytest"]:
+            print(
+                "Error: pytest not available. Install with: pip install pytest pytest-cov"
+            )
             return 1
 
         result = run_tests_with_coverage(
             verbosity=args.verbosity,
             coverage_report=True,
-            html_report=args.html_coverage
+            html_report=args.html_coverage,
         )
         print_test_summary(result)
         return result
@@ -349,6 +350,7 @@ def main():
         result = run_tests_basic(args.verbosity, args.failfast)
         print_test_summary(result)
         return 0 if result.wasSuccessful() else 1
+
 
 if __name__ == "__main__":
     exit_code = main()

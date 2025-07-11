@@ -154,4 +154,5 @@ class ExcitationInhibitionLayer(nn.Module):
 
         return excitatory_x, inhibitory_x
 
+
 __all__ = ["ExcitationInhibitionLayer"]

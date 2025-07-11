@@ -58,15 +58,14 @@ class TestPerformanceAnalyzer(unittest.TestCase):
                 ee_synapses_per_branch_per_layer=[1],
                 ei_synapses_per_branch_per_layer=[1],
                 ie_synapses_per_branch_per_layer=[1],
-                ii_synapses_per_branch_per_layer=[]
+                ii_synapses_per_branch_per_layer=[],
             ),
-            decoder_network=Identity(input_dim=4)
+            decoder_network=Identity(input_dim=4),
         )
 
         # Create test data
         self.test_data = torch.utils.data.TensorDataset(
-            torch.randn(100, 10),
-            torch.randint(0, 2, (100,))
+            torch.randn(100, 10), torch.randint(0, 2, (100,))
         )
 
     def test_analyzer_initialization(self):
@@ -76,8 +75,8 @@ class TestPerformanceAnalyzer(unittest.TestCase):
     def test_analyzer_has_required_attributes(self):
         """Test that the analyzer has the required attributes."""
         # Check that the analyzer has the expected attributes from params
-        self.assertTrue(hasattr(self.analyzer, 'accuracy'))
-        self.assertTrue(hasattr(self.analyzer, 'categorical_loglikelihood'))
+        self.assertTrue(hasattr(self.analyzer, "accuracy"))
+        self.assertTrue(hasattr(self.analyzer, "categorical_loglikelihood"))
 
     def test_evaluate_model(self):
         """Test model evaluation on dataset."""
@@ -87,7 +86,7 @@ class TestPerformanceAnalyzer(unittest.TestCase):
                 model=self.model,
                 test_ds=self.test_data,
                 device=self.device,
-                save_path=tmpdir
+                save_path=tmpdir,
             )
 
             # When save_path is provided, results should be None
@@ -98,11 +97,12 @@ class TestPerformanceAnalyzer(unittest.TestCase):
                 model=self.model,
                 test_ds=self.test_data,
                 device=self.device,
-                save_path=None
+                save_path=None,
             )
 
             # Check that results is a dictionary
             self.assertIsInstance(results, dict)
+
 
 class TestAblationAnalyzer(unittest.TestCase):
     """Test the AblationAnalyzer class."""
@@ -126,15 +126,14 @@ class TestAblationAnalyzer(unittest.TestCase):
                 ee_synapses_per_branch_per_layer=[1, 1],
                 ei_synapses_per_branch_per_layer=[1, 1],
                 ie_synapses_per_branch_per_layer=[1, 1],
-                ii_synapses_per_branch_per_layer=[]
+                ii_synapses_per_branch_per_layer=[],
             ),
-            decoder_network=Identity(input_dim=4)
+            decoder_network=Identity(input_dim=4),
         )
 
         # Create test dataset
         self.test_data = torch.utils.data.TensorDataset(
-            torch.randn(50, 10),
-            torch.randint(0, 2, (50,))
+            torch.randn(50, 10), torch.randint(0, 2, (50,))
         )
 
     def test_analyzer_initialization(self):
@@ -148,7 +147,7 @@ class TestAblationAnalyzer(unittest.TestCase):
                 model=self.model,
                 test_dataset=self.test_data,
                 device="cpu",
-                save_path=tmpdir
+                save_path=tmpdir,
             )
 
             # When save_path is provided, results should be None
@@ -161,11 +160,12 @@ class TestAblationAnalyzer(unittest.TestCase):
                 model=self.model,
                 test_dataset=self.test_data,
                 device="cpu",
-                save_path=tmpdir
+                save_path=tmpdir,
             )
 
             # When save_path is provided, results should be None
             self.assertIsNone(results)
+
 
 class TestInformationAnalyzer(unittest.TestCase):
     """Test the Information Analyzer class."""
@@ -173,6 +173,7 @@ class TestInformationAnalyzer(unittest.TestCase):
     def setUp(self):
         """Set up test fixtures."""
         from dendritic_modeling.config import InformationAnalysisParams
+
         params = InformationAnalysisParams()
         self.analyzer = InformationAnalyzer(params)
 
@@ -190,15 +191,14 @@ class TestInformationAnalyzer(unittest.TestCase):
                 ee_synapses_per_branch_per_layer=[1],
                 ei_synapses_per_branch_per_layer=[1],
                 ie_synapses_per_branch_per_layer=[1],
-                ii_synapses_per_branch_per_layer=[]
+                ii_synapses_per_branch_per_layer=[],
             ),
-            decoder_network=Identity(input_dim=4)
+            decoder_network=Identity(input_dim=4),
         )
 
         # Create test data
         self.test_data = torch.utils.data.TensorDataset(
-            torch.randn(30, 8),
-            torch.randint(0, 2, (30,))
+            torch.randn(30, 8), torch.randint(0, 2, (30,))
         )
 
     def test_analyzer_initialization(self):
@@ -209,11 +209,11 @@ class TestInformationAnalyzer(unittest.TestCase):
         """Test mutual information computation."""
         with tempfile.TemporaryDirectory() as tmpdir:
             # Mock the MI computation since it requires complex dependencies
-            with patch.object(self.analyzer, 'compute_metrics') as mock_mi:
+            with patch.object(self.analyzer, "compute_metrics") as mock_mi:
                 mock_mi.return_value = {
                     "method": "kraskov",
                     "n_samples": 30,
-                    "basic_mi": {"I(E;C)": 0.5, "I(I;C)": 0.3}
+                    "basic_mi": {"I(E;C)": 0.5, "I(I;C)": 0.3},
                 }
 
                 results = self.analyzer.analyze(
@@ -221,11 +221,12 @@ class TestInformationAnalyzer(unittest.TestCase):
                     test_dataset=self.test_data,
                     device="cpu",
                     save_path=tmpdir,
-                    filename="test"
+                    filename="test",
                 )
 
                 # When save_path is provided, results should be None
                 self.assertIsNone(results)
+
 
 class TestActivationAnalyzers(unittest.TestCase):
     """Test the activation analyzer classes."""
@@ -251,15 +252,14 @@ class TestActivationAnalyzers(unittest.TestCase):
                 ee_synapses_per_branch_per_layer=[1],
                 ei_synapses_per_branch_per_layer=[1],
                 ie_synapses_per_branch_per_layer=[1],
-                ii_synapses_per_branch_per_layer=[]
+                ii_synapses_per_branch_per_layer=[],
             ),
-            decoder_network=Identity(input_dim=4)
+            decoder_network=Identity(input_dim=4),
         )
 
         # Create test data
         self.test_data = torch.utils.data.TensorDataset(
-            torch.randn(30, 8),
-            torch.randint(0, 2, (30,))
+            torch.randn(30, 8), torch.randint(0, 2, (30,))
         )
 
     def test_synaptic_activation_analyzer(self):
@@ -269,7 +269,7 @@ class TestActivationAnalyzers(unittest.TestCase):
                 model=self.model,
                 test_dataset=self.test_data,
                 device="cpu",
-                save_path=tmpdir
+                save_path=tmpdir,
             )
 
             # When save_path is provided, results should be None
@@ -282,11 +282,12 @@ class TestActivationAnalyzers(unittest.TestCase):
                 model=self.model,
                 test_dataset=self.test_data,
                 device="cpu",
-                save_path=tmpdir
+                save_path=tmpdir,
             )
 
             # When save_path is provided, results should be None
             self.assertIsNone(results)
+
 
 class TestAnalysisManager(unittest.TestCase):
     """Test the Analysis Manager class."""
@@ -307,30 +308,23 @@ class TestAnalysisManager(unittest.TestCase):
                 ee_synapses_per_branch_per_layer=[1],
                 ei_synapses_per_branch_per_layer=[1],
                 ie_synapses_per_branch_per_layer=[1],
-                ii_synapses_per_branch_per_layer=[]
+                ii_synapses_per_branch_per_layer=[],
             ),
-            decoder_network=Identity(input_dim=4)
+            decoder_network=Identity(input_dim=4),
         )
 
         # Create test data
         train_data = torch.utils.data.TensorDataset(
-            torch.randn(30, 8),
-            torch.randint(0, 2, (30,))
+            torch.randn(30, 8), torch.randint(0, 2, (30,))
         )
         valid_data = torch.utils.data.TensorDataset(
-            torch.randn(20, 8),
-            torch.randint(0, 2, (20,))
+            torch.randn(20, 8), torch.randint(0, 2, (20,))
         )
         test_data = torch.utils.data.TensorDataset(
-            torch.randn(25, 8),
-            torch.randint(0, 2, (25,))
+            torch.randn(25, 8), torch.randint(0, 2, (25,))
         )
 
-        self.data = {
-            "train": train_data,
-            "valid": valid_data,
-            "test": test_data
-        }
+        self.data = {"train": train_data, "valid": valid_data, "test": test_data}
 
         # Create analysis config
         self.analysis_config = AnalysisConfig()
@@ -340,7 +334,7 @@ class TestAnalysisManager(unittest.TestCase):
             model=self.model,
             data=self.data,
             analysis_config=self.analysis_config,
-            save_root="/tmp/test_analysis"
+            save_root="/tmp/test_analysis",
         )
 
     def test_manager_initialization(self):
@@ -355,10 +349,10 @@ class TestAnalysisManager(unittest.TestCase):
             self.manager.save_root = tmpdir
 
             # Mock the performance analyzer
-            with patch.object(self.manager, 'performance_analyzer') as mock_analyzer:
+            with patch.object(self.manager, "performance_analyzer") as mock_analyzer:
                 mock_analyzer.analyze.return_value = {
-                    'accuracy': 0.85,
-                    'categorical_loglikelihood': -0.5
+                    "accuracy": 0.85,
+                    "categorical_loglikelihood": -0.5,
                 }
 
                 results = self.manager.run_analysis()
@@ -366,5 +360,6 @@ class TestAnalysisManager(unittest.TestCase):
                 # The method doesn't return results, so just check it doesn't crash
                 self.assertIsNone(results)
 
-if __name__ == '__main__':
+
+if __name__ == "__main__":
     unittest.main()

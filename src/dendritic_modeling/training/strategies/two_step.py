@@ -29,9 +29,9 @@ def _initialize_local_heads(net_obj, model, device):
             else:
                 # Infer from dummy forward pass
                 try:
-                    dummy = torch.randn(
-                        1, getattr(net_obj, "input_dim", 784)
-                    ).to(device)
+                    dummy = torch.randn(1, getattr(net_obj, "input_dim", 784)).to(
+                        device
+                    )
                 except Exception:
                     dummy = torch.randn(1, 784).to(device)
                 dummy_out = layer(dummy)
@@ -45,13 +45,13 @@ def _initialize_local_heads(net_obj, model, device):
         else:
             device_for_head = next(model.parameters()).device
 
-        head = torch.nn.Linear(
-            out_dim,
-            getattr(model, "output_dim", 10)
-        ).to(device_for_head)
+        head = torch.nn.Linear(out_dim, getattr(model, "output_dim", 10)).to(
+            device_for_head
+        )
         local_heads.append(head)
 
     return local_heads
+
 
 class TwoStepTrainer(Trainer):
     """
@@ -63,13 +63,14 @@ class TwoStepTrainer(Trainer):
 
     This approach can help with gradient flow and learning in deep dendritic networks.
     """
+
     pretrain_epochs: int = 5
 
     def train(
         self,
         model: BaseModel,
         train_data: torch.utils.data.Dataset,
-        valid_data: torch.utils.data.Dataset
+        valid_data: torch.utils.data.Dataset,
     ):
         """
         Train the model using two-step approach.
@@ -101,9 +102,7 @@ class TwoStepTrainer(Trainer):
 
         train_loader, valid_loader = self._dataloaders(train_data, valid_data)
 
-        self._initialize_attributes(
-            model, self.pretrain_epochs + self.epochs
-        )
+        self._initialize_attributes(model, self.pretrain_epochs + self.epochs)
 
         if not hasattr(self, "local_heads"):
             self.local_heads = _initialize_local_heads(net_obj, model, self.device)
@@ -158,7 +157,9 @@ class TwoStepTrainer(Trainer):
                             h_batch = net_obj.layers[j].activation(h_batch)
 
                     # Local supervision
-                    loss: torch.Tensor = self.loss_function(local_head, h_batch, y_batch)
+                    loss: torch.Tensor = self.loss_function(
+                        local_head, h_batch, y_batch
+                    )
                     self.optimizer.zero_grad()
                     loss.backward()
                     clip_grad_value_(model.parameters(), self.grad_clip_value)
@@ -189,10 +190,7 @@ class TwoStepTrainer(Trainer):
             self._analyze()
 
             self._tracking(
-                avg_loss,
-                valid_loss,
-                "[TwoStep-Pretrain] ",
-                {"phase": "pretrain"}
+                avg_loss, valid_loss, "[TwoStep-Pretrain] ", {"phase": "pretrain"}
             )
 
             if self._check_early_stopping():
@@ -220,6 +218,7 @@ class TwoStepTrainer(Trainer):
 
         return final_results
 
+
 class TwoStepTrainerWithKL(Trainer):
     """
     Two-Step Training Strategy with KL Divergence Loss.
@@ -227,6 +226,7 @@ class TwoStepTrainerWithKL(Trainer):
     Similar to TwoStepTrainer but uses a combined loss function during pre-training
     that includes both cross-entropy and KL divergence terms for better regularization.
     """
+
     pretrain_epochs: int = 5
     kl_weight: float = 0.1
 
@@ -234,7 +234,7 @@ class TwoStepTrainerWithKL(Trainer):
         self,
         model: BaseModel,
         train_data: torch.utils.data.Dataset,
-        valid_data: torch.utils.data.Dataset
+        valid_data: torch.utils.data.Dataset,
     ):
         """
         Train the model using two-step approach with KL divergence.
@@ -266,9 +266,7 @@ class TwoStepTrainerWithKL(Trainer):
 
         train_loader, valid_loader = self._dataloaders(train_data, valid_data)
 
-        self._initialize_attributes(
-            model, self.pretrain_epochs + self.epochs
-        )
+        self._initialize_attributes(model, self.pretrain_epochs + self.epochs)
 
         if not hasattr(self, "local_heads"):
             self.local_heads = _initialize_local_heads(net_obj, model, self.device)
@@ -335,7 +333,7 @@ class TwoStepTrainerWithKL(Trainer):
                     kl_loss = functional.kl_div(
                         functional.log_softmax(local_logits, dim=1),
                         functional.softmax(full_logits, dim=1),
-                        reduction='batchmean'
+                        reduction="batchmean",
                     )
                     loss = ce_loss + self.kl_weight * kl_loss
 
@@ -369,10 +367,7 @@ class TwoStepTrainerWithKL(Trainer):
             self._analyze()
 
             self._tracking(
-                avg_loss,
-                valid_loss,
-                "[TwoStepKL-Pretrain] ",
-                {"phase": "pretrain_kl"}
+                avg_loss, valid_loss, "[TwoStepKL-Pretrain] ", {"phase": "pretrain_kl"}
             )
 
             if self._check_early_stopping():

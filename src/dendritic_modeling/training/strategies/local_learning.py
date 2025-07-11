@@ -24,6 +24,7 @@ class LocalCreditAssignment(Trainer):
     parts of the network based on local feedback, particularly useful for
     dendritic network architectures.
     """
+
     pretrain_epochs: int = 10
     reverse_training: bool = False
     epochs_per_branch: int = 5
@@ -33,7 +34,7 @@ class LocalCreditAssignment(Trainer):
         self,
         model: BaseModel,
         train_data: torch.utils.data.Dataset,
-        valid_data: torch.utils.data.Dataset
+        valid_data: torch.utils.data.Dataset,
     ) -> tuple[list[float], list[float]]:
         """
         Pretrain the model.
@@ -62,7 +63,7 @@ class LocalCreditAssignment(Trainer):
         self,
         model: BaseModel,
         train_data: torch.utils.data.Dataset,
-        valid_data: torch.utils.data.Dataset
+        valid_data: torch.utils.data.Dataset,
     ):
         """
         Train branch layers sequentially from soma to input.
@@ -93,9 +94,9 @@ class LocalCreditAssignment(Trainer):
                 n_branch_layers += 1
 
         total_epochs = (
-            self.pretrain_epochs +
-            n_branch_layers * self.epochs_per_branch +
-            self.final_tune_epochs
+            self.pretrain_epochs
+            + n_branch_layers * self.epochs_per_branch
+            + self.final_tune_epochs
         )
         self._initialize_attributes(model, total_epochs)
 
@@ -157,7 +158,7 @@ class LocalCreditAssignment(Trainer):
                 train_losses=train_losses,
                 valid_losses=valid_losses,
                 logger_info=f"[{learning_strategy}] branch={branch_layer_idx}, ",
-                wandb_info={"branch": branch_layer_idx}
+                wandb_info={"branch": branch_layer_idx},
             )
 
         self._loss_plotting(train_losses, valid_losses)
@@ -193,5 +194,6 @@ class LocalCreditAssignment(Trainer):
             "valid_losses", []
         )
         return final_results
+
 
 __all__ = ["LocalCreditAssignment"]
