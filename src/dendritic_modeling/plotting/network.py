@@ -66,9 +66,9 @@ def add_colorbars(
     """
 
     # Legacy compatibility - simple version
-    for ax, im in zip(ax_iterable, im_iterable):
+    for _ax, _im in zip(ax_iterable, im_iterable):
         pass  # Already handled above
-    
+
     if isinstance(ax_iterable, list) and len(ax_iterable) == 1:
         fig.colorbar(im_iterable[0], ax=ax_iterable[0])
 
@@ -778,7 +778,7 @@ def plot_excitation_inhibition_gradients(
 
         ax2 = fig.add_subplot(gs[0, 1])
         ax2.set_title("exc syn mask")
-        im2 = ax2.imshow(
+        _im2 = ax2.imshow(
             excitatory_synapse_mask.detach().cpu().numpy(),
             cmap="Greys",
         )
@@ -824,7 +824,7 @@ def plot_excitation_inhibition_gradients(
 
         ax5 = fig.add_subplot(gs[1, 1])
         ax5.set_title("inh syn mask")
-        im5 = ax5.imshow(
+        _im5 = ax5.imshow(
             inhibitory_synapse_mask.detach().cpu().numpy(),
             cmap="Greys",
         )
