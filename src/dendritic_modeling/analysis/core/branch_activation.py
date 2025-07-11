@@ -64,9 +64,9 @@ class BranchActivationAnalyzer:
         handles = []
         for _name, module in model.named_modules():
             if isinstance(module, DendriticBranchLayer):
-                if name not in self.data_dict.keys():
-                    self.data_dict[name] = {}
-                    module._name = name
+                if _name not in self.data_dict.keys():
+                    self.data_dict[_name] = {}
+                    module._name = _name
                     handle = module.register_forward_hook(self.forward_hook)
                     handles.append(handle)
         return handles

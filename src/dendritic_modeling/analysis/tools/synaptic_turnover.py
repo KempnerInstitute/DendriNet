@@ -75,15 +75,15 @@ class SynapticTurnoverAnalyzer:
             data_dict = {}
             for _name, module in model.named_modules():
                 if isinstance(module, DendriticBranchLayer):
-                    data_dict[name] = {}
+                    data_dict[_name] = {}
                     if module.branch_excitation is not None:
-                        data_dict[name]["exc_mask"] = (
+                        data_dict[_name]["exc_mask"] = (
                             deepcopy(module.branch_excitation.weight_mask())
                             .detach()
                             .cpu()
                         )
                     if module.branch_inhibition is not None:
-                        data_dict[name]["inh_mask"] = (
+                        data_dict[_name]["inh_mask"] = (
                             deepcopy(module.branch_inhibition.weight_mask())
                             .detach()
                             .cpu()

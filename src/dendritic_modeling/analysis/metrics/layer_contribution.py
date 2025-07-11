@@ -158,7 +158,7 @@ class SingleLayerContributionAnalyzer:
                         model=model,
                         test_dataset=test_dataset,
                         module=module,
-                        module_name=name,
+                        module_name=_name,
                         contribution_type="both",
                         results_dict=results,
                         state_dict=state_dict
@@ -169,7 +169,7 @@ class SingleLayerContributionAnalyzer:
                         model=model,
                         test_dataset=test_dataset,
                         module=module,
-                        module_name=name,
+                        module_name=_name,
                         contribution_type="excitation",
                         results_dict=results,
                         state_dict=state_dict
@@ -180,7 +180,7 @@ class SingleLayerContributionAnalyzer:
                         model=model,
                         test_dataset=test_dataset,
                         module=module,
-                        module_name=name,
+                        module_name=_name,
                         contribution_type="inhibition",
                         results_dict=results,
                         state_dict=state_dict
