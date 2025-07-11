@@ -14,6 +14,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from torch.utils.data import DataLoader
+from typing import Dict, Optional
 
 
 def record_branch_activations(model, dataset, batch_size: int = 64, device: str = "cpu") -> tuple[Dict, torch.Tensor]:
@@ -130,7 +131,7 @@ def analyze_branch_information(
     branch_acts, labels = record_branch_activations(model, dataset, batch_size, device)
     branch_info = {}
     for layer_idx, act in branch_acts.items():
-        mi_val = compute_MI(act, labels, n_bins=n_bins)
+        mi_val = compute_mi(act, labels, n_bins=n_bins)
         branch_info[layer_idx] = mi_val
     return branch_info
 
@@ -227,7 +228,7 @@ def analyze_branch_ablation(
     branch_ids: Optional[list[int]] = None,
     mode: str = "direct",
     device: str = "cpu"
-) -> tuple[float, Dict]:
+) -> tuple[float, dict]:
     """
     1) measure baseline accuracy
     2) for each branch_id in branch_ids, ablate, measure accuracy drop
@@ -443,7 +444,7 @@ def analyze_dendritic_information(
     use_excitatory: bool = True,
     use_inhibitory: bool = True,
     use_post_shunting: bool = False,
-) -> Dict:
+) -> dict:
     """
     Analyze information content in dendritic branches by training classifiers on branch activations.
 
