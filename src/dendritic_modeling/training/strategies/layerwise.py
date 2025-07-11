@@ -22,6 +22,7 @@ class LayerWiseTrainer(Trainer):
     soma to input or from input to soma, followed by full-network fine-tuning.
 
     """
+
     pretrain_epochs: int = 10
     reverse_training: bool = False
     epochs_per_layer: int = 5
@@ -31,7 +32,7 @@ class LayerWiseTrainer(Trainer):
         self,
         model: BaseModel,
         train_data: torch.utils.data.Dataset,
-        valid_data: torch.utils.data.Dataset
+        valid_data: torch.utils.data.Dataset,
     ) -> tuple[list[float], list[float]]:
         """
         Pretrain the model.
@@ -60,7 +61,7 @@ class LayerWiseTrainer(Trainer):
         self,
         model: BaseModel,
         train_data: torch.utils.data.Dataset,
-        valid_data: torch.utils.data.Dataset
+        valid_data: torch.utils.data.Dataset,
     ):
         """
         Train layers sequentially from soma to input.
@@ -78,19 +79,16 @@ class LayerWiseTrainer(Trainer):
         """
 
         if not isinstance(model.net, ExcitationInhibitionNetwork):
-            logger.info(
-                "Model has no 'net.layers'. "
-                "Falling back to normal train."
-            )
+            logger.info("Model has no 'net.layers'. " "Falling back to normal train.")
             return super().train(model, train_data, valid_data)
 
         net_obj: ExcitationInhibitionNetwork = model.net
         n_layers = len(net_obj.layers)
 
         total_epochs = (
-            self.pretrain_epochs +
-            n_layers * self.epochs_per_layer +
-            self.final_tune_epochs
+            self.pretrain_epochs
+            + n_layers * self.epochs_per_layer
+            + self.final_tune_epochs
         )
         self._initialize_attributes(model, total_epochs)
 
@@ -102,9 +100,7 @@ class LayerWiseTrainer(Trainer):
         layer_indices = []
         if self.reverse_training:
             learning_strategy = "Freeze-Layers-Reversed"
-            for i, layer in enumerate(
-                reversed(list(net_obj.layers))
-            ):
+            for i, layer in enumerate(reversed(list(net_obj.layers))):
                 layer_modules.append(layer)
                 layer_indices.append(n_layers - i - 1)
         else:
@@ -114,8 +110,7 @@ class LayerWiseTrainer(Trainer):
                 layer_indices.append(i)
 
         logger.info(
-            f"Training with {learning_strategy} strategy: "
-            f"found {n_layers} layers. "
+            f"Training with {learning_strategy} strategy: " f"found {n_layers} layers. "
         )
 
         train_losses = []
@@ -146,7 +141,7 @@ class LayerWiseTrainer(Trainer):
                 train_losses=train_losses,
                 valid_losses=valid_losses,
                 logger_info=f"[{learning_strategy}] layer={layer_idx}, ",
-                wandb_info={"layer": layer_idx}
+                wandb_info={"layer": layer_idx},
             )
 
         self._loss_plotting(train_losses, valid_losses)
@@ -182,5 +177,6 @@ class LayerWiseTrainer(Trainer):
             "valid_losses", []
         )
         return final_results
+
 
 __all__ = ["LayerWiseTrainer"]

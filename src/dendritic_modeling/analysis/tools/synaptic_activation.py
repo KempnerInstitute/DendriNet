@@ -101,10 +101,7 @@ class SynapticActivationAnalyzer:
             self.data_dict[key]["exc"] = excitatory_input * pruned_exc_syn
 
         # Collect inhibitory synaptic activations
-        if (
-            module.branch_inhibition is not None
-            and inhibitory_input is not None
-        ):
+        if module.branch_inhibition is not None and inhibitory_input is not None:
             pruned_inh_syn = module.branch_inhibition.pruned_weight().t()
             for _ in range(inhibitory_input.ndim - 2):
                 pruned_inh_syn = pruned_inh_syn[None, ...]

@@ -4,6 +4,7 @@ Classification analysis plotting utilities.
 This module contains plotting functions for visualizing classification analysis results,
 including layer-wise ablation and contribution analysis.
 """
+
 import os
 from typing import Optional
 
@@ -14,7 +15,7 @@ import numpy as np
 def plot_layerwise_ablation(
     results: dict[str, list[float]],
     save_dir: Optional[str] = None,
-    filename: str = "layerwise_ablation"
+    filename: str = "layerwise_ablation",
 ) -> plt.Figure:
     """
     Plot layer-wise ablation analysis results.
@@ -58,10 +59,11 @@ def plot_layerwise_ablation(
 
     return fig
 
+
 def plot_layerwise_contributions(
     results: dict[str, list[float]],
     save_dir: Optional[str] = None,
-    filename: str = "layerwise_contributions"
+    filename: str = "layerwise_contributions",
 ) -> plt.Figure:
     """
     Plot layer-wise contribution analysis showing accuracy drops.
@@ -125,10 +127,11 @@ def plot_layerwise_contributions(
 
     return fig
 
+
 def plot_activation_decoding(
     layer_accuracies: dict[int, float],
     save_path: Optional[str] = None,
-    filename: str = "activation_decoding"
+    filename: str = "activation_decoding",
 ) -> plt.Figure:
     """
     Plot decoding accuracy from different layer activations.
@@ -146,31 +149,40 @@ def plot_activation_decoding(
     layers = sorted(layer_accuracies.keys())
     accuracies = [layer_accuracies[layer] for layer in layers]
 
-    ax.plot(layers, accuracies, 'o-', linewidth=2, markersize=8)
-    ax.set_xlabel('Layer Index')
-    ax.set_ylabel('Decoding Accuracy')
-    ax.set_title('Classification Accuracy from Layer Activations')
+    ax.plot(layers, accuracies, "o-", linewidth=2, markersize=8)
+    ax.set_xlabel("Layer Index")
+    ax.set_ylabel("Decoding Accuracy")
+    ax.set_title("Classification Accuracy from Layer Activations")
     ax.grid(True, alpha=0.3)
 
     # Add value labels on points
     for layer, acc in zip(layers, accuracies):
-        ax.annotate(f'{acc:.3f}', (layer, acc), textcoords="offset points",
-                   xytext=(0,10), ha='center')
+        ax.annotate(
+            f"{acc:.3f}",
+            (layer, acc),
+            textcoords="offset points",
+            xytext=(0, 10),
+            ha="center",
+        )
 
     plt.tight_layout()
 
     if save_path:
-        os.makedirs(os.path.dirname(save_path) if os.path.dirname(save_path) else '.', exist_ok=True)
+        os.makedirs(
+            os.path.dirname(save_path) if os.path.dirname(save_path) else ".",
+            exist_ok=True,
+        )
         plt.savefig(save_path, dpi=300)
         plt.close()
 
     return fig
 
+
 def plot_ablation_comparison(
     normal_accuracies: dict[int, float],
     ablated_accuracies: dict[str, dict[int, float]],
     save_path: Optional[str] = None,
-    filename: str = "ablation_comparison"
+    filename: str = "ablation_comparison",
 ) -> plt.Figure:
     """
     Compare decoding accuracies under different ablation conditions.
@@ -190,25 +202,35 @@ def plot_ablation_comparison(
 
     # Plot normal accuracies
     normal_acc = [normal_accuracies[layer] for layer in layers]
-    ax.plot(layers, normal_acc, 'o-', linewidth=2, markersize=8, label='Normal')
+    ax.plot(layers, normal_acc, "o-", linewidth=2, markersize=8, label="Normal")
 
     # Plot ablated accuracies
-    colors = ['red', 'blue', 'green', 'orange', 'purple']
+    colors = ["red", "blue", "green", "orange", "purple"]
     for idx, (ablation_type, layer_acc) in enumerate(ablated_accuracies.items()):
         acc_values = [layer_acc.get(layer, 0) for layer in layers]
-        ax.plot(layers, acc_values, 's--', linewidth=2, markersize=6,
-               label=f'{ablation_type} ablated', color=colors[idx % len(colors)])
+        ax.plot(
+            layers,
+            acc_values,
+            "s--",
+            linewidth=2,
+            markersize=6,
+            label=f"{ablation_type} ablated",
+            color=colors[idx % len(colors)],
+        )
 
-    ax.set_xlabel('Layer Index')
-    ax.set_ylabel('Decoding Accuracy')
-    ax.set_title('Decoding Accuracy Under Different Ablation Conditions')
+    ax.set_xlabel("Layer Index")
+    ax.set_ylabel("Decoding Accuracy")
+    ax.set_title("Decoding Accuracy Under Different Ablation Conditions")
     ax.legend()
     ax.grid(True, alpha=0.3)
 
     plt.tight_layout()
 
     if save_path:
-        os.makedirs(os.path.dirname(save_path) if os.path.dirname(save_path) else '.', exist_ok=True)
+        os.makedirs(
+            os.path.dirname(save_path) if os.path.dirname(save_path) else ".",
+            exist_ok=True,
+        )
         plt.savefig(save_path, dpi=300)
         plt.close()
 

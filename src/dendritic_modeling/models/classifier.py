@@ -23,13 +23,9 @@ class Classifier(BaseModel):
         self,
         encoder_network: Optional[BaseNetwork],
         core_network: BaseNetwork,
-        decoder_network: Optional[BaseNetwork]
+        decoder_network: Optional[BaseNetwork],
     ):
-        super().__init__(
-            encoder_network,
-            core_network,
-            decoder_network
-        )
+        super().__init__(encoder_network, core_network, decoder_network)
 
         if isinstance(self.decoder_network, nn.Identity):
             self.log_output_scale = nn.Parameter(
@@ -41,7 +37,7 @@ class Classifier(BaseModel):
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         x = super().forward(x)
 
-        if hasattr(self, 'log_output_scale'):
+        if hasattr(self, "log_output_scale"):
             x = self.log_output_scale.exp() * x
 
         logits = self.final(x)
@@ -51,5 +47,6 @@ class Classifier(BaseModel):
         with torch.no_grad():
             logits = self.forward(x)
             return logits.argmax(dim=-1)
+
 
 __all__ = ["Classifier"]

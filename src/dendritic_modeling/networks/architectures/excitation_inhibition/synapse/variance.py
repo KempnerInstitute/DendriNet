@@ -149,4 +149,5 @@ class VarianceTopKLinear(TopKLinear):
         self.stats_tracking = False
         return self
 
+
 __all__ = ["VarianceTopKLinear"]

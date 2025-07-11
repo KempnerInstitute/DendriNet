@@ -153,4 +153,5 @@ class BlockLinear(nn.Module):
     def sum_conductances(self):
         return self.log_weight.exp().sum(dim=1)
 
+
 __all__ = ["BlockLinear"]

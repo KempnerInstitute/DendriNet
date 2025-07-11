@@ -144,7 +144,7 @@ class ExcitationInhibitionNetwork(BaseNetwork):
             freeze_excitatory_connectivity=self.freeze_excitatory_connectivity,
             freeze_inhibitory_connectivity=self.freeze_inhibitory_connectivity,
             init_method=self.init_method,
-            weight_threshold=self.weight_threshold
+            weight_threshold=self.weight_threshold,
         )
 
     def setup_network_layers(self):
@@ -188,8 +188,8 @@ class ExcitationInhibitionNetwork(BaseNetwork):
 
             # Create ExcitationInhibitionLayer
             layer = ExcitationInhibitionLayer(
-                n_excitatory_cells=excitatory_layer_sizes[i+1],
-                n_inhibitory_cells=inhibitory_layer_sizes[i+1],
+                n_excitatory_cells=excitatory_layer_sizes[i + 1],
+                n_inhibitory_cells=inhibitory_layer_sizes[i + 1],
                 excitatory_branch_factors=self.excitatory_branch_factors,
                 inhibitory_branch_factors=self.inhibitory_branch_factors,
                 excitatory_input_dim=excitatory_input_dim,
@@ -226,8 +226,8 @@ class ExcitationInhibitionNetwork(BaseNetwork):
             )
             layers.append(layer)
 
-            excitatory_input_dim = excitatory_layer_sizes[i+1]
-            inhibitory_input_dim = inhibitory_layer_sizes[i+1]
+            excitatory_input_dim = excitatory_layer_sizes[i + 1]
+            inhibitory_input_dim = inhibitory_layer_sizes[i + 1]
 
         # Create ModuleList with the layers
         self.layers = nn.ModuleList(layers)
@@ -255,9 +255,7 @@ class ExcitationInhibitionNetwork(BaseNetwork):
 
         for i in range(len(self.layers)):
             # Each layer receives the previous layer's outputs
-            excitatory_x, inhibitory_x = self.layers[i](
-                excitatory_x, inhibitory_x
-            )
+            excitatory_x, inhibitory_x = self.layers[i](excitatory_x, inhibitory_x)
 
         return excitatory_x
 
@@ -269,7 +267,10 @@ class ExcitationInhibitionNetwork(BaseNetwork):
             layer: ExcitationInhibitionLayer
             if hasattr(layer, "excitatory_cells"):
                 branch_layers.append(layer.excitatory_cells)
-            if hasattr(layer, "inhibitory_cells") and layer.inhibitory_cells is not None:
+            if (
+                hasattr(layer, "inhibitory_cells")
+                and layer.inhibitory_cells is not None
+            ):
                 branch_layers.append(layer.inhibitory_cells)
         return branch_layers
 
@@ -277,5 +278,6 @@ class ExcitationInhibitionNetwork(BaseNetwork):
     def n_branch_layers(self):
         """Get the number of branch layers"""
         return len(self.branch_layers)
+
 
 __all__ = ["ExcitationInhibitionNetwork"]

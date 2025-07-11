@@ -45,6 +45,7 @@ class Shaper:
         """
         return x.view(*self.shape)
 
+
 def convert_to_serializable(obj: Any) -> Any:
     """
     Recursively convert OmegaConf objects to standard Python data types.
@@ -69,6 +70,7 @@ def convert_to_serializable(obj: Any) -> Any:
     else:
         return obj
 
+
 def set_seed(seed: int) -> None:
     """
     Set the seed for all random number generators to ensure reproducibility.
@@ -89,6 +91,7 @@ def set_seed(seed: int) -> None:
     random.seed(seed)
     torch.backends.cudnn.deterministic = True
     torch.backends.cudnn.benchmark = False
+
 
 def save_dict(dict_obj: dict[str, Any], save_path: str, fname: str) -> None:
     """

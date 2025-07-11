@@ -115,4 +115,5 @@ class ActivationFactory:
         else:
             raise ValueError(f"Unknown activation type: {act_type}")
 
+
 __all__ = ["ActivationFactory"]

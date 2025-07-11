@@ -65,7 +65,9 @@ class InformationAnalyzer:
         self.pid_binarize_method = getattr(params, "pid_binarize_method", "median")
         self.pid_binarize_threshold = getattr(params, "pid_binarize_threshold", 0.5)
 
-        self.include_vinf = getattr(params, "include_vinf", True)  # Default to True for backward compatibility
+        self.include_vinf = getattr(
+            params, "include_vinf", True
+        )  # Default to True for backward compatibility
         self.normalize_mi = getattr(params, "normalize_mi", False)
         self.verbose = getattr(params, "verbose", False)
 
@@ -93,7 +95,9 @@ class InformationAnalyzer:
                 self.pid_available = True
                 self.logger.info("PID computation available")
             except ImportError:
-                self.logger.warning("PID package not available. PID metrics will be skipped.")
+                self.logger.warning(
+                    "PID package not available. PID metrics will be skipped."
+                )
 
     def _compute_basic_mi(
         self,
@@ -101,7 +105,7 @@ class InformationAnalyzer:
         I_var: np.ndarray,
         Vout: np.ndarray,
         C: np.ndarray,
-        Vinf: Optional[np.ndarray] = None
+        Vinf: Optional[np.ndarray] = None,
     ) -> dict[str, float]:
         """Compute mutual information between each variable and C."""
         metrics = {}
@@ -131,7 +135,7 @@ class InformationAnalyzer:
         E: np.ndarray,
         I_var: np.ndarray,
         Vout: np.ndarray,
-        Vinf: Optional[np.ndarray] = None
+        Vinf: Optional[np.ndarray] = None,
     ) -> dict[str, float]:
         """Compute pairwise mutual information between variables."""
         metrics = {}
@@ -156,7 +160,7 @@ class InformationAnalyzer:
         I_var: np.ndarray,
         Vout: np.ndarray,
         C: np.ndarray,
-        Vinf: Optional[np.ndarray] = None
+        Vinf: Optional[np.ndarray] = None,
     ) -> dict[str, float]:
         """Compute conditional mutual information given C."""
         metrics = {}
@@ -184,11 +188,7 @@ class InformationAnalyzer:
         return metrics
 
     def _compute_pid(
-        self,
-        E: np.ndarray,
-        I_var: np.ndarray,
-        Vout: np.ndarray,
-        C: np.ndarray
+        self, E: np.ndarray, I_var: np.ndarray, Vout: np.ndarray, C: np.ndarray
     ) -> dict[str, Any]:
         """Compute Partial Information Decomposition."""
         pid_results = {}
@@ -211,7 +211,7 @@ class InformationAnalyzer:
             source2_array: np.ndarray,
             source2_name: str,
             target_array: np.ndarray,
-            target_name: str
+            target_name: str,
         ) -> None:
             """Helper function to compute PID."""
             pid_key = f"PID({source1_name},{source2_name}->{target_name})"
@@ -224,10 +224,12 @@ class InformationAnalyzer:
                     "redundancy": redundancy,
                     f"unique_{source1_name}": self.estimator.mutual_information(
                         source1_array, target_array
-                    ) - redundancy,
+                    )
+                    - redundancy,
                     f"unique_{source2_name}": self.estimator.mutual_information(
                         source2_array, target_array
-                    ) - redundancy,
+                    )
+                    - redundancy,
                 }
             except Exception as e:
                 self.logger.warning(f"{pid_key} computation failed: {e}")
@@ -262,19 +264,27 @@ class InformationAnalyzer:
         I_var: np.ndarray,
         Vout: np.ndarray,
         C: np.ndarray,
-        Vinf: Optional[np.ndarray] = None
+        Vinf: Optional[np.ndarray] = None,
     ):
         """Validate input arrays."""
         n_samples = len(E)
 
         if len(I_var) != n_samples:
-            raise ValueError(f"I must have same number of samples as E: {len(I_var)} vs {n_samples}")
+            raise ValueError(
+                f"I must have same number of samples as E: {len(I_var)} vs {n_samples}"
+            )
         if len(Vout) != n_samples:
-            raise ValueError(f"Vout must have same number of samples as E: {len(Vout)} vs {n_samples}")
+            raise ValueError(
+                f"Vout must have same number of samples as E: {len(Vout)} vs {n_samples}"
+            )
         if len(C) != n_samples:
-            raise ValueError(f"C must have same number of samples as E: {len(C)} vs {n_samples}")
+            raise ValueError(
+                f"C must have same number of samples as E: {len(C)} vs {n_samples}"
+            )
         if Vinf is not None and len(Vinf) != n_samples:
-            raise ValueError(f"Vinf must have same number of samples as E: {len(Vinf)} vs {n_samples}")
+            raise ValueError(
+                f"Vinf must have same number of samples as E: {len(Vinf)} vs {n_samples}"
+            )
 
     @staticmethod
     def _ensure_2d(arr: np.ndarray) -> np.ndarray:
@@ -283,16 +293,13 @@ class InformationAnalyzer:
             return arr.reshape(-1, 1)
         return arr
 
-    def get_summary(
-        self,
-        results: dict[str, dict[str, Union[dict, float]]]
-    ) -> str:
+    def get_summary(self, results: dict[str, dict[str, Union[dict, float]]]) -> str:
         """Generate a summary string of the results."""
         summary_lines = [
             "Information Analysis Summary",
             f"Method: {results['method']}",
             f"Samples: {results['n_samples']}",
-            ""
+            "",
         ]
 
         if "basic_mi" in results:
@@ -326,7 +333,7 @@ class InformationAnalyzer:
         I_var: np.ndarray,
         Vout: np.ndarray,
         C: np.ndarray,
-        Vinf: Optional[np.ndarray] = None
+        Vinf: Optional[np.ndarray] = None,
     ) -> dict[str, Any]:
         """Compute all requested information metrics.
 
@@ -368,16 +375,12 @@ class InformationAnalyzer:
         # 1. Basic mutual information with C
         if self.compute_basic_mi:
             self.logger.info("Computing basic MI metrics...")
-            results["basic_mi"] = self._compute_basic_mi(
-                E, I_var, Vout, C, Vinf
-            )
+            results["basic_mi"] = self._compute_basic_mi(E, I_var, Vout, C, Vinf)
 
         # 2. Pairwise mutual information
         if self.compute_pairwise_mi:
             self.logger.info("Computing pairwise MI metrics...")
-            results["pairwise_mi"] = self._compute_pairwise_mi(
-                E, I_var, Vout, Vinf
-            )
+            results["pairwise_mi"] = self._compute_pairwise_mi(E, I_var, Vout, Vinf)
 
         # 3. Conditional mutual information
         if self.compute_conditional_mi:
@@ -389,15 +392,12 @@ class InformationAnalyzer:
         # 4. PID decomposition
         if self.compute_pid and self.pid_available:
             self.logger.info("Computing PID metrics...")
-            results["pid"] = self._compute_pid(
-                E, I_var, Vout, C
-            )
+            results["pid"] = self._compute_pid(E, I_var, Vout, C)
 
         return results
 
     def _average_mi_results(
-        self,
-        results_list: list[dict[str, dict[str, Union[dict, float]]]]
+        self, results_list: list[dict[str, dict[str, Union[dict, float]]]]
     ):
         """Average MI results across multiple branches."""
         averaged_results = {
@@ -468,20 +468,19 @@ class InformationAnalyzer:
         self,
         module: DendriticBranchLayer,
         input: tuple[torch.Tensor, torch.Tensor, torch.Tensor],
-        output: torch.Tensor
+        output: torch.Tensor,
     ):
         """Forward hook to collect branch data."""
         excitatory_input, inhibitory_input, _ = input
-        self.data_dict[module._name]["excitation"] = \
-            module.branch_excitation(excitatory_input)
-        self.data_dict[module._name]["inhibition"] = \
-            module.branch_inhibition(inhibitory_input)
+        self.data_dict[module._name]["excitation"] = module.branch_excitation(
+            excitatory_input
+        )
+        self.data_dict[module._name]["inhibition"] = module.branch_inhibition(
+            inhibitory_input
+        )
         self.data_dict[module._name]["output"] = output
 
-    def remove_forward_hooks(
-        self,
-        handles: list[torch.utils.hooks.RemovableHandle]
-    ):
+    def remove_forward_hooks(self, handles: list[torch.utils.hooks.RemovableHandle]):
         """Remove forward hooks from the model."""
         for handle in handles:
             handle.remove()
@@ -498,7 +497,7 @@ class InformationAnalyzer:
         test_dataset=None,
         device=None,
         save_path=None,
-        filename=None
+        filename=None,
     ):
         """Run integrated information analysis on the model or compute metrics from arrays.
 
@@ -542,7 +541,9 @@ class InformationAnalyzer:
         try:
             # Check if model has ExcitationInhibitionNetwork
             if not isinstance(model.core_network, ExcitationInhibitionNetwork):
-                self.logger.warning("Model does not have ExcitationInhibitionNetwork. Skipping information analysis.")
+                self.logger.warning(
+                    "Model does not have ExcitationInhibitionNetwork. Skipping information analysis."
+                )
                 return
 
             self.logger.info("Running integrated information analysis...")
@@ -557,8 +558,10 @@ class InformationAnalyzer:
 
             # Optional: Sample a subset of data for faster computation
             if self.max_samples and len(inputs) > self.max_samples:
-                self.logger.info(f"Sampling {self.max_samples} samples from {len(inputs)} for faster computation")
-                indices = torch.randperm(len(inputs))[:self.max_samples]
+                self.logger.info(
+                    f"Sampling {self.max_samples} samples from {len(inputs)} for faster computation"
+                )
+                indices = torch.randperm(len(inputs))[: self.max_samples]
                 inputs = inputs[indices]
                 labels = labels[indices]
 
@@ -631,25 +634,81 @@ class InformationAnalyzer:
                         output_list.append(branch_data["output"])
 
                 if not excitation_list:
-                    self.logger.warning("No excitatory activations collected. Skipping information analysis.")
+                    self.logger.warning(
+                        "No excitatory activations collected. Skipping information analysis."
+                    )
                     return
 
                 # Aggregate activations based on method
                 if self.branch_aggregation == "mean":
                     # Average across branches
-                    E = torch.stack(excitation_list, dim=0).mean(dim=0).detach().cpu().numpy()
-                    I_var = torch.stack(inhibition_list, dim=0).mean(dim=0).detach().cpu().numpy()
-                    Vout = torch.stack(output_list, dim=0).mean(dim=0).detach().cpu().numpy()
+                    E = (
+                        torch.stack(excitation_list, dim=0)
+                        .mean(dim=0)
+                        .detach()
+                        .cpu()
+                        .numpy()
+                    )
+                    I_var = (
+                        torch.stack(inhibition_list, dim=0)
+                        .mean(dim=0)
+                        .detach()
+                        .cpu()
+                        .numpy()
+                    )
+                    Vout = (
+                        torch.stack(output_list, dim=0)
+                        .mean(dim=0)
+                        .detach()
+                        .cpu()
+                        .numpy()
+                    )
                 elif self.branch_aggregation == "max":
                     # Max pooling across branches
-                    E = torch.stack(excitation_list, dim=0).max(dim=0)[0].detach().cpu().numpy()
-                    I_var = torch.stack(inhibition_list, dim=0).max(dim=0)[0].detach().cpu().numpy()
-                    Vout = torch.stack(output_list, dim=0).max(dim=0)[0].detach().cpu().numpy()
+                    E = (
+                        torch.stack(excitation_list, dim=0)
+                        .max(dim=0)[0]
+                        .detach()
+                        .cpu()
+                        .numpy()
+                    )
+                    I_var = (
+                        torch.stack(inhibition_list, dim=0)
+                        .max(dim=0)[0]
+                        .detach()
+                        .cpu()
+                        .numpy()
+                    )
+                    Vout = (
+                        torch.stack(output_list, dim=0)
+                        .max(dim=0)[0]
+                        .detach()
+                        .cpu()
+                        .numpy()
+                    )
                 elif self.branch_aggregation == "sum":
                     # Sum across branches
-                    E = torch.stack(excitation_list, dim=0).sum(dim=0).detach().cpu().numpy()
-                    I_var = torch.stack(inhibition_list, dim=0).sum(dim=0).detach().cpu().numpy()
-                    Vout = torch.stack(output_list, dim=0).sum(dim=0).detach().cpu().numpy()
+                    E = (
+                        torch.stack(excitation_list, dim=0)
+                        .sum(dim=0)
+                        .detach()
+                        .cpu()
+                        .numpy()
+                    )
+                    I_var = (
+                        torch.stack(inhibition_list, dim=0)
+                        .sum(dim=0)
+                        .detach()
+                        .cpu()
+                        .numpy()
+                    )
+                    Vout = (
+                        torch.stack(output_list, dim=0)
+                        .sum(dim=0)
+                        .detach()
+                        .cpu()
+                        .numpy()
+                    )
                 elif self.branch_aggregation == "first":
                     # Only use first branch
                     E = excitation_list[0].detach().cpu().numpy()
@@ -661,9 +720,27 @@ class InformationAnalyzer:
                         f"{self.branch_aggregation}. "
                         "Using mean."
                     )
-                    E = torch.stack(excitation_list, dim=0).mean(dim=0).detach().cpu().numpy()
-                    I_var = torch.stack(inhibition_list, dim=0).mean(dim=0).detach().cpu().numpy()
-                    Vout = torch.stack(output_list, dim=0).mean(dim=0).detach().cpu().numpy()
+                    E = (
+                        torch.stack(excitation_list, dim=0)
+                        .mean(dim=0)
+                        .detach()
+                        .cpu()
+                        .numpy()
+                    )
+                    I_var = (
+                        torch.stack(inhibition_list, dim=0)
+                        .mean(dim=0)
+                        .detach()
+                        .cpu()
+                        .numpy()
+                    )
+                    Vout = (
+                        torch.stack(output_list, dim=0)
+                        .mean(dim=0)
+                        .detach()
+                        .cpu()
+                        .numpy()
+                    )
 
                 self.logger.info(
                     "Aggregated data shapes - "
@@ -675,7 +752,7 @@ class InformationAnalyzer:
                 # For now, we'll use the final model output as Vinf
                 with torch.no_grad():
                     final_output: torch.Tensor = model(inputs)
-                    if hasattr(model, 'final_fc'):
+                    if hasattr(model, "final_fc"):
                         # Model has final classification layer
                         Vinf = final_output.detach().cpu().numpy()
 
@@ -691,10 +768,12 @@ class InformationAnalyzer:
             # Also save a summary report
             summary = self.get_summary(results)
             summary_path = os.path.join(save_path, f"{filename}_summary.txt")
-            with open(summary_path, 'w') as f:
+            with open(summary_path, "w") as f:
                 f.write(summary)
 
-            self.logger.info(f"Information analysis completed. Results saved to {save_path}")
+            self.logger.info(
+                f"Information analysis completed. Results saved to {save_path}"
+            )
 
             # Generate information plots
             try:
@@ -704,12 +783,17 @@ class InformationAnalyzer:
                 os.makedirs(plot_save_path, exist_ok=True)
 
                 # Generate all plots
-                figs = plot_information_analysis(results, save_path=plot_save_path, filename_prefix=filename)
+                figs = plot_information_analysis(
+                    results, save_path=plot_save_path, filename_prefix=filename
+                )
 
-                self.logger.info(f"Generated {len(figs)} information analysis plots in {plot_save_path}")
+                self.logger.info(
+                    f"Generated {len(figs)} information analysis plots in {plot_save_path}"
+                )
 
                 # Close all figures to free memory
                 import matplotlib.pyplot as plt
+
                 for fig in figs:
                     plt.close(fig)
 

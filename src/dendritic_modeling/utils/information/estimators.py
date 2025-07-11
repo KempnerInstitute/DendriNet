@@ -23,14 +23,17 @@ from dendritic_modeling.utils.information import compute_mi_cc, compute_mi_cd
 
 class EstimationMethod(Enum):
     """Available estimation methods for mutual information."""
+
     KRASKOV = "kraskov"
     SKLEARN = "sklearn"
     COPULA = "copula"
     AUTO = "auto"  # Automatically select based on data properties
 
+
 @dataclass
 class EstimatorConfig:
     """Configuration for information estimators."""
+
     method: Union[str, EstimationMethod] = EstimationMethod.AUTO
     n_neighbors: int = 10  # For Kraskov
     n_bins: int = 20  # For histogram-based methods
@@ -46,6 +49,7 @@ class EstimatorConfig:
             self.method = EstimationMethod(self.method.lower())
         if self.method_params is None:
             self.method_params = {}
+
 
 class BaseInformationEstimator(ABC):
     """Abstract base class for information theory estimators."""
@@ -95,9 +99,14 @@ class BaseInformationEstimator(ABC):
     def _validate_inputs(x: np.ndarray, y: np.ndarray, z: Optional[np.ndarray] = None):
         """Validate input arrays have compatible shapes."""
         if x.shape[0] != y.shape[0]:
-            raise ValueError(f"X and Y must have same number of samples: {x.shape[0]} vs {y.shape[0]}")
+            raise ValueError(
+                f"X and Y must have same number of samples: {x.shape[0]} vs {y.shape[0]}"
+            )
         if z is not None and z.shape[0] != x.shape[0]:
-            raise ValueError(f"Z must have same number of samples as X and Y: {z.shape[0]} vs {x.shape[0]}")
+            raise ValueError(
+                f"Z must have same number of samples as X and Y: {z.shape[0]} vs {x.shape[0]}"
+            )
+
 
 class KraskovEstimator(BaseInformationEstimator):
     """Kraskov k-nearest neighbors estimator for mutual information.
@@ -142,6 +151,7 @@ class KraskovEstimator(BaseInformationEstimator):
 
         return max(0.0, mi_xyz - mi_xz)
 
+
 class SklearnEstimator(BaseInformationEstimator):
     """Scikit-learn based estimator using various methods."""
 
@@ -171,7 +181,9 @@ class SklearnEstimator(BaseInformationEstimator):
         elif not x_discrete and y_discrete:
             # X continuous, Y discrete (classification)
             y_labels = self._to_labels(y_orig.ravel() if y_orig.ndim == 1 else y)
-            mi_scores = mutual_info_classif(x, y_labels, n_neighbors=self.config.n_neighbors)
+            mi_scores = mutual_info_classif(
+                x, y_labels, n_neighbors=self.config.n_neighbors
+            )
             return float(np.mean(mi_scores))
 
         elif not x_discrete and not y_discrete:
@@ -181,7 +193,9 @@ class SklearnEstimator(BaseInformationEstimator):
                 return self._histogram_mi(x.ravel(), y.ravel())
             else:
                 # Multivariate - use mutual_info_regression
-                mi_scores = mutual_info_regression(x, y.ravel() if y.shape[1] == 1 else y)
+                mi_scores = mutual_info_regression(
+                    x, y.ravel() if y.shape[1] == 1 else y
+                )
                 return float(np.mean(mi_scores))
 
         else:
@@ -256,6 +270,7 @@ class SklearnEstimator(BaseInformationEstimator):
 
         return max(0.0, mi)
 
+
 class CopulaEstimator(BaseInformationEstimator):
     """Copula-based mutual information estimator."""
 
@@ -271,8 +286,11 @@ class CopulaEstimator(BaseInformationEstimator):
             # Check if DVC modules can be imported
             import os
             import sys
+
             # Add external directory to path if needed
-            external_dir = os.path.join(os.path.dirname(__file__), '../../../../external')
+            external_dir = os.path.join(
+                os.path.dirname(__file__), "../../../../external"
+            )
             if external_dir not in sys.path:
                 sys.path.insert(0, external_dir)
 
@@ -280,7 +298,9 @@ class CopulaEstimator(BaseInformationEstimator):
             self.logger.debug("DVC tensorflow available for copula estimation")
         except ImportError:
             self.dvc_available = False
-            self.logger.warning("DVC tensorflow not available, falling back to simple copula estimation")
+            self.logger.warning(
+                "DVC tensorflow not available, falling back to simple copula estimation"
+            )
 
     def mutual_information(self, x: np.ndarray, y: np.ndarray) -> float:
         """Compute MI using copula-based estimation."""
@@ -344,6 +364,7 @@ class CopulaEstimator(BaseInformationEstimator):
         # For now, fall back to simple copula
         self.logger.debug("Using simple copula estimation (full DVC not implemented)")
         return self._simple_copula_mi(x, y)
+
 
 class InformationEstimatorFactory:
     """Factory for creating information estimators based on configuration."""

@@ -46,14 +46,14 @@ class DendriNet(nn.Module):
         reactivation_strategy="none",
         blocklinear_strategy="none",
         print_hooks=False,
-        reactivation_init_m = 1,
-        reactivation_init_b = 0.5,
+        reactivation_init_m=1,
+        reactivation_init_b=0.5,
         # DEEPST specific parameters, clean up later
         excitatory_target_density=0.1,
         inhibitory_target_density=0.1,
         use_noise=True,
         sigma=0.05,
-        rewiring_mode='global',
+        rewiring_mode="global",
         rewire_frequency=1,
         synapses_per_branch=None,
         freeze_excitatory_connectivity=False,
@@ -137,7 +137,7 @@ class DendriNet(nn.Module):
                 freeze_inhibitory_connectivity=freeze_inhibitory_connectivity,
                 init_method=init_method,
                 weight_threshold=weight_threshold,
-                **kwargs
+                **kwargs,
             )
             branch_layers.append(lyr)
 
@@ -176,7 +176,7 @@ class DendriNet(nn.Module):
                     freeze_inhibitory_connectivity=freeze_inhibitory_connectivity,
                     init_method=init_method,
                     weight_threshold=weight_threshold,
-                    **kwargs
+                    **kwargs,
                 )
             )
         else:
@@ -214,7 +214,7 @@ class DendriNet(nn.Module):
                     freeze_inhibitory_connectivity=freeze_inhibitory_connectivity,
                     init_method=init_method,
                     weight_threshold=weight_threshold,
-                    **kwargs
+                    **kwargs,
                 )
             )
 
@@ -289,5 +289,6 @@ class DendriNet(nn.Module):
         else:
             exc_total = self.sum_weights(pruned=pruned)
             return (exc_total + 1e-8).log()
+
 
 __all__ = ["DendriNet"]

@@ -16,10 +16,7 @@ class SigmoidOutputNetwork(BaseNetwork):
     ensuring values are in the range [0, 1] before entering the dendrinet.
     """
 
-    def __init__(
-        self,
-        net: BaseNetwork
-    ):
+    def __init__(self, net: BaseNetwork):
         super().__init__()
         self.net = net
         self.output_dim = net.output_dim
@@ -27,5 +24,6 @@ class SigmoidOutputNetwork(BaseNetwork):
     def forward(self, x):
         x = self.net(x)
         return torch.sigmoid(x)
+
 
 __all__ = ["SigmoidOutputNetwork"]

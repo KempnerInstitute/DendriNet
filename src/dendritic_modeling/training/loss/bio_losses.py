@@ -19,6 +19,7 @@ __all__ = [
     "loss_sparsity",
 ]
 
+
 def loss_dog(sta: torch.Tensor, target_ratio: float = 1.6) -> torch.Tensor:
     """Difference of Gaussians loss for center-surround organization.
 
@@ -40,9 +41,9 @@ def loss_dog(sta: torch.Tensor, target_ratio: float = 1.6) -> torch.Tensor:
     H, W = sta.shape
 
     # Create coordinate grids
-    y = torch.arange(H, dtype=sta.dtype, device=sta.device) - H/2
-    x = torch.arange(W, dtype=sta.dtype, device=sta.device) - W/2
-    Y, X = torch.meshgrid(y, x, indexing='ij')
+    y = torch.arange(H, dtype=sta.dtype, device=sta.device) - H / 2
+    x = torch.arange(W, dtype=sta.dtype, device=sta.device) - W / 2
+    Y, X = torch.meshgrid(y, x, indexing="ij")
     R2 = X**2 + Y**2
 
     # Estimate center size from peak response location
@@ -83,8 +84,10 @@ def loss_dog(sta: torch.Tensor, target_ratio: float = 1.6) -> torch.Tensor:
 
     return loss + 0.1 * ratio_loss
 
-def loss_osi(responses: torch.Tensor, orientations: torch.Tensor,
-             target_osi: float = 0.8) -> torch.Tensor:
+
+def loss_osi(
+    responses: torch.Tensor, orientations: torch.Tensor, target_osi: float = 0.8
+) -> torch.Tensor:
     """Orientation selectivity index loss.
 
     Parameters
@@ -109,8 +112,8 @@ def loss_osi(responses: torch.Tensor, orientations: torch.Tensor,
     pref_ori = ori_rad[pref_idx]
 
     # Find orthogonal orientation
-    orth_ori = (pref_ori + np.pi/2) % np.pi
-    orth_diffs = ((ori_rad - orth_ori + np.pi) % np.pi - np.pi/2).abs()
+    orth_ori = (pref_ori + np.pi / 2) % np.pi
+    orth_diffs = ((ori_rad - orth_ori + np.pi) % np.pi - np.pi / 2).abs()
     orth_idx = orth_diffs.argmin()
 
     # Calculate OSI
@@ -119,17 +122,19 @@ def loss_osi(responses: torch.Tensor, orientations: torch.Tensor,
     osi = (r_pref - r_orth) / (r_pref + r_orth + 1e-6)
 
     # Loss: deviation from target
-    loss = (osi - target_osi)**2
+    loss = (osi - target_osi) ** 2
 
     # Add penalty for low overall response
     mean_response = responses.mean()
     if mean_response < 0.1:
-        loss = loss + (0.1 - mean_response)**2
+        loss = loss + (0.1 - mean_response) ** 2
 
     return loss
 
-def loss_dsi(responses: torch.Tensor, directions: torch.Tensor,
-             target_dsi: float = 0.5) -> torch.Tensor:
+
+def loss_dsi(
+    responses: torch.Tensor, directions: torch.Tensor, target_dsi: float = 0.5
+) -> torch.Tensor:
     """Direction selectivity index loss.
 
     Parameters
@@ -164,12 +169,14 @@ def loss_dsi(responses: torch.Tensor, directions: torch.Tensor,
     dsi = (r_pref - r_null) / (r_pref + r_null + 1e-6)
 
     # Loss: deviation from target
-    loss = (dsi - target_dsi)**2
+    loss = (dsi - target_dsi) ** 2
 
     return loss
 
-def loss_phase_invariance(responses_phases: torch.Tensor,
-                         target_f1_f0: float = 0.5) -> torch.Tensor:
+
+def loss_phase_invariance(
+    responses_phases: torch.Tensor, target_f1_f0: float = 0.5
+) -> torch.Tensor:
     """Phase invariance loss (for complex cells).
 
     Parameters
@@ -192,17 +199,19 @@ def loss_phase_invariance(responses_phases: torch.Tensor,
     f1_f0 = f1 / (f0 + 1e-6)
 
     # Loss: complex cells should have low F1/F0
-    loss = (f1_f0 - target_f1_f0)**2
+    loss = (f1_f0 - target_f1_f0) ** 2
 
     # Add variance penalty to encourage invariance
     variance = responses_phases.var()
-    target_var = (f0 * 0.1)**2  # 10% of mean
+    target_var = (f0 * 0.1) ** 2  # 10% of mean
     var_loss = torch.relu(variance - target_var)
 
     return loss + 0.5 * var_loss
 
-def loss_endstop(length_curve: torch.Tensor,
-                 preferred_idx: Optional[int] = None) -> torch.Tensor:
+
+def loss_endstop(
+    length_curve: torch.Tensor, preferred_idx: Optional[int] = None
+) -> torch.Tensor:
     """End-stopping (length tuning) loss.
 
     Parameters
@@ -249,7 +258,10 @@ def loss_endstop(length_curve: torch.Tensor,
 
     return loss
 
-def loss_sparsity(activations: torch.Tensor, target_sparsity: float = 0.1) -> torch.Tensor:
+
+def loss_sparsity(
+    activations: torch.Tensor, target_sparsity: float = 0.1
+) -> torch.Tensor:
     """Sparsity loss to encourage sparse activations.
 
     Parameters
@@ -273,14 +285,13 @@ def loss_sparsity(activations: torch.Tensor, target_sparsity: float = 0.1) -> to
     n = activations.numel()
 
     hoyer = (np.sqrt(n) - l1_norm / (l2_norm + 1e-6)) / (np.sqrt(n) - 1)
-    hoyer_loss = (hoyer - target_sparsity)**2
+    hoyer_loss = (hoyer - target_sparsity) ** 2
 
     return l1_loss * 0.01 + hoyer_loss
 
+
 def compute_bio_losses(
-    model_responses: dict,
-    loss_weights: dict,
-    probe_metadata: dict
+    model_responses: dict, loss_weights: dict, probe_metadata: dict
 ) -> tuple[torch.Tensor, dict]:
     """Compute weighted combination of biological losses.
 
@@ -310,40 +321,40 @@ def compute_bio_losses(
     losses = {}
 
     # DoG loss (if dots/noise responses available)
-    if 'dots' in model_responses and loss_weights.get('dog', 0) > 0:
-        sta = model_responses['dots'].mean(0)  # Average over batch
-        losses['dog'] = loss_dog(sta)
+    if "dots" in model_responses and loss_weights.get("dog", 0) > 0:
+        sta = model_responses["dots"].mean(0)  # Average over batch
+        losses["dog"] = loss_dog(sta)
 
     # OSI loss (if grating responses available)
-    if 'gratings' in model_responses and loss_weights.get('osi', 0) > 0:
-        responses = model_responses['gratings'].mean(0)  # Average over batch
-        orientations = torch.tensor(probe_metadata['orientations'])
-        losses['osi'] = loss_osi(responses, orientations)
+    if "gratings" in model_responses and loss_weights.get("osi", 0) > 0:
+        responses = model_responses["gratings"].mean(0)  # Average over batch
+        orientations = torch.tensor(probe_metadata["orientations"])
+        losses["osi"] = loss_osi(responses, orientations)
 
     # DSI loss (if motion responses available)
-    if 'motion' in model_responses and loss_weights.get('dsi', 0) > 0:
-        responses = model_responses['motion'].mean(0)
-        directions = torch.tensor(probe_metadata['directions'])
-        losses['dsi'] = loss_dsi(responses, directions)
+    if "motion" in model_responses and loss_weights.get("dsi", 0) > 0:
+        responses = model_responses["motion"].mean(0)
+        directions = torch.tensor(probe_metadata["directions"])
+        losses["dsi"] = loss_dsi(responses, directions)
 
     # Phase invariance loss
-    if 'phases' in model_responses and loss_weights.get('phase', 0) > 0:
-        responses = model_responses['phases'].mean(0)
-        losses['phase'] = loss_phase_invariance(responses)
+    if "phases" in model_responses and loss_weights.get("phase", 0) > 0:
+        responses = model_responses["phases"].mean(0)
+        losses["phase"] = loss_phase_invariance(responses)
 
     # End-stopping loss
-    if 'bars' in model_responses and loss_weights.get('endstop', 0) > 0:
-        length_curve = model_responses['bars'].mean(0)
-        losses['endstop'] = loss_endstop(length_curve)
+    if "bars" in model_responses and loss_weights.get("endstop", 0) > 0:
+        length_curve = model_responses["bars"].mean(0)
+        losses["endstop"] = loss_endstop(length_curve)
 
     # Sparsity loss (always included if weight > 0)
-    if loss_weights.get('sparse', 0) > 0:
+    if loss_weights.get("sparse", 0) > 0:
         # Collect all activations
         all_activations = []
         for _key, resp in model_responses.items():
             all_activations.append(resp.flatten())
         activations = torch.cat(all_activations)
-        losses['sparse'] = loss_sparsity(activations)
+        losses["sparse"] = loss_sparsity(activations)
 
     # Compute weighted total
     total_loss = torch.tensor(0.0, device=next(iter(model_responses.values())).device)

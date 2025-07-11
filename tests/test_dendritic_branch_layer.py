@@ -136,5 +136,6 @@ class TestDendriticBranchLayer(unittest.TestCase):
             pruned_weights[1].shape, (self.output_dim, self.inhibitory_input_dim)
         )
 
+
 if __name__ == "__main__":
     unittest.main()
