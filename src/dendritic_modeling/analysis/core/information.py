@@ -170,7 +170,7 @@ class InformationAnalyzer:
         )
         # I(I;Vout|C)
         metrics["I(I;Vout|C)"] = self.estimator.conditional_mutual_information(
-            I, Vout, C.reshape(-1, 1)
+            I_var, Vout, C.reshape(-1, 1)
         )
         if Vinf is not None and self.include_vinf:
             # I(E;Vinf|C)
@@ -179,7 +179,7 @@ class InformationAnalyzer:
             )
             # I(I;Vinf|C)
             metrics["I(I;Vinf|C)"] = self.estimator.conditional_mutual_information(
-                I, Vinf, C.reshape(-1, 1)
+                I_var, Vinf, C.reshape(-1, 1)
             )
         return metrics
 
@@ -201,7 +201,7 @@ class InformationAnalyzer:
             C_pid = self._binarize(C.reshape(-1, 1))
         else:
             E_pid = E
-            I_pid = I
+            I_pid = I_var
             Vout_pid = Vout
             C_pid = C.reshape(-1, 1)
 
@@ -457,8 +457,8 @@ class InformationAnalyzer:
                     module.branch_excitation is not None
                     and module.branch_inhibition is not None
                 ):
-                    self.data_dict[name] = {}
-                    module._name = name
+                    self.data_dict[_name] = {}
+                    module._name = _name
                     handle = module.register_forward_hook(self.forward_hook)
                     handles.append(handle)
 
@@ -667,7 +667,7 @@ class InformationAnalyzer:
 
                 self.logger.info(
                     "Aggregated data shapes - "
-                    f"E: {E.shape}, I: {I.shape}, Vout: {Vout.shape}"
+                    f"E: {E.shape}, I: {I_var.shape}, Vout: {Vout.shape}"
                 )
 
                 # Get soma activation (Vinf) if available

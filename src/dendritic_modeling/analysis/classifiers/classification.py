@@ -369,11 +369,12 @@ def analyze_layerwise_ablation(
     from ..utils import measure_performance
 
     # Create dataloaders with smaller batch size to avoid memory issues
+    batch_size = 32
 
     device = torch.device(device if torch.cuda.is_available() else "cpu")
-    DataLoader(train_data, batch_size=batch_size, shuffle=False)
-    DataLoader(valid_data, batch_size=batch_size, shuffle=False)
-    DataLoader(test_data, batch_size=batch_size, shuffle=False)
+    train_loader = DataLoader(train_data, batch_size=batch_size, shuffle=False)
+    valid_loader = DataLoader(valid_data, batch_size=batch_size, shuffle=False)
+    test_loader = DataLoader(test_data, batch_size=batch_size, shuffle=False)
 
     # Get baseline model performance
     baseline_acc = measure_performance(model, test_data, device=device)
