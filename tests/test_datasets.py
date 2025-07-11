@@ -32,6 +32,7 @@ from dendritic_modeling.datasets import (
     load_mnist_as_datasets,
     load_mnist_modulo10,
 )
+from dendritic_modeling.plotting import split_mnist_inputs
 
 
 class TestSyntheticDatasets(unittest.TestCase):
