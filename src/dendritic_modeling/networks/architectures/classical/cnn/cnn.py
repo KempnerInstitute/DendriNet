@@ -15,6 +15,7 @@ from dendritic_modeling.networks.base import BaseNetwork
 
 # change nomenclature to encoder and decoder
 
+
 class CNNDownsample(BaseNetwork):
 
     def __init__(
@@ -25,7 +26,7 @@ class CNNDownsample(BaseNetwork):
         strides: list[int],  # Stride for all conv layers
         activation: str = "relu",
         output_dim: Optional[int] = None,
-        **kwargs
+        **kwargs,
     ):
         super().__init__()
 
@@ -39,9 +40,7 @@ class CNNDownsample(BaseNetwork):
 
         activation_factory = ActivationFactory()
 
-        for hidden_dim, kernel_size, stride in zip(
-            hidden_dims, kernel_sizes, strides
-        ):
+        for hidden_dim, kernel_size, stride in zip(hidden_dims, kernel_sizes, strides):
             # Add convolutional layer
             conv = nn.Conv2d(in_dim, hidden_dim, kernel_size, stride)
             if activation == "relu":
@@ -53,10 +52,7 @@ class CNNDownsample(BaseNetwork):
             layers.append(conv)
 
             layers.append(
-                activation_factory.create(
-                    act_type=activation,
-                    output_dim= hidden_dim
-                )
+                activation_factory.create(act_type=activation, output_dim=hidden_dim)
             )
 
             in_dim = hidden_dim
@@ -89,13 +85,14 @@ class CNNDownsample(BaseNetwork):
         else:
             return output.reshape(*batch_shape, self.output_dim)
 
+
 class CNNUpsample(BaseNetwork):
     def __init__(
         self,
         input_shape: tuple[int, int, int],  # (C, H, W) - starting shape
         target_shape: tuple[int, int, int],  # (C, H, W) - target output shape
         hidden_dims: list[int],
-        activation: str = "relu"
+        activation: str = "relu",
     ):
         super().__init__()
 
@@ -124,7 +121,7 @@ class CNNUpsample(BaseNetwork):
                 out_channels=out_channels,
                 kernel_size=kernels[i],
                 stride=strides[i],
-                padding=paddings[i]
+                padding=paddings[i],
             )
 
             # Initialize weights
@@ -148,10 +145,7 @@ class CNNUpsample(BaseNetwork):
         self.output_dim = target_c * target_h * target_w
 
     def _calculate_transpose_params(
-        self,
-        input_size: int,
-        target_size: int,
-        num_layers: int
+        self, input_size: int, target_size: int, num_layers: int
     ) -> tuple[list[int], list[int], list[int]]:
         """Calculate transpose convolution parameters from input_size to target_size.
 
@@ -165,10 +159,14 @@ class CNNUpsample(BaseNetwork):
             return kernels, strides, paddings
 
         if input_size > target_size:
-            raise ValueError(f"Input size {input_size} must be <= target size {target_size}")
+            raise ValueError(
+                f"Input size {input_size} must be <= target size {target_size}"
+            )
 
         # Find exact solution by working forward and doing exhaustive search
-        def find_exact_params(current_size: int, remaining_target: int, remaining_layers: int) -> list[tuple[int, int, int]]:
+        def find_exact_params(
+            current_size: int, remaining_target: int, remaining_layers: int
+        ) -> list[tuple[int, int, int]]:
             """Recursively find kernel, stride, padding combinations that reach exact target."""
             if remaining_layers == 0:
                 return [] if current_size == remaining_target else None
@@ -177,7 +175,9 @@ class CNNUpsample(BaseNetwork):
                 # Last layer - must reach exact target
                 for stride in range(1, 9):  # Try strides 1-8
                     for kernel in range(1, 21):  # Try kernels 1-20
-                        for padding in range(min(kernel, 11)):  # Try reasonable paddings
+                        for padding in range(
+                            min(kernel, 11)
+                        ):  # Try reasonable paddings
                             # Formula: output = (input - 1) * stride - 2 * padding + kernel
                             output = (current_size - 1) * stride - 2 * padding + kernel
                             if output == remaining_target:
@@ -193,7 +193,9 @@ class CNNUpsample(BaseNetwork):
                         # Must be reasonable step toward target
                         if output > current_size and output <= remaining_target:
                             # Recursively try to reach target from this output
-                            rest = find_exact_params(output, remaining_target, remaining_layers - 1)
+                            rest = find_exact_params(
+                                output, remaining_target, remaining_layers - 1
+                            )
                             if rest is not None:
                                 return [(kernel, stride, padding), *rest]
 
@@ -219,5 +221,6 @@ class CNNUpsample(BaseNetwork):
         x = x.reshape(-1, *x.shape[-3:])
         output: torch.Tensor = self.layers(x)
         return output.reshape(*batch_shape, *self.output_shape)
+
 
 __all__ = ["CNNDownsample", "CNNUpsample"]

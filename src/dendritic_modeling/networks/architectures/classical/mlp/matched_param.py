@@ -110,13 +110,12 @@ class MatchedParamMLP(nn.Module):
         else:
             nn.init.xavier_normal_(fc_linear.weight)
             nn.init.zeros_(fc_linear.bias)
-        layers.extend([
-            fc_linear,
-            activation_factory.create(
-                act_type=activation,
-                output_dim=hidden_width
-            )
-        ])
+        layers.extend(
+            [
+                fc_linear,
+                activation_factory.create(act_type=activation, output_dim=hidden_width),
+            ]
+        )
 
         # Hidden layers
         for _ in range(n_branch_layers - 1):
@@ -127,13 +126,14 @@ class MatchedParamMLP(nn.Module):
             else:
                 nn.init.xavier_normal_(fc_linear.weight)
                 nn.init.zeros_(fc_linear.bias)
-            layers.extend([
-                fc_linear,
-                activation_factory.create(
-                    act_type=activation,
-                    output_dim=hidden_width
-                )
-            ])
+            layers.extend(
+                [
+                    fc_linear,
+                    activation_factory.create(
+                        act_type=activation, output_dim=hidden_width
+                    ),
+                ]
+            )
 
         # Output layer
         layers.append(nn.Linear(hidden_width, excitatory_layer_sizes[-1]))
@@ -141,5 +141,6 @@ class MatchedParamMLP(nn.Module):
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         return self.hidden(x)
+
 
 __all__ = ["MatchedParamMLP"]

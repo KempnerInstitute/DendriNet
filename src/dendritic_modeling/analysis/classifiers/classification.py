@@ -26,6 +26,7 @@ except ImportError:
     plt = None
     pd = None
 
+
 class MLPClassifier(nn.Module):
     """
     A simple MLP classifier for decoding layer activations.
@@ -55,13 +56,14 @@ class MLPClassifier(nn.Module):
         """Forward pass through the MLP."""
         return self.model(x)
 
+
 def train_classifier(
     model: nn.Module,
     train_loader: DataLoader,
     valid_loader: Optional[DataLoader] = None,
     epochs: int = 50,
     lr: float = 0.001,
-    device: str = "cuda"
+    device: str = "cuda",
 ) -> float:
     """
     Train an MLP classifier on activation data.
@@ -132,7 +134,10 @@ def train_classifier(
 
     return evaluate_classifier(model, valid_loader, device) if valid_loader else 0.0
 
-def evaluate_classifier(model: nn.Module, data_loader: DataLoader, device: str = "cuda") -> float:
+
+def evaluate_classifier(
+    model: nn.Module, data_loader: DataLoader, device: str = "cuda"
+) -> float:
     """
     Evaluate a classifier on the given data.
 
@@ -165,7 +170,10 @@ def evaluate_classifier(model: nn.Module, data_loader: DataLoader, device: str =
 
     return accuracy_score(all_targets, all_preds)
 
-def get_layer_activations(model, data_loader: DataLoader, device: str = "cuda") -> dict[int, tuple]:
+
+def get_layer_activations(
+    model, data_loader: DataLoader, device: str = "cuda"
+) -> dict[int, tuple]:
     """
     Get activations for each layer in the model.
 
@@ -219,7 +227,10 @@ def get_layer_activations(model, data_loader: DataLoader, device: str = "cuda") 
         for layer_idx, acts in activations_per_layer.items()
     }
 
-def get_ablated_activations(model, data_loader: DataLoader, ablation_type: str, device: str = "cuda") -> dict:
+
+def get_ablated_activations(
+    model, data_loader: DataLoader, ablation_type: str, device: str = "cuda"
+) -> dict:
     """
     Get activations with specific inputs ablated.
 
@@ -254,15 +265,15 @@ def get_ablated_activations(model, data_loader: DataLoader, ablation_type: str, 
                 if ablation_type == "inhibitory" and hasattr(
                     layer, "branch_inhibition"
                 ):
-                    original_params[
-                        layer_idx
-                    ] = layer.branch_inhibition.pre_w.data.clone()
+                    original_params[layer_idx] = (
+                        layer.branch_inhibition.pre_w.data.clone()
+                    )
                 elif ablation_type == "excitatory" and hasattr(
                     layer, "branch_excitation"
                 ):
-                    original_params[
-                        layer_idx
-                    ] = layer.branch_excitation.pre_w.data.clone()
+                    original_params[layer_idx] = (
+                        layer.branch_excitation.pre_w.data.clone()
+                    )
 
             # For each layer, ablate that layer and get activations
             for layer_idx in range(len(model.branch_inputs)):
@@ -325,13 +336,9 @@ def get_ablated_activations(model, data_loader: DataLoader, ablation_type: str, 
         for layer_idx, layer_dict in all_activations.items()
     }
 
+
 def analyze_layerwise_ablation(
-    model,
-    train_data,
-    valid_data,
-    test_data,
-    save_path: str,
-    device: str = "cuda"
+    model, train_data, valid_data, test_data, save_path: str, device: str = "cuda"
 ) -> dict:
     """
     Run comprehensive ablation analysis on the dendritic network.
@@ -466,7 +473,9 @@ def analyze_layerwise_ablation(
     if plt is not None:
         try:
             plt.figure(figsize=(10, 6))
-            plt.plot(results["layer_idx"], results["baseline_acc"], "o-", label="Baseline")
+            plt.plot(
+                results["layer_idx"], results["baseline_acc"], "o-", label="Baseline"
+            )
             plt.plot(
                 results["layer_idx"],
                 results["inh_ablated_acc"],
@@ -495,10 +504,12 @@ def analyze_layerwise_ablation(
 
             # Calculate differences
             inh_diff = [
-                b - i for b, i in zip(results["baseline_acc"], results["inh_ablated_acc"])
+                b - i
+                for b, i in zip(results["baseline_acc"], results["inh_ablated_acc"])
             ]
             exc_diff = [
-                b - e for b, e in zip(results["baseline_acc"], results["exc_ablated_acc"])
+                b - e
+                for b, e in zip(results["baseline_acc"], results["exc_ablated_acc"])
             ]
 
             plt.bar(
@@ -531,8 +542,8 @@ def analyze_layerwise_ablation(
                 df = pd.DataFrame(results)
                 # Save as JSON instead of CSV
                 json_path = os.path.join(save_dir, "layerwise_results.json")
-                results_dict = df.to_dict(orient='records')
-                with open(json_path, 'w') as f:
+                results_dict = df.to_dict(orient="records")
+                with open(json_path, "w") as f:
                     json.dump(results_dict, f, indent=2)
         except Exception as e:
             logging.error(f"Error creating plots: {e}")
@@ -541,6 +552,7 @@ def analyze_layerwise_ablation(
 
     return results
 
+
 def train_and_evaluate_classifier(
     X: np.ndarray,
     y: np.ndarray,
@@ -548,7 +560,7 @@ def train_and_evaluate_classifier(
     num_classes: int = 10,
     epochs: int = 20,
     batch_size: int = 64,
-    device: str = "cuda"
+    device: str = "cuda",
 ) -> float:
     """
     Train and evaluate an MLP classifier on the given data.

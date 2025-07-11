@@ -3,6 +3,7 @@ Standard regression models.
 
 This module contains standard regression models using MSE loss.
 """
+
 from typing import Optional
 
 import torch
@@ -16,17 +17,14 @@ class Regressor(BaseModel):
     A standard regressor that returns continuous outputs;
     MSE is used for compute_loss.
     """
+
     def __init__(
         self,
         encoder_network: Optional[BaseNetwork],
         core_network: BaseNetwork,
-        decoder_network: Optional[BaseNetwork]
+        decoder_network: Optional[BaseNetwork],
     ):
-        super().__init__(
-            encoder_network,
-            core_network,
-            decoder_network
-        )
+        super().__init__(encoder_network, core_network, decoder_network)
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         return super().forward(x)
@@ -34,5 +32,6 @@ class Regressor(BaseModel):
     def predict(self, x: torch.Tensor) -> torch.Tensor:
         with torch.no_grad():
             return self.forward(x)
+
 
 __all__ = ["Regressor"]

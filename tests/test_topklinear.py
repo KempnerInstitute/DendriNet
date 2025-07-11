@@ -231,5 +231,6 @@ class TestTopKLinear(unittest.TestCase):
     #                                expected_weighted_synapses,
     #                                rtol=1e-5, atol=1e-5)
 
+
 if __name__ == "__main__":
     unittest.main(argv=[""], exit=False)

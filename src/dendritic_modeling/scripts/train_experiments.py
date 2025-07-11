@@ -27,8 +27,10 @@ from __future__ import annotations
 # Suppress TensorFlow warnings for cleaner output
 import os
 
-os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'  # Suppress TensorFlow INFO and WARNING messages
-os.environ['TF_ENABLE_ONEDNN_OPTS'] = '0'  # Disable oneDNN optimizations warnings
+os.environ["TF_CPP_MIN_LOG_LEVEL"] = (
+    "2"  # Suppress TensorFlow INFO and WARNING messages
+)
+os.environ["TF_ENABLE_ONEDNN_OPTS"] = "0"  # Disable oneDNN optimizations warnings
 
 import argparse
 import logging
@@ -40,6 +42,7 @@ import torch
 
 try:
     import torchinfo
+
     TORCHINFO_AVAILABLE = True
 except ImportError:
     TORCHINFO_AVAILABLE = False
@@ -75,7 +78,7 @@ def initialize_model(model_config: ModelConfig):
 
     encoder_network = get_architecture(
         encoder_network_config.type,
-        OmegaConf.to_container(encoder_network_config.parameters, resolve=True)
+        OmegaConf.to_container(encoder_network_config.parameters, resolve=True),
     )
     if isinstance(encoder_network, Identity):
         encoder = encoder_network
@@ -85,33 +88,26 @@ def initialize_model(model_config: ModelConfig):
     core_network_config.parameters.input_dim = encoder.output_dim
     core_network = get_architecture(
         core_network_config.type,
-        OmegaConf.to_container(core_network_config.parameters, resolve=True)
+        OmegaConf.to_container(core_network_config.parameters, resolve=True),
     )
 
     decoder_network_config.parameters.input_dim = core_network.output_dim
     decoder_network = get_architecture(
         decoder_network_config.type,
-        OmegaConf.to_container(decoder_network_config.parameters, resolve=True)
+        OmegaConf.to_container(decoder_network_config.parameters, resolve=True),
     )
 
     if model_config.task == "classification":
-        model = Classifier(
-            encoder,
-            core_network,
-            decoder_network
-        )
+        model = Classifier(encoder, core_network, decoder_network)
     elif model_config.task == "regression":
-        model = Regressor(
-            encoder,
-            core_network,
-            decoder_network
-        )
+        model = Regressor(encoder, core_network, decoder_network)
     else:
         raise ValueError(f"Invalid task: {model_config.task}")
 
     logger.info(f"Initialized model: {type(model).__name__}")
 
     return model, encoder_network
+
 
 def save_model(model: torch.nn.Module, save_path: str, filename: str):
     os.makedirs(save_path, exist_ok=True)
@@ -120,17 +116,19 @@ def save_model(model: torch.nn.Module, save_path: str, filename: str):
     logger.info(f"Saved model to {full_path}")
     return full_path
 
+
 def load_model(model: torch.nn.Module, load_path: str):
     model.load_state_dict(torch.load(load_path))
     logger.info(f"Loaded model from {load_path}")
     return model
+
 
 def setup_environment(
     model_config: ModelConfig,
     train_config: TrainConfig,
     task_config: TaskConfig,
     wandb_config: WandbConfig,
-    outputs_config: OutputsConfig
+    outputs_config: OutputsConfig,
 ):
     run_name = outputs_config.run_name
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
@@ -164,9 +162,11 @@ def setup_environment(
             }
             tags = wandb_config.tags if hasattr(wandb_config, "tags") else None
             wandb.init(
-                project=wandb_config.project
-                if hasattr(wandb_config, "project")
-                else "dendritic-modeling",
+                project=(
+                    wandb_config.project
+                    if hasattr(wandb_config, "project")
+                    else "dendritic-modeling"
+                ),
                 entity=wandb_config.entity if hasattr(wandb_config, "entity") else None,
                 group=wandb_config.group if hasattr(wandb_config, "group") else None,
                 name=run_id,
@@ -187,7 +187,7 @@ def setup_environment(
         task_cfg=task_config,
         train_cfg=train_config,
         output_dir=outputs_config.dir,
-        outputs_cfg=outputs_config
+        outputs_cfg=outputs_config,
     )
     train_ds: torch.utils.data.Dataset
     valid_ds: torch.utils.data.Dataset
@@ -204,6 +204,7 @@ def setup_environment(
     model, encoder_network = initialize_model(model_config)
 
     return run_save_path, train_ds, valid_ds, test_ds, model, encoder_network
+
 
 def run_analysis(
     model: BaseModel,
@@ -259,6 +260,7 @@ def run_analysis(
     if analysis_manager is not None:
         analysis_manager.run_analysis()
 
+
 def main(config_path: str, args=None):
     config = load_config(config_path)
     logger.info(f"Loaded configuration from {config_path}")
@@ -282,19 +284,14 @@ def main(config_path: str, args=None):
     analysis_config = config.analysis
     outputs_config = config.outputs
 
-    (
-        run_save_path,
-        train_ds,
-        valid_ds,
-        test_ds,
-        model,
-        encoder_network
-    ) = setup_environment(
-        model_config=model_config,
-        train_config=train_config,
-        task_config=task_config,
-        wandb_config=wandb_config,
-        outputs_config=outputs_config
+    (run_save_path, train_ds, valid_ds, test_ds, model, encoder_network) = (
+        setup_environment(
+            model_config=model_config,
+            train_config=train_config,
+            task_config=task_config,
+            wandb_config=wandb_config,
+            outputs_config=outputs_config,
+        )
     )
 
     logger.info("Network architecture summary before training:")
@@ -307,7 +304,7 @@ def main(config_path: str, args=None):
                 col_names=["input_size", "output_size", "num_params"],
                 col_width=25,
                 row_settings=["depth"],
-                depth=7
+                depth=7,
             )
             logger.info("Model summary generated (see console output)")
             if wandb.run:
@@ -324,25 +321,22 @@ def main(config_path: str, args=None):
 
     save_dict(asdict(config), run_save_path, "config.json")
 
-    (
-        encoder_network,
-        encoded_train_ds,
-        encoded_valid_ds,
-        encoded_test_ds
-    ) = load_train_encoder_network(
-        encoder_network=encoder_network,
-        encoder_train_config=train_config.encoder,
-        train_ds=train_ds,
-        valid_ds=valid_ds,
-        test_ds=test_ds,
-        encoder_network_config=model_config.encoder_network,
-        task_config=task_config
+    (encoder_network, encoded_train_ds, encoded_valid_ds, encoded_test_ds) = (
+        load_train_encoder_network(
+            encoder_network=encoder_network,
+            encoder_train_config=train_config.encoder,
+            train_ds=train_ds,
+            valid_ds=valid_ds,
+            test_ds=test_ds,
+            encoder_network_config=model_config.encoder_network,
+            task_config=task_config,
+        )
     )
 
     encoded_data = {
         "train": encoded_train_ds,
         "valid": encoded_valid_ds,
-        "test": encoded_test_ds
+        "test": encoded_test_ds,
     }
     analysis_manager = AnalysisManager(
         model=model,
@@ -350,7 +344,7 @@ def main(config_path: str, args=None):
         analysis_config=analysis_config,
         save_root=run_save_path,
         device="cuda" if torch.cuda.is_available() else "cpu",
-        train_config=train_config
+        train_config=train_config,
     )
 
     model.encoder_network = Identity(encoder_network.encoder.output_dim)
@@ -369,19 +363,17 @@ def main(config_path: str, args=None):
         optimizer=torch.optim.Adam(
             model.get_param_groups(main_train_config.param_groups)
         ),
-        weight_decay=main_train_config.weight_decay_rate
+        weight_decay=main_train_config.weight_decay_rate,
     )
 
     main_trainer = get_trainer(
         strategy=main_train_config.learning_strategy,
         optimizer=optimizer,
         trainer_config_dict=main_trainer_config_dict,
-        analysis_manager=analysis_manager
+        analysis_manager=analysis_manager,
     )
     main_trainer.train(
-        model=model,
-        train_data=encoded_train_ds,
-        valid_data=encoded_valid_ds
+        model=model, train_data=encoded_train_ds, valid_data=encoded_valid_ds
     )
 
     nparams = 0
@@ -398,7 +390,7 @@ def main(config_path: str, args=None):
         test_ds=test_ds,
         visualization_cfg=visualization_config,
         run_save_path=run_save_path,
-        analysis_manager=analysis_manager
+        analysis_manager=analysis_manager,
     )
 
     model.encoder_network = encoder_network.encoder
@@ -412,6 +404,7 @@ def main(config_path: str, args=None):
         wandb.finish()
 
     logger.info("Training experiment completed successfully")
+
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(

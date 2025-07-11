@@ -27,7 +27,9 @@ class ParametricActivation(nn.Module):
         Initialize the activation function parameters.
         Should be implemented by child classes.
         """
-        raise NotImplementedError("Initialize method must be implemented by child class")
+        raise NotImplementedError(
+            "Initialize method must be implemented by child class"
+        )
 
     def forward(self, x):
         """
@@ -35,6 +37,7 @@ class ParametricActivation(nn.Module):
         Should be implemented by child classes.
         """
         raise NotImplementedError("Forward method must be implemented by child class")
+
 
 class ParametricTanh(ParametricActivation):
     """
@@ -59,6 +62,7 @@ class ParametricTanh(ParametricActivation):
         self.log_m.data.fill_(math.log(slope_val))
         self.log_b.data.fill_(log_mid)
 
+
 class ParametricTanhOnlyM(ParametricActivation):
     """
     A parametric tanh activation function where b is fixed and only m is
@@ -76,6 +80,7 @@ class ParametricTanhOnlyM(ParametricActivation):
         m = self.log_m.exp()  # slope
         b = self.fixed_b  # fixed midpoint
         return (torch.tanh(m * (V - b)) + 1) / 2
+
 
 class ParametricLinearSigmoid(ParametricActivation):
     """
@@ -123,6 +128,7 @@ class ParametricLinearSigmoid(ParametricActivation):
         # Combine using the interpolation formula
         return h_x * g_x + f_x * (1 - g_x)
 
+
 class ParametricLinearTanh(ParametricActivation):
     """
     A parametric activation function that interpolates between linear and tanh functions.
@@ -167,6 +173,7 @@ class ParametricLinearTanh(ParametricActivation):
         f_x = (torch.tanh(m * x + self.fixed_b) + 1) / 2  # tanh
         # Combine using the interpolation formula
         return h_x * g_x + f_x * (1 - g_x)
+
 
 class ParametricLinearTanhTransition(ParametricActivation):
     """
@@ -300,6 +307,7 @@ class ParametricLinearTanhTransition(ParametricActivation):
             f"threshold=Parameter(shape={tuple(self.threshold.shape)}, trainable={is_thresh_trainable}), "
             f"transition_slope=Parameter(shape={tuple(self.transition_slope.shape)}, trainable={is_slope_trainable})"
         )
+
 
 __all__ = [
     "ParametricLinearSigmoid",

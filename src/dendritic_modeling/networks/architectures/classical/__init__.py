@@ -6,11 +6,4 @@ from dendritic_modeling.networks.architectures.classical.cnn import (
 from dendritic_modeling.networks.architectures.classical.identity import Identity
 from dendritic_modeling.networks.architectures.classical.mlp import MLP, MatchedParamMLP
 
-__all__ = [
-    "AlexNet"
-    "CNNDownsample"
-    "CNNUpsample"
-    "Identity"
-    "MatchedParamMLP"
-    "MLP"
-]
+__all__ = ["AlexNet" "CNNDownsample" "CNNUpsample" "Identity" "MatchedParamMLP" "MLP"]

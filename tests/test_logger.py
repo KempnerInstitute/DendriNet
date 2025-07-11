@@ -14,5 +14,6 @@ class TestLoggerManager(unittest.TestCase):
         instance2 = LoggerManager().get_logger()
         self.assertIs(instance1, instance2, "LoggerManager should be a singleton")
 
+
 if __name__ == "__main__":
     unittest.main()

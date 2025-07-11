@@ -16,6 +16,7 @@ from .vision_units import (
 
 __all__ = ["build_neuron_from_yaml", "load_properties_config"]
 
+
 def load_properties_config(config_path: Optional[str] = None) -> dict[str, Any]:
     """Load visual properties configuration.
 
@@ -31,14 +32,21 @@ def load_properties_config(config_path: Optional[str] = None) -> dict[str, Any]:
     """
     if config_path is None:
         # Use default config - go up to project root then into configs
-        config_path = Path(__file__).parent.parent.parent.parent.parent.parent.parent.parent / "configs" / "properties.yaml"
+        config_path = (
+            Path(__file__).parent.parent.parent.parent.parent.parent.parent.parent
+            / "configs"
+            / "properties.yaml"
+        )
 
     with open(config_path) as f:
         config = yaml.safe_load(f)
 
     return config
 
-def build_neuron_from_yaml(property_tag: str, config: Optional[dict[str, Any]] = None) -> DendriteConv2d:
+
+def build_neuron_from_yaml(
+    property_tag: str, config: Optional[dict[str, Any]] = None
+) -> DendriteConv2d:
     """Build a dendritic neuron from property configuration.
 
     Parameters
@@ -68,26 +76,26 @@ def build_neuron_from_yaml(property_tag: str, config: Optional[dict[str, Any]] =
         neuron = create_gabor_unit(
             orientation=params.get("orientation", 0),
             wavelength=params.get("wavelength", 8),
-            sigma=params.get("sigma", 3.0)
+            sigma=params.get("sigma", 3.0),
         )
 
     elif template == "center_surround":
         neuron = create_center_surround_unit(
             kind=params.get("cell_type", "on-center"),
             center_size=params.get("center_size", 5),
-            surround_size=params.get("surround_size", 11)
+            surround_size=params.get("surround_size", 11),
         )
 
     elif template == "motion_ds":
         neuron = create_motion_unit(
             direction=params.get("preferred_direction", "rightward"),
-            kernel_size=params.get("kernel_size", 15)
+            kernel_size=params.get("kernel_size", 15),
         )
 
     elif template == "end_stopped":
         neuron = create_end_stopped_unit(
             preferred_length=params.get("preferred_length", 20),
-            orientation=params.get("orientation", 90)
+            orientation=params.get("orientation", 90),
         )
 
     elif template == "gabor_pair":
@@ -96,7 +104,7 @@ def build_neuron_from_yaml(property_tag: str, config: Optional[dict[str, Any]] =
         neuron = create_gabor_unit(
             orientation=params.get("orientation", 0),
             wavelength=params.get("wavelength", 8),
-            sigma=params.get("sigma", 3.0)
+            sigma=params.get("sigma", 3.0),
         )
 
     else:
@@ -104,7 +112,10 @@ def build_neuron_from_yaml(property_tag: str, config: Optional[dict[str, Any]] =
 
     return neuron
 
-def get_stimulus_params(property_tag: str, config: Optional[dict[str, Any]] = None) -> dict[str, Any]:
+
+def get_stimulus_params(
+    property_tag: str, config: Optional[dict[str, Any]] = None
+) -> dict[str, Any]:
     """Get stimulus parameters for a property.
 
     Parameters
@@ -125,7 +136,10 @@ def get_stimulus_params(property_tag: str, config: Optional[dict[str, Any]] = No
     prop_config = config[property_tag]
     return prop_config["stimulus"]
 
-def get_criterion(property_tag: str, config: Optional[dict[str, Any]] = None) -> dict[str, Any]:
+
+def get_criterion(
+    property_tag: str, config: Optional[dict[str, Any]] = None
+) -> dict[str, Any]:
     """Get success criterion for a property.
 
     Parameters

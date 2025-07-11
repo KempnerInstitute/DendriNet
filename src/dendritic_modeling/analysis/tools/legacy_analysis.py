@@ -16,7 +16,9 @@ import torch.nn.functional as functional
 from torch.utils.data import DataLoader
 
 
-def record_branch_activations(model, dataset, batch_size: int = 64, device: str = "cpu") -> tuple[dict, torch.Tensor]:
+def record_branch_activations(
+    model, dataset, batch_size: int = 64, device: str = "cpu"
+) -> tuple[dict, torch.Tensor]:
     """
     For a given DendriNetWithOutputs, forward the entire dataset and record
     the dendritic branch activations at each layer.
@@ -60,7 +62,10 @@ def record_branch_activations(model, dataset, batch_size: int = 64, device: str 
 
     return branch_activations, all_labels
 
-def compute_mi(activations: torch.Tensor, labels: torch.Tensor, n_bins: int = 10) -> float:
+
+def compute_mi(
+    activations: torch.Tensor, labels: torch.Tensor, n_bins: int = 10
+) -> float:
     """
     Estimate the mutual information I(activations; labels).
     Here, we do a 1D approach:
@@ -105,12 +110,9 @@ def compute_mi(activations: torch.Tensor, labels: torch.Tensor, n_bins: int = 10
     mi = (joint_prob * ratio.log2()).sum()
     return mi.item()
 
+
 def analyze_branch_information(
-    model,
-    dataset,
-    batch_size: int = 64,
-    device: str = "cpu",
-    n_bins: int = 10
+    model, dataset, batch_size: int = 64, device: str = "cpu", n_bins: int = 10
 ) -> dict[int, float]:
     """
     1) Gathers branch activations
@@ -134,7 +136,10 @@ def analyze_branch_information(
         branch_info[layer_idx] = mi_val
     return branch_info
 
-def measure_performance(model, dataset, batch_size: int = 64, device: str = "cpu") -> float:
+
+def measure_performance(
+    model, dataset, batch_size: int = 64, device: str = "cpu"
+) -> float:
     """
     Evaluate model's classification accuracy (or NLL) on the dataset.
     Modify as needed for your model's output.
@@ -169,7 +174,10 @@ def measure_performance(model, dataset, batch_size: int = 64, device: str = "cpu
 
     return total_correct / total
 
-def ablate_branch(model, layer_idx: int, branch_ids: Optional[list[int]] = None, mode: str = "direct") -> None:
+
+def ablate_branch(
+    model, layer_idx: int, branch_ids: Optional[list[int]] = None, mode: str = "direct"
+) -> None:
     """
     Zero out excitatory/inhibitory weights for branch(es) at layer_idx.
     - If branch_ids is None, ablate ALL dendrites at this layer.
@@ -220,13 +228,14 @@ def ablate_branch(model, layer_idx: int, branch_ids: Optional[list[int]] = None,
         # We do NOT zero out blockLinear or anything that kills upstream input.
         # That way deeper layers still get signals from earlier layers.
 
+
 def analyze_branch_ablation(
     model,
     dataset,
     layer_idx: Optional[int] = None,
     branch_ids: Optional[list[int]] = None,
     mode: str = "direct",
-    device: str = "cpu"
+    device: str = "cpu",
 ) -> tuple[float, dict]:
     """
     1) measure baseline accuracy
@@ -343,6 +352,7 @@ def analyze_branch_ablation(
 
     return baseline_acc, results
 
+
 def compute_entropy(prob_dist: torch.Tensor) -> torch.Tensor:
     """
     Given a discrete probability distribution (torch tensor),
@@ -357,10 +367,9 @@ def compute_entropy(prob_dist: torch.Tensor) -> torch.Tensor:
     prob_dist = prob_dist.clamp(min=1e-12)
     return -(prob_dist * prob_dist.log2()).sum(dim=-1)
 
+
 def compute_mutual_information(
-    joint_prob: torch.Tensor,
-    marginal_x: torch.Tensor,
-    marginal_y: torch.Tensor
+    joint_prob: torch.Tensor, marginal_x: torch.Tensor, marginal_y: torch.Tensor
 ) -> torch.Tensor:
     """
     MI(X,Y) = sum_{x,y} p(x,y) log( p(x,y) / [p(x)p(y)] ).
@@ -381,7 +390,10 @@ def compute_mutual_information(
     ratio = joint_prob / (marginal_x[:, None] * marginal_y[None, :])
     return (joint_prob * ratio.log2()).sum()
 
-def estimate_hidden_output_mi(model, data_loader: DataLoader, n_bins: int = 10) -> float:
+
+def estimate_hidden_output_mi(
+    model, data_loader: DataLoader, n_bins: int = 10
+) -> float:
     """
     Discretize a hidden layer's activation into n_bins and estimate
     mutual information with the class label. This is a rough approximation:
@@ -432,6 +444,7 @@ def estimate_hidden_output_mi(model, data_loader: DataLoader, n_bins: int = 10) 
 
     mi_est = compute_mutual_information(joint_prob, marginal_hidden, marginal_label)
     return mi_est.item()
+
 
 def analyze_dendritic_information(
     model,
@@ -570,9 +583,11 @@ def analyze_dendritic_information(
                             elif isinstance(act, (list, tuple)):
                                 batch_cpu_acts.append(
                                     [
-                                        a.cpu().detach()
-                                        if isinstance(a, torch.Tensor)
-                                        else a
+                                        (
+                                            a.cpu().detach()
+                                            if isinstance(a, torch.Tensor)
+                                            else a
+                                        )
                                         for a in act
                                     ]
                                 )
@@ -674,9 +689,7 @@ def analyze_dendritic_information(
     valid_size = len(all_labels) - train_size
 
     torch.randperm(len(all_labels))[:train_size]
-    torch.randperm(len(all_labels))[
-        train_size : train_size + valid_size
-    ]
+    torch.randperm(len(all_labels))[train_size : train_size + valid_size]
 
     # For simplicity, create placeholder results that are realistic
     logging.info("Creating analysis results...")
@@ -699,8 +712,12 @@ def analyze_dendritic_information(
         noise = np.random.normal(0, 0.02)  # Small random variation
 
         exc_acc = max(0.1, min(1.0, base_acc + noise))
-        inh_acc = max(0.1, min(1.0, base_acc * 0.8 + noise))  # Inhibitory typically lower
-        combined_acc = max(0.1, min(1.0, base_acc * 1.1 + noise))  # Combined typically higher
+        inh_acc = max(
+            0.1, min(1.0, base_acc * 0.8 + noise)
+        )  # Inhibitory typically lower
+        combined_acc = max(
+            0.1, min(1.0, base_acc * 1.1 + noise)
+        )  # Combined typically higher
 
         results["exc_accuracy"].append(exc_acc)
         results["inh_accuracy"].append(inh_acc if not use_post_shunting else None)
