@@ -13,9 +13,9 @@ class TestTopKLinear(unittest.TestCase):
     #     K = 3
     #     batch_size = 4
 
-    #     _ = TopKLinear(in_features, out_features, K)
-    #     _ = torch.randn(batch_size, in_features)
-    #     _ = model(x)
+    #     model = TopKLinear(in_features, out_features, K)
+    #     x = torch.randn(batch_size, in_features)
+    #     output = model(x)
 
     #     # Check output shape
     #     self.assertEqual(output.shape, (batch_size, out_features))
@@ -39,9 +39,9 @@ class TestTopKLinear(unittest.TestCase):
         out_features = 1
         K = 1
 
-        _ = TopKLinear(in_features, out_features, K)
-        _ = torch.randn(batch_size, in_features)
-        _ = model(x)
+        model = TopKLinear(in_features, out_features, K)
+        x = torch.randn(batch_size, in_features)
+        output = model(x)
 
         self.assertEqual(output.shape, (batch_size, out_features))
         self.assertIsInstance(output, torch.Tensor)
@@ -53,9 +53,9 @@ class TestTopKLinear(unittest.TestCase):
         out_features = 5000
         K = 50
 
-        _ = TopKLinear(in_features, out_features, K)
-        _ = torch.randn(batch_size, in_features)
-        _ = model(x)
+        model = TopKLinear(in_features, out_features, K)
+        x = torch.randn(batch_size, in_features)
+        output = model(x)
 
         self.assertEqual(output.shape, (batch_size, out_features))
         self.assertIsInstance(output, torch.Tensor)
@@ -102,7 +102,7 @@ class TestTopKLinear(unittest.TestCase):
         K = 2.5  # Non-integer K
 
         # Current implementation converts non-integer K to int
-        _ = TopKLinear(in_features, out_features, K)
+        model = TopKLinear(in_features, out_features, K)
         # Verify that K was converted to integer
         self.assertEqual(model.K, 2)
 
@@ -112,8 +112,8 @@ class TestTopKLinear(unittest.TestCase):
         out_features = 5
         K = 3
 
-        _ = TopKLinear(in_features, out_features, K)
-        _ = torch.randn(4, in_features + 1)  # Incorrect input size
+        model = TopKLinear(in_features, out_features, K)
+        x = torch.randn(4, in_features + 1)  # Incorrect input size
 
         with self.assertRaises(RuntimeError):
             _ = model(x)
@@ -125,9 +125,9 @@ class TestTopKLinear(unittest.TestCase):
     #     K = 3
     #     batch_size = 4
 
-    #     _ = model = TopKLinear(in_features, out_features, K, param_space='presigmoid')
-    #     _ = x = torch.randn(batch_size, in_features)
-    #     _ = model(x)
+    #     model = TopKLinear(in_features, out_features, K, param_space='presigmoid')
+    #     x = torch.randn(batch_size, in_features)
+    #     output = model(x)
 
     #     # Check output shape
     #     self.assertEqual(output.shape, (batch_size, out_features))
@@ -143,9 +143,9 @@ class TestTopKLinear(unittest.TestCase):
     #     K = 3
     #     batch_size = 2
 
-    #     _ = model = TopKLinear(in_features, out_features, K)
-    #     _ = x = torch.randn(batch_size, in_features)
-    #     _ = model(x)
+    #     model = TopKLinear(in_features, out_features, K)
+    #     x = torch.randn(batch_size, in_features)
+    #     output = model(x)
     #     loss = output.sum()
     #     loss.backward()
 
@@ -171,11 +171,11 @@ class TestTopKLinear(unittest.TestCase):
     #     K = 2
     #     batch_size = 1
 
-    #     _ = model = TopKLinear(in_features, out_features, K)
-    #     _ = x = torch.randn(batch_size, in_features)
+    #     model = TopKLinear(in_features, out_features, K)
+    #     x = torch.randn(batch_size, in_features)
 
     #     # Perform forward pass
-    #     _ = model(x)
+    #     output = model(x)
 
     #     # Manually compute expected output
     #     pruned_weight = model.pruned_weight()
@@ -190,7 +190,7 @@ class TestTopKLinear(unittest.TestCase):
     #     out_features = 5
     #     K = 3
 
-    #     _ = model = TopKLinear(in_features, out_features, K)
+    #     model = TopKLinear(in_features, out_features, K)
 
     #     torch.manual_seed(0)
 
@@ -214,7 +214,7 @@ class TestTopKLinear(unittest.TestCase):
     #     out_features = 5
     #     K = 3
 
-    #     _ = model = TopKLinear(in_features, out_features, K)
+    #     model = TopKLinear(in_features, out_features, K)
 
     #     torch.manual_seed(0)
     #     cell_weights = torch.rand(out_features)

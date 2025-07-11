@@ -1,12 +1,45 @@
 """Loss functions for dendritic modeling."""
 
-from .bio_losses import *
-from .functions import *
+from .bio_losses import (
+    compute_bio_losses,
+    loss_dog,
+    loss_dsi,
+    loss_endstop,
+    loss_osi,
+    loss_phase_invariance,
+    loss_sparsity,
+)
+from .functions import (
+    BCELoss,
+    CategoricalNLLLoss,
+    CrossEntropyLoss,
+    LogAdjustedNegativeCosineSimilarityLoss,
+    LogMSELoss,
+    LossFunction,
+    MSELoss,
+    NegativeCosineSimilarityLoss,
+    VAE_ELBOLoss,
+    VoltageStabilizationLoss,
+    get_loss_function,
+)
 
 __all__ = [
-    # From functions.py
-    "compute_loss",
-    "cross_entropy_loss",
-    "mse_loss",
-    # Add bio_losses exports here when you know what they are
+    "BCELoss",
+    "CategoricalNLLLoss",
+    "CrossEntropyLoss",
+    "LogAdjustedNegativeCosineSimilarityLoss",
+    "LogMSELoss",
+    "LossFunction",
+    "MSELoss",
+    "NegativeCosineSimilarityLoss",
+    "VAE_ELBOLoss",
+    "VoltageStabilizationLoss",
+    "compute_bio_losses",
+    "get_loss_function",
+    "loss_dog",
+    "loss_dsi",
+    "loss_endstop",
+    "loss_osi",
+    "loss_phase_invariance",
+    "loss_sparsity",
 ]
