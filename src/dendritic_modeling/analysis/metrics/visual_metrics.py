@@ -13,9 +13,9 @@ import numpy as np
 import torch
 
 __all__ = [
-    "direction_selectivity_index"
-    "length_selectivity_index"
-    "orientation_selectivity_index"
+    "direction_selectivity_index",
+    "length_selectivity_index",
+    "orientation_selectivity_index",
     "size_tuning_index"
 ]
 
@@ -53,7 +53,7 @@ def direction_selectivity_index(responses: Sequence[float], directions: Sequence
     return float((r[idx_pref] - r[idx_null]) / (r[idx_pref] + r[idx_null] + 1e-9))
 
 def size_tuning_index(responses: Sequence[float]) -> float:
-    """Suppression index for centre–surround size tuning.
+    """Suppression index for centre-surround size tuning.
 
     SI = 1 - R_large / R_peak  (Sceniak 1999)
     """
