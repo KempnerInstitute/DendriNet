@@ -14,12 +14,7 @@ import torch.nn as nn
 from dendritic_modeling.config import ParamGroupsConfig
 from dendritic_modeling.networks import (
     BaseNetwork,
-    # TopKLinear,
-    # DeepstLinear,
-    # BlockLinear,
-    # ParametricActivation,
     DendriticBranchLayer,
-    # DendriNet,
     ExcitationInhibitionNetwork,
 )
 

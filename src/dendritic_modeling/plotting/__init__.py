@@ -18,18 +18,15 @@ from dendritic_modeling.plotting.analysis import (
     AblationPlotter,
     ActivationPlotter,
     InformationAnalysisPlotter,
-    # Plotter classes
     LayerAnalysisPlotter,
     NoiseAnalysisPlotter,
     WeightDistributionPlotter,
-    # Helper functions
     dendrinet_activations_todict,
     einet_activations_todict,
     plot_ablation_results,
     plot_dendrinet_activations,
     plot_einet_activations,
     plot_information_analysis,
-    # Convenience functions
     plot_layer_contributions,
     plot_noise_robustness,
     plot_weight_distributions,
