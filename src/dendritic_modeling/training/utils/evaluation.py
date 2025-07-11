@@ -9,7 +9,7 @@ using various metrics including accuracy, log-likelihood, and MSE.
 from typing import Callable, Optional, Union
 
 import torch
-import torch.nn.functional as F
+import torch.nn.functional as functional
 from torch.distributions import Categorical
 
 from dendritic_modeling.models import Classifier, Regressor
@@ -446,7 +446,7 @@ def _compute_cosine_similarity(
     reduce_dim: int = 0
 ) -> torch.Tensor:
     return torch.mean(
-        F.cosine_similarity(regressor.predict(inputs), labels, dim=-1),
+        functional.cosine_similarity(regressor.predict(inputs), labels, dim=-1),
         dim=reduce_dim
     )
 

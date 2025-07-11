@@ -7,14 +7,14 @@ from typing import Optional
 
 import numpy as np
 import torch
-import torch.nn.functional as F
+import torch.nn.functional as functional
 
 __all__ = [
     "compute_bio_losses",
-    "loss_dsi",
     "loss_dog",
-    "loss_osi",
+    "loss_dsi",
     "loss_endstop",
+    "loss_osi",
     "loss_phase_invariance",
     "loss_sparsity",
 ]
@@ -75,7 +75,7 @@ def loss_dog(sta: torch.Tensor, target_ratio: float = 1.6) -> torch.Tensor:
     dog_ideal = dog_ideal * scale
 
     # MSE loss
-    loss = F.mse_loss(sta, dog_ideal)
+    loss = functional.mse_loss(sta, dog_ideal)
 
     # Add penalty for deviation from target ratio
     actual_ratio = sigma_s / sigma_c
@@ -241,7 +241,7 @@ def loss_endstop(length_curve: torch.Tensor,
     ideal_curve = ideal_curve * scale
 
     # MSE loss
-    loss = F.mse_loss(length_curve, ideal_curve)
+    loss = functional.mse_loss(length_curve, ideal_curve)
 
     # Add penalty if no clear peak
     if length_curve.max() < 1.5 * length_curve.min():
