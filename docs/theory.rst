@@ -27,8 +27,8 @@ Shunting Inhibition
 
 The core computational principle in our framework is shunting inhibition, a divisive form of inhibition ubiquitous in biological neural circuits:
 
-.. image:: source/_static/shunting_inhibition_mechanism.png
-   :alt: Shunting inhibition mechanism
+.. image:: source/_static/dendritic_computation_flow.png
+   :alt: Dendritic computation flow
    :align: center
    :width: 700px
 
@@ -51,7 +51,7 @@ Excitation-Inhibition Balance
 
 Following Dale's principle, neurons in biological networks are either excitatory or inhibitory, but not both:
 
-.. image:: source/_static/network_architecture.png
+.. image:: source/_static/network_architecture_enhanced.png
    :alt: E/I network architecture
    :align: center
    :width: 800px
