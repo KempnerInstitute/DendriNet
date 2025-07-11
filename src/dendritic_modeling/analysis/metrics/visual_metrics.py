@@ -1,16 +1,16 @@
 from __future__ import annotations
 
+from collections.abc import Sequence
+
+import numpy as np
+import torch
+
 """Metrics for characterising visual neuron responses.
 
 Functions follow definitions commonly used in V1 literature.
 They operate on *numpy arrays* or *PyTorch tensors*; tensors are detached
 and moved to CPU automatically.
 """
-
-from collections.abc import Sequence
-
-import numpy as np
-import torch
 
 __all__ = [
     "direction_selectivity_index",

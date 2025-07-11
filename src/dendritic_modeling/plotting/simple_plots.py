@@ -96,7 +96,7 @@ def shape_helper(condition: bool, reshape_fn: Optional[Callable], tensors: list[
                 ret.append(tensor)
         return ret
 
-def plot_NLL_loss_curves(
+def plot_nll_loss_curves(
     Train_losses: list[float],
     Valid_losses: list[float],
     num_epochs: int,
