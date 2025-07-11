@@ -48,9 +48,9 @@ except ImportError:
     TORCHINFO_AVAILABLE = False
     torchinfo = None
 
+import wandb
 from omegaconf import OmegaConf
 
-import wandb
 from dendritic_modeling import logger, logger_manager
 from dendritic_modeling.analysis import AnalysisManager
 from dendritic_modeling.analysis.managers import PlotManager
