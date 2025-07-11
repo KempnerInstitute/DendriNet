@@ -43,9 +43,9 @@ class TestTrainerFactory(unittest.TestCase):
                 ee_synapses_per_branch_per_layer=[1],
                 ei_synapses_per_branch_per_layer=[1],
                 ie_synapses_per_branch_per_layer=[1],
-                ii_synapses_per_branch_per_layer=[]
+                ii_synapses_per_branch_per_layer=[],
             ),
-            decoder_network=Identity(input_dim=4)
+            decoder_network=Identity(input_dim=4),
         )
         self.optimizer = torch.optim.Adam(model.parameters())
 
@@ -92,12 +92,13 @@ class TestTrainerFactory(unittest.TestCase):
             "loss_function": "cross_entropy",
             "epochs": 10,
             "suppress_prints": True,
-            "print_every": 20
+            "print_every": 20,
         }
         trainer = get_trainer("standard", self.optimizer, trainer_config)
         self.assertIsInstance(trainer, Trainer)
         self.assertTrue(trainer.suppress_prints)
         self.assertEqual(trainer.print_every, 20)
+
 
 class TestTrainer(unittest.TestCase):
     """Test the standard trainer class."""
@@ -118,9 +119,9 @@ class TestTrainer(unittest.TestCase):
                 ee_synapses_per_branch_per_layer=[1],
                 ei_synapses_per_branch_per_layer=[1],
                 ie_synapses_per_branch_per_layer=[1],
-                ii_synapses_per_branch_per_layer=[]
+                ii_synapses_per_branch_per_layer=[],
             ),
-            decoder_network=Identity(input_dim=4)
+            decoder_network=Identity(input_dim=4),
         )
 
         # Create optimizer
@@ -131,17 +132,15 @@ class TestTrainer(unittest.TestCase):
             optimizer=self.optimizer,
             loss_function="cross_entropy",
             suppress_prints=True,
-            print_every=10
+            print_every=10,
         )
 
         # Create test data
         self.train_data = torch.utils.data.TensorDataset(
-            torch.randn(50, 8),
-            torch.randint(0, 2, (50,))
+            torch.randn(50, 8), torch.randint(0, 2, (50,))
         )
         self.valid_data = torch.utils.data.TensorDataset(
-            torch.randn(20, 8),
-            torch.randint(0, 2, (20,))
+            torch.randn(20, 8), torch.randint(0, 2, (20,))
         )
 
     def test_trainer_initialization(self):
@@ -155,19 +154,18 @@ class TestTrainer(unittest.TestCase):
         """Test single epoch of training."""
         # Train for one epoch
         results = self.trainer.train(
-            model=self.model,
-            train_data=self.train_data,
-            valid_data=self.valid_data
+            model=self.model, train_data=self.train_data, valid_data=self.valid_data
         )
 
         # Check that results are returned
         self.assertIsInstance(results, dict)
-        self.assertIn('train_losses', results)
-        self.assertIn('valid_losses', results)
+        self.assertIn("train_losses", results)
+        self.assertIn("valid_losses", results)
 
         # Check that we have at least one loss value
-        self.assertGreater(len(results['train_losses']), 0)
-        self.assertGreater(len(results['valid_losses']), 0)
+        self.assertGreater(len(results["train_losses"]), 0)
+        self.assertGreater(len(results["valid_losses"]), 0)
 
-if __name__ == '__main__':
+
+if __name__ == "__main__":
     unittest.main()

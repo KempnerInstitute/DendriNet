@@ -11,6 +11,7 @@ import sys
 
 LOGGER_NAME = "dendritic_modeling"
 
+
 class LoggerManager:
     _instance = None
 
@@ -34,10 +35,12 @@ class LoggerManager:
         self.logger.addHandler(console_handler)
 
         # Default log directory - use environment variable or fallback to logs directory
-        default_log_dir = os.environ.get('DENDRITIC_LOG_DIR', 'logs')
+        default_log_dir = os.environ.get("DENDRITIC_LOG_DIR", "logs")
         if not os.path.isabs(default_log_dir):
             # If relative path, make it relative to project root
-            project_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+            project_root = os.path.dirname(
+                os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+            )
             default_log_dir = os.path.join(project_root, default_log_dir)
 
         os.makedirs(default_log_dir, exist_ok=True)
@@ -78,6 +81,7 @@ class LoggerManager:
         log_file = os.path.join(log_dir, os.path.basename(self.file_path))
         self.set_log_file(log_file)
 
+
 # Wrapper functions for backward compatibility
 def setup_logging(log_dir=None, debug=False):
     """Setup logging with optional directory and debug level.
@@ -98,11 +102,14 @@ def setup_logging(log_dir=None, debug=False):
     if debug:
         # Set console handler to DEBUG level
         for handler in manager.logger.handlers:
-            if isinstance(handler, logging.StreamHandler) and not isinstance(handler, logging.FileHandler):
+            if isinstance(handler, logging.StreamHandler) and not isinstance(
+                handler, logging.FileHandler
+            ):
                 handler.setLevel(logging.DEBUG)
                 break
 
     return manager.get_logger()
+
 
 def get_logger(name=None):
     """Get the logger instance.

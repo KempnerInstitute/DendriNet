@@ -9,6 +9,7 @@ __all__ = [
     "create_moving_bar",
 ]
 
+
 def create_moving_bar(
     size: Union[int, tuple[int, int]],
     bar_width: int,
@@ -62,7 +63,7 @@ def create_moving_bar(
 
     # Number of frames to cross field
     if n_frames is None:
-        distance = np.sqrt((width + 2*margin)**2 + (height + 2*margin)**2)
+        distance = np.sqrt((width + 2 * margin) ** 2 + (height + 2 * margin) ** 2)
         n_frames = int(distance / speed) + 1
 
     movie = np.zeros((n_frames, height, width))
@@ -76,7 +77,7 @@ def create_moving_bar(
         img = np.zeros((height, width))
 
         # Bar orientation perpendicular to motion
-        bar_theta = theta + np.pi/2
+        bar_theta = theta + np.pi / 2
 
         # Create coordinates relative to bar center
         y, x = np.ogrid[:height, :width]
@@ -84,12 +85,13 @@ def create_moving_bar(
         y_rot = -(x - cx) * np.sin(bar_theta) + (y - cy) * np.cos(bar_theta)
 
         # Bar mask
-        mask = (np.abs(x_rot) <= bar_width/2) & (np.abs(y_rot) <= bar_length/2)
+        mask = (np.abs(x_rot) <= bar_width / 2) & (np.abs(y_rot) <= bar_length / 2)
         img[mask] = contrast
 
         movie[t] = img
 
     return movie
+
 
 def create_length_sweep_bars(
     size: Union[int, tuple[int, int]],
@@ -146,7 +148,7 @@ def create_length_sweep_bars(
         y_rot = -(x - cx) * np.sin(theta) + (y - cy) * np.cos(theta)
 
         # Bar mask
-        mask = (np.abs(x_rot) <= bar_width/2) & (np.abs(y_rot) <= length/2)
+        mask = (np.abs(x_rot) <= bar_width / 2) & (np.abs(y_rot) <= length / 2)
         img[mask] = contrast
 
         bars[i] = img

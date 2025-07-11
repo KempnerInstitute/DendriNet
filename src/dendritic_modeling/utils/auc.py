@@ -4,9 +4,7 @@ import torch
 
 
 def _binary_roc_auc_pytorch(
-    y_true: torch.Tensor,
-    y_score: torch.Tensor,
-    dim: int = -1
+    y_true: torch.Tensor, y_score: torch.Tensor, dim: int = -1
 ) -> torch.Tensor:
     """
     Compute binary ROC AUC using PyTorch operations.
@@ -29,7 +27,9 @@ def _binary_roc_auc_pytorch(
         elif y_score.shape[-1] == 1:
             y_score = y_score.squeeze(-1)
         else:
-            raise ValueError(f"Unexpected number of classes in y_score: {y_score.shape[-1]}")
+            raise ValueError(
+                f"Unexpected number of classes in y_score: {y_score.shape[-1]}"
+            )
 
     # Move dim to last position for easier processing
     if dim != -1:
@@ -104,11 +104,9 @@ def _binary_roc_auc_pytorch(
     # Reshape back to original shape
     return aucs.reshape(original_shape)
 
+
 def _multiclass_roc_auc_pytorch(
-    y_true: torch.Tensor,
-    y_score: torch.Tensor,
-    dim: int = -1,
-    average: str = 'macro'
+    y_true: torch.Tensor, y_score: torch.Tensor, dim: int = -1, average: str = "macro"
 ) -> torch.Tensor:
     """
     Compute multiclass ROC AUC using one-vs-rest approach.
@@ -173,9 +171,9 @@ def _multiclass_roc_auc_pytorch(
     class_counts = torch.stack(class_counts, dim=-1)
 
     # Apply averaging
-    if average == 'macro':
+    if average == "macro":
         return class_aucs.mean(dim=-1)
-    elif average == 'weighted':
+    elif average == "weighted":
         total_counts = class_counts.sum(dim=-1, keepdim=True)
         weights = class_counts / total_counts
         weights = torch.nan_to_num(weights, nan=0.0)  # Handle division by zero
@@ -185,12 +183,13 @@ def _multiclass_roc_auc_pytorch(
     else:
         raise ValueError(f"Unknown average: {average}")
 
+
 def roc_auc_score(
     y_true: torch.Tensor,
     y_score: torch.Tensor,
     dim: Optional[int] = None,
-    multi_class: str = 'auto',
-    average: str = 'macro'
+    multi_class: str = "auto",
+    average: str = "macro",
 ) -> torch.Tensor:
     """
     PyTorch-native ROC AUC score computation.
@@ -217,11 +216,11 @@ def roc_auc_score(
     unique_labels = torch.unique(y_true)
     n_unique = len(unique_labels)
 
-    if multi_class == 'auto':
+    if multi_class == "auto":
         is_binary = n_unique == 2
-    elif multi_class == 'ovr':
+    elif multi_class == "ovr":
         is_binary = False
-    elif multi_class == 'raise' and n_unique > 2:
+    elif multi_class == "raise" and n_unique > 2:
         raise ValueError("Multi-class ROC AUC requires multi_class='ovr'")
     else:
         is_binary = n_unique == 2
@@ -243,17 +242,23 @@ def roc_auc_score(
             # Probabilities for both classes provided, use positive class
             y_score = y_score[..., 1]
         elif y_score.dim() != y_true.dim():
-            raise ValueError(f"Score shape {y_score.shape} incompatible with label shape {y_true.shape}")
+            raise ValueError(
+                f"Score shape {y_score.shape} incompatible with label shape {y_true.shape}"
+            )
 
         return _binary_roc_auc_pytorch(y_true, y_score, dim=dim)
     else:
         # Handle multiclass case
         if y_score.dim() != y_true.dim() + 1:
-            raise ValueError(f"For multiclass, y_score should have one more dimension than y_true. "
-                           f"Got y_score: {y_score.shape}, y_true: {y_true.shape}")
+            raise ValueError(
+                f"For multiclass, y_score should have one more dimension than y_true. "
+                f"Got y_score: {y_score.shape}, y_true: {y_true.shape}"
+            )
 
         if y_score.shape[-1] != n_unique:
-            raise ValueError(f"Number of classes in y_score ({y_score.shape[-1]}) doesn't match "
-                           f"number of unique labels ({n_unique})")
+            raise ValueError(
+                f"Number of classes in y_score ({y_score.shape[-1]}) doesn't match "
+                f"number of unique labels ({n_unique})"
+            )
 
         return _multiclass_roc_auc_pytorch(y_true, y_score, dim=dim, average=average)

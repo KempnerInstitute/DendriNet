@@ -20,6 +20,7 @@ def compute_expectation_truncated_log_normal(
     expectation = numerator / denominator
     return expectation
 
+
 def initialize_dendritic_branch_layer(dbl):
     with torch.no_grad():
         E_g_exc = 0
@@ -120,4 +121,3 @@ def initialize_dendritic_branch_layer(dbl):
 
         # if dbl.reactivate:
         #     dbl.reactivation.initialize(1.8, log(E_Vinf))
-

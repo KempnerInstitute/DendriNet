@@ -35,6 +35,7 @@ def add_gaussian_noise(
     # Clamp values to [0,1] to maintain valid input range
     return torch.clamp(noisy_x, 0, 1)
 
+
 def add_uniform_noise(
     x: torch.Tensor,
     spread: float = 0.1,
@@ -59,6 +60,7 @@ def add_uniform_noise(
     noisy_x = x[None, ...] + noise
     # Clamp values to [0,1] to maintain valid input range
     return torch.clamp(noisy_x, 0, 1)
+
 
 def add_poisson_noise(
     x: torch.Tensor,
@@ -87,6 +89,7 @@ def add_poisson_noise(
     noisy_x = noisy_scaled_x / rate
     # Clamp values to [0,1] to maintain valid input range
     return torch.clamp(noisy_x, 0, 1)
+
 
 def add_frequency_noise(
     x: torch.Tensor,

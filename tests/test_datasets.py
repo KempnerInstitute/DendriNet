@@ -69,9 +69,7 @@ class TestSyntheticDatasets(unittest.TestCase):
         """Test OrientationBarsDataset creation and properties."""
         n_classes = 4
         dataset = OrientationBarsDataset(
-            n_samples=40,
-            image_size=16,
-            n_orient_classes=n_classes
+            n_samples=40, image_size=16, n_orient_classes=n_classes
         )
 
         self.assertEqual(len(dataset), 40)
@@ -126,11 +124,7 @@ class TestSyntheticDatasets(unittest.TestCase):
     def test_orthonet_dataset(self):
         """Test OrthoNetDataset creation and properties."""
         dataset = OrthoNetDataset(
-            n_samples=50,
-            input_dim=10,
-            n_layers=3,
-            nonlinearity='sigmoid',
-            seed=42
+            n_samples=50, input_dim=10, n_layers=3, nonlinearity="sigmoid", seed=42
         )
 
         self.assertEqual(len(dataset), 50)
@@ -140,16 +134,13 @@ class TestSyntheticDatasets(unittest.TestCase):
         # Test deterministic behavior with seed
         sample1, label1 = dataset[0]
         dataset2 = OrthoNetDataset(
-            n_samples=50,
-            input_dim=10,
-            n_layers=3,
-            nonlinearity='sigmoid',
-            seed=42
+            n_samples=50, input_dim=10, n_layers=3, nonlinearity="sigmoid", seed=42
         )
         sample2, label2 = dataset2[0]
 
         self.assertTrue(torch.allclose(sample1, sample2))
         self.assertTrue(torch.allclose(label1, label2))
+
 
 class TestRealDatasets(unittest.TestCase):
     """Test real dataset loading functions."""
@@ -161,9 +152,10 @@ class TestRealDatasets(unittest.TestCase):
     def tearDown(self):
         """Clean up test fixtures."""
         import shutil
+
         shutil.rmtree(self.temp_dir, ignore_errors=True)
 
-    @patch('dendritic_modeling.datasets.synthetic_datasets.datasets.MNIST')
+    @patch("dendritic_modeling.datasets.synthetic_datasets.datasets.MNIST")
     def test_load_mnist_as_datasets(self, mock_mnist):
         """Test MNIST dataset loading."""
         # Mock MNIST dataset
@@ -174,7 +166,7 @@ class TestRealDatasets(unittest.TestCase):
             train_valid_split=0.8,
             flatten=True,
             normalize=False,
-            output_dir=self.temp_dir
+            output_dir=self.temp_dir,
         )
 
         # Check that datasets were created
@@ -185,7 +177,7 @@ class TestRealDatasets(unittest.TestCase):
         # Check that the mock was called
         self.assertTrue(mock_mnist.called)
 
-    @patch('dendritic_modeling.datasets.synthetic_datasets.datasets.CIFAR10')
+    @patch("dendritic_modeling.datasets.synthetic_datasets.datasets.CIFAR10")
     def test_load_cifar10_as_datasets(self, mock_cifar):
         """Test CIFAR-10 dataset loading."""
         # Mock CIFAR-10 dataset
@@ -196,7 +188,7 @@ class TestRealDatasets(unittest.TestCase):
             train_valid_split=0.8,
             flatten=False,
             normalize=True,
-            output_dir=self.temp_dir
+            output_dir=self.temp_dir,
         )
 
         # Check that datasets were created
@@ -211,35 +203,35 @@ class TestRealDatasets(unittest.TestCase):
         """Test MNIST modulo 10 dataset loading."""
         # Create mock datasets
         mock_train = torch.utils.data.TensorDataset(
-            torch.randn(60, 784),
-            torch.randint(0, 10, (60,))
+            torch.randn(60, 784), torch.randint(0, 10, (60,))
         )
         mock_valid = torch.utils.data.TensorDataset(
-            torch.randn(20, 784),
-            torch.randint(0, 10, (20,))
+            torch.randn(20, 784), torch.randint(0, 10, (20,))
         )
         mock_test = torch.utils.data.TensorDataset(
-            torch.randn(20, 784),
-            torch.randint(0, 10, (20,))
+            torch.randn(20, 784), torch.randint(0, 10, (20,))
         )
 
-        with patch('dendritic_modeling.datasets.synthetic_datasets.load_mnist_as_datasets') as mock_load:
+        with patch(
+            "dendritic_modeling.datasets.synthetic_datasets.load_mnist_as_datasets"
+        ) as mock_load:
             mock_load.return_value = (mock_train, mock_valid, mock_test)
 
             data = load_mnist_modulo10(
                 shuffle_iterations=1,
                 train_valid_split=0.8,
                 flatten=True,
-                output_dir=self.temp_dir
+                output_dir=self.temp_dir,
             )
 
             # Check that data dictionary was created
-            self.assertIn('train', data)
-            self.assertIn('valid', data)
-            self.assertIn('test', data)
+            self.assertIn("train", data)
+            self.assertIn("valid", data)
+            self.assertIn("test", data)
 
             # Check that mock was called with correct parameters
             mock_load.assert_called_once()
+
 
 class TestDatasetUtilities(unittest.TestCase):
     """Test dataset utility functions."""
@@ -251,6 +243,7 @@ class TestDatasetUtilities(unittest.TestCase):
     def tearDown(self):
         """Clean up test fixtures."""
         import shutil
+
         shutil.rmtree(self.temp_dir, ignore_errors=True)
 
     def test_get_data_directory(self):
@@ -271,11 +264,13 @@ class TestDatasetUtilities(unittest.TestCase):
         """Test MNIST input splitting by labels."""
         # Create test data with multiple classes
         inputs = torch.randn(100, 784)
-        labels = torch.cat([
-            torch.zeros(30, dtype=torch.long),  # 30 samples of class 0
-            torch.ones(40, dtype=torch.long),   # 40 samples of class 1
-            torch.full((30,), 2, dtype=torch.long)  # 30 samples of class 2
-        ])
+        labels = torch.cat(
+            [
+                torch.zeros(30, dtype=torch.long),  # 30 samples of class 0
+                torch.ones(40, dtype=torch.long),  # 40 samples of class 1
+                torch.full((30,), 2, dtype=torch.long),  # 30 samples of class 2
+            ]
+        )
 
         input_list = split_mnist_inputs(inputs, labels)
 
@@ -290,6 +285,7 @@ class TestDatasetUtilities(unittest.TestCase):
         # Check that classes without data have empty tensors
         for i in range(3, 10):
             self.assertEqual(input_list[i].shape[0], 0)  # Empty for classes 3-9
+
 
 class TestGetUnifiedDatasets(unittest.TestCase):
     """Test the unified dataset loading function."""
@@ -306,13 +302,17 @@ class TestGetUnifiedDatasets(unittest.TestCase):
     def tearDown(self):
         """Clean up test fixtures."""
         import shutil
+
         shutil.rmtree(self.temp_dir, ignore_errors=True)
 
     def test_synthetic_datasets(self):
         """Test loading of synthetic datasets."""
         synthetic_datasets = [
-            "line", "center_surround", "orientation_bars",
-            "multi_xor", "info_shunting"
+            "line",
+            "center_surround",
+            "orientation_bars",
+            "multi_xor",
+            "info_shunting",
         ]
 
         for dataset_name in synthetic_datasets:
@@ -320,18 +320,16 @@ class TestGetUnifiedDatasets(unittest.TestCase):
                 self.task_cfg.dataset = dataset_name
                 self.task_cfg.data_path = None
                 self.task_cfg.parameters = {
-                    'train_size': 30,
-                    'valid_size': 10,
-                    'test_size': 10,
-                    'image_size': 8,
-                    'n_orient_classes': 4,
-                    'n_bits': 6
+                    "train_size": 30,
+                    "valid_size": 10,
+                    "test_size": 10,
+                    "image_size": 8,
+                    "n_orient_classes": 4,
+                    "n_bits": 6,
                 }
 
                 train_ds, valid_ds, test_ds = get_unified_datasets(
-                    self.task_cfg,
-                    self.train_cfg,
-                    output_dir=self.temp_dir
+                    self.task_cfg, self.train_cfg, output_dir=self.temp_dir
                 )
 
                 # Check that datasets were created
@@ -344,24 +342,28 @@ class TestGetUnifiedDatasets(unittest.TestCase):
                 self.assertEqual(len(valid_ds), 10)
                 self.assertEqual(len(test_ds), 10)
 
-    @patch('dendritic_modeling.datasets.synthetic_datasets.load_mnist_as_datasets')
+    @patch("dendritic_modeling.datasets.synthetic_datasets.load_mnist_as_datasets")
     def test_mnist_dataset(self, mock_load_mnist):
         """Test MNIST dataset loading through unified interface."""
         # Setup mock
-        mock_train = torch.utils.data.TensorDataset(torch.randn(48, 784), torch.randint(0, 10, (48,)))
-        mock_valid = torch.utils.data.TensorDataset(torch.randn(12, 784), torch.randint(0, 10, (12,)))
-        mock_test = torch.utils.data.TensorDataset(torch.randn(10, 784), torch.randint(0, 10, (10,)))
+        mock_train = torch.utils.data.TensorDataset(
+            torch.randn(48, 784), torch.randint(0, 10, (48,))
+        )
+        mock_valid = torch.utils.data.TensorDataset(
+            torch.randn(12, 784), torch.randint(0, 10, (12,))
+        )
+        mock_test = torch.utils.data.TensorDataset(
+            torch.randn(10, 784), torch.randint(0, 10, (10,))
+        )
         mock_load_mnist.return_value = (mock_train, mock_valid, mock_test)
 
         # Configure for MNIST
         self.task_cfg.dataset = "mnist"
         self.task_cfg.data_path = None
-        self.task_cfg.parameters = {'flatten': True, 'normalize': False}
+        self.task_cfg.parameters = {"flatten": True, "normalize": False}
 
         train_ds, valid_ds, test_ds = get_unified_datasets(
-            self.task_cfg,
-            self.train_cfg,
-            output_dir=self.temp_dir
+            self.task_cfg, self.train_cfg, output_dir=self.temp_dir
         )
 
         # Verify results
@@ -372,7 +374,7 @@ class TestGetUnifiedDatasets(unittest.TestCase):
         # Verify the function was called with correct parameters
         mock_load_mnist.assert_called_once()
         args, kwargs = mock_load_mnist.call_args
-        self.assertEqual(kwargs['output_dir'], self.temp_dir)
+        self.assertEqual(kwargs["output_dir"], self.temp_dir)
 
     def test_invalid_dataset(self):
         """Test handling of invalid dataset names."""
@@ -381,7 +383,10 @@ class TestGetUnifiedDatasets(unittest.TestCase):
         self.task_cfg.parameters = {}
 
         with self.assertRaises(ValueError):
-            get_unified_datasets(self.task_cfg, self.train_cfg, output_dir=self.temp_dir)
+            get_unified_datasets(
+                self.task_cfg, self.train_cfg, output_dir=self.temp_dir
+            )
+
 
 class TestSpecializedDatasets(unittest.TestCase):
     """Test specialized dataset classes with complex behavior."""
@@ -393,9 +398,7 @@ class TestSpecializedDatasets(unittest.TestCase):
         base_labels = torch.randint(0, 2, (50,))
 
         dataset = PoissonGeneratorDataset(
-            base_inputs=base_inputs,
-            base_labels=base_labels,
-            rate_multiplier=1.5
+            base_inputs=base_inputs, base_labels=base_labels, rate_multiplier=1.5
         )
 
         self.assertEqual(len(dataset), 50)
@@ -437,15 +440,15 @@ class TestSpecializedDatasets(unittest.TestCase):
         """Test RandomFlipMNISTDataset functionality."""
         with tempfile.TemporaryDirectory() as temp_dir:
             # Mock the MNIST loading
-            with patch('dendritic_modeling.datasets.synthetic_datasets.datasets.MNIST') as mock_mnist:
+            with patch(
+                "dendritic_modeling.datasets.synthetic_datasets.datasets.MNIST"
+            ) as mock_mnist:
                 mock_data = [(torch.randn(28, 28), i % 10) for i in range(100)]
                 mock_mnist.return_value = mock_data
 
                 # Test with random flipping
                 dataset = RandomFlipMNISTDataset(
-                    split="train",
-                    output_dir=temp_dir,
-                    random_flip=True
+                    split="train", output_dir=temp_dir, random_flip=True
                 )
 
                 self.assertGreater(len(dataset), 0)
@@ -455,13 +458,12 @@ class TestSpecializedDatasets(unittest.TestCase):
 
                 # Test with no flipping
                 dataset_no_flip = RandomFlipMNISTDataset(
-                    split="train",
-                    output_dir=temp_dir,
-                    random_flip=False
+                    split="train", output_dir=temp_dir, random_flip=False
                 )
 
                 sample_no_flip, label_no_flip = dataset_no_flip[0]
                 self.assertEqual(sample_no_flip.shape, (784,))
 
-if __name__ == '__main__':
+
+if __name__ == "__main__":
     unittest.main()
