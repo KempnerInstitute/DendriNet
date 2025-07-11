@@ -10,6 +10,7 @@ __all__ = [
     "create_portilla_simoncelli_texture",
 ]
 
+
 def create_portilla_simoncelli_texture(
     size: Union[int, tuple[int, int]],
     n_scales: int = 4,
@@ -50,7 +51,7 @@ def create_portilla_simoncelli_texture(
     texture = np.zeros(size)
 
     for scale in range(n_scales):
-        scale_factor = 2 ** scale
+        scale_factor = 2**scale
 
         for ori_idx in range(n_orientations):
             # Create oriented filter
@@ -78,7 +79,9 @@ def create_portilla_simoncelli_texture(
             derivative = derivative / (np.abs(derivative).sum() + 1e-10)
 
             # Filter noise
-            filtered = signal.convolve2d(noise, derivative, mode='same', boundary='symm')
+            filtered = signal.convolve2d(
+                noise, derivative, mode="same", boundary="symm"
+            )
 
             # Add to texture with scale-dependent weight
             texture += filtered / (scale_factor + 1)
@@ -90,6 +93,7 @@ def create_portilla_simoncelli_texture(
     texture = (texture - texture.min()) / (texture.max() - texture.min() + 1e-10)
 
     return texture
+
 
 def create_contour_fragments(
     size: Union[int, tuple[int, int]],
@@ -154,11 +158,15 @@ def create_contour_fragments(
         # Draw contour
         for i in range(len(t) - 1):
             x0, y0 = int(x_path[i]), int(y_path[i])
-            x1, y1 = int(x_path[i+1]), int(y_path[i+1])
+            x1, y1 = int(x_path[i + 1]), int(y_path[i + 1])
 
             # Check bounds
-            if (0 <= x0 < width_img and 0 <= y0 < height and
-                0 <= x1 < width_img and 0 <= y1 < height):
+            if (
+                0 <= x0 < width_img
+                and 0 <= y0 < height
+                and 0 <= x1 < width_img
+                and 0 <= y1 < height
+            ):
 
                 # Draw thick line segment using distance transform
                 yy, xx = np.ogrid[:height, :width_img]
@@ -171,14 +179,18 @@ def create_contour_fragments(
                     continue
 
                 # Point-to-line distance
-                t_param = np.clip(((xx - x0) * dx + (yy - y0) * dy) / (dx**2 + dy**2), 0, 1)
+                t_param = np.clip(
+                    ((xx - x0) * dx + (yy - y0) * dy) / (dx**2 + dy**2), 0, 1
+                )
                 nearest_x = x0 + t_param * dx
                 nearest_y = y0 + t_param * dy
 
-                dist = np.sqrt((xx - nearest_x)**2 + (yy - nearest_y)**2)
+                dist = np.sqrt((xx - nearest_x) ** 2 + (yy - nearest_y) ** 2)
 
                 # Update image
                 mask = dist <= width / 2
-                image[mask] = np.maximum(image[mask], contrast * (1 - dist[mask] / (width / 2)))
+                image[mask] = np.maximum(
+                    image[mask], contrast * (1 - dist[mask] / (width / 2))
+                )
 
     return image

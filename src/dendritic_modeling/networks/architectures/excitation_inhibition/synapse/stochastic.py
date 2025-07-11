@@ -188,4 +188,5 @@ class StochasticTopKLinear(TopKLinear):
 
         return mask
 
+
 __all__ = ["StochasticTopKLinear"]

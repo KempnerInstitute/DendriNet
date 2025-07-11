@@ -25,7 +25,7 @@ def get_trainer(
     strategy: str,
     optimizer: torch.optim.Optimizer,
     trainer_config_dict: dict,
-    analysis_manager: Optional[object] = None
+    analysis_manager: Optional[object] = None,
 ):
     """
     Factory function to create training strategies.
@@ -58,6 +58,7 @@ def get_trainer(
     else:
         logger.info(f"Unrecognized strategy '{strategy}', defaulting to 'standard'.")
         return Trainer(**trainer_config_dict)
+
 
 def transfer_mlp_weights_to_input_net(mlp_net, input_net, head_type="excitatory"):
     """
@@ -126,6 +127,7 @@ def transfer_mlp_weights_to_input_net(mlp_net, input_net, head_type="excitatory"
             )
 
     logger.info(f"Weight transfer completed for {head_type} head")
+
 
 def extract_weights_from_simple_mlp(simple_mlp, input_net_transform):
     """

@@ -1,5 +1,3 @@
-
-
 from dendritic_modeling.networks.architectures.classical.autoencoder import (
     CNNAutoencoder,
     CNNVariationalAutoencoder,
@@ -44,4 +42,3 @@ def get_architecture(type: str, parameters: dict):
         return ExcitationInhibitionNetwork(**parameters)
     else:
         raise ValueError(f"Invalid architecture type: {type}")
-

@@ -3,6 +3,7 @@ Baseline MLP models.
 
 This module contains simple MLP implementations for baseline comparisons.
 """
+
 from copy import deepcopy
 from typing import Optional
 
@@ -33,7 +34,7 @@ class MLP(BaseNetwork):
 
         # Create hidden layers
         for i in range(1, len(hidden_dims)):
-            fc_linear = torch.nn.Linear(hidden_dims[i-1], hidden_dims[i])
+            fc_linear = torch.nn.Linear(hidden_dims[i - 1], hidden_dims[i])
             if activation == "relu":
                 nn.init.kaiming_normal_(fc_linear.weight)
                 nn.init.zeros_(fc_linear.bias)
@@ -44,8 +45,7 @@ class MLP(BaseNetwork):
 
             layers.append(
                 activation_factory.create(
-                    act_type=activation,
-                    output_dim= hidden_dims[i]
+                    act_type=activation, output_dim=hidden_dims[i]
                 )
             )
 
@@ -58,5 +58,6 @@ class MLP(BaseNetwork):
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         return self.layers(x)
+
 
 __all__ = ["MLP"]

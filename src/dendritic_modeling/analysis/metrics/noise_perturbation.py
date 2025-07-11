@@ -92,13 +92,10 @@ class NoisePerturbationAnalyzer:
             noise_level: float,
             metric_func: Callable,
             metric_key: str,
-            noisy_test_ds: torch.utils.data.Dataset
+            noisy_test_ds: torch.utils.data.Dataset,
         ):
             metric_tensor: torch.Tensor = metric_func(
-                model,
-                test_ds=noisy_test_ds,
-                reduce_dim=1,
-                move_device=False
+                model, test_ds=noisy_test_ds, reduce_dim=1, move_device=False
             )[-1]
             metric_list = metric_tensor.cpu().tolist()
             noise_results[noise_type][f"{noise_level}"][metric_key] = metric_list
@@ -115,7 +112,7 @@ class NoisePerturbationAnalyzer:
                         noise_level=mag,
                         metric_func=evaluate_accuracy,
                         metric_key="accuracy",
-                        noisy_test_ds=noisy_test_ds
+                        noisy_test_ds=noisy_test_ds,
                     )
                 if self.auc:
                     _evaluate_metric(
@@ -123,7 +120,7 @@ class NoisePerturbationAnalyzer:
                         noise_level=mag,
                         metric_func=evaluate_auc,
                         metric_key="auc",
-                        noisy_test_ds=noisy_test_ds
+                        noisy_test_ds=noisy_test_ds,
                     )
                 if self.categorical_ll:
                     _evaluate_metric(
@@ -131,7 +128,7 @@ class NoisePerturbationAnalyzer:
                         noise_level=mag,
                         metric_func=evaluate_categorical_loglikelihood,
                         metric_key="categorical_ll",
-                        noisy_test_ds=noisy_test_ds
+                        noisy_test_ds=noisy_test_ds,
                     )
                 if self.mse:
                     _evaluate_metric(
@@ -139,7 +136,7 @@ class NoisePerturbationAnalyzer:
                         noise_level=mag,
                         metric_func=evaluate_mse,
                         metric_key="mse",
-                        noisy_test_ds=noisy_test_ds
+                        noisy_test_ds=noisy_test_ds,
                     )
                 if self.cosine_similarity:
                     _evaluate_metric(
@@ -147,7 +144,7 @@ class NoisePerturbationAnalyzer:
                         noise_level=mag,
                         metric_func=evaluate_cosine_similarity,
                         metric_key="cosine_similarity",
-                        noisy_test_ds=noisy_test_ds
+                        noisy_test_ds=noisy_test_ds,
                     )
 
         if self.gaussian_noise:
@@ -162,7 +159,7 @@ class NoisePerturbationAnalyzer:
                         noise_level=sdev,
                         metric_func=evaluate_accuracy,
                         metric_key="accuracy",
-                        noisy_test_ds=noisy_test_ds
+                        noisy_test_ds=noisy_test_ds,
                     )
                 if self.auc:
                     _evaluate_metric(
@@ -170,7 +167,7 @@ class NoisePerturbationAnalyzer:
                         noise_level=sdev,
                         metric_func=evaluate_auc,
                         metric_key="auc",
-                        noisy_test_ds=noisy_test_ds
+                        noisy_test_ds=noisy_test_ds,
                     )
                 if self.categorical_ll:
                     _evaluate_metric(
@@ -178,7 +175,7 @@ class NoisePerturbationAnalyzer:
                         noise_level=sdev,
                         metric_func=evaluate_categorical_loglikelihood,
                         metric_key="categorical_ll",
-                        noisy_test_ds=noisy_test_ds
+                        noisy_test_ds=noisy_test_ds,
                     )
                 if self.mse:
                     _evaluate_metric(
@@ -186,7 +183,7 @@ class NoisePerturbationAnalyzer:
                         noise_level=sdev,
                         metric_func=evaluate_mse,
                         metric_key="mse",
-                        noisy_test_ds=noisy_test_ds
+                        noisy_test_ds=noisy_test_ds,
                     )
                 if self.cosine_similarity:
                     _evaluate_metric(
@@ -194,7 +191,7 @@ class NoisePerturbationAnalyzer:
                         noise_level=sdev,
                         metric_func=evaluate_cosine_similarity,
                         metric_key="cosine_similarity",
-                        noisy_test_ds=noisy_test_ds
+                        noisy_test_ds=noisy_test_ds,
                     )
 
         if save_path is not None:

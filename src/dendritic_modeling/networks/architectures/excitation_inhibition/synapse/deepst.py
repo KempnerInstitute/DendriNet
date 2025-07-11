@@ -17,20 +17,20 @@ from dendritic_modeling.networks.architectures.excitation_inhibition.synapse.top
 
 class DeepstLinear(nn.Module):
     def __init__(
-            self,
-            in_features,
-            out_features,
-            target_density=0.1,
-            sigma=0.05,  # Noise amplitude for the random walk
-            use_noise=True,  # Whether to apply Gaussian noise
-            rewiring_mode='global',  # 'local', 'global', or 'constant_branch'
-            synapses_per_branch=None,  # Required for 'constant_branch' mode
-            param_space='log',  # 'log' or 'presigmoid' for weight parameterization
-            weight_init_range=None,
-            init_method=None,  # Add initialization method parameter
-            freeze_connectivity=False,  # New: flag to freeze synapse locations
-            weight_threshold=1e-6  # New: threshold for weight pruning
-        ):
+        self,
+        in_features,
+        out_features,
+        target_density=0.1,
+        sigma=0.05,  # Noise amplitude for the random walk
+        use_noise=True,  # Whether to apply Gaussian noise
+        rewiring_mode="global",  # 'local', 'global', or 'constant_branch'
+        synapses_per_branch=None,  # Required for 'constant_branch' mode
+        param_space="log",  # 'log' or 'presigmoid' for weight parameterization
+        weight_init_range=None,
+        init_method=None,  # Add initialization method parameter
+        freeze_connectivity=False,  # New: flag to freeze synapse locations
+        weight_threshold=1e-6,  # New: threshold for weight pruning
+    ):
         super().__init__()
 
         self.in_features = in_features
@@ -47,28 +47,32 @@ class DeepstLinear(nn.Module):
 
         # Default initialization ranges
         if weight_init_range is None:
-            if param_space == 'log':
+            if param_space == "log":
                 weight_init_range = (-2.1, -2.0)  # Default for log parameterization
-            elif param_space == 'presigmoid':
-                weight_init_range = (-0.1, 0.1)   # Default for presigmoid
-            elif param_space == 'uniform':
-                weight_init_range = (0.25, 0.75)   # Default for uniform
+            elif param_space == "presigmoid":
+                weight_init_range = (-0.1, 0.1)  # Default for presigmoid
+            elif param_space == "uniform":
+                weight_init_range = (0.25, 0.75)  # Default for uniform
         # Store weight initialization range
         self.weight_init_range = weight_init_range
 
         # For constant_branch mode
-        if rewiring_mode == 'constant_branch':
+        if rewiring_mode == "constant_branch":
             if synapses_per_branch is None:
-                raise ValueError("synapses_per_branch must be specified for constant_branch mode")
+                raise ValueError(
+                    "synapses_per_branch must be specified for constant_branch mode"
+                )
             if synapses_per_branch > in_features:
-                raise ValueError(f"synapses_per_branch ({synapses_per_branch}) cannot exceed in_features ({in_features})")
+                raise ValueError(
+                    f"synapses_per_branch ({synapses_per_branch}) cannot exceed in_features ({in_features})"
+                )
             self.synapses_per_branch = synapses_per_branch
 
         # Total number of possible connections
         self.total_connections = out_features * in_features
 
         # Target number of active connections based on density
-        if rewiring_mode == 'constant_branch':
+        if rewiring_mode == "constant_branch":
             self.target_connections = out_features * synapses_per_branch
         else:
             self.target_connections = int(self.total_connections * target_density)
@@ -76,7 +80,9 @@ class DeepstLinear(nn.Module):
         # Initialize weights parameter
         if self.init_method is not None and self.init_method in TOPK_INIT_METHODS:
             # Initialize using PyTorch's initialization methods
-            self.pre_w = nn.Parameter(torch.zeros((out_features, in_features)), requires_grad=True)
+            self.pre_w = nn.Parameter(
+                torch.zeros((out_features, in_features)), requires_grad=True
+            )
             # Apply initialization to a temporary tensor (correct shape for initialization)
             temp_weight = torch.zeros((out_features, in_features))
             TOPK_INIT_METHODS[self.init_method](temp_weight)
@@ -84,28 +90,33 @@ class DeepstLinear(nn.Module):
             self.pre_w.data = temp_weight.reshape(out_features, in_features)
 
             # If using log or presigmoid parameterization, transform the weights accordingly
-            if param_space == 'log':
+            if param_space == "log":
                 # For log parameterization, ensure weights are positive then take log
                 self.pre_w.data = torch.abs(self.pre_w.data).clamp(min=1e-6)
                 self.pre_w.data = torch.log(self.pre_w.data)
-            elif param_space == 'presigmoid':
+            elif param_space == "presigmoid":
                 # For presigmoid, pass through inverse sigmoid (logit)
-                self.pre_w.data = torch.clamp(self.pre_w.data, min=1e-6, max=1-1e-6)
+                self.pre_w.data = torch.clamp(self.pre_w.data, min=1e-6, max=1 - 1e-6)
                 self.pre_w.data = torch.log(self.pre_w.data / (1 - self.pre_w.data))
-            elif param_space == 'uniform':
+            elif param_space == "uniform":
                 # For uniform, pass through uniform initialization
                 self.pre_w.data = torch.empty(out_features, in_features).uniform_(
-                    self.weight_init_range[0], self.weight_init_range[1])
+                    self.weight_init_range[0], self.weight_init_range[1]
+                )
         else:
             # Use uniform initialization with specified range
-            self.pre_w = nn.Parameter(torch.zeros((out_features, in_features)).uniform_(
-                self.weight_init_range[0], self.weight_init_range[1]), requires_grad=True)
+            self.pre_w = nn.Parameter(
+                torch.zeros((out_features, in_features)).uniform_(
+                    self.weight_init_range[0], self.weight_init_range[1]
+                ),
+                requires_grad=True,
+            )
 
         # Initialize mask
         mask = torch.zeros_like(self.pre_w, dtype=torch.bool)
         # Register it as a buffer to ensure it moves with the model
         self.mask: torch.Tensor
-        self.register_buffer('mask', mask)
+        self.register_buffer("mask", mask)
 
         # Initialize connectivity
         self._initialize_connectivity()
@@ -117,11 +128,13 @@ class DeepstLinear(nn.Module):
         self.weight_threshold = weight_threshold
 
     def _initialize_connectivity(self):
-        if self.rewiring_mode == 'constant_branch':
+        if self.rewiring_mode == "constant_branch":
             # Initialize with constant number of connections per branch
             for neuron_idx in range(self.out_features):
                 # Randomly select synapses_per_branch input connections
-                input_indices = torch.randperm(self.in_features)[:self.synapses_per_branch]
+                input_indices = torch.randperm(self.in_features)[
+                    : self.synapses_per_branch
+                ]
                 for input_idx in input_indices:
                     self.mask[neuron_idx, input_idx] = True
         else:
@@ -132,7 +145,9 @@ class DeepstLinear(nn.Module):
             all_indices = torch.nonzero(torch.ones_like(self.pre_w), as_tuple=False)
 
             # Randomly select indices to activate
-            selected_indices = torch.randperm(len(all_indices))[:connections_to_activate]
+            selected_indices = torch.randperm(len(all_indices))[
+                :connections_to_activate
+            ]
             selected_connections = all_indices[selected_indices]
 
             # Activate connections
@@ -142,11 +157,11 @@ class DeepstLinear(nn.Module):
 
     def weight(self):
         """Return the actual weight values (after transformation)"""
-        if self.param_space == 'log':
+        if self.param_space == "log":
             return torch.exp(self.pre_w)
-        elif self.param_space == 'presigmoid':
+        elif self.param_space == "presigmoid":
             return torch.sigmoid(self.pre_w)
-        elif self.param_space == 'uniform':
+        elif self.param_space == "uniform":
             return self.pre_w
 
     def weight_mask(self):
@@ -181,12 +196,12 @@ class DeepstLinear(nn.Module):
             current_weights = self.weight()
 
             # Always apply basic constraints for numerical stability
-            if self.param_space == 'log':
+            if self.param_space == "log":
                 # Use a tighter clamping range for better stability
                 self.pre_w.data = torch.clamp(self.pre_w.data, min=-10.0, max=10.0)
-            elif self.param_space == 'presigmoid':
+            elif self.param_space == "presigmoid":
                 self.pre_w.data = torch.clamp(self.pre_w.data, min=-5.0, max=5.0)
-            elif self.param_space == 'uniform':
+            elif self.param_space == "uniform":
                 pass
 
             # Skip rewiring if connectivity is frozen
@@ -198,7 +213,9 @@ class DeepstLinear(nn.Module):
             # Apply Gaussian noise if enabled
             if self.use_noise:
                 noise = torch.zeros_like(current_weights)
-                noise[self.mask] = torch.randn(self.mask.sum(), device=self.mask.device) * self.sigma
+                noise[self.mask] = (
+                    torch.randn(self.mask.sum(), device=self.mask.device) * self.sigma
+                )
                 current_weights = current_weights + noise
 
             # Find connections to prune (weights <= weight_threshold)
@@ -218,7 +235,7 @@ class DeepstLinear(nn.Module):
         """
         Create new random connections based on the rewiring mode
         """
-        if self.rewiring_mode == 'constant_branch':
+        if self.rewiring_mode == "constant_branch":
             # For each branch, maintain a constant number of synapses
             for neuron_idx in range(self.out_features):
                 # Current active synapses at this branch
@@ -230,19 +247,25 @@ class DeepstLinear(nn.Module):
                 if to_add > 0:
                     # Get potential input neurons for new connections
                     potential_inputs = ~self.mask[neuron_idx]
-                    potential_indices = torch.nonzero(potential_inputs, as_tuple=False).squeeze(1)
+                    potential_indices = torch.nonzero(
+                        potential_inputs, as_tuple=False
+                    ).squeeze(1)
 
                     if len(potential_indices) > 0:
                         # Randomly select input neurons to connect
                         num_to_select = min(to_add, len(potential_indices))
-                        selected_indices = potential_indices[torch.randperm(len(potential_indices))[:num_to_select]]
+                        selected_indices = potential_indices[
+                            torch.randperm(len(potential_indices))[:num_to_select]
+                        ]
 
                         # Create new connections
                         for input_idx in selected_indices:
                             self.mask[neuron_idx, input_idx] = True
-                            self.pre_w.data[neuron_idx, input_idx] = self._initialize_new_weight()
+                            self.pre_w.data[neuron_idx, input_idx] = (
+                                self._initialize_new_weight()
+                            )
 
-        elif self.rewiring_mode == 'local':
+        elif self.rewiring_mode == "local":
             # Local rewiring - only create connections within the same neuron
             for neuron_idx in range(self.out_features):
                 # Count pruned connections for this neuron
@@ -254,18 +277,24 @@ class DeepstLinear(nn.Module):
 
                     if potential_connections.sum() > 0:
                         # Get indices of potential connections
-                        flat_indices = torch.nonzero(potential_connections, as_tuple=False)
+                        flat_indices = torch.nonzero(
+                            potential_connections, as_tuple=False
+                        )
 
                         # Randomly select indices to add
                         num_to_add = min(pruned_for_neuron, len(flat_indices))
                         if num_to_add > 0:
-                            selected_indices = torch.randperm(len(flat_indices))[:num_to_add]
+                            selected_indices = torch.randperm(len(flat_indices))[
+                                :num_to_add
+                            ]
                             selected_connections = flat_indices[selected_indices]
 
                             # Add new connections
                             for in_idx in selected_connections:
                                 self.mask[neuron_idx, in_idx] = True
-                                self.pre_w.data[neuron_idx, in_idx] = self._initialize_new_weight()
+                                self.pre_w.data[neuron_idx, in_idx] = (
+                                    self._initialize_new_weight()
+                                )
 
         else:  # 'global' rewiring mode
             # Count total pruned connections
@@ -299,23 +328,26 @@ class DeepstLinear(nn.Module):
             value = temp[0, 0].item()
 
             # Apply transformations for log/presigmoid if needed
-            if self.param_space == 'log':
-            #     value = abs(value)
-            #     value = max(value, 1e-6)
-            #     value = math.log(value)
+            if self.param_space == "log":
+                #     value = abs(value)
+                #     value = max(value, 1e-6)
+                #     value = math.log(value)
 
                 ### EXPERIMENTAL
                 value = math.log(self.weight_threshold)
-            elif self.param_space == 'presigmoid':
-                value = max(min(value, 1-1e-6), 1e-6)
+            elif self.param_space == "presigmoid":
+                value = max(min(value, 1 - 1e-6), 1e-6)
                 value = math.log(value / (1 - value))
-            elif self.param_space == 'uniform':
+            elif self.param_space == "uniform":
                 pass
             return value
         else:
             # Default to uniform initialization with the specified range
-            return torch.empty(1, device=self.pre_w.device).uniform_(
-                self.weight_init_range[0], self.weight_init_range[1]).item()
+            return (
+                torch.empty(1, device=self.pre_w.device)
+                .uniform_(self.weight_init_range[0], self.weight_init_range[1])
+                .item()
+            )
 
     def get_connectivity_stats(self):
         """
@@ -326,21 +358,21 @@ class DeepstLinear(nn.Module):
 
         # Per-branch stats for constant_branch mode
         branch_stats = {}
-        if self.rewiring_mode == 'constant_branch':
+        if self.rewiring_mode == "constant_branch":
             branch_counts = torch.sum(self.mask, dim=1)  # Sum over input dimension
             branch_stats = {
-                'min_per_branch': branch_counts.min().item(),
-                'max_per_branch': branch_counts.max().item(),
-                'mean_per_branch': branch_counts.float().mean().item(),
-                'target_per_branch': self.synapses_per_branch
+                "min_per_branch": branch_counts.min().item(),
+                "max_per_branch": branch_counts.max().item(),
+                "mean_per_branch": branch_counts.float().mean().item(),
+                "target_per_branch": self.synapses_per_branch,
             }
 
         return {
-            'active_connections': active_connections,
-            'total_connections': self.total_connections,
-            'density': density,
-            'target_density': self.target_density,
-            'branch_stats': branch_stats
+            "active_connections": active_connections,
+            "total_connections": self.total_connections,
+            "density": density,
+            "target_density": self.target_density,
+            "branch_stats": branch_stats,
         }
 
     def decay_weights(self, weight_decay=0.1, weight_boost=False):
@@ -350,5 +382,6 @@ class DeepstLinear(nn.Module):
         Args:
             weight_decay: float, weight decay rate (default: 0.1)
         """
+
 
 __all__ = ["DeepstLinear"]

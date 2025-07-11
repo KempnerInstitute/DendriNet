@@ -165,6 +165,7 @@ class TestStochasticTopKLinear(unittest.TestCase):
         self.assertTrue(torch.any(model.pre_w.grad != 0))
         self.assertTrue(torch.any(x.grad != 0))
 
+
 class TestVarianceTopKLinear(unittest.TestCase):
     """Test cases for the VarianceTopKLinear class."""
 
@@ -272,8 +273,12 @@ class TestVarianceTopKLinear(unittest.TestCase):
 
         # Expect at least 55% of connections to go to high-variance inputs
         # (more lenient than strict greater-than comparison)
-        self.assertGreater(high_var_ratio, 0.55,
-                          f"Expected >55% connections to high-var inputs, got {high_var_ratio:.2%}")
+        self.assertGreater(
+            high_var_ratio,
+            0.55,
+            f"Expected >55% connections to high-var inputs, got {high_var_ratio:.2%}",
+        )
+
 
 if __name__ == "__main__":
     unittest.main(argv=[""], exit=False)

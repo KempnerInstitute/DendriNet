@@ -47,6 +47,7 @@ def plot_with_color(data, title: str = "", ax=None, **kwargs):
 
     return im
 
+
 def add_colorbars(
     fig,
     ax_iterable,
@@ -71,7 +72,10 @@ def add_colorbars(
         cax = divider.append_axes(position=position, size=size, pad=pad)
         fig.colorbar(im, cax=cax)
 
-def shape_helper(condition: bool, reshape_fn: Optional[Callable], tensors: list[Any]) -> list[Any]:
+
+def shape_helper(
+    condition: bool, reshape_fn: Optional[Callable], tensors: list[Any]
+) -> list[Any]:
     """
     Helper function for reshaping tensors based on conditions.
 
@@ -96,11 +100,12 @@ def shape_helper(condition: bool, reshape_fn: Optional[Callable], tensors: list[
                 ret.append(tensor)
         return ret
 
+
 def plot_nll_loss_curves(
     Train_losses: list[float],
     Valid_losses: list[float],
     num_epochs: int,
-    save_dir: Optional[str]
+    save_dir: Optional[str],
 ) -> None:
     """
     Plot the negative log-likelihood loss curves for training and validation.

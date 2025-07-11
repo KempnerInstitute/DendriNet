@@ -25,6 +25,7 @@ except Exception as e:  # pragma: no cover - best effort
 else:
     _import_error = None
 
+
 def check_pid_available() -> None:
     """Raise an ImportError if the PID package is not available."""
 
@@ -33,6 +34,7 @@ def check_pid_available() -> None:
             "PID package not found. Ensure the external PID library is "
             "available in the 'external' directory."
         ) from _import_error
+
 
 def pid_synergy_redundancy(
     sources: list[np.ndarray], target: np.ndarray

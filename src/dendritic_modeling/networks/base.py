@@ -12,4 +12,6 @@ class BaseNetwork(nn.Module):
         raise NotImplementedError("Forward method must be implemented in subclass.")
 
     def get_output_dim(self):
-        raise NotImplementedError("get_output_dim method must be implemented in subclass.")
+        raise NotImplementedError(
+            "get_output_dim method must be implemented in subclass."
+        )

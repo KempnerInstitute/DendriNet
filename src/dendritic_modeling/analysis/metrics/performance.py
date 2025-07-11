@@ -33,7 +33,9 @@ class PerformanceAnalyzer:
     def __init__(self, params: PerformanceAnalysisParams):
         self.accuracy = getattr(params, "accuracy", False)
         self.auc = getattr(params, "auc", False)
-        self.categorical_loglikelihood = getattr(params, "categorical_loglikelihood", False)
+        self.categorical_loglikelihood = getattr(
+            params, "categorical_loglikelihood", False
+        )
         self.mse = getattr(params, "mse", False)
         self.cosine_similarity = getattr(params, "cosine_similarity", False)
 
@@ -62,9 +64,9 @@ class PerformanceAnalyzer:
         Returns:
             Dictionary containing results if save_path is None, otherwise None
         """
+
         def _dataset_to_device(
-            dataset: Optional[torch.utils.data.Dataset],
-            device: str = "cpu"
+            dataset: Optional[torch.utils.data.Dataset], device: str = "cpu"
         ):
             if dataset is not None:
                 inputs, labels = dataset[:]
@@ -82,7 +84,7 @@ class PerformanceAnalyzer:
                 train_ds=train_ds,
                 valid_ds=valid_ds,
                 test_ds=test_ds,
-                move_device=False
+                move_device=False,
             )
             if train_ds is not None:
                 results[metric_key]["train"] = train_metric
@@ -96,33 +98,23 @@ class PerformanceAnalyzer:
         test_ds = _dataset_to_device(test_ds, device)
 
         if self.accuracy:
-            _evaluate_metric(
-                metric_func=evaluate_accuracy,
-                metric_key="accuracy"
-            )
+            _evaluate_metric(metric_func=evaluate_accuracy, metric_key="accuracy")
 
         if self.auc:
-            _evaluate_metric(
-                metric_func=evaluate_auc,
-                metric_key="auc"
-            )
+            _evaluate_metric(metric_func=evaluate_auc, metric_key="auc")
 
         if self.categorical_loglikelihood:
             _evaluate_metric(
                 metric_func=evaluate_categorical_loglikelihood,
-                metric_key="categorical_loglikelihood"
+                metric_key="categorical_loglikelihood",
             )
 
         if self.mse:
-            _evaluate_metric(
-                metric_func=evaluate_mse,
-                metric_key="mse"
-            )
+            _evaluate_metric(metric_func=evaluate_mse, metric_key="mse")
 
         if self.cosine_similarity:
             _evaluate_metric(
-                metric_func=evaluate_cosine_similarity,
-                metric_key="cosine_similarity"
+                metric_func=evaluate_cosine_similarity, metric_key="cosine_similarity"
             )
 
         if save_path is not None:

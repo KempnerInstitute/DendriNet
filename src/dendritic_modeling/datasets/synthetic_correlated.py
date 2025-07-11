@@ -11,6 +11,7 @@ from torch.utils.data import DataLoader, Dataset
 
 logger = logging.getLogger(__name__)
 
+
 class SyntheticCorrelatedDataset(Dataset):
     """
     Synthetic dataset with two classes generated from multivariate Gaussians.
@@ -31,7 +32,7 @@ class SyntheticCorrelatedDataset(Dataset):
         correlation_range: tuple[float, float] = (-0.1, 0.1),
         random_seed: Optional[int] = None,
         apply_sigmoid: bool = True,
-        mean_magnitude: float = 0.5
+        mean_magnitude: float = 0.5,
     ):
         """
         Initialize synthetic correlated dataset.
@@ -79,7 +80,11 @@ class SyntheticCorrelatedDataset(Dataset):
         if np.min(eigenvalues) < 0:
             # Shift eigenvalues to make matrix positive semi-definite
             min_eig = np.min(eigenvalues)
-            corr_matrix = corr_matrix - min_eig * np.eye(self.input_dim) + 1e-6 * np.eye(self.input_dim)
+            corr_matrix = (
+                corr_matrix
+                - min_eig * np.eye(self.input_dim)
+                + 1e-6 * np.eye(self.input_dim)
+            )
 
         return corr_matrix
 
@@ -90,14 +95,14 @@ class SyntheticCorrelatedDataset(Dataset):
         # Class 1 means
         mean1 = np.zeros(self.input_dim)
         mean1[:d_third] = -self.mean_magnitude  # First third
-        mean1[d_third:2*d_third] = 0.0  # Second third
-        mean1[2*d_third:] = self.mean_magnitude  # Last third
+        mean1[d_third : 2 * d_third] = 0.0  # Second third
+        mean1[2 * d_third :] = self.mean_magnitude  # Last third
 
         # Class 2 means
         mean2 = np.zeros(self.input_dim)
         mean2[:d_third] = self.mean_magnitude  # First third
-        mean2[d_third:2*d_third] = 0.0  # Second third
-        mean2[2*d_third:] = -self.mean_magnitude  # Last third
+        mean2[d_third : 2 * d_third] = 0.0  # Second third
+        mean2[2 * d_third :] = -self.mean_magnitude  # Last third
 
         return mean1, mean2
 
@@ -110,8 +115,12 @@ class SyntheticCorrelatedDataset(Dataset):
         mean1, mean2 = self._generate_means()
 
         # Generate samples for each class
-        samples_class1 = np.random.multivariate_normal(mean1, cov_matrix, self.n_samples)
-        samples_class2 = np.random.multivariate_normal(mean2, cov_matrix, self.n_samples)
+        samples_class1 = np.random.multivariate_normal(
+            mean1, cov_matrix, self.n_samples
+        )
+        samples_class2 = np.random.multivariate_normal(
+            mean2, cov_matrix, self.n_samples
+        )
 
         # Combine samples
         all_samples = np.vstack([samples_class1, samples_class2])
@@ -132,7 +141,9 @@ class SyntheticCorrelatedDataset(Dataset):
         data = data[perm]
         labels = labels[perm]
 
-        logger.info(f"Generated synthetic dataset: {len(data)} samples, {self.input_dim} dimensions")
+        logger.info(
+            f"Generated synthetic dataset: {len(data)} samples, {self.input_dim} dimensions"
+        )
         logger.info(f"Correlation range: {self.correlation_range}")
         logger.info(f"Sigmoid applied: {self.apply_sigmoid}")
         logger.info(f"Mean magnitude: {self.mean_magnitude}")
@@ -155,6 +166,7 @@ class SyntheticCorrelatedDataset(Dataset):
         class1_data = self.data[self.labels == 1].numpy()
         return class0_data.mean(axis=0), class1_data.mean(axis=0)
 
+
 def load_synthetic_correlated(
     train_size: int = 5000,
     valid_size: int = 1000,
@@ -164,7 +176,7 @@ def load_synthetic_correlated(
     batch_size: int = 128,
     random_seed: Optional[int] = None,
     mean_magnitude: float = 0.5,
-    **kwargs
+    **kwargs,
 ) -> tuple[DataLoader, DataLoader, DataLoader, dict[str, Any]]:
     """
     Load synthetic correlated dataset with train/valid/test splits.
@@ -179,7 +191,7 @@ def load_synthetic_correlated(
         correlation_range=correlation_range,
         random_seed=random_seed,
         apply_sigmoid=True,
-        mean_magnitude=mean_magnitude
+        mean_magnitude=mean_magnitude,
     )
 
     valid_dataset = SyntheticCorrelatedDataset(
@@ -188,7 +200,7 @@ def load_synthetic_correlated(
         correlation_range=correlation_range,
         random_seed=random_seed + 1 if random_seed else None,
         apply_sigmoid=True,
-        mean_magnitude=mean_magnitude
+        mean_magnitude=mean_magnitude,
     )
 
     test_dataset = SyntheticCorrelatedDataset(
@@ -197,7 +209,7 @@ def load_synthetic_correlated(
         correlation_range=correlation_range,
         random_seed=random_seed + 2 if random_seed else None,
         apply_sigmoid=True,
-        mean_magnitude=mean_magnitude
+        mean_magnitude=mean_magnitude,
     )
 
     # Create data loaders
@@ -214,7 +226,7 @@ def load_synthetic_correlated(
         "test_size": len(test_dataset),
         "correlation_range": correlation_range,
         "train_correlation_matrix": train_dataset.get_correlation_matrix(),
-        "train_class_means": train_dataset.get_class_means()
+        "train_class_means": train_dataset.get_class_means(),
     }
 
     return train_loader, valid_loader, test_loader, dataset_info

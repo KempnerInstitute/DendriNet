@@ -20,11 +20,13 @@ class Encoder(BaseNetwork):
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         return torch.sigmoid(self.net(x))
 
+
 class BaseAutoencoder(nn.Module):
     def __init__(self):
         super().__init__()
         self.encoder: Encoder
         self.decoder: BaseNetwork
+
 
 class MLPAutoencoder(BaseAutoencoder):
     def __init__(
@@ -42,7 +44,7 @@ class MLPAutoencoder(BaseAutoencoder):
             input_dim=input_dim,
             hidden_dims=encoder_hidden_dims,
             activation=activation,
-            output_dim=latent_dim
+            output_dim=latent_dim,
         )
         self.encoder = Encoder(encoder_net)
 
@@ -50,7 +52,7 @@ class MLPAutoencoder(BaseAutoencoder):
             input_dim=latent_dim,
             hidden_dims=decoder_hidden_dims,
             activation=activation,
-            output_dim=input_dim
+            output_dim=input_dim,
         )
 
         self.output_dim = latent_dim
@@ -59,6 +61,7 @@ class MLPAutoencoder(BaseAutoencoder):
         z = self.encoder(x)
         x_reconstructed = self.decoder(z)
         return x_reconstructed
+
 
 class CNNEncoder(Encoder):
     def __init__(self, net: CNNDownsample):
@@ -70,6 +73,7 @@ class CNNEncoder(Encoder):
         if flatten:
             z = torch.flatten(z, start_dim=-3)
         return z
+
 
 class CNNAutoencoder(BaseAutoencoder):
     def __init__(
@@ -95,7 +99,7 @@ class CNNAutoencoder(BaseAutoencoder):
             hidden_dims=encoder_hidden_dims,
             kernel_sizes=kernel_sizes,
             strides=strides,
-            activation=activation
+            activation=activation,
         )
         self.encoder = CNNEncoder(encoder_net)
 
@@ -103,7 +107,7 @@ class CNNAutoencoder(BaseAutoencoder):
             input_shape=latent_shape,
             target_shape=input_shape,
             hidden_dims=decoder_hidden_dims,
-            activation=activation
+            activation=activation,
         )
 
         self.output_shape = input_shape
@@ -120,7 +124,7 @@ class CNNAutoencoder(BaseAutoencoder):
         self,
         input_shape: tuple[int, int, int],
         latent_shape: tuple[int, int, int],
-        num_layers: int
+        num_layers: int,
     ) -> tuple[list[int], list[int]]:
         """Calculate convolution parameters to downsample from input_shape to latent_shape.
 
@@ -185,7 +189,9 @@ class CNNAutoencoder(BaseAutoencoder):
                     test_kernel = current_size - test_stride * (target_size - 1)
                     if test_kernel >= 1 and test_kernel <= current_size:
                         # Check if this gives exact target
-                        computed_output = (current_size - test_kernel) // test_stride + 1
+                        computed_output = (
+                            current_size - test_kernel
+                        ) // test_stride + 1
                         if computed_output == target_size:
                             best_kernel = test_kernel
                             best_stride = test_stride

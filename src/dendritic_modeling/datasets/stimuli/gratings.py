@@ -10,6 +10,7 @@ __all__ = [
     "create_static_grating",
 ]
 
+
 def create_static_grating(
     size: int,
     orientation: float,
@@ -63,6 +64,7 @@ def create_static_grating(
 
     return grating
 
+
 def create_drifting_grating(
     size: int,
     orientation: float,
@@ -113,6 +115,7 @@ def create_drifting_grating(
 
     return movie
 
+
 def create_phase_offset_gratings(
     size: int,
     orientation: float,
@@ -144,7 +147,7 @@ def create_phase_offset_gratings(
         3D array (n_phases, height, width)
     """
     if phases is None:
-        phases = np.linspace(0, 2*np.pi, 8, endpoint=False)
+        phases = np.linspace(0, 2 * np.pi, 8, endpoint=False)
 
     gratings = np.zeros((len(phases), size, size))
 
