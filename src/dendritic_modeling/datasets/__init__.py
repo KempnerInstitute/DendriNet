@@ -34,19 +34,11 @@ from dendritic_modeling.datasets.synthetic_datasets import (
 )
 
 __all__ = [
-    "apply_random_flip",
     "CenterSurroundDataset",
     "CompositionalMNIST",
     "ContextualFigureGroundMNIST",
-    "get_data_directory",
-    "get_unified_datasets",
     "InfoShuntingDataset",
     "LineDataset",
-    "load_cifar10_as_datasets",
-    "load_mnist_as_datasets",
-    "load_mnist_modulo10",
-    "load_poisson_generator_datasets",
-    "load_synthetic_correlated",
     "MultiTaskLineDataset",
     "MultiXORDataset",
     "NoisyLineDataset",
@@ -58,4 +50,12 @@ __all__ = [
     "RandomFlipMNISTDataset",
     "SparseMNISTDataset",
     "SyntheticCorrelatedDataset",
+    "apply_random_flip",
+    "get_data_directory",
+    "get_unified_datasets",
+    "load_cifar10_as_datasets",
+    "load_mnist_as_datasets",
+    "load_mnist_modulo10",
+    "load_poisson_generator_datasets",
+    "load_synthetic_correlated",
 ]
