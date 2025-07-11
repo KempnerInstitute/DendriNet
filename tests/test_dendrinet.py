@@ -13,7 +13,7 @@ class TestDendriNet(unittest.TestCase):
         excitatory_input_dim = 100
         excitatory_synapses_per_branch = 5
 
-        model = model = DendriNet(
+        _ = model = DendriNet(
             n_soma=n_soma,
             branch_factors=branch_factors,
             excitatory_input_dim=excitatory_input_dim,
@@ -39,7 +39,7 @@ class TestDendriNet(unittest.TestCase):
         excitatory_synapses_per_branch = 3
         batch_size = 4
 
-        model = model = DendriNet(
+        _ = model = DendriNet(
             n_soma=n_soma,
             branch_factors=branch_factors,
             excitatory_input_dim=excitatory_input_dim,
@@ -47,8 +47,8 @@ class TestDendriNet(unittest.TestCase):
             reactivate=True,
         )
 
-        x = x = torch.randn(batch_size, excitatory_input_dim)
-        output = model(x)
+        _ = x = torch.randn(batch_size, excitatory_input_dim)
+        _ = model(x)
 
         # Check that the output has the correct shape
         self.assertEqual(output.shape, (batch_size, n_soma))
@@ -66,7 +66,7 @@ class TestDendriNet(unittest.TestCase):
         inhibitory_synapses_per_branch = 2
         batch_size = 4
 
-        model = model = DendriNet(
+        _ = model = DendriNet(
             n_soma=n_soma,
             branch_factors=branch_factors,
             excitatory_input_dim=excitatory_input_dim,
@@ -76,9 +76,9 @@ class TestDendriNet(unittest.TestCase):
             reactivate=True,
         )
 
-        x = x = torch.randn(batch_size, excitatory_input_dim)
+        _ = x = torch.randn(batch_size, excitatory_input_dim)
         inhibitory_input = inhibitory_input = torch.randn(batch_size, inhibitory_input_dim)
-        output = model(x, inhibitory_input)
+        _ = model(x, inhibitory_input)
 
         # Check that the output has the correct shape
         self.assertEqual(output.shape, (batch_size, n_soma))
@@ -91,7 +91,7 @@ class TestDendriNet(unittest.TestCase):
         excitatory_synapses_per_branch = 3
 
         with self.assertRaises(ValueError):
-            model = DendriNet(
+            _ = DendriNet(
                 n_soma=n_soma,
                 branch_factors=branch_factors,
                 excitatory_input_dim=excitatory_input_dim,
@@ -106,7 +106,7 @@ class TestDendriNet(unittest.TestCase):
         excitatory_synapses_per_branch = -1  # Invalid value
 
         with self.assertRaises(ValueError):
-            model = DendriNet(
+            _ = DendriNet(
                 n_soma=n_soma,
                 branch_factors=branch_factors,
                 excitatory_input_dim=excitatory_input_dim,
@@ -121,7 +121,7 @@ class TestDendriNet(unittest.TestCase):
         excitatory_input_dim = 10
         excitatory_synapses_per_branch = 3
 
-        model = model = DendriNet(
+        _ = model = DendriNet(
             n_soma=n_soma,
             branch_factors=branch_factors,
             excitatory_input_dim=excitatory_input_dim,
@@ -129,8 +129,8 @@ class TestDendriNet(unittest.TestCase):
             reactivate=True,
         )
 
-        x = torch.randn(batch_size, excitatory_input_dim)
-        output = model(x)
+        _ = torch.randn(batch_size, excitatory_input_dim)
+        _ = model(x)
         loss = output.sum()
         loss.backward()
 
@@ -146,7 +146,7 @@ class TestDendriNet(unittest.TestCase):
         excitatory_input_dim = 20
         excitatory_synapses_per_branch = 5
 
-        model = DendriNet(
+        _ = DendriNet(
             n_soma=n_soma,
             branch_factors=branch_factors,
             excitatory_input_dim=excitatory_input_dim,
@@ -154,8 +154,8 @@ class TestDendriNet(unittest.TestCase):
             reactivate=True,
         )
 
-        x = torch.randn(batch_size, excitatory_input_dim)
-        output = model(x)
+        _ = torch.randn(batch_size, excitatory_input_dim)
+        _ = model(x)
 
         self.assertEqual(output.shape, (batch_size, n_soma))
 
@@ -167,7 +167,7 @@ class TestDendriNet(unittest.TestCase):
         excitatory_synapses_per_branch = 3
 
         with self.assertRaises(ValueError):
-            model = DendriNet(
+            _ = DendriNet(
                 n_soma=n_soma,
                 branch_factors=branch_factors,
                 excitatory_input_dim=excitatory_input_dim,
@@ -182,15 +182,15 @@ class TestDendriNet(unittest.TestCase):
         excitatory_input_dim = 100
         excitatory_synapses_per_branch = 5
 
-        model = DendriNet(
+        _ = DendriNet(
             n_soma=n_soma,
             branch_factors=branch_factors,
             excitatory_input_dim=excitatory_input_dim,
             excitatory_synapses_per_branch=excitatory_synapses_per_branch,
         )
 
-        x = torch.randn(batch_size, excitatory_input_dim)
-        output = model(x)
+        _ = torch.randn(batch_size, excitatory_input_dim)
+        _ = model(x)
 
         self.assertEqual(output.shape, (batch_size, n_soma))
 
@@ -204,7 +204,7 @@ class TestDendriNet(unittest.TestCase):
         excitatory_synapses_per_branch = 3
         inhibitory_synapses_per_branch = 2
 
-        model = DendriNet(
+        _ = DendriNet(
             n_soma=n_soma,
             branch_factors=branch_factors,
             excitatory_input_dim=excitatory_input_dim,
@@ -213,9 +213,9 @@ class TestDendriNet(unittest.TestCase):
             inhibitory_synapses_per_branch=inhibitory_synapses_per_branch,
         )
 
-        x = torch.randn(batch_size, excitatory_input_dim)
+        _ = torch.randn(batch_size, excitatory_input_dim)
         inhibitory_input = torch.randn(batch_size, inhibitory_input_dim)
-        output = model(x, inhibitory_input)
+        _ = model(x, inhibitory_input)
 
         self.assertEqual(output.shape, (batch_size, n_soma))
 
@@ -227,7 +227,7 @@ class TestDendriNet(unittest.TestCase):
         excitatory_input_dim = 10
         excitatory_synapses_per_branch = 3
 
-        model = DendriNet(
+        _ = DendriNet(
             n_soma=n_soma,
             branch_factors=branch_factors,
             excitatory_input_dim=excitatory_input_dim,
@@ -235,8 +235,8 @@ class TestDendriNet(unittest.TestCase):
             reactivate=True,
         )
 
-        x = torch.randn(batch_size, excitatory_input_dim)
-        output = model(x)
+        _ = torch.randn(batch_size, excitatory_input_dim)
+        _ = model(x)
 
         # Ensure output is non-negative due to the activation function
         self.assertTrue(torch.all(output >= 0))
@@ -249,7 +249,7 @@ class TestDendriNet(unittest.TestCase):
         excitatory_input_dim = 10
         excitatory_synapses_per_branch = 3
 
-        model = DendriNet(
+        _ = DendriNet(
             n_soma=n_soma,
             branch_factors=branch_factors,
             excitatory_input_dim=excitatory_input_dim,
@@ -257,8 +257,8 @@ class TestDendriNet(unittest.TestCase):
             reactivate=False,
         )
 
-        x = torch.randn(batch_size, excitatory_input_dim)
-        output = model(x)
+        _ = torch.randn(batch_size, excitatory_input_dim)
+        _ = model(x)
 
         # Output can be negative or positive
         self.assertEqual(output.shape, (batch_size, n_soma))
@@ -271,7 +271,7 @@ class TestDendriNet(unittest.TestCase):
         excitatory_input_dim = 100
         excitatory_synapses_per_branch = 10
 
-        model = DendriNet(
+        _ = DendriNet(
             n_soma=n_soma,
             branch_factors=branch_factors,
             excitatory_input_dim=excitatory_input_dim,
@@ -279,8 +279,8 @@ class TestDendriNet(unittest.TestCase):
             reactivate=True,
         )
 
-        x = torch.randn(batch_size, excitatory_input_dim)
-        output = model(x)
+        _ = torch.randn(batch_size, excitatory_input_dim)
+        _ = model(x)
 
         self.assertEqual(output.shape, (batch_size, n_soma))
 
@@ -291,7 +291,7 @@ class TestDendriNet(unittest.TestCase):
         excitatory_input_dim = 10
         excitatory_synapses_per_branch = 3
 
-        model = model = DendriNet(
+        _ = model = DendriNet(
             n_soma=n_soma,
             branch_factors=branch_factors,
             excitatory_input_dim=excitatory_input_dim,
@@ -314,7 +314,7 @@ class TestDendriNet(unittest.TestCase):
         excitatory_input_dim = 5
         excitatory_synapses_per_branch = 2
 
-        model = model = DendriNet(
+        _ = model = DendriNet(
             n_soma=n_soma,
             branch_factors=branch_factors,
             excitatory_input_dim=excitatory_input_dim,
@@ -331,7 +331,7 @@ class TestDendriNet(unittest.TestCase):
         self.assertIsInstance(soma_layer.branches_to_output, BlockLinear)
 
         # Perform forward pass through BlockLinear
-        output = soma_layer.branches_to_output(branch_input)
+        _ = soma_layer.branches_to_output(branch_input)
 
         # Output should have shape (1, n_soma)
         self.assertEqual(output.shape, (1, n_soma))
@@ -346,15 +346,15 @@ class TestDendriNet(unittest.TestCase):
         excitatory_input_dim = 10
         excitatory_synapses_per_branch = 3
 
-        model = model = DendriNet(
+        _ = model = DendriNet(
             n_soma=n_soma,
             branch_factors=branch_factors,
             excitatory_input_dim=excitatory_input_dim,
             excitatory_synapses_per_branch=excitatory_synapses_per_branch,
         )
 
-        x = torch.randn(batch_size, excitatory_input_dim)
-        output = model(x)
+        _ = torch.randn(batch_size, excitatory_input_dim)
+        _ = model(x)
 
         # Check output shape and ensure the forward pass reaches soma layer
         self.assertEqual(output.shape, (batch_size, n_soma))
@@ -369,7 +369,7 @@ class TestDendriNet(unittest.TestCase):
         excitatory_synapses_per_branch = 4
 
         # Initialize model without inhibitory input
-        model = model = DendriNet(
+        _ = model = DendriNet(
             n_soma=n_soma,
             branch_factors=branch_factors,
             excitatory_input_dim=excitatory_input_dim,
@@ -394,7 +394,7 @@ class TestDendriNet(unittest.TestCase):
         inhibitory_synapses_per_branch = 3
 
         # Initialize model with inhibitory input
-        model = model = DendriNet(
+        _ = model = DendriNet(
             n_soma=n_soma,
             branch_factors=branch_factors,
             excitatory_input_dim=excitatory_input_dim,
@@ -422,7 +422,7 @@ class TestDendriNet(unittest.TestCase):
         excitatory_synapses_per_branch = 3
 
         # Initialize model with small dimensions for simple testing
-        model = model = DendriNet(
+        _ = model = DendriNet(
             n_soma=n_soma,
             branch_factors=branch_factors,
             excitatory_input_dim=excitatory_input_dim,
