@@ -483,6 +483,9 @@ topk_strategy: conductance_dynamic
 ```
 
 ### BlockLinear Scaling
+
+![Block Linear Architecture](docs/figures/architecture/block_linear_accurate.png)
+
 ```yaml
 blocklinear_strategy: conductance_dynamic    # Conductance-based scaling
 blocklinear_strategy: distal_upweight_by_idx # Upweight distal branches

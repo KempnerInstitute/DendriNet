@@ -84,13 +84,13 @@ After training, you'll find:
 - Training logs and metrics in `results/[experiment_name]/logs/`
 - Visualizations in `results/[experiment_name]/figures/`
 
-For a detailed walkthrough, see the [documentation](docs/tutorials.rst).
+For a detailed walkthrough, see the [documentation](https://studious-bassoon-39jeoq8.pages.github.io/).
 
 ## Network Architectures
 
 ### EINet (Excitation-Inhibition Networks)
 
-![EINet Architecture](docs/figures/architecture/network_architecture.png)
+![EINet Architecture](docs/figures/architecture/network_architecture_enhanced.png)
 
 The primary architecture featuring separate excitatory and inhibitory pathways with dendritic computation.
 
@@ -118,11 +118,9 @@ model:
 - `use_shunting: true`: V = E/(E+I+1) (biologically plausible divisive inhibition)
 - `use_shunting: false`: V = E-I (simple subtraction)
 
-![Shunting Inhibition](docs/figures/architecture/shunting_inhibition_mechanism.png)
+![Dendritic Computation Flow](docs/figures/architecture/dendritic_computation_flow.png)
 
 ### DendriNet (Pure Dendritic Networks)
-
-![Dendritic Neuron](docs/figures/architecture/dendritic_neuron_schematic.png)
 
 Multi-level branching networks with hierarchical dendritic processing.
 
