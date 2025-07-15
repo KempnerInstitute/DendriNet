@@ -1,0 +1,126 @@
+# Large Dendritic Model Configuration
+# This configuration defines a model too large for a single GPU
+
+model:
+  task: classification
+  
+  encoder_network:
+    type: Identity  # For large models, often better to keep encoder simple
+    parameters: {}
+  
+  core_network:
+    type: EINet
+    parameters:
+      # Transfer function parameters
+      transfer_params:
+        input_mode: 1
+        independent_pathways: true
+        excitatory_dim: 10000  # Large excitatory dimension
+        inhibitory_dim: 10000  # Large inhibitory dimension
+      
+      # Large network architecture
+      # Total parameters: ~10B+ 
+      excitatory_layer_sizes: [5000, 5000, 1000]  # Large layers
+      inhibitory_layer_sizes: [2000, 2000, 500]
+      excitatory_branch_factors: [20, 10, 5]  # Many branches
+      inhibitory_branch_factors: [10, 5]
+      
+      # High synapse counts
+      ee_synapses_per_branch_per_layer: [1000, 1000, 500]
+      ei_synapses_per_branch_per_layer: [500, 500, 250]
+      ie_synapses_per_branch_per_layer: [200, 200, 100]
+      ii_synapses_per_branch_per_layer: [100, 100, 50]
+      
+      somatic_synapses: true
+      use_shunting: true
+      
+      # TopK parameters
+      topk_init_method: xavier_normal
+      topk_noise_level: 0.0
+      topk_type: standard
+      topk_temperature: 0.5
+      topk_ultrafast: true
+      
+      # Reactivation parameters
+      reactivate: true
+      reactivation_type: param_tanh
+      reactivation_init_m: 1.5
+      reactivation_init_b: 0.5
+      
+      # Gradient scaling
+      reactivation_strategy: inverse
+      topk_strategy: conductance_dynamic
+      blocklinear_strategy: conductance_dynamic
+      print_hooks: false
+  
+  decoder_network:
+    type: MLP
+    parameters:
+      hidden_dims: [512, 256]
+      activation: relu
+      output_dim: 1000  # ImageNet-scale classification
+
+train:
+  seed: 0
+  train_valid_split: 0.8
+  
+  # No encoder pretraining for large models
+  encoder: null
+  
+  # Main network training
+  main:
+    learning_strategy: standard  # Start with standard for FSDP
+    weight_decay_rate: 0.0001
+    
+    param_groups:
+      lr: 0.0001  # Lower learning rate for large models
+      split_params: true
+      topk_lr: 0.00005
+      blocklinear_lr: 0.00005
+      reactivation_lr: 0.0001
+      decoder_lr: 0.0001
+    
+    trainer:
+      loss_function: cat_nll
+      epochs: 100
+      early_stopping: true
+      patience: 10
+      batch_size: 32  # Small batch size per GPU
+      shuffle: true
+      grad_clip_value: 1.0  # Important for large models
+      load_best_state_dict: true
+      plot_losses: true
+      suppress_prints: false
+      print_every: 100
+      
+task:
+  dataset: imagenet  # Large-scale dataset
+  data_path: /n/holylfs06/LABS/kempner_shared/Lab/data/imagenet_1k
+  num_classes: 1000
+  train_size: null  # Use full dataset
+  valid_size: 50000
+  test_size: null
+  flatten: false
+  normalize: true
+
+# Analysis disabled for large model training
+analysis:
+  performance_analysis:
+    enabled: false
+  information_analysis:
+    enabled: false
+  weight_analysis:
+    enabled: false
+  ablation_analysis:
+    enabled: false
+
+outputs:
+  run_name: large_model_fsdp
+  dir: results/
+
+wandb:
+  entity: null
+  project: dendritic_large_models
+  group: fsdp_training
+  tags: [large_model, fsdp, imagenet]
+  use_wandb: true 
