@@ -40,6 +40,7 @@ class FSDPTrainer(Trainer):
         fsdp_config: Optional[Dict[str, Any]] = None,
         checkpoint_dir: Optional[str] = None,
         save_every_n_epochs: int = 5,
+        optimizer_config: Optional[Dict[str, Any]] = None,
         **kwargs
     ):
         """
@@ -51,20 +52,38 @@ class FSDPTrainer(Trainer):
             fsdp_config: FSDP configuration
             checkpoint_dir: Directory for checkpoints
             save_every_n_epochs: Checkpoint frequency
+            optimizer_config: Optimizer configuration
             **kwargs: Arguments passed to base Trainer
         """
-        super().__init__(**kwargs)
-        
+        # Store configuration
         self.rank = rank
         self.world_size = world_size
         self.fsdp_config = fsdp_config or get_fsdp_config()
-        self.checkpoint_dir = checkpoint_dir
+        self.checkpoint_dir = checkpoint_dir or f"checkpoints/fsdp_run_{time.time()}"
         self.save_every_n_epochs = save_every_n_epochs
+        self.optimizer_config = optimizer_config or {}
         
-        # Override device
+        # Set device
         self.device = torch.device(f'cuda:{rank}')
         torch.cuda.set_device(rank)
         
+        # Initialize parent with dummy optimizer (we'll create the real one after FSDP wrapping)
+        dummy_optimizer = torch.optim.SGD([torch.zeros(1)], lr=0.01)
+        super().__init__(optimizer=dummy_optimizer, **kwargs)
+        
+        # Create checkpoint directory
+        if self.rank == 0:
+            os.makedirs(self.checkpoint_dir, exist_ok=True)
+        
+        # Initialize loss function based on loss_function parameter
+        loss_fn_name = kwargs.get('loss_function', 'cat_nll')
+        if loss_fn_name == 'cat_nll':
+            self.loss_fn = torch.nn.CrossEntropyLoss()
+        elif loss_fn_name == 'mse':
+            self.loss_fn = torch.nn.MSELoss()
+        else:
+            raise ValueError(f"Unknown loss function: {loss_fn_name}")
+    
     def _wrap_model(self, model: BaseModel) -> BaseModel:
         """Wrap model with FSDP."""
         # Move base model to device first
@@ -95,132 +114,176 @@ class FSDPTrainer(Trainer):
             
         return model
     
-    def _create_distributed_data_loaders(
-        self,
-        train_data: torch.utils.data.Dataset,
-        valid_data: torch.utils.data.Dataset
-    ) -> tuple[DataLoader, DataLoader]:
-        """Create distributed data loaders with DistributedSampler."""
-        # Create distributed samplers
-        train_sampler = DistributedSampler(
-            train_data,
-            num_replicas=self.world_size,
-            rank=self.rank,
-            shuffle=True
-        )
-        valid_sampler = DistributedSampler(
-            valid_data,
-            num_replicas=self.world_size,
-            rank=self.rank,
-            shuffle=False
-        )
+    def create_optimizer(self, model: BaseModel) -> torch.optim.Optimizer:
+        """Create optimizer with FSDP-aware parameter groups."""
+        # Get all parameters first
+        all_params = list(model.parameters())
         
-        # Create data loaders
-        # Note: batch_size is per-GPU batch size
-        train_loader = DataLoader(
-            train_data,
-            batch_size=self.batch_size,
-            sampler=train_sampler,
-            num_workers=4,
-            pin_memory=True,
-            drop_last=True  # Important for FSDP
-        )
+        # If not using split params, use all parameters with single LR
+        if not self.optimizer_config.get('split_params', False):
+            return torch.optim.Adam(
+                all_params,
+                lr=self.optimizer_config.get('lr', 0.001),
+                weight_decay=self.optimizer_config.get('weight_decay', 0.0)
+            )
         
-        valid_loader = DataLoader(
-            valid_data,
-            batch_size=self.batch_size,
-            sampler=valid_sampler,
-            num_workers=4,
-            pin_memory=True
-        )
+        # Otherwise, create parameter groups
+        param_groups = []
+        used_params = set()
         
-        return train_loader, valid_loader
+        # TopK parameters
+        topk_params = []
+        for module in model.modules():
+            if module.__class__.__name__ == 'TopKLinear':
+                for param in module.parameters():
+                    topk_params.append(param)
+                    used_params.add(id(param))
+        if topk_params:
+            param_groups.append({
+                'params': topk_params,
+                'lr': self.optimizer_config.get('topk_lr', 0.001)
+            })
+        
+        # BlockLinear parameters
+        blocklinear_params = []
+        for module in model.modules():
+            if module.__class__.__name__ == 'BlockLinear':
+                blocklinear_params.extend(module.parameters())
+        if blocklinear_params:
+            param_groups.append({
+                'params': blocklinear_params,
+                'lr': self.optimizer_config.get('blocklinear_lr', 0.001)
+            })
+        
+        # Reactivation parameters
+        reactivation_params = []
+        for module in model.modules():
+            if hasattr(module, 'm') and hasattr(module, 'b'):  # ParametricTanh
+                reactivation_params.extend([module.m, module.b])
+        if reactivation_params:
+            param_groups.append({
+                'params': reactivation_params,
+                'lr': self.optimizer_config.get('reactivation_lr', 0.001)
+            })
+        
+        # Decoder parameters
+        decoder_params = []
+        if hasattr(model, 'decoder_network'):
+            decoder_params = list(model.decoder_network.parameters())
+        if decoder_params:
+            param_groups.append({
+                'params': decoder_params,
+                'lr': self.optimizer_config.get('decoder_lr', 0.001)
+            })
+        
+        # All other parameters
+        other_params = [p for p in all_params if id(p) not in used_params]
+        if other_params:
+            param_groups.append({
+                'params': other_params,
+                'lr': self.optimizer_config.get('lr', 0.001)
+            })
+        
+        return torch.optim.Adam(
+            param_groups,
+            weight_decay=self.optimizer_config.get('weight_decay', 0.0)
+        )
     
     def train(
         self,
         model: BaseModel,
-        train_data: torch.utils.data.Dataset,
-        valid_data: torch.utils.data.Dataset,
-    ) -> dict:
+        train_loader: DataLoader,
+        valid_loader: Optional[DataLoader] = None
+    ) -> Dict[str, Any]:
         """
-        Train model with FSDP.
+        Train model using FSDP with pre-created DataLoaders.
         
         Args:
             model: Model to train (will be wrapped with FSDP)
-            train_data: Training dataset
-            valid_data: Validation dataset
+            train_loader: Training DataLoader with DistributedSampler
+            valid_loader: Validation DataLoader with DistributedSampler
             
         Returns:
             Training results dictionary
         """
         # Wrap model with FSDP
-        model = self._wrap_model(model)
+        model = wrap_model_with_fsdp(model, self.fsdp_config)
+        model = model.to(self.device)
         
-        # Create distributed data loaders
-        train_loader, valid_loader = self._create_distributed_data_loaders(
-            train_data, valid_data
-        )
-        
-        # Initialize training state
-        train_losses = []
-        valid_losses = []
-        self._initialize_attributes(model, self.epochs)
+        # Create optimizer after FSDP wrapping
+        self.optimizer = self.create_optimizer(model)
         
         # Training loop
-        for epoch in range(1, self.epochs + 1):
+        train_losses = []
+        valid_losses = []
+        best_valid_loss = float('inf')
+        patience_counter = 0
+        
+        for epoch in range(self.epochs):
+            epoch_start = time.time()
+            
             # Set epoch for distributed sampler
-            train_loader.sampler.set_epoch(epoch)
+            if hasattr(train_loader.sampler, 'set_epoch'):
+                train_loader.sampler.set_epoch(epoch)
             
-            # Run epoch
+            # Training
             train_loss = self._epoch_train_fsdp(model, train_loader)
-            valid_loss = self._epoch_valid_fsdp(model, valid_loader)
-            
-            # Aggregate losses across all processes
-            train_loss = self._reduce_loss(train_loss)
-            valid_loss = self._reduce_loss(valid_loss)
-            
             train_losses.append(train_loss)
-            valid_losses.append(valid_loss)
             
-            # Update best model (on all ranks to stay synchronized)
-            if valid_loss < self.best_loss:
-                self.best_loss = valid_loss
-                self.best_epoch = epoch
+            # Validation
+            valid_loss = None
+            if valid_loader is not None:
+                if hasattr(valid_loader.sampler, 'set_epoch'):
+                    valid_loader.sampler.set_epoch(epoch)
+                valid_loss = self._epoch_valid_fsdp(model, valid_loader)
+                valid_losses.append(valid_loss)
                 
-            # Save checkpoint periodically (rank 0 only)
-            if epoch % self.save_every_n_epochs == 0 and self.checkpoint_dir:
-                self._save_checkpoint(model, epoch)
+                # Early stopping
+                if self.early_stopping and valid_loss < best_valid_loss:
+                    best_valid_loss = valid_loss
+                    patience_counter = 0
+                    if self.rank == 0:
+                        save_fsdp_checkpoint(
+                            model, self.optimizer, epoch, 
+                            os.path.join(self.checkpoint_dir, 'best_model.pt')
+                        )
+                elif self.early_stopping:
+                    patience_counter += 1
+                    if patience_counter >= self.patience:
+                        if self.rank == 0:
+                            logger.info(f"Early stopping at epoch {epoch}")
+                        break
             
-            # Logging (rank 0 only)
-            if self.rank == 0:
-                elapsed = time.time() - self.start_time
-                logger.info(
-                    f"[FSDP] epoch={epoch}/{self.epochs}, "
-                    f"train_loss={train_loss:.4f}, "
-                    f"valid_loss={valid_loss:.4f}, "
-                    f"elapsed={elapsed:.1f}s"
+            # Logging
+            epoch_time = time.time() - epoch_start
+            if self.rank == 0 and epoch % self.print_every == 0:
+                msg = f"Epoch {epoch}/{self.epochs} - Train Loss: {train_loss:.4f}"
+                if valid_loss is not None:
+                    msg += f" - Valid Loss: {valid_loss:.4f}"
+                msg += f" - Time: {epoch_time:.2f}s"
+                logger.info(msg)
+            
+            # Checkpointing
+            if self.rank == 0 and (epoch + 1) % self.save_every_n_epochs == 0:
+                save_fsdp_checkpoint(
+                    model, self.optimizer, epoch,
+                    os.path.join(self.checkpoint_dir, f'checkpoint_epoch_{epoch}.pt')
                 )
-            
-            # Early stopping check
-            if self._check_early_stopping():
-                break
         
-        # Save final checkpoint
-        if self.checkpoint_dir:
-            self._save_checkpoint(model, epoch, is_final=True)
-        
-        results = {
-            "best_epoch": self.best_epoch,
-            "best_loss": self.best_loss,
-            "train_losses": train_losses,
-            "valid_losses": valid_losses,
-        }
-        
-        # Plot losses (rank 0 only)
+        # Final save
         if self.rank == 0:
-            self._loss_plotting(train_losses, valid_losses)
+            save_fsdp_checkpoint(
+                model, self.optimizer, self.epochs - 1,
+                os.path.join(self.checkpoint_dir, 'final_model.pt')
+            )
         
-        return results
+        return {
+            'train_losses': train_losses,
+            'valid_losses': valid_losses,
+            'best_valid_loss': best_valid_loss,
+            'final_train_loss': train_losses[-1] if train_losses else None,
+            'final_valid_loss': valid_losses[-1] if valid_losses else None
+        }
     
     def _epoch_train_fsdp(self, model: BaseModel, train_loader: DataLoader) -> float:
         """Training epoch with FSDP."""
@@ -233,15 +296,19 @@ class FSDPTrainer(Trainer):
             y_batch = y_batch.to(self.device)
             
             # Forward pass
-            loss = self.loss_function(model, x_batch, y_batch)
+            outputs = model(x_batch)
+            loss = self.loss_fn(outputs, y_batch)
             
             # Backward pass
             self.optimizer.zero_grad()
             loss.backward()
             
-            # Gradient clipping (FSDP-aware)
-            if self.grad_clip_value:
-                model.clip_grad_norm_(self.grad_clip_value)
+            # Gradient clipping
+            if self.grad_clip_value is not None:
+                torch.nn.utils.clip_grad_norm_(
+                    model.parameters(), 
+                    self.grad_clip_value
+                )
             
             # Optimizer step
             self.optimizer.step()
@@ -249,7 +316,15 @@ class FSDPTrainer(Trainer):
             total_loss += loss.item()
             num_batches += 1
         
-        return total_loss / num_batches if num_batches > 0 else 0
+        # Average loss across batches
+        avg_loss = total_loss / num_batches
+        
+        # Reduce loss across all processes
+        avg_loss_tensor = torch.tensor(avg_loss, device=self.device)
+        dist.all_reduce(avg_loss_tensor, op=dist.ReduceOp.SUM)
+        avg_loss = avg_loss_tensor.item() / self.world_size
+        
+        return avg_loss
     
     def _epoch_valid_fsdp(self, model: BaseModel, valid_loader: DataLoader) -> float:
         """Validation epoch with FSDP."""
@@ -262,11 +337,22 @@ class FSDPTrainer(Trainer):
                 x_batch = x_batch.to(self.device)
                 y_batch = y_batch.to(self.device)
                 
-                loss = self.loss_function(model, x_batch, y_batch)
+                # Forward pass
+                outputs = model(x_batch)
+                loss = self.loss_fn(outputs, y_batch)
+                
                 total_loss += loss.item()
                 num_batches += 1
         
-        return total_loss / num_batches if num_batches > 0 else 0
+        # Average loss across batches
+        avg_loss = total_loss / num_batches
+        
+        # Reduce loss across all processes
+        avg_loss_tensor = torch.tensor(avg_loss, device=self.device)
+        dist.all_reduce(avg_loss_tensor, op=dist.ReduceOp.SUM)
+        avg_loss = avg_loss_tensor.item() / self.world_size
+        
+        return avg_loss
     
     def _reduce_loss(self, loss: float) -> float:
         """Reduce loss across all processes."""

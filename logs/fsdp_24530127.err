@@ -1,0 +1,248 @@
+[W714 22:54:42.855450729 socket.cpp:755] [c10d] The client socket cannot be initialized to connect to [holygpu8a10302.rc.fas.harvard.edu]:29500 (errno: 97 - Address family not supported by protocol).
+[W714 22:54:42.850855998 socket.cpp:755] [c10d] The client socket cannot be initialized to connect to [holygpu8a10302.rc.fas.harvard.edu]:29500 (errno: 97 - Address family not supported by protocol).
+Traceback (most recent call last):
+  File "/n/netscratch/kempner_dev/hsafaai/conda_envs/dendritic_env/bin/torchrun", line 8, in <module>
+Traceback (most recent call last):
+  File "/n/netscratch/kempner_dev/hsafaai/conda_envs/dendritic_env/bin/torchrun", line 8, in <module>
+Traceback (most recent call last):
+  File "/n/netscratch/kempner_dev/hsafaai/conda_envs/dendritic_env/bin/torchrun", line 8, in <module>
+    sys.exit(main())
+             ^^^^^^
+  File "/n/netscratch/kempner_dev/hsafaai/conda_envs/dendritic_env/lib/python3.11/site-packages/torch/distributed/elastic/multiprocessing/errors/__init__.py", line 355, in wrapper
+    sys.exit(main())
+             ^^^^^^
+  File "/n/netscratch/kempner_dev/hsafaai/conda_envs/dendritic_env/lib/python3.11/site-packages/torch/distributed/elastic/multiprocessing/errors/__init__.py", line 355, in wrapper
+    sys.exit(main())
+             ^^^^^^
+  File "/n/netscratch/kempner_dev/hsafaai/conda_envs/dendritic_env/lib/python3.11/site-packages/torch/distributed/elastic/multiprocessing/errors/__init__.py", line 355, in wrapper
+Traceback (most recent call last):
+  File "/n/netscratch/kempner_dev/hsafaai/conda_envs/dendritic_env/bin/torchrun", line 8, in <module>
+Traceback (most recent call last):
+Traceback (most recent call last):
+  File "/n/netscratch/kempner_dev/hsafaai/conda_envs/dendritic_env/bin/torchrun", line 8, in <module>
+  File "/n/netscratch/kempner_dev/hsafaai/conda_envs/dendritic_env/bin/torchrun", line 8, in <module>
+    sys.exit(main())
+             ^^^^^^
+    sys.exit(main())
+             ^^^^^^
+  File "/n/netscratch/kempner_dev/hsafaai/conda_envs/dendritic_env/lib/python3.11/site-packages/torch/distributed/elastic/multiprocessing/errors/__init__.py", line 355, in wrapper
+  File "/n/netscratch/kempner_dev/hsafaai/conda_envs/dendritic_env/lib/python3.11/site-packages/torch/distributed/elastic/multiprocessing/errors/__init__.py", line 355, in wrapper
+    sys.exit(main())
+             ^^^^^^
+  File "/n/netscratch/kempner_dev/hsafaai/conda_envs/dendritic_env/lib/python3.11/site-packages/torch/distributed/elastic/multiprocessing/errors/__init__.py", line 355, in wrapper
+    return f(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^
+  File "/n/netscratch/kempner_dev/hsafaai/conda_envs/dendritic_env/lib/python3.11/site-packages/torch/distributed/run.py", line 892, in main
+    return f(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^
+  File "/n/netscratch/kempner_dev/hsafaai/conda_envs/dendritic_env/lib/python3.11/site-packages/torch/distributed/run.py", line 892, in main
+    return f(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^
+  File "/n/netscratch/kempner_dev/hsafaai/conda_envs/dendritic_env/lib/python3.11/site-packages/torch/distributed/run.py", line 892, in main
+    return f(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^
+  File "/n/netscratch/kempner_dev/hsafaai/conda_envs/dendritic_env/lib/python3.11/site-packages/torch/distributed/run.py", line 892, in main
+    return f(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^
+  File "/n/netscratch/kempner_dev/hsafaai/conda_envs/dendritic_env/lib/python3.11/site-packages/torch/distributed/run.py", line 892, in main
+    return f(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^
+  File "/n/netscratch/kempner_dev/hsafaai/conda_envs/dendritic_env/lib/python3.11/site-packages/torch/distributed/run.py", line 892, in main
+    run(args)
+  File "/n/netscratch/kempner_dev/hsafaai/conda_envs/dendritic_env/lib/python3.11/site-packages/torch/distributed/run.py", line 883, in run
+    run(args)
+  File "/n/netscratch/kempner_dev/hsafaai/conda_envs/dendritic_env/lib/python3.11/site-packages/torch/distributed/run.py", line 883, in run
+    run(args)
+  File "/n/netscratch/kempner_dev/hsafaai/conda_envs/dendritic_env/lib/python3.11/site-packages/torch/distributed/run.py", line 883, in run
+    elastic_launch(
+  File "/n/netscratch/kempner_dev/hsafaai/conda_envs/dendritic_env/lib/python3.11/site-packages/torch/distributed/launcher/api.py", line 139, in __call__
+    elastic_launch(
+  File "/n/netscratch/kempner_dev/hsafaai/conda_envs/dendritic_env/lib/python3.11/site-packages/torch/distributed/launcher/api.py", line 139, in __call__
+    elastic_launch(
+  File "/n/netscratch/kempner_dev/hsafaai/conda_envs/dendritic_env/lib/python3.11/site-packages/torch/distributed/launcher/api.py", line 139, in __call__
+    return launch_agent(self._config, self._entrypoint, list(args))
+    return launch_agent(self._config, self._entrypoint, list(args))
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/n/netscratch/kempner_dev/hsafaai/conda_envs/dendritic_env/lib/python3.11/site-packages/torch/distributed/launcher/api.py", line 261, in launch_agent
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/n/netscratch/kempner_dev/hsafaai/conda_envs/dendritic_env/lib/python3.11/site-packages/torch/distributed/launcher/api.py", line 261, in launch_agent
+    return launch_agent(self._config, self._entrypoint, list(args))
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/n/netscratch/kempner_dev/hsafaai/conda_envs/dendritic_env/lib/python3.11/site-packages/torch/distributed/launcher/api.py", line 261, in launch_agent
+    result = agent.run()
+    result = agent.run()
+             ^^^^^^^^^^^
+  File "/n/netscratch/kempner_dev/hsafaai/conda_envs/dendritic_env/lib/python3.11/site-packages/torch/distributed/elastic/metrics/api.py", line 138, in wrapper
+             ^^^^^^^^^^^
+  File "/n/netscratch/kempner_dev/hsafaai/conda_envs/dendritic_env/lib/python3.11/site-packages/torch/distributed/elastic/metrics/api.py", line 138, in wrapper
+    run(args)
+  File "/n/netscratch/kempner_dev/hsafaai/conda_envs/dendritic_env/lib/python3.11/site-packages/torch/distributed/run.py", line 883, in run
+    run(args)
+  File "/n/netscratch/kempner_dev/hsafaai/conda_envs/dendritic_env/lib/python3.11/site-packages/torch/distributed/run.py", line 883, in run
+    run(args)
+  File "/n/netscratch/kempner_dev/hsafaai/conda_envs/dendritic_env/lib/python3.11/site-packages/torch/distributed/run.py", line 883, in run
+    result = agent.run()
+             ^^^^^^^^^^^
+  File "/n/netscratch/kempner_dev/hsafaai/conda_envs/dendritic_env/lib/python3.11/site-packages/torch/distributed/elastic/metrics/api.py", line 138, in wrapper
+    result = f(*args, **kwargs)
+    result = f(*args, **kwargs)
+             ^^^^^^^^^^^^^^^^^^
+  File "/n/netscratch/kempner_dev/hsafaai/conda_envs/dendritic_env/lib/python3.11/site-packages/torch/distributed/elastic/agent/server/api.py", line 711, in run
+             ^^^^^^^^^^^^^^^^^^
+  File "/n/netscratch/kempner_dev/hsafaai/conda_envs/dendritic_env/lib/python3.11/site-packages/torch/distributed/elastic/agent/server/api.py", line 711, in run
+    result = f(*args, **kwargs)
+             ^^^^^^^^^^^^^^^^^^
+  File "/n/netscratch/kempner_dev/hsafaai/conda_envs/dendritic_env/lib/python3.11/site-packages/torch/distributed/elastic/agent/server/api.py", line 711, in run
+    elastic_launch(
+  File "/n/netscratch/kempner_dev/hsafaai/conda_envs/dendritic_env/lib/python3.11/site-packages/torch/distributed/launcher/api.py", line 139, in __call__
+    elastic_launch(
+  File "/n/netscratch/kempner_dev/hsafaai/conda_envs/dendritic_env/lib/python3.11/site-packages/torch/distributed/launcher/api.py", line 139, in __call__
+    elastic_launch(
+  File "/n/netscratch/kempner_dev/hsafaai/conda_envs/dendritic_env/lib/python3.11/site-packages/torch/distributed/launcher/api.py", line 139, in __call__
+    result = self._invoke_run(role)
+    result = self._invoke_run(role)
+             ^^^^^^^^^^^^^^^^^^^^^^
+  File "/n/netscratch/kempner_dev/hsafaai/conda_envs/dendritic_env/lib/python3.11/site-packages/torch/distributed/elastic/agent/server/api.py", line 864, in _invoke_run
+             ^^^^^^^^^^^^^^^^^^^^^^
+  File "/n/netscratch/kempner_dev/hsafaai/conda_envs/dendritic_env/lib/python3.11/site-packages/torch/distributed/elastic/agent/server/api.py", line 864, in _invoke_run
+    result = self._invoke_run(role)
+             ^^^^^^^^^^^^^^^^^^^^^^
+  File "/n/netscratch/kempner_dev/hsafaai/conda_envs/dendritic_env/lib/python3.11/site-packages/torch/distributed/elastic/agent/server/api.py", line 864, in _invoke_run
+    return launch_agent(self._config, self._entrypoint, list(args))
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/n/netscratch/kempner_dev/hsafaai/conda_envs/dendritic_env/lib/python3.11/site-packages/torch/distributed/launcher/api.py", line 261, in launch_agent
+    return launch_agent(self._config, self._entrypoint, list(args))
+    return launch_agent(self._config, self._entrypoint, list(args))
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/n/netscratch/kempner_dev/hsafaai/conda_envs/dendritic_env/lib/python3.11/site-packages/torch/distributed/launcher/api.py", line 261, in launch_agent
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/n/netscratch/kempner_dev/hsafaai/conda_envs/dendritic_env/lib/python3.11/site-packages/torch/distributed/launcher/api.py", line 261, in launch_agent
+    self._initialize_workers(self._worker_group)
+  File "/n/netscratch/kempner_dev/hsafaai/conda_envs/dendritic_env/lib/python3.11/site-packages/torch/distributed/elastic/metrics/api.py", line 138, in wrapper
+    self._initialize_workers(self._worker_group)
+  File "/n/netscratch/kempner_dev/hsafaai/conda_envs/dendritic_env/lib/python3.11/site-packages/torch/distributed/elastic/metrics/api.py", line 138, in wrapper
+    result = agent.run()
+             ^^^^^^^^^^^
+  File "/n/netscratch/kempner_dev/hsafaai/conda_envs/dendritic_env/lib/python3.11/site-packages/torch/distributed/elastic/metrics/api.py", line 138, in wrapper
+    self._initialize_workers(self._worker_group)
+  File "/n/netscratch/kempner_dev/hsafaai/conda_envs/dendritic_env/lib/python3.11/site-packages/torch/distributed/elastic/metrics/api.py", line 138, in wrapper
+    result = f(*args, **kwargs)
+    result = agent.run()
+    result = agent.run()
+             ^^^^^^^^^^^^^^^^^^
+  File "/n/netscratch/kempner_dev/hsafaai/conda_envs/dendritic_env/lib/python3.11/site-packages/torch/distributed/elastic/agent/server/api.py", line 683, in _initialize_workers
+             ^^^^^^^^^^^
+  File "/n/netscratch/kempner_dev/hsafaai/conda_envs/dendritic_env/lib/python3.11/site-packages/torch/distributed/elastic/metrics/api.py", line 138, in wrapper
+             ^^^^^^^^^^^
+  File "/n/netscratch/kempner_dev/hsafaai/conda_envs/dendritic_env/lib/python3.11/site-packages/torch/distributed/elastic/metrics/api.py", line 138, in wrapper
+    result = f(*args, **kwargs)
+             ^^^^^^^^^^^^^^^^^^
+  File "/n/netscratch/kempner_dev/hsafaai/conda_envs/dendritic_env/lib/python3.11/site-packages/torch/distributed/elastic/agent/server/api.py", line 683, in _initialize_workers
+    result = f(*args, **kwargs)
+             ^^^^^^^^^^^^^^^^^^
+  File "/n/netscratch/kempner_dev/hsafaai/conda_envs/dendritic_env/lib/python3.11/site-packages/torch/distributed/elastic/agent/server/api.py", line 683, in _initialize_workers
+    self._rendezvous(worker_group)
+  File "/n/netscratch/kempner_dev/hsafaai/conda_envs/dendritic_env/lib/python3.11/site-packages/torch/distributed/elastic/metrics/api.py", line 138, in wrapper
+    self._rendezvous(worker_group)
+  File "/n/netscratch/kempner_dev/hsafaai/conda_envs/dendritic_env/lib/python3.11/site-packages/torch/distributed/elastic/metrics/api.py", line 138, in wrapper
+    self._rendezvous(worker_group)
+  File "/n/netscratch/kempner_dev/hsafaai/conda_envs/dendritic_env/lib/python3.11/site-packages/torch/distributed/elastic/metrics/api.py", line 138, in wrapper
+    result = f(*args, **kwargs)
+             ^^^^^^^^^^^^^^^^^^
+  File "/n/netscratch/kempner_dev/hsafaai/conda_envs/dendritic_env/lib/python3.11/site-packages/torch/distributed/elastic/agent/server/api.py", line 500, in _rendezvous
+    result = f(*args, **kwargs)
+    result = f(*args, **kwargs)
+             ^^^^^^^^^^^^^^^^^^
+  File "/n/netscratch/kempner_dev/hsafaai/conda_envs/dendritic_env/lib/python3.11/site-packages/torch/distributed/elastic/agent/server/api.py", line 500, in _rendezvous
+    result = f(*args, **kwargs)
+    result = f(*args, **kwargs)
+             ^^^^^^^^^^^^^^^^^^
+  File "/n/netscratch/kempner_dev/hsafaai/conda_envs/dendritic_env/lib/python3.11/site-packages/torch/distributed/elastic/agent/server/api.py", line 711, in run
+             ^^^^^^^^^^^^^^^^^^
+  File "/n/netscratch/kempner_dev/hsafaai/conda_envs/dendritic_env/lib/python3.11/site-packages/torch/distributed/elastic/agent/server/api.py", line 711, in run
+             ^^^^^^^^^^^^^^^^^^
+  File "/n/netscratch/kempner_dev/hsafaai/conda_envs/dendritic_env/lib/python3.11/site-packages/torch/distributed/elastic/agent/server/api.py", line 711, in run
+    rdzv_info = spec.rdzv_handler.next_rendezvous()
+                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/n/netscratch/kempner_dev/hsafaai/conda_envs/dendritic_env/lib/python3.11/site-packages/torch/distributed/elastic/rendezvous/static_tcp_rendezvous.py", line 67, in next_rendezvous
+    rdzv_info = spec.rdzv_handler.next_rendezvous()
+                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/n/netscratch/kempner_dev/hsafaai/conda_envs/dendritic_env/lib/python3.11/site-packages/torch/distributed/elastic/rendezvous/static_tcp_rendezvous.py", line 67, in next_rendezvous
+    self._store = TCPStore(  # type: ignore[call-arg]
+                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    result = self._invoke_run(role)
+    result = self._invoke_run(role)
+torch.distributed.DistNetworkError: The server socket has failed to listen on any local network address. port: 29500, useIpv6: false, code: -98, name: EADDRINUSE, message: address already in use
+             ^^^^^^^^^^^^^^^^^^^^^^
+  File "/n/netscratch/kempner_dev/hsafaai/conda_envs/dendritic_env/lib/python3.11/site-packages/torch/distributed/elastic/agent/server/api.py", line 864, in _invoke_run
+             ^^^^^^^^^^^^^^^^^^^^^^
+  File "/n/netscratch/kempner_dev/hsafaai/conda_envs/dendritic_env/lib/python3.11/site-packages/torch/distributed/elastic/agent/server/api.py", line 864, in _invoke_run
+    result = self._invoke_run(role)
+             ^^^^^^^^^^^^^^^^^^^^^^
+  File "/n/netscratch/kempner_dev/hsafaai/conda_envs/dendritic_env/lib/python3.11/site-packages/torch/distributed/elastic/agent/server/api.py", line 864, in _invoke_run
+    self._store = TCPStore(  # type: ignore[call-arg]
+                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+torch.distributed.DistNetworkError: The server socket has failed to listen on any local network address. port: 29500, useIpv6: false, code: -98, name: EADDRINUSE, message: address already in use
+    self._initialize_workers(self._worker_group)
+    self._initialize_workers(self._worker_group)
+  File "/n/netscratch/kempner_dev/hsafaai/conda_envs/dendritic_env/lib/python3.11/site-packages/torch/distributed/elastic/metrics/api.py", line 138, in wrapper
+  File "/n/netscratch/kempner_dev/hsafaai/conda_envs/dendritic_env/lib/python3.11/site-packages/torch/distributed/elastic/metrics/api.py", line 138, in wrapper
+    self._initialize_workers(self._worker_group)
+  File "/n/netscratch/kempner_dev/hsafaai/conda_envs/dendritic_env/lib/python3.11/site-packages/torch/distributed/elastic/metrics/api.py", line 138, in wrapper
+    result = f(*args, **kwargs)
+             ^^^^^^^^^^^^^^^^^^
+  File "/n/netscratch/kempner_dev/hsafaai/conda_envs/dendritic_env/lib/python3.11/site-packages/torch/distributed/elastic/agent/server/api.py", line 500, in _rendezvous
+    result = f(*args, **kwargs)
+    result = f(*args, **kwargs)
+             ^^^^^^^^^^^^^^^^^^
+  File "/n/netscratch/kempner_dev/hsafaai/conda_envs/dendritic_env/lib/python3.11/site-packages/torch/distributed/elastic/agent/server/api.py", line 683, in _initialize_workers
+             ^^^^^^^^^^^^^^^^^^
+  File "/n/netscratch/kempner_dev/hsafaai/conda_envs/dendritic_env/lib/python3.11/site-packages/torch/distributed/elastic/agent/server/api.py", line 683, in _initialize_workers
+    result = f(*args, **kwargs)
+             ^^^^^^^^^^^^^^^^^^
+  File "/n/netscratch/kempner_dev/hsafaai/conda_envs/dendritic_env/lib/python3.11/site-packages/torch/distributed/elastic/agent/server/api.py", line 683, in _initialize_workers
+    rdzv_info = spec.rdzv_handler.next_rendezvous()
+                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/n/netscratch/kempner_dev/hsafaai/conda_envs/dendritic_env/lib/python3.11/site-packages/torch/distributed/elastic/rendezvous/static_tcp_rendezvous.py", line 67, in next_rendezvous
+    self._rendezvous(worker_group)
+    self._rendezvous(worker_group)
+  File "/n/netscratch/kempner_dev/hsafaai/conda_envs/dendritic_env/lib/python3.11/site-packages/torch/distributed/elastic/metrics/api.py", line 138, in wrapper
+  File "/n/netscratch/kempner_dev/hsafaai/conda_envs/dendritic_env/lib/python3.11/site-packages/torch/distributed/elastic/metrics/api.py", line 138, in wrapper
+    self._rendezvous(worker_group)
+  File "/n/netscratch/kempner_dev/hsafaai/conda_envs/dendritic_env/lib/python3.11/site-packages/torch/distributed/elastic/metrics/api.py", line 138, in wrapper
+    self._store = TCPStore(  # type: ignore[call-arg]
+                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+torch.distributed.DistNetworkError: The server socket has failed to listen on any local network address. port: 29500, useIpv6: false, code: -98, name: EADDRINUSE, message: address already in use
+    result = f(*args, **kwargs)
+             ^^^^^^^^^^^^^^^^^^
+  File "/n/netscratch/kempner_dev/hsafaai/conda_envs/dendritic_env/lib/python3.11/site-packages/torch/distributed/elastic/agent/server/api.py", line 500, in _rendezvous
+    result = f(*args, **kwargs)
+    result = f(*args, **kwargs)
+             ^^^^^^^^^^^^^^^^^^
+  File "/n/netscratch/kempner_dev/hsafaai/conda_envs/dendritic_env/lib/python3.11/site-packages/torch/distributed/elastic/agent/server/api.py", line 500, in _rendezvous
+             ^^^^^^^^^^^^^^^^^^
+  File "/n/netscratch/kempner_dev/hsafaai/conda_envs/dendritic_env/lib/python3.11/site-packages/torch/distributed/elastic/agent/server/api.py", line 500, in _rendezvous
+    rdzv_info = spec.rdzv_handler.next_rendezvous()
+    rdzv_info = spec.rdzv_handler.next_rendezvous()
+                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/n/netscratch/kempner_dev/hsafaai/conda_envs/dendritic_env/lib/python3.11/site-packages/torch/distributed/elastic/rendezvous/static_tcp_rendezvous.py", line 67, in next_rendezvous
+                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/n/netscratch/kempner_dev/hsafaai/conda_envs/dendritic_env/lib/python3.11/site-packages/torch/distributed/elastic/rendezvous/static_tcp_rendezvous.py", line 67, in next_rendezvous
+    rdzv_info = spec.rdzv_handler.next_rendezvous()
+                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/n/netscratch/kempner_dev/hsafaai/conda_envs/dendritic_env/lib/python3.11/site-packages/torch/distributed/elastic/rendezvous/static_tcp_rendezvous.py", line 67, in next_rendezvous
+    self._store = TCPStore(  # type: ignore[call-arg]
+                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+torch.distributed.DistNetworkError: The server socket has failed to listen on any local network address. port: 29500, useIpv6: false, code: -98, name: EADDRINUSE, message: address already in use
+    self._store = TCPStore(  # type: ignore[call-arg]
+                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+torch.distributed.DistNetworkError: The server socket has failed to listen on any local network address. port: 29500, useIpv6: false, code: -98, name: EADDRINUSE, message: address already in use
+    self._store = TCPStore(  # type: ignore[call-arg]
+                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+torch.distributed.DistNetworkError: The server socket has failed to listen on any local network address. port: 29500, useIpv6: false, code: -98, name: EADDRINUSE, message: address already in use
+srun: error: holygpu8a10402: tasks 4-6: Exited with exit code 1
+srun: error: holygpu8a10302: tasks 0,2-3: Exited with exit code 1
+srun: got SIGCONT
+slurmstepd: error: *** STEP 24530127.0 ON holygpu8a10302 CANCELLED AT 2025-07-14T23:06:10 ***
+slurmstepd: error: *** JOB 24530127 ON holygpu8a10302 CANCELLED AT 2025-07-14T23:06:10 ***
+srun: forcing job termination

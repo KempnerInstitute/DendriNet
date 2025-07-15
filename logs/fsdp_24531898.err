@@ -1,0 +1,146 @@
+[W714 23:17:46.771752298 socket.cpp:755] [c10d] The client socket cannot be initialized to connect to [holygpu8a10402.rc.fas.harvard.edu]:30398 (errno: 97 - Address family not supported by protocol).
+Traceback (most recent call last):
+  File "/n/holylabs/kempner_dev/Users/hsafaai/Code/dendritic-modeling/src/dendritic_modeling/scripts/train_large_model_fsdp.py", line 25, in <module>
+Traceback (most recent call last):
+  File "/n/holylabs/kempner_dev/Users/hsafaai/Code/dendritic-modeling/src/dendritic_modeling/scripts/train_large_model_fsdp.py", line 25, in <module>
+Traceback (most recent call last):
+Traceback (most recent call last):
+  File "/n/holylabs/kempner_dev/Users/hsafaai/Code/dendritic-modeling/src/dendritic_modeling/scripts/train_large_model_fsdp.py", line 25, in <module>
+  File "/n/holylabs/kempner_dev/Users/hsafaai/Code/dendritic-modeling/src/dendritic_modeling/scripts/train_large_model_fsdp.py", line 25, in <module>
+    from dendritic_modeling import logger
+  File "/n/holylabs/kempner_dev/Users/hsafaai/Code/dendritic-modeling/src/dendritic_modeling/__init__.py", line 31, in <module>
+    from dendritic_modeling import logger
+  File "/n/holylabs/kempner_dev/Users/hsafaai/Code/dendritic-modeling/src/dendritic_modeling/__init__.py", line 31, in <module>
+    from dendritic_modeling import logger
+  File "/n/holylabs/kempner_dev/Users/hsafaai/Code/dendritic-modeling/src/dendritic_modeling/__init__.py", line 31, in <module>
+    from dendritic_modeling import logger
+  File "/n/holylabs/kempner_dev/Users/hsafaai/Code/dendritic-modeling/src/dendritic_modeling/__init__.py", line 31, in <module>
+                from dendritic_modeling import (  # noqa: E402from dendritic_modeling import (  # noqa: E402from dendritic_modeling import (  # noqa: E402from dendritic_modeling import (  # noqa: E402
+
+
+
+  File "/n/holylabs/kempner_dev/Users/hsafaai/Code/dendritic-modeling/src/dendritic_modeling/analysis/__init__.py", line 38, in <module>
+  File "/n/holylabs/kempner_dev/Users/hsafaai/Code/dendritic-modeling/src/dendritic_modeling/analysis/__init__.py", line 38, in <module>
+  File "/n/holylabs/kempner_dev/Users/hsafaai/Code/dendritic-modeling/src/dendritic_modeling/analysis/__init__.py", line 38, in <module>
+  File "/n/holylabs/kempner_dev/Users/hsafaai/Code/dendritic-modeling/src/dendritic_modeling/analysis/__init__.py", line 38, in <module>
+                from .core import (from .core import (from .core import (from .core import (
+
+
+
+  File "/n/holylabs/kempner_dev/Users/hsafaai/Code/dendritic-modeling/src/dendritic_modeling/analysis/core/__init__.py", line 3, in <module>
+  File "/n/holylabs/kempner_dev/Users/hsafaai/Code/dendritic-modeling/src/dendritic_modeling/analysis/core/__init__.py", line 3, in <module>
+  File "/n/holylabs/kempner_dev/Users/hsafaai/Code/dendritic-modeling/src/dendritic_modeling/analysis/core/__init__.py", line 3, in <module>
+  File "/n/holylabs/kempner_dev/Users/hsafaai/Code/dendritic-modeling/src/dendritic_modeling/analysis/core/__init__.py", line 3, in <module>
+                from .ablation import AblationAnalyzerfrom .ablation import AblationAnalyzerfrom .ablation import AblationAnalyzerfrom .ablation import AblationAnalyzer
+
+
+
+  File "/n/holylabs/kempner_dev/Users/hsafaai/Code/dendritic-modeling/src/dendritic_modeling/analysis/core/ablation.py", line 18, in <module>
+  File "/n/holylabs/kempner_dev/Users/hsafaai/Code/dendritic-modeling/src/dendritic_modeling/analysis/core/ablation.py", line 18, in <module>
+  File "/n/holylabs/kempner_dev/Users/hsafaai/Code/dendritic-modeling/src/dendritic_modeling/analysis/core/ablation.py", line 18, in <module>
+  File "/n/holylabs/kempner_dev/Users/hsafaai/Code/dendritic-modeling/src/dendritic_modeling/analysis/core/ablation.py", line 18, in <module>
+                from dendritic_modeling.training.utils.evaluation import (from dendritic_modeling.training.utils.evaluation import (from dendritic_modeling.training.utils.evaluation import (from dendritic_modeling.training.utils.evaluation import (
+
+
+
+  File "/n/holylabs/kempner_dev/Users/hsafaai/Code/dendritic-modeling/src/dendritic_modeling/training/__init__.py", line 8, in <module>
+  File "/n/holylabs/kempner_dev/Users/hsafaai/Code/dendritic-modeling/src/dendritic_modeling/training/__init__.py", line 8, in <module>
+  File "/n/holylabs/kempner_dev/Users/hsafaai/Code/dendritic-modeling/src/dendritic_modeling/training/__init__.py", line 8, in <module>
+  File "/n/holylabs/kempner_dev/Users/hsafaai/Code/dendritic-modeling/src/dendritic_modeling/training/__init__.py", line 8, in <module>
+                from dendritic_modeling.training.factory import (from dendritic_modeling.training.factory import (from dendritic_modeling.training.factory import (from dendritic_modeling.training.factory import (
+
+
+
+  File "/n/holylabs/kempner_dev/Users/hsafaai/Code/dendritic-modeling/src/dendritic_modeling/training/factory.py", line 14, in <module>
+  File "/n/holylabs/kempner_dev/Users/hsafaai/Code/dendritic-modeling/src/dendritic_modeling/training/factory.py", line 14, in <module>
+  File "/n/holylabs/kempner_dev/Users/hsafaai/Code/dendritic-modeling/src/dendritic_modeling/training/factory.py", line 14, in <module>
+  File "/n/holylabs/kempner_dev/Users/hsafaai/Code/dendritic-modeling/src/dendritic_modeling/training/factory.py", line 14, in <module>
+                from dendritic_modeling.training.strategies import (from dendritic_modeling.training.strategies import (from dendritic_modeling.training.strategies import (from dendritic_modeling.training.strategies import (
+
+
+
+  File "/n/holylabs/kempner_dev/Users/hsafaai/Code/dendritic-modeling/src/dendritic_modeling/training/strategies/__init__.py", line 8, in <module>
+  File "/n/holylabs/kempner_dev/Users/hsafaai/Code/dendritic-modeling/src/dendritic_modeling/training/strategies/__init__.py", line 8, in <module>
+  File "/n/holylabs/kempner_dev/Users/hsafaai/Code/dendritic-modeling/src/dendritic_modeling/training/strategies/__init__.py", line 8, in <module>
+  File "/n/holylabs/kempner_dev/Users/hsafaai/Code/dendritic-modeling/src/dendritic_modeling/training/strategies/__init__.py", line 8, in <module>
+                from dendritic_modeling.training.strategies.layerwise import LayerWiseTrainerfrom dendritic_modeling.training.strategies.layerwise import LayerWiseTrainerfrom dendritic_modeling.training.strategies.layerwise import LayerWiseTrainerfrom dendritic_modeling.training.strategies.layerwise import LayerWiseTrainer
+
+
+
+  File "/n/holylabs/kempner_dev/Users/hsafaai/Code/dendritic-modeling/src/dendritic_modeling/training/strategies/layerwise.py", line 14, in <module>
+  File "/n/holylabs/kempner_dev/Users/hsafaai/Code/dendritic-modeling/src/dendritic_modeling/training/strategies/layerwise.py", line 14, in <module>
+  File "/n/holylabs/kempner_dev/Users/hsafaai/Code/dendritic-modeling/src/dendritic_modeling/training/strategies/layerwise.py", line 14, in <module>
+  File "/n/holylabs/kempner_dev/Users/hsafaai/Code/dendritic-modeling/src/dendritic_modeling/training/strategies/layerwise.py", line 14, in <module>
+                from dendritic_modeling.training.strategies.standard import Trainerfrom dendritic_modeling.training.strategies.standard import Trainerfrom dendritic_modeling.training.strategies.standard import Trainerfrom dendritic_modeling.training.strategies.standard import Trainer
+
+
+
+  File "/n/holylabs/kempner_dev/Users/hsafaai/Code/dendritic-modeling/src/dendritic_modeling/training/strategies/standard.py", line 20, in <module>
+  File "/n/holylabs/kempner_dev/Users/hsafaai/Code/dendritic-modeling/src/dendritic_modeling/training/strategies/standard.py", line 20, in <module>
+  File "/n/holylabs/kempner_dev/Users/hsafaai/Code/dendritic-modeling/src/dendritic_modeling/training/strategies/standard.py", line 20, in <module>
+  File "/n/holylabs/kempner_dev/Users/hsafaai/Code/dendritic-modeling/src/dendritic_modeling/training/strategies/standard.py", line 20, in <module>
+                from dendritic_modeling.plotting import plot_loss_curvesfrom dendritic_modeling.plotting import plot_loss_curvesfrom dendritic_modeling.plotting import plot_loss_curvesfrom dendritic_modeling.plotting import plot_loss_curves
+
+
+
+  File "/n/holylabs/kempner_dev/Users/hsafaai/Code/dendritic-modeling/src/dendritic_modeling/plotting/__init__.py", line 17, in <module>
+  File "/n/holylabs/kempner_dev/Users/hsafaai/Code/dendritic-modeling/src/dendritic_modeling/plotting/__init__.py", line 17, in <module>
+  File "/n/holylabs/kempner_dev/Users/hsafaai/Code/dendritic-modeling/src/dendritic_modeling/plotting/__init__.py", line 17, in <module>
+  File "/n/holylabs/kempner_dev/Users/hsafaai/Code/dendritic-modeling/src/dendritic_modeling/plotting/__init__.py", line 17, in <module>
+                from dendritic_modeling.plotting.analysis import (from dendritic_modeling.plotting.analysis import (from dendritic_modeling.plotting.analysis import (from dendritic_modeling.plotting.analysis import (
+
+
+
+  File "/n/holylabs/kempner_dev/Users/hsafaai/Code/dendritic-modeling/src/dendritic_modeling/plotting/analysis.py", line 607
+  File "/n/holylabs/kempner_dev/Users/hsafaai/Code/dendritic-modeling/src/dendritic_modeling/plotting/analysis.py", line 607
+  File "/n/holylabs/kempner_dev/Users/hsafaai/Code/dendritic-modeling/src/dendritic_modeling/plotting/analysis.py", line 607
+  File "/n/holylabs/kempner_dev/Users/hsafaai/Code/dendritic-modeling/src/dendritic_modeling/plotting/analysis.py", line 607
+                ax.set_xticks(layer_indices)
+ax.set_xticks(layer_indices)
+ax.set_xticks(layer_indices)
+ax.set_xticks(layer_indices)
+                ^^^^
+
+
+
+IndentationErrorIndentationErrorIndentationErrorIndentationError: : : : expected an indented block after 'if' statement on line 606expected an indented block after 'if' statement on line 606expected an indented block after 'if' statement on line 606expected an indented block after 'if' statement on line 606
+
+
+
+W0714 23:18:00.889000 3783310 site-packages/torch/distributed/elastic/multiprocessing/api.py:900] Sending process 3783325 closing signal SIGTERM
+W0714 23:18:00.890000 3783310 site-packages/torch/distributed/elastic/multiprocessing/api.py:900] Sending process 3783326 closing signal SIGTERM
+W0714 23:18:00.890000 3783310 site-packages/torch/distributed/elastic/multiprocessing/api.py:900] Sending process 3783327 closing signal SIGTERM
+E0714 23:18:00.906000 3783310 site-packages/torch/distributed/elastic/multiprocessing/api.py:874] failed (exitcode: 1) local_rank: 0 (pid: 3783324) of binary: /n/netscratch/kempner_dev/hsafaai/conda_envs/dendritic_env/bin/python3.11
+Traceback (most recent call last):
+  File "/n/netscratch/kempner_dev/hsafaai/conda_envs/dendritic_env/bin/torchrun", line 8, in <module>
+    sys.exit(main())
+             ^^^^^^
+  File "/n/netscratch/kempner_dev/hsafaai/conda_envs/dendritic_env/lib/python3.11/site-packages/torch/distributed/elastic/multiprocessing/errors/__init__.py", line 355, in wrapper
+    return f(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^
+  File "/n/netscratch/kempner_dev/hsafaai/conda_envs/dendritic_env/lib/python3.11/site-packages/torch/distributed/run.py", line 892, in main
+    run(args)
+  File "/n/netscratch/kempner_dev/hsafaai/conda_envs/dendritic_env/lib/python3.11/site-packages/torch/distributed/run.py", line 883, in run
+    elastic_launch(
+  File "/n/netscratch/kempner_dev/hsafaai/conda_envs/dendritic_env/lib/python3.11/site-packages/torch/distributed/launcher/api.py", line 139, in __call__
+    return launch_agent(self._config, self._entrypoint, list(args))
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/n/netscratch/kempner_dev/hsafaai/conda_envs/dendritic_env/lib/python3.11/site-packages/torch/distributed/launcher/api.py", line 270, in launch_agent
+    raise ChildFailedError(
+torch.distributed.elastic.multiprocessing.errors.ChildFailedError: 
+============================================================
+src/dendritic_modeling/scripts/train_large_model_fsdp.py FAILED
+------------------------------------------------------------
+Failures:
+  <NO_OTHER_FAILURES>
+------------------------------------------------------------
+Root Cause (first observed failure):
+[0]:
+  time      : 2025-07-14_23:18:00
+  host      : holygpu8a10402.rc.fas.harvard.edu
+  rank      : 0 (local_rank: 0)
+  exitcode  : 1 (pid: 3783324)
+  error_file: <N/A>
+  traceback : To enable traceback see: https://pytorch.org/docs/stable/elastic/errors.html
+============================================================
+srun: error: holygpu8a10402: task 0: Exited with exit code 1
