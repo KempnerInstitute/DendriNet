@@ -1,0 +1,17 @@
+{
+    "exc": {
+        "active": [],
+        "stable": [],
+        "transient": []
+    },
+    "inh": {
+        "active": [],
+        "stable": [],
+        "transient": []
+    },
+    "both": {
+        "active": [],
+        "stable": [],
+        "transient": []
+    }
+}

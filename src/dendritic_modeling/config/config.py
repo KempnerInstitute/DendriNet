@@ -18,14 +18,6 @@ from dendritic_modeling.config.training import TrainConfig
 
 
 @dataclass
-class VisualizationConfig(BaseConfig):
-    enabled: bool = False
-    visualize_epochs: list[int] = field(default_factory=list)
-    plots: list[str] = field(default_factory=lambda: ["branch_info", "ablation"])
-    parameters: dict = field(default_factory=dict)
-
-
-@dataclass
 class WandbConfig(BaseConfig):
     entity: str = ""
     project: str = ""
@@ -52,7 +44,6 @@ class Config:
     model: ModelConfig = field(default_factory=ModelConfig)
     train: TrainConfig = field(default_factory=TrainConfig)
     wandb: WandbConfig = field(default_factory=WandbConfig)
-    visualization: VisualizationConfig = field(default_factory=VisualizationConfig)
     analysis: AnalysisConfig = field(default_factory=AnalysisConfig)
     task: TaskConfig = field(default_factory=TaskConfig)
     outputs: OutputsConfig = field(default_factory=OutputsConfig)
@@ -66,7 +57,6 @@ def load_config(path: Optional[str] = None) -> Config:
             model=ModelConfig(**raw_conf.get("model", {})),
             train=TrainConfig(**raw_conf.get("train", {})),
             wandb=WandbConfig(**raw_conf.get("wandb", {})),
-            visualization=VisualizationConfig(**raw_conf.get("visualization", {})),
             analysis=AnalysisConfig(**raw_conf.get("analysis", {})),
             task=TaskConfig(**raw_conf.get("task", {})),
             outputs=OutputsConfig(**raw_conf.get("outputs", {})),

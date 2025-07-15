@@ -1,0 +1,13 @@
+Information Analysis Summary
+Method: copula
+Samples: 100
+
+Basic MI with C:
+  I(E;C): 0.0000
+  I(E;C)_std: 0.0000
+  I(I;C): 0.0000
+  I(I;C)_std: 0.0000
+  I(Vout;C): 0.0000
+  I(Vout;C)_std: 0.0000
+  I(E,I;C): 0.0000
+  I(E,I;C)_std: 0.0000

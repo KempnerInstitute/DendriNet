@@ -380,6 +380,9 @@ class AblationAnalyzer:
         if save_path is not None:
             save_dict(results, save_path, filename)
             if self.layer_ablation:
+                import logging
+                logging.info(f"Generating ablation plots. Save path: {save_path}, filename: {filename}")
+                logging.info(f"Layer results keys: {list(layer_results.keys())}")
                 # Import plotting function
                 from dendritic_modeling.plotting.ablation_plots import (
                     plot_layer_ablation,
@@ -388,5 +391,6 @@ class AblationAnalyzer:
                 plot_layer_ablation(
                     layer_results=layer_results, save_path=save_path, filename=filename
                 )
+                logging.info("Ablation plot generation completed")
         else:
             return results
