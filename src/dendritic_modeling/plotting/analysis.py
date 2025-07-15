@@ -338,7 +338,7 @@ class AblationPlotter:
                 relative_changes.append(relative_change)
 
         # Create bar plot
-        fig, ax = self.bar_plotter.plot(
+        result = self.bar_plotter.plot(
             data=relative_changes,
             labels=conditions,
             title=f"Relative Change in {metric.capitalize()} from Baseline",
@@ -346,6 +346,12 @@ class AblationPlotter:
             ylabel="Relative Change (%)",
             colors=["red" if x < 0 else "green" for x in relative_changes],
         )
+        
+        # Handle return value
+        if isinstance(result, plt.Figure):
+            fig, ax = result, result.axes[0] if result.axes else None
+        else:
+            fig, ax = result.figure, result
 
         # Add zero line
         ax.axhline(y=0, color="black", linestyle="-", alpha=0.3)
@@ -388,13 +394,18 @@ class NoiseAnalysisPlotter:
             plot_data[label] = (noise_levels, values)
 
         # Create plot
-        fig, ax = self.line_plotter.plot(
+        result = self.line_plotter.plot(
             data=plot_data,
             title="Noise Robustness Analysis",
             xlabel="Noise Level",
             ylabel="Accuracy",
-            legend_title="Model/Condition",
         )
+        
+        # Handle return value
+        if isinstance(result, plt.Figure):
+            fig, ax = result, result.axes[0] if result.axes else None
+        else:
+            fig, ax = result.figure, result
 
         # Customize
         ax.set_ylim(0, 1.05)
@@ -461,13 +472,19 @@ class WeightDistributionPlotter:
                 colors.append(color_map["combined"])
 
         # Create plot
-        fig, ax = self.box_plotter.plot(
+        result = self.box_plotter.plot(
             data=data_arrays,
             labels=labels,
             title=title,
             ylabel="Weight Value",
             colors=colors,
         )
+        
+        # Handle the return value - could be fig or ax
+        if isinstance(result, plt.Figure):
+            fig, ax = result, result.axes[0] if result.axes else None
+        else:
+            fig, ax = result.figure, result
 
         # Save if requested
         if save_path:
@@ -493,6 +510,14 @@ class InformationAnalysisPlotter:
         self.config = config or PlotConfig()
         self.line_plotter = LinePlotter(self.config)
         self.bar_plotter = BarPlotter(self.config)
+
+    def _get_fig_ax(self, result):
+        """Helper to get (fig, ax) from plotter result."""
+        if isinstance(result, plt.Figure):
+            return result, result.axes[0] if result.axes else None
+        else:
+            # It's an axes
+            return result.figure, result
 
     def plot_information_metrics(
         self,
@@ -567,23 +592,21 @@ class InformationAnalysisPlotter:
         if "I_V_C" in results:
             plot_data["I(V;C)"] = (layer_indices, results["I_V_C"])
 
-        fig, ax = self.line_plotter.plot(
+        fig = self.line_plotter.plot(
             data=plot_data,
             title="Information Content Across Layers",
             xlabel="Layer (Soma → Distal)",
             ylabel="Mutual Information (bits)",
-            legend_title="Information Metric",
-            colors={
-                "I(E;C)": self.config.colors.get("excitatory", "#e74c3c"),
-                "I(I;C)": self.config.colors.get("inhibitory", "#3498db"),
-                "I(V;C)": self.config.colors.get("combined", "#9b59b6"),
-            },
         )
+        
+        # Get the axes from the figure
+        ax = fig.axes[0] if fig.axes else None
 
         # Customize x-axis
-        ax.set_xticks(layer_indices)
-        ax.set_xticklabels([f"L{i}" if i > 0 else "Soma" for i in layer_indices])
-        ax.grid(True, alpha=0.3)
+        if ax:
+            ax.set_xticks(layer_indices)
+            ax.set_xticklabels([f"L{i}" if i > 0 else "Soma" for i in layer_indices])
+            ax.grid(True, alpha=0.3)
 
         return fig, ax
 
@@ -591,42 +614,30 @@ class InformationAnalysisPlotter:
         self, results: dict, layer_indices: list[int]
     ) -> tuple[plt.Figure, plt.Axes]:
         """Plot normalized information metrics."""
-        H_C = results.get("H_C", 1.0)
         plot_data = {}
+        h_c = results.get("H_C", 1.0)  # Avoid division by zero
 
-        if "I_E_C" in results:
-            plot_data["I(E;C)/H(C)"] = (
-                layer_indices,
-                [i / H_C for i in results["I_E_C"]],
-            )
-        if "I_I_C" in results:
-            plot_data["I(I;C)/H(C)"] = (
-                layer_indices,
-                [i / H_C for i in results["I_I_C"]],
-            )
-        if "I_V_C" in results:
-            plot_data["I(V;C)/H(C)"] = (
-                layer_indices,
-                [i / H_C for i in results["I_V_C"]],
-            )
+        if "I_E_C" in results and h_c > 0:
+            plot_data["I(E;C)/H(C)"] = (layer_indices, [x / h_c for x in results["I_E_C"]])
+        if "I_I_C" in results and h_c > 0:
+            plot_data["I(I;C)/H(C)"] = (layer_indices, [x / h_c for x in results["I_I_C"]])
+        if "I_V_C" in results and h_c > 0:
+            plot_data["I(V;C)/H(C)"] = (layer_indices, [x / h_c for x in results["I_V_C"]])
 
-        fig, ax = self.line_plotter.plot(
+        result = self.line_plotter.plot(
             data=plot_data,
             title="Normalized Information Content",
             xlabel="Layer (Soma → Distal)",
             ylabel="Normalized Mutual Information",
-            legend_title="Normalized Metric",
-            colors={
-                "I(E;C)/H(C)": self.config.colors.get("excitatory", "#e74c3c"),
-                "I(I;C)/H(C)": self.config.colors.get("inhibitory", "#3498db"),
-                "I(V;C)/H(C)": self.config.colors.get("combined", "#9b59b6"),
-            },
         )
+        
+        fig, ax = self._get_fig_ax(result)
 
-        ax.set_ylim(0, 1.05)
-        ax.set_xticks(layer_indices)
-        ax.set_xticklabels([f"L{i}" if i > 0 else "Soma" for i in layer_indices])
-        ax.grid(True, alpha=0.3)
+        # Customize x-axis
+        if ax:
+            ax.set_xticks(layer_indices)
+            ax.set_xticklabels([f"L{i}" if i > 0 else "Soma" for i in layer_indices])
+            ax.grid(True, alpha=0.3)
 
         return fig, ax
 
@@ -643,17 +654,19 @@ class InformationAnalysisPlotter:
         if "I_E_I" in results:
             plot_data["I(E;I)"] = (layer_indices, results["I_E_I"])
 
-        fig, ax = self.line_plotter.plot(
+        result = self.line_plotter.plot(
             data=plot_data,
             title="Information Decomposition",
             xlabel="Layer (Soma → Distal)",
             ylabel="Information (bits)",
-            legend_title="Information Component",
         )
 
-        ax.set_xticks(layer_indices)
-        ax.set_xticklabels([f"L{i}" if i > 0 else "Soma" for i in layer_indices])
-        ax.grid(True, alpha=0.3)
+        fig, ax = self._get_fig_ax(result)
+
+        if ax:
+            ax.set_xticks(layer_indices)
+            ax.set_xticklabels([f"L{i}" if i > 0 else "Soma" for i in layer_indices])
+            ax.grid(True, alpha=0.3)
 
         return fig, ax
 
@@ -672,17 +685,19 @@ class InformationAnalysisPlotter:
         if "unique_I" in results:
             plot_data["Unique(I_var)"] = (layer_indices, results["unique_I"])
 
-        fig, ax = self.line_plotter.plot(
+        result = self.line_plotter.plot(
             data=plot_data,
             title="Partial Information Decomposition",
             xlabel="Layer (Soma → Distal)",
             ylabel="Information (bits)",
-            legend_title="PID Component",
         )
 
-        ax.set_xticks(layer_indices)
-        ax.set_xticklabels([f"L{i}" if i > 0 else "Soma" for i in layer_indices])
-        ax.grid(True, alpha=0.3)
+        fig, ax = self._get_fig_ax(result)
+
+        if ax:
+            ax.set_xticks(layer_indices)
+            ax.set_xticklabels([f"L{i}" if i > 0 else "Soma" for i in layer_indices])
+            ax.grid(True, alpha=0.3)
 
         return fig, ax
 

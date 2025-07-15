@@ -5,10 +5,13 @@ This module contains plotting functions for visualizing ablation study results.
 """
 
 import os
+import logging
 from typing import Optional
 
 import matplotlib.pyplot as plt
 import numpy as np
+
+logger = logging.getLogger(__name__)
 
 
 def plot_layer_ablation(
@@ -70,11 +73,14 @@ def plot_layer_ablation(
         ax.grid(True, axis="y", alpha=0.3)
 
         if save_path is not None:
+            os.makedirs(save_path, exist_ok=True)
             plot_path = os.path.join(
                 save_path, f"{filename}_synapse_ablation_{metric}.png"
             )
+            logger.info(f"Saving ablation plot to: {plot_path}")
             fig.savefig(plot_path, dpi=300, bbox_inches="tight")
             plt.close()
+            logger.info(f"Successfully saved ablation plot: {plot_path}")
         else:
             fig_list.append(fig)
 

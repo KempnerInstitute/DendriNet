@@ -29,7 +29,6 @@ from dendritic_modeling.config.config import (
     Config,
     OutputsConfig,
     TaskConfig,
-    VisualizationConfig,
     WandbConfig,
     load_config,
 )
@@ -84,7 +83,6 @@ __all__ = [
     "TrainConfig"
     "TrainerConfig"
     "TransferFunctionParams"
-    "VisualizationConfig"
     "WandbConfig"
     "WeightAnalysisConfig"
     "WeightAnalysisParams"

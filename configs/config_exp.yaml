@@ -3,10 +3,9 @@ model:
   encoder_network:
     type: CNNAutoencoder # MLPAutoencoder, CNNAutoencoder, MLPVariationalAutoencoder, CNNVariationalAutoencoder, identity, none
     parameters:
+      input_shape: [3, 32, 32]
+      latent_shape: [16, 8, 8]  # (channels, height, width) for latent representation
       encoder_hidden_dims: [64]
-      encoder_kernel_sizes: [3]
-      encoder_strides: [2]
-      latent_dim: 200
       decoder_hidden_dims: [64]
       activation: relu
   core_network:
@@ -16,8 +15,8 @@ model:
       transfer_params:
         input_mode: 1
         independent_pathways: true
-        excitatory_dim: 100
-        inhibitory_dim: 100
+        excitatory_dim: 512
+        inhibitory_dim: 512
       # configuration parameters
       excitatory_layer_sizes: [10]
       inhibitory_layer_sizes: [40]
@@ -49,71 +48,85 @@ model:
       excitatory_target_density: 0.1   # Target density for excitatory connections (fraction of active synapses)
       inhibitory_target_density: 0.1   # Target density for inhibitory connections (fraction of active synapses)
       use_noise: true                  # Whether to apply Gaussian noise during rewiring
-      sigma: 0.05                      # Standard deviation of Gaussian noise for random walk
-      rewiring_mode: "global"          # Rewiring strategy: "global" (any synapse), "local" (nearby), "constant_branch" (fixed per branch)
-      rewire_frequency: 1              # How often to apply rewiring (every N training steps)
-      synapses_per_branch: None        # Number of synapses per branch (required for 'constant_branch' mode)
-      freeze_excitatory_connectivity: false  # Whether to freeze excitatory synapse locations (only update weights)
-      freeze_inhibitory_connectivity: false  # Whether to freeze inhibitory synapse locations (only update weights)
-      init_method: "xavier_normal"     # Weight initialization method for DEEPST connections
-      weight_threshold: 1e-6           # Threshold below which weights are considered zero for pruning
+      noise_std: 0.01                  # Standard deviation of Gaussian noise
+      rewiring_frequency: 10           # How often to perform rewiring (every N epochs)
+      use_momentum: true               # Whether to use momentum in rewiring decisions
+      momentum_factor: 0.9             # Momentum factor for rewiring (0.0-1.0)
+      use_batch_norm: false            # Whether to use batch normalization in layers
+      use_dropout: false               # Whether to use dropout in layers
+      dropout_rate: 0.1                # Dropout rate (if use_dropout is true)
+      use_weight_decay: true           # Whether to apply weight decay to connections
+      weight_decay_factor: 0.0001      # Weight decay factor for connections
+      use_activity_regularization: false # Whether to use activity regularization
+      activity_reg_factor: 0.01        # Activity regularization factor
+      use_connection_pruning: false    # Whether to prune weak connections
+      pruning_threshold: 0.01          # Threshold for connection pruning
+      use_homeostasis: false           # Whether to use homeostatic mechanisms
+      homeostasis_target: 0.1          # Target activity level for homeostasis
+      homeostasis_rate: 0.001          # Learning rate for homeostatic adaptation
   decoder_network:
-    hidden_dims: [32, 16]
-    activation: relu
-    output_dim: 10
+    type: MLP # Options: "MLP", "CNN", "none"
+    parameters:
+      hidden_dims: [32, 16]
+      activation: relu
+      output_dim: 10
 
 train:
-  learning_strategy: standard # Options: "standard", "freeze_layers", "freeze_branches", "voltage_stabilization", "two_step", "two_step_kl"
   seed: 0
   train_valid_split: 0.8
-  optim_dict:
-    lr: 0.01  # default learning rate if split_params is false
-    split_params: true  # whether to split parameters into groups (only used for EINet)
-    encoder_net_lr: 0.001  # learning rate for input network
-    transfer_fn_lr: 0.001  # learning rate for transfer function
-    topk_lr: 0.001  # learning rate for topk layers
-    blocklinear_lr: 0.001  # learning rate for blocklinear layers
-    reactivation_lr: 0.001  # learning rate for reactivation layers
-    decoder_lr: 0.001  # learning rate for decoder network
 
-  weight_decay_rate: 0.1  # Standard weight decay
-
-  # Input network training configuration
-  encoder_net_trainer:
-    # for all learning strategies:
-    loss_function: mse
-    epochs: 10
-    early_stopping: false
-    patience: 10
-    batch_size: 128
-    shuffle: true
-    grad_clip_value: 5.0
-    load_best_state_dict: true
-    plot_losses: true
-    suppress_prints: false
-    print_every: 10
+  # Encoder (input network) training configuration
+  encoder:
+    load_save_root: saved_models/encoder
+    lr: 0.001
+    trainer:
+      # for all learning strategies:
+      loss_function: mse
+      epochs: 10
+      early_stopping: false
+      patience: 10
+      batch_size: 128
+      shuffle: true
+      grad_clip_value: 5.0
+      load_best_state_dict: true
+      plot_losses: true
+      suppress_prints: false
+      print_every: 10
   
-  main_trainer:
-    # for all learning strategies:
-    loss_function: categorical_nll
-    epochs: 10
-    early_stopping: false
-    patience: 10
-    batch_size: 128
-    shuffle: true
-    grad_clip_value: 5.0
-    load_best_state_dict: true
-    plot_losses: true
-    suppress_prints: false
-    print_every: 10
-    # for learning strategies other than standard:
-    pretrain_epochs: 10
-    target_voltage: 0.5
-    kl_weight: 0.1
-    reverse_training: false
-    epochs_per_layer: 10
-    epochs_per_branch: 10
-    final_tune_epochs: 10
+  # Main network training configuration
+  main:
+    learning_strategy: standard  # Options: "standard", "freeze_layers", "freeze_branches", "voltage_stabilization", "two_step", "two_step_kl"
+    weight_decay_rate: 0.1
+
+    param_groups:
+      lr: 0.01  # default learning rate if split_params is false
+      split_params: true  # whether to split parameters into groups (only used for EINet)
+      topk_lr: 0.001  # learning rate for topk layers (transfer_fn_lr merged)
+      blocklinear_lr: 0.001  # learning rate for blocklinear layers
+      reactivation_lr: 0.001  # learning rate for reactivation layers
+      decoder_lr: 0.001  # learning rate for decoder network
+
+    trainer:
+      # for all learning strategies:
+      loss_function: cat_nll
+      epochs: 10
+      early_stopping: false
+      patience: 10
+      batch_size: 128
+      shuffle: true
+      grad_clip_value: 5.0
+      load_best_state_dict: true
+      plot_losses: true
+      suppress_prints: false
+      print_every: 10
+      # for learning strategies other than standard:
+      pretrain_epochs: 10
+      target_voltage: 0.5
+      kl_weight: 0.1
+      reverse_training: false
+      epochs_per_layer: 10
+      epochs_per_branch: 10
+      final_tune_epochs: 10
 
 task:
   dataset: cifar10 #mnist, cifar10, mnist_modulo10, random_flip_mnist
@@ -141,17 +154,6 @@ wandb:
   group: "debug"
   tags: [cifar10]
   use_wandb: false
-
-visualization:
-  enabled: false
-  visualize_epochs: [10, 30]  # list of epochs at which to produce intermediate visualizations
-  plots:
-    - weights      # Plot dendritic or EI-net weights
-    - activations  # Plot per-digit activation distribution
-    - gradients    # Plot synapse or branch gradients
-    - branch_ablation  # Enable branch-level ablation analysis
-    - layer_ablation   # Enable layer-level ablation analysis
-    #- profiles     # Plot dendritic compartment profiles
 
 analysis:
   performance_analysis:
@@ -234,7 +236,7 @@ analysis:
     training: false
     params:
       # Estimation method for mutual information computation
-      method: "copula"  # Changed to "copula" for copula-based estimation
+      method: "kraskov"  # Changed to "kraskov" for k-NN based estimation
       
       # Maximum number of samples to use (for faster computation)
       max_samples: 100  # Use only 1000 samples instead of all 10000
@@ -265,4 +267,5 @@ analysis:
 
 outputs:
   run_name: exp_run
-  dir: 
+  dir: results/ 
+  

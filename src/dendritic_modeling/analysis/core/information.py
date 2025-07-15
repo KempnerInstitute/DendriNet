@@ -472,12 +472,16 @@ class InformationAnalyzer:
     ):
         """Forward hook to collect branch data."""
         excitatory_input, inhibitory_input, _ = input
-        self.data_dict[module._name]["excitation"] = module.branch_excitation(
-            excitatory_input
-        )
-        self.data_dict[module._name]["inhibition"] = module.branch_inhibition(
-            inhibitory_input
-        )
+        
+        # Get the outputs from TopKLinear layers
+        # These represent the weighted sum for each branch (already computed by TopKLinear)
+        # Shape: (batch_size, num_branches)
+        excitation_per_branch = module.branch_excitation(excitatory_input)
+        inhibition_per_branch = module.branch_inhibition(inhibitory_input)
+        
+        # Store per-branch data
+        self.data_dict[module._name]["excitation"] = excitation_per_branch
+        self.data_dict[module._name]["inhibition"] = inhibition_per_branch
         self.data_dict[module._name]["output"] = output
 
     def remove_forward_hooks(self, handles: list[torch.utils.hooks.RemovableHandle]):
@@ -589,21 +593,31 @@ class InformationAnalyzer:
                 all_results = []
                 branch_names = []
 
-                for branch_name, branch_data in self.data_dict.items():
-                    if "excitation" not in branch_data:
+                for layer_name, layer_data in self.data_dict.items():
+                    if "excitation" not in layer_data:
                         continue
 
-                    # Get single branch data
-                    E_branch = branch_data["excitation"].detach().cpu().numpy()
-                    I_branch = branch_data["inhibition"].detach().cpu().numpy()
-                    Vout_branch = branch_data["output"].detach().cpu().numpy()
-
-                    # Compute MI for this single branch
-                    branch_results = self.compute_metrics(
-                        E_branch, I_branch, Vout_branch, C, None
-                    )
-                    all_results.append(branch_results)
-                    branch_names.append(branch_name)
+                    # Get data for all branches in this layer
+                    E_all_branches = layer_data["excitation"].detach().cpu().numpy()
+                    I_all_branches = layer_data["inhibition"].detach().cpu().numpy()
+                    Vout_all_branches = layer_data["output"].detach().cpu().numpy()
+                    
+                    # E_all_branches shape: (n_samples, n_branches)
+                    n_branches = E_all_branches.shape[1]
+                    
+                    # Process each branch individually
+                    for branch_idx in range(n_branches):
+                        # Extract data for this specific branch
+                        E_branch = E_all_branches[:, branch_idx:branch_idx+1]  # Keep 2D shape
+                        I_branch = I_all_branches[:, branch_idx:branch_idx+1]
+                        Vout_branch = Vout_all_branches[:, branch_idx:branch_idx+1]
+                        
+                        # Compute MI for this single branch
+                        branch_results = self.compute_metrics(
+                            E_branch, I_branch, Vout_branch, C, None
+                        )
+                        all_results.append(branch_results)
+                        branch_names.append(f"{layer_name}_branch_{branch_idx}")
 
                 # Average the results across branches
                 if all_results:
@@ -782,20 +796,55 @@ class InformationAnalyzer:
                 plot_save_path = os.path.join(save_path, "plots")
                 os.makedirs(plot_save_path, exist_ok=True)
 
+                # Convert results to format expected by plotter
+                # The plotter expects different keys than what we have
+                plot_results = {}
+                
+                # If we have basic_mi results, extract them
+                if "basic_mi" in results:
+                    basic_mi = results["basic_mi"]
+                    # Convert to format expected by plotter
+                    if "I(E;C)" in basic_mi:
+                        plot_results["I_E_C"] = [basic_mi["I(E;C)"]]
+                    if "I(I;C)" in basic_mi:
+                        plot_results["I_I_C"] = [basic_mi["I(I;C)"]]
+                    if "I(Vout;C)" in basic_mi:
+                        plot_results["I_V_C"] = [basic_mi["I(Vout;C)"]]
+                    
+                    # Add other results
+                    plot_results["num_layers"] = 1  # Single layer for now
+                    plot_results.update(results)  # Include all original results
+
+                self.logger.info(f"Plot results keys: {list(plot_results.keys())}")
+                self.logger.info(f"Calling plot_information_analysis with save_path={plot_save_path}")
+
                 # Generate all plots
-                figs = plot_information_analysis(
-                    results, save_path=plot_save_path, filename_prefix=filename
-                )
+                try:
+                    figs = plot_information_analysis(
+                        plot_results, save_path=plot_save_path, filename_prefix=filename
+                    )
+                    self.logger.info(f"plot_information_analysis returned type: {type(figs)}")
+                except Exception as plot_error:
+                    self.logger.error(f"Error in plot_information_analysis: {plot_error}")
+                    import traceback
+                    self.logger.error(traceback.format_exc())
+                    raise
 
                 self.logger.info(
-                    f"Generated {len(figs)} information analysis plots in {plot_save_path}"
+                    f"Generated information analysis plots in {plot_save_path}"
                 )
 
                 # Close all figures to free memory
                 import matplotlib.pyplot as plt
 
-                for fig in figs:
-                    plt.close(fig)
+                if isinstance(figs, dict):
+                    # figs is a dictionary of plot_name -> (fig, ax) tuples
+                    for plot_name, (fig, ax) in figs.items():
+                        plt.close(fig)
+                        self.logger.info(f"Generated plot: {plot_name}")
+                elif figs is not None:
+                    # In case it returns something else
+                    self.logger.warning(f"Unexpected return type from plot_information_analysis: {type(figs)}")
 
             except Exception as e:
                 self.logger.warning(f"Could not generate information plots: {e}")

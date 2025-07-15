@@ -53,13 +53,11 @@ from omegaconf import OmegaConf
 
 from dendritic_modeling import logger, logger_manager
 from dendritic_modeling.analysis import AnalysisManager
-from dendritic_modeling.analysis.managers import PlotManager
 from dendritic_modeling.config import (
     ModelConfig,
     OutputsConfig,
     TaskConfig,
     TrainConfig,
-    VisualizationConfig,
     WandbConfig,
     load_config,
 )
@@ -212,51 +210,10 @@ def run_analysis(
     train_ds: torch.utils.data.Dataset,
     valid_ds: torch.utils.data.Dataset,
     test_ds: torch.utils.data.Dataset,
-    visualization_cfg: VisualizationConfig,
     run_save_path: str,
     analysis_manager: AnalysisManager | None = None,
 ):
-    data = {"train": train_ds, "valid": valid_ds, "test": test_ds}
-    device = "cuda" if torch.cuda.is_available() else "cpu"
-
-    is_visualization_enabled = (
-        visualization_cfg
-        and hasattr(visualization_cfg, "enabled")
-        and visualization_cfg.enabled
-    )
-    if is_visualization_enabled:
-        logger.info("Visualization is enabled. Setting up PlotManager...")
-
-        # Create a class to hold args in the format expected by PlotManager
-        class Args:
-            def __init__(self, viz_cfg, save_path):
-                self.visualization = viz_cfg
-                self.save_path = save_path
-                self.file_name = "final"
-                self.shape = None
-                self.train = None
-
-        # Create args and data dictionary for PlotManager
-        args = Args(visualization_cfg, run_save_path)
-
-        # Create PlotManager instance
-        plot_manager = PlotManager(model, data, args, device=device)
-
-        # Get the list of plots to generate
-        plots = visualization_cfg.plots if hasattr(visualization_cfg, "plots") else []
-        logger.info(f"Generating the following plots: {plots}")
-
-        # Run each requested plot
-        for plot_name in plots:
-            try:
-                logger.info(f"Generating plot: {plot_name}")
-                plot_manager.run_plot(plot_name)
-            except Exception as e:
-                logger.error(f"Error generating plot '{plot_name}': {e}")
-                logger.error(traceback.format_exc())
-    else:
-        logger.info("Visualization is disabled. Skipping plot generation.")
-
+    """Run analysis using the AnalysisManager."""
     logger.info("Running analyses...")
     if analysis_manager is not None:
         analysis_manager.run_analysis()
@@ -281,7 +238,6 @@ def main(config_path: str, args=None):
     train_config = config.train
     task_config = config.task
     wandb_config = config.wandb
-    visualization_config = config.visualization
     analysis_config = config.analysis
     outputs_config = config.outputs
 
@@ -389,7 +345,6 @@ def main(config_path: str, args=None):
         train_ds=train_ds,
         valid_ds=valid_ds,
         test_ds=test_ds,
-        visualization_cfg=visualization_config,
         run_save_path=run_save_path,
         analysis_manager=analysis_manager,
     )
