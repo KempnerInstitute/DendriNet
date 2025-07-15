@@ -1,0 +1,74 @@
+# Minimal test configuration - tiny model for quick testing
+# Only performance analysis enabled
+
+model:
+  task: classification
+  
+  encoder_network:
+    type: Identity
+    parameters: {}
+    
+  core_network:
+    type: MLP  # Use simple MLP for testing
+    parameters:
+      hidden_dims: [128, 64]
+      activation: relu
+      dropout: 0.1
+    
+  decoder_network:
+    type: Identity
+    parameters: {}
+
+train:
+  seed: 42
+  train_valid_split: 0.8
+  
+  encoder:
+    load_save_root: null
+    lr: 0.001
+    trainer:
+      epochs: 0
+  
+  main:
+    learning_strategy: standard
+    weight_decay_rate: 0.0001
+    
+    param_groups:
+      lr: 0.001
+      split_params: false
+    
+    trainer:
+      loss_function: cat_nll
+      epochs: 2  # Just 2 epochs
+      early_stopping: false
+      patience: 10
+      batch_size: 128
+      shuffle: true
+      grad_clip_value: 5.0
+      load_best_state_dict: false
+      plot_losses: true
+      suppress_prints: false
+      print_every: 50
+
+task:
+  dataset: cifar10
+  data_path: 
+  parameters: 
+    flatten: true
+    normalize: true
+
+wandb:
+  use_wandb: false
+
+analysis:
+  performance_analysis:
+    enabled: true
+    training: true  # Show performance during training
+    params:
+      accuracy: true
+      categorical_loglikelihood: false
+      mse: false
+
+outputs:
+  run_name: test_minimal
+  dir: results/ 

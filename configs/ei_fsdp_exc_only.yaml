@@ -1,6 +1,5 @@
-# Excitatory-Only EI Network for FSDP Testing
-# Single layer with many excitatory neurons, no inhibitory neurons
-# Both E and I inputs come from the transfer function
+# Total parameters: 34.38B (fits on 2 nodes with 8 H100 GPUs)
+# Memory per GPU: 38.68 GB (48% utilization)
 
 model:
   task: classification
@@ -8,7 +7,7 @@ model:
   encoder_network:
     type: Identity
     parameters: {}
-  
+    
   core_network:
     type: EINet
     parameters:
@@ -16,25 +15,25 @@ model:
       transfer_params:
         input_mode: 1
         independent_pathways: true
-        excitatory_dim: 1536  # Half of 3072 (CIFAR-10 flattened)
-        inhibitory_dim: 1536  # Half of 3072 (CIFAR-10 flattened)
+        excitatory_dim: 2048  # Reduced transfer function output
+        inhibitory_dim: 2048  # Reduced transfer function output
       
-      # Network architecture - single layer with many neurons
-      excitatory_layer_sizes: [1024]  # Reduced from 4096 to fit in memory
-      inhibitory_layer_sizes: [0]     # No inhibitory neurons
+      # Single layer with many neurons but reasonable for 2 nodes
+      excitatory_layer_sizes: [4096]   # Reduced from 8192
+      inhibitory_layer_sizes: [0]      # No inhibitory neurons
       
-      # Deeper dendritic tree but more reasonable
-      excitatory_branch_factors: [4, 4, 2]  # 3 levels deep, total 32 branches per neuron
+      # Deep dendritic tree - 4 levels
+      excitatory_branch_factors: [4, 4, 2, 2]  # 64 branches per neuron (reduced from 128)
       inhibitory_branch_factors: []
       
-      # Synapses configuration
-      ee_synapses_per_branch_per_layer: [256]  # Excitatory input to excitatory neurons
-      ei_synapses_per_branch_per_layer: []     # No inhibitory neurons to receive excitatory input
-      ie_synapses_per_branch_per_layer: [256]  # Inhibitory input to excitatory neurons
-      ii_synapses_per_branch_per_layer: []     # No inhibitory neurons
+      # Reasonable synapses per branch
+      ee_synapses_per_branch_per_layer: [32]    # Further reduced
+      ei_synapses_per_branch_per_layer: []      # No inhibitory neurons
+      ie_synapses_per_branch_per_layer: [32]    # Further reduced
+      ii_synapses_per_branch_per_layer: []      # No inhibitory neurons
       
       somatic_synapses: true
-      use_shunting: false  # Disable shunting since no inhibition
+      use_shunting: true
       
       # TopK parameters
       topk_init_method: xavier_normal
@@ -42,82 +41,102 @@ model:
       topk_type: standard
       topk_temperature: 0.5
       topk_ultrafast: true
+      topk_strategy: conductance_dynamic
       
       # Reactivation parameters
       reactivate: true
       reactivation_type: param_tanh
       reactivation_init_m: 1.5
       reactivation_init_b: 0.5
-      
-      # Gradient scaling
       reactivation_strategy: inverse
-      topk_strategy: conductance_dynamic
       blocklinear_strategy: conductance_dynamic
       print_hooks: false
-  
+      
+      # DEEPST parameters (if using topk_type: deepst)
+      excitatory_target_density: 0.1
+      inhibitory_target_density: 0.1
+      use_noise: true
+      noise_std: 0.01
+      rewiring_frequency: 10
+      use_momentum: true
+      momentum_factor: 0.9
+    
   decoder_network:
     type: MLP
     parameters:
-      hidden_dims: [512, 256]
+      hidden_dims: [2048, 1024, 512]  # Decoder for 4K neurons
       activation: relu
       output_dim: 10  # CIFAR-10 has 10 classes
 
 train:
-  seed: 0
+  seed: 42
   train_valid_split: 0.8
   
-  encoder: null
+  encoder:
+    load_save_root: null
+    lr: 0.001
+    trainer:
+      epochs: 0
   
   main:
     learning_strategy: standard
     weight_decay_rate: 0.0001
     
     param_groups:
-      lr: 0.0001  # Lower learning rate for large model
+      lr: 0.0001  # Lower learning rate for larger model
       split_params: true
       topk_lr: 0.00005
       blocklinear_lr: 0.00005
-      reactivation_lr: 0.0001
+      reactivation_lr: 0.00005
       decoder_lr: 0.0001
     
     trainer:
       loss_function: cat_nll
-      epochs: 10
+      epochs: 100
       early_stopping: true
-      patience: 5
-      batch_size: 32  # Smaller batch size for large model
+      patience: 10
+      batch_size: 256  # 16 per GPU across 16 GPUs for 4 nodes
       shuffle: true
-      grad_clip_value: 1.0
+      grad_clip_value: 5.0
       load_best_state_dict: true
       plot_losses: true
       suppress_prints: false
-      print_every: 1
+      print_every: 50
 
 task:
   dataset: cifar10
-  data_path: ./data
-  parameters:
-    num_classes: 10
-    train_size: 10000
-    valid_size: 2000
-    test_size: 2000
+  data_path: 
+  parameters: 
     flatten: true
     normalize: true
 
-# Disable analysis for testing
+wandb:
+  entity: 
+  project: "dendritic_cifar10_4nodes"
+  group: "single_layer_64k"
+  tags: [cifar10, 4nodes, single_layer, deep_dendrites]
+  use_wandb: false
+
 analysis:
   performance_analysis:
-    enabled: false
+    enabled: true
+    training: false
+    params:
+      accuracy: true
+      categorical_loglikelihood: true
+      mse: false
+      
   information_analysis:
-    enabled: false
-  weight_analysis:
-    enabled: false
-  ablation_analysis:
-    enabled: false
+    enabled: true
+    training: false
+    params:
+      method: "kraskov"
+      max_samples: 1000
+      n_neighbors: 10
+      compute_basic_mi: true
+      compute_per_branch: true
+      branch_aggregation: none
 
 outputs:
-  run_name: ei_fsdp_exc_only
-  dir: results/
-
-wandb:
-  use_wandb: false 
+  run_name: exc_only_64k_4nodes
+  dir: results/ 

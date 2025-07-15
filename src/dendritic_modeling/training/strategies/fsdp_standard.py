@@ -37,38 +37,46 @@ class FSDPTrainer(Trainer):
         self,
         rank: int,
         world_size: int,
-        fsdp_config: Optional[Dict[str, Any]] = None,
+        fsdp_config: Optional[dict] = None,
         checkpoint_dir: Optional[str] = None,
-        save_every_n_epochs: int = 5,
-        optimizer_config: Optional[Dict[str, Any]] = None,
+        save_every_n_epochs: int = 1,
+        save_checkpoints: bool = True,
+        optimizer_config: Optional[dict] = None,
+        analysis_manager: Optional[object] = None,
         **kwargs
     ):
         """
         Initialize FSDP trainer.
         
         Args:
-            rank: Process rank
+            rank: Global rank of current process
             world_size: Total number of processes
             fsdp_config: FSDP configuration
-            checkpoint_dir: Directory for checkpoints
-            save_every_n_epochs: Checkpoint frequency
+            checkpoint_dir: Directory to save checkpoints
+            save_every_n_epochs: Save checkpoint every N epochs
+            save_checkpoints: Whether to save checkpoints
             optimizer_config: Optimizer configuration
             **kwargs: Arguments passed to base Trainer
         """
         # Store configuration
         self.rank = rank
         self.world_size = world_size
+        self.local_rank = int(os.environ.get('LOCAL_RANK', 0))
         self.fsdp_config = fsdp_config or get_fsdp_config()
         self.checkpoint_dir = checkpoint_dir or f"checkpoints/fsdp_run_{time.time()}"
         self.save_every_n_epochs = save_every_n_epochs
+        self.save_checkpoints = save_checkpoints
         self.optimizer_config = optimizer_config or {}
+        self.analysis_manager = analysis_manager
         
-        # Set device
-        self.device = torch.device(f'cuda:{rank}')
-        torch.cuda.set_device(rank)
+        # Set device using local rank
+        self.device = torch.device(f'cuda:{self.local_rank}')
+        torch.cuda.set_device(self.local_rank)
         
         # Initialize parent with dummy optimizer (we'll create the real one after FSDP wrapping)
         dummy_optimizer = torch.optim.SGD([torch.zeros(1)], lr=0.01)
+        if self.rank == 0:
+            logger.info(f"Initializing FSDPTrainer with kwargs: {kwargs}")
         super().__init__(optimizer=dummy_optimizer, **kwargs)
         
         # Create checkpoint directory
@@ -219,7 +227,12 @@ class FSDPTrainer(Trainer):
         best_valid_loss = float('inf')
         patience_counter = 0
         
+        if self.rank == 0:
+            logger.info(f"Starting training for {self.epochs} epochs")
+        
         for epoch in range(self.epochs):
+            if self.rank == 0:
+                logger.info(f"Starting epoch {epoch}")
             epoch_start = time.time()
             
             # Set epoch for distributed sampler
@@ -242,7 +255,7 @@ class FSDPTrainer(Trainer):
                 if self.early_stopping and valid_loss < best_valid_loss:
                     best_valid_loss = valid_loss
                     patience_counter = 0
-                    if self.rank == 0:
+                    if self.rank == 0 and self.save_checkpoints:
                         save_fsdp_checkpoint(
                             model, self.optimizer, epoch, 
                             os.path.join(self.checkpoint_dir, 'best_model.pt')
@@ -254,6 +267,18 @@ class FSDPTrainer(Trainer):
                             logger.info(f"Early stopping at epoch {epoch}")
                         break
             
+            # Analysis (only on rank 0 to avoid duplication)
+            if self.rank == 0 and self.analysis_manager is not None:
+                try:
+                    # Conditional import to avoid circular dependency
+                    from dendritic_modeling.analysis import AnalysisManager
+                    if isinstance(self.analysis_manager, AnalysisManager):
+                        self.analysis_manager.run_analysis(
+                            filename=f"epoch{epoch + 1}", training=True
+                        )
+                except Exception as e:
+                    logger.warning(f"Analysis failed for epoch {epoch}: {e}")
+            
             # Logging
             epoch_time = time.time() - epoch_start
             if self.rank == 0 and epoch % self.print_every == 0:
@@ -264,18 +289,22 @@ class FSDPTrainer(Trainer):
                 logger.info(msg)
             
             # Checkpointing
-            if self.rank == 0 and (epoch + 1) % self.save_every_n_epochs == 0:
+            if self.rank == 0 and self.save_checkpoints and (epoch + 1) % self.save_every_n_epochs == 0:
                 save_fsdp_checkpoint(
                     model, self.optimizer, epoch,
                     os.path.join(self.checkpoint_dir, f'checkpoint_epoch_{epoch}.pt')
                 )
         
         # Final save
-        if self.rank == 0:
+        if self.rank == 0 and self.save_checkpoints:
             save_fsdp_checkpoint(
                 model, self.optimizer, self.epochs - 1,
                 os.path.join(self.checkpoint_dir, 'final_model.pt')
             )
+        
+        # Generate loss plots (only on rank 0)
+        if self.rank == 0:
+            self._loss_plotting(train_losses, valid_losses)
         
         return {
             'train_losses': train_losses,

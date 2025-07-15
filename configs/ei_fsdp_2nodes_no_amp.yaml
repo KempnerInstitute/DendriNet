@@ -1,0 +1,126 @@
+# Configuration for 2 nodes with 8 H100 GPUs (4 per node)
+# No mixed precision to avoid collective mismatch issues
+
+model:
+  task: classification
+  
+  encoder_network:
+    type: Identity
+    parameters: {}
+    
+  core_network:
+    type: EINet
+    parameters:
+      # Transfer function parameters
+      transfer_params:
+        input_mode: 1
+        independent_pathways: true
+        excitatory_dim: 1536  # Half of 3072 for CIFAR-10
+        inhibitory_dim: 1536  # Half of 3072 for CIFAR-10
+      
+      # Single layer with moderate number of neurons
+      excitatory_layer_sizes: [1024]   # Reduced from 2048
+      inhibitory_layer_sizes: [0]      # No inhibitory neurons
+      
+      # Moderate dendritic tree - 3 levels
+      excitatory_branch_factors: [4, 2, 2]  # 16 branches per neuron
+      inhibitory_branch_factors: []
+      
+      # Moderate synapses per branch
+      ee_synapses_per_branch_per_layer: [8]  # Reduced from 16
+      ei_synapses_per_branch_per_layer: []
+      ie_synapses_per_branch_per_layer: [8]  # Reduced from 16
+      ii_synapses_per_branch_per_layer: []
+      
+      somatic_synapses: true
+      use_shunting: true
+      
+      # TopK parameters
+      topk_init_method: xavier_normal
+      topk_noise_level: 0.0
+      topk_type: standard
+      topk_temperature: 0.5
+      topk_ultrafast: true
+      topk_strategy: standard  # Avoid conductance_dynamic memory issues
+      
+      # Reactivation parameters
+      reactivate: true
+      reactivation_type: param_tanh
+      reactivation_init_m: 1.5
+      reactivation_init_b: 0.5
+      reactivation_strategy: inverse
+      blocklinear_strategy: standard  # Avoid conductance_dynamic
+      print_hooks: false
+    
+  decoder_network:
+    type: MLP
+    parameters:
+      hidden_dims: [512, 256]  # Reduced decoder size
+      activation: relu
+      output_dim: 10  # CIFAR-10 has 10 classes
+
+train:
+  seed: 42
+  train_valid_split: 0.8
+  
+  encoder:
+    load_save_root: null
+    lr: 0.001
+    trainer:
+      epochs: 0
+  
+  main:
+    learning_strategy: standard
+    weight_decay_rate: 0.0001
+    
+    param_groups:
+      lr: 0.001
+      split_params: true
+      topk_lr: 0.0005
+      blocklinear_lr: 0.0005
+      reactivation_lr: 0.0005
+      decoder_lr: 0.001
+    
+    trainer:
+      loss_function: cat_nll
+      epochs: 10  # Fewer epochs for testing
+      early_stopping: false
+      patience: 10
+      batch_size: 32  # Small batch size
+      shuffle: true
+      grad_clip_value: 5.0
+      load_best_state_dict: true
+      plot_losses: true
+      suppress_prints: false
+      print_every: 50
+
+task:
+  dataset: cifar10
+  data_path: 
+  parameters: 
+    flatten: true
+    normalize: true
+
+wandb:
+  entity: 
+  project: "dendritic_cifar10_2nodes"
+  group: "single_layer_1k_no_amp"
+  tags: [cifar10, 2nodes, single_layer, no_amp]
+  use_wandb: false
+
+analysis:
+  performance_analysis:
+    enabled: true
+    training: true  # Enable during training to see plots
+    params:
+      accuracy: true
+      categorical_loglikelihood: false
+      mse: false
+      
+  information_analysis:
+    enabled: false  # Disabled to avoid analysis overhead
+    training: false
+
+outputs:
+  run_name: fsdp_2nodes_no_amp
+  dir: results/ 
