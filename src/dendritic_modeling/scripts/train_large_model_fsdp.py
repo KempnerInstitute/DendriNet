@@ -27,6 +27,7 @@ from dendritic_modeling.models import Classifier, Regressor
 from dendritic_modeling.networks import Identity
 from dendritic_modeling.networks.architectures.factory import get_architecture
 from dendritic_modeling.utils.data import set_seed
+from dendritic_modeling.analysis import AnalysisManager
 from dendritic_modeling.training.fsdp_utils import (
     get_fsdp_config,
     estimate_memory_requirements,
@@ -41,13 +42,14 @@ def setup_distributed():
     """Initialize distributed environment."""
     # Get rank and world size from torchrun
     rank = int(os.environ.get('RANK', 0))
+    local_rank = int(os.environ.get('LOCAL_RANK', 0))
     world_size = int(os.environ.get('WORLD_SIZE', 1))
     
     # Initialize process group
     dist.init_process_group(backend='nccl')
     
-    # Set device
-    torch.cuda.set_device(rank)
+    # Set device using local rank (rank within the node)
+    torch.cuda.set_device(local_rank)
     
     return rank, world_size
 
@@ -128,6 +130,7 @@ def main():
     
     # Setup distributed
     rank, world_size = setup_distributed()
+    local_rank = int(os.environ.get('LOCAL_RANK', 0))
     
     # Load configuration
     config = load_config(args.config)
@@ -159,6 +162,31 @@ def main():
     }
     
     train_ds, valid_ds, test_ds = get_unified_datasets(task_dict, train_dict, outputs_cfg=config.outputs)
+    
+    # Setup analysis manager (only on rank 0 to avoid duplicate file writes)
+    analysis_manager = None
+    if rank == 0 and hasattr(config, 'analysis'):
+        from datetime import datetime
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        run_name = getattr(config.outputs, 'run_name', 'fsdp_run')
+        run_id = f"{run_name}_{timestamp}"
+        run_save_path = os.path.join(config.outputs.dir, run_id)
+        os.makedirs(run_save_path, exist_ok=True)
+        
+        encoded_data = {
+            "train": train_ds,
+            "valid": valid_ds,
+            "test": test_ds,
+        }
+        analysis_manager = AnalysisManager(
+            model=model,
+            data=encoded_data,
+            analysis_config=config.analysis,
+            save_root=run_save_path,
+            device=f'cuda:{local_rank}',
+            train_config=train_config,
+        )
+        logger.info(f"Created analysis manager with output directory: {run_save_path}")
     
     # Create data loaders with FSDP-aware sampler
     from torch.utils.data import DataLoader
@@ -202,16 +230,28 @@ def main():
         'grad_clip_value': train_config.main.trainer.grad_clip_value,
         'print_every': train_config.main.trainer.print_every,
         'suppress_prints': train_config.main.trainer.suppress_prints,
-        'plot_losses': train_config.main.trainer.plot_losses
+        'plot_losses': train_config.main.trainer.plot_losses,
+        'save_checkpoints': getattr(train_config.main.trainer, 'save_checkpoints', True)
     }
     
     # Create FSDP trainer
+    save_checkpoints = trainer_config.pop('save_checkpoints', True)  # Remove from trainer_config
+    
+    # Set save_path for loss plotting (use the analysis manager's save path if available)
+    if rank == 0 and analysis_manager is not None:
+        trainer_config['save_path'] = analysis_manager.save_root
+    else:
+        trainer_config['save_path'] = args.checkpoint_dir or config.outputs.dir
+    
     trainer = FSDPTrainer(
         rank=rank,
         world_size=world_size,
         fsdp_config=fsdp_config,
         checkpoint_dir=args.checkpoint_dir or config.outputs.dir,
+        save_every_n_epochs=getattr(train_config.main.trainer, 'save_every_n_epochs', 1),
+        save_checkpoints=save_checkpoints,
         optimizer_config=optimizer_config,
+        analysis_manager=analysis_manager,
         **trainer_config
     )
     
@@ -224,8 +264,21 @@ def main():
     # Log results
     if rank == 0:
         logger.info(f"Training completed!")
-        logger.info(f"Best epoch: {results['best_epoch']}")
-        logger.info(f"Best loss: {results['best_loss']:.4f}")
+        if 'best_valid_loss' in results and results['best_valid_loss'] is not None:
+            logger.info(f"Best validation loss: {results['best_valid_loss']:.4f}")
+        if 'final_train_loss' in results and results['final_train_loss'] is not None:
+            logger.info(f"Final train loss: {results['final_train_loss']:.4f}")
+        if 'final_valid_loss' in results and results['final_valid_loss'] is not None:
+            logger.info(f"Final validation loss: {results['final_valid_loss']:.4f}")
+    
+    # Final analysis run
+    if rank == 0 and analysis_manager is not None:
+        try:
+            logger.info("Running final analysis...")
+            analysis_manager.run_analysis(filename="final", training=False)
+            logger.info("Final analysis completed")
+        except Exception as e:
+            logger.warning(f"Final analysis failed: {e}")
     
     # Cleanup
     dist.destroy_process_group()

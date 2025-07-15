@@ -121,3 +121,12 @@ Root Cause (first observed failure):
   traceback : To enable traceback see: https://pytorch.org/docs/stable/elastic/errors.html
 ============================================================
 srun: error: holygpu8a10202: task 1: Exited with exit code 1
+srun: got SIGCONT
+slurmstepd: error: *** STEP 24535564.0 ON holygpu8a10201 CANCELLED AT 2025-07-15T00:45:37 ***
+slurmstepd: error: *** JOB 24535564 ON holygpu8a10201 CANCELLED AT 2025-07-15T00:45:37 ***
+srun: forcing job termination
+W0715 00:45:37.268000 2383798 site-packages/torch/distributed/elastic/agent/server/api.py:719] Received 15 death signal, shutting down workers
+W0715 00:45:37.282000 2383798 site-packages/torch/distributed/elastic/multiprocessing/api.py:900] Sending process 2383812 closing signal SIGTERM
+W0715 00:45:37.283000 2383798 site-packages/torch/distributed/elastic/multiprocessing/api.py:900] Sending process 2383813 closing signal SIGTERM
+W0715 00:45:37.283000 2383798 site-packages/torch/distributed/elastic/multiprocessing/api.py:900] Sending process 2383814 closing signal SIGTERM
+W0715 00:45:37.283000 2383798 site-packages/torch/distributed/elastic/multiprocessing/api.py:900] Sending process 2383815 closing signal SIGTERM
