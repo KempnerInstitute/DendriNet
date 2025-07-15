@@ -1,0 +1,80 @@
+# Test FSDP Configuration
+# Small model for testing multi-GPU setup
+
+model:
+  task: classification
+  
+  encoder_network:
+    type: Identity
+    parameters: {}
+  
+  core_network:
+    type: MLP
+    parameters:
+      hidden_dims: [512, 256, 128]
+      activation: relu
+      dropout: 0.1
+      output_dim: 64
+  
+  decoder_network:
+    type: MLP
+    parameters:
+      hidden_dims: [32, 16]
+      activation: relu
+      output_dim: 10
+
+train:
+  seed: 0
+  train_valid_split: 0.8
+  
+  encoder: null
+  
+  main:
+    learning_strategy: standard
+    weight_decay_rate: 0.0001
+    
+    param_groups:
+      lr: 0.001
+      split_params: false
+    
+    trainer:
+      loss_function: cat_nll
+      epochs: 5  # Quick test
+      early_stopping: false
+      patience: 10
+      batch_size: 64  # Reasonable batch size per GPU
+      shuffle: true
+      grad_clip_value: 1.0
+      load_best_state_dict: true
+      plot_losses: true
+      suppress_prints: false
+      print_every: 1
+
+task:
+  dataset: cifar10  # Smaller dataset for testing
+  data_path: ./data
+  parameters:
+    num_classes: 10
+    train_size: 10000  # Small subset for testing
+    valid_size: 2000
+    test_size: 2000
+    flatten: true  # Changed to true for fully connected network
+    normalize: true
+
+# Disable analysis for testing
+analysis:
+  performance_analysis:
+    enabled: false
+  information_analysis:
+    enabled: false
+  weight_analysis:
+    enabled: false
+  ablation_analysis:
+    enabled: false
+
+outputs:
+  run_name: test_fsdp
+  dir: results/
+
+wandb:
+  use_wandb: false 

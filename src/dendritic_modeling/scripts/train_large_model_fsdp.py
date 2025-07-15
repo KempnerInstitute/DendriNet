@@ -19,8 +19,6 @@ import os
 import argparse
 import torch
 import torch.distributed as dist
-from omegaconf import OmegaConf
-from typing import Dict, Any
 
 from dendritic_modeling import logger
 from dendritic_modeling.config import load_config
@@ -28,13 +26,15 @@ from dendritic_modeling.datasets import get_unified_datasets
 from dendritic_modeling.models import Classifier, Regressor
 from dendritic_modeling.networks import Identity
 from dendritic_modeling.networks.architectures.factory import get_architecture
-from dendritic_modeling.training.strategies.fsdp_standard import FSDPTrainer
+from dendritic_modeling.utils.data import set_seed
 from dendritic_modeling.training.fsdp_utils import (
+    get_fsdp_config,
     estimate_memory_requirements,
     get_recommended_gpu_count,
-    get_fsdp_config,
+    save_fsdp_checkpoint,
+    load_fsdp_checkpoint
 )
-from dendritic_modeling.utils import set_seed
+from dendritic_modeling.training.strategies.fsdp_standard import FSDPTrainer
 
 
 def setup_distributed():
@@ -52,85 +52,61 @@ def setup_distributed():
     return rank, world_size
 
 
-def create_large_model(config: Dict[str, Any]):
+def create_large_model(config):
     """Create a large dendritic model from configuration."""
-    model_config = config['model']
+    model_config = config.model
     
-    # Log model size estimates
-    if 'core_network' in model_config:
-        core_params = model_config['core_network']['parameters']
-        if all(k in core_params for k in ['excitatory_layer_sizes', 'inhibitory_layer_sizes']):
-            # Estimate memory requirements
-            all_neurons = (
-                [core_params.get('input_dim', 784)] + 
-                core_params['excitatory_layer_sizes']
-            )
-            
-            # Estimate synapses per neuron from configuration
-            ee_synapses = core_params.get('ee_synapses_per_branch_per_layer', [100])
-            branches = core_params.get('excitatory_branch_factors', [1])
-            
-            memory_est = estimate_memory_requirements(
-                num_neurons=all_neurons,
-                num_synapses_per_neuron=ee_synapses,
-                num_branches=branches,
-                dtype=torch.float16 if config.get('mixed_precision', True) else torch.float32
-            )
-            
-            logger.info(f"Estimated model size: {memory_est['total_params']:,} parameters")
-            logger.info(f"Estimated memory requirement: {memory_est['total_gb']:.1f} GB")
-            
-            # Get GPU recommendation
-            gpu_memory = 80  # H100 memory
-            recommended_gpus = get_recommended_gpu_count(gpu_memory, memory_est['total_gb'])
-            logger.info(f"Recommended number of GPUs: {recommended_gpus}")
+    # Get input dimension from task config
+    task_params = config.task.parameters or {}
+    if config.task.dataset == 'mnist':
+        input_dim = 784  # 28x28 flattened
+    elif config.task.dataset == 'cifar10':
+        input_dim = 3072  # 32x32x3 flattened
+    else:
+        input_dim = task_params.get('input_dim', 784)
     
     # Create encoder
-    encoder_config = model_config['encoder_network']
-    if encoder_config['type'].lower() == 'identity':
-        encoder_network = Identity()
+    encoder_config = model_config.encoder_network
+    if encoder_config.type.lower() == 'identity':
+        encoder = Identity(input_dim)
     else:
-        encoder_network = get_architecture(
-            encoder_config['type'],
-            **encoder_config.get('parameters', {})
-        )
+        encoder_params = dict(encoder_config.parameters) if encoder_config.parameters else {}
+        encoder_params['input_dim'] = input_dim
+        encoder_network = get_architecture(encoder_config.type, encoder_params)
+        encoder = encoder_network.encoder if hasattr(encoder_network, 'encoder') else encoder_network
     
     # Create core network
-    core_config = model_config['core_network']
-    core_network = get_architecture(
-        core_config['type'],
-        **core_config['parameters']
-    )
+    core_config = model_config.core_network
+    core_params = dict(core_config.parameters) if core_config.parameters else {}
+    if hasattr(encoder, 'output_dim'):
+        core_params['input_dim'] = encoder.output_dim
+    core_network = get_architecture(core_config.type, core_params)
     
     # Create decoder
-    decoder_config = model_config['decoder_network']
-    if decoder_config['type'].lower() == 'identity':
-        decoder_network = Identity()
+    decoder_config = model_config.decoder_network
+    if decoder_config.type.lower() == 'identity':
+        decoder = Identity(core_network.output_dim if hasattr(core_network, 'output_dim') else core_network.excitatory_layer_sizes[-1])
     else:
-        decoder_params = decoder_config.get('parameters', {}).copy()
+        decoder_params = dict(decoder_config.parameters) if decoder_config.parameters else {}
         if hasattr(core_network, 'output_dim'):
             decoder_params['input_dim'] = core_network.output_dim
         elif hasattr(core_network, 'excitatory_layer_sizes'):
             decoder_params['input_dim'] = core_network.excitatory_layer_sizes[-1]
-        
-        decoder_network = get_architecture(
-            decoder_config['type'],
-            **decoder_params
-        )
+        decoder = get_architecture(decoder_config.type, decoder_params)
     
-    # Create model
-    if model_config['task'] == 'classification':
-        model = Classifier(
-            encoder_network=encoder_network,
-            net=core_network,
-            decoder_network=decoder_network
-        )
+    # Create model based on task
+    if model_config.task == 'classification':
+        model = Classifier(encoder, core_network, decoder)
+    elif model_config.task == 'regression':
+        model = Regressor(encoder, core_network, decoder)
     else:
-        model = Regressor(
-            encoder_network=encoder_network,
-            net=core_network,
-            decoder_network=decoder_network
-        )
+        raise ValueError(f"Unknown task: {model_config.task}")
+    
+    # Log model info
+    total_params = sum(p.numel() for p in model.parameters())
+    trainable_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
+    logger.info(f"Model created with {total_params:,} total parameters")
+    logger.info(f"Trainable parameters: {trainable_params:,}")
     
     return model
 
@@ -155,36 +131,46 @@ def main():
     
     # Load configuration
     config = load_config(args.config)
-    config_dict = OmegaConf.to_container(config, resolve=True)
     
     # Set seed
-    set_seed(config_dict['train'].get('seed', 0) + rank)
+    set_seed(config.train.seed + rank)
     
     # Log setup info
     if rank == 0:
         logger.info(f"Starting FSDP training on {world_size} GPUs")
-        logger.info(f"Configuration: {args.config}")
+        logger.info(f"Model size: {args.model_size}")
         logger.info(f"Mixed precision: {args.mixed_precision}")
-        logger.info(f"CPU offload: {args.cpu_offload}")
     
     # Create model
-    model = create_large_model(config_dict)
+    model = create_large_model(config)
     
     # Load datasets
-    task_config = config_dict['task']
-    train_config = config_dict['train']
+    task_config = config.task
+    train_config = config.train
     
-    train_ds, valid_ds, test_ds = get_unified_datasets(
-        dataset_name=task_config['dataset'],
-        data_path=task_config.get('data_path', './data'),
-        train_valid_split=train_config.get('train_valid_split', 0.8),
-        flatten=task_config.get('flatten', False),
-        normalize=task_config.get('normalize', True),
-        num_classes=task_config.get('num_classes', 10),
-        train_size=task_config.get('train_size'),
-        valid_size=task_config.get('valid_size'),
-        test_size=task_config.get('test_size')
-    )
+    # Convert configs to dict format for get_unified_datasets
+    task_dict = {
+        'dataset': task_config.dataset,
+        'data_path': task_config.data_path,
+        'parameters': task_config.parameters or {}
+    }
+    train_dict = {
+        'train_valid_split': train_config.train_valid_split
+    }
+    
+    train_ds, valid_ds, test_ds = get_unified_datasets(task_dict, train_dict, outputs_cfg=config.outputs)
+    
+    # Create data loaders with FSDP-aware sampler
+    from torch.utils.data import DataLoader
+    from torch.utils.data.distributed import DistributedSampler
+    
+    train_sampler = DistributedSampler(train_ds, num_replicas=world_size, rank=rank, shuffle=True)
+    valid_sampler = DistributedSampler(valid_ds, num_replicas=world_size, rank=rank, shuffle=False) if valid_ds else None
+    
+    batch_size = train_config.main.trainer.batch_size
+    train_loader = DataLoader(train_ds, batch_size=batch_size, sampler=train_sampler, num_workers=4, pin_memory=True)
+    valid_loader = DataLoader(valid_ds, batch_size=batch_size, sampler=valid_sampler, num_workers=4, pin_memory=True) if valid_ds else None
+    test_loader = DataLoader(test_ds, batch_size=batch_size, shuffle=False, num_workers=4, pin_memory=True) if test_ds else None
     
     # Get FSDP configuration
     fsdp_config = get_fsdp_config(
@@ -194,42 +180,46 @@ def main():
         sharding_strategy="FULL_SHARD"  # Best for large models
     )
     
-    # Create optimizer configuration
-    optimizer_config = train_config['main']['param_groups']
-    if optimizer_config.get('split_params', False):
-        # Complex optimizer setup handled by FSDPTrainer
-        optimizer_params = optimizer_config
-    else:
-        optimizer_params = {
-            'lr': optimizer_config.get('lr', 0.001),
-            'weight_decay': train_config['main'].get('weight_decay_rate', 0.0)
-        }
-    
-    # Create optimizer
-    # Note: We create optimizer after FSDP wrapping in the trainer
-    optimizer = None
+    # Get optimizer configuration from config
+    optimizer_config = {
+        'lr': train_config.main.param_groups.lr,
+        'weight_decay': train_config.main.weight_decay_rate
+    }
+    if hasattr(train_config.main.param_groups, 'split_params') and train_config.main.param_groups.split_params:
+        optimizer_config.update({
+            'topk_lr': train_config.main.param_groups.topk_lr,
+            'blocklinear_lr': train_config.main.param_groups.blocklinear_lr,
+            'reactivation_lr': train_config.main.param_groups.reactivation_lr,
+            'decoder_lr': train_config.main.param_groups.decoder_lr
+        })
     
     # Get trainer configuration
-    trainer_config = train_config['main']['trainer'].copy()
+    trainer_config = {
+        'epochs': train_config.main.trainer.epochs,
+        'loss_function': train_config.main.trainer.loss_function,
+        'early_stopping': train_config.main.trainer.early_stopping,
+        'patience': train_config.main.trainer.patience,
+        'grad_clip_value': train_config.main.trainer.grad_clip_value,
+        'print_every': train_config.main.trainer.print_every,
+        'suppress_prints': train_config.main.trainer.suppress_prints,
+        'plot_losses': train_config.main.trainer.plot_losses
+    }
     
     # Create FSDP trainer
     trainer = FSDPTrainer(
         rank=rank,
         world_size=world_size,
         fsdp_config=fsdp_config,
-        checkpoint_dir=args.checkpoint_dir or config_dict['outputs']['dir'],
-        optimizer=optimizer,  # Will be created after FSDP wrapping
+        checkpoint_dir=args.checkpoint_dir or config.outputs.dir,
+        optimizer_config=optimizer_config,
         **trainer_config
     )
-    
-    # Create optimizer after model is wrapped (done inside trainer)
-    # This is handled internally by FSDPTrainer
     
     # Run training
     if rank == 0:
         logger.info("Starting training...")
     
-    results = trainer.train(model, train_ds, valid_ds)
+    results = trainer.train(model, train_loader, valid_loader)
     
     # Log results
     if rank == 0:

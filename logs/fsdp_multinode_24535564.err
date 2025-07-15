@@ -1,0 +1,123 @@
+[W715 00:33:30.500495906 socket.cpp:755] [c10d] The client socket cannot be initialized to connect to [holygpu8a10201.rc.fas.harvard.edu]:30064 (errno: 97 - Address family not supported by protocol).
+[W715 00:33:30.493400324 socket.cpp:755] [c10d] The client socket cannot be initialized to connect to [holygpu8a10201.rc.fas.harvard.edu]:30064 (errno: 97 - Address family not supported by protocol).
+[W715 00:33:50.534613125 socket.cpp:755] [c10d] The client socket cannot be initialized to connect to [holygpu8a10201.rc.fas.harvard.edu]:30064 (errno: 97 - Address family not supported by protocol).
+[W715 00:33:50.534849034 socket.cpp:755] [c10d] The client socket cannot be initialized to connect to [holygpu8a10201.rc.fas.harvard.edu]:30064 (errno: 97 - Address family not supported by protocol).
+[W715 00:33:50.534906104 socket.cpp:755] [c10d] The client socket cannot be initialized to connect to [holygpu8a10201.rc.fas.harvard.edu]:30064 (errno: 97 - Address family not supported by protocol).
+[W715 00:33:50.534949734 socket.cpp:755] [c10d] The client socket cannot be initialized to connect to [holygpu8a10201.rc.fas.harvard.edu]:30064 (errno: 97 - Address family not supported by protocol).
+[rank7]: Traceback (most recent call last):
+[rank7]:   File "/n/holylabs/kempner_dev/Users/hsafaai/Code/dendritic-modeling/src/dendritic_modeling/scripts/train_large_model_fsdp.py", line 235, in <module>
+[rank7]:     main() 
+[rank7]:     ^^^^^^
+[rank7]:   File "/n/holylabs/kempner_dev/Users/hsafaai/Code/dendritic-modeling/src/dendritic_modeling/scripts/train_large_model_fsdp.py", line 130, in main
+[rank7]:     rank, world_size = setup_distributed()
+[rank7]:                        ^^^^^^^^^^^^^^^^^^^
+[rank7]:   File "/n/holylabs/kempner_dev/Users/hsafaai/Code/dendritic-modeling/src/dendritic_modeling/scripts/train_large_model_fsdp.py", line 50, in setup_distributed
+[rank7]:     torch.cuda.set_device(rank)
+[rank7]:   File "/n/netscratch/kempner_dev/hsafaai/conda_envs/dendritic_env/lib/python3.11/site-packages/torch/cuda/__init__.py", line 529, in set_device
+[rank7]:     torch._C._cuda_setDevice(device)
+[rank7]: RuntimeError: CUDA error: invalid device ordinal
+[rank7]: CUDA kernel errors might be asynchronously reported at some other API call, so the stacktrace below might be incorrect.
+[rank7]: For debugging consider passing CUDA_LAUNCH_BLOCKING=1
+[rank7]: Compile with `TORCH_USE_CUDA_DSA` to enable device-side assertions.
+
+[rank6]: Traceback (most recent call last):
+[rank6]:   File "/n/holylabs/kempner_dev/Users/hsafaai/Code/dendritic-modeling/src/dendritic_modeling/scripts/train_large_model_fsdp.py", line 235, in <module>
+[rank6]:     main() 
+[rank6]:     ^^^^^^
+[rank6]:   File "/n/holylabs/kempner_dev/Users/hsafaai/Code/dendritic-modeling/src/dendritic_modeling/scripts/train_large_model_fsdp.py", line 130, in main
+[rank6]:     rank, world_size = setup_distributed()
+[rank6]:                        ^^^^^^^^^^^^^^^^^^^
+[rank6]:   File "/n/holylabs/kempner_dev/Users/hsafaai/Code/dendritic-modeling/src/dendritic_modeling/scripts/train_large_model_fsdp.py", line 50, in setup_distributed
+[rank6]:     torch.cuda.set_device(rank)
+[rank6]:   File "/n/netscratch/kempner_dev/hsafaai/conda_envs/dendritic_env/lib/python3.11/site-packages/torch/cuda/__init__.py", line 529, in set_device
+[rank6]:     torch._C._cuda_setDevice(device)
+[rank6]: RuntimeError: CUDA error: invalid device ordinal
+[rank6]: CUDA kernel errors might be asynchronously reported at some other API call, so the stacktrace below might be incorrect.
+[rank6]: For debugging consider passing CUDA_LAUNCH_BLOCKING=1
+[rank6]: Compile with `TORCH_USE_CUDA_DSA` to enable device-side assertions.
+
+[rank4]: Traceback (most recent call last):
+[rank4]:   File "/n/holylabs/kempner_dev/Users/hsafaai/Code/dendritic-modeling/src/dendritic_modeling/scripts/train_large_model_fsdp.py", line 235, in <module>
+[rank4]:     main() 
+[rank4]:     ^^^^^^
+[rank4]:   File "/n/holylabs/kempner_dev/Users/hsafaai/Code/dendritic-modeling/src/dendritic_modeling/scripts/train_large_model_fsdp.py", line 130, in main
+[rank4]:     rank, world_size = setup_distributed()
+[rank4]:                        ^^^^^^^^^^^^^^^^^^^
+[rank4]:   File "/n/holylabs/kempner_dev/Users/hsafaai/Code/dendritic-modeling/src/dendritic_modeling/scripts/train_large_model_fsdp.py", line 50, in setup_distributed
+[rank4]:     torch.cuda.set_device(rank)
+[rank4]:   File "/n/netscratch/kempner_dev/hsafaai/conda_envs/dendritic_env/lib/python3.11/site-packages/torch/cuda/__init__.py", line 529, in set_device
+[rank4]:     torch._C._cuda_setDevice(device)
+[rank4]: RuntimeError: CUDA error: invalid device ordinal
+[rank4]: CUDA kernel errors might be asynchronously reported at some other API call, so the stacktrace below might be incorrect.
+[rank4]: For debugging consider passing CUDA_LAUNCH_BLOCKING=1
+[rank4]: Compile with `TORCH_USE_CUDA_DSA` to enable device-side assertions.
+
+[rank5]: Traceback (most recent call last):
+[rank5]:   File "/n/holylabs/kempner_dev/Users/hsafaai/Code/dendritic-modeling/src/dendritic_modeling/scripts/train_large_model_fsdp.py", line 235, in <module>
+[rank5]:     main() 
+[rank5]:     ^^^^^^
+[rank5]:   File "/n/holylabs/kempner_dev/Users/hsafaai/Code/dendritic-modeling/src/dendritic_modeling/scripts/train_large_model_fsdp.py", line 130, in main
+[rank5]:     rank, world_size = setup_distributed()
+[rank5]:                        ^^^^^^^^^^^^^^^^^^^
+[rank5]:   File "/n/holylabs/kempner_dev/Users/hsafaai/Code/dendritic-modeling/src/dendritic_modeling/scripts/train_large_model_fsdp.py", line 50, in setup_distributed
+[rank5]:     torch.cuda.set_device(rank)
+[rank5]:   File "/n/netscratch/kempner_dev/hsafaai/conda_envs/dendritic_env/lib/python3.11/site-packages/torch/cuda/__init__.py", line 529, in set_device
+[rank5]:     torch._C._cuda_setDevice(device)
+[rank5]: RuntimeError: CUDA error: invalid device ordinal
+[rank5]: CUDA kernel errors might be asynchronously reported at some other API call, so the stacktrace below might be incorrect.
+[rank5]: For debugging consider passing CUDA_LAUNCH_BLOCKING=1
+[rank5]: Compile with `TORCH_USE_CUDA_DSA` to enable device-side assertions.
+
+[W715 00:33:51.610908980 socket.cpp:755] [c10d] The client socket cannot be initialized to connect to [holygpu8a10201.rc.fas.harvard.edu]:30064 (errno: 97 - Address family not supported by protocol).
+[W715 00:33:51.611013360 socket.cpp:755] [c10d] The client socket cannot be initialized to connect to [holygpu8a10201.rc.fas.harvard.edu]:30064 (errno: 97 - Address family not supported by protocol).
+[W715 00:33:51.611254818 socket.cpp:755] [c10d] The client socket cannot be initialized to connect to [holygpu8a10201.rc.fas.harvard.edu]:30064 (errno: 97 - Address family not supported by protocol).
+[W715 00:33:51.611297468 socket.cpp:755] [c10d] The client socket cannot be initialized to connect to [holygpu8a10201.rc.fas.harvard.edu]:30064 (errno: 97 - Address family not supported by protocol).
+[rank4]:[W715 00:33:51.735188703 ProcessGroupNCCL.cpp:1479] Warning: WARNING: destroy_process_group() was not called before program exit, which can leak resources. For more info, please see https://pytorch.org/docs/stable/distributed.html#shutdown (function operator())
+W0715 00:33:52.545000 2271222 site-packages/torch/distributed/elastic/multiprocessing/api.py:900] Sending process 2271238 closing signal SIGTERM
+E0715 00:33:52.810000 2271222 site-packages/torch/distributed/elastic/multiprocessing/api.py:874] failed (exitcode: 1) local_rank: 1 (pid: 2271239) of binary: /n/netscratch/kempner_dev/hsafaai/conda_envs/dendritic_env/bin/python3.11
+Traceback (most recent call last):
+  File "/n/netscratch/kempner_dev/hsafaai/conda_envs/dendritic_env/bin/torchrun", line 8, in <module>
+    sys.exit(main())
+             ^^^^^^
+  File "/n/netscratch/kempner_dev/hsafaai/conda_envs/dendritic_env/lib/python3.11/site-packages/torch/distributed/elastic/multiprocessing/errors/__init__.py", line 355, in wrapper
+    return f(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^
+  File "/n/netscratch/kempner_dev/hsafaai/conda_envs/dendritic_env/lib/python3.11/site-packages/torch/distributed/run.py", line 892, in main
+    run(args)
+  File "/n/netscratch/kempner_dev/hsafaai/conda_envs/dendritic_env/lib/python3.11/site-packages/torch/distributed/run.py", line 883, in run
+    elastic_launch(
+  File "/n/netscratch/kempner_dev/hsafaai/conda_envs/dendritic_env/lib/python3.11/site-packages/torch/distributed/launcher/api.py", line 139, in __call__
+    return launch_agent(self._config, self._entrypoint, list(args))
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/n/netscratch/kempner_dev/hsafaai/conda_envs/dendritic_env/lib/python3.11/site-packages/torch/distributed/launcher/api.py", line 270, in launch_agent
+    raise ChildFailedError(
+torch.distributed.elastic.multiprocessing.errors.ChildFailedError: 
+============================================================
+src/dendritic_modeling/scripts/train_large_model_fsdp.py FAILED
+------------------------------------------------------------
+Failures:
+[1]:
+  time      : 2025-07-15_00:33:52
+  host      : holygpu8a10202.rc.fas.harvard.edu
+  rank      : 6 (local_rank: 2)
+  exitcode  : 1 (pid: 2271240)
+  error_file: <N/A>
+  traceback : To enable traceback see: https://pytorch.org/docs/stable/elastic/errors.html
+[2]:
+  time      : 2025-07-15_00:33:52
+  host      : holygpu8a10202.rc.fas.harvard.edu
+  rank      : 7 (local_rank: 3)
+  exitcode  : 1 (pid: 2271241)
+  error_file: <N/A>
+  traceback : To enable traceback see: https://pytorch.org/docs/stable/elastic/errors.html
+------------------------------------------------------------
+Root Cause (first observed failure):
+[0]:
+  time      : 2025-07-15_00:33:52
+  host      : holygpu8a10202.rc.fas.harvard.edu
+  rank      : 5 (local_rank: 1)
+  exitcode  : 1 (pid: 2271239)
+  error_file: <N/A>
+  traceback : To enable traceback see: https://pytorch.org/docs/stable/elastic/errors.html
+============================================================
+srun: error: holygpu8a10202: task 1: Exited with exit code 1

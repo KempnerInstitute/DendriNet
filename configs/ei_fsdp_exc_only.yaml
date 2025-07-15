@@ -1,0 +1,123 @@
+# Excitatory-Only EI Network for FSDP Testing
+# Single layer with many excitatory neurons, no inhibitory neurons
+# Both E and I inputs come from the transfer function
+
+model:
+  task: classification
+  
+  encoder_network:
+    type: Identity
+    parameters: {}
+  
+  core_network:
+    type: EINet
+    parameters:
+      # Transfer function parameters
+      transfer_params:
+        input_mode: 1
+        independent_pathways: true
+        excitatory_dim: 1536  # Half of 3072 (CIFAR-10 flattened)
+        inhibitory_dim: 1536  # Half of 3072 (CIFAR-10 flattened)
+      
+      # Network architecture - single layer with many neurons
+      excitatory_layer_sizes: [1024]  # Reduced from 4096 to fit in memory
+      inhibitory_layer_sizes: [0]     # No inhibitory neurons
+      
+      # Deeper dendritic tree but more reasonable
+      excitatory_branch_factors: [4, 4, 2]  # 3 levels deep, total 32 branches per neuron
+      inhibitory_branch_factors: []
+      
+      # Synapses configuration
+      ee_synapses_per_branch_per_layer: [256]  # Excitatory input to excitatory neurons
+      ei_synapses_per_branch_per_layer: []     # No inhibitory neurons to receive excitatory input
+      ie_synapses_per_branch_per_layer: [256]  # Inhibitory input to excitatory neurons
+      ii_synapses_per_branch_per_layer: []     # No inhibitory neurons
+      
+      somatic_synapses: true
+      use_shunting: false  # Disable shunting since no inhibition
+      
+      # TopK parameters
+      topk_init_method: xavier_normal
+      topk_noise_level: 0.0
+      topk_type: standard
+      topk_temperature: 0.5
+      topk_ultrafast: true
+      
+      # Reactivation parameters
+      reactivate: true
+      reactivation_type: param_tanh
+      reactivation_init_m: 1.5
+      reactivation_init_b: 0.5
+      
+      # Gradient scaling
+      reactivation_strategy: inverse
+      topk_strategy: conductance_dynamic
+      blocklinear_strategy: conductance_dynamic
+      print_hooks: false
+  
+  decoder_network:
+    type: MLP
+    parameters:
+      hidden_dims: [512, 256]
+      activation: relu
+      output_dim: 10  # CIFAR-10 has 10 classes
+
+train:
+  seed: 0
+  train_valid_split: 0.8
+  
+  encoder: null
+  
+  main:
+    learning_strategy: standard
+    weight_decay_rate: 0.0001
+    
+    param_groups:
+      lr: 0.0001  # Lower learning rate for large model
+      split_params: true
+      topk_lr: 0.00005
+      blocklinear_lr: 0.00005
+      reactivation_lr: 0.0001
+      decoder_lr: 0.0001
+    
+    trainer:
+      loss_function: cat_nll
+      epochs: 10
+      early_stopping: true
+      patience: 5
+      batch_size: 32  # Smaller batch size for large model
+      shuffle: true
+      grad_clip_value: 1.0
+      load_best_state_dict: true
+      plot_losses: true
+      suppress_prints: false
+      print_every: 1
+
+task:
+  dataset: cifar10
+  data_path: ./data
+  parameters:
+    num_classes: 10
+    train_size: 10000
+    valid_size: 2000
+    test_size: 2000
+    flatten: true
+    normalize: true
+
+# Disable analysis for testing
+analysis:
+  performance_analysis:
+    enabled: false
+  information_analysis:
+    enabled: false
+  weight_analysis:
+    enabled: false
+  ablation_analysis:
+    enabled: false
+
+outputs:
+  run_name: ei_fsdp_exc_only
+  dir: results/
+
+wandb:
+  use_wandb: false 

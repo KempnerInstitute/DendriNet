@@ -611,13 +611,13 @@ class InformationAnalyzer:
                         E_branch = E_all_branches[:, branch_idx:branch_idx+1]  # Keep 2D shape
                         I_branch = I_all_branches[:, branch_idx:branch_idx+1]
                         Vout_branch = Vout_all_branches[:, branch_idx:branch_idx+1]
-                        
-                        # Compute MI for this single branch
-                        branch_results = self.compute_metrics(
-                            E_branch, I_branch, Vout_branch, C, None
-                        )
-                        all_results.append(branch_results)
-                        branch_names.append(f"{layer_name}_branch_{branch_idx}")
+
+                    # Compute MI for this single branch
+                    branch_results = self.compute_metrics(
+                        E_branch, I_branch, Vout_branch, C, None
+                    )
+                    all_results.append(branch_results)
+                    branch_names.append(f"{layer_name}_branch_{branch_idx}")
 
                 # Average the results across branches
                 if all_results:
