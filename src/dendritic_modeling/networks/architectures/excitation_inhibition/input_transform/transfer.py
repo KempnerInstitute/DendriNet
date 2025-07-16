@@ -46,6 +46,7 @@ class TransferLayer(nn.Module):
         freeze_inhibitory_connectivity: bool = False,
         init_method: str = "xavier_normal",
         weight_threshold: float = 1e-6,
+        efficient_blocklinear: bool = False,
     ):
         super().__init__()
 
@@ -100,6 +101,7 @@ class TransferLayer(nn.Module):
                 freeze_inhibitory_connectivity=freeze_inhibitory_connectivity,
                 init_method=init_method,
                 weight_threshold=weight_threshold,
+                efficient_blocklinear=efficient_blocklinear,
             )
 
         self.excitatory_dim = excitatory_input_dim

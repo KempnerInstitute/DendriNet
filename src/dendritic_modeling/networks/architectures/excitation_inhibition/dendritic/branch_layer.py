@@ -12,6 +12,7 @@ import torch.nn as nn
 from dendritic_modeling.networks.activations import ActivationFactory
 from dendritic_modeling.networks.architectures.excitation_inhibition.dendritic.blocklinear import (
     BlockLinear,
+    EfficientBlockLinear,
 )
 from dendritic_modeling.networks.architectures.excitation_inhibition.dendritic.gradient_scaling import (
     GradientScaler,
@@ -82,6 +83,7 @@ class DendriticBranchLayer(nn.Module):
         reactivation_init_b=0.5,
         reactivation_strategy="none",
         blocklinear_strategy="none",
+        efficient_blocklinear: bool = False,
         layer_idx=0,
         print_hooks=False,
         # DEEPST specific parameters, clean up later
@@ -102,6 +104,7 @@ class DendriticBranchLayer(nn.Module):
         self.layer_idx = layer_idx
         self.reactivation_strategy = reactivation_strategy
         self.blocklinear_strategy = blocklinear_strategy
+        self.efficient_blocklinear = efficient_blocklinear
         self.use_shunting = use_shunting
         self.topk_type = topk_type  # Store the strategy
         self.topk_temperature = topk_temperature  # Store the temperature
@@ -162,7 +165,8 @@ class DendriticBranchLayer(nn.Module):
 
         self.input_branches = input_branch_factor is not None
         if self.input_branches:
-            self.branches_to_output = BlockLinear(
+            BlockCls = EfficientBlockLinear if self.efficient_blocklinear else BlockLinear
+            self.branches_to_output = BlockCls(
                 output_dim * input_branch_factor, output_dim
             )
             gradient_scaler.register_block_linear_dynamic(self.branches_to_output)
