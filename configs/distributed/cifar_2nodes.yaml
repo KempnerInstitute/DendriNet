@@ -52,6 +52,7 @@ model:
       reactivation_init_b: 0.5
       reactivation_strategy: inverse
       blocklinear_strategy: standard
+      efficient_blocklinear: true
       print_hooks: false
     
   decoder_network:
