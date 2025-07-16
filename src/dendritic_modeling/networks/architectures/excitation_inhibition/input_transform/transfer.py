@@ -1,7 +1,10 @@
+import logging
 from typing import Any, Optional
 
 import torch
 from torch import nn
+
+logger = logging.getLogger(__name__)
 
 from dendritic_modeling.networks.architectures.excitation_inhibition.dendritic.dendrinet import (
     DendriNet,
@@ -55,18 +58,30 @@ class TransferLayer(nn.Module):
         independent_pathways = transfer_params.get("independent_pathways", False)
 
         if independent_pathways:
-            excitatory_input_dim = transfer_params.get(
-                "excitatory_dim", int(input_dim / 2)
-            )
-            inhibitory_input_dim = transfer_params.get(
-                "inhibitory_dim", int(input_dim - excitatory_input_dim)
-            )
+            # Get dimensions from transfer_params, checking for None, 0, or missing
+            excitatory_dim = transfer_params.get("excitatory_dim", None)
+            inhibitory_dim = transfer_params.get("inhibitory_dim", None)
+            
+            # If excitatory_dim is None, 0, or not provided, use input_dim / 2
+            if not excitatory_dim:  # This covers None, 0, empty string, etc.
+                excitatory_dim = int(input_dim / 2)
+                logger.info(f"excitatory_dim not provided or is 0/None. Setting to input_dim/2 = {excitatory_dim}")
+            
+            # If inhibitory_dim is None, 0, or not provided, use remaining dimensions
+            if not inhibitory_dim:  # This covers None, 0, empty string, etc.
+                inhibitory_dim = int(input_dim - excitatory_dim)
+                logger.info(f"inhibitory_dim not provided or is 0/None. Setting to input_dim - excitatory_dim = {inhibitory_dim}")
+            
+            excitatory_input_dim = excitatory_dim
+            inhibitory_input_dim = inhibitory_dim
+            
             self.pathway_split = IndexInputTransform(
                 input_dim=input_dim,
                 excitatory_dim=excitatory_input_dim,
                 inhibitory_dim=inhibitory_input_dim,
             )
         else:
+            # When independent_pathways is False, both use full input_dim
             excitatory_input_dim = input_dim
             inhibitory_input_dim = input_dim
             self.pathway_split = IdentityInputTransform()
