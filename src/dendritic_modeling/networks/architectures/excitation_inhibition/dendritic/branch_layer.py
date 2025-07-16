@@ -98,6 +98,8 @@ class DendriticBranchLayer(nn.Module):
         freeze_inhibitory_connectivity=False,
         init_method=None,
         weight_threshold=1e-6,
+        adaptive_initialization=True,
+        branch_factors=None,  # Add branch_factors parameter
         **kwargs,
     ):
         super().__init__()
@@ -125,6 +127,8 @@ class DendriticBranchLayer(nn.Module):
         self.freeze_inhibitory_connectivity = freeze_inhibitory_connectivity
         self.init_method = init_method
         self.weight_threshold = weight_threshold
+        self.adaptive_initialization = adaptive_initialization
+        self.branch_factors = branch_factors  # Store branch_factors
 
         gradient_scaler = GradientScaler(
             topk_strategy=topk_strategy,
@@ -190,7 +194,7 @@ class DendriticBranchLayer(nn.Module):
         #     initialize_dendritic_branch_layer(self)
         # else:
         #     self.initialize()
-        initialize_dendritic_branch_layer(self)
+        initialize_dendritic_branch_layer(self, adaptive=self.adaptive_initialization, branch_factors=self.branch_factors)
 
     def _create_topk_layer(
         self,

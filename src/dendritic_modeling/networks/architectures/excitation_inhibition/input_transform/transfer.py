@@ -47,6 +47,7 @@ class TransferLayer(nn.Module):
         init_method: str = "xavier_normal",
         weight_threshold: float = 1e-6,
         efficient_blocklinear: bool = False,
+        adaptive_initialization: bool = True,
     ):
         super().__init__()
 
@@ -102,6 +103,7 @@ class TransferLayer(nn.Module):
                 init_method=init_method,
                 weight_threshold=weight_threshold,
                 efficient_blocklinear=efficient_blocklinear,
+                adaptive_initialization=adaptive_initialization,
             )
 
         self.excitatory_dim = excitatory_input_dim

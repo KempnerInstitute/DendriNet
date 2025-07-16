@@ -7,7 +7,8 @@ model:
   
   encoder_network:
     type: Identity
-    parameters: {}
+    parameters:
+      input_dim: 3072
     
   core_network:
     type: EINet
@@ -21,24 +22,24 @@ model:
         
       # Single neural layer with 3-layer dendritic trees within each neuron
       # With input_mode=1, inhibition comes from transfer function, no inhibitory layers needed
-      excitatory_layer_sizes: [1024]                    # Single layer with 1K neurons (reduced for CIFAR)
+      excitatory_layer_sizes: [500]                    # Single layer with 1K neurons (reduced for CIFAR)
       inhibitory_layer_sizes: [0]                       # Dummy value - no inhibitory layers built for input_mode=1
       
       # 3-layer dendritic tree within each neuron: [distal, intermediate, proximal]
-      excitatory_branch_factors: [4, 3, 2]             # Creates 3 dendritic layers: 3→2→2 branching
+      excitatory_branch_factors: [3, 2, 2]           # Larger dendritic tree (original OOM config)
       inhibitory_branch_factors: []                     # No inhibitory branch factors needed
       
       # Synapses per dendritic layer (from distal to proximal)
-      ee_synapses_per_branch_per_layer: [20]           # Reduced synapses per branch for smaller model
+      ee_synapses_per_branch_per_layer: [20]           # High synapse count for stress test
       ei_synapses_per_branch_per_layer: []             # No excitatory-inhibitory (no inhibitory layers)
-      ie_synapses_per_branch_per_layer: [20]           # Reduced IE connectivity
+      ie_synapses_per_branch_per_layer: [20]           # Original IE connectivity causing OOM
       ii_synapses_per_branch_per_layer: []             # No inhibitory-inhibitory (no inhibitory layers)      
       
       somatic_synapses: true
       use_shunting: true
       
       # TopK parameters
-      topk_init_method: xavier_normal
+      topk_init_method: normal
       topk_noise_level: 0.0
       topk_type: standard
       topk_temperature: 0.5
@@ -48,11 +49,12 @@ model:
       # Reactivation parameters
       reactivate: true
       reactivation_type: param_tanh
-      reactivation_init_m: 1.5
-      reactivation_init_b: 0.5
+      reactivation_init_m: 0.01
+      reactivation_init_b: 0.01
       reactivation_strategy: inverse
       blocklinear_strategy: standard
-      efficient_blocklinear: true
+      efficient_blocklinear: false
+      adaptive_initialization: true  # Use network-aware weight scaling
       print_hooks: false
     
   decoder_network:

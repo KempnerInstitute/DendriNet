@@ -61,6 +61,7 @@ class DendriNet(nn.Module):
         freeze_inhibitory_connectivity=False,
         init_method=None,
         weight_threshold=1e-6,
+        adaptive_initialization=True,  # Add adaptive initialization parameter
         **kwargs,
     ):
         super().__init__()
@@ -77,6 +78,9 @@ class DendriNet(nn.Module):
                 raise TypeError("branch_factors must be integers")
             if bf < 1:
                 raise ValueError("branch_factors must be >= 1")
+
+        # Store branch factors for network-aware initialization
+        self.branch_factors = deepcopy(branch_factors)
 
         if (
             inhibitory_input_dim is not None
@@ -139,6 +143,8 @@ class DendriNet(nn.Module):
                 freeze_inhibitory_connectivity=freeze_inhibitory_connectivity,
                 init_method=init_method,
                 weight_threshold=weight_threshold,
+                adaptive_initialization=adaptive_initialization,
+                branch_factors=self.branch_factors,  # Pass branch_factors
                 **kwargs,
             )
             branch_layers.append(lyr)
@@ -179,6 +185,8 @@ class DendriNet(nn.Module):
                     freeze_inhibitory_connectivity=freeze_inhibitory_connectivity,
                     init_method=init_method,
                     weight_threshold=weight_threshold,
+                    adaptive_initialization=adaptive_initialization,
+                    branch_factors=self.branch_factors,  # Pass branch_factors
                     **kwargs,
                 )
             )
@@ -218,6 +226,8 @@ class DendriNet(nn.Module):
                     freeze_inhibitory_connectivity=freeze_inhibitory_connectivity,
                     init_method=init_method,
                     weight_threshold=weight_threshold,
+                    adaptive_initialization=adaptive_initialization,
+                    branch_factors=self.branch_factors,  # Pass branch_factors
                     **kwargs,
                 )
             )

@@ -53,6 +53,7 @@ class EINetParameters(BaseConfig):
     freeze_inhibitory_connectivity: bool = False
     init_method: str = "xavier_normal"
     weight_threshold: float = 1e-6
+    adaptive_initialization: bool = True  # use network-aware weight scaling
 
 
 @dataclass

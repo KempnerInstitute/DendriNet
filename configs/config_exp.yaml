@@ -43,6 +43,8 @@ model:
       reactivation_strategy: inverse # "none", "inverse"
       topk_strategy: conductance_dynamic
       blocklinear_strategy: conductance_dynamic # "none", "distal_upweight_by_idx", "conductance_dynamic"
+      efficient_blocklinear: true  # Whether to use efficient blocklinear implementation
+      adaptive_initialization: true  # Use network-aware weight scaling to prevent NaN in large architectures
       print_hooks: false # Whether to print gradient statistics in hooks
       # DEEPST specific parameters
       excitatory_target_density: 0.1   # Target density for excitatory connections (fraction of active synapses)
@@ -70,7 +72,7 @@ model:
       hidden_dims: [32, 16]
       activation: relu
       output_dim: 10
-
+      
 train:
   seed: 0
   train_valid_split: 0.8
@@ -82,7 +84,7 @@ train:
     trainer:
       # for all learning strategies:
       loss_function: mse
-      epochs: 10
+      epochs: 50
       early_stopping: false
       patience: 10
       batch_size: 128
@@ -109,7 +111,7 @@ train:
     trainer:
       # for all learning strategies:
       loss_function: cat_nll
-      epochs: 10
+      epochs: 50
       early_stopping: false
       patience: 10
       batch_size: 128
@@ -165,10 +167,11 @@ analysis:
       mse: false
 
   synapse_turnover_analysis:
-    enabled: true  # Whether to enable synapse turnover analysis
-    training: true  # Whether to enable synapse turnover analysis during training
+    enabled: false  # Whether to enable synapse turnover analysis
+    training: false  # Whether to enable synapse turnover analysis during training
+
   noise_perturbation_analysis:
-    enabled: true
+    enabled: false
     training: false
     params:
       uniform_noise: true
@@ -178,8 +181,9 @@ analysis:
       n_samples: 10
       accuracy: true
       categorical_loglikelihood: true
+
   ablation_analysis:
-    enabled: true
+    enabled: false
     training: false
     params:
       layer_ablation: true
@@ -190,14 +194,16 @@ analysis:
       ablate_upstream: true
       accuracy: true
       categorical_loglikelihood: true
+
   weight_analysis:
-    enabled: true
+    enabled: false
     training: false
     params:
       synapse_weights: true
       branch_weights: true
+
   synaptic_activation_analysis:
-    enabled: true
+    enabled: false
     training: false
     params:
       network_summary: true
@@ -207,8 +213,9 @@ analysis:
       logspace: false
       downsample: true
       samples: 2
+
   branch_activation_analysis:
-    enabled: true
+    enabled: false
     training: false
     params:
       synapse_activations: true
@@ -232,7 +239,7 @@ analysis:
 
   # NEW: Integrated information-theoretic analysis using multivariate methods
   information_analysis:
-    enabled: true
+    enabled: false
     training: false
     params:
       # Estimation method for mutual information computation

@@ -1,6 +1,6 @@
 #!/bin/bash
 #SBATCH --job-name=cifar_2nodes_opt
-#SBATCH --partition=kempner
+#SBATCH --partition=kempner_eng
 #SBATCH --account=kempner_dev
 #SBATCH --nodes=4
 #SBATCH --ntasks-per-node=2

@@ -1,4 +1,4 @@
-from math import erf, exp, sqrt
+from math import erf, exp, sqrt, log
 
 import torch
 from scipy.stats import norm
@@ -21,10 +21,62 @@ def compute_expectation_truncated_log_normal(
     return expectation
 
 
-def initialize_dendritic_branch_layer(dbl):
+def compute_network_scale_factor(dbl, branch_factors=None):
+    """
+    Compute a scale factor based on the total network architecture.
+    This prevents overflow when many branches accumulate in shunting computation.
+    
+    Args:
+        dbl: DendriticBranchLayer to initialize
+        branch_factors: List of branch factors from the parent network
+    
+    Returns a scale factor to reduce initial weights in log space.
+    """
+    # Calculate total branches
+    total_branches = 1
+    
+    if branch_factors:
+        for bf in branch_factors:
+            total_branches *= bf
+    else:
+        # Conservative estimate if branch factors not provided
+        total_branches = 100
+    
+    # Calculate approximate total conductance
+    k_exc = dbl.branch_excitation.K if dbl.input_excitatory else 0
+    k_inh = dbl.branch_inhibition.K if dbl.input_inhibitory else 0
+    
+    # Total approximate conductance with all weights at 1
+    # Scale by sqrt of branches for more conservative scaling
+    total_conductance = (k_exc + k_inh) * sqrt(total_branches)
+    
+    # Target a reasonable initial total conductance
+    target_conductance = 5.0
+    
+    if total_conductance > target_conductance:
+        scale_factor = log(total_conductance / target_conductance)
+    else:
+        scale_factor = 0.0
+    
+    return scale_factor
+
+
+def initialize_dendritic_branch_layer(dbl, adaptive=True, branch_factors=None):
+    """
+    Initialize a dendritic branch layer.
+    
+    Args:
+        dbl: The DendriticBranchLayer to initialize
+        adaptive: If True, use network-aware scaling to prevent overflow.
+                 If False, use the original initialization method.
+        branch_factors: List of branch factors from parent network (for adaptive mode)
+    """
     with torch.no_grad():
         E_g_exc = 0
         E_g_inh = 0
+        
+        # Compute network-aware scale factor if adaptive mode is enabled
+        network_scale_factor = compute_network_scale_factor(dbl, branch_factors) if adaptive else 0.0
 
         if dbl.input_excitatory:
             exc_upper_quantile = dbl.branch_excitation.K / dbl.excitatory_input_dim
@@ -52,8 +104,12 @@ def initialize_dendritic_branch_layer(dbl):
                     upper_quantile=exc_upper_quantile,
                 )
 
-            _no_grad_normal_(dbl.branch_excitation.pre_w, exc_mean, exc_std)
-            E_g_exc = 0.5 * dbl.branch_excitation.K * E_w_exc
+            # Apply the network scale factor to reduce initial weights
+            exc_mean_adjusted = exc_mean - network_scale_factor
+            
+            _no_grad_normal_(dbl.branch_excitation.pre_w, exc_mean_adjusted, exc_std)
+            # Adjust expected conductance by the scale factor
+            E_g_exc = 0.5 * dbl.branch_excitation.K * E_w_exc * exp(-network_scale_factor)
 
         if dbl.input_inhibitory:
             inh_upper_quantile = dbl.branch_inhibition.K / dbl.inhibitory_input_dim
@@ -100,8 +156,12 @@ def initialize_dendritic_branch_layer(dbl):
                     upper_quantile=inh_upper_quantile,
                 )
 
-            _no_grad_normal_(dbl.branch_inhibition.pre_w, inh_mean, inh_std)
-            E_g_inh = 0.5 * dbl.branch_inhibition.K * E_w_inh
+            # Apply the network scale factor to reduce initial weights
+            inh_mean_adjusted = inh_mean - network_scale_factor
+            
+            _no_grad_normal_(dbl.branch_inhibition.pre_w, inh_mean_adjusted, inh_std)
+            # Adjust expected conductance by the scale factor
+            E_g_inh = 0.5 * dbl.branch_inhibition.K * E_w_inh * exp(-network_scale_factor)
 
         E_Vinf = E_g_exc / (E_g_exc + E_g_inh + 1)
 

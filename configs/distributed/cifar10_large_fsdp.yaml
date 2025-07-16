@@ -1,0 +1,76 @@
+model:
+  task: classification
+  encoder_network:
+    type: identity
+    parameters: {}
+  core_network:
+    type: EINet
+    parameters:
+      # transfer function parameters
+      transfer_params:
+        input_mode: 1
+        independent_pathways: true
+        excitatory_dim: 1536
+        inhibitory_dim: 1536
+      # configuration parameters
+      excitatory_layer_sizes: [10]
+      inhibitory_layer_sizes: [0]
+      excitatory_branch_factors: [4, 3, 2, 2]
+      inhibitory_branch_factors: []
+      ee_synapses_per_branch_per_layer: [20]
+      ei_synapses_per_branch_per_layer: []
+      ie_synapses_per_branch_per_layer: []
+      ii_synapses_per_branch_per_layer: []
+      somatic_synapses: true
+      use_shunting: true
+      # topk parameters
+      topk_init_method: normal
+      topk_noise_level: 0.01
+      topk_type: standard
+      # reactivation parameters
+      reactivate: true
+      reactivation_type: param_tanh
+      reactivation_init_m: 0.1
+      reactivation_init_b: 0.1
+      # gradient scaling parameters
+      reactivation_strategy: inverse
+      topk_strategy: conductance_dynamic
+      blocklinear_strategy: conductance_dynamic
+      # memory optimization
+      efficient_blocklinear: true
+      # adaptive initialization - prevents NaN in large architectures
+      adaptive_initialization: true
+  decoder_network:
+    type: identity
+    parameters: {}
+
+data:
+  dataset_name: cifar10
+  data_path: /n/holylabs/kempner_dev/Everyone/datasets/cifar10_dendritic_dataset
+  train_val_test_split: [0.8, 0.1, 0.1]
+  batch_size: 64
+
+training:
+  num_epochs: 100
+  learning_rate: 0.001
+  optimizer: adam
+  weight_decay: 0.0001
+  scheduler:
+    type: cosine
+    warmup_epochs: 5
+  strategy: standard
+  device: cuda
+  log_interval: 10
+  checkpoint_frequency: 10
+  # FSDP settings for multi-GPU training
+  use_fsdp: true
+  fsdp_config:
+    mixed_precision: true
+    cpu_offload: false
+    sharding_strategy: "FULL_SHARD"
+    backward_prefetch: "BACKWARD_PRE"
+    auto_wrap_policy: "transformer_auto_wrap"
+    min_num_params: 1e6
+
+analysis:
+  enabled: false 
