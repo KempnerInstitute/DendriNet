@@ -94,12 +94,16 @@ class ExcitationInhibitionLayer(nn.Module):
                 **kwargs,
             )
 
+        # Excitatory cells receive inhibitory input from the inhibitory cells in the same layer
+        # The dimension is the number of inhibitory neurons (each outputs one value)
+        excitatory_inhibitory_input_dim = n_inhibitory_cells if build_inhibitory_cells else inhibitory_input_dim
+
         self.excitatory_cells = DendriNet(
             n_soma=n_excitatory_cells,
             branch_factors=excitatory_branch_factors,
             excitatory_input_dim=excitatory_input_dim,
             excitatory_synapses_per_branch=ee_synapses_per_branch,
-            inhibitory_input_dim=inhibitory_input_dim,
+            inhibitory_input_dim=excitatory_inhibitory_input_dim,
             inhibitory_synapses_per_branch=ie_synapses_per_branch,
             reactivate=reactivate,
             reactivation_init_m=reactivation_init_m,

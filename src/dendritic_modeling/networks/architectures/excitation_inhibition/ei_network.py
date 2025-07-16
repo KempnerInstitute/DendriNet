@@ -188,9 +188,22 @@ class ExcitationInhibitionNetwork(BaseNetwork):
 
         # Build each layer
         for i in range(num_layers):
+            # Always build inhibitory cells in all layers now
             build_inhibitory_cells = True
+
+            # For the first layer, determine correct dimensions
             if i == 0:
-                build_inhibitory_cells = False
+                # First layer receives input from transfer function
+                layer_excitatory_input_dim = excitatory_input_dim
+                layer_inhibitory_input_dim = inhibitory_input_dim
+                # Excitatory cells receive inhibitory output from same layer's inhibitory cells
+                excitatory_inhibitory_input_dim = inhibitory_layer_sizes[i + 1]
+            else:
+                # Subsequent layers receive outputs from previous layer
+                layer_excitatory_input_dim = excitatory_layer_sizes[i]
+                layer_inhibitory_input_dim = inhibitory_layer_sizes[i]
+                # Excitatory cells receive inhibitory output from same layer's inhibitory cells
+                excitatory_inhibitory_input_dim = inhibitory_layer_sizes[i + 1]
 
             # Create ExcitationInhibitionLayer
             layer = ExcitationInhibitionLayer(
@@ -198,11 +211,11 @@ class ExcitationInhibitionNetwork(BaseNetwork):
                 n_inhibitory_cells=inhibitory_layer_sizes[i + 1],
                 excitatory_branch_factors=self.excitatory_branch_factors,
                 inhibitory_branch_factors=self.inhibitory_branch_factors,
-                excitatory_input_dim=excitatory_input_dim,
+                excitatory_input_dim=layer_excitatory_input_dim,
                 ee_synapses_per_branch=ee_syn[i],
                 ei_synapses_per_branch=ei_syn[i],
                 build_inhibitory_cells=build_inhibitory_cells,
-                inhibitory_input_dim=inhibitory_input_dim,
+                inhibitory_input_dim=layer_inhibitory_input_dim,
                 ie_synapses_per_branch=ie_syn[i],
                 ii_synapses_per_branch=ii_syn[i],
                 reactivate=self.reactivate,
@@ -234,9 +247,6 @@ class ExcitationInhibitionNetwork(BaseNetwork):
             )
             layers.append(layer)
 
-            excitatory_input_dim = excitatory_layer_sizes[i + 1]
-            inhibitory_input_dim = inhibitory_layer_sizes[i + 1]
-
         # Create ModuleList with the layers
         self.layers = nn.ModuleList(layers)
 
@@ -252,12 +262,11 @@ class ExcitationInhibitionNetwork(BaseNetwork):
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         """
-        Forward logic depends on input_mode:
-        - mode=0 => excit=x, inhibitory=None at the first layer
-        - mode=1 => excit=x, inhibitory=x at the first layer, but we skip building that layer's inhib net => no separate output
-        - mode=2 => pass x into self.input_net => produce (excit, inhib)
-                    skip that layer's inhib net => no separate output
-        Then subsequent layers do normal E-I if their inhib cells exist.
+        Forward logic:
+        - TransferLayer splits/duplicates input based on input_mode and independent_pathways
+        - All EI layers now build and process their own inhibitory cells
+        - First layer's inhibitory cells receive the same input as excitatory cells
+        - Subsequent layers receive outputs from previous layers
         """
         excitatory_x, inhibitory_x = self.transfer_fn(x)
 
