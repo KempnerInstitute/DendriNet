@@ -57,6 +57,7 @@ class ExcitationInhibitionNetwork(BaseNetwork):
         rewiring_mode="global",
         rewire_frequency=1,
         synapses_per_branch=None,
+        efficient_blocklinear: bool = False,
         freeze_excitatory_connectivity=False,
         freeze_inhibitory_connectivity=False,
         init_method="xavier_normal",
@@ -102,6 +103,7 @@ class ExcitationInhibitionNetwork(BaseNetwork):
         self.sigma = sigma
         self.rewiring_mode = rewiring_mode
         self.rewire_frequency = rewire_frequency
+        self.efficient_blocklinear = efficient_blocklinear
         self.synapses_per_branch = synapses_per_branch
         self.freeze_excitatory_connectivity = freeze_excitatory_connectivity
         self.freeze_inhibitory_connectivity = freeze_inhibitory_connectivity
@@ -145,6 +147,7 @@ class ExcitationInhibitionNetwork(BaseNetwork):
             freeze_inhibitory_connectivity=self.freeze_inhibitory_connectivity,
             init_method=self.init_method,
             weight_threshold=self.weight_threshold,
+            efficient_blocklinear=self.efficient_blocklinear,
         )
 
     def setup_network_layers(self):
@@ -223,6 +226,7 @@ class ExcitationInhibitionNetwork(BaseNetwork):
                 freeze_inhibitory_connectivity=self.freeze_inhibitory_connectivity,
                 init_method=self.init_method,
                 weight_threshold=self.weight_threshold,
+                efficient_blocklinear=self.efficient_blocklinear,
             )
             layers.append(layer)
 
