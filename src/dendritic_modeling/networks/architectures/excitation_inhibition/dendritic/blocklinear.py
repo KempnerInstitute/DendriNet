@@ -154,4 +154,41 @@ class BlockLinear(nn.Module):
         return self.log_weight.exp().sum(dim=1)
 
 
+# ---------------------------------------------------------------------------
+# Memory-efficient implementation that avoids constructing the block-diagonal
+# matrix. It is API-compatible with BlockLinear but allocates only the log_weight
+# parameter tensor and no large temporaries.
+# ---------------------------------------------------------------------------
+
+
+class EfficientBlockLinear(BlockLinear):
+    """BlockLinear variant with *O(out_features × block_size)* memory.
+
+    Forward pass reshapes the input into (B, out, block_size) and performs a
+    weighted sum along the last dimension, eliminating the need to materialise
+    the big block-diagonal matrix created in :py:meth:`BlockLinear.block`.
+    """
+
+    def forward(self, x):  # type: ignore[override]
+        if not isinstance(x, torch.Tensor):
+            raise TypeError(f"Expected tensor, got {type(x)}")
+
+        if x.dim() == 1:
+            x = x.unsqueeze(0)
+
+        # x has shape (B, out_features * block_size)
+        B = x.shape[0]
+        if x.shape[1] != self.out_features * self.block_size:
+            raise ValueError(
+                f"Input feature dimension {x.shape[1]} does not match expected "
+                f"{self.out_features * self.block_size} (= out_features*block_size)"
+            )
+
+        x_reshaped = x.view(B, self.out_features, self.block_size)
+        weights = self.log_weight.exp()  # (out_features, block_size)
+        output = (x_reshaped * weights).sum(dim=-1)  # (B, out_features)
+        return output
+
+
 __all__ = ["BlockLinear"]
+__all__.extend(["EfficientBlockLinear"])

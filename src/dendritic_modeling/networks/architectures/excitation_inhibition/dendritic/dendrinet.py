@@ -56,6 +56,7 @@ class DendriNet(nn.Module):
         rewiring_mode="global",
         rewire_frequency=1,
         synapses_per_branch=None,
+        efficient_blocklinear: bool = False,
         freeze_excitatory_connectivity=False,
         freeze_inhibitory_connectivity=False,
         init_method=None,
@@ -124,6 +125,7 @@ class DendriNet(nn.Module):
                 reactivation_type=reactivation_type,
                 reactivation_strategy=reactivation_strategy,
                 blocklinear_strategy=blocklinear_strategy,
+                efficient_blocklinear=efficient_blocklinear,
                 layer_idx=self.n_branch_layers - i,
                 print_hooks=print_hooks,
                 use_noise=use_noise,
@@ -163,6 +165,7 @@ class DendriNet(nn.Module):
                     reactivation_type=reactivation_type,
                     reactivation_strategy=reactivation_strategy,
                     blocklinear_strategy=blocklinear_strategy,
+                    efficient_blocklinear=efficient_blocklinear,
                     layer_idx=0,
                     print_hooks=print_hooks,
                     use_noise=use_noise,
@@ -201,6 +204,7 @@ class DendriNet(nn.Module):
                     reactivation_type=reactivation_type,
                     reactivation_strategy=reactivation_strategy,
                     blocklinear_strategy=blocklinear_strategy,
+                    efficient_blocklinear=efficient_blocklinear,
                     layer_idx=0,
                     print_hooks=print_hooks,
                     use_noise=use_noise,
@@ -225,6 +229,7 @@ class DendriNet(nn.Module):
         self.input_inhibitory = inhibitory_input_dim is not None
         self.n_soma = n_soma
         self.somatic_synapses = somatic_synapses
+        self.efficient_blocklinear = efficient_blocklinear
 
     def apply_rewiring(self):
         for layer in self.branch_layers:
