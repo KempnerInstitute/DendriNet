@@ -9,6 +9,7 @@ that are too large to fit on a single GPU.
 import os
 import time
 from typing import Optional, Dict, Any
+from typing import List, Tuple
 import torch
 import torch.distributed as dist
 from torch.utils.data import DataLoader
@@ -216,7 +217,12 @@ class FSDPTrainer(Trainer):
         """
         # Wrap model with FSDP
         model = wrap_model_with_fsdp(model, self.fsdp_config)
-        model = model.to(self.device)
+        
+        # Only move to device if CPU offloading is NOT enabled
+        # When CPU offloading is enabled, FSDP manages device placement
+        cpu_offload_enabled = self.fsdp_config.get('cpu_offload') is not None and self.fsdp_config.get('cpu_offload')
+        if not cpu_offload_enabled:
+            model = model.to(self.device)
         
         # Create optimizer after FSDP wrapping
         self.optimizer = self.create_optimizer(model)
@@ -224,6 +230,8 @@ class FSDPTrainer(Trainer):
         # Training loop
         train_losses = []
         valid_losses = []
+        train_accs = []
+        valid_accs = []
         best_valid_loss = float('inf')
         patience_counter = 0
         
@@ -240,16 +248,19 @@ class FSDPTrainer(Trainer):
                 train_loader.sampler.set_epoch(epoch)
             
             # Training
-            train_loss = self._epoch_train_fsdp(model, train_loader)
+            train_loss, train_acc = self._epoch_train_fsdp(model, train_loader)
             train_losses.append(train_loss)
+            train_accs.append(train_acc)
             
             # Validation
             valid_loss = None
+            valid_acc = None
             if valid_loader is not None:
                 if hasattr(valid_loader.sampler, 'set_epoch'):
                     valid_loader.sampler.set_epoch(epoch)
-                valid_loss = self._epoch_valid_fsdp(model, valid_loader)
+                valid_loss, valid_acc = self._epoch_valid_fsdp(model, valid_loader)
                 valid_losses.append(valid_loss)
+                valid_accs.append(valid_acc)
                 
                 # Early stopping
                 if self.early_stopping and valid_loss < best_valid_loss:
@@ -282,9 +293,11 @@ class FSDPTrainer(Trainer):
             # Logging
             epoch_time = time.time() - epoch_start
             if self.rank == 0 and epoch % self.print_every == 0:
-                msg = f"Epoch {epoch}/{self.epochs} - Train Loss: {train_loss:.4f}"
-                if valid_loss is not None:
-                    msg += f" - Valid Loss: {valid_loss:.4f}"
+                msg = (
+                    f"Epoch {epoch}/{self.epochs} - Train Loss: {train_loss:.4f} - Train Acc: {train_acc:.4f}"
+                )
+                if valid_loss is not None and valid_acc is not None:
+                    msg += f" - Valid Loss: {valid_loss:.4f} - Valid Acc: {valid_acc:.4f}"
                 msg += f" - Time: {epoch_time:.2f}s"
                 logger.info(msg)
             
@@ -302,23 +315,27 @@ class FSDPTrainer(Trainer):
                 os.path.join(self.checkpoint_dir, 'final_model.pt')
             )
         
-        # Generate loss plots (only on rank 0)
+        # Generate plots (only on rank 0)
         if self.rank == 0:
             self._loss_plotting(train_losses, valid_losses)
+            self._accuracy_plotting(train_accs, valid_accs)
         
         return {
             'train_losses': train_losses,
             'valid_losses': valid_losses,
             'best_valid_loss': best_valid_loss,
+            'train_accs': train_accs,
+            'valid_accs': valid_accs,
             'final_train_loss': train_losses[-1] if train_losses else None,
             'final_valid_loss': valid_losses[-1] if valid_losses else None
         }
     
-    def _epoch_train_fsdp(self, model: BaseModel, train_loader: DataLoader) -> float:
+    def _epoch_train_fsdp(self, model: BaseModel, train_loader: DataLoader) -> tuple[float, float]:
         """Training epoch with FSDP."""
         model.train()
         total_loss = 0
-        num_batches = 0
+        total_correct = 0
+        total_examples = 0
         
         for x_batch, y_batch in train_loader:
             x_batch = x_batch.to(self.device)
@@ -343,23 +360,27 @@ class FSDPTrainer(Trainer):
             self.optimizer.step()
             
             total_loss += loss.item()
-            num_batches += 1
+            total_correct += (outputs.argmax(dim=1) == y_batch).sum().item()
+            total_examples += y_batch.size(0)
         
         # Average loss across batches
-        avg_loss = total_loss / num_batches
+        avg_loss = total_loss / (len(train_loader))
+        avg_acc = total_correct / total_examples if total_examples > 0 else 0.0
         
         # Reduce loss across all processes
-        avg_loss_tensor = torch.tensor(avg_loss, device=self.device)
+        avg_loss_tensor = torch.tensor([avg_loss, avg_acc], device=self.device)
         dist.all_reduce(avg_loss_tensor, op=dist.ReduceOp.SUM)
-        avg_loss = avg_loss_tensor.item() / self.world_size
+        avg_loss = avg_loss_tensor[0].item() / self.world_size
+        avg_acc = avg_loss_tensor[1].item() / self.world_size
         
-        return avg_loss
+        return avg_loss, avg_acc
     
-    def _epoch_valid_fsdp(self, model: BaseModel, valid_loader: DataLoader) -> float:
+    def _epoch_valid_fsdp(self, model: BaseModel, valid_loader: DataLoader) -> tuple[float, float]:
         """Validation epoch with FSDP."""
         model.eval()
         total_loss = 0
-        num_batches = 0
+        total_correct = 0
+        total_examples = 0
         
         with torch.no_grad():
             for x_batch, y_batch in valid_loader:
@@ -371,18 +392,21 @@ class FSDPTrainer(Trainer):
                 loss = self.loss_fn(outputs, y_batch)
                 
                 total_loss += loss.item()
-                num_batches += 1
+                total_correct += (outputs.argmax(dim=1) == y_batch).sum().item()
+                total_examples += y_batch.size(0)
         
         # Average loss across batches
-        avg_loss = total_loss / num_batches
+        avg_loss = total_loss / (len(valid_loader))
+        avg_acc = total_correct / total_examples if total_examples > 0 else 0.0
         
         # Reduce loss across all processes
-        avg_loss_tensor = torch.tensor(avg_loss, device=self.device)
+        avg_loss_tensor = torch.tensor([avg_loss, avg_acc], device=self.device)
         dist.all_reduce(avg_loss_tensor, op=dist.ReduceOp.SUM)
-        avg_loss = avg_loss_tensor.item() / self.world_size
-        
-        return avg_loss
-    
+        avg_loss = avg_loss_tensor[0].item() / self.world_size
+        avg_acc = avg_loss_tensor[1].item() / self.world_size
+ 
+        return avg_loss, avg_acc
+
     def _reduce_loss(self, loss: float) -> float:
         """Reduce loss across all processes."""
         loss_tensor = torch.tensor(loss, device=self.device)
@@ -404,3 +428,19 @@ class FSDPTrainer(Trainer):
             save_path=checkpoint_path,
             rank=self.rank
         ) 
+
+    def _accuracy_plotting(self, train_accs: list[float], valid_accs: list[float]):
+        """Plot accuracy curves similar to loss curves."""
+        # Reuse loss plotting util with accuracy label
+        if self.plot_losses and len(train_accs) > 1:
+            try:
+                from dendritic_modeling.plotting.training import plot_loss_curves
+                plot_loss_curves(
+                    train_losses=train_accs,
+                    valid_losses=valid_accs,
+                    loss_name="Accuracy",
+                    save_dir=self.save_path,
+                    filename_prefix=self.filename_prefix + "accuracy_",
+                )
+            except Exception as e:
+                logger.warning(f"Could not plot accuracy curves: {e}") 
