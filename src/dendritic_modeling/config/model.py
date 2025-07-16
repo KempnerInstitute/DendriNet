@@ -41,6 +41,7 @@ class EINetParameters(BaseConfig):
     reactivation_strategy: str = "inverse"
     blocklinear_strategy: str = "conductance_dynamic"
     print_hooks: bool = False  # Whether to print gradient statistics in hooks
+    efficient_blocklinear: bool = False  # use memory-efficient implementation
     excitatory_target_density: float = 0.1
     inhibitory_target_density: float = 0.1
     use_noise: bool = True
