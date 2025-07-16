@@ -52,6 +52,8 @@ model:
       reactivation_init_b: 0.5
       reactivation_strategy: inverse
       blocklinear_strategy: standard
+      efficient_blocklinear: true  # Use memory-efficient implementation for large model
+      adaptive_initialization: true  # Use network-aware weight scaling
       print_hooks: false
     
   decoder_network:

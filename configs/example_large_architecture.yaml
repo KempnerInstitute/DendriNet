@@ -1,0 +1,97 @@
+# Example configuration for large dendritic architectures
+# This demonstrates the new adaptive initialization and efficient BlockLinear features
+
+model:
+  task: classification
+  encoder_network:
+    type: identity
+    parameters: {}
+  core_network:
+    type: EINet
+    parameters:
+      # Transfer function - how inputs are processed
+      transfer_params:
+        input_mode: 1  # Same input to both exc/inh pathways
+        independent_pathways: true
+        excitatory_dim: 512
+        inhibitory_dim: 512
+      
+      # Network architecture
+      excitatory_layer_sizes: [10]
+      inhibitory_layer_sizes: [20]
+      
+      # Large branching factors - this would cause NaN without adaptive init
+      excitatory_branch_factors: [4, 3, 2]  # 24 total branches
+      inhibitory_branch_factors: [2, 2]      # 4 total branches
+      
+      # Synaptic connectivity
+      ee_synapses_per_branch_per_layer: [50]   # Exc→Exc connections
+      ei_synapses_per_branch_per_layer: [100]  # Exc→Inh connections
+      ie_synapses_per_branch_per_layer: [10]   # Inh→Exc connections
+      ii_synapses_per_branch_per_layer: []     # No Inh→Inh
+      
+      somatic_synapses: true
+      use_shunting: true
+      
+      # TopK sparse connectivity
+      topk_init_method: normal
+      topk_noise_level: 0.01
+      topk_type: standard
+      
+      # Activation functions
+      reactivate: true
+      reactivation_type: param_tanh
+      reactivation_init_m: 0.1  # Small initial values work well with adaptive init
+      reactivation_init_b: 0.1
+      
+      # Gradient scaling strategies
+      reactivation_strategy: inverse
+      topk_strategy: conductance_dynamic
+      blocklinear_strategy: conductance_dynamic
+      
+      # NEW FEATURES:
+      # Memory-efficient BlockLinear - crucial for large architectures
+      efficient_blocklinear: true
+      
+      # Adaptive initialization - automatically prevents NaN in large networks
+      # This scales initial weights based on total network conductance
+      adaptive_initialization: true
+      
+  decoder_network:
+    type: identity
+    parameters: {}
+
+# Data configuration
+data:
+  dataset_name: cifar10
+  data_path: ./data
+  train_val_test_split: [0.8, 0.1, 0.1]
+  batch_size: 64
+
+# Training configuration
+training:
+  num_epochs: 100
+  learning_rate: 0.001
+  optimizer: adam
+  weight_decay: 0.0001
+  scheduler:
+    type: cosine
+    warmup_epochs: 5
+  strategy: standard
+  device: cuda
+  log_interval: 10
+  checkpoint_frequency: 10
+
+# Analysis configuration
+analysis:
+  enabled: false
+
+# Notes:
+# - With adaptive_initialization: true, the network automatically scales weights
+#   to prevent overflow even with many branches (e.g., 4×3×2 = 24 branches)
+# - With efficient_blocklinear: true, memory usage is O(branches × block_size)
+#   instead of O(branches²), enabling much larger architectures
+# - These features are especially important for:
+#   * Networks with many branch factors (e.g., [4,3,2,2])
+#   * Networks with many synapses per branch
+#   * Multi-GPU training with FSDP 

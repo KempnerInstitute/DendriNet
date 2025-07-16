@@ -173,6 +173,16 @@ model:
       #   - "conductance_dynamic": Scale based on conductance
       blocklinear_strategy: conductance_dynamic
       
+      # Whether to use memory-efficient BlockLinear implementation
+      # - true: Uses O(out_features × block_size) memory (recommended for large models)
+      # - false: Uses O(out_features²) memory (original implementation)
+      efficient_blocklinear: true
+      
+      # Whether to use adaptive weight initialization
+      # - true: Automatically scales weights based on network architecture to prevent NaN
+      # - false: Use standard initialization (may cause NaN in large architectures)
+      adaptive_initialization: true
+      
       # Whether to print gradient statistics during training (debugging)
       print_hooks: false
       
