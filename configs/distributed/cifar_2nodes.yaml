@@ -1,0 +1,179 @@
+# CIFAR-10 2-Node Training Configuration  
+# Smaller-scale model designed for CIFAR-10 across 8 H100 GPUs (2 nodes)
+# Model: ~500M-1B parameters, scaled for distributed training across 8 H100 GPUs
+
+model:
+  task: classification
+  
+  encoder_network:
+    type: Identity
+    parameters: {}
+    
+  core_network:
+    type: EINet
+    parameters:
+      # Transfer function parameters for CIFAR-10 (32x32x3 = 3072)
+      transfer_params:
+        input_mode: 1
+        independent_pathways: true
+        excitatory_dim: 1536    # Half of CIFAR-10 flattened (3072/2)
+        inhibitory_dim: 1536    # Half of CIFAR-10 flattened (3072/2)
+        
+      # Single neural layer with 3-layer dendritic trees within each neuron
+      # With input_mode=1, inhibition comes from transfer function, no inhibitory layers needed
+      excitatory_layer_sizes: [1024]                    # Single layer with 1K neurons (reduced for CIFAR)
+      inhibitory_layer_sizes: [0]                       # Dummy value - no inhibitory layers built for input_mode=1
+      
+      # 3-layer dendritic tree within each neuron: [distal, intermediate, proximal]
+      excitatory_branch_factors: [4, 3, 2]             # Creates 3 dendritic layers: 3→2→2 branching
+      inhibitory_branch_factors: []                     # No inhibitory branch factors needed
+      
+      # Synapses per dendritic layer (from distal to proximal)
+      ee_synapses_per_branch_per_layer: [20]           # Reduced synapses per branch for smaller model
+      ei_synapses_per_branch_per_layer: []             # No excitatory-inhibitory (no inhibitory layers)
+      ie_synapses_per_branch_per_layer: [20]           # Reduced IE connectivity
+      ii_synapses_per_branch_per_layer: []             # No inhibitory-inhibitory (no inhibitory layers)      
+      
+      somatic_synapses: true
+      use_shunting: true
+      
+      # TopK parameters
+      topk_init_method: xavier_normal
+      topk_noise_level: 0.0
+      topk_type: standard
+      topk_temperature: 0.5
+      topk_ultrafast: true
+      topk_strategy: standard
+      
+      # Reactivation parameters
+      reactivate: true
+      reactivation_type: param_tanh
+      reactivation_init_m: 1.5
+      reactivation_init_b: 0.5
+      reactivation_strategy: inverse
+      blocklinear_strategy: standard
+      print_hooks: false
+    
+  decoder_network:
+    type: MLP
+    parameters:
+      hidden_dims: [2048, 1024, 512]    # Smaller decoder for CIFAR-10
+      activation: relu
+      output_dim: 10  # CIFAR-10 classes
+
+train:
+  seed: 42
+  train_valid_split: 0.8
+  
+  encoder:
+    load_save_root: null
+    lr: 0.001
+    trainer:
+      epochs: 10
+      batch_size: 128  # Adjusted for smaller model
+  
+  main:
+    learning_strategy: standard
+    weight_decay_rate: 0.0001
+    
+    param_groups:
+      lr: 0.0005
+      split_params: true
+      topk_lr: 0.0001
+      blocklinear_lr: 0.0001
+      reactivation_lr: 0.0001
+      decoder_lr: 0.0005
+    
+    trainer:
+      loss_function: cat_nll
+      epochs: 200
+      early_stopping: true
+      patience: 15
+      batch_size: 512  # 64 per GPU across 8 GPUs
+      shuffle: true
+      grad_clip_value: 1.0
+      load_best_state_dict: true
+      plot_losses: true
+      suppress_prints: false
+      print_every: 25
+      save_checkpoints: false
+
+task:
+  dataset: cifar10
+  data_path: /n/holylfs06/LABS/kempner_shared/Lab/data/cifar10
+  parameters:
+    # CIFAR-10 specific transforms
+    train_transforms:
+      resize: 32
+      crop: 32
+      normalize: true
+    eval_transforms:
+      resize: 32
+      crop: 32
+      normalize: true
+    num_workers: 4      # Reduced for smaller model
+    pin_memory: true
+    prefetch_factor: 2
+    persistent_workers: true
+    image_size: 32
+    normalize: true
+    augment: true
+    flatten: true
+  
+wandb:
+  entity: houman_safaai@harvard.edu  # Set your wandb username
+  project: "dendritic_cifar_2nodes"
+  group: "medium_scale_run"
+  tags: [cifar10, 2nodes, medium_scale, 500m_params, h100]
+  use_wandb: true  # ENABLED wandb logging
+
+analysis:
+  performance_analysis:
+    enabled: false
+    training: false
+
+outputs:
+  run_name: cifar_2nodes_medium_scale
+  dir: results/ 
+
+# ================================================================================
+# PARAMETER COUNT ESTIMATION for Single-Layer with 3-Layer Dendritic Trees
+# ================================================================================
+#
+# DENDRITIC TREE STRUCTURE per neuron:
+# Branch factors [3, 2, 2] create dendritic layers with sizes:
+#   - Soma layer: 1024 neurons (final output)
+#   - Layer 2: 1024 * 2 = 2048 branches  
+#   - Layer 1: 2048 * 2 = 4096 branches
+#   - Distal: 4096 * 3 = 12288 branches (most distal)
+#
+# CORE NETWORK (EINet) PARAMETERS:
+#
+# Dendritic Layer 1 (most distal): 12,288 branches
+#   - EE connections: 12288 * 16 * 1536 = 301,989,888 params (~302M)
+#   - IE connections: 12288 * 12 * 1536 = 226,492,416 params (~226M)
+#   - Reactivation: 12288 * 2 = 24,576 params
+#   - Subtotal Layer 1: ~528M params
+#
+# Dendritic Layer 2: 4,096 branches  
+#   - Branch connections: estimated ~50M params
+#
+# Dendritic Layer 3 (proximal): 2,048 branches
+#   - Branch connections: estimated ~25M params
+#
+# Soma Layer: 1,024 neurons
+#   - Branch connections: estimated ~10M params
+#
+# DECODER NETWORK (MLP) PARAMETERS:
+#   - Layer 1: 1024 * 2048 + 2048 = 2,099,200 params
+#   - Layer 2: 2048 * 1024 + 1024 = 2,098,176 params  
+#   - Layer 3: 1024 * 512 + 512 = 525,312 params
+#   - Layer 4: 512 * 10 + 10 = 5,130 params
+#   - Subtotal Decoder: ~4.7M params
+#
+# TOTAL ESTIMATED PARAMETERS: ~620M
+#
+# Much more manageable for 8 H100 GPUs (80GB each)
+# Memory per GPU (rough estimate): ~78M params per GPU at 16-bit precision
+# Should easily fit in available memory with FSDP sharding across 8 GPUs
+# ================================================================================ 

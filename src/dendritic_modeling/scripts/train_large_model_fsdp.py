@@ -40,10 +40,26 @@ from dendritic_modeling.training.strategies.fsdp_standard import FSDPTrainer
 
 def setup_distributed():
     """Initialize distributed environment."""
-    # Get rank and world size from torchrun
-    rank = int(os.environ.get('RANK', 0))
-    local_rank = int(os.environ.get('LOCAL_RANK', 0))
-    world_size = int(os.environ.get('WORLD_SIZE', 1))
+    # Check if we're in a SLURM environment without torchrun
+    if 'SLURM_PROCID' in os.environ and 'RANK' not in os.environ:
+        # Set up environment variables from SLURM
+        rank = int(os.environ['SLURM_PROCID'])
+        local_rank = int(os.environ['SLURM_LOCALID'])
+        world_size = int(os.environ['SLURM_NTASKS'])
+        
+        # Set the environment variables that PyTorch expects
+        os.environ['RANK'] = str(rank)
+        os.environ['LOCAL_RANK'] = str(local_rank)
+        os.environ['WORLD_SIZE'] = str(world_size)
+        
+        # MASTER_ADDR and MASTER_PORT should already be set by SLURM script
+        if 'MASTER_ADDR' not in os.environ or 'MASTER_PORT' not in os.environ:
+            raise RuntimeError("MASTER_ADDR and MASTER_PORT must be set in SLURM environment")
+    else:
+        # Get rank and world size from torchrun
+        rank = int(os.environ.get('RANK', 0))
+        local_rank = int(os.environ.get('LOCAL_RANK', 0))
+        world_size = int(os.environ.get('WORLD_SIZE', 1))
     
     # Initialize process group
     dist.init_process_group(backend='nccl')
@@ -64,6 +80,13 @@ def create_large_model(config):
         input_dim = 784  # 28x28 flattened
     elif config.task.dataset == 'cifar10':
         input_dim = 3072  # 32x32x3 flattened
+    elif config.task.dataset == 'imagenet':
+        # Check if images are flattened
+        if task_params.get('flatten', False):
+            input_dim = 150528  # 224x224x3 flattened
+        else:
+            # For non-flattened, the encoder should handle the shape
+            input_dim = task_params.get('input_dim', 150528)
     else:
         input_dim = task_params.get('input_dim', 784)
     
@@ -165,7 +188,11 @@ def main():
     
     # Setup analysis manager (only on rank 0 to avoid duplicate file writes)
     analysis_manager = None
-    if rank == 0 and hasattr(config, 'analysis'):
+    # Only create AnalysisManager if running on a single process. Running evaluation that
+    # performs forward passes on just one rank while the remaining ranks sit idle causes
+    # mismatched collective operations in FSDP and eventually NCCL watchdog timeouts.
+    # Therefore, we disable analysis when world_size > 1 (i.e. multi-GPU or multi-node).
+    if world_size == 1 and hasattr(config, 'analysis'):
         from datetime import datetime
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         run_name = getattr(config.outputs, 'run_name', 'fsdp_run')
@@ -271,8 +298,8 @@ def main():
         if 'final_valid_loss' in results and results['final_valid_loss'] is not None:
             logger.info(f"Final validation loss: {results['final_valid_loss']:.4f}")
     
-    # Final analysis run
-    if rank == 0 and analysis_manager is not None:
+    # Final analysis run (single-process only)
+    if world_size == 1 and analysis_manager is not None:
         try:
             logger.info("Running final analysis...")
             analysis_manager.run_analysis(filename="final", training=False)

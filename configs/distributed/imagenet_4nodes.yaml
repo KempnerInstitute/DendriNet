@@ -1,0 +1,187 @@
+# ImageNet 4-Node Training Configuration  
+# Large-scale model designed to utilize H100 80GB GPU memory effectively
+# Model: ~10-15B parameters, scaled for distributed training across 16 H100 GPUs
+
+model:
+  task: classification
+  
+  encoder_network:
+    type: Identity
+    parameters: {}
+    
+  core_network:
+    type: EINet
+    parameters:
+      # Transfer function parameters for ImageNet (224x224x3 = 150528)
+      transfer_params:
+        input_mode: 1
+        independent_pathways: true
+        excitatory_dim: 75264    # Half of ImageNet flattened (150528/2)
+        inhibitory_dim: 75264    # Half of ImageNet flattened (150528/2)
+        
+      # Single neural layer with 4-layer dendritic trees within each neuron
+      # With input_mode=1, inhibition comes from transfer function, no inhibitory layers needed
+      excitatory_layer_sizes: [4096]                    # Single layer with 4K neurons (reduced for memory)
+      inhibitory_layer_sizes: [0]                       # Dummy value - no inhibitory layers built for input_mode=1
+      
+      # 4-layer dendritic tree within each neuron: [distal, intermediate, proximal, soma]
+      excitatory_branch_factors: [4, 3, 2, 2]          # Creates 4 dendritic layers: 4→3→2→2 branching (reduced)
+      inhibitory_branch_factors: []                     # No inhibitory branch factors needed
+      
+      # Synapses per dendritic layer (from distal to proximal)
+      ee_synapses_per_branch_per_layer: [32]           # Reduced from 64 to 32 synapses per branch
+      ei_synapses_per_branch_per_layer: []             # No excitatory-inhibitory (no inhibitory layers)
+      ie_synapses_per_branch_per_layer: [24]           # Reduced from 48 to 24 IE connectivity
+      ii_synapses_per_branch_per_layer: []             # No inhibitory-inhibitory (no inhibitory layers)      
+      
+      somatic_synapses: true
+      use_shunting: false
+      
+      # TopK parameters
+      topk_init_method: xavier_normal
+      topk_noise_level: 0.0
+      topk_type: standard
+      topk_temperature: 0.5
+      topk_ultrafast: true
+      topk_strategy: standard
+      
+      # Reactivation parameters
+      reactivate: true
+      reactivation_type: param_tanh
+      reactivation_init_m: 1.5
+      reactivation_init_b: 0.5
+      reactivation_strategy: inverse
+      blocklinear_strategy: standard
+      print_hooks: false
+    
+  decoder_network:
+    type: MLP
+    parameters:
+      hidden_dims: [8192, 4096, 2048]    # Large decoder to match scaled model
+      activation: relu
+      output_dim: 1000  # ImageNet classes
+
+train:
+  seed: 42
+  train_valid_split: 0.8
+  
+  encoder:
+    load_save_root: null
+    lr: 0.001
+    trainer:
+      epochs: 10
+      batch_size: 64  # Increased for larger model
+  
+  main:
+    learning_strategy: standard
+    weight_decay_rate: 0.0001
+    
+    param_groups:
+      lr: 0.0001
+      split_params: true
+      topk_lr: 0.00005
+      blocklinear_lr: 0.00005
+      reactivation_lr: 0.00005
+      decoder_lr: 0.0001
+    
+    trainer:
+      loss_function: cat_nll
+      epochs: 100
+      early_stopping: true
+      patience: 10
+      batch_size: 256  # 16 per GPU across 16 GPUs for better utilization
+      shuffle: true
+      grad_clip_value: 5.0
+      load_best_state_dict: true
+      plot_losses: true
+      suppress_prints: false
+      print_every: 50
+      save_checkpoints: false
+
+task:
+  dataset: imagenet
+  data_path: /n/holylfs06/LABS/kempner_shared/Lab/data/imagenet_1k  # Updated to actual ImageNet path
+  parameters:
+    # These are provided for reference, actual values set in the dataset code
+    train_transforms:
+      resize: 256
+      crop: 224
+      normalize: true
+    eval_transforms:
+      resize: 256
+      crop: 224
+      normalize: true
+    num_workers: 8      # Increased for larger model and better data throughput
+    pin_memory: true    # Re-enabled for faster data transfer
+    prefetch_factor: 4  # Increased prefetching
+    persistent_workers: true  # Re-enabled for efficiency
+    image_size: 224
+    normalize: true
+    augment: true
+    flatten: true
+
+wandb:
+  entity: hsafaai  # Set your wandb username
+  project: "dendritic_imagenet_4nodes"
+  group: "large_scale_run"
+  tags: [imagenet, 4nodes, large_scale, 10b_params, h100]
+  use_wandb: true  # ENABLED wandb logging
+
+analysis:
+  performance_analysis:
+    enabled: false
+    training: false
+
+outputs:
+  run_name: imagenet_4nodes_large_scale
+  dir: results/ 
+
+# ================================================================================
+# PARAMETER COUNT ESTIMATION for Single-Layer with 4-Layer Dendritic Trees
+# ================================================================================
+#
+# DENDRITIC TREE STRUCTURE per neuron:
+# Branch factors [4, 3, 2, 2] create dendritic layers with sizes:
+#   - Soma layer: 4096 neurons (final output)
+#   - Layer 3: 4096 * 2 = 8192 branches  
+#   - Layer 2: 8192 * 2 = 16384 branches
+#   - Layer 1: 16384 * 3 = 49152 branches
+#   - Distal: 49152 * 4 = 196608 branches (most distal)
+#
+# CORE NETWORK (EINet) PARAMETERS:
+#
+# Dendritic Layer 1 (most distal): 196,608 branches
+#   - EE connections: 196608 * 32 * 75264 = 473,182,699,520 params (~473B)
+#   - IE connections: 196608 * 24 * 75264 = 354,887,024,640 params (~355B)
+#   - Reactivation: 196608 * 2 = 393,216 params
+#   - Subtotal Layer 1: ~828 BILLION params
+#
+# Dendritic Layer 2: 49,152 branches  
+#   - Branch connections: 49152 * from_previous_layer = ~196M branches
+#   - Estimated: ~50B params
+#
+# Dendritic Layer 3: 16,384 branches
+#   - Branch connections: 16384 * from_previous_layer = ~49K branches
+#   - Estimated: ~16B params
+#
+# Dendritic Layer 4 (proximal): 8,192 branches
+#   - Branch connections: 8192 * from_previous_layer = ~16K branches
+#   - Estimated: ~8B params
+#
+# Soma Layer: 4,096 neurons
+#   - Branch connections: 4096 * from_previous_layer = ~8K branches
+#   - Estimated: ~4B params
+#
+# DECODER NETWORK (MLP) PARAMETERS:
+#   - Layer 1: 4096 * 8192 + 8192 = 33,562,624 params
+#   - Layer 2: 8192 * 4096 + 4096 = 33,558,528 params  
+#   - Layer 3: 4096 * 2048 + 2048 = 8,390,656 params
+#   - Layer 4: 2048 * 1000 + 1000 = 2,049,000 params
+#   - Subtotal Decoder: ~77.6M params
+#
+# TOTAL ESTIMATED PARAMETERS: ~906 BILLION
+#
+# This is still very large but more manageable for 16 H100 GPUs (80GB each)
+# Memory per GPU (rough estimate): ~57B params per GPU at 16-bit precision
+# Should fit in available memory with FSDP sharding across 16 GPUs
+# ================================================================================ 
