@@ -48,13 +48,20 @@ def get_trainer(
     elif strategy == "freeze_layers":
         return LayerWiseTrainer(**trainer_config_dict)
     elif strategy == "freeze_branches":
-        return LocalCreditAssignment(**trainer_config_dict)
-    elif strategy == "voltage_stabilization":
-        return VoltageStabilizationTrainer(**trainer_config_dict)
-    elif strategy == "two_step":
         return TwoStepTrainer(**trainer_config_dict)
-    elif strategy == "two_step_kl":
+    elif strategy == "local_ca":
+        return LocalCreditAssignment(**trainer_config_dict)
+    elif strategy == "freeze_branch_kl":
         return TwoStepTrainerWithKL(**trainer_config_dict)
+    elif strategy == "voltage_stablization":
+        return VoltageStabilizationTrainer(**trainer_config_dict)
+    elif strategy == "fsdp" or strategy == "fsdp_standard":
+        # Note: FSDP requires additional setup (distributed init, special config)
+        # This would need to be called from a distributed context
+        from dendritic_modeling.training.strategies.fsdp_standard import FSDPTrainer
+        if 'fsdp_config' not in trainer_config_dict:
+            raise ValueError("FSDP strategy requires 'fsdp_config' in trainer_config_dict")
+        return FSDPTrainer(**trainer_config_dict)
     else:
         logger.info(f"Unrecognized strategy '{strategy}', defaulting to 'standard'.")
         return Trainer(**trainer_config_dict)

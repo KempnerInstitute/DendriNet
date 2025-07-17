@@ -11,6 +11,7 @@ from copy import deepcopy
 from typing import Optional
 
 import torch
+import torch.utils.data
 import wandb
 from torch.nn.utils import clip_grad_value_
 from torch.utils.data import DataLoader
@@ -93,27 +94,32 @@ class Trainer:
         valid_data: torch.utils.data.Dataset,
     ) -> dict:
         train_loader, valid_loader = self._dataloaders(train_data, valid_data)
-
+        
+        self.epoch_counter = 0
         train_losses = []
         valid_losses = []
+        train_accs = []  # Add accuracy tracking
+        valid_accs = []  # Add accuracy tracking
 
         self._initialize_attributes(model, self.epochs)
 
-        train_losses, valid_losses = self._run_training_loop(
+        train_losses, valid_losses, train_accs, valid_accs = self._run_training_loop(
             n_epochs=self.epochs,
             model=model,
             train_loader=train_loader,
             valid_loader=valid_loader,
             train_losses=train_losses,
             valid_losses=valid_losses,
+            train_accs=train_accs,
+            valid_accs=valid_accs,
             logger_info="[Standard] ",
             wandb_info={},
         )
 
-        logger.info(f"Best epoch: {self.best_epoch}, Best loss: {self.best_loss:.4f}")
-        if self.load_best_state_dict:
+        if self.best_state_dict:
             model.load_state_dict(self.best_state_dict)
-            logger.info("Final model loaded from best checkpoint")
+
+        logger.info(f"The best validation loss was {self.best_loss} at epoch {self.best_epoch}")
 
         results = {
             "best_epoch": self.best_epoch,
@@ -121,9 +127,12 @@ class Trainer:
             "best_state_dict": self.best_state_dict,
             "train_losses": train_losses,
             "valid_losses": valid_losses,
+            "train_accs": train_accs,  # Add to results
+            "valid_accs": valid_accs,  # Add to results
         }
 
         self._loss_plotting(train_losses, valid_losses)
+        self._accuracy_plotting(train_accs, valid_accs)  # Add accuracy plotting
 
         return results
 
@@ -135,18 +144,22 @@ class Trainer:
         valid_loader: DataLoader,
         train_losses: list[float],
         valid_losses: list[float],
+        train_accs: list[float], # Added train_accs
+        valid_accs: list[float], # Added valid_accs
         logger_info: str = "",
         wandb_info: Optional[dict] = None,
-    ) -> tuple[list[float], list[float]]:
+    ) -> tuple[list[float], list[float], list[float], list[float]]: # Added train_accs, valid_accs
         if wandb_info is None:
             wandb_info = {}
         for _ in range(1, n_epochs + 1):
-            train_losses, valid_losses = self._run_epoch(
+            train_losses, valid_losses, train_accs, valid_accs = self._run_epoch( # Updated return
                 model=model,
                 train_loader=train_loader,
                 valid_loader=valid_loader,
                 train_losses=train_losses,
                 valid_losses=valid_losses,
+                train_accs=train_accs, # Passed train_accs
+                valid_accs=valid_accs, # Passed valid_accs
                 logger_info=logger_info,
                 wandb_info=wandb_info,
             )
@@ -154,7 +167,7 @@ class Trainer:
             if self._check_early_stopping():
                 break
 
-        return train_losses, valid_losses
+        return train_losses, valid_losses, train_accs, valid_accs # Added train_accs, valid_accs
 
     def _run_epoch(
         self,
@@ -163,55 +176,81 @@ class Trainer:
         valid_loader: DataLoader,
         train_losses: list[float],
         valid_losses: list[float],
+        train_accs: list[float],
+        valid_accs: list[float],
         logger_info: str = "",
         wandb_info: Optional[dict] = None,
-    ) -> tuple[list[float], list[float]]:
+    ) -> tuple[list[float], list[float], list[float], list[float]]:
         if wandb_info is None:
             wandb_info = {}
         self.epoch_counter += 1
 
-        train_loss = self._epoch_train(model, train_loader)
+        train_loss, train_acc = self._epoch_train(model, train_loader)
         train_losses.append(train_loss)
-        valid_loss = self._epoch_valid(model, valid_loader)
+        train_accs.append(train_acc)
+        
+        valid_loss, valid_acc = self._epoch_valid(model, valid_loader)
         valid_losses.append(valid_loss)
+        valid_accs.append(valid_acc)
 
         self._update_best(model, valid_loss)
         self._analyze()
         self._tracking(train_loss, valid_loss, logger_info, wandb_info)
-        return train_losses, valid_losses
+        return train_losses, valid_losses, train_accs, valid_accs
 
-    def _epoch_train(self, model: BaseModel, train_loader: DataLoader) -> float:
+    def _epoch_train(self, model: BaseModel, train_loader: DataLoader) -> tuple[float, float]:
         model.train()
         train_loss = 0
+        correct = 0
+        total = 0
+        
         for x_batch, y_batch in train_loader:
-            x_batch: torch.Tensor
-            y_batch: torch.Tensor
-            x_batch = x_batch.to(self.device)
-            y_batch = y_batch.to(self.device)
-            loss: torch.Tensor = self.loss_function(model, x_batch, y_batch)
+            x_batch, y_batch = x_batch.to(self.device), y_batch.to(self.device)
+            loss = model.get_loss(x_batch, y_batch, loss_function=self.loss_function)
+
             self.optimizer.zero_grad()
             loss.backward()
-            clip_grad_value_(model.parameters(), self.grad_clip_value)
             self.optimizer.step()
+
             train_loss += loss.item()
+            
+            # Calculate accuracy for classification tasks
+            if hasattr(model, 'forward'):
+                with torch.no_grad():
+                    outputs = model(x_batch)
+                    if outputs.dim() > 1 and outputs.size(1) > 1:  # Multi-class classification
+                        predicted = outputs.argmax(dim=1)
+                        correct += (predicted == y_batch).sum().item()
+                        total += y_batch.size(0)
+        
+        avg_loss = train_loss / len(train_loader)
+        accuracy = (correct / total * 100) if total > 0 else 0.0
+        return avg_loss, accuracy
 
-        train_loss /= len(train_loader)
-        return train_loss
-
-    def _epoch_valid(self, model: BaseModel, valid_loader: DataLoader) -> float:
+    def _epoch_valid(self, model: BaseModel, valid_loader: DataLoader) -> tuple[float, float]:
         model.eval()
         valid_loss = 0
+        correct = 0
+        total = 0
+        
         with torch.no_grad():
             for x_batch, y_batch in valid_loader:
-                x_batch: torch.Tensor
-                y_batch: torch.Tensor
-                x_batch = x_batch.to(self.device)
-                y_batch = y_batch.to(self.device)
-                loss: torch.Tensor = self.loss_function(model, x_batch, y_batch)
+                x_batch, y_batch = x_batch.to(self.device), y_batch.to(self.device)
+                loss = model.get_loss(
+                    x_batch, y_batch, loss_function=self.loss_function
+                )
                 valid_loss += loss.item()
-
-        valid_loss /= len(valid_loader)
-        return valid_loss
+                
+                # Calculate accuracy for classification tasks
+                outputs = model(x_batch)
+                if outputs.dim() > 1 and outputs.size(1) > 1:  # Multi-class classification
+                    predicted = outputs.argmax(dim=1)
+                    correct += (predicted == y_batch).sum().item()
+                    total += y_batch.size(0)
+        
+        avg_loss = valid_loss / len(valid_loader)
+        accuracy = (correct / total * 100) if total > 0 else 0.0
+        return avg_loss, accuracy
 
     def _update_best(self, model: BaseModel, valid_loss: float) -> None:
         if valid_loss < self.best_loss:
@@ -288,6 +327,23 @@ class Trainer:
                     save_dir=self.save_path,
                     filename_prefix=self.filename_prefix,
                 )
+
+    def _accuracy_plotting(self, train_accs: list[float], valid_accs: list[float]) -> None:
+        """Plot accuracy curves similar to loss curves."""
+        if self.plot_losses and len(train_accs) > 1:
+            if self.save_path and os.path.exists(self.save_path):
+                try:
+                    from dendritic_modeling.plotting.training import plot_loss_curves
+                    # Reuse the loss plotting function but with accuracy label
+                    plot_loss_curves(
+                        train_losses=train_accs,
+                        valid_losses=valid_accs,
+                        loss_name="Accuracy (%)",
+                        save_dir=self.save_path,
+                        filename_prefix=self.filename_prefix + "accuracy_",
+                    )
+                except Exception as e:
+                    logger.warning(f"Could not plot accuracy curves: {e}")
 
 
 __all__ = ["Trainer"]
