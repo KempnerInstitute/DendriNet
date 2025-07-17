@@ -22,6 +22,14 @@ import torch.distributed as dist
 import numpy as np
 
 from dendritic_modeling import logger
+
+# WandB import (optional)
+try:
+    import wandb
+    WANDB_AVAILABLE = True
+except ImportError:
+    WANDB_AVAILABLE = False
+    logger.warning("WandB not available. Install with: pip install wandb")
 from dendritic_modeling.config import load_config
 from dendritic_modeling.datasets import get_unified_datasets
 from dendritic_modeling.models import Classifier, Regressor
@@ -38,6 +46,44 @@ from dendritic_modeling.training.fsdp_utils import (
     load_fsdp_checkpoint
 )
 from dendritic_modeling.training.strategies.fsdp_standard import FSDPTrainer
+
+
+def setup_wandb(config, rank, world_size):
+    """Initialize WandB logging (only on rank 0)."""
+    if rank != 0 or not WANDB_AVAILABLE:
+        return None
+    
+    wandb_config = config.wandb
+    if not wandb_config.use_wandb:
+        return None
+    
+    # Initialize wandb
+    run = wandb.init(
+        project=wandb_config.project or "dendritic-modeling",
+        entity=wandb_config.entity or None,
+        name=getattr(wandb_config, 'name', None) or config.outputs.run_name,
+        tags=wandb_config.tags,
+        notes=getattr(wandb_config, 'notes', None),
+        config={
+            # Model config
+            'model_type': config.model.core_network.type,
+            'dataset': config.task.dataset,
+            'batch_size': config.train.main.trainer.batch_size,
+            'total_batch_size': config.train.main.trainer.batch_size * world_size,
+            'epochs': config.train.main.trainer.epochs,
+            'learning_rate': config.train.main.param_groups.lr,
+            'weight_decay': config.train.main.weight_decay_rate,
+            'world_size': world_size,
+            # Model architecture details
+            'excitatory_layers': config.model.core_network.parameters.get('excitatory_layer_sizes', []),
+            'inhibitory_layers': config.model.core_network.parameters.get('inhibitory_layer_sizes', []),
+            'excitatory_branches': config.model.core_network.parameters.get('excitatory_branch_factors', []),
+            'inhibitory_branches': config.model.core_network.parameters.get('inhibitory_branch_factors', []),
+        }
+    )
+    
+    logger.info(f"WandB initialized: {run.url}")
+    return run
 
 
 def setup_distributed():
@@ -159,15 +205,19 @@ def main():
     
     # Load configuration
     config = load_config(args.config)
+    train_config = config.train
     
     # Set seed
-    set_seed(config.train.seed + rank)
+    set_seed(train_config.seed + rank)
     
     # Log setup info
     if rank == 0:
         logger.info(f"Starting FSDP training on {world_size} GPUs")
         logger.info(f"Model size: {args.model_size}")
         logger.info(f"Mixed precision: {args.mixed_precision}")
+    
+    # Initialize WandB (only on rank 0)
+    wandb_run = setup_wandb(config, rank, world_size)
     
     # Create model
     model = create_large_model(config)
@@ -229,7 +279,6 @@ def main():
     
     # Load datasets
     task_config = config.task
-    train_config = config.train
     
     # Convert configs to dict format for get_unified_datasets
     task_dict = {
@@ -336,6 +385,7 @@ def main():
         save_checkpoints=save_checkpoints,
         optimizer_config=optimizer_config,
         analysis_manager=analysis_manager,
+        wandb_run=wandb_run,  # Pass WandB run to trainer
         **trainer_config
     )
     
