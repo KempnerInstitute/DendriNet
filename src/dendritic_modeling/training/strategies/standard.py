@@ -206,14 +206,15 @@ class Trainer:
         
         for x_batch, y_batch in train_loader:
             x_batch, y_batch = x_batch.to(self.device), y_batch.to(self.device)
-            loss = model.get_loss(x_batch, y_batch, loss_function=self.loss_function)
+            loss = self.loss_function(model, x_batch, y_batch)
 
             self.optimizer.zero_grad()
             loss.backward()
+            clip_grad_value_(model.parameters(), self.grad_clip_value)
             self.optimizer.step()
 
             train_loss += loss.item()
-
+            
             # Calculate accuracy for classification tasks
             if hasattr(model, 'forward'):
                 with torch.no_grad():
@@ -236,11 +237,9 @@ class Trainer:
         with torch.no_grad():
             for x_batch, y_batch in valid_loader:
                 x_batch, y_batch = x_batch.to(self.device), y_batch.to(self.device)
-                loss = model.get_loss(
-                    x_batch, y_batch, loss_function=self.loss_function
-                )
+                loss = self.loss_function(model, x_batch, y_batch)
                 valid_loss += loss.item()
-
+                
                 # Calculate accuracy for classification tasks
                 outputs = model(x_batch)
                 if outputs.dim() > 1 and outputs.size(1) > 1:  # Multi-class classification
