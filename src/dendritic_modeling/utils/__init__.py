@@ -11,6 +11,7 @@ This module contains core utility functions for:
 # Core utilities
 from .data import Shaper, convert_to_serializable, save_dict, set_seed
 from .logging_config import get_logger, setup_logging
+from dendritic_modeling.utils.config_validator import ConfigValidator, validate_config
 
 __all__ = [
     "convert_to_serializable"
@@ -20,4 +21,6 @@ __all__ = [
     "setup_logging"
     # Core utilities
     "Shaper"
+    "ConfigValidator",
+    "validate_config",
 ]

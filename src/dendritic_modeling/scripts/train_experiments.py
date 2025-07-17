@@ -67,7 +67,7 @@ from dendritic_modeling.networks import Identity
 from dendritic_modeling.networks.architectures.factory import get_architecture
 from dendritic_modeling.scripts.train_encoder_network import load_train_encoder_network
 from dendritic_modeling.training import CustomWeightDecayOptimizer, get_trainer
-from dendritic_modeling.utils import save_dict, set_seed
+from dendritic_modeling.utils import save_dict, set_seed, validate_config
 
 
 def initialize_model(model_config: ModelConfig):
@@ -222,6 +222,18 @@ def run_analysis(
 def main(config_path: str, args=None):
     config = load_config(config_path)
     logger.info(f"Loaded configuration from {config_path}")
+
+    # Validate configuration before proceeding
+    logger.info("Validating configuration...")
+    
+    # Convert config to dict for validation
+    config_dict = asdict(config) if hasattr(config, '__dataclass_fields__') else config
+    
+    if not validate_config(config_dict):
+        logger.error("Configuration validation failed. Please fix the errors above.")
+        raise ValueError("Invalid configuration")
+    
+    logger.info("Configuration validation passed")
 
     if args:
         if args.learning_strategy:

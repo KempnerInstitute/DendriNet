@@ -404,9 +404,9 @@ class FSDPTrainer(Trainer):
         dist.all_reduce(avg_loss_tensor, op=dist.ReduceOp.SUM)
         avg_loss = avg_loss_tensor[0].item() / self.world_size
         avg_acc = avg_loss_tensor[1].item() / self.world_size
- 
+        
         return avg_loss, avg_acc
-
+    
     def _reduce_loss(self, loss: float) -> float:
         """Reduce loss across all processes."""
         loss_tensor = torch.tensor(loss, device=self.device)
