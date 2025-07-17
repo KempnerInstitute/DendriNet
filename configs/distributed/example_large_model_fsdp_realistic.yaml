@@ -1,0 +1,86 @@
+# Realistic large dendritic model configuration for FSDP
+# This is sized to be trainable on 4-8 H100 GPUs
+
+model:
+  task: classification
+  encoder_network:
+    type: identity
+    parameters: {}
+  core_network:
+    type: EINet
+    parameters:
+      transfer_params:
+        input_mode: 1
+        independent_pathways: true
+        excitatory_dim: 512  # Much smaller than auto-calculated 75k
+        inhibitory_dim: 512  # Much smaller than auto-calculated 75k
+      # More reasonable architecture
+      excitatory_layer_sizes: [1024, 512, 256, 128]
+      inhibitory_layer_sizes: [256, 128, 64, 32]
+      excitatory_branch_factors: [2, 2, 2]  # 8 branches total
+      inhibitory_branch_factors: [2, 2, 1]  # 4 branches total
+      ee_synapses_per_branch_per_layer: [32, 24, 16, 8]
+      ei_synapses_per_branch_per_layer: [16, 12, 8, 4]
+      ie_synapses_per_branch_per_layer: [24, 16, 8, 4]
+      ii_synapses_per_branch_per_layer: [12, 8, 4, 2]
+      somatic_synapses: true
+      use_shunting: true
+      topk_init_method: xavier_normal
+      topk_strategy: standard
+      topk_type: standard  # Could use 'stochastic' for memory efficiency
+      reactivate: true
+      reactivation_init_m: 1.5
+      reactivation_init_b: 0.5
+      reactivation_type: param_tanh
+      reactivation_strategy: standard
+      blocklinear_strategy: standard
+      efficient_blocklinear: true
+      adaptive_initialization: true
+  decoder_network:
+    type: MLP
+    parameters:
+      output_dim: 1000  # ImageNet classes
+      hidden_dims: [512, 256]
+
+task:
+  dataset: imagenet
+  data_path: /path/to/imagenet
+  parameters:
+    flatten: true
+    n_classes: 1000
+  
+train:
+  seed: 0
+  train_valid_split: 0.9
+  
+  main:
+    learning_strategy: standard
+    weight_decay_rate: 0.0001
+    
+    param_groups:
+      lr: 0.001
+      split_params: true
+      topk_lr: 0.0001
+      blocklinear_lr: 0.0001
+      reactivation_lr: 0.0001
+      decoder_lr: 0.001
+    
+    trainer:
+      loss_function: cat_nll
+      epochs: 100
+      batch_size: 128  # Per GPU batch size
+      shuffle: true
+      grad_clip_value: 1.0
+      plot_losses: true
+
+outputs:
+  run_name: realistic_large_model
+  dir: results/
+
+# Expected memory usage (rough estimate):
+# - Total parameters: ~160M (stored as dense)
+# - Active parameters: ~13M (actually used)
+# - Memory per GPU with FSDP on 4 GPUs: ~10-15GB
+#
+# Usage:
+# torchrun --nproc_per_node=4 src/dendritic_modeling/scripts/train_large_model_fsdp.py configs/distributed/example_large_model_fsdp_realistic.yaml 
