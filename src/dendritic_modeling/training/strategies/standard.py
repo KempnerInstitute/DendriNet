@@ -214,7 +214,7 @@ class Trainer:
             self.optimizer.step()
 
             train_loss += loss.item()
-            
+
             # Calculate accuracy for classification tasks
             if hasattr(model, 'forward'):
                 with torch.no_grad():
@@ -239,7 +239,7 @@ class Trainer:
                 x_batch, y_batch = x_batch.to(self.device), y_batch.to(self.device)
                 loss = self.loss_function(model, x_batch, y_batch)
                 valid_loss += loss.item()
-                
+
                 # Calculate accuracy for classification tasks
                 outputs = model(x_batch)
                 if outputs.dim() > 1 and outputs.size(1) > 1:  # Multi-class classification

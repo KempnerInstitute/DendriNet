@@ -44,6 +44,7 @@ class FSDPTrainer(Trainer):
         save_checkpoints: bool = True,
         optimizer_config: Optional[dict] = None,
         analysis_manager: Optional[object] = None,
+        wandb_run: Optional[object] = None,
         **kwargs
     ):
         """
@@ -69,6 +70,7 @@ class FSDPTrainer(Trainer):
         self.save_checkpoints = save_checkpoints
         self.optimizer_config = optimizer_config or {}
         self.analysis_manager = analysis_manager
+        self.wandb_run = wandb_run
         
         # Set device using local rank
         self.device = torch.device(f'cuda:{self.local_rank}')
@@ -300,6 +302,21 @@ class FSDPTrainer(Trainer):
                     msg += f" - Valid Loss: {valid_loss:.4f} - Valid Acc: {valid_acc:.4f}"
                 msg += f" - Time: {epoch_time:.2f}s"
                 logger.info(msg)
+            
+            # WandB logging (only on rank 0)
+            if self.rank == 0 and self.wandb_run is not None:
+                log_dict = {
+                    'epoch': epoch,
+                    'train/loss': train_loss,
+                    'train/accuracy': train_acc,
+                    'train/epoch_time': epoch_time,
+                }
+                if valid_loss is not None and valid_acc is not None:
+                    log_dict.update({
+                        'valid/loss': valid_loss,
+                        'valid/accuracy': valid_acc,
+                    })
+                self.wandb_run.log(log_dict)
             
             # Checkpointing
             if self.rank == 0 and self.save_checkpoints and (epoch + 1) % self.save_every_n_epochs == 0:
