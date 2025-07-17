@@ -1,5 +1,14 @@
-# Example configuration for large dendritic model requiring FSDP
-# This model would need multiple GPUs to train
+# Example configuration for EXTREMELY large dendritic model requiring FSDP
+# WARNING: This model is MASSIVE and likely not trainable!
+# 
+# ACTUAL MEMORY REQUIREMENTS:
+# - Total parameters: 277.27 BILLION (stored as dense matrices)
+# - Active parameters: 22.68 billion (due to TopK sparsity)
+# - Parameter memory alone: 554 GB (FP16)
+# - Total training memory: ~2.5 TB
+# - Would require 32+ H100 GPUs to train!
+#
+# For a more realistic large model, see: example_large_model_fsdp_realistic.yaml
 
 model:
   task: classification  # This goes here, not in task section
