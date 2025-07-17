@@ -1,0 +1,51 @@
+# Example configuration for using FSDP with train_experiments.py
+# NOTE: This requires running with torchrun or in a distributed environment
+#
+# Usage:
+#   torchrun --nproc_per_node=4 src/dendritic_modeling/scripts/train_experiments.py configs/example_fsdp_integration.yaml
+#
+# For now, we recommend using train_large_model_fsdp.py for FSDP training
+# as it handles all the distributed setup automatically.
+
+model:
+  encoder_network:
+    type: identity
+    parameters: {}
+  core_network:
+    type: EINet
+    parameters:
+      transfer_params:
+        input_mode: 1
+        independent_pathways: true
+      excitatory_layer_sizes: [1024, 512, 256]
+      inhibitory_layer_sizes: [256, 128, 64]
+      excitatory_branch_factors: [4, 3, 2]
+      inhibitory_branch_factors: [2, 2, 2]
+      ee_synapses_per_branch_per_layer: [50, 30, 20]
+      ei_synapses_per_branch_per_layer: [20, 15, 10]
+      ie_synapses_per_branch_per_layer: [40, 25, 15]
+      ii_synapses_per_branch_per_layer: [15, 10, 5]
+  decoder_network:
+    type: identity
+    parameters: {}
+
+data:
+  dataset_name: cifar10
+  
+task:
+  task_type: classification
+  n_classes: 10
+  
+train:
+  learning_strategy: fsdp  # This would use FSDP if distributed env is set up
+  n_epochs: 100
+  batch_size: 256  # Per GPU batch size
+  learning_rate: 0.001
+  # FSDP-specific config would need to be added to trainer_config
+  trainer_config:
+    fsdp_config:
+      sharding_strategy: "FULL_SHARD"
+      mixed_precision: true
+      cpu_offload: false
+      
+# Note: Additional distributed setup is required outside the config 
