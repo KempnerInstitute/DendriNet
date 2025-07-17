@@ -20,12 +20,12 @@ model:
       # configuration parameters
       excitatory_layer_sizes: [10]
       inhibitory_layer_sizes: [40]
-      excitatory_branch_factors: [2,2]
+      excitatory_branch_factors: [2, 2]  # This is correct - represents branches per neuron
       inhibitory_branch_factors: []
       ee_synapses_per_branch_per_layer: [100]
-      ei_synapses_per_branch_per_layer: [200]
+      ei_synapses_per_branch_per_layer: [20]  # Changed from 200 to 20 (less than 40 inhibitory neurons)
       ie_synapses_per_branch_per_layer: [10]
-      ii_synapses_per_branch_per_layer: [0]
+      ii_synapses_per_branch_per_layer: [5]   # Changed from 0 to 5 (must be positive)
       somatic_synapses: true
       use_shunting: true
       # topk parameters
