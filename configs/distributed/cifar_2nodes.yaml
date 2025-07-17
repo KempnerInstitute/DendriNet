@@ -17,8 +17,8 @@ model:
       transfer_params:
         input_mode: 1
         independent_pathways: true
-        excitatory_dim: 1536    # Half of CIFAR-10 flattened (3072/2)
-        inhibitory_dim: 1536    # Half of CIFAR-10 flattened (3072/2)
+        excitatory_dim:     # Half of CIFAR-10 flattened (3072/2)
+        inhibitory_dim:     # Half of CIFAR-10 flattened (3072/2)
         
       # Single neural layer with 3-layer dendritic trees within each neuron
       # With input_mode=1, inhibition comes from transfer function, no inhibitory layers needed
@@ -26,13 +26,13 @@ model:
       inhibitory_layer_sizes: [0]                       # Dummy value - no inhibitory layers built for input_mode=1
       
       # 3-layer dendritic tree within each neuron: [distal, intermediate, proximal]
-      excitatory_branch_factors: [3, 2, 2]           # Larger dendritic tree (original OOM config)
+      excitatory_branch_factors: [5, 4,3, 2, 2]           # Larger dendritic tree (original OOM config)
       inhibitory_branch_factors: []                     # No inhibitory branch factors needed
       
       # Synapses per dendritic layer (from distal to proximal)
-      ee_synapses_per_branch_per_layer: [20]           # High synapse count for stress test
+      ee_synapses_per_branch_per_layer: [50]           # High synapse count for stress test
       ei_synapses_per_branch_per_layer: []             # No excitatory-inhibitory (no inhibitory layers)
-      ie_synapses_per_branch_per_layer: [20]           # Original IE connectivity causing OOM
+      ie_synapses_per_branch_per_layer: [50]           # Original IE connectivity causing OOM
       ii_synapses_per_branch_per_layer: []             # No inhibitory-inhibitory (no inhibitory layers)      
       
       somatic_synapses: true
