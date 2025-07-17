@@ -94,7 +94,7 @@ class Trainer:
         valid_data: torch.utils.data.Dataset,
     ) -> dict:
         train_loader, valid_loader = self._dataloaders(train_data, valid_data)
-        
+
         self.epoch_counter = 0
         train_losses = []
         valid_losses = []
@@ -213,7 +213,7 @@ class Trainer:
             self.optimizer.step()
 
             train_loss += loss.item()
-            
+
             # Calculate accuracy for classification tasks
             if hasattr(model, 'forward'):
                 with torch.no_grad():
@@ -240,7 +240,7 @@ class Trainer:
                     x_batch, y_batch, loss_function=self.loss_function
                 )
                 valid_loss += loss.item()
-                
+
                 # Calculate accuracy for classification tasks
                 outputs = model(x_batch)
                 if outputs.dim() > 1 and outputs.size(1) > 1:  # Multi-class classification

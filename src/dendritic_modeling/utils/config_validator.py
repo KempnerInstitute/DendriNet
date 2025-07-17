@@ -180,18 +180,18 @@ class ConfigValidator:
                     
     def check_branch_factors(self):
         """Check branch factor constraints"""
-        # Branch factors should match number of layers or be single value
-        if len(self.excitatory_branch_factors) not in [1, self.num_layers]:
-            self.errors.append(
-                f"excitatory_branch_factors length ({len(self.excitatory_branch_factors)}) "
-                f"should be 1 or {self.num_layers}"
-            )
-            
-        if self.inhibitory_branch_factors and len(self.inhibitory_branch_factors) not in [1, self.num_layers]:
-            self.errors.append(
-                f"inhibitory_branch_factors length ({len(self.inhibitory_branch_factors)}) "
-                f"should be 1 or {self.num_layers}"
-            )
+        # Branch factors represent hierarchical branching structure
+        # e.g., [2, 2] means 2 branches that each split into 2 more (total 4 branches)
+        # They don't need to match the number of layers
+        
+        # Just check that they are valid positive integers
+        for i, bf in enumerate(self.excitatory_branch_factors):
+            if bf <= 0:
+                self.errors.append(f"excitatory_branch_factors[{i}] must be positive, got {bf}")
+                
+        for i, bf in enumerate(self.inhibitory_branch_factors):
+            if bf <= 0:
+                self.errors.append(f"inhibitory_branch_factors[{i}] must be positive, got {bf}")
             
     def check_empty_lists(self):
         """Check and warn about empty lists that will use defaults"""
@@ -238,8 +238,8 @@ class ConfigValidator:
                 ratio = exc / inh
                 if ratio < 2 or ratio > 10:
                     self.warnings.append(
-                        f"Layer {i} E/I ratio = {ratio:.1f}. "
-                        "Biological networks typically have 4:1 to 5:1"
+                        f"Layer {i} E/I ratio = {ratio:.2f} ({exc}E/{inh}I). "
+                        "Biological cortical networks typically have 4:1 to 5:1 (80-83% excitatory)"
                     )
                     
     def report_results(self):
