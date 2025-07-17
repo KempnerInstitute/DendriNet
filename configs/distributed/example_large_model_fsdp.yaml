@@ -1,0 +1,83 @@
+# Example configuration for large dendritic model requiring FSDP
+# This model would need multiple GPUs to train
+
+model:
+  task: classification  # This goes here, not in task section
+  encoder_network:
+    type: identity
+    parameters: {}
+  core_network:
+    type: EINet
+    parameters:
+      transfer_params:
+        input_mode: 1
+        independent_pathways: true
+      # Large architecture that won't fit on single GPU
+      excitatory_layer_sizes: [4096, 2048, 1024, 512]
+      inhibitory_layer_sizes: [1024, 512, 256, 128]
+      excitatory_branch_factors: [4, 4, 2]  # Many branches
+      inhibitory_branch_factors: [2, 2, 2]
+      ee_synapses_per_branch_per_layer: [100, 80, 60, 40]
+      ei_synapses_per_branch_per_layer: [50, 40, 30, 20]
+      ie_synapses_per_branch_per_layer: [80, 60, 40, 20]
+      ii_synapses_per_branch_per_layer: [40, 30, 20, 10]
+      somatic_synapses: true
+      use_shunting: true
+      topk_init_method: xavier_normal
+      topk_strategy: standard
+      topk_type: abs
+      reactivate: true
+      reactivation_init_m: 1.5
+      reactivation_init_b: 0.5
+      reactivation_type: param_tanh  # Fixed from 'gain'
+      reactivation_strategy: standard
+      blocklinear_strategy: standard
+      efficient_blocklinear: true
+      adaptive_initialization: true
+  decoder_network:
+    type: MLP  # Changed from identity to MLP for classification
+    parameters:
+      output_dim: 1000  # ImageNet classes
+      hidden_dims: [2048, 1024]
+
+task:
+  dataset: imagenet
+  data_path: /path/to/imagenet  # Update with actual path
+  parameters:
+    flatten: true  # Flatten images for EI network
+    n_classes: 1000  # This goes in parameters
+  
+train:
+  seed: 0
+  train_valid_split: 0.9
+  
+  main:
+    learning_strategy: standard
+    weight_decay_rate: 0.0001
+    
+    param_groups:
+      lr: 0.001
+      split_params: true
+      topk_lr: 0.0001
+      blocklinear_lr: 0.0001
+      reactivation_lr: 0.0001
+      decoder_lr: 0.001
+    
+    trainer:
+      loss_function: cat_nll  # Changed from cross_entropy
+      epochs: 100
+      batch_size: 64  # Per GPU batch size
+      shuffle: true
+      grad_clip_value: 1.0
+      plot_losses: true
+
+outputs:
+  run_name: large_fsdp_model
+  dir: results/
+
+# Usage:
+# Single node, 4 GPUs:
+# torchrun --nproc_per_node=4 src/dendritic_modeling/scripts/train_large_model_fsdp.py configs/distributed/example_large_model_fsdp.yaml
+#
+# Multi-node SLURM:
+# sbatch scripts/slurm/train_large_fsdp.sbatch configs/distributed/example_large_model_fsdp.yaml 

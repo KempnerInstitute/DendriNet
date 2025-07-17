@@ -19,6 +19,7 @@ import os
 import argparse
 import torch
 import torch.distributed as dist
+import numpy as np
 
 from dendritic_modeling import logger
 from dendritic_modeling.config import load_config
@@ -27,6 +28,7 @@ from dendritic_modeling.models import Classifier, Regressor
 from dendritic_modeling.networks import Identity
 from dendritic_modeling.networks.architectures.factory import get_architecture
 from dendritic_modeling.utils.data import set_seed
+from dendritic_modeling.utils.gpu_estimation import GPUMemoryEstimator
 from dendritic_modeling.analysis import AnalysisManager
 from dendritic_modeling.training.fsdp_utils import (
     get_fsdp_config,
@@ -169,6 +171,61 @@ def main():
     
     # Create model
     model = create_large_model(config)
+    
+    # Comprehensive GPU memory estimation (only on rank 0)
+    if rank == 0:
+        # Get batch size from config
+        batch_size = train_config.main.trainer.batch_size
+        
+        # Get input dimensions
+        task_params = config.task.parameters or {}
+        if config.task.dataset == 'mnist':
+            input_shape = (784,)
+        elif config.task.dataset == 'cifar10':
+            input_shape = (3072,)
+        elif config.task.dataset == 'imagenet':
+            if task_params.get('flatten', False):
+                input_shape = (150528,)
+            else:
+                input_shape = (3, 224, 224)
+        else:
+            input_dim = task_params.get('input_dim', 784)
+            input_shape = (input_dim,)
+        
+        # Get precision and optimizer settings
+        dtype = 'fp16' if args.mixed_precision else 'fp32'
+        optimizer_type = train_config.main.param_groups.get('optimizer', 'adam')
+        
+        # Create GPU memory estimator
+        estimator = GPUMemoryEstimator(dtype=dtype, optimizer=optimizer_type)
+        
+        # Print comprehensive estimation report
+        estimator.print_estimation_report(model, batch_size, input_shape, config)
+        
+        # Check if current setup is adequate
+        memory_breakdown = estimator.estimate_memory_breakdown(
+            model, batch_size, input_shape, use_fsdp=True, num_gpus=world_size
+        )
+        
+        if torch.cuda.is_available():
+            current_gpu = torch.cuda.get_device_properties(0)
+            current_memory_gb = current_gpu.total_memory / (1024**3)
+            
+            if memory_breakdown.total > current_memory_gb * 0.85:
+                logger.warning("\n⚠️  WARNING: Model may not fit with current GPU setup!")
+                logger.warning(f"  Required: {memory_breakdown.total:.2f}GB per GPU")
+                logger.warning(f"  Available: {current_memory_gb * 0.85:.2f}GB (with safety margin)")
+                
+                if args.cpu_offload:
+                    logger.info("  CPU offloading is enabled, which will help reduce GPU memory usage.")
+                else:
+                    logger.warning("  Consider:")
+                    logger.warning("    1. Using more GPUs")
+                    logger.warning("    2. Enabling CPU offloading with --cpu_offload")
+                    logger.warning("    3. Reducing batch size")
+                    logger.warning("    4. Using gradient checkpointing")
+        
+        logger.info("")  # Empty line for spacing
     
     # Load datasets
     task_config = config.task
