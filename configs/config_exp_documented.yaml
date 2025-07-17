@@ -5,6 +5,25 @@
 # including model architecture, training parameters, datasets, and analysis.
 # ============================================================================
 
+  # 1. INPUT_MODE = 0 (Shared Pathway):
+  #   - Single pathway for both E and I
+  #   - Inhibitory cells built only in transfer layer
+  #   - All layers share same inhibitory cell population
+  #   - Good for: Simple architectures, shared inhibition
+
+  # 2. INPUT_MODE = 1 (Independent Pathways):
+  #   - Separate pathways for E and I
+  #   - Each layer builds its own inhibitory cells
+  #   - Layer-specific inhibition
+  #   - Good for: Complex architectures, layer-specific inhibition
+
+  # 3. CONSTRAINTS TO CHECK:
+  #   - If input_mode=0: independent_pathways should be False
+  #   - If input_mode=1: independent_pathways should be True
+  #   - TopK values must be ≤ input dimensions
+
+
+
 # ============================================================================
 # MODEL CONFIGURATION
 # ============================================================================
