@@ -290,8 +290,8 @@ def get_base_dir_from_config(config_file, verbose=False):
         with open(config_file, "r") as f:
             config = yaml.safe_load(f)
 
-            if "slurm_config" in config and "output_dir" in config["slurm_config"]:
-                base_dir = config["slurm_config"]["output_dir"]
+            if "run_config" in config and "output_dir" in config["run_config"]:
+                base_dir = config["run_config"]["output_dir"]
                 if base_dir:  # Check if it's not empty
                     if verbose:
                         print(f"Found base directory in config: {base_dir}")
@@ -301,11 +301,11 @@ def get_base_dir_from_config(config_file, verbose=False):
                         print("Base directory in config file is empty")
             else:
                 if verbose:
-                    if "slurm_config" not in config:
-                        print("Config file does not have 'slurm_config' section")
-                    elif "output_dir" not in config["slurm_config"]:
+                    if "run_config" not in config:
+                        print("Config file does not have 'run_config' section")
+                    elif "output_dir" not in config["run_config"]:
                         print(
-                            "Config file has 'slurm_config' but no 'output_dir' field"
+                            "Config file has 'run_config' but no 'output_dir' field"
                         )
     except Exception as e:
         print(f"Error reading config file {config_file}: {e}")
@@ -365,24 +365,33 @@ def get_job_files_for_config(sweep_dir, config_id):
     return job_files
 
 
-def get_original_slurm_config(sweep_dir):
-    """Get the original SLURM configuration used for this sweep."""
-    # Try to find the sweep_params.yaml file
-    sweep_params_path = os.path.join(sweep_dir, "configs", "sweep_params.yaml")
-
-    if not os.path.exists(sweep_params_path):
-        print(f"Error: Could not find sweep_params.yaml in {sweep_dir}/configs")
+def get_original_run_config(sweep_dir):
+    """
+    Extracts the original run_config from the sweep directory's config files.
+    This function looks for any config file in the sweep directory and extracts
+    the run_config section to be used for generating the rerun job script.
+    
+    Args:
+        sweep_dir (str): Path to the sweep directory
+        
+    Returns:
+        dict: The run_config section from the original config, or None if not found
+    """
+    config_files = glob.glob(os.path.join(sweep_dir, "*.yaml"))
+    if not config_files:
+        print(f"No config files found in {sweep_dir}")
         return None
-
-    # Load the sweep config file
-    with open(sweep_params_path, "r") as f:
-        try:
+    
+    # Use the first config file found
+    config_file = config_files[0]
+    try:
+        with open(config_file, 'r') as f:
             config = yaml.safe_load(f)
-            if "slurm_config" in config:
-                return config["slurm_config"]
-        except yaml.YAMLError as e:
-            print(f"Error parsing YAML file: {e}")
-
+            if "run_config" in config:
+                return config["run_config"]
+    except Exception as e:
+        print(f"Error reading config file {config_file}: {e}")
+    
     return None
 
 
@@ -406,10 +415,15 @@ def generate_rerun_script(
     current_timestamp = datetime.now().strftime("%Y%m%d%H%M%S")
 
     # Start generating the script
+    run_config = get_original_run_config(sweep_dir)
+    if not run_config:
+        print("Error: Could not extract run_config from sweep directory")
+        return None
+
     lines = [
         "#!/bin/bash",
-        f"#SBATCH --job-name=rerun_{sweep_timestamp}",
-        f"#SBATCH --account={slurm_config.get('account', 'kempner_dev')}",
+        f"#SBATCH --job-name=rerun_{run_config.get('run_name', 'missing_configs')}",
+        f"#SBATCH --account={run_config.get('account', 'kempner_dev')}",
     ]
 
     # Output paths - use config-based directories
@@ -430,53 +444,46 @@ def generate_rerun_script(
             ]
         )
 
-    # Format time to HH:MM:SS if it's not already
-    time_value = slurm_config.get("time", "1:00:00")
+    # Parse time value to ensure it's in the correct format
+    time_value = run_config.get("time", "1:00:00")
     if isinstance(time_value, (int, float)) or (
         isinstance(time_value, str) and time_value.isdigit()
     ):
         # Convert seconds to HH:MM:SS
-        seconds = int(float(time_value))
-        hours = seconds // 3600
-        minutes = (seconds % 3600) // 60
-        seconds = seconds % 60
-        formatted_time = f"{hours}:{minutes:02d}:{seconds:02d}"
-    elif isinstance(time_value, str):
-        if ":" not in time_value:
-            # Assume it's hours if no colons
-            formatted_time = f"{time_value}:00:00"
-        else:
-            formatted_time = time_value
+        total_seconds = int(time_value)
+        hours = total_seconds // 3600
+        minutes = (total_seconds % 3600) // 60
+        seconds = total_seconds % 60
+        formatted_time = f"{hours:02d}:{minutes:02d}:{seconds:02d}"
     else:
-        # Default to 3 hours if unknown format
-        formatted_time = "3:00:00"
+        # Assume it's already in the correct format
+        formatted_time = str(time_value)
 
-    # Resources
-    lines.extend(
-        [
-            f"#SBATCH --nodes={slurm_config.get('nodes', 1)}",
-            f"#SBATCH --ntasks-per-node={slurm_config.get('ntasks_per_node', 1)}",
-            f"#SBATCH --gpus-per-node={slurm_config.get('gpus_per_node', 1)}",
-            f"#SBATCH --cpus-per-task={slurm_config.get('cpus_per_task', 10)}",
-            f"#SBATCH --time={formatted_time}",
-        ]
-    )
+    lines.extend([
+        f"#SBATCH --output={results_dir}/rerun_{sweep_timestamp}_%A_%a.out",
+        f"#SBATCH --error={results_dir}/rerun_{sweep_timestamp}_%A_%a.err",
+        f"#SBATCH --array=0-{len(missing_config_paths)-1}",
+        f"#SBATCH --nodes={run_config.get('nodes', 1)}",
+        f"#SBATCH --ntasks-per-node={run_config.get('ntasks_per_node', 1)}",
+        f"#SBATCH --gpus-per-node={run_config.get('gpus_per_node', 1)}",
+        f"#SBATCH --cpus-per-task={run_config.get('cpus_per_task', 10)}",
+        f"#SBATCH --time={formatted_time}",
+    ])
 
-    # Properly handle memory specification - use only one method
-    # Check if the memory specification has a unit suffix
-    mem_value = slurm_config.get("mem", "64GB")
+    # Handle memory specification
+    mem_value = run_config.get("mem", "64GB")
     if isinstance(mem_value, str):
-        # If it has a unit suffix (GB, MB, etc.), use it as is for total memory
-        if any(unit in mem_value.upper() for unit in ["GB", "MB", "G", "M", "K", "KB"]):
+        # If it has a unit suffix (GB, MB, etc.), use it as is
+        if any(mem_value.endswith(unit) for unit in ['GB', 'MB', 'TB', 'KB']):
             lines.append(f"#SBATCH --mem={mem_value}")
         else:
-            # If no unit, assume it's in MB and add the unit
+            # Assume it's in MB if no unit is provided
             lines.append(f"#SBATCH --mem={mem_value}MB")
     else:
-        # If it's a number, assume it's in MB
+        # If it's a number, assume MB
         lines.append(f"#SBATCH --mem={mem_value}MB")
 
-    lines.append(f"#SBATCH --partition={slurm_config.get('partition', 'kempner_gpu')}")
+    lines.append(f"#SBATCH --partition={run_config.get('partition', 'kempner_gpu')}")
 
     # Handle array job configuration
     if len(missing_ids) > 1:
@@ -508,16 +515,17 @@ def generate_rerun_script(
         ]
     )
 
-    for module in slurm_config.get("modules_to_load", []):
+    # Load environment modules
+    lines.append("\n# Load modules")
+    for module in run_config.get("modules_to_load", []):
         lines.append(f"module load {module}")
 
-    lines.extend(
-        [
-            "",
-            f"conda activate {slurm_config.get('conda_env_path', '/path/to/conda/env')}",
-            "",
-        ]
-    )
+    # Activate conda environment
+    lines.extend([
+        "",
+        "# Activate conda environment", 
+        f"conda activate {run_config.get('conda_env_path', '/path/to/conda/env')}",
+    ])
 
     # Set up directories
     lines.extend(

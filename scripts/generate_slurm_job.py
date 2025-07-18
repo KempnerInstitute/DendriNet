@@ -152,8 +152,21 @@ class SlurmJobGenerator:
         
         # Calculate how many nodes we need and GPUs per node
         max_gpus_per_node = CLUSTER_LIMITS['max_gpus_per_node']
-        num_nodes = max(1, (num_gpus + max_gpus_per_node - 1) // max_gpus_per_node)  # Ceiling division
-        gpus_per_node = min(max_gpus_per_node, num_gpus)  # Don't exceed what we need
+        
+        # Check if gpu_per_node is specified in run_config
+        specified_gpu_per_node = self.run_config.get('gpu_per_node')
+        if specified_gpu_per_node:
+            # Validate gpu_per_node is between 1-4
+            if not (1 <= specified_gpu_per_node <= 4):
+                print(f"Warning: gpu_per_node={specified_gpu_per_node} is invalid. Must be between 1-4. Using estimated value.")
+                gpus_per_node = min(max_gpus_per_node, num_gpus)
+            else:
+                gpus_per_node = min(specified_gpu_per_node, num_gpus)  # Don't exceed total needed GPUs
+                print(f"Using specified gpu_per_node: {gpus_per_node}")
+        else:
+            gpus_per_node = min(max_gpus_per_node, num_gpus)  # Use estimated value
+        
+        num_nodes = max(1, (num_gpus + gpus_per_node - 1) // gpus_per_node)  # Ceiling division
         ntasks_per_node = gpus_per_node  # One task per GPU
         
         # Calculate CPUs per task based on what we need (not max available)
@@ -292,20 +305,36 @@ class SlurmJobGenerator:
             ntasks_per_node: Number of tasks (GPUs) per node
             
         Returns:
-            Reasonable CPUs per task
+            Reasonable CPUs per task that won't exceed node limits
         """
         max_cpus_per_gpu = CLUSTER_LIMITS['max_cpus_per_gpu']
         max_cpus_per_node = CLUSTER_LIMITS['max_cpus_per_node']
         
-        # Use reasonable ratio: max 25 CPUs per GPU, but don't exceed node limits
+        # Calculate desired CPUs per task
         desired_cpus_per_task = max_cpus_per_gpu
         
-        # If we're using multiple GPUs per node, make sure we don't exceed node limits
+        # Calculate total CPUs that would be requested
         total_requested = desired_cpus_per_task * ntasks_per_node
+        
+        # If we exceed node limits, scale down proportionally
         if total_requested > max_cpus_per_node:
-            # Scale down proportionally, leaving some headroom for system
+            # Leave some headroom for system processes
             available_cpus = max_cpus_per_node - 8  # Reserve 8 CPUs for system
-            desired_cpus_per_task = max(1, available_cpus // ntasks_per_node)
+            desired_cpus_per_task = max(4, available_cpus // ntasks_per_node)  # Minimum 4 CPUs per task
+            
+            print(f"Warning: Reducing CPUs per task to {desired_cpus_per_task} to fit node limits")
+            
+            print(f"  Requested: {total_requested} CPUs, Available: {max_cpus_per_node} CPUs")
+        
+        # Additional safeguard: ensure we don't exceed the theoretical maximum
+        # Some clusters may have nodes with fewer CPUs than the advertised limit
+        conservative_limit = min(64, max_cpus_per_node)  # Conservative estimate for H100 nodes
+        if desired_cpus_per_task * ntasks_per_node > conservative_limit:
+            conservative_cpus = max(4, (conservative_limit - 8) // ntasks_per_node)
+            if conservative_cpus < desired_cpus_per_task:
+                print(f"Warning: Using conservative CPU estimate: {conservative_cpus} CPUs per task")
+                print(f"  This ensures compatibility with nodes that may have fewer CPUs than advertised")
+                desired_cpus_per_task = conservative_cpus
         
         return min(desired_cpus_per_task, max_cpus_per_gpu)
     
@@ -329,7 +358,7 @@ class SlurmJobGenerator:
         """Generate conda activation commands.
         
         Args:
-            conda_env: Conda environment name
+            conda_env: Default conda environment name
             
         Returns:
             Conda activation commands as string
@@ -337,10 +366,25 @@ class SlurmJobGenerator:
         conda_env_path = self.run_config.get('conda_env_path')
         
         if conda_env_path:
-            return f"""source {conda_env_path}
-conda activate {conda_env}"""
+            # Extract environment name from path if it contains 'envs'
+            if '/envs/' in conda_env_path:
+                # Extract from path like: /path/to/conda/envs/env_name/etc/profile.d/conda.sh
+                env_name = conda_env_path.split('/envs/')[1].split('/')[0]
+            else:
+                # Use the provided default name
+                env_name = conda_env
+            
+            # Use the conda_env_path if it exists, otherwise use conda info
+            return f"""# Initialize conda - try provided path first, fallback to conda info
+if [ -f "{conda_env_path}" ]; then
+    source {conda_env_path}
+else
+    source $(conda info --base)/etc/profile.d/conda.sh
+fi
+conda activate {env_name}"""
         else:
-            return f"""source ~/.bashrc
+            return f"""# Initialize conda using conda info
+source $(conda info --base)/etc/profile.d/conda.sh
 conda activate {conda_env}"""
     
     def generate_slurm_script(self, conda_env: str = 'dendritic_env') -> str:
@@ -363,13 +407,17 @@ conda activate {conda_env}"""
         
         # Get SLURM parameters (system/person-dependent from config, estimated ones computed)
         job_name = self.run_config.get('run_name', self.run_name)
-        output_dir = self.run_config.get('output_dir', '/n/holylabs/LABS/kempner_dev/Users/hsafaai/logs')
+        
+        # Get output directory with fallback for backwards compatibility
+        output_dir = (self.run_config.get('dir') or 
+                     self.config.get('outputs', {}).get('dir', '/n/holylabs/LABS/kempner_dev/Users/hsafaai/logs'))
+        
         account = self.run_config.get('account', 'kempner_dev')
         partition = self.run_config.get('partition', self._determine_partition(resources['gpu_type']))
         cpus_per_task = resources['cpus_per_task']  # Use estimated value
         
-        # Get conda environment from SLURM config (overrides command line argument)
-        conda_env_name = self.run_config.get('conda_env', conda_env)
+        # Get conda environment from run config (use default name since we have conda_env_path)
+        conda_env_name = conda_env  # Use the parameter passed to the function
         
         # Build the script
         script = f"""#!/bin/bash
@@ -392,7 +440,7 @@ conda activate {conda_env}"""
 {self._generate_conda_activation(conda_env_name)}
 
 # Set environment variables for distributed training
-export MASTER_PORT=$(expr 10000 + $(echo -n $SLURM_JOBID | tail -c 4))
+export MASTER_PORT=$(expr 20000 + $(echo -n $SLURM_JOBID | tail -c 4))
 export WORLD_SIZE=$(($SLURM_NNODES * $SLURM_NTASKS_PER_NODE))
 export RANK=$SLURM_PROCID
 
@@ -431,29 +479,37 @@ mkdir -p /n/holylabs/LABS/kempner_dev/Users/hsafaai/logs
 if [ $RANK -eq 0 ]; then
     echo "Rank 0: Pre-downloading {self.dataset} dataset..."
     python -c "
-import torchvision
-import torch
-data_path = '{data_path}/{self.dataset}'
+try:
+    import torchvision
+    import torch
+    data_path = '{data_path}/{self.dataset}'
 """
         
         # Add dataset-specific download code
         if self.dataset in ['cifar10', 'cifar100']:
             dataset_class = f"torchvision.datasets.{self.dataset.upper()}"
-            script += f"""# Download both train and test sets
-_ = {dataset_class}(root=data_path, train=True, download=True)
-_ = {dataset_class}(root=data_path, train=False, download=True)
-print('Dataset download complete.')
+            script += f"""    # Download both train and test sets
+    _ = {dataset_class}(root=data_path, train=True, download=True)
+    _ = {dataset_class}(root=data_path, train=False, download=True)
+    print('Dataset download complete.')
+except ImportError as e:
+    print(f'Warning: Could not import torchvision: {{e}}')
+    print('Dataset will be downloaded during training.')
 "
 fi
 """
         elif self.dataset == 'imagenet':
-            script += """# ImageNet should already be downloaded
-print('Using pre-downloaded ImageNet dataset.')
+            script += """    # ImageNet should already be downloaded
+    print('Using pre-downloaded ImageNet dataset.')
+except ImportError as e:
+    print(f'Warning: Could not import torchvision: {{e}}')
 "
 fi
 """
         else:
-            script += f"""print('Dataset handling for {self.dataset} - ensure it is available.')
+            script += f"""    print('Dataset handling for {self.dataset} - ensure it is available.')
+except ImportError as e:
+    print(f'Warning: Could not import torchvision: {{e}}')
 "
 fi
 """
@@ -482,9 +538,9 @@ sleep 5
         
         # Determine training script path
         if use_fsdp:
-            default_script = "scripts/train_large_model_fsdp.py"
+            default_script = "src/dendritic_modeling/scripts/train_large_model_fsdp.py"
         else:
-            default_script = "scripts/train_experiments.py"
+            default_script = "src/dendritic_modeling/scripts/train_experiments.py"
         
         training_script = self.run_config.get('training_script', default_script)
         
@@ -578,10 +634,10 @@ echo "  Memory per GPU: {resources['gpu_recommendation'].memory_per_gpu_gb:.1f} 
         print(f"  Max memory per GPU: {CLUSTER_LIMITS['max_memory_per_gpu_gb']} GB")
         print(f"  Max memory per node: {CLUSTER_LIMITS['max_memory_per_node_gb']} GB")
         
-        # Show SLURM config overrides if present
+        # Show run config overrides if present
         if self.run_config:
             print()
-            print("SLURM Config (from YAML):")
+            print("Run Config (from YAML):")
             for key, value in self.run_config.items():
                 if key == 'modules_to_load' and isinstance(value, list):
                     print(f"  {key}:")
@@ -656,14 +712,9 @@ Examples:
         help='Just print summary without generating the script'
     )
     parser.add_argument(
-        '--force',
-        action='store_true',
-        help='Overwrite existing SLURM script if it exists'
-    )
-    parser.add_argument(
         '--conda-env', 
         default='dendritic_env',
-        help='Default conda environment name (can be overridden by run_config.conda_env in YAML)'
+        help='Default conda environment name (conda_env_path in run_config specifies the full path)'
     )
     
     args = parser.parse_args()
@@ -682,11 +733,9 @@ Examples:
             else:
                 output_path = generator.output_dir / f"{generator.run_name}.sbatch"
             
-            if output_path.exists() and not args.force:
-                response = input(f"\nFile {output_path} already exists. Overwrite? [y/N]: ")
-                if response.lower() != 'y':
-                    print("Aborted.")
-                    return
+            # Automatically overwrite existing files without prompting
+            if output_path.exists():
+                print(f"File {output_path} already exists. Overwriting...")
             
             # Save the script
             saved_path = generator.save_script(args.filename, conda_env=args.conda_env)

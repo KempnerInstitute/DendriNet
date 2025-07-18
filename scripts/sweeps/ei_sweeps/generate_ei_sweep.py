@@ -947,8 +947,8 @@ def main():
     subdir_prefix = config.run_config.get("subdir_prefix", "ei_")
 
     # Create the uniquely named output directory
-    output_base_dir = config.run_config.output_dir
-    # Handle case where output_dir is not set in config
+    output_base_dir = config.run_config.dir
+    # Handle case where dir is not set in config
     if output_base_dir is None:
         output_base_dir = os.path.join(os.getcwd(), "outputs")
         print(f"Output directory not set in config, using default: {output_base_dir}")
@@ -973,7 +973,7 @@ def main():
     print(f"Created jobs directory: {jobs_dir}")
 
     # Update the config with the new output directory
-    config.run_config.output_dir = output_dir
+    config.run_config.dir = output_dir
 
     # Check if the "outputs" block exists, if not add it
     if "outputs" not in config.train_config:
