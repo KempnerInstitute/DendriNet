@@ -112,7 +112,7 @@ outputs:
   dir: /n/holylabs/LABS/kempner_dev/Users/hsafaai/outputs
 
 # SLURM configuration for job generation
-slurm_config:
+run_config:
   output_dir: /n/holylabs/LABS/kempner_dev/Users/hsafaai/logs
   conda_env: dendritic_env
   conda_env_path: /n/netscratch/kempner_dev/hsafaai/conda_envs/dendritic_env/etc/profile.d/conda.sh

@@ -49,18 +49,31 @@ class SlurmJobGenerator:
         if output_dir:
             self.output_dir = Path(output_dir)
         else:
-            # Always use scripts/slurm relative to the project root
-            project_root = Path(__file__).parent.parent
-            self.output_dir = project_root / "scripts" / "slurm"
+            self.output_dir = Path(__file__).parent / 'slurm'
+        self.output_dir.mkdir(exist_ok=True)
         
-        # Extract key configuration parameters
-        self.dataset = self.config.get('task', {}).get('dataset', 'unknown')
-        self.batch_size = self.config.get('train', {}).get('main', {}).get('trainer', {}).get('batch_size', 32)
-        self.epochs = self.config.get('train', {}).get('main', {}).get('trainer', {}).get('epochs', 100)
-        self.run_name = self.config.get('outputs', {}).get('run_name', self.config_path.stem)
+        # Extract common parameters
+        self.run_config = self.config.get('run_config', {})
+        
+        # Get task info for estimation
+        task_config = self.config.get('task', {})
+        self.dataset = task_config.get('name', 'cifar10')
+        
+        # Get training info
+        train_config = self.config.get('train', {})
+        main_config = train_config.get('main', {})
+        trainer_config = main_config.get('trainer', {})
+        self.batch_size = trainer_config.get('batch_size', 32)
+        self.epochs = trainer_config.get('epochs', 100)
+        
+        # Generate run name from config path if not specified
+        if not self.run_config.get('run_name'):
+            self.run_name = self.config_path.stem
+        else:
+            self.run_name = self.run_config.get('run_name')
         
         # Extract SLURM configuration if present
-        self.slurm_config = self.config.get('slurm_config', {})
+        # This is now handled by self.run_config above
         
         # Initialize GPU estimator and model (will be set in estimate_resources)
         self.estimator = None
@@ -70,65 +83,43 @@ class SlurmJobGenerator:
         """Estimate computational resources needed.
         
         Returns:
-            Dictionary with resource requirements
+            Dictionary with estimated resource requirements
         """
-        # Use the proper estimation from config
-        try:
-            self.estimator, self.model = estimate_from_config(str(self.config_path), self.batch_size)
-            
-            # Get input shape for memory estimation
-            if self.dataset == 'mnist':
-                input_shape = (784,)
-            elif self.dataset in ['cifar10', 'cifar100']:
-                input_shape = (3072,)  # Flattened
-            elif self.dataset == 'imagenet':
-                input_shape = (150528,)  # Flattened
-            else:
-                input_shape = (784,)  # Default
-            
-            # Get memory breakdown using the proper estimator
-            memory_breakdown = self.estimator.estimate_memory_breakdown(
-                self.model, self.batch_size, input_shape, use_fsdp=True, num_gpus=1
-            )
-            
-            # Get GPU recommendations
-            gpu_recs_list = self.estimator.get_gpu_recommendations(memory_breakdown)
-            
-            # Convert to dict for easier access
-            gpu_recs = {rec.gpu_model: rec for rec in gpu_recs_list}
-            
-        except Exception as e:
-            print(f"Warning: Could not instantiate model for precise estimation: {e}")
-            print("Falling back to simplified estimation...")
-            
-            # Fallback to simplified estimation
-            model_params = self._estimate_model_params()
-            bytes_per_param = 2  # FP16
-            param_memory_gb = (model_params * bytes_per_param) / (1024**3)
-            gradient_memory_gb = param_memory_gb
-            optimizer_memory_gb = param_memory_gb * 2
-            activation_memory_gb = (self.batch_size * model_params * 0.1) / (1024**3)
-            total_memory_gb = (param_memory_gb + gradient_memory_gb + 
-                              optimizer_memory_gb + activation_memory_gb) * 1.5
-            
-            # Create simple memory breakdown
-            memory_breakdown = type('MemoryBreakdown', (), {
-                'parameters': param_memory_gb,
-                'gradients': gradient_memory_gb,
-                'optimizer_states': optimizer_memory_gb,
-                'activations': activation_memory_gb,
-                'fsdp_overhead': 0,
-                'total': total_memory_gb,
-                '__str__': lambda self: f"Memory Breakdown:\n" +
-                                       f"  Parameters:        {self.parameters:.2f} GB\n" +
-                                       f"  Gradients:         {self.gradients:.2f} GB\n" +
-                                       f"  Optimizer states:  {self.optimizer_states:.2f} GB\n" +
-                                       f"  Activations:       {self.activations:.2f} GB\n" +
-                                       f"  Total:             {self.total:.2f} GB"
-            })()
-            
-            # Simple GPU recommendations
-            gpu_recs = {}
+        # Get proper GPU memory estimation from estimator
+        from dendritic_modeling.config import load_config
+        config = load_config(str(self.config_path))
+        
+        # Build and analyze the model for precise estimation  
+        estimator, model = estimate_from_config(str(self.config_path))
+        
+        # Get input shape for the model
+        if self.dataset == 'mnist':
+            input_shape = (784,)
+        elif self.dataset in ['cifar10', 'cifar100']:
+            input_shape = (3072,)  # Flattened
+        elif self.dataset == 'imagenet':
+            input_shape = (150528,)  # Flattened
+        else:
+            input_shape = (784,)  # Default
+        
+        # Get batch size from config
+        trainer_params = config.train.main.trainer.__dict__ if hasattr(config.train.main, 'trainer') else {}
+        batch_size = trainer_params.get('batch_size', self.batch_size)
+        
+        # Get memory breakdown and GPU recommendations
+        memory_breakdown = estimator.estimate_memory_breakdown(
+            model, batch_size, input_shape, use_fsdp=True, num_gpus=1
+        )
+        gpu_recs_list = estimator.get_gpu_recommendations(memory_breakdown)
+        
+        # Convert to dict for easier access
+        gpu_recs = {rec.gpu_model: rec for rec in gpu_recs_list}
+        
+        print(f"Detailed Memory Analysis:")
+        print(memory_breakdown)
+        print(f"\nGPU Recommendations:")
+        for gpu_type, rec in gpu_recs.items():
+            print(f"  {gpu_type}: {rec.min_gpus_needed} GPUs (fits: {rec.fits})")
         
         # Determine GPU requirements
         gpu_memory_options = {
@@ -139,45 +130,28 @@ class SlurmJobGenerator:
             'V100': 32,
         }
         
-        # Find the best GPU option
-        if gpu_recs:
-            # Use proper GPU recommendations if available
-            best_gpu_rec = None
-            for gpu_type in ['H100', 'H200', 'A100-80GB', 'A100-40GB']:
-                if gpu_type in gpu_recs and gpu_recs[gpu_type].fits:
-                    best_gpu_rec = gpu_recs[gpu_type]
-                    break
-            
-            if not best_gpu_rec:
-                # If no GPU fits, use the one that needs least GPUs
-                best_gpu_rec = min(gpu_recs.values(), key=lambda x: x.min_gpus_needed)
-            
-            best_gpu_type = best_gpu_rec.gpu_model
-            min_gpus_needed = best_gpu_rec.min_gpus_needed
-            total_memory_gb = memory_breakdown.total
-        else:
-            # Fallback logic for simple estimation
-            best_gpu_type = None
-            min_gpus_needed = float('inf')
-            total_memory_gb = memory_breakdown.total
-            
-            for gpu_type, gpu_memory in gpu_memory_options.items():
-                gpus_needed = math.ceil(total_memory_gb / (gpu_memory * 0.85))  # 85% utilization
-                if gpus_needed < min_gpus_needed:
-                    min_gpus_needed = gpus_needed
-                    best_gpu_type = gpu_type
-                    if gpu_type == 'H100':  # Prefer H100
-                        break
+        # Always use estimation-based approach for GPU count
+        # Find the best GPU option from recommendations
+        best_gpu_rec = None
+        for gpu_type in ['H100', 'H200', 'A100-80GB', 'A100-40GB']:
+            if gpu_type in gpu_recs and gpu_recs[gpu_type].fits:
+                best_gpu_rec = gpu_recs[gpu_type]
+                break
         
-        # Determine nodes and tasks from estimation (request what we need, within limits)
-        max_gpus_per_node = CLUSTER_LIMITS['max_gpus_per_node']
+        if not best_gpu_rec:
+            # If no GPU fits, use the one that needs least GPUs
+            best_gpu_rec = min(gpu_recs.values(), key=lambda x: x.min_gpus_needed)
         
-        # Use estimation: Round up to power of 2 for efficiency
+        best_gpu_type = best_gpu_rec.gpu_model
+        min_gpus_needed = best_gpu_rec.min_gpus_needed
+        
+        # Determine optimal number of GPUs (round up to power of 2 for efficiency)
         num_gpus = 1
         while num_gpus < min_gpus_needed:
             num_gpus *= 2
         
         # Calculate how many nodes we need and GPUs per node
+        max_gpus_per_node = CLUSTER_LIMITS['max_gpus_per_node']
         num_nodes = max(1, (num_gpus + max_gpus_per_node - 1) // max_gpus_per_node)  # Ceiling division
         gpus_per_node = min(max_gpus_per_node, num_gpus)  # Don't exceed what we need
         ntasks_per_node = gpus_per_node  # One task per GPU
@@ -212,23 +186,24 @@ class SlurmJobGenerator:
         mem_gb = min(estimated_mem_gb, max_mem_per_node, max_mem_based_on_gpus)
         mem_per_node = f"{mem_gb}GB"
         
-        # Create GPU recommendation for display if not using proper estimation
-        if not gpu_recs:
+        # Create GPU recommendation for display
+        # Use the proper GPU recommendation with updated values
+        relevant_rec = gpu_recs.get(best_gpu_type)
+        if relevant_rec:
             gpu_recommendation = type('GPURecommendation', (), {
                 'gpu_model': best_gpu_type,
-                'min_gpus_needed': min_gpus_needed,
+                'min_gpus_needed': relevant_rec.min_gpus_needed,
                 'recommended_gpus': num_gpus,
-                'memory_per_gpu_gb': total_memory_gb / num_gpus,
-                'utilization_percent': (total_memory_gb / (num_gpus * gpu_memory_gb)) * 100
+                'memory_per_gpu_gb': memory_breakdown.total / num_gpus,
+                'utilization_percent': (memory_breakdown.total / (num_gpus * gpu_memory_options[best_gpu_type])) * 100
             })()
         else:
-            # Use the proper GPU recommendation with updated values
             gpu_recommendation = type('GPURecommendation', (), {
                 'gpu_model': best_gpu_type,
                 'min_gpus_needed': min_gpus_needed,
                 'recommended_gpus': num_gpus,
-                'memory_per_gpu_gb': total_memory_gb / num_gpus,
-                'utilization_percent': (total_memory_gb / (num_gpus * gpu_memory_options[best_gpu_type])) * 100
+                'memory_per_gpu_gb': memory_breakdown.total / num_gpus,
+                'utilization_percent': (memory_breakdown.total / (num_gpus * gpu_memory_options[best_gpu_type])) * 100
             })()
         
         return {
@@ -243,120 +218,6 @@ class SlurmJobGenerator:
             'memory_breakdown': memory_breakdown,
             'gpu_recommendation': gpu_recommendation
         }
-    
-    def _estimate_model_params(self) -> int:
-        """Estimate number of model parameters from config.
-        
-        Returns:
-            Estimated parameter count
-        """
-        # This is a rough estimation based on typical dendritic models
-        model_config = self.config.get('model', {})
-        core_network = model_config.get('core_network', {})
-        
-        if core_network.get('type') == 'EINet':
-            params = core_network.get('parameters', {})
-            
-            # Get layer sizes
-            e_layers = params.get('excitatory_layer_sizes', [512, 256, 128])
-            i_layers = params.get('inhibitory_layer_sizes', [128, 64, 32])
-            
-            # Get connectivity parameters
-            ee_synapses = params.get('ee_synapses_per_branch_per_layer', [64, 32, 16])
-            ei_synapses = params.get('ei_synapses_per_branch_per_layer', [20, 10, 5])
-            ie_synapses = params.get('ie_synapses_per_branch_per_layer', [30, 15, 8])
-            ii_synapses = params.get('ii_synapses_per_branch_per_layer', [10, 5, 2])
-            
-            # Get branch factors
-            e_branches = params.get('excitatory_branch_factors', [4, 2, 1])
-            i_branches = params.get('inhibitory_branch_factors', [2, 1, 1])
-            
-            # Calculate total branches per layer
-            e_branch_counts = []
-            cumulative = 1
-            for b in e_branches:
-                cumulative *= b
-                e_branch_counts.append(cumulative)
-                
-            i_branch_counts = []
-            cumulative = 1
-            for b in i_branches:
-                cumulative *= b
-                i_branch_counts.append(cumulative)
-            
-            # Rough parameter estimation
-            total_params = 0
-            
-            # Get input dimensions from transfer parameters
-            transfer_params = params.get('transfer_params', {})
-            excitatory_dim = transfer_params.get('excitatory_dim', 0)
-            inhibitory_dim = transfer_params.get('inhibitory_dim', 0)
-            
-            # If dimensions are 0, estimate from input
-            if excitatory_dim == 0 or inhibitory_dim == 0:
-                if self.dataset == 'mnist':
-                    input_dim = 784
-                elif self.dataset in ['cifar10', 'cifar100']:
-                    input_dim = 3072
-                elif self.dataset == 'imagenet':
-                    input_dim = 150528
-                else:
-                    input_dim = 784
-                excitatory_dim = input_dim // 2
-                inhibitory_dim = input_dim - excitatory_dim
-            
-            total_input_dim = excitatory_dim + inhibitory_dim
-            
-            # First layer connections - using sparse TopK connections
-            # Each branch connects to K inputs, not all inputs
-            if e_layers and len(e_layers) > 0:
-                # For first layer, estimate K connections per branch based on reasonable sparsity
-                # Typically K is much smaller than input_dim (e.g., 1000-5000 for ImageNet)
-                k_input_to_e = min(5000, total_input_dim // 10)  # Reasonable sparsity
-                total_params += k_input_to_e * e_layers[0] * e_branch_counts[0]
-                
-            if i_layers and len(i_layers) > 0:
-                k_input_to_i = min(2500, total_input_dim // 20)  # Even sparser for inhibitory
-                total_params += k_input_to_i * i_layers[0] * i_branch_counts[0]
-            
-            # Inter-layer connections use the specified synapses_per_branch parameters
-            for i in range(len(e_layers) - 1):
-                if i < len(ee_synapses) and i+1 < len(e_branch_counts):
-                    # Each branch has ee_synapses[i] connections
-                    total_params += e_layers[i+1] * ee_synapses[i] * e_branch_counts[i+1]
-                if i < len(ei_synapses) and i < len(i_layers) and i < len(e_branch_counts):
-                    total_params += i_layers[i] * ei_synapses[i] * e_branch_counts[i]
-            
-            for i in range(len(i_layers) - 1):
-                if i < len(ie_synapses) and i < len(e_layers) and i < len(i_branch_counts):
-                    total_params += e_layers[i] * ie_synapses[i] * i_branch_counts[i]
-                if i < len(ii_synapses) and i+1 < len(i_branch_counts):
-                    total_params += i_layers[i+1] * ii_synapses[i] * i_branch_counts[i+1]
-            
-            # Decoder
-            decoder = model_config.get('decoder_network', {})
-            if decoder.get('type') == 'MLP':
-                decoder_params = decoder.get('parameters', {})
-                output_dim = decoder_params.get('output_dim', 10)
-                hidden_dims = decoder_params.get('hidden_dims', [512, 256])
-                
-                # Add decoder parameters (dense connections)
-                if e_layers:
-                    total_params += e_layers[-1] * hidden_dims[0]
-                if i_layers and len(i_layers) > 0:
-                    total_params += i_layers[-1] * hidden_dims[0]
-                    
-                for i in range(len(hidden_dims) - 1):
-                    total_params += hidden_dims[i] * hidden_dims[i+1]
-                total_params += hidden_dims[-1] * output_dim
-            
-            # Add biases and other parameters (roughly 1% of weights)
-            total_params = int(total_params * 1.01)
-            
-            return total_params
-        else:
-            # Default estimation for unknown architectures
-            return 100_000_000  # 100M parameters default
     
     def _estimate_time_per_epoch(self) -> float:
         """Estimate time per epoch in seconds.
@@ -376,16 +237,32 @@ class SlurmJobGenerator:
         
         base_time = time_estimates.get(self.dataset, 300)  # Default 5 min
         
-        # Scale by model size
-        active_params = self._estimate_model_params()
+        # Scale by model complexity (simplified estimation)
+        # For dendritic models, time scales with layer sizes and branch factors
+        model_config = self.config.get('model', {})
+        core_network = model_config.get('core_network', {})
         
-        # Rough scaling: double time for every 10x parameters
-        size_factor = math.log10(max(active_params / 1e6, 1)) + 1
+        if core_network.get('type') == 'EINet':
+            params = core_network.get('parameters', {})
+            e_layers = params.get('excitatory_layer_sizes', [])
+            i_layers = params.get('inhibitory_layer_sizes', [])
+            e_branches = params.get('excitatory_branch_factors', [])
+            
+            # Rough complexity factor based on layers and branches
+            total_neurons = sum(e_layers) + sum(i_layers)
+            branch_complexity = 1
+            for b in e_branches:
+                branch_complexity *= b
+            
+            complexity_factor = (total_neurons / 1000) * (branch_complexity / 100)
+            complexity_factor = max(1, complexity_factor)
+        else:
+            complexity_factor = 1
         
         # Scale by batch size (smaller batches = more iterations)
         batch_factor = 128 / self.batch_size  # Baseline 128
         
-        return base_time * size_factor * batch_factor
+        return base_time * complexity_factor * batch_factor
     
     def _determine_partition(self, gpu_type: str) -> str:
         """Determine the SLURM partition based on GPU type.
@@ -438,7 +315,7 @@ class SlurmJobGenerator:
         Returns:
             Module load commands as string
         """
-        modules = self.slurm_config.get('modules_to_load', [])
+        modules = self.run_config.get('modules_to_load', [])
         if not modules:
             return ""
         
@@ -457,7 +334,7 @@ class SlurmJobGenerator:
         Returns:
             Conda activation commands as string
         """
-        conda_env_path = self.slurm_config.get('conda_env_path')
+        conda_env_path = self.run_config.get('conda_env_path')
         
         if conda_env_path:
             return f"""source {conda_env_path}
@@ -485,14 +362,14 @@ conda activate {conda_env}"""
         use_fsdp = resources['num_nodes'] > 1 or resources['num_gpus'] > 1
         
         # Get SLURM parameters (system/person-dependent from config, estimated ones computed)
-        job_name = self.slurm_config.get('run_name', self.run_name)
-        output_dir = self.slurm_config.get('output_dir', '/n/holylabs/LABS/kempner_dev/Users/hsafaai/logs')
-        account = self.slurm_config.get('account', 'kempner_dev')
-        partition = self.slurm_config.get('partition', self._determine_partition(resources['gpu_type']))
+        job_name = self.run_config.get('run_name', self.run_name)
+        output_dir = self.run_config.get('output_dir', '/n/holylabs/LABS/kempner_dev/Users/hsafaai/logs')
+        account = self.run_config.get('account', 'kempner_dev')
+        partition = self.run_config.get('partition', self._determine_partition(resources['gpu_type']))
         cpus_per_task = resources['cpus_per_task']  # Use estimated value
         
         # Get conda environment from SLURM config (overrides command line argument)
-        conda_env_name = self.slurm_config.get('conda_env', conda_env)
+        conda_env_name = self.run_config.get('conda_env', conda_env)
         
         # Build the script
         script = f"""#!/bin/bash
@@ -609,7 +486,7 @@ sleep 5
         else:
             default_script = "scripts/train_experiments.py"
         
-        training_script = self.slurm_config.get('training_script', default_script)
+        training_script = self.run_config.get('training_script', default_script)
         
         # Add the training command
         if use_fsdp:
@@ -702,10 +579,10 @@ echo "  Memory per GPU: {resources['gpu_recommendation'].memory_per_gpu_gb:.1f} 
         print(f"  Max memory per node: {CLUSTER_LIMITS['max_memory_per_node_gb']} GB")
         
         # Show SLURM config overrides if present
-        if self.slurm_config:
+        if self.run_config:
             print()
             print("SLURM Config (from YAML):")
-            for key, value in self.slurm_config.items():
+            for key, value in self.run_config.items():
                 if key == 'modules_to_load' and isinstance(value, list):
                     print(f"  {key}:")
                     for module in value:
@@ -784,10 +661,9 @@ Examples:
         help='Overwrite existing SLURM script if it exists'
     )
     parser.add_argument(
-        '--conda-env',
-        type=str,
+        '--conda-env', 
         default='dendritic_env',
-        help='Default conda environment name (can be overridden by slurm_config.conda_env in YAML)'
+        help='Default conda environment name (can be overridden by run_config.conda_env in YAML)'
     )
     
     args = parser.parse_args()
