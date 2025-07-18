@@ -437,7 +437,7 @@ def generate_sweep_configs_manually(
                     new_config.outputs.dir = os.path.join(
                         output_dir, "results", f"config_{config_idx}"
                     )
-                    new_config.outputs.run_name = config.slurm_config.run_name
+                    new_config.outputs.run_name = config.run_config.run_name
 
                     # Save the config
                     config_path = os.path.join(
@@ -561,7 +561,7 @@ def generate_sweep_configs_manually(
                 new_config.outputs.dir = os.path.join(
                     output_dir, "results", f"config_{config_idx}"
                 )
-                new_config.outputs.run_name = config.slurm_config.run_name
+                new_config.outputs.run_name = config.run_config.run_name
 
                 # Save the config
                 config_path = os.path.join(
@@ -608,7 +608,7 @@ def generate_sweep_configs_manually(
             new_config.outputs.dir = os.path.join(
                 output_dir, "results", f"config_{config_idx}"
             )
-            new_config.outputs.run_name = config.slurm_config.run_name
+            new_config.outputs.run_name = config.run_config.run_name
 
             # Save the config
             config_path = os.path.join(
@@ -647,7 +647,7 @@ def generate_custom_run_script(
         end_idx: Ending configuration index for this job script (inclusive)
     """
 
-    slurm_config = config.slurm_config
+    run_config = config.run_config
 
     # Adjust the range of configurations for this specific job script
     if end_idx is None or end_idx >= num_configs:
@@ -662,12 +662,12 @@ def generate_custom_run_script(
     job_suffix = (
         f"_{start_idx}_{end_idx}" if start_idx > 0 or end_idx < num_configs - 1 else ""
     )
-    job_name = f"{slurm_config.run_name}{job_suffix}"
+    job_name = f"{run_config.run_name}{job_suffix}"
 
     lines = [
         "#!/bin/bash",
         f"#SBATCH --job-name={job_name}",
-        f"#SBATCH --account={slurm_config.account}",
+        f"#SBATCH --account={run_config.account}",
     ]
 
     # Output paths for logs - store in the config-specific directory
@@ -687,7 +687,7 @@ def generate_custom_run_script(
         )
 
     # Format time to HH:MM:SS if it's not already
-    time_value = slurm_config.time
+    time_value = run_config.time
     if isinstance(time_value, (int, float)) or (
         isinstance(time_value, str) and time_value.isdigit()
     ):
@@ -710,17 +710,17 @@ def generate_custom_run_script(
     # Add the other SLURM parameters
     lines.extend(
         [
-            f"#SBATCH --nodes={slurm_config.nodes}",
-            f"#SBATCH --ntasks-per-node={slurm_config.ntasks_per_node}",
-            f"#SBATCH --gpus-per-node={slurm_config.gpus_per_node}",
-            f"#SBATCH --cpus-per-task={slurm_config.cpus_per_task}",
+            f"#SBATCH --nodes={run_config.nodes}",
+            f"#SBATCH --ntasks-per-node={run_config.ntasks_per_node}",
+            f"#SBATCH --gpus-per-node={run_config.gpus_per_node}",
+            f"#SBATCH --cpus-per-task={run_config.cpus_per_task}",
             f"#SBATCH --time={formatted_time}",
         ]
     )
 
     # Properly handle memory specification - use only one method
     # Check if the memory specification has a unit suffix
-    mem_value = slurm_config.mem
+    mem_value = run_config.mem
     if isinstance(mem_value, str):
         # If it has a unit suffix (GB, MB, etc.), use it as is for total memory
         if any(unit in mem_value.upper() for unit in ["GB", "MB", "G", "M", "K", "KB"]):
@@ -732,11 +732,11 @@ def generate_custom_run_script(
         # If it's a number, assume it's in MB
         lines.append(f"#SBATCH --mem={mem_value}MB")
 
-    lines.append(f"#SBATCH --partition={slurm_config.partition}")
+    lines.append(f"#SBATCH --partition={run_config.partition}")
 
     # Submit an array job or a single job
     if array_job_flag and array_size > 1:
-        max_concurrent = min(slurm_config.max_concurrent_jobs, array_size)
+        max_concurrent = min(run_config.max_concurrent_jobs, array_size)
         if max_concurrent < array_size:
             lines.append(f"#SBATCH --array={start_idx}-{end_idx}%{max_concurrent}")
         else:
@@ -755,13 +755,13 @@ def generate_custom_run_script(
 
     # Add module loading lines
     lines.append("module purge")
-    for module in slurm_config.modules_to_load:
+    for module in run_config.modules_to_load:
         lines.append(f"module load {module}")
 
     lines.append("")
 
     # Handle conda activation - simplified approach
-    conda_env = slurm_config.conda_env_path
+    conda_env = run_config.conda_env_path
     lines.append("# Initialize conda and activate environment")
     lines.append("source $(conda info --base)/etc/profile.d/conda.sh")
     lines.append(f"conda activate {conda_env}")
@@ -780,16 +780,16 @@ def generate_custom_run_script(
     lines.append(f"PLOTS_DIR=${{MAIN_OUTPUT_DIR}}/plots")
     lines.append("")
 
-    lines.append(f"CONFIG_FILE_NAME_INIT={slurm_config.config_filename_init}")
-    lines.append(f"SC_RUN_NAME={slurm_config.run_name}")
+    lines.append(f"CONFIG_FILE_NAME_INIT={run_config.config_filename_init}")
+    lines.append(f"SC_RUN_NAME={run_config.run_name}")
     lines.append("")
     lines.append("#Training script: ")
-    lines.append(f"TRAINING_SCRIPT={slurm_config.training_script}")
+    lines.append(f"TRAINING_SCRIPT={run_config.training_script}")
     lines.append("")
     lines.append("#Python path: ")
 
     # Handle Python path - check if conda_env_path is a path or environment name
-    conda_env = slurm_config.conda_env_path
+    conda_env = run_config.conda_env_path
     if conda_env.startswith("/"):
         # It's a full path, use it directly
         lines.append(f"PYTHON={conda_env}/bin/python")
@@ -848,7 +848,7 @@ def generate_custom_run_script(
     )
 
     # Fix the training script path and set environment variables for output paths
-    if slurm_config.training_script.startswith("/"):
+    if run_config.training_script.startswith("/"):
         # If it's already an absolute path, use it as is
         lines.append("  ${PYTHON} -u ${TRAINING_SCRIPT} ${CONFIG}")
     else:
@@ -938,16 +938,16 @@ def main():
     config = OmegaConf.load(config_file)
 
     # Check if the config has the necessary sections
-    required_sections = ["slurm_config", "train_config", "sweep_config"]
+    required_sections = ["run_config", "train_config", "sweep_config"]
     for section in required_sections:
         if section not in config:
             raise ValueError(f"Config file missing required section: {section}")
 
     # Get the prefix from config or use default
-    subdir_prefix = config.slurm_config.get("subdir_prefix", "ei_")
+    subdir_prefix = config.run_config.get("subdir_prefix", "ei_")
 
     # Create the uniquely named output directory
-    output_base_dir = config.slurm_config.output_dir
+    output_base_dir = config.run_config.output_dir
     # Handle case where output_dir is not set in config
     if output_base_dir is None:
         output_base_dir = os.path.join(os.getcwd(), "outputs")
@@ -959,7 +959,7 @@ def main():
     os.makedirs(output_dir, exist_ok=True)
 
     # Create subdirectories as specified in the config
-    subfolders = config.slurm_config.get(
+    subfolders = config.run_config.get(
         "run_subfolders", ["configs", "results", "plots"]
     )
     for subfolder in subfolders:
@@ -973,13 +973,13 @@ def main():
     print(f"Created jobs directory: {jobs_dir}")
 
     # Update the config with the new output directory
-    config.slurm_config.output_dir = output_dir
+    config.run_config.output_dir = output_dir
 
     # Check if the "outputs" block exists, if not add it
     if "outputs" not in config.train_config:
         config.train_config.outputs = {
             "dir": "",
-            "run_name": config.slurm_config.run_name,
+            "run_name": config.run_config.run_name,
         }
 
     # Ensure outputs.dir is set to the specific results directory
@@ -991,7 +991,7 @@ def main():
     print(f"Saved updated config to: {updated_config_path}")
 
     # Generate all the sweep configurations with optional filtering
-    config_filename_init = config.slurm_config.config_filename_init
+    config_filename_init = config.run_config.config_filename_init
     num_configs = generate_sweep_configs_manually(
         config,
         output_dir,

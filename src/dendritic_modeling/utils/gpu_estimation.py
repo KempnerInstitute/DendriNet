@@ -168,30 +168,120 @@ class GPUMemoryEstimator:
         Returns:
             Activation memory in GB
         """
-        # For dendritic networks, activation memory scales with branch complexity
-        total_params = sum(p.numel() for p in model.parameters())
+        activation_memory_bytes = 0
         
-        # Base activation memory estimate
-        base_activation_memory = batch_size * np.prod(input_shape) * self.bytes_per_param
+        # For dendritic networks (EINet), we need to analyze the structure more carefully
+        # The network has multiple layers with branch factors creating massive intermediate activations
         
-        # Scale factor for dendritic complexity
-        dendritic_scale = 1.0
+        # First, check if this is an EINet model
+        is_einet = False
+        einet_config = None
         
-        # Check for dendritic layers and their branch factors
         for name, module in model.named_modules():
-            if hasattr(module, 'branch_factors'):
-                # Dendritic layers have increased activation memory due to branches
-                branch_complexity = np.prod(module.branch_factors)
-                dendritic_scale = max(dendritic_scale, np.log(branch_complexity + 1))
-            elif hasattr(module, 'n_branches'):
-                dendritic_scale = max(dendritic_scale, np.log(module.n_branches + 1))
+            if 'ExcitationInhibitionNetwork' in type(module).__name__:
+                is_einet = True
+                # Extract configuration from the network
+                if hasattr(module, 'excitatory_layer_sizes'):
+                    einet_config = {
+                        'e_layers': module.excitatory_layer_sizes,
+                        'i_layers': module.inhibitory_layer_sizes,
+                        'e_branches': module.excitatory_branch_factors,
+                        'i_branches': module.inhibitory_branch_factors,
+                        'ee_synapses': module.ee_synapses_per_branch_per_layer,
+                        'ei_synapses': module.ei_synapses_per_branch_per_layer,
+                        'ie_synapses': module.ie_synapses_per_branch_per_layer,
+                        'ii_synapses': module.ii_synapses_per_branch_per_layer,
+                    }
+                break
         
-        # Estimate total activation memory
-        # Factor of 3-5x for intermediate activations during forward/backward
-        activation_memory_bytes = base_activation_memory * dendritic_scale * 4
-        
-        # Add a percentage of parameter memory for gradient checkpointing buffers
-        activation_memory_bytes += total_params * self.bytes_per_param * 0.1
+        if is_einet and einet_config:
+            # Calculate activation memory for EINet architecture
+            input_dim = np.prod(input_shape)
+            
+            # Transfer layer activations
+            activation_memory_bytes += batch_size * input_dim * self.bytes_per_param
+            
+            # Calculate branch factors product for each layer
+            e_branch_product = 1
+            for bf in einet_config['e_branches']:
+                e_branch_product *= bf
+                
+            i_branch_product = 1
+            if einet_config['i_branches']:
+                for bf in einet_config['i_branches']:
+                    i_branch_product *= bf
+            
+            # For each excitatory layer
+            for i, layer_size in enumerate(einet_config['e_layers']):
+                # Dendritic branch activations
+                # Each neuron has branch_product branches
+                branch_activations = batch_size * layer_size * e_branch_product * self.bytes_per_param
+                activation_memory_bytes += branch_activations
+                
+                # TopK connectivity activations (sparse weight indices and values)
+                if i < len(einet_config['ee_synapses']):
+                    synapses = einet_config['ee_synapses'][i]
+                    # Each branch has K synapses, storing indices and values
+                    topk_memory = batch_size * layer_size * e_branch_product * synapses * self.bytes_per_param * 2
+                    activation_memory_bytes += topk_memory
+            
+            # For each inhibitory layer (if present)
+            if einet_config['i_layers']:
+                for i, layer_size in enumerate(einet_config['i_layers']):
+                    if layer_size:  # Skip None entries
+                        # Similar calculation for inhibitory neurons
+                        branch_activations = batch_size * layer_size * i_branch_product * self.bytes_per_param
+                        activation_memory_bytes += branch_activations
+                        
+                        # TopK connectivity for inhibitory neurons
+                        if i < len(einet_config['ii_synapses']):
+                            synapses = einet_config['ii_synapses'][i]
+                            topk_memory = batch_size * layer_size * i_branch_product * synapses * self.bytes_per_param * 2
+                            activation_memory_bytes += topk_memory
+            
+            # Add substantial overhead for gradient computation graphs in dendritic networks
+            # Dendritic networks have complex backward passes with branch-wise operations
+            activation_memory_bytes *= 3.0
+            
+        else:
+            # Fallback: Analyze layer by layer
+            for name, module in model.named_modules():
+                # Skip compound modules
+                if len(list(module.children())) > 0:
+                    continue
+                
+                # TopK layers - these are the main memory consumers in dendritic networks
+                if 'TopK' in type(module).__name__ or hasattr(module, 'K'):
+                    in_features = getattr(module, 'in_features', 0)
+                    out_features = getattr(module, 'out_features', 0)
+                    K = getattr(module, 'K', 100)  # Number of synapses per output
+                    
+                    # Memory for sparse connectivity pattern and gradients
+                    # Store: indices (K ints per output) + values (K floats per output) + gradients
+                    layer_activation = batch_size * out_features * K * self.bytes_per_param * 4
+                    activation_memory_bytes += layer_activation
+                    
+                elif 'BlockLinear' in type(module).__name__:
+                    # BlockLinear combines branches
+                    if hasattr(module, 'weight'):
+                        weight_shape = module.weight.shape
+                        layer_activation = batch_size * np.prod(weight_shape) * self.bytes_per_param * 2
+                        activation_memory_bytes += layer_activation
+                        
+                elif isinstance(module, torch.nn.Linear):
+                    in_features = getattr(module, 'in_features', 0)
+                    out_features = getattr(module, 'out_features', 0)
+                    layer_activation = batch_size * (in_features + out_features) * self.bytes_per_param * 2
+                    activation_memory_bytes += layer_activation
+            
+            # If we couldn't get a good estimate, use parameter-based estimation
+            if activation_memory_bytes == 0:
+                total_params = sum(p.numel() for p in model.parameters())
+                # For dendritic models, activations can be 10-20x parameters due to branching
+                activation_memory_bytes = total_params * self.bytes_per_param * 15
+            
+            # Add gradient graph overhead
+            activation_memory_bytes *= 2.5
         
         return activation_memory_bytes / (1024**3)  # Convert to GB 
     

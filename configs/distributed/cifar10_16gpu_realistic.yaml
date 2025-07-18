@@ -7,32 +7,32 @@ model:
     type: EINet
     parameters:
       transfer_params:
-        input_mode: 1
-        independent_pathways: true
+        input_mode: 0
+        independent_pathways: false
         # excitatory_dim and inhibitory_dim will auto-calculate:
         # For CIFAR-10 flattened: input_dim = 3*32*32 = 3,072
         # excitatory_dim = input_dim/2 = 1,536
         # inhibitory_dim = input_dim/2 = 1,536 (creates inhibitory inputs from transfer function)
         # output_activation: sigmoid  # Options: sigmoid, relu, tanh, softplus, none (constrains transfer outputs)
-      
+        
       # Large excitatory layer to utilize 16 GPUs (scaled for CIFAR-10)
-      excitatory_layer_sizes: [200000]  # Large for 16 GPUs but smaller than ImageNet
-      inhibitory_layer_sizes: []  # Empty for input_mode=1
+      excitatory_layer_sizes: [1000,1000,1000]  # Large for 16 GPUs but smaller than ImageNet
+      inhibitory_layer_sizes: [1000,1000,1000]  # Empty for input_mode=1
       
       # Increased branching for more parameters
-      excitatory_branch_factors: [8, 8, 4, 4, 2, 2]  # 8*8*4*4*2*2 = 16384 branches
-      inhibitory_branch_factors: []
+      excitatory_branch_factors: [4, 4, 4, 4]  # 8*8*4*4*2*2 = 16384 branches
+      inhibitory_branch_factors: [4, 4, 4, 4]
       
       # Rich connectivity
-      ee_synapses_per_branch_per_layer: [128]  # Rich connectivity, scaled for CIFAR-10
+      ee_synapses_per_branch_per_layer: [100]  # Rich connectivity, scaled for CIFAR-10
       ei_synapses_per_branch_per_layer: [20]   # Excitatory to inhibitory from transfer function
-      ie_synapses_per_branch_per_layer: []     # No inhibitory-excitatory (input_mode=1) 
-      ii_synapses_per_branch_per_layer: []     # No inhibitory-inhibitory (input_mode=1)
+      ie_synapses_per_branch_per_layer: [100]     # No inhibitory-excitatory (input_mode=1) 
+      ii_synapses_per_branch_per_layer: [20]     # No inhibitory-inhibitory (input_mode=1)
       
       somatic_synapses: true
       
       use_topk: true
-      use_shunting: false  # No shunting without inhibitory neurons
+      use_shunting: true  # No shunting without inhibitory neurons
       topk_init_method: xavier_normal
       topk_strategy: standard
       topk_type: standard
@@ -59,26 +59,16 @@ model:
       norm_type: layer
 
 task:
-  dataset: cifar10
-  data_path: /n/holylfs06/LABS/kempner_shared/Lab/data/cifar10  # CIFAR-10 data path
-  parameters:
-    flatten: true
-    transform:
-      train:
-        - type: normalize
-          mean: [0.4914, 0.4822, 0.4465]
-          std: [0.2023, 0.1994, 0.2010]
-      eval:
-        - type: normalize
-          mean: [0.4914, 0.4822, 0.4465]
-          std: [0.2023, 0.1994, 0.2010]
+  dataset: cifar10 #mnist, cifar10, mnist_modulo10, random_flip_mnist
+  data_path:
+  parameters: {flatten: true, normalize: false}
 
 train:
   main:
     trainer:
       type: fsdp  # Specify FSDP trainer explicitly
-      batch_size: 128  # Per GPU - can be higher for CIFAR-10
-      epochs: 200  # More epochs for CIFAR-10
+      batch_size: 500  # Per GPU - can be higher for CIFAR-10
+      epochs: 500  # More epochs for CIFAR-10
       lr: 0.001  # Higher learning rate for smaller dataset
       optimizer: adamw
       weight_decay: 0.01
@@ -92,6 +82,15 @@ train:
       backward_prefetch: true
       limit_all_gathers: true
       forward_prefetch: true
+      
+    # Add the missing param_groups configuration
+    param_groups:
+      lr: 0.001
+      split_params: true
+      topk_lr: 0.001
+      blocklinear_lr: 0.0001
+      reactivation_lr: 0.0001
+      decoder_lr: 0.001
       
     checkpointer:
       save_latest: true
@@ -110,7 +109,7 @@ outputs:
   dir: /n/holylabs/LABS/kempner_dev/Users/hsafaai/outputs
 
 # SLURM configuration for job generation
-slurm_config:
+run_config:
   output_dir: /n/holylabs/LABS/kempner_dev/Users/hsafaai/logs
   conda_env: dendritic_env
   conda_env_path: /n/netscratch/kempner_dev/hsafaai/conda_envs/dendritic_env/etc/profile.d/conda.sh

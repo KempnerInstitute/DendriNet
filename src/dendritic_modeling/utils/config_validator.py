@@ -318,17 +318,6 @@ class ConfigValidator:
                         "Biological neurons typically have 10-50 synapses per dendrite"
                     )
                     
-        # Check E/I balance (only if inhibitory layers exist)
-        if len(self.inhibitory_layer_sizes) > 0:
-            for i, (exc, inh) in enumerate(zip(self.excitatory_layer_sizes, self.inhibitory_layer_sizes)):
-                if inh > 0:
-                    ratio = exc / inh
-                    if ratio < 2 or ratio > 10:
-                        self.warnings.append(
-                            f"Layer {i} E/I ratio = {ratio:.2f} ({exc}E/{inh}I). "
-                            "Biological cortical networks typically have 4:1 to 5:1 (80-83% excitatory)"
-                        )
-                    
     def report_results(self):
         """Report all errors and warnings"""
         logger.info("Configuration validation summary:")

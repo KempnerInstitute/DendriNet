@@ -16,21 +16,21 @@ model:
     parameters:
       # transfer function parameters
       transfer_params:
-        input_mode: 1
-        independent_pathways: true
+        input_mode: 0
+        independent_pathways: false
         excitatory_dim: []
         inhibitory_dim: []
         output_activation: none  # Options: sigmoid, relu, tanh, softplus, none (constrains transfer outputs)
         
       # configuration parameters
-      excitatory_layer_sizes: [50]
-      inhibitory_layer_sizes: []
-      excitatory_branch_factors: [3, 3, 3]  # This is correct - represents branches per neuron
-      inhibitory_branch_factors: []
-      ee_synapses_per_branch_per_layer: [40]
-      ei_synapses_per_branch_per_layer: []  # Changed from 200 to 20 (less than 40 inhibitory neurons)
-      ie_synapses_per_branch_per_layer: [10]
-      ii_synapses_per_branch_per_layer: []   # Changed from 0 to 5 (must be positive)
+      excitatory_layer_sizes: [10,10,10]
+      inhibitory_layer_sizes: [10,10,10]
+      excitatory_branch_factors: [5, 5, 5]  # This is correct - represents branches per neuron
+      inhibitory_branch_factors: [5, 5, 5]
+      ee_synapses_per_branch_per_layer: [5]
+      ei_synapses_per_branch_per_layer: [5]  # Changed from 200 to 20 (less than 40 inhibitory neurons)
+      ie_synapses_per_branch_per_layer: [2]
+      ii_synapses_per_branch_per_layer: [2]   # Changed from 0 to 5 (must be positive)
       somatic_synapses: true
       use_shunting: true
       # topk parameters
@@ -116,10 +116,10 @@ train:
     trainer:
       # for all learning strategies:
       loss_function: cat_nll
-      epochs: 50
+      epochs: 500
       early_stopping: false
       patience: 10
-      batch_size: 128
+      batch_size: 500
       shuffle: true
       grad_clip_value: 5.0
       load_best_state_dict: true
@@ -281,3 +281,16 @@ outputs:
   run_name: exp_run
   dir: results/ 
   
+
+slurm_config:
+  output_dir: "/n/holylabs/LABS/kempner_dev/Users/hsafaai/logs"
+  conda_env: "dendritic_env"
+  conda_env_path: "/n/netscratch/kempner_dev/hsafaai/conda_envs/dendritic_env/etc/profile.d/conda.sh"
+  modules_to_load: 
+    - "python/3.12.5-fasrc01"
+    - "cuda/12.4.1-fasrc01" 
+    - "cudnn/8.9.2.26_cuda12-fasrc01"
+  training_script: "scripts/train_large_model_fsdp.py"
+  account: "kempner_dev"
+  partition: "kempner_h100"
+  run_name: "imagenet_16gpu_large_dendritic"

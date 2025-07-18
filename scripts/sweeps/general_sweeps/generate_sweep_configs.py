@@ -115,7 +115,7 @@ def validate_params(params):
     Raises:
     ValueError: If any of the required configurations are missing from the parameters.
     """
-    required_configs = ["slurm_config", "train_config", "sweep_config"]
+    required_configs = ["run_config", "train_config", "sweep_config"]
     for config in required_configs:
         if config not in params:
             raise ValueError(f"Missing required config: {config}")
@@ -287,7 +287,7 @@ def write_config_files(configs, sweeps, output_dir="configs", base_name="config"
 
 
 def generate_run_sh(
-    num_config, config_dir, config_filename_init, slurm_config, output_dir
+    num_config, config_dir, config_filename_init, run_config, output_dir
 ):
     """
     Generates a SLURM batch script for running jobs based on the given
@@ -305,7 +305,7 @@ def generate_run_sh(
     config_file_name_init: str
         The initial name of the configuration files.
 
-    slurm_config: dict
+    run_config: dict
         A dictionary containing SLURM configuration options.
 
     output_dir: str
@@ -316,27 +316,27 @@ def generate_run_sh(
 
     lines = [
         "#!/bin/bash",
-        f"#SBATCH --job-name={slurm_config['run_name']}",
-        f"#SBATCH --account={slurm_config['account']}",
+        f"#SBATCH --job-name={run_config['run_name']}",
+        f"#SBATCH --account={run_config['account']}",
     ]
 
     if array_job_flag:
         lines.extend(
             [
-                f"#SBATCH --output={output_dir}/{slurm_config['run_name']}_%A/%A_%a/output_%A_%a.out",
-                f"#SBATCH --error={output_dir}/{slurm_config['run_name']}_%A/%A_%a/error_%A_%a.out",
+                f"#SBATCH --output={output_dir}/{run_config['run_name']}_%A/%A_%a/output_%A_%a.out",
+                f"#SBATCH --error={output_dir}/{run_config['run_name']}_%A/%A_%a/error_%A_%a.out",
             ]
         )
     else:
         lines.extend(
             [
-                f"#SBATCH --output={output_dir}/{slurm_config['run_name']}_%j/output_%j.out",
-                f"#SBATCH --error={output_dir}/{slurm_config['run_name']}_%j/error_%j.out",
+                f"#SBATCH --output={output_dir}/{run_config['run_name']}_%j/output_%j.out",
+                f"#SBATCH --error={output_dir}/{run_config['run_name']}_%j/error_%j.out",
             ]
         )
 
     # Ensure time is in HH:MM:SS format
-    time_value = slurm_config["time"]
+    time_value = run_config["time"]
     # If time value is just a number (seconds), convert to HH:MM:SS
     if isinstance(time_value, (int, float)) or (
         isinstance(time_value, str) and time_value.isdigit()
@@ -356,21 +356,21 @@ def generate_run_sh(
 
     lines.extend(
         [
-            f"#SBATCH --nodes={slurm_config['nodes']}",
-            f"#SBATCH --ntasks-per-node={slurm_config['ntasks_per_node']}",
-            f"#SBATCH --gpus-per-node={slurm_config['gpus_per_node']}",
-            f"#SBATCH --cpus-per-task={slurm_config['cpus_per_task']}",
+            f"#SBATCH --nodes={run_config['nodes']}",
+            f"#SBATCH --ntasks-per-node={run_config['ntasks_per_node']}",
+            f"#SBATCH --gpus-per-node={run_config['gpus_per_node']}",
+            f"#SBATCH --cpus-per-task={run_config['cpus_per_task']}",
             f"#SBATCH --time={formatted_time}",
-            f"#SBATCH --mem={slurm_config['mem']}",
-            f"#SBATCH --partition={slurm_config['partition']}",
+            f"#SBATCH --mem={run_config['mem']}",
+            f"#SBATCH --partition={run_config['partition']}",
         ]
     )
 
     # Submit an array job or a single job
     if array_job_flag:
-        if num_config > slurm_config["max_concurrent_jobs"]:
+        if num_config > run_config["max_concurrent_jobs"]:
             lines.append(
-                f"#SBATCH --array=0-{num_config-1}%{slurm_config['max_concurrent_jobs']}"
+                f"#SBATCH --array=0-{num_config-1}%{run_config['max_concurrent_jobs']}"
             )
         else:
             lines.append(f"#SBATCH --array=0-{num_config-1}")
@@ -385,11 +385,11 @@ def generate_run_sh(
 
     # Add module loading lines
     lines.append("module purge")
-    for module in slurm_config["modules_to_load"]:
+    for module in run_config["modules_to_load"]:
         lines.append(f"module load {module}")
 
     lines.append("")
-    lines.append(f"conda activate {slurm_config['conda_env_path']}")
+    lines.append(f"conda activate {run_config['conda_env_path']}")
     lines.append("")
     lines.append("# Path to the config file directory")
     lines.append(f"CONFIG_DIR={config_dir}")
@@ -398,13 +398,13 @@ def generate_run_sh(
     lines.append(f"OUTPUT_DIR={output_dir}")
     lines.append("")
     lines.append(f"CONFIG_FILE_NAME_INIT={config_filename_init}")
-    lines.append(f"SC_RUN_NAME={slurm_config['run_name']}")
+    lines.append(f"SC_RUN_NAME={run_config['run_name']}")
     lines.append("")
     lines.append("#Training script: ")
-    lines.append(f"TRAINING_SCRIPT={slurm_config['training_script']}")
+    lines.append(f"TRAINING_SCRIPT={run_config['training_script']}")
     lines.append("")
     lines.append("#Python path: ")
-    lines.append(f"PYTHON={slurm_config['conda_env_path']}/bin/python")
+    lines.append(f"PYTHON={run_config['conda_env_path']}/bin/python")
     lines.append("")
     lines.append("# Get the specific config file based on the array job ID")
     if array_job_flag:
@@ -439,7 +439,7 @@ def generate_run_sh(
 
     # Fix the training script path - use the full path to the script
     # And only pass the config file as an argument, as that's all the script expects
-    if slurm_config["training_script"].startswith("/"):
+    if run_config["training_script"].startswith("/"):
         # If it's already an absolute path, use it as is
         lines.append("  ${PYTHON} -u ${TRAINING_SCRIPT} ${CONFIG}")
     else:
@@ -543,7 +543,7 @@ if __name__ == "__main__":
     # Extract settings
     base_config = params["train_config"]
     sweep_params = params["sweep_config"]
-    slurm_config = params["slurm_config"]
+    run_config = params["run_config"]
 
     # Get experiment settings if available
     experiment_settings = params.get("experiment_settings", {})
@@ -553,15 +553,15 @@ if __name__ == "__main__":
     # Get output directory - use the one specified in train_config.outputs.dir if available
     output_dir = base_config.get("outputs", {}).get("dir", "outputs")
 
-    # Make sure slurm_config and train_config use the same output directory
-    slurm_config.output_dir = output_dir
+    # Make sure run_config and train_config use the same output directory
+    run_config.output_dir = output_dir
     if "outputs" not in base_config:
         base_config["outputs"] = {}
     base_config["outputs"]["dir"] = output_dir
 
-    # Set run name for slurm config
-    slurm_config.run_name = params.train_config.train.run_name
-    config_filename_init = slurm_config["config_filename_init"]
+    # Set run name for run_config
+    run_config.run_name = params.train_config.train.run_name
+    config_filename_init = run_config["config_filename_init"]
 
     # Create output directory
     os.makedirs(output_dir, exist_ok=True)
@@ -586,7 +586,7 @@ if __name__ == "__main__":
         len(configs),
         config_dir=config_subdir,
         config_filename_init=config_filename_init,
-        slurm_config=slurm_config,
+        run_config=run_config,
         output_dir=output_dir,
     )
 
