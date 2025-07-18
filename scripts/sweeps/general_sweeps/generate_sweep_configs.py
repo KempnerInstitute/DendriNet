@@ -550,11 +550,11 @@ if __name__ == "__main__":
     seeds_per_condition = experiment_settings.get("seeds_per_condition", 1)
     base_seed = experiment_settings.get("base_seed", 42)
 
-    # Get output directory - use the one specified in train_config.outputs.dir if available
+    # Get output directory - use the one specified in run_config.dir if available
     output_dir = base_config.get("outputs", {}).get("dir", "outputs")
 
     # Make sure run_config and train_config use the same output directory
-    run_config.output_dir = output_dir
+    run_config.dir = output_dir
     if "outputs" not in base_config:
         base_config["outputs"] = {}
     base_config["outputs"]["dir"] = output_dir

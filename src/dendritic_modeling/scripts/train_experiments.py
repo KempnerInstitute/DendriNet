@@ -123,19 +123,23 @@ def load_model(model: torch.nn.Module, load_path: str):
 
 
 def setup_environment(
-    model_config: ModelConfig,
-    train_config: TrainConfig,
-    task_config: TaskConfig,
-    wandb_config: WandbConfig,
-    outputs_config: OutputsConfig,
+    model_config,
+    train_config,
+    task_config,
+    wandb_config,
+    outputs_config,
+    run_config=None,
 ):
-    run_name = outputs_config.run_name
-    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    run_id = f"{run_name}_{timestamp}"
+    """
+    Set up the environment for training.
+    """
+    # Set random seed
+    set_random_seed(train_config.seed)
 
-    run_save_path = os.path.join(outputs_config.dir, run_id)
-    os.makedirs(run_save_path, exist_ok=True)
-    logger.info(f"Created output directory: {run_save_path}")
+    # Create run directory using run_config.dir if available, fallback to outputs_config.dir
+    output_dir = run_config.dir if run_config and hasattr(run_config, 'dir') else outputs_config.dir
+    run_id = f"{train_config.run_name}_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
+    run_save_path = os.path.join(output_dir, run_id)
 
     # Set the logger manager to use the same directory for the main log file
     logger_manager.set_log_directory(run_save_path)
@@ -148,29 +152,15 @@ def setup_environment(
     logger.addHandler(file_handler)
     logger.info(f"Logging to {log_file}")
 
-    seed = train_config.seed
-    set_seed(seed)
-    logger.info(f"Set random seed to {seed}")
-
     if hasattr(wandb_config, "use_wandb") and wandb_config.use_wandb:
         try:
-            wandb_config = {
-                "model": asdict(model_config),
-                "train": asdict(train_config),
-                "task": asdict(task_config),
-            }
-            tags = wandb_config.tags if hasattr(wandb_config, "tags") else None
             wandb.init(
-                project=(
-                    wandb_config.project
-                    if hasattr(wandb_config, "project")
-                    else "dendritic-modeling"
-                ),
-                entity=wandb_config.entity if hasattr(wandb_config, "entity") else None,
-                group=wandb_config.group if hasattr(wandb_config, "group") else None,
-                name=run_id,
-                config=wandb_config,
-                tags=tags,
+                entity=wandb_config.entity,
+                project=wandb_config.project,
+                group=wandb_config.group,
+                tags=wandb_config.tags,
+                name=train_config.run_name,
+                config=asdict(train_config),
             )
             logger.info("Successfully initialized W&B")
         except Exception as e:
@@ -178,16 +168,15 @@ def setup_environment(
             logger.error("Continuing without W&B logging")
             wandb_config.use_wandb = False
 
-    logger.info(f"Loading dataset: {task_config.dataset}")
-    if not hasattr(task_config, "dataset") or not task_config.dataset:
-        raise ValueError("No dataset specified in configuration")
-
-    train_ds, valid_ds, test_ds = get_unified_datasets(
+    # Get datasets using the correct output directory
+    unified_datasets = get_unified_datasets(
         task_cfg=task_config,
         train_cfg=train_config,
-        output_dir=outputs_config.dir,
-        outputs_cfg=outputs_config,
+        output_dir=output_dir,
+        outputs_cfg=None,  # No longer using outputs_cfg
     )
+    train_ds, valid_ds, test_ds = unified_datasets
+
     train_ds: torch.utils.data.Dataset
     valid_ds: torch.utils.data.Dataset
     test_ds: torch.utils.data.Dataset
@@ -240,7 +229,12 @@ def main(config_path: str, args=None):
             config.train.learning_strategy = args.learning_strategy
             logger.info(f"Override learning strategy: {args.learning_strategy}")
         if args.output_dir:
-            config.outputs.dir = args.output_dir
+            # Override run_config.dir if it exists, otherwise create run_config
+            if hasattr(config, 'run_config') and config.run_config:
+                config.run_config.dir = args.output_dir
+            else:
+                # For backwards compatibility, still update outputs.dir if run_config doesn't exist
+                config.outputs.dir = args.output_dir
             logger.info(f"Override output directory: {args.output_dir}")
         if args.run_name:
             config.train.run_name = args.run_name
@@ -252,6 +246,7 @@ def main(config_path: str, args=None):
     wandb_config = config.wandb
     analysis_config = config.analysis
     outputs_config = config.outputs
+    run_config = getattr(config, 'run_config', None)
 
     (run_save_path, train_ds, valid_ds, test_ds, model, encoder_network) = (
         setup_environment(
@@ -260,6 +255,7 @@ def main(config_path: str, args=None):
             task_config=task_config,
             wandb_config=wandb_config,
             outputs_config=outputs_config,
+            run_config=run_config,
         )
     )
 

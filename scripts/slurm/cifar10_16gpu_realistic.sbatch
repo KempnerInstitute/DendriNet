@@ -1,11 +1,11 @@
 #!/bin/bash
 #SBATCH --job-name=cifar10_16gpu_realistic
-#SBATCH --output=/n/holylabs/LABS/kempner_dev/Users/hsafaai/logs/cifar10_16gpu_realistic_%j.out
-#SBATCH --error=/n/holylabs/LABS/kempner_dev/Users/hsafaai/logs/cifar10_16gpu_realistic_%j.err
+#SBATCH --output=results//cifar10_16gpu_realistic_%j.out
+#SBATCH --error=results//cifar10_16gpu_realistic_%j.err
 #SBATCH --nodes=1
 #SBATCH --ntasks-per-node=4
 #SBATCH --gres=gpu:4
-#SBATCH --cpus-per-task=25
+#SBATCH --cpus-per-task=14
 #SBATCH --mem=384GB
 #SBATCH --time=50:00:00
 #SBATCH --partition=kempner_h100
@@ -17,11 +17,16 @@ module load cuda/12.4.1-fasrc01
 module load cudnn/8.9.2.26_cuda12-fasrc01
 
 # Activate environment
-source /n/netscratch/kempner_dev/hsafaai/conda_envs/dendritic_env/etc/profile.d/conda.sh
+# Initialize conda - try provided path first, fallback to conda info
+if [ -f "/n/netscratch/kempner_dev/hsafaai/conda_envs/dendritic_env/etc/profile.d/conda.sh" ]; then
+    source /n/netscratch/kempner_dev/hsafaai/conda_envs/dendritic_env/etc/profile.d/conda.sh
+else
+    source $(conda info --base)/etc/profile.d/conda.sh
+fi
 conda activate dendritic_env
 
 # Set environment variables for distributed training
-export MASTER_PORT=$(expr 10000 + $(echo -n $SLURM_JOBID | tail -c 4))
+export MASTER_PORT=$(expr 20000 + $(echo -n $SLURM_JOBID | tail -c 4))
 export WORLD_SIZE=$(($SLURM_NNODES * $SLURM_NTASKS_PER_NODE))
 export RANK=$SLURM_PROCID
 
@@ -98,8 +103,8 @@ srun --ntasks-per-node=$SLURM_NTASKS_PER_NODE \
     --node_rank=$SLURM_NODEID \
     --master_addr=$MASTER_ADDR \
     --master_port=$MASTER_PORT \
-    scripts/train_large_model_fsdp.py \
-    --config configs/distributed/cifar10_16gpu_realistic.yaml \
+    src/dendritic_modeling/scripts/train_large_model_fsdp.py \
+    --config configs/distributed/cifar10_fstp.yaml \
     --distributed
 
 # Cleanup sync file on rank 0
@@ -110,7 +115,7 @@ fi
 # Print job summary
 echo "Job completed at $(date)"
 echo "Resource usage summary:"
-echo "  Config: configs/distributed/cifar10_16gpu_realistic.yaml"
+echo "  Config: configs/distributed/cifar10_fstp.yaml"
 echo "  GPU type: H100"
 echo "  Total GPUs: 4"
 echo "  Memory per GPU: 44.1 GB"

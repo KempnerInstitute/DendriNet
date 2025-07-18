@@ -1,4 +1,4 @@
-# Realistic CIFAR-10 dendritic model configuration for 2 GPU FSDP training
+# Realistic ImageNet dendritic model configuration for 16 GPU FSDP training
 # Designed for input_mode=1 (excitatory-only) with dendritic branching
 
 model:
@@ -10,24 +10,22 @@ model:
         input_mode: 1
         independent_pathways: true
         # excitatory_dim and inhibitory_dim will auto-calculate:
-        # For CIFAR-10 flattened: input_dim = 3*32*32 = 3,072
-        # excitatory_dim = input_dim/2 = 1,536
-        # inhibitory_dim = input_dim/2 = 1,536 (creates inhibitory inputs from transfer function)
-        # output_activation: sigmoid  # Uncomment to constrain outputs to [0, 1]
+        # For ImageNet flattened: input_dim = 3*224*224 = 150,528
+        # excitatory_dim = input_dim/2 = 75,264
+        # inhibitory_dim = input_dim/2 = 75,264 (creates inhibitory inputs from transfer function)
+        # output_activation: sigmoid  # Options: sigmoid, relu, tanh, softplus, none (constrains transfer outputs)
       
-      # Excitatory layer for 2 GPUs
-      excitatory_layer_sizes: [50000]  # Scaled down for 2 GPUs
+      # Larger single excitatory layer to utilize more GPUs
+      excitatory_layer_sizes: [400000]  # Much larger for 16 GPUs
       inhibitory_layer_sizes: []  # Empty for input_mode=1
-      # Alternative: could specify different inhibitory counts per layer:
-      # inhibitory_layer_sizes: [0, 100, 200]  # 0 in first layer, then 100, 200
       
-      # Moderate branching for reasonable model size
-      excitatory_branch_factors: [4, 4, 2, 2]  # 4*4*2*2 = 64 branches
+      # Increased branching for more parameters
+      excitatory_branch_factors: [8, 8, 4, 4, 2, 2]  # 8*8*4*4*2*2 = 16384 branches
       inhibitory_branch_factors: []
       
-      # Moderate connectivity
-      ee_synapses_per_branch_per_layer: [64]  # Scaled for 2 GPUs
-      ei_synapses_per_branch_per_layer: [10]   # Excitatory to inhibitory from transfer function
+      # Increased synapses per branch for more parameters
+      ee_synapses_per_branch_per_layer: [256]  # Rich connectivity
+      ei_synapses_per_branch_per_layer: [40]   # Excitatory to inhibitory from transfer function
       ie_synapses_per_branch_per_layer: []     # No inhibitory-excitatory (input_mode=1) 
       ii_synapses_per_branch_per_layer: []     # No inhibitory-inhibitory (input_mode=1)
       
@@ -54,38 +52,46 @@ model:
   decoder_network:
     type: MLP
     parameters:
-      hidden_dims: [512, 256]  # Smaller decoder for 2 GPUs
-      output_dim: 10  # CIFAR-10 classes
+      hidden_dims: [2048, 1024]  # Larger decoder for more parameters
+      output_dim: 1000  # ImageNet classes
       activation: relu
       dropout: 0.0
       norm_type: layer
 
 task:
-  dataset: cifar10
-  data_path: /n/holylfs06/LABS/kempner_shared/Lab/data/cifar10  # CIFAR-10 data path
+  dataset: imagenet
+  data_path: /n/holylfs06/LABS/kempner_shared/Lab/data/imagenet_1k  # Updated to actual ImageNet path
   parameters:
     flatten: true
     transform:
       train:
+        - type: resize
+          size: 256
+        - type: center_crop
+          size: 224
         - type: normalize
-          mean: [0.4914, 0.4822, 0.4465]
-          std: [0.2023, 0.1994, 0.2010]
+          mean: [0.485, 0.456, 0.406]
+          std: [0.229, 0.224, 0.225]
       eval:
+        - type: resize
+          size: 256
+        - type: center_crop
+          size: 224
         - type: normalize
-          mean: [0.4914, 0.4822, 0.4465]
-          std: [0.2023, 0.1994, 0.2010]
+          mean: [0.485, 0.456, 0.406]
+          std: [0.229, 0.224, 0.225]
 
 train:
   main:
     trainer:
       type: fsdp  # Specify FSDP trainer explicitly
-      batch_size: 256  # Per GPU - higher for 2 GPUs
-      epochs: 200  # More epochs for CIFAR-10
-      lr: 0.001  # Higher learning rate for smaller dataset
+      batch_size: 64  # Per GPU
+      epochs: 100
+      lr: 0.0001  # Reduced for stability with large model
       optimizer: adamw
       weight_decay: 0.01
       scheduler: cosine
-      warmup_epochs: 10
+      warmup_epochs: 5
       gradient_clip: 1.0
       
       # FSDP-specific parameters
@@ -97,30 +103,26 @@ train:
       
     checkpointer:
       save_latest: true
-      save_every: 10
+      save_every: 5
       
     logger:
       use_wandb: true  # Enable WandB logging
       wandb:
-        project: dendritic-cifar10
-        name: cifar10_2gpu_realistic
-        notes: "2 GPU CIFAR-10 training with input_mode=1 (excitatory-only) architecture"
-        tags: ["cifar10", "2gpu", "excitatory-only", "fsdp"]
+        project: dendritic-imagenet
+        name: imagenet_16gpu_realistic
+        notes: "16 GPU ImageNet training with input_mode=1 (excitatory-only) architecture"
+        tags: ["imagenet", "16gpu", "excitatory-only", "fsdp"]
         
-outputs:
-  run_name: cifar10_2gpu_realistic
-  dir: /n/holylabs/LABS/kempner_dev/Users/hsafaai/outputs
-
 # SLURM configuration for job generation
 run_config:
-  output_dir: /n/holylabs/LABS/kempner_dev/Users/hsafaai/logs
-  conda_env: dendritic_env
+  dir: /n/holylabs/LABS/kempner_dev/Users/hsafaai/logs
   conda_env_path: /n/netscratch/kempner_dev/hsafaai/conda_envs/dendritic_env/etc/profile.d/conda.sh
   modules_to_load:
     - python/3.12.5-fasrc01
     - cuda/12.4.1-fasrc01
     - cudnn/8.9.2.26_cuda12-fasrc01
-  training_script: scripts/train_large_model_fsdp.py
+  training_script: src/dendritic_modeling/scripts/train_large_model_fsdp.py
   account: kempner_dev
   partition: kempner_h100
-  run_name: cifar10_2gpu_realistic 
+  run_name: imagenet_16gpu_realistic
+  gpu_per_node: 4  # Number of GPUs per node (1-4) 

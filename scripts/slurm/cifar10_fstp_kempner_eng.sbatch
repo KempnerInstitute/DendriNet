@@ -1,22 +1,32 @@
 #!/bin/bash
-#SBATCH --job-name=cifar_dendritic_2nodes_fixed
-#SBATCH --output=/n/holylabs/LABS/kempner_dev/Users/hsafaai/logs/cifar_dendritic_2nodes_fixed_%j.out
-#SBATCH --error=/n/holylabs/LABS/kempner_dev/Users/hsafaai/logs/cifar_dendritic_2nodes_fixed_%j.err
-#SBATCH --nodes=2
+#SBATCH --job-name=cifar10_fstp_kempner_eng
+#SBATCH --output=results//cifar10_fstp_kempner_eng_%j.out
+#SBATCH --error=results//cifar10_fstp_kempner_eng_%j.err
+#SBATCH --nodes=1
 #SBATCH --ntasks-per-node=4
 #SBATCH --gres=gpu:4
-#SBATCH --cpus-per-task=16
-#SBATCH --mem=512GB
-#SBATCH --time=12:00:00
-#SBATCH --partition=kempner_h100
+#SBATCH --cpus-per-task=14
+#SBATCH --mem=384GB
+#SBATCH --time=50:00:00
+#SBATCH --partition=kempner_eng
 #SBATCH --account=kempner_dev
 
+# Load modules if specified
+module load python/3.12.5-fasrc01
+module load cuda/12.4.1-fasrc01
+module load cudnn/8.9.2.26_cuda12-fasrc01
+
 # Activate environment
-source ~/.bashrc
-conda activate dendritic
+# Initialize conda - try provided path first, fallback to conda info
+if [ -f "/n/netscratch/kempner_dev/hsafaai/conda_envs/dendritic_env/etc/profile.d/conda.sh" ]; then
+    source /n/netscratch/kempner_dev/hsafaai/conda_envs/dendritic_env/etc/profile.d/conda.sh
+else
+    source $(conda info --base)/etc/profile.d/conda.sh
+fi
+conda activate dendritic_env
 
 # Set environment variables for distributed training
-export MASTER_PORT=$(expr 10000 + $(echo -n $SLURM_JOBID | tail -c 4))
+export MASTER_PORT=$(expr 20000 + $(echo -n $SLURM_JOBID | tail -c 4))
 export WORLD_SIZE=$(($SLURM_NNODES * $SLURM_NTASKS_PER_NODE))
 export RANK=$SLURM_PROCID
 
@@ -53,10 +63,11 @@ mkdir -p /n/holylabs/LABS/kempner_dev/Users/hsafaai/logs
 
 # Pre-download dataset on rank 0 only
 if [ $RANK -eq 0 ]; then
-    echo "Rank 0: Pre-downloading CIFAR-10 dataset..."
+    echo "Rank 0: Pre-downloading cifar10 dataset..."
     python -c "
 import torchvision
-data_path = '/n/holylfs06/LABS/kempner_shared/Lab/data/cifar10'
+import torch
+data_path = '/n/netscratch/kempner_dev/hsafaai/data/cifar10'
 # Download both train and test sets
 _ = torchvision.datasets.CIFAR10(root=data_path, train=True, download=True)
 _ = torchvision.datasets.CIFAR10(root=data_path, train=False, download=True)
@@ -84,7 +95,7 @@ fi
 # Small delay to ensure all ranks have seen the sync file
 sleep 5
 
-# Run the training script with torchrun - using the FIXED configuration
+# Run the training script with torchrun for FSDP
 srun --ntasks-per-node=$SLURM_NTASKS_PER_NODE \
     torchrun \
     --nproc_per_node=4 \
@@ -92,11 +103,19 @@ srun --ntasks-per-node=$SLURM_NTASKS_PER_NODE \
     --node_rank=$SLURM_NODEID \
     --master_addr=$MASTER_ADDR \
     --master_port=$MASTER_PORT \
-    scripts/train_large_model_fsdp.py \
-    --config configs/distributed/cifar_2nodes_fixed.yaml \
+    src/dendritic_modeling/scripts/train_large_model_fsdp.py \
+    --config configs/distributed/cifar10_fstp.yaml \
     --distributed
 
 # Cleanup sync file on rank 0
 if [ $RANK -eq 0 ]; then
     rm -f $SYNC_FILE
-fi 
+fi
+
+# Print job summary
+echo "Job completed at $(date)"
+echo "Resource usage summary:"
+echo "  Config: configs/distributed/cifar10_fstp.yaml"
+echo "  GPU type: H100"
+echo "  Total GPUs: 4"
+echo "  Memory per GPU: 44.1 GB"
