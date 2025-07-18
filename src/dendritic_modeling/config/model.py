@@ -10,6 +10,7 @@ class TransferFunctionParams(BaseConfig):
     independent_pathways: bool = False
     excitatory_dim: Optional[int] = None
     inhibitory_dim: Optional[int] = None
+    output_activation: Optional[str] = None  # Options: "sigmoid", "relu", "tanh", "softplus", None
 
 
 @dataclass

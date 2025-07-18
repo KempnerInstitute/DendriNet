@@ -53,9 +53,11 @@ class ConfigValidator:
         self.input_mode = self.transfer_params.get('input_mode', 0)
         self.independent_pathways = self.transfer_params.get('independent_pathways', False)
         
-        # Get input dimension from data config
+        # Get input dimension from task config (preferred) or data config (fallback)
+        task_config = self.config.get('task', {})
         data_config = self.config.get('data', {})
-        dataset_name = data_config.get('dataset_name', '')
+        dataset_name = task_config.get('dataset', '') or data_config.get('dataset_name', '')
+        
         if dataset_name == 'cifar10':
             self.input_dim = 3072  # 32x32x3
         elif dataset_name == 'imagenet':
@@ -89,17 +91,35 @@ class ConfigValidator:
             
     def check_layer_dimensions(self):
         """Check layer size consistency"""
-        if len(self.excitatory_layer_sizes) != len(self.inhibitory_layer_sizes):
-            self.errors.append(
-                f"Mismatch in layer counts - "
-                f"excitatory: {len(self.excitatory_layer_sizes)}, "
-                f"inhibitory: {len(self.inhibitory_layer_sizes)}"
-            )
+        exc_layers = len(self.excitatory_layer_sizes)
+        inh_layers = len(self.inhibitory_layer_sizes)
+        
+        if self.input_mode == 1:
+            # For input_mode=1, inhibitory layers can be:
+            # - Empty (no inhibitory layers)
+            # - Equal to excitatory layers (allowing 0 values for some layers)
+            # - One less than excitatory layers
+            if inh_layers not in [0, exc_layers - 1, exc_layers]:
+                self.errors.append(
+                    f"For input_mode=1, inhibitory layer count ({inh_layers}) must be "
+                    f"0, {exc_layers-1}, or {exc_layers} (excitatory count: {exc_layers})"
+                )
+        else:
+            # For other input modes, they should match
+            if exc_layers != inh_layers:
+                self.errors.append(
+                    f"Mismatch in layer counts - "
+                    f"excitatory: {exc_layers}, "
+                    f"inhibitory: {inh_layers}"
+                )
             
         # Check for zero-sized layers
-        for i, (exc, inh) in enumerate(zip(self.excitatory_layer_sizes, self.inhibitory_layer_sizes)):
+        for i, exc in enumerate(self.excitatory_layer_sizes):
             if exc <= 0:
                 self.errors.append(f"Layer {i} has non-positive excitatory size: {exc}")
+        
+        # Only check inhibitory if they exist        
+        for i, inh in enumerate(self.inhibitory_layer_sizes):
             if inh < 0:
                 self.errors.append(f"Layer {i} has negative inhibitory size: {inh}")
                 
@@ -122,10 +142,17 @@ class ConfigValidator:
             else:
                 # Subsequent layers receive from previous layer
                 exc_input = self.excitatory_layer_sizes[layer_idx - 1]
-                inh_input = self.inhibitory_layer_sizes[layer_idx - 1]
+                # Only get inhibitory input if inhibitory layers exist
+                if layer_idx - 1 < len(self.inhibitory_layer_sizes):
+                    inh_input = self.inhibitory_layer_sizes[layer_idx - 1]
+                else:
+                    inh_input = 0
                 
-            # Inhibitory input to excitatory cells comes from same layer
-            inh_to_exc = self.inhibitory_layer_sizes[layer_idx]
+            # Inhibitory input to excitatory cells comes from same layer (if exists)
+            if layer_idx < len(self.inhibitory_layer_sizes):
+                inh_to_exc = self.inhibitory_layer_sizes[layer_idx]
+            else:
+                inh_to_exc = 0
             
             # Check EE synapses
             ee_val = self.ee_synapses[layer_idx] if layer_idx < len(self.ee_synapses) else (self.ee_synapses[-1] if self.ee_synapses else 1)
@@ -147,17 +174,38 @@ class ConfigValidator:
                     f"Layer {layer_idx} has ei_synapses={ei_val} but no inhibitory neurons"
                 )
                 
-            # Check IE synapses (only if inhibitory neurons exist)
-            if self.inhibitory_layer_sizes[layer_idx] > 0:
-                ie_val = self.ie_synapses[layer_idx] if layer_idx < len(self.ie_synapses) else (self.ie_synapses[-1] if self.ie_synapses else 1)
-                if ie_val > exc_input:
-                    self.errors.append(
-                        f"Layer {layer_idx} - ie_synapses ({ie_val}) > "
-                        f"excitatory input dim ({exc_input})"
-                    )
+            # Check IE synapses (inhibitory TO excitatory connections)
+            # All layers can have IE synapses - first layer from transfer function, others from previous layer
+            ie_val = self.ie_synapses[layer_idx] if layer_idx < len(self.ie_synapses) else (self.ie_synapses[-1] if self.ie_synapses else 1)
+            
+            # Determine the source of inhibitory input
+            if layer_idx == 0:
+                # First layer gets inhibitory input from transfer function
+                if self.input_mode == 1 and self.independent_pathways:
+                    # In input_mode=1, transfer function provides inhibitory input
+                    inhibitory_source_dim = self.inhibitory_dim if self.inhibitory_dim else self.input_dim // 2
+                else:
+                    inhibitory_source_dim = 0  # No inhibitory input in other modes
+            else:
+                # Subsequent layers get inhibitory input from previous layer's inhibitory neurons
+                if layer_idx - 1 < len(self.inhibitory_layer_sizes):
+                    inhibitory_source_dim = self.inhibitory_layer_sizes[layer_idx - 1]
+                else:
+                    inhibitory_source_dim = 0
+            
+            # Check IE constraint
+            if inhibitory_source_dim > 0 and ie_val > inhibitory_source_dim:
+                self.errors.append(
+                    f"Layer {layer_idx} - ie_synapses ({ie_val}) > "
+                    f"inhibitory input dim ({inhibitory_source_dim})"
+                )
+            elif inhibitory_source_dim == 0 and ie_val > 0:
+                self.warnings.append(
+                    f"Layer {layer_idx} has ie_synapses={ie_val} but no inhibitory input available"
+                )
                     
-            # Check II synapses
-            if self.inhibitory_layer_sizes[layer_idx] > 0:
+            # Check II synapses (only if inhibitory neurons exist)
+            if layer_idx < len(self.inhibitory_layer_sizes) and self.inhibitory_layer_sizes[layer_idx] > 0:
                 ii_val = self.ii_synapses[layer_idx] if layer_idx < len(self.ii_synapses) else (self.ii_synapses[-1] if self.ii_synapses else 1)
                 if ii_val > inh_input:
                     self.errors.append(
@@ -167,16 +215,54 @@ class ConfigValidator:
                     
     def check_topk_constraints(self):
         """Check TopK constraints"""
-        # TopK values (synapses per branch) must be positive
+        # EE synapses must always be positive (excitatory neurons always exist)
+        for i, val in enumerate(self.ee_synapses):
+            if val <= 0:
+                self.errors.append(f"ee_synapses[{i}] must be positive, got {val}")
+        
+        # Other synapse types can be 0 when target neurons don't exist
         for syn_type, syn_list in [
-            ('ee', self.ee_synapses), 
             ('ei', self.ei_synapses), 
             ('ie', self.ie_synapses), 
             ('ii', self.ii_synapses)
         ]:
             for i, val in enumerate(syn_list):
-                if val <= 0:
-                    self.errors.append(f"{syn_type}_synapses[{i}] must be positive, got {val}")
+                if val < 0:  # Allow 0, but not negative
+                    self.errors.append(f"{syn_type}_synapses[{i}] must be non-negative, got {val}")
+                elif val == 0:
+                    # Check if 0 makes sense given the layer configuration
+                    if syn_type == 'ei' and i < len(self.inhibitory_layer_sizes):
+                        # EI: excitatory TO inhibitory connections
+                        if self.inhibitory_layer_sizes[i] > 0:
+                            self.warnings.append(
+                                f"ei_synapses[{i}] is 0 but layer {i} has "
+                                f"{self.inhibitory_layer_sizes[i]} inhibitory neurons"
+                            )
+                    elif syn_type == 'ie' and i < len(self.inhibitory_layer_sizes):
+                        # IE: inhibitory TO excitatory connections
+                        # In input_mode=1, first layer gets inhibitory input from transfer function
+                        # Subsequent layers get inhibitory input from previous layer's inhibitory neurons
+                        if i == 0:
+                            # First layer can have IE synapses from transfer function
+                            if self.input_mode == 1:
+                                self.warnings.append(
+                                    f"ie_synapses[0] is 0 - layer 0 excitatory neurons won't receive "
+                                    f"inhibitory input from transfer function"
+                                )
+                        else:
+                            # Other layers need previous layer to have inhibitory neurons
+                            if i-1 < len(self.inhibitory_layer_sizes) and self.inhibitory_layer_sizes[i-1] > 0:
+                                self.warnings.append(
+                                    f"ie_synapses[{i}] is 0 but previous layer {i-1} has "
+                                    f"{self.inhibitory_layer_sizes[i-1]} inhibitory neurons"
+                                )
+                    elif syn_type == 'ii' and i < len(self.inhibitory_layer_sizes):
+                        # For II synapses, check if previous layer had inhibitory neurons
+                        if i > 0 and i-1 < len(self.inhibitory_layer_sizes):
+                            if self.inhibitory_layer_sizes[i-1] > 0 and self.inhibitory_layer_sizes[i] > 0:
+                                self.warnings.append(
+                                    f"ii_synapses[{i}] is 0 but both layer {i-1} and {i} have inhibitory neurons"
+                                )
                     
     def check_branch_factors(self):
         """Check branch factor constraints"""
@@ -232,15 +318,16 @@ class ConfigValidator:
                         "Biological neurons typically have 10-50 synapses per dendrite"
                     )
                     
-        # Check E/I balance
-        for i, (exc, inh) in enumerate(zip(self.excitatory_layer_sizes, self.inhibitory_layer_sizes)):
-            if inh > 0:
-                ratio = exc / inh
-                if ratio < 2 or ratio > 10:
-                    self.warnings.append(
-                        f"Layer {i} E/I ratio = {ratio:.2f} ({exc}E/{inh}I). "
-                        "Biological cortical networks typically have 4:1 to 5:1 (80-83% excitatory)"
-                    )
+        # Check E/I balance (only if inhibitory layers exist)
+        if len(self.inhibitory_layer_sizes) > 0:
+            for i, (exc, inh) in enumerate(zip(self.excitatory_layer_sizes, self.inhibitory_layer_sizes)):
+                if inh > 0:
+                    ratio = exc / inh
+                    if ratio < 2 or ratio > 10:
+                        self.warnings.append(
+                            f"Layer {i} E/I ratio = {ratio:.2f} ({exc}E/{inh}I). "
+                            "Biological cortical networks typically have 4:1 to 5:1 (80-83% excitatory)"
+                        )
                     
     def report_results(self):
         """Report all errors and warnings"""

@@ -1,13 +1,16 @@
+
 model:
   task: classification  # Options: "classification", "regression"
+
   encoder_network:
-    type: CNNAutoencoder # MLPAutoencoder, CNNAutoencoder, MLPVariationalAutoencoder, CNNVariationalAutoencoder, identity, none
+    type: identity # MLPAutoencoder, CNNAutoencoder, MLPVariationalAutoencoder, CNNVariationalAutoencoder, identity, none
     parameters:
       input_shape: [3, 32, 32]
       latent_shape: [16, 8, 8]  # (channels, height, width) for latent representation
       encoder_hidden_dims: [64]
       decoder_hidden_dims: [64]
       activation: relu
+
   core_network:
     type: EINet #"EINet", "MLP"
     parameters:
@@ -15,17 +18,19 @@ model:
       transfer_params:
         input_mode: 1
         independent_pathways: true
-        excitatory_dim: 512
-        inhibitory_dim: 512
+        excitatory_dim: []
+        inhibitory_dim: []
+        output_activation: none  # Options: sigmoid, relu, tanh, softplus, none (constrains transfer outputs)
+        
       # configuration parameters
-      excitatory_layer_sizes: [10]
-      inhibitory_layer_sizes: [40]
-      excitatory_branch_factors: [2, 2]  # This is correct - represents branches per neuron
+      excitatory_layer_sizes: [50]
+      inhibitory_layer_sizes: []
+      excitatory_branch_factors: [3, 3, 3]  # This is correct - represents branches per neuron
       inhibitory_branch_factors: []
-      ee_synapses_per_branch_per_layer: [100]
-      ei_synapses_per_branch_per_layer: [20]  # Changed from 200 to 20 (less than 40 inhibitory neurons)
+      ee_synapses_per_branch_per_layer: [40]
+      ei_synapses_per_branch_per_layer: []  # Changed from 200 to 20 (less than 40 inhibitory neurons)
       ie_synapses_per_branch_per_layer: [10]
-      ii_synapses_per_branch_per_layer: [5]   # Changed from 0 to 5 (must be positive)
+      ii_synapses_per_branch_per_layer: []   # Changed from 0 to 5 (must be positive)
       somatic_synapses: true
       use_shunting: true
       # topk parameters
@@ -133,7 +138,7 @@ train:
 task:
   dataset: cifar10 #mnist, cifar10, mnist_modulo10, random_flip_mnist
   data_path:
-  parameters: {flatten: false, normalize: false}
+  parameters: {flatten: true, normalize: false}
   # dataset: "line", "center_surround", "orientation_bars", "multi_xor", "mnist", "mnist_modulo10", "mnist_switch2",
             #"mnist_switch10", "info_shunting", "noise_resilience", "feature_selectivity", "context_gating",
             #"learning_dynamics", "hierarchical_processing", "cifar10", "poisson_generator", "orthonet"
@@ -151,11 +156,11 @@ task:
   #   n_bits: 8
 
 wandb:
-  entity:
+  entity: houman_safaai-harvard-university
   project: "dendritic_cifar10"
   group: "debug"
   tags: [cifar10]
-  use_wandb: false
+  use_wandb: true
 
 analysis:
   performance_analysis:

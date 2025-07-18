@@ -1,0 +1,124 @@
+# Realistic CIFAR-10 dendritic model configuration for 16 GPU FSDP training
+# Designed for input_mode=1 (excitatory-only) with dendritic branching
+
+model:
+  task: classification
+  core_network:
+    type: EINet
+    parameters:
+      transfer_params:
+        input_mode: 1
+        independent_pathways: true
+        # excitatory_dim and inhibitory_dim will auto-calculate:
+        # For CIFAR-10 flattened: input_dim = 3*32*32 = 3,072
+        # excitatory_dim = input_dim/2 = 1,536
+        # inhibitory_dim = input_dim/2 = 1,536 (creates inhibitory inputs from transfer function)
+        # output_activation: sigmoid  # Options: sigmoid, relu, tanh, softplus, none (constrains transfer outputs)
+      
+      # Large excitatory layer to utilize 16 GPUs (scaled for CIFAR-10)
+      excitatory_layer_sizes: [200000]  # Large for 16 GPUs but smaller than ImageNet
+      inhibitory_layer_sizes: []  # Empty for input_mode=1
+      
+      # Increased branching for more parameters
+      excitatory_branch_factors: [8, 8, 4, 4, 2, 2]  # 8*8*4*4*2*2 = 16384 branches
+      inhibitory_branch_factors: []
+      
+      # Rich connectivity
+      ee_synapses_per_branch_per_layer: [128]  # Rich connectivity, scaled for CIFAR-10
+      ei_synapses_per_branch_per_layer: [20]   # Excitatory to inhibitory from transfer function
+      ie_synapses_per_branch_per_layer: []     # No inhibitory-excitatory (input_mode=1) 
+      ii_synapses_per_branch_per_layer: []     # No inhibitory-inhibitory (input_mode=1)
+      
+      somatic_synapses: true
+      
+      use_topk: true
+      use_shunting: false  # No shunting without inhibitory neurons
+      topk_init_method: xavier_normal
+      topk_strategy: standard
+      topk_type: standard
+      reactivate: true
+      reactivation_init_m: 1.5
+      reactivation_init_b: 0.5
+      reactivation_type: param_tanh
+      reactivation_strategy: standard
+      blocklinear_strategy: standard
+      efficient_blocklinear: true
+      adaptive_initialization: true
+  
+  encoder_network:
+    type: Identity
+    parameters: {}
+  
+  decoder_network:
+    type: MLP
+    parameters:
+      hidden_dims: [1024, 512]  # Smaller decoder for CIFAR-10
+      output_dim: 10  # CIFAR-10 classes
+      activation: relu
+      dropout: 0.0
+      norm_type: layer
+
+task:
+  dataset: cifar10
+  data_path: /n/holylfs06/LABS/kempner_shared/Lab/data/cifar10  # CIFAR-10 data path
+  parameters:
+    flatten: true
+    transform:
+      train:
+        - type: normalize
+          mean: [0.4914, 0.4822, 0.4465]
+          std: [0.2023, 0.1994, 0.2010]
+      eval:
+        - type: normalize
+          mean: [0.4914, 0.4822, 0.4465]
+          std: [0.2023, 0.1994, 0.2010]
+
+train:
+  main:
+    trainer:
+      type: fsdp  # Specify FSDP trainer explicitly
+      batch_size: 128  # Per GPU - can be higher for CIFAR-10
+      epochs: 200  # More epochs for CIFAR-10
+      lr: 0.001  # Higher learning rate for smaller dataset
+      optimizer: adamw
+      weight_decay: 0.01
+      scheduler: cosine
+      warmup_epochs: 10
+      gradient_clip: 1.0
+      
+      # FSDP-specific parameters
+      use_mixed_precision: true
+      cpu_offload: false
+      backward_prefetch: true
+      limit_all_gathers: true
+      forward_prefetch: true
+      
+    checkpointer:
+      save_latest: true
+      save_every: 10
+      
+    logger:
+      use_wandb: true  # Enable WandB logging
+      wandb:
+        project: dendritic-cifar10
+        name: cifar10_16gpu_realistic
+        notes: "16 GPU CIFAR-10 training with input_mode=1 (excitatory-only) architecture"
+        tags: ["cifar10", "16gpu", "excitatory-only", "fsdp"]
+        
+outputs:
+  run_name: cifar10_16gpu_realistic
+  dir: /n/holylabs/LABS/kempner_dev/Users/hsafaai/outputs
+
+# SLURM configuration for job generation
+slurm_config:
+  output_dir: /n/holylabs/LABS/kempner_dev/Users/hsafaai/logs
+  conda_env: dendritic_env
+  conda_env_path: /n/netscratch/kempner_dev/hsafaai/conda_envs/dendritic_env/etc/profile.d/conda.sh
+  modules_to_load:
+    - python/3.12.5-fasrc01
+    - cuda/12.4.1-fasrc01
+    - cudnn/8.9.2.26_cuda12-fasrc01
+  training_script: scripts/train_large_model_fsdp.py
+  account: kempner_dev
+  partition: kempner_h100
+  run_name: cifar10_16gpu_realistic 

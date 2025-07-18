@@ -271,38 +271,67 @@ class SlurmJobGenerator:
             e_branches = params.get('excitatory_branch_factors', [4, 2, 1])
             i_branches = params.get('inhibitory_branch_factors', [2, 1, 1])
             
-            # Calculate total branches
-            total_e_branches = 1
+            # Calculate total branches per layer
+            e_branch_counts = []
+            cumulative = 1
             for b in e_branches:
-                total_e_branches *= b
-            total_i_branches = 1
+                cumulative *= b
+                e_branch_counts.append(cumulative)
+                
+            i_branch_counts = []
+            cumulative = 1
             for b in i_branches:
-                total_i_branches *= b
+                cumulative *= b
+                i_branch_counts.append(cumulative)
             
             # Rough parameter estimation
             total_params = 0
             
-            # Input dimension
-            input_dim = params.get('transfer_params', {}).get('excitatory_dim', 784)
+            # Get input dimensions from transfer parameters
+            transfer_params = params.get('transfer_params', {})
+            excitatory_dim = transfer_params.get('excitatory_dim', 0)
+            inhibitory_dim = transfer_params.get('inhibitory_dim', 0)
             
-            # First layer connections
-            if e_layers:
-                total_params += input_dim * e_layers[0] * total_e_branches
-            if i_layers:
-                total_params += input_dim * i_layers[0] * total_i_branches
+            # If dimensions are 0, estimate from input
+            if excitatory_dim == 0 or inhibitory_dim == 0:
+                if self.dataset == 'mnist':
+                    input_dim = 784
+                elif self.dataset in ['cifar10', 'cifar100']:
+                    input_dim = 3072
+                elif self.dataset == 'imagenet':
+                    input_dim = 150528
+                else:
+                    input_dim = 784
+                excitatory_dim = input_dim // 2
+                inhibitory_dim = input_dim - excitatory_dim
             
-            # Inter-layer connections (simplified)
+            total_input_dim = excitatory_dim + inhibitory_dim
+            
+            # First layer connections - using sparse TopK connections
+            # Each branch connects to K inputs, not all inputs
+            if e_layers and len(e_layers) > 0:
+                # For first layer, estimate K connections per branch based on reasonable sparsity
+                # Typically K is much smaller than input_dim (e.g., 1000-5000 for ImageNet)
+                k_input_to_e = min(5000, total_input_dim // 10)  # Reasonable sparsity
+                total_params += k_input_to_e * e_layers[0] * e_branch_counts[0]
+                
+            if i_layers and len(i_layers) > 0:
+                k_input_to_i = min(2500, total_input_dim // 20)  # Even sparser for inhibitory
+                total_params += k_input_to_i * i_layers[0] * i_branch_counts[0]
+            
+            # Inter-layer connections use the specified synapses_per_branch parameters
             for i in range(len(e_layers) - 1):
-                if i < len(ee_synapses):
-                    total_params += e_layers[i] * e_layers[i+1] * ee_synapses[i] * total_e_branches
-                if i < len(ei_synapses) and i < len(i_layers):
-                    total_params += e_layers[i] * i_layers[i] * ei_synapses[i] * total_e_branches
+                if i < len(ee_synapses) and i+1 < len(e_branch_counts):
+                    # Each branch has ee_synapses[i] connections
+                    total_params += e_layers[i+1] * ee_synapses[i] * e_branch_counts[i+1]
+                if i < len(ei_synapses) and i < len(i_layers) and i < len(e_branch_counts):
+                    total_params += i_layers[i] * ei_synapses[i] * e_branch_counts[i]
             
             for i in range(len(i_layers) - 1):
-                if i < len(ie_synapses) and i < len(e_layers):
-                    total_params += i_layers[i] * e_layers[i] * ie_synapses[i] * total_i_branches
-                if i < len(ii_synapses):
-                    total_params += i_layers[i] * i_layers[i+1] * ii_synapses[i] * total_i_branches
+                if i < len(ie_synapses) and i < len(e_layers) and i < len(i_branch_counts):
+                    total_params += e_layers[i] * ie_synapses[i] * i_branch_counts[i]
+                if i < len(ii_synapses) and i+1 < len(i_branch_counts):
+                    total_params += i_layers[i+1] * ii_synapses[i] * i_branch_counts[i+1]
             
             # Decoder
             decoder = model_config.get('decoder_network', {})
@@ -311,14 +340,20 @@ class SlurmJobGenerator:
                 output_dim = decoder_params.get('output_dim', 10)
                 hidden_dims = decoder_params.get('hidden_dims', [512, 256])
                 
-                # Add decoder parameters
+                # Add decoder parameters (dense connections)
                 if e_layers:
                     total_params += e_layers[-1] * hidden_dims[0]
+                if i_layers and len(i_layers) > 0:
+                    total_params += i_layers[-1] * hidden_dims[0]
+                    
                 for i in range(len(hidden_dims) - 1):
                     total_params += hidden_dims[i] * hidden_dims[i+1]
                 total_params += hidden_dims[-1] * output_dim
             
-            return int(total_params)
+            # Add biases and other parameters (roughly 1% of weights)
+            total_params = int(total_params * 1.01)
+            
+            return total_params
         else:
             # Default estimation for unknown architectures
             return 100_000_000  # 100M parameters default

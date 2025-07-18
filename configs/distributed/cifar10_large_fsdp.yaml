@@ -12,6 +12,7 @@ model:
         independent_pathways: true
         excitatory_dim: 1536
         inhibitory_dim: 1536
+        # output_activation: sigmoid  # Options: sigmoid, relu, tanh, softplus, none (constrains transfer outputs)
       # configuration parameters
       excitatory_layer_sizes: [10]
       inhibitory_layer_sizes: [0]
