@@ -216,7 +216,8 @@ class Trainer:
             train_loss += loss.item()
 
             # Calculate accuracy for classification tasks
-            if hasattr(model, 'forward'):
+            # Only compute accuracy if y_batch contains class labels (not images for autoencoder)
+            if hasattr(model, 'forward') and y_batch.dim() == 1:  # y_batch is 1D tensor of labels
                 with torch.no_grad():
                     outputs = model(x_batch)
                     if outputs.dim() > 1 and outputs.size(1) > 1:  # Multi-class classification
@@ -241,11 +242,13 @@ class Trainer:
                 valid_loss += loss.item()
 
                 # Calculate accuracy for classification tasks
-                outputs = model(x_batch)
-                if outputs.dim() > 1 and outputs.size(1) > 1:  # Multi-class classification
-                    predicted = outputs.argmax(dim=1)
-                    correct += (predicted == y_batch).sum().item()
-                    total += y_batch.size(0)
+                # Only compute accuracy if y_batch contains class labels (not images for autoencoder)
+                if y_batch.dim() == 1:  # y_batch is 1D tensor of labels
+                    outputs = model(x_batch)
+                    if outputs.dim() > 1 and outputs.size(1) > 1:  # Multi-class classification
+                        predicted = outputs.argmax(dim=1)
+                        correct += (predicted == y_batch).sum().item()
+                        total += y_batch.size(0)
         
         avg_loss = valid_loss / len(valid_loader)
         accuracy = (correct / total * 100) if total > 0 else 0.0

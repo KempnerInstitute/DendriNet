@@ -12,6 +12,7 @@ model:
         independent_pathways: true  # E and I get different input subsets
         excitatory_dim: 15  # First 15 dimensions for E pathway
         inhibitory_dim: 15  # Last 15 dimensions for I pathway
+        # output_activation: sigmoid  # Options: sigmoid, relu, tanh, softplus, none (constrains transfer outputs)
         
       # Network architecture
       excitatory_layer_sizes: [1]  # 1 excitatory neuron

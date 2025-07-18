@@ -119,12 +119,15 @@ class ExcitationInhibitionNetwork(BaseNetwork):
         self.setup_network_layers()
 
     def setup_transfer_function(self):
+        # For input_mode=1 with no inhibitory layers, n_inhibitory_cells can be None
+        n_inhibitory_cells = self.inhibitory_layer_sizes[0] if self.inhibitory_layer_sizes else None
+        
         self.transfer_fn = TransferLayer(
             input_dim=self.input_dim,
             transfer_params=self.transfer_params,
-            n_inhibitory_cells=self.inhibitory_layer_sizes[0],
+            n_inhibitory_cells=n_inhibitory_cells,
             inhibitory_branch_factors=self.inhibitory_branch_factors,
-            excitatory_synapses_per_branch=self.ee_synapses_per_branch_per_layer[0],
+            excitatory_synapses_per_branch=self.ee_synapses_per_branch_per_layer[0] if self.ee_synapses_per_branch_per_layer else None,
             reactivate=self.reactivate,
             reactivation_init_m=self.reactivation_init_m,
             reactivation_init_b=self.reactivation_init_b,
@@ -164,7 +167,15 @@ class ExcitationInhibitionNetwork(BaseNetwork):
 
         # Insert input_dim at the beginning
         excitatory_layer_sizes.insert(0, self.input_dim)
-        inhibitory_layer_sizes.insert(0, None)
+        
+        # For input_mode=1, inhibitory_layer_sizes should remain empty or filled with None
+        if self.transfer_params.get("input_mode", 0) == 1:
+            # Ensure we have None for each layer if the list is empty
+            if not inhibitory_layer_sizes:
+                inhibitory_layer_sizes = [None] * len(self.excitatory_layer_sizes)
+            inhibitory_layer_sizes.insert(0, None)
+        else:
+            inhibitory_layer_sizes.insert(0, None)
 
         # Set up synapses per branch per layer
         ee_syn = list(self.ee_synapses_per_branch_per_layer)
@@ -188,8 +199,14 @@ class ExcitationInhibitionNetwork(BaseNetwork):
 
         # Build each layer
         for i in range(num_layers):
-            # Always build inhibitory cells in all layers now
-            build_inhibitory_cells = True
+            # For input_mode=1, don't build inhibitory cells
+            # Also check if inhibitory layer size exists for this layer
+            build_inhibitory_cells = (
+                self.transfer_params.get("input_mode", 0) != 1 and 
+                i + 1 < len(inhibitory_layer_sizes) and 
+                inhibitory_layer_sizes[i + 1] is not None and
+                inhibitory_layer_sizes[i + 1] > 0
+            )
 
             # For the first layer, determine correct dimensions
             if i == 0:
@@ -197,18 +214,31 @@ class ExcitationInhibitionNetwork(BaseNetwork):
                 layer_excitatory_input_dim = excitatory_input_dim
                 layer_inhibitory_input_dim = inhibitory_input_dim
                 # Excitatory cells receive inhibitory output from same layer's inhibitory cells
-                excitatory_inhibitory_input_dim = inhibitory_layer_sizes[i + 1]
+                # Check if inhibitory layer exists
+                if i + 1 < len(inhibitory_layer_sizes) and inhibitory_layer_sizes[i + 1] is not None:
+                    excitatory_inhibitory_input_dim = inhibitory_layer_sizes[i + 1]
+                else:
+                    # For input_mode=1, there are no inhibitory neurons
+                    excitatory_inhibitory_input_dim = None
             else:
                 # Subsequent layers receive outputs from previous layer
                 layer_excitatory_input_dim = excitatory_layer_sizes[i]
-                layer_inhibitory_input_dim = inhibitory_layer_sizes[i]
+                layer_inhibitory_input_dim = inhibitory_layer_sizes[i] if i < len(inhibitory_layer_sizes) else None
                 # Excitatory cells receive inhibitory output from same layer's inhibitory cells
-                excitatory_inhibitory_input_dim = inhibitory_layer_sizes[i + 1]
+                # Check if inhibitory layer exists
+                if i + 1 < len(inhibitory_layer_sizes) and inhibitory_layer_sizes[i + 1] is not None:
+                    excitatory_inhibitory_input_dim = inhibitory_layer_sizes[i + 1]
+                else:
+                    # For input_mode=1, there are no inhibitory neurons
+                    excitatory_inhibitory_input_dim = None
+
+            # Get n_inhibitory_cells for this layer
+            n_inhibitory_cells = inhibitory_layer_sizes[i + 1] if i + 1 < len(inhibitory_layer_sizes) else None
 
             # Create ExcitationInhibitionLayer
             layer = ExcitationInhibitionLayer(
                 n_excitatory_cells=excitatory_layer_sizes[i + 1],
-                n_inhibitory_cells=inhibitory_layer_sizes[i + 1],
+                n_inhibitory_cells=n_inhibitory_cells,
                 excitatory_branch_factors=self.excitatory_branch_factors,
                 inhibitory_branch_factors=self.inhibitory_branch_factors,
                 excitatory_input_dim=layer_excitatory_input_dim,

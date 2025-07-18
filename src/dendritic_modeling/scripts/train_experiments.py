@@ -369,7 +369,7 @@ def main(config_path: str, args=None):
     if isinstance(encoder_network, Identity):
         model.encoder_network = encoder_network
     else:
-    model.encoder_network = encoder_network.encoder
+        model.encoder_network = encoder_network.encoder
     save_model(model, run_save_path, "final_model.pt")
 
     if (

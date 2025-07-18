@@ -17,6 +17,7 @@ model:
       transfer_params:
         input_mode: 1
         independent_pathways: true
+        # output_activation: sigmoid  # Options: sigmoid, relu, tanh, softplus, none (constrains transfer outputs)
       excitatory_layer_sizes: [1024, 512, 256]
       inhibitory_layer_sizes: [256, 128, 64]
       excitatory_branch_factors: [4, 3, 2]

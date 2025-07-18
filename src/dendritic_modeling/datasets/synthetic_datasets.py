@@ -585,7 +585,9 @@ def load_cifar10_as_datasets(
         x_train, y_train = convert_to_tensor(train_dataset)
         x_test, y_test = convert_to_tensor(test_dataset)
         train_ds = torch.utils.data.TensorDataset(x_train, y_train)
-        valid_ds = train_ds
+        # Create a separate validation dataset with the same data as train
+        # to avoid reference issues
+        valid_ds = torch.utils.data.TensorDataset(x_train.clone(), y_train.clone())
         test_ds = torch.utils.data.TensorDataset(x_test, y_test)
 
     return train_ds, valid_ds, test_ds

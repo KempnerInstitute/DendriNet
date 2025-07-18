@@ -56,6 +56,23 @@ class TransferLayer(nn.Module):
 
         self.input_mode = input_mode = transfer_params.get("input_mode", 0)
         self.independent_pathways = independent_pathways = transfer_params.get("independent_pathways", False)
+        
+        # Add output activation option
+        self.output_activation = transfer_params.get("output_activation", None)
+        
+        # Create activation function if specified
+        if self.output_activation == "sigmoid":
+            self.activation_fn = nn.Sigmoid()
+        elif self.output_activation == "relu":
+            self.activation_fn = nn.ReLU()
+        elif self.output_activation == "tanh":
+            self.activation_fn = nn.Tanh()
+        elif self.output_activation == "softplus":
+            self.activation_fn = nn.Softplus()
+        elif self.output_activation is None or self.output_activation == "none":
+            self.activation_fn = nn.Identity()
+        else:
+            raise ValueError(f"Unknown output_activation: {self.output_activation}")
 
         if independent_pathways:
             # Get dimensions from transfer_params, checking for None, 0, or missing
@@ -104,6 +121,10 @@ class TransferLayer(nn.Module):
 
     def forward(self, x: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor]:
         x1, x2 = self.pathway_split(x)
+
+        # Apply activation function if specified
+        x1 = self.activation_fn(x1)
+        x2 = self.activation_fn(x2)
 
         # No longer process inhibitory cells here - just return the split/duplicated input
         return x1, x2
