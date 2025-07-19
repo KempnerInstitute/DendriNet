@@ -10,7 +10,7 @@ from dendritic_modeling.networks.architectures.classical.cnn import (
     CNNUpsample,
 )
 from dendritic_modeling.networks.architectures.classical.identity import Identity
-from dendritic_modeling.networks.architectures.classical.mlp import MLP, MatchedParamMLP
+from dendritic_modeling.networks.architectures.classical.mlp import MLP, MatchedParamMLP, EffectiveMatchedParamMLP
 from dendritic_modeling.networks.architectures.excitation_inhibition import (
     ExcitationInhibitionNetwork,
 )
@@ -28,6 +28,8 @@ def get_architecture(type: str, parameters: dict):
         return MLP(**parameters)
     elif type == "matchedparammlp":
         return MatchedParamMLP(**parameters)
+    elif type == "effectivematchedparammlp":
+        return EffectiveMatchedParamMLP(**parameters)
     elif type == "mlpautoencoder":
         return MLPAutoencoder(**parameters)
     elif type == "cnnautoencoder":

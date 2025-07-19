@@ -30,9 +30,7 @@ from dendritic_modeling.plotting.analysis import (
     plot_layer_contributions,
     plot_noise_robustness,
     plot_weight_distributions,
-    plot_layerwise_ablation,
-    plot_layerwise_contributions,
-    plot_ablation_comparison,
+    plot_performance_metrics,
 )
 from dendritic_modeling.plotting.base import (
     BarPlotter,
@@ -133,7 +131,5 @@ __all__ = [
     "shape_helper",
     "split_mnist_inputs",
     "visualize_dendritic_tree",
-    "plot_layerwise_ablation",
-    "plot_layerwise_contributions",
-    "plot_ablation_comparison",
+    "plot_performance_metrics",
 ]

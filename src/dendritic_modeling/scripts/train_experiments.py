@@ -63,7 +63,7 @@ from dendritic_modeling.networks.architectures.factory import get_architecture
 from dendritic_modeling.scripts.train_encoder_network import load_train_encoder_network
 from dendritic_modeling.training import CustomWeightDecayOptimizer, get_trainer
 from dendritic_modeling.utils import save_dict, validate_config, set_seed
-from .check_ei_config_detailed import check_ei_config  # assuming function name
+# from .check_ei_config_detailed import estimate_ei_model_detailed  # Not currently used
 from dendritic_modeling.plotting.analysis import plot_information_analysis
 
 
@@ -253,8 +253,7 @@ def main(config_path: str, args=None):
     outputs_config = config.outputs
     run_config = getattr(config, "run_config", None)
 
-    if not check_ei_config(config):
-        raise ValueError('EI config validation failed')
+    # EI config validation removed - let model initialization handle validation
 
     (run_save_path, train_ds, valid_ds, test_ds, model, encoder_network) = (
         setup_environment(

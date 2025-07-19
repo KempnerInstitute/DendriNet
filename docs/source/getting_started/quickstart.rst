@@ -198,7 +198,7 @@ Custom Input Transforms
 
 .. code-block:: python
 
-   from dendritic_modeling.networks.input_network import InputNetwork
+   from dendritic_modeling.networks.input import InputNetTransform
    
    # Gabor filter preprocessing
    input_net = InputNetwork(
