@@ -362,6 +362,107 @@ class AblationPlotter:
 
         return fig, ax
 
+    def plot_layerwise_ablation(
+        self,
+        results: dict[str, list[float]],
+        save_path: Optional[str] = None,
+        filename: str = "layerwise_ablation",
+    ) -> tuple[plt.Figure, plt.Axes]:
+        """
+        Plot layer-wise ablation analysis results showing performance drops.
+        """
+        fig, ax = plt.subplots(figsize=self.config.figsize)
+
+        layer_idx = results.get("layer_idx", list(range(len(results["baseline_acc"]))))
+        ax.plot(layer_idx, results["baseline_acc"], "o-", label="Baseline")
+        if "inh_ablated_acc" in results:
+            ax.plot(layer_idx, results["inh_ablated_acc"], "s-", label="Inhibition Ablated")
+        if "exc_ablated_acc" in results:
+            ax.plot(layer_idx, results["exc_ablated_acc"], "^-", label="Excitation Ablated")
+
+        ax.set_xlabel("Layer Index (higher = closer to input)", fontsize=self.config.fontsize["label"])
+        ax.set_ylabel("Performance Metric", fontsize=self.config.fontsize["label"])
+        ax.set_title("Layer-wise Ablation Analysis", fontsize=self.config.fontsize["title"])
+        ax.legend()
+        ax.grid(True, alpha=0.3)
+
+        plt.tight_layout()
+
+        if save_path:
+            self._save_plot(fig, save_path, filename)
+
+        return fig, ax
+
+    def plot_layerwise_contributions(
+        self,
+        results: dict[str, list[float]],
+        save_path: Optional[str] = None,
+        filename: str = "layerwise_contributions",
+    ) -> tuple[plt.Figure, plt.Axes]:
+        """
+        Plot layer-wise contribution analysis showing performance drops when ablated.
+        """
+        fig, ax = plt.subplots(figsize=self.config.figsize)
+
+        layer_idx = np.array(results.get("layer_idx", list(range(len(results["baseline_acc"])))))
+        width = 0.35
+
+        if "inh_ablated_acc" in results:
+            inh_diff = [b - i for b, i in zip(results["baseline_acc"], results["inh_ablated_acc"])]
+            ax.bar(layer_idx - width/2, inh_diff, width, label="Inhibition Contribution", alpha=0.7)
+
+        if "exc_ablated_acc" in results:
+            exc_diff = [b - e for b, e in zip(results["baseline_acc"], results["exc_ablated_acc"])]
+            ax.bar(layer_idx + width/2, exc_diff, width, label="Excitation Contribution", alpha=0.7)
+
+        ax.set_xlabel("Layer Index (higher = closer to input)", fontsize=self.config.fontsize["label"])
+        ax.set_ylabel("Performance Drop when Ablated", fontsize=self.config.fontsize["label"])
+        ax.set_title("Contribution per Layer", fontsize=self.config.fontsize["title"])
+        ax.legend()
+        ax.grid(True, axis="y", alpha=0.3)
+
+        plt.tight_layout()
+
+        if save_path:
+            self._save_plot(fig, save_path, filename)
+
+        return fig, ax
+
+    def plot_ablation_comparison(
+        self,
+        normal_results: dict[str, Any],
+        ablated_results: dict[str, dict[str, Any]],
+        metric: str = "accuracy",
+        save_path: Optional[str] = None,
+        filename: str = "ablation_comparison",
+    ) -> tuple[plt.Figure, plt.Axes]:
+        """
+        Compare performance under different ablation conditions.
+        """
+        fig, ax = plt.subplots(figsize=self.config.figsize)
+
+        layers = sorted(normal_results.keys())
+        normal_values = [normal_results[layer][metric] for layer in layers]
+        ax.plot(layers, normal_values, "o-", linewidth=2, markersize=8, label="Normal")
+
+        colors = list(self.config.colors.values())
+        for idx, (ablation_type, layer_data) in enumerate(ablated_results.items()):
+            values = [layer_data.get(layer, {}).get(metric, 0) for layer in layers]
+            ax.plot(layers, values, "s--", linewidth=2, markersize=6, label=f"{ablation_type} Ablated", color=colors[idx % len(colors)])
+
+        ax.set_xlabel("Layer Index", fontsize=self.config.fontsize["label"])
+        ax.set_ylabel(f"{metric.capitalize()}", fontsize=self.config.fontsize["label"])
+        ax.set_title("Performance Under Ablation Conditions", fontsize=self.config.fontsize["title"])
+        ax.legend()
+        ax.grid(True, alpha=0.3)
+
+        plt.tight_layout()
+
+        if save_path:
+            self._save_plot(fig, save_path, filename)
+
+        return fig, ax
+
     def _save_plot(self, fig: plt.Figure, save_path: str, filename: str):
         """Save plot with metadata."""
         os.makedirs(save_path, exist_ok=True)
@@ -519,6 +620,27 @@ class InformationAnalysisPlotter:
             # It's an axes
             return result.figure, result
 
+    def plot_dimensional_mi(self, mi_results: dict[str, float], dims: list[int], save_path=None, filename='dimensional_mi'):
+        fig, ax = plt.subplots(figsize=self.config.figsize)
+        ax.bar(dims, list(mi_results.values()))
+        ax.set_xlabel('Output Dimension')
+        ax.set_ylabel('MI with Class')
+        ax.set_title('Mutual Information per Dimension')
+        if save_path:
+            self._save_plot(fig, save_path, filename)
+        return fig, ax
+
+    def plot_pid_components(self, pid_results: dict[str, float], save_path=None, filename='pid_components'):
+        components = ['synergy', 'redundancy', 'unique_E', 'unique_I']
+        values = [pid_results.get(c, 0) for c in components]
+        fig, ax = plt.subplots(figsize=self.config.figsize)
+        ax.bar(components, values)
+        ax.set_title('PID Components')
+        ax.set_ylabel('Information (bits)')
+        if save_path:
+            self._save_plot(fig, save_path, filename)
+        return fig, ax
+
     def plot_information_metrics(
         self,
         results: dict[str, Any],
@@ -576,6 +698,11 @@ class InformationAnalysisPlotter:
             plots["layer_comparison"] = (fig, ax)
             if save_path:
                 self._save_plot(fig, save_path, f"{filename_prefix}_layer_comparison")
+
+        if 'class_mi' in results:
+            plots['dimensional_mi'] = self.plot_dimensional_mi(results['class_mi'], results.get('dims', list(range(len(results['class_mi'])))))
+        if 'pid' in results:
+            plots['pid_components'] = self.plot_pid_components(results['pid'])
 
         return plots
 

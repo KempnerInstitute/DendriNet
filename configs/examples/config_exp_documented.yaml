@@ -507,48 +507,67 @@ analysis:
       categorical_loglikelihood: true  # Log-likelihood
       mse: false       # Mean squared error (for regression)
   
-  # Information-theoretic analysis (NEW INTEGRATED VERSION)
+  # Information-theoretic analysis of network components
+  # Measures mutual information between excitations, inhibitions, outputs, and class labels
   information_analysis:
-    enabled: false
-    training: false
+    enabled: false  # Whether to perform information analysis
+    training: false  # Whether to run during training phases
     params:
-      # Estimation method
-      # Options:
-      #   - "kraskov": K-nearest neighbors estimator (best for continuous)
-      #   - "sklearn": Scikit-learn based (good for mixed data)
-      #   - "copula": Copula-based estimation (for complex dependencies)
-      #   - "auto": Automatically select based on data
-      method: kraskov
-
+      # Estimation methods to use (can be list for multiple)
+      # Options: kraskov (kNN-based), copula (copula-based), pid (partial info decomposition)
+      methods: [kraskov]  # Methods for MI estimation, including pid
+      
+      # Types of computations to perform
+      # Options: basic_mi, pairwise_mi, conditional_mi, class_mi (general class MI)
+      compute_types: [basic_mi, pairwise_mi, conditional_mi, class_mi]
+      
+      # Dimensions to analyze for general class MI (null = all)
+      target_dimensions: null  # List of output dimensions, e.g. [0,2,4]
+      
+      # Whether to normalize MI values by entropy
+      normalize: false
+      
+      # Maximum samples to use for computation (null = all)
       max_samples: null
       
-      # Kraskov estimator parameters
-      n_neighbors: 10    # Number of neighbors (5-20 typical)
+      # Kraskov-specific: number of nearest neighbors
+      n_neighbors: 10
       
-      # Sklearn estimator parameters
-      n_bins: 20        # Number of bins for histogram method
+      # Binning-specific: number of bins for histogram methods
+      n_bins: 20
       
-      # Copula estimator parameters
-      copula_type: gaussian  # Type of copula: "gaussian", "t", "clayton"
+      # Copula-specific: type of copula
+      copula_type: gaussian  # Options: gaussian, t, clayton, etc.
       
-      # Which metrics to compute
-      compute_basic_mi: true      # I(E;C), I(I;C), I(Vout;C), I(Vinf;C)
-      compute_pairwise_mi: true   # I(E;I), I(E;Vout), I(I;Vout), etc.
-      compute_conditional_mi: true # I(E;I|C), I(E;Vout|C), etc.
-      compute_pid: false          # Partial Information Decomposition
+      # Basic MI: compute I(E;C), I(I;C), etc.
+      compute_basic_mi: true
       
-      # PID-specific settings
-      pid_binarize: true          # Whether to binarize for PID
-      pid_binarize_method: median # "median", "mean", "quantile"
-      pid_binarize_threshold: 0.5 # Threshold for quantile method
+      # Pairwise MI: compute I(E;I), I(E;Vout), etc.
+      compute_pairwise_mi: true
       
-      # Additional options
-      include_vinf: true     # Include soma activation in analysis
-      normalize_mi: false    # Normalize MI by entropy
-      verbose: false         # Print detailed progress
-
+      # Conditional MI: compute I(E;I|C), etc.
+      compute_conditional_mi: true
+      
+      # PID: compute partial information decomposition
+      compute_pid: false
+      
+      # PID binarization options
+      pid_binarize: true  # Binarize data for PID
+      pid_binarize_method: median  # Options: median, mean, quantile
+      pid_binarize_threshold: 0.5  # For quantile method
+      
+      # Include soma activation (Vinf) in computations
+      include_vinf: true
+      
+      # Legacy normalize (specific to basic MI)
+      normalize_mi: false
+      
+      # Verbose output
+      verbose: false
+      
+      # Compute per branch or aggregate
       compute_per_branch: true
-      branch_aggregation: none
+      branch_aggregation: none  # Options: mean, max, sum, first, none
   
   # Synaptic turnover analysis
   synapse_turnover_analysis:
