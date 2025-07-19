@@ -18,6 +18,7 @@ from dendritic_modeling import logger
 from dendritic_modeling.config import load_config
 from dendritic_modeling.models import Classifier
 from dendritic_modeling.networks import ExcitationInhibitionNetwork, MatchedParamMLP
+from dendritic_modeling.networks.architectures.classical.mlp import EffectiveMatchedParamMLP
 from dendritic_modeling.datasets import get_unified_datasets
 from dendritic_modeling.training.utils.evaluation import evaluate_accuracy
 from dendritic_modeling.datasets.augmentation.noise import (
@@ -47,6 +48,10 @@ def initialize_model(model_cfg):
     if task == "classification":
         if net_type == "MLP":
             net = MatchedParamMLP(**net_params)
+            output_dim = net_params.get("output_dim", 10)
+            return Classifier(net)
+        elif net_type == "EffectiveMatchedMLP":
+            net = EffectiveMatchedParamMLP(**net_params)
             output_dim = net_params.get("output_dim", 10)
             return Classifier(net)
         elif net_type == "EINet":

@@ -27,7 +27,6 @@ from dendritic_modeling.utils.information.estimators import (
 from dendritic_modeling.utils.information.pid import (
     check_pid_available,
     pid_synergy_redundancy,
-    compute_pid,
 )
 
 

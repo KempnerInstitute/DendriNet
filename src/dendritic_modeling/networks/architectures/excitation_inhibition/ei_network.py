@@ -381,5 +381,56 @@ class ExcitationInhibitionNetwork(nn.Module):
         """Get the number of branch layers"""
         return len(self.branch_layers)
 
+    def get_effective_params(self) -> int:
+        """Calculate the effective number of parameters after topk sparsity."""
+        effective = 0
+        
+        for layer in self.layers:
+            # Process excitatory cells
+            if hasattr(layer, 'excitatory_cells') and layer.excitatory_cells is not None:
+                excitatory_cells = layer.excitatory_cells
+                for branch_layer in excitatory_cells.branch_layers:
+                    # Excitatory branch (TopKLinear)
+                    if hasattr(branch_layer, 'branch_excitation') and branch_layer.branch_excitation is not None:
+                        if hasattr(branch_layer.branch_excitation, 'K'):
+                            effective += branch_layer.branch_excitation.out_features * branch_layer.branch_excitation.K
+                    
+                    # Inhibitory branch (if present)
+                    if hasattr(branch_layer, 'branch_inhibition') and branch_layer.branch_inhibition is not None:
+                        if hasattr(branch_layer.branch_inhibition, 'K'):
+                            effective += branch_layer.branch_inhibition.out_features * branch_layer.branch_inhibition.K
+                    
+                    # Branches to output (BlockLinear - dense, so full params)
+                    if hasattr(branch_layer, 'branches_to_output') and branch_layer.branches_to_output is not None:
+                        effective += sum(p.numel() for p in branch_layer.branches_to_output.parameters())
+                    
+                    # Reactivation (if present)
+                    if hasattr(branch_layer, 'reactivation') and not isinstance(branch_layer.reactivation, nn.Identity):
+                        effective += sum(p.numel() for p in branch_layer.reactivation.parameters())
+
+            # Process inhibitory cells
+            if hasattr(layer, 'inhibitory_cells') and layer.inhibitory_cells is not None:
+                inhibitory_cells = layer.inhibitory_cells
+                for branch_layer in inhibitory_cells.branch_layers:
+                    # Excitatory branch (TopKLinear)
+                    if hasattr(branch_layer, 'branch_excitation') and branch_layer.branch_excitation is not None:
+                        if hasattr(branch_layer.branch_excitation, 'K'):
+                            effective += branch_layer.branch_excitation.out_features * branch_layer.branch_excitation.K
+                    
+                    # Inhibitory branch (if present)
+                    if hasattr(branch_layer, 'branch_inhibition') and branch_layer.branch_inhibition is not None:
+                        if hasattr(branch_layer.branch_inhibition, 'K'):
+                            effective += branch_layer.branch_inhibition.out_features * branch_layer.branch_inhibition.K
+                    
+                    # Branches to output (BlockLinear - dense, so full params)
+                    if hasattr(branch_layer, 'branches_to_output') and branch_layer.branches_to_output is not None:
+                        effective += sum(p.numel() for p in branch_layer.branches_to_output.parameters())
+                    
+                    # Reactivation (if present)
+                    if hasattr(branch_layer, 'reactivation') and not isinstance(branch_layer.reactivation, nn.Identity):
+                        effective += sum(p.numel() for p in branch_layer.reactivation.parameters())
+        
+        return effective
+
 
 __all__ = ["ExcitationInhibitionNetwork"]

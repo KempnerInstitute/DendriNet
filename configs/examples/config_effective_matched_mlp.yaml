@@ -1,0 +1,64 @@
+# Example configuration for EffectiveMatchedParamMLP
+# This demonstrates the new sparse-matched MLP that accounts for TopK sparsity
+
+model:
+  task: classification
+  encoder_network:
+    type: identity
+    parameters: {}
+  core_network:
+    type: EffectiveMatchedParamMLP  # New sparse-matched MLP type
+    parameters:
+      # Same EINet parameters used for effective parameter calculation
+      input_dim: 784
+      excitatory_layer_sizes: [256, 128, 10]
+      inhibitory_layer_sizes: [128, 64]
+      excitatory_branch_factors: [4, 2]
+      inhibitory_branch_factors: [2, 1]
+      ee_synapses_per_branch_per_layer: [20, 10]
+      ei_synapses_per_branch_per_layer: [10, 5]
+      ie_synapses_per_branch_per_layer: [5, 3]
+      # MLP-specific parameters
+      activation: relu
+      reactivate: true
+      somatic_synapses: true
+  decoder_network:
+    type: identity
+    parameters: {}
+
+task:
+  dataset: mnist
+  data_path: ./data
+  parameters:
+    flatten: true
+
+train:
+  seed: 42
+  train_valid_split: 0.8
+  
+  main:
+    learning_strategy: standard
+    weight_decay_rate: 0.0001
+    
+    param_groups:
+      lr: 0.001
+      split_params: false
+    
+    trainer:
+      loss_function: cat_nll
+      epochs: 20
+      batch_size: 64
+      shuffle: true
+      grad_clip_value: 1.0
+
+outputs:
+  run_name: effective_matched_mlp_example
+  dir: results/
+
+# Analysis comparison with other models
+analysis:
+  performance_analysis:
+    enabled: true
+    params:
+      accuracy: true
+      auc: true 

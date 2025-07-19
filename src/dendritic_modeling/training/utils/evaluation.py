@@ -13,7 +13,7 @@ import torch.nn.functional as functional
 from torch.distributions import Categorical
 
 from dendritic_modeling.models import Classifier, Regressor
-from dendritic_modeling.utils.auc import roc_auc_score
+from dendritic_modeling.utils.math.auc import roc_auc_score
 from dendritic_modeling.utils.data import save_dict
 
 

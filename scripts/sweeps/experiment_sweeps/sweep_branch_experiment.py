@@ -20,6 +20,7 @@ from dendritic_modeling.training.factory import get_trainer
 from dendritic_modeling.training.optimizers import CustomWeightDecayOptimizer
 from dendritic_modeling.models import Classifier
 from dendritic_modeling.networks import ExcitationInhibitionNetwork, MatchedParamMLP
+from dendritic_modeling.networks.architectures.classical.mlp import EffectiveMatchedParamMLP
 from dendritic_modeling.plotting.utils import plot_activation_tuning
 from dendritic_modeling.datasets import get_unified_datasets
 from dendritic_modeling.training.utils.evaluation import evaluate_accuracy
@@ -42,6 +43,10 @@ def initialize_model(model_cfg):
     if task == "classification":
         if net_type == "MLP":
             net = MatchedParamMLP(**net_params)
+            output_dim = net_params.get("output_dim", 10)
+            return Classifier(net)
+        elif net_type == "EffectiveMatchedMLP":
+            net = EffectiveMatchedParamMLP(**net_params)
             output_dim = net_params.get("output_dim", 10)
             return Classifier(net)
         elif net_type == "EINet":
