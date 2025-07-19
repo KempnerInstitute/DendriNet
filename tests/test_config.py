@@ -23,7 +23,6 @@ from dendritic_modeling.config import (
     OutputsConfig,
     TaskConfig,
     TrainConfig,
-    VisualizationConfig,
     WandbConfig,
     load_config,
 )
@@ -157,9 +156,7 @@ class TestConfigDataclasses(unittest.TestCase):
             task=TaskConfig(dataset="mnist", data_path="", parameters={}),
             wandb=WandbConfig(entity="", project="test_project", use_wandb=False),
             outputs=OutputsConfig(dir="/tmp/outputs"),
-            visualization=VisualizationConfig(
-                enabled=False, visualize_epochs=[], plots=[]
-            ),
+            visualization=None, # VisualizationConfig(), # Comment out: from dendritic_modeling.config import VisualizationConfig
             analysis=AnalysisConfig(),
         )
 

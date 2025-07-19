@@ -980,7 +980,7 @@ def load_imagenet_as_datasets(
         tuple: (train_dataset, valid_dataset, test_dataset)
     """
     # Check if we have a direct path to existing ImageNet data
-    if task_data_path and os.path.exists(os.path.join(task_data_path, 'train')):
+    if task_data_path and os.path.exists(os.path.join(task_data_path, "train")):
         # Use the direct path if train directory exists
         imagenet_dir = task_data_path
     else:
@@ -994,12 +994,9 @@ def load_imagenet_as_datasets(
     if normalize:
         # ImageNet normalization values
         tf_list.append(
-            transforms.Normalize(
-                mean=[0.485, 0.456, 0.406], 
-                std=[0.229, 0.224, 0.225]
-            )
+            transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
         )
-    
+
     # Add resize transform for ImageNet
     tf_list.insert(0, transforms.Resize((224, 224)))
     transform = transforms.Compose(tf_list)
@@ -1007,44 +1004,44 @@ def load_imagenet_as_datasets(
     try:
         # Try to load ImageNet datasets
         train_dataset = datasets.ImageNet(
-            root=imagenet_dir, split='train', transform=transform
+            root=imagenet_dir, split="train", transform=transform
         )
         test_dataset = datasets.ImageNet(
-            root=imagenet_dir, split='val', transform=transform
+            root=imagenet_dir, split="val", transform=transform
         )
     except Exception as e:
         # If ImageNet is not available, create a warning and use a subset of data
         print(f"Warning: Could not load ImageNet from {imagenet_dir}: {e}")
         print("Creating dummy ImageNet-like dataset for testing...")
-        
+
         # Create dummy data with ImageNet dimensions
         if flatten:
             input_dim = 224 * 224 * 3  # 150528
         else:
             input_dim = (3, 224, 224)
-        
+
         # Create synthetic data with ImageNet-like properties
         train_size = 100000  # Smaller for testing
         test_size = 10000
-        
+
         if flatten:
             train_data = torch.randn(train_size, input_dim)
             test_data = torch.randn(test_size, input_dim)
         else:
             train_data = torch.randn(train_size, 3, 224, 224)
             test_data = torch.randn(test_size, 3, 224, 224)
-            
+
         train_labels = torch.randint(0, 1000, (train_size,))
         test_labels = torch.randint(0, 1000, (test_size,))
-        
+
         train_dataset = TensorDataset(train_data, train_labels)
         test_dataset = TensorDataset(test_data, test_labels)
 
     # Split training data into train and validation
-    if hasattr(train_dataset, '__len__'):
+    if hasattr(train_dataset, "__len__"):
         train_size = int(len(train_dataset) * train_valid_split)
         valid_size = len(train_dataset) - train_size
-        
+
         train_dataset, valid_dataset = torch.utils.data.random_split(
             train_dataset, [train_size, valid_size]
         )
@@ -1054,7 +1051,7 @@ def load_imagenet_as_datasets(
 
     # Convert to tensor datasets if needed and flatten if requested
     def process_dataset(dataset):
-        if flatten and hasattr(dataset, '__getitem__'):
+        if flatten and hasattr(dataset, "__getitem__"):
             # Convert to flattened tensor dataset
             data_list = []
             label_list = []
@@ -1067,12 +1064,12 @@ def load_imagenet_as_datasets(
                         data = data.view(-1)
                 data_list.append(data)
                 label_list.append(label)
-            
+
             if data_list:
                 data_tensor = torch.stack(data_list)
                 label_tensor = torch.tensor(label_list)
                 return TensorDataset(data_tensor, label_tensor)
-        
+
         return dataset
 
     if flatten:
@@ -1081,6 +1078,12 @@ def load_imagenet_as_datasets(
         test_dataset = process_dataset(test_dataset)
 
     return train_dataset, valid_dataset, test_dataset
+
+
+def generate_synthetic_data(num_samples=100, num_features=10):
+    data = torch.randn(num_samples, num_features)
+    labels = torch.randint(0, 2, (num_samples,))
+    return TensorDataset(data, labels)
 
 
 def get_unified_datasets(task_cfg, train_cfg, output_dir=None, outputs_cfg=None):

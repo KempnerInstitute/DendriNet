@@ -160,7 +160,7 @@ def collect_params_data(exp_dir):
                     ie_value = ie_values[0]
                 else:
                     ie_value = ie_values
-                
+
                 if isinstance(branch_factors, list) and len(branch_factors) == 1:
                     branch_factors = str(branch_factors[0])
                 else:
@@ -187,7 +187,7 @@ def collect_params_data(exp_dir):
                     f"Warning: Could not extract EE/IE values from {config_file}: {e}",
                     flush=True
                 )
-                print(f"Trying alternative structure...", flush=True)
+                print("Trying alternative structure...", flush=True)
 
                 # Try alternative paths
                 try:
@@ -340,7 +340,7 @@ def collect_results(exp_dir):
                 # Extract seed
                 if hasattr(config.train, "seed"):
                     data["seed"] = config.train.seed
-            
+
             except Exception as e:
                 print(
                     f"Error extracting parameters from config for task {task_id}: {e}",
@@ -352,15 +352,15 @@ def collect_results(exp_dir):
             for root, dirs, files in os.walk(config_path):
                 if "nparams" in files:
                     nparams_file = os.path.join(root, "nparams")
-                    with open(nparams_file, "r") as f:
+                    with open(nparams_file) as f:
                         content = f.read()
                     content: dict = json.loads(content)
                     for key, value in content.items():
                         data[f"{key}"] = value
-                
+
                 if "performance" in dirs:
                     perf_file = os.path.join(root, "performance", "final")
-                    with open(perf_file, "r") as f:
+                    with open(perf_file) as f:
                         content = f.read()
                     content: dict = json.loads(content)
                     for key, value in content.items():
@@ -369,10 +369,10 @@ def collect_results(exp_dir):
                                 data[f"{k} {key}"] = v
                         else:
                             data[key] = value
-                
+
                 if "ei_info_analysis" in dirs:
                     ei_info_file = os.path.join(root, "ei_info_analysis", "final")
-                    with open(ei_info_file, "r") as f:
+                    with open(ei_info_file) as f:
                         content = f.read()
                     content: dict = json.loads(content)
                     for key, value in content.items():
@@ -384,7 +384,7 @@ def collect_results(exp_dir):
 
                 if "noise_perturbation_analysis" in dirs:
                     noise_file = os.path.join(root, "noise_perturbation_analysis", "final")
-                    with open(noise_file, "r") as f:
+                    with open(noise_file) as f:
                         content = f.read()
                     content: dict = json.loads(content)
                     for noise_type, noise_dict in content.items():
@@ -413,7 +413,7 @@ def collect_results(exp_dir):
 
                 if "ablation_analysis" in dirs:
                     ablation_file = os.path.join(root, "ablation_analysis", "final")
-                    with open(ablation_file, "r") as f:
+                    with open(ablation_file) as f:
                         content = f.read()
                     content: dict = json.loads(content)
                     for ablation_type, ablation_dict in content.items():
@@ -450,10 +450,10 @@ def collect_results(exp_dir):
         except Exception as e:
             print(f"Error processing config folder for task {task_id}: {e}", flush=True)
             missing_data.append(
-                {"task_id": task_id, "reason": f"Error: {str(e)}", "status": "error"}
+                {"task_id": task_id, "reason": f"Error: {e!s}", "status": "error"}
             )
 
-    print(f"Finished processing all config folders.", flush=True)
+    print("Finished processing all config folders.", flush=True)
     print(f"Collected results for {len(results_data)} tasks.", flush=True)
 
     # Create DataFrames
@@ -515,7 +515,7 @@ def generate_plots(results_df, output_dir, base_name):
                     break
             if skip:
                 print(
-                    f"Skipping {metric_mapping[metric]} plot - no valid data", 
+                    f"Skipping {metric_mapping[metric]} plot - no valid data",
                     flush=True
                 )
                 continue
@@ -608,7 +608,7 @@ def generate_plots(results_df, output_dir, base_name):
     if not valid_data.empty:
         noise_ei_plot_dir = os.path.join(plot_dir, "noise_vs_ei_ratio_plots")
         os.makedirs(noise_ei_plot_dir, exist_ok=True)
-        
+
         noise_mapping = {
             'uniform': 'Uniform',
             'gaussian': 'Gaussian'
@@ -703,11 +703,11 @@ def generate_plots(results_df, output_dir, base_name):
 
             fig, ax = plt.subplots(figsize=(10, 8))
             sns.heatmap(
-                heatmap_pivot, 
-                cmap="bwr_r", 
+                heatmap_pivot,
+                cmap="bwr_r",
                 center=0,
-                annot=False, 
-                ax=ax, 
+                annot=False,
+                ax=ax,
                 cbar_kws={"label": f"{metric_mapping[metric]} Difference (Shunting - Non-Shunting)"}
             )
             ax.invert_yaxis()
@@ -722,7 +722,7 @@ def generate_plots(results_df, output_dir, base_name):
             ax.tick_params(axis='both', labelsize=12)
             fig.tight_layout()
             fig.savefig(os.path.join(
-                noise_ei_plot_dir, 
+                noise_ei_plot_dir,
                 f"{noise_type}_{metric}_noise_heatmap.png"
             ))
             plt.close(fig)
@@ -742,31 +742,31 @@ def generate_plots(results_df, output_dir, base_name):
                 shunt_std = np.array(plot_data["ei_ratio"][ei_ratio]["shunting"]["std"])
 
                 ax.plot(
-                    plot_data["noise_level"], 
-                    shunt_mean, 
+                    plot_data["noise_level"],
+                    shunt_mean,
                     "-",
-                    color=color, 
+                    color=color,
                 )
                 ax.fill_between(
-                    plot_data["noise_level"], 
+                    plot_data["noise_level"],
                     shunt_mean - shunt_std,
                     shunt_mean + shunt_std,
                     color=color,
                     alpha=0.2,
                 )
-            
+
             for ei_ratio, color in zip(plot_data["ei_ratio"], no_shunt_colors):
                 no_shunt_mean = np.array(plot_data["ei_ratio"][ei_ratio]["no_shunting"]["mean"])
                 no_shunt_std = np.array(plot_data["ei_ratio"][ei_ratio]["no_shunting"]["std"])
 
                 ax.plot(
-                    plot_data["noise_level"], 
-                    no_shunt_mean, 
+                    plot_data["noise_level"],
+                    no_shunt_mean,
                     "-",
-                    color=color, 
+                    color=color,
                 )
                 ax.fill_between(
-                    plot_data["noise_level"], 
+                    plot_data["noise_level"],
                     no_shunt_mean - no_shunt_std,
                     no_shunt_mean + no_shunt_std,
                     color=color,
@@ -783,17 +783,17 @@ def generate_plots(results_df, output_dir, base_name):
             ax.tick_params(axis='both', labelsize=12)
             fig.tight_layout()
             fig.savefig(os.path.join(
-                noise_ei_plot_dir, 
+                noise_ei_plot_dir,
                 f"{noise_type}_{metric}_noise_plot.png"
             ))
             plt.close(fig)
-    
+
     #### PLOT ABLATION VS E/I RATIO CURVES
 
     # if not valid_data.empty:
     #     ablation_ei_plot_dir = os.path.join(plot_dir, "ablation_vs_ei_ratio_plots")
     #     os.makedirs(ablation_ei_plot_dir, exist_ok=True)
-        
+
     #     ablation_mapping = {
     #         "all synapses": "All Synapses",
     #         "excitation": "Excitation",
@@ -913,23 +913,23 @@ def generate_plots(results_df, output_dir, base_name):
 
     #         fig, ax = plt.subplots(ncols=2, figsize=(14, 8))
     #         sns.heatmap(
-    #             shunt_heatmap_pivot, 
-    #             cmap="viridis", 
+    #             shunt_heatmap_pivot,
+    #             cmap="viridis",
     #             vmin=vmin,
     #             vmax=vmax,
-    #             annot=False, 
-    #             # fmt=".2f", 
-    #             ax=ax[0], 
+    #             annot=False,
+    #             # fmt=".2f",
+    #             ax=ax[0],
     #             cbar_kws={"label": f"Shunting {metric_mapping[metric]}"}
     #         )
     #         sns.heatmap(
-    #             no_shunt_heatmap_pivot, 
-    #             cmap="viridis", 
+    #             no_shunt_heatmap_pivot,
+    #             cmap="viridis",
     #             vmin=vmin,
     #             vmax=vmax,
-    #             annot=False, 
-    #             # fmt=".2f", 
-    #             ax=ax[1], 
+    #             annot=False,
+    #             # fmt=".2f",
+    #             ax=ax[1],
     #             cbar_kws={"label": f"Non-Shunting {metric_mapping[metric]}"}
     #         )
     #         ax[0].invert_yaxis()
@@ -951,12 +951,12 @@ def generate_plots(results_df, output_dir, base_name):
     #         )
     #         ax[1].tick_params(axis='both', labelsize=12)
     #         fig.suptitle(
-    #             f"{ablation_mapping[ablation_type]} Ablation versus E/I Ratio", 
+    #             f"{ablation_mapping[ablation_type]} Ablation versus E/I Ratio",
     #             fontsize=14
     #         )
     #         fig.tight_layout()
     #         fig.savefig(os.path.join(
-    #             ablation_ei_plot_dir, 
+    #             ablation_ei_plot_dir,
     #             f"{ablation_type}_{metric}_ablation_heatmap.png"
     #         ))
     #         plt.close(fig)
@@ -993,7 +993,7 @@ def generate_plots(results_df, output_dir, base_name):
                     break
             if skip:
                 print(
-                    f"Skipping {metric_mapping[metric]} plot - no valid data", 
+                    f"Skipping {metric_mapping[metric]} plot - no valid data",
                     flush=True
                 )
                 continue
@@ -1048,7 +1048,7 @@ def generate_plots(results_df, output_dir, base_name):
                     color=color,
                     alpha=0.2
                 )
-            
+
                 for i, row in (
                     category_data.groupby(["branch_factors", "nparams"])[f"{metric}_mean"]
                     .mean()
@@ -1101,13 +1101,13 @@ def generate_plots(results_df, output_dir, base_name):
         )
     else:
         print("No valid data for metric vs branch factor plots.", flush=True)
-            
+
     #### PLOT NOISE PERTURBATION VS NPARAMS CURVES
 
     if not valid_data.empty and "nparams" in valid_data.columns:
         noise_bf_plot_dir = os.path.join(plot_dir, "noise_vs_nparams_plots")
         os.makedirs(noise_bf_plot_dir, exist_ok=True)
-        
+
         noise_mapping = {
             'uniform': 'Uniform',
             'gaussian': 'Gaussian'
@@ -1192,7 +1192,7 @@ def generate_plots(results_df, output_dir, base_name):
                     plot_data["nparams"][nparams]["no_shunting"]["std"].append(
                         no_shunting_df[no_shunting_df["nparams"] == nparams][std_col].iloc[0]
                     )
-            
+
             heatmap_df = pd.DataFrame(heatmap_data)
             heatmap_pivot = heatmap_df.pivot(
                 index="noise_level",
@@ -1202,12 +1202,12 @@ def generate_plots(results_df, output_dir, base_name):
 
             fig, ax = plt.subplots(figsize=(10, 8))
             sns.heatmap(
-                heatmap_pivot, 
-                cmap="bwr_r", 
+                heatmap_pivot,
+                cmap="bwr_r",
                 center=0,
-                annot=False, 
-                # fmt=".2f", 
-                ax=ax, 
+                annot=False,
+                # fmt=".2f",
+                ax=ax,
                 cbar_kws={"label": f"{metric_mapping[metric]} Difference (Shunting - Non-Shunting)"}
             )
             ax.invert_yaxis()
@@ -1225,7 +1225,7 @@ def generate_plots(results_df, output_dir, base_name):
             ax.tick_params(axis='both', labelsize=12)
             fig.tight_layout()
             fig.savefig(os.path.join(
-                noise_bf_plot_dir, 
+                noise_bf_plot_dir,
                 f"{noise_type}_{metric}_noise_heatmap.png"
             ))
             plt.close(fig)
@@ -1245,31 +1245,31 @@ def generate_plots(results_df, output_dir, base_name):
                 shunt_std = np.array(plot_data["nparams"][nparams]["shunting"]["std"])
 
                 ax.plot(
-                    plot_data["noise_level"], 
-                    shunt_mean, 
+                    plot_data["noise_level"],
+                    shunt_mean,
                     "-",
-                    color=color, 
+                    color=color,
                 )
                 ax.fill_between(
-                    plot_data["noise_level"], 
+                    plot_data["noise_level"],
                     shunt_mean - shunt_std,
                     shunt_mean + shunt_std,
                     color=color,
                     alpha=0.2,
                 )
-            
+
             for nparams, color in zip(plot_data["nparams"], no_shunt_colors):
                 no_shunt_mean = np.array(plot_data["nparams"][nparams]["no_shunting"]["mean"])
                 no_shunt_std = np.array(plot_data["nparams"][nparams]["no_shunting"]["std"])
 
                 ax.plot(
-                    plot_data["noise_level"], 
-                    no_shunt_mean, 
+                    plot_data["noise_level"],
+                    no_shunt_mean,
                     "-",
-                    color=color, 
+                    color=color,
                 )
                 ax.fill_between(
-                    plot_data["noise_level"], 
+                    plot_data["noise_level"],
                     no_shunt_mean - no_shunt_std,
                     no_shunt_mean + no_shunt_std,
                     color=color,
@@ -1286,7 +1286,7 @@ def generate_plots(results_df, output_dir, base_name):
             ax.tick_params(axis='both', labelsize=12)
             fig.tight_layout()
             fig.savefig(os.path.join(
-                noise_bf_plot_dir, 
+                noise_bf_plot_dir,
                 f"{noise_type}_{metric}_noise_plot.png"
             ))
             plt.close(fig)
@@ -1296,7 +1296,7 @@ def aggregate_results(cleaned_results):
     """Produce mean and std of metrics over seeds and samples"""
 
     arch_cols = [
-        "ee_value", "ie_value", "ei_ratio", 
+        "ee_value", "ie_value", "ei_ratio",
         "branch_factors", "use_shunting", "network_category"
     ]
     if "nparams" in cleaned_results.columns:
@@ -1325,7 +1325,7 @@ def aggregate_results(cleaned_results):
         for noise_type, metric, noise_level in noise_patterns:
             pattern_cols = [col for col in noise_cols if
                             f"noise_{noise_type}_{metric}_{noise_level}" in col]
-            
+
             values = group[pattern_cols].values.flatten()
             row[f"noise_{noise_type}_{metric}_{noise_level}_mean"] = np.mean(values)
             row[f"noise_{noise_type}_{metric}_{noise_level}_std"] = np.std(values)
@@ -1336,7 +1336,7 @@ def aggregate_results(cleaned_results):
             row[f"{col}_std"] = np.std(values)
 
         results.append(row)
-    
+
     agg_results = pd.DataFrame(results)
 
     new_metric_cols = []
@@ -1348,7 +1348,7 @@ def aggregate_results(cleaned_results):
         [col for col in agg_results.columns if col not in arch_cols + new_metric_cols]
     )
     agg_results = agg_results[cols]
-    
+
     return agg_results
 
 
@@ -1370,7 +1370,7 @@ def main():
     if results_df.empty:
         print("No results found. Check if the experiment directory is correct.", flush=True)
         return
-    
+
     # Clean and process the results data
     print("Processing results data...", flush=True)
     clean_results = clean_results_data(results_df)
@@ -1400,7 +1400,7 @@ def clean_results_data(results_df):
     clean_df = results_df.copy()
 
     # Print initial data diagnostic
-    print(f"\nInitial data in clean_results_data:", flush=True)
+    print("\nInitial data in clean_results_data:", flush=True)
     print(f"Total rows: {len(clean_df)}", flush=True)
     print(
         f"Data types: ee_value: {clean_df['ee_value'].dtype}, ie_value: {clean_df['ie_value'].dtype}",
@@ -1447,7 +1447,7 @@ def clean_results_data(results_df):
             clean_df[col] = clean_df[col].apply(extract_first)
 
     # Print after conversion
-    print(f"\nAfter conversion:", flush=True)
+    print("\nAfter conversion:", flush=True)
     print(
         f"Data types: ee_value: {clean_df['ee_value'].dtype}, ie_value: {clean_df['ie_value'].dtype}",
         flush=True
@@ -1489,7 +1489,7 @@ def clean_results_data(results_df):
         ] = "no_shunting"
 
     # Print diagnostics about the cleaned data
-    print(f"\nCleaned data summary:", flush=True)
+    print("\nCleaned data summary:", flush=True)
     print(f"Total rows: {len(clean_df)}", flush=True)
     if "network_category" in clean_df.columns and len(clean_df) > 0:
         for category in clean_df["network_category"].unique():

@@ -5,8 +5,7 @@ This module contains classes for evaluating model performance by systematically
 disabling or ablating different network components to understand their contributions.
 """
 
-from copy import deepcopy
-from typing import Callable, Optional
+from typing import Optional
 
 import torch
 from torch.utils.data import TensorDataset
@@ -23,10 +22,14 @@ from dendritic_modeling.training.utils.evaluation import (
     evaluate_mse,
 )
 from dendritic_modeling.utils import save_dict
+from copy import deepcopy
 
 
 class AblationAnalyzer:
+    """Analyzer for performing ablation studies on model components."""
+
     def __init__(self, params: AblationAnalysisParams):
+        """Initialize with ablation parameters."""
         self.layer_ablation = getattr(params, "layer_ablation", False)
         self.compartment_ablation = getattr(params, "compartment_ablation", False)
         self.ablate_all_synapses = getattr(params, "ablate_all_synapses", False)
@@ -50,6 +53,7 @@ class AblationAnalyzer:
         results_dict: dict,
         state_dict: dict,
     ):
+        """Ablate a single layer and evaluate its impact."""
         results_dict[ablation_type][module_name] = {}
         results_dict[ablation_type][module_name]["depth"] = module.layer_idx
 
@@ -75,7 +79,7 @@ class AblationAnalyzer:
         if self.categorical_ll:
             _evaluate_metric(
                 metric_func=evaluate_categorical_loglikelihood,
-                metric_key="log likelihood",
+                metric_key="categorical_loglikelihood",
             )
         if self.mse:
             _evaluate_metric(metric_func=evaluate_mse, metric_key="mse")
@@ -99,6 +103,7 @@ class AblationAnalyzer:
         results_dict: dict,
         state_dict: dict,
     ):
+        """Ablate a single compartment and evaluate its impact."""
         results_dict[ablation_type][module_name] = {}
         results_dict[ablation_type][module_name]["depth"] = module.layer_idx
 
@@ -151,7 +156,7 @@ class AblationAnalyzer:
             if self.categorical_ll:
                 _evaluate_metric(
                     metric_func=evaluate_categorical_loglikelihood,
-                    metric_key="log likelihood",
+                    metric_key="categorical_loglikelihood",
                     metric_list=loglikelihood_list,
                 )
             if self.mse:
@@ -173,7 +178,7 @@ class AblationAnalyzer:
             results_dict[ablation_type][module_name]["auc drop"] = auc_list
         if self.categorical_ll:
             results_dict[ablation_type][module_name][
-                "log likelihood drop"
+                "categorical_loglikelihood drop"
             ] = loglikelihood_list
         if self.mse:
             results_dict[ablation_type][module_name]["mse drop"] = mse_list
@@ -192,6 +197,7 @@ class AblationAnalyzer:
         save_path: Optional[str] = None,
         filename: str = "final",
     ):
+        """Perform ablation analysis and return results."""
         try:
             assert isinstance(model.core_network, ExcitationInhibitionNetwork)
         except AssertionError:
@@ -216,7 +222,7 @@ class AblationAnalyzer:
                 classifier=model, test_ds=test_dataset, move_device=False
             )[-1]
         if self.categorical_ll:
-            baselines["log likelihood"] = evaluate_categorical_loglikelihood(
+            baselines["categorical_loglikelihood"] = evaluate_categorical_loglikelihood(
                 classifier=model, test_ds=test_dataset, move_device=False
             )[-1]
         if self.mse:
@@ -379,18 +385,4 @@ class AblationAnalyzer:
 
         if save_path is not None:
             save_dict(results, save_path, filename)
-            if self.layer_ablation:
-                import logging
-                logging.info(f"Generating ablation plots. Save path: {save_path}, filename: {filename}")
-                logging.info(f"Layer results keys: {list(layer_results.keys())}")
-                # Import plotting function
-                from dendritic_modeling.plotting.ablation_plots import (
-                    plot_layer_ablation,
-                )
-
-                plot_layer_ablation(
-                    layer_results=layer_results, save_path=save_path, filename=filename
-                )
-                logging.info("Ablation plot generation completed")
-        else:
-            return results
+        return results

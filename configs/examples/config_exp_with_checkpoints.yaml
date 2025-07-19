@@ -1,0 +1,96 @@
+# Example configuration demonstrating checkpoint saving functionality
+# This works with both train_experiments.py and train_experiment_fstp.py
+
+model:
+  task: classification
+  encoder_network:
+    type: Identity
+    parameters: {}
+  core_network:
+    type: EINet
+    parameters:
+      transfer_params:
+        input_mode: 1
+        independent_pathways: true
+      excitatory_layer_sizes: [1024, 512, 256]
+      inhibitory_layer_sizes: [256, 128, 64]
+      excitatory_branch_factors: [4, 3, 2]
+      inhibitory_branch_factors: [2, 2, 2]
+      ee_synapses_per_branch_per_layer: [50, 30, 20]
+      ei_synapses_per_branch_per_layer: [20, 15, 10]
+      ie_synapses_per_branch_per_layer: [40, 25, 15]
+      ii_synapses_per_branch_per_layer: [15, 10, 5]
+      reactivate: true
+      somatic_synapses: true
+      topk_init_method: "xavier_normal"
+      topk_noise_level: 0.2
+      topk_strategy: "standard"
+      reactivation_type: "param_tanh"
+      reactivation_strategy: "inverse"
+      blocklinear_strategy: "block_conductance_dynamic"
+      use_shunting: true
+  decoder_network:
+    type: MLP
+    parameters:
+      hidden_dims: [1024, 512]
+      output_dim: 10
+      activation: relu
+      dropout: 0.0
+      norm_type: layer
+
+task:
+  dataset: cifar10
+  data_path: /n/netscratch/kempner_dev/hsafaai/data
+  parameters: {flatten: true, normalize: false}
+
+train:
+  seed: 42
+  train_valid_split: 0.8
+  
+  main:
+    learning_strategy: standard
+    weight_decay_rate: 0.01
+    
+    trainer:
+      type: standard  # or "fsdp" for FSDP training
+      loss_function: cat_nll
+      batch_size: 500
+      epochs: 100
+      optimizer: adamw
+      scheduler: cosine
+      warmup_epochs: 5
+      grad_clip_value: 5.0
+      early_stopping: false
+      patience: 10
+      shuffle: true
+      load_best_state_dict: true
+      plot_losses: true
+      suppress_prints: false
+      print_every: 10
+      
+      # NEW CHECKPOINT CONFIGURATION
+      save_every_n_epochs: 10  # Save checkpoint every 10 epochs
+      
+    param_groups:
+      lr: 0.001
+      split_params: true
+      topk_lr: 0.001
+      blocklinear_lr: 0.0001
+      reactivation_lr: 0.0001
+      decoder_lr: 0.001
+
+# Visualization configuration
+visualization:
+  enabled: false
+
+# Weights & Biases configuration
+wandb:
+  use_wandb: false
+  entity: ""
+  project: "dendritic-modeling-checkpoints"
+  group: "checkpoint-example"
+  tags: ["checkpoint", "example"]
+
+# Output configuration
+outputs:
+  dir: "./results" 

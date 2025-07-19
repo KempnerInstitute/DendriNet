@@ -34,7 +34,6 @@ os.environ["TF_ENABLE_ONEDNN_OPTS"] = "0"  # Disable oneDNN optimizations warnin
 
 import argparse
 import logging
-import traceback
 from dataclasses import asdict
 from datetime import datetime
 
@@ -55,10 +54,6 @@ from dendritic_modeling import logger, logger_manager
 from dendritic_modeling.analysis import AnalysisManager
 from dendritic_modeling.config import (
     ModelConfig,
-    OutputsConfig,
-    TaskConfig,
-    TrainConfig,
-    WandbConfig,
     load_config,
 )
 from dendritic_modeling.datasets import get_unified_datasets
@@ -67,7 +62,7 @@ from dendritic_modeling.networks import Identity
 from dendritic_modeling.networks.architectures.factory import get_architecture
 from dendritic_modeling.scripts.train_encoder_network import load_train_encoder_network
 from dendritic_modeling.training import CustomWeightDecayOptimizer, get_trainer
-from dendritic_modeling.utils import save_dict, set_seed, validate_config
+from dendritic_modeling.utils import save_dict, validate_config, set_seed
 
 
 def initialize_model(model_config: ModelConfig):
@@ -134,10 +129,14 @@ def setup_environment(
     Set up the environment for training.
     """
     # Set random seed
-    set_random_seed(train_config.seed)
+    set_seed(train_config.seed)
 
     # Create run directory using run_config.dir if available, fallback to outputs_config.dir
-    output_dir = run_config.dir if run_config and hasattr(run_config, 'dir') else outputs_config.dir
+    output_dir = (
+        run_config.dir
+        if run_config and hasattr(run_config, "dir")
+        else outputs_config.dir
+    )
     run_id = f"{train_config.run_name}_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
     run_save_path = os.path.join(output_dir, run_id)
 
@@ -214,14 +213,14 @@ def main(config_path: str, args=None):
 
     # Validate configuration before proceeding
     logger.info("Validating configuration...")
-    
+
     # Convert config to dict for validation
-    config_dict = asdict(config) if hasattr(config, '__dataclass_fields__') else config
-    
+    config_dict = asdict(config) if hasattr(config, "__dataclass_fields__") else config
+
     if not validate_config(config_dict):
         logger.error("Configuration validation failed. Please fix the errors above.")
         raise ValueError("Invalid configuration")
-    
+
     logger.info("Configuration validation passed")
 
     if args:
@@ -230,7 +229,7 @@ def main(config_path: str, args=None):
             logger.info(f"Override learning strategy: {args.learning_strategy}")
         if args.output_dir:
             # Override run_config.dir if it exists, otherwise create run_config
-            if hasattr(config, 'run_config') and config.run_config:
+            if hasattr(config, "run_config") and config.run_config:
                 config.run_config.dir = args.output_dir
             else:
                 # For backwards compatibility, still update outputs.dir if run_config doesn't exist
@@ -246,7 +245,7 @@ def main(config_path: str, args=None):
     wandb_config = config.wandb
     analysis_config = config.analysis
     outputs_config = config.outputs
-    run_config = getattr(config, 'run_config', None)
+    run_config = getattr(config, "run_config", None)
 
     (run_save_path, train_ds, valid_ds, test_ds, model, encoder_network) = (
         setup_environment(
@@ -326,6 +325,16 @@ def main(config_path: str, args=None):
     main_trainer_config_dict = OmegaConf.to_container(
         main_train_config.trainer, resolve=True
     )
+
+    # Add checkpoint configuration if specified
+    if (
+        hasattr(main_train_config.trainer, "save_every_n_epochs")
+        and main_train_config.trainer.save_every_n_epochs is not None
+    ):
+        main_trainer_config_dict["save_every_n_epochs"] = (
+            main_train_config.trainer.save_every_n_epochs
+        )
+        main_trainer_config_dict["checkpoint_dir"] = run_save_path
 
     optimizer = CustomWeightDecayOptimizer(
         model=model,

@@ -13,8 +13,6 @@ import argparse
 import glob
 import os
 import re
-from collections import defaultdict
-from pathlib import Path
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -80,7 +78,7 @@ def load_metadata(metadata_file):
             metadata = OmegaConf.load(metadata_file)
             return OmegaConf.to_container(metadata)
         else:
-            with open(metadata_file, "r") as f:
+            with open(metadata_file) as f:
                 return yaml.safe_load(f)
     except Exception as e:
         print(f"[ERROR] Failed to load metadata file: {e}")
@@ -286,7 +284,7 @@ def create_comparison_plots(
     """
     os.makedirs(output_dir, exist_ok=True)
 
-    if not param_name in df.columns:
+    if param_name not in df.columns:
         print(f"[WARNING] Parameter {param_name} not found in data")
         return
 
@@ -518,7 +516,7 @@ def main(args):
 
     if metadata is None:
         print(
-            f"[WARNING] No metadata available, proceeding without parameter information"
+            "[WARNING] No metadata available, proceeding without parameter information"
         )
 
     # Find performance files
@@ -531,20 +529,20 @@ def main(args):
         return
 
     # Load performance data
-    print(f"[INFO] Loading performance data")
+    print("[INFO] Loading performance data")
     perf_df = load_performance_data(performance_files, args.results_dir)
 
     # Try to map job IDs to config settings from metadata
     if metadata:
-        print(f"[INFO] Mapping job IDs to config settings")
+        print("[INFO] Mapping job IDs to config settings")
         perf_df = map_configs_to_metadata(perf_df, metadata)
 
     # Save the raw data
-    print(f"[INFO] Saving raw performance data")
+    print("[INFO] Saving raw performance data")
     perf_df.to_csv(os.path.join(args.output_dir, "performance_data.csv"), index=False)
 
     # Analyze which parameters affected performance most
-    print(f"[INFO] Analyzing parameter importance")
+    print("[INFO] Analyzing parameter importance")
     param_importance = analyze_parameter_importance(perf_df, args.metric)
     param_importance.to_csv(
         os.path.join(args.output_dir, "parameter_importance.csv"), index=False

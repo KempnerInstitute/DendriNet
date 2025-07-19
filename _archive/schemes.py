@@ -18,7 +18,7 @@ from torch.utils.data import DataLoader
 from dendritic_modeling import logger
 
 
-class TrainerMLE(object):
+class TrainerMLE:
     def __init__(self, optimizer, suppress_prints=False, print_every=10):
         # optimizer: optimizer object used during training
         self.optimizer = optimizer

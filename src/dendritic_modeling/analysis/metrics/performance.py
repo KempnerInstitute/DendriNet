@@ -21,8 +21,6 @@ from dendritic_modeling.training.utils.evaluation import (
 )
 from dendritic_modeling.utils import save_dict
 
-import os
-import logging
 
 
 class PerformanceAnalyzer:
@@ -122,43 +120,4 @@ class PerformanceAnalyzer:
 
         if save_path is not None:
             save_dict(results, save_path, filename)
-
-            # Generate performance plots
-            try:
-                import matplotlib.pyplot as plt
-                from dendritic_modeling.plotting.base import BarPlotter, PlotConfig
-
-                plot_save_path = os.path.join(save_path, "plots")
-                os.makedirs(plot_save_path, exist_ok=True)
-
-                # Create bar plot of metrics across datasets
-                config = PlotConfig()
-                plotter = BarPlotter(config)
-
-                for metric_name, metric_values in results.items():
-                    if isinstance(metric_values, dict) and len(metric_values) > 0:
-                        fig, ax = plt.subplots(figsize=(10, 6))
-
-                        datasets = list(metric_values.keys())
-                        values = list(metric_values.values())
-
-                        bars = ax.bar(datasets, values)
-                        ax.set_xlabel("Dataset")
-                        ax.set_ylabel(metric_name.replace("_", " ").title())
-                        ax.set_title(f"Performance: {metric_name.replace('_', ' ').title()}")
-
-                        # Add value labels on bars
-                        for bar, val in zip(bars, values):
-                            height = bar.get_height()
-                            ax.text(bar.get_x() + bar.get_width()/2., height,
-                                   f'{val:.3f}', ha='center', va='bottom')
-
-                        plt.tight_layout()
-                        plot_path = os.path.join(plot_save_path, f"{filename}_{metric_name}.png")
-                        plt.savefig(plot_path, dpi=300, bbox_inches='tight')
-                        plt.close()
-
-            except Exception as e:
-                logging.warning(f"Could not generate performance plots: {e}")
-        else:
-            return results
+        return results

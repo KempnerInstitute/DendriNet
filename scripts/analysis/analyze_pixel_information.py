@@ -84,7 +84,7 @@ def load_data(dataset_name, config_file_path):
     if not os.path.exists(config_file_path):
         raise FileNotFoundError(f"Config file not found: {config_file_path}")
 
-    with open(config_file_path, "r") as f:
+    with open(config_file_path) as f:
         config = yaml.safe_load(f)
 
     task_cfg = config.get("task", {})

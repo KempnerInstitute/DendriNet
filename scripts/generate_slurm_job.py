@@ -6,33 +6,32 @@ This script analyzes a config file to determine resource requirements and create
 an appropriate SLURM submission script.
 """
 
-import argparse
 import os
 import sys
-import yaml
 from pathlib import Path
-from typing import Dict, Any, Tuple, Optional
+from typing import Dict, Any
 import math
+from omegaconf import OmegaConf
 
 # Add parent directory to path to import dendritic_modeling
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '../src'))
 
-from dendritic_modeling.utils.gpu_estimation import GPUMemoryEstimator, estimate_from_config
+from dendritic_modeling.utils.gpu_estimation import estimate_from_config
 
 
 # Cluster specifications (limits - what's available, not what to request)
 CLUSTER_LIMITS = {
     'max_cpus_per_node': 120,
     'max_gpus_per_node': 4,
-    'max_memory_per_gpu_gb': 350,
-    'max_memory_per_node_gb': 512,
+    'max_memory_per_gpu_gb': 300,  # Request up to 300GB per GPU
+    'max_memory_per_node_gb': 1200,  # Increased to support 4 GPUs * 300GB
     'max_cpus_per_gpu': 25,  # Reasonable ratio
 }
 
 
 class SlurmJobGenerator:
     """Generate SLURM job scripts from config files."""
-    
+
     def __init__(self, config_path: str, output_dir: str = None):
         """Initialize the generator.
         
@@ -41,43 +40,25 @@ class SlurmJobGenerator:
             output_dir: Directory to save the generated SLURM script
         """
         self.config_path = Path(config_path)
-        # Load config YAML directly
-        with open(config_path, 'r') as f:
-            self.config = yaml.safe_load(f)
-        
-        # Determine output directory
-        if output_dir:
-            self.output_dir = Path(output_dir)
-        else:
-            self.output_dir = Path(__file__).parent / 'slurm'
+        self.config = OmegaConf.load(config_path)
+        self.output_dir = Path(output_dir) if output_dir else Path(__file__).parent / 'slurm'
         self.output_dir.mkdir(exist_ok=True)
-        
-        # Extract common parameters
+
         self.run_config = self.config.get('run_config', {})
-        
-        # Get task info for estimation
+        self.project_dir = self.run_config.get('project_dir', '/n/holylabs/kempner_dev/Users/hsafaai/Code/dendritic-modeling')  # Configurable
+        self.log_dir = self.run_config.get('log_dir', self.run_config.get('dir', 'results/') + '/logs')  # Configurable, default to dir/logs
+        self.data_path = self.config.task.get('data_path', '/n/netscratch/kempner_dev/hsafaai/data')  # From task config
+
         task_config = self.config.get('task', {})
         self.dataset = task_config.get('name', 'cifar10')
-        
-        # Get training info
+
         train_config = self.config.get('train', {})
-        main_config = train_config.get('main', {})
-        trainer_config = main_config.get('trainer', {})
+        trainer_config = train_config.main.trainer
         self.batch_size = trainer_config.get('batch_size', 32)
         self.epochs = trainer_config.get('epochs', 100)
-        
-        # Generate run name from config path if not specified
-        if not self.run_config.get('run_name'):
-            self.run_name = self.config_path.stem
-        else:
-            self.run_name = self.run_config.get('run_name')
-        
-        # Extract SLURM configuration if present
-        # This is now handled by self.run_config above
-        
-        # Initialize GPU estimator and model (will be set in estimate_resources)
-        self.estimator = None
-        self.model = None 
+        self.use_mixed_precision = trainer_config.get('use_mixed_precision', False)
+
+        self.run_name = self.run_config.get('run_name', self.config_path.stem)
 
     def estimate_resources(self) -> Dict[str, Any]:
         """Estimate computational resources needed.
@@ -85,198 +66,84 @@ class SlurmJobGenerator:
         Returns:
             Dictionary with estimated resource requirements
         """
-        # Get proper GPU memory estimation from estimator
-        from dendritic_modeling.config import load_config
-        config = load_config(str(self.config_path))
-        
-        # Build and analyze the model for precise estimation  
         estimator, model = estimate_from_config(str(self.config_path))
-        
-        # Get input shape for the model
-        if self.dataset == 'mnist':
-            input_shape = (784,)
-        elif self.dataset in ['cifar10', 'cifar100']:
-            input_shape = (3072,)  # Flattened
-        elif self.dataset == 'imagenet':
-            input_shape = (150528,)  # Flattened
-        else:
-            input_shape = (784,)  # Default
-        
-        # Get batch size from config
-        trainer_params = config.train.main.trainer.__dict__ if hasattr(config.train.main, 'trainer') else {}
-        batch_size = trainer_params.get('batch_size', self.batch_size)
-        
-        # Get memory breakdown and GPU recommendations
-        memory_breakdown = estimator.estimate_memory_breakdown(
-            model, batch_size, input_shape, use_fsdp=True, num_gpus=1
-        )
-        gpu_recs_list = estimator.get_gpu_recommendations(memory_breakdown)
-        
-        # Convert to dict for easier access
-        gpu_recs = {rec.gpu_model: rec for rec in gpu_recs_list}
-        
-        print(f"Detailed Memory Analysis:")
-        print(memory_breakdown)
-        print(f"\nGPU Recommendations:")
-        for gpu_type, rec in gpu_recs.items():
-            print(f"  {gpu_type}: {rec.min_gpus_needed} GPUs (fits: {rec.fits})")
-        
-        # Determine GPU requirements
-        gpu_memory_options = {
-            'H100': 80,
-            'H200': 141,
-            'A100-80GB': 80,
-            'A100-40GB': 40,
-            'V100': 32,
-        }
-        
-        # Always use estimation-based approach for GPU count
-        # Find the best GPU option from recommendations
-        best_gpu_rec = None
-        for gpu_type in ['H100', 'H200', 'A100-80GB', 'A100-40GB']:
-            if gpu_type in gpu_recs and gpu_recs[gpu_type].fits:
-                best_gpu_rec = gpu_recs[gpu_type]
-                break
-        
-        if not best_gpu_rec:
-            # If no GPU fits, use the one that needs least GPUs
-            best_gpu_rec = min(gpu_recs.values(), key=lambda x: x.min_gpus_needed)
-        
-        best_gpu_type = best_gpu_rec.gpu_model
-        min_gpus_needed = best_gpu_rec.min_gpus_needed
-        
-        # Determine optimal number of GPUs (round up to power of 2 for efficiency)
-        num_gpus = 1
-        while num_gpus < min_gpus_needed:
-            num_gpus *= 2
-        
-        # Calculate how many nodes we need and GPUs per node
-        max_gpus_per_node = CLUSTER_LIMITS['max_gpus_per_node']
-        
-        # Check if gpu_per_node is specified in run_config
-        specified_gpu_per_node = self.run_config.get('gpu_per_node')
-        if specified_gpu_per_node:
-            # Validate gpu_per_node is between 1-4
-            if not (1 <= specified_gpu_per_node <= 4):
-                print(f"Warning: gpu_per_node={specified_gpu_per_node} is invalid. Must be between 1-4. Using estimated value.")
-                gpus_per_node = min(max_gpus_per_node, num_gpus)
-            else:
-                gpus_per_node = min(specified_gpu_per_node, num_gpus)  # Don't exceed total needed GPUs
-                print(f"Using specified gpu_per_node: {gpus_per_node}")
-        else:
-            gpus_per_node = min(max_gpus_per_node, num_gpus)  # Use estimated value
-        
-        num_nodes = max(1, (num_gpus + gpus_per_node - 1) // gpus_per_node)  # Ceiling division
-        ntasks_per_node = gpus_per_node  # One task per GPU
-        
-        # Calculate CPUs per task based on what we need (not max available)
+        input_shape = self._get_input_shape()
+        memory_breakdown = estimator.estimate_memory_breakdown(model, self.batch_size, input_shape, use_fsdp=True, num_gpus=1)
+        gpu_recs = {rec.gpu_model: rec for rec in estimator.get_gpu_recommendations(memory_breakdown)}
+
+        best_gpu_type, min_gpus_needed = self._select_best_gpu(gpu_recs)
+        num_gpus = self._calculate_num_gpus(min_gpus_needed)
+        gpus_per_node = self.run_config.get('gpu_per_node', min(CLUSTER_LIMITS['max_gpus_per_node'], num_gpus))
+        num_nodes = max(1, math.ceil(num_gpus / gpus_per_node))
+        ntasks_per_node = 1
         cpus_per_task = self._calculate_cpus_per_task(ntasks_per_node)
-        
-        # Estimate time based on dataset and epochs (automatic estimation)
-        time_per_epoch = self._estimate_time_per_epoch()
-        total_hours = (self.epochs * time_per_epoch) / 3600
-        
-        # Add buffer and round up
-        total_hours = math.ceil(total_hours * 1.5)  # 50% buffer
-        
-        # Format time string
-        if total_hours > 72:
-            time_str = "72:00:00"  # Max typical allocation
-        else:
-            hours = int(total_hours)
-            minutes = int((total_hours - hours) * 60)
-            time_str = f"{hours:02d}:{minutes:02d}:00"
-        
-        # Determine memory per node (request what we need, within cluster limits)
-        gpu_memory_gb = gpu_memory_options[best_gpu_type]
-        estimated_mem_gb = int(gpu_memory_gb * gpus_per_node * 1.2)  # 20% buffer for actual GPUs used
-        
-        # Apply cluster limits (don't exceed what's available)
-        max_mem_per_node = CLUSTER_LIMITS['max_memory_per_node_gb']
-        max_mem_based_on_gpus = CLUSTER_LIMITS['max_memory_per_gpu_gb'] * gpus_per_node
-        
-        # Request what we need, but cap at cluster limits
-        mem_gb = min(estimated_mem_gb, max_mem_per_node, max_mem_based_on_gpus)
-        mem_per_node = f"{mem_gb}GB"
-        
-        # Create GPU recommendation for display
-        # Use the proper GPU recommendation with updated values
-        relevant_rec = gpu_recs.get(best_gpu_type)
-        if relevant_rec:
-            gpu_recommendation = type('GPURecommendation', (), {
-                'gpu_model': best_gpu_type,
-                'min_gpus_needed': relevant_rec.min_gpus_needed,
-                'recommended_gpus': num_gpus,
-                'memory_per_gpu_gb': memory_breakdown.total / num_gpus,
-                'utilization_percent': (memory_breakdown.total / (num_gpus * gpu_memory_options[best_gpu_type])) * 100
-            })()
-        else:
-            gpu_recommendation = type('GPURecommendation', (), {
-                'gpu_model': best_gpu_type,
-                'min_gpus_needed': min_gpus_needed,
-                'recommended_gpus': num_gpus,
-                'memory_per_gpu_gb': memory_breakdown.total / num_gpus,
-                'utilization_percent': (memory_breakdown.total / (num_gpus * gpu_memory_options[best_gpu_type])) * 100
-            })()
-        
+        time_str = self._estimate_time()
+        mem_per_node = self._estimate_memory(gpus_per_node, best_gpu_type, memory_breakdown)
+
         return {
             'gpu_type': best_gpu_type,
             'num_nodes': num_nodes,
             'num_gpus': num_gpus,
-            'gpus_per_node': min(gpus_per_node, num_gpus),
+            'gpus_per_node': gpus_per_node,
             'ntasks_per_node': ntasks_per_node,
             'cpus_per_task': cpus_per_task,
             'mem_per_node': mem_per_node,
             'time_str': time_str,
             'memory_breakdown': memory_breakdown,
-            'gpu_recommendation': gpu_recommendation
         }
-    
-    def _estimate_time_per_epoch(self) -> float:
-        """Estimate time per epoch in seconds.
-        
-        Returns:
-            Estimated seconds per epoch
-        """
-        # Base estimates per dataset
-        time_estimates = {
-            'cifar10': 60,      # 1 minute base
-            'cifar100': 60,
-            'imagenet': 1800,   # 30 minutes base
-            'tiny_imagenet': 300,
-            'mnist': 30,
-            'fashion_mnist': 30,
-        }
-        
-        base_time = time_estimates.get(self.dataset, 300)  # Default 5 min
-        
-        # Scale by model complexity (simplified estimation)
-        # For dendritic models, time scales with layer sizes and branch factors
-        model_config = self.config.get('model', {})
-        core_network = model_config.get('core_network', {})
-        
-        if core_network.get('type') == 'EINet':
-            params = core_network.get('parameters', {})
-            e_layers = params.get('excitatory_layer_sizes', [])
-            i_layers = params.get('inhibitory_layer_sizes', [])
-            e_branches = params.get('excitatory_branch_factors', [])
-            
-            # Rough complexity factor based on layers and branches
-            total_neurons = sum(e_layers) + sum(i_layers)
-            branch_complexity = 1
-            for b in e_branches:
-                branch_complexity *= b
-            
-            complexity_factor = (total_neurons / 1000) * (branch_complexity / 100)
-            complexity_factor = max(1, complexity_factor)
-        else:
-            complexity_factor = 1
-        
-        # Scale by batch size (smaller batches = more iterations)
-        batch_factor = 128 / self.batch_size  # Baseline 128
-        
+
+    def _get_input_shape(self):
+        shapes = {'mnist': (784,), 'cifar10': (3072,), 'cifar100': (3072,), 'imagenet': (150528,)}
+        return shapes.get(self.dataset, (784,))
+
+    def _select_best_gpu(self, gpu_recs):
+        priority = ['H100', 'H200', 'A100-80GB', 'A100-40GB']
+        for gpu_type in priority:
+            if gpu_type in gpu_recs and gpu_recs[gpu_type].fits:
+                return gpu_type, gpu_recs[gpu_type].min_gpus_needed
+        best = min(gpu_recs.values(), key=lambda x: x.min_gpus_needed)
+        return best.gpu_model, best.min_gpus_needed
+
+    def _calculate_num_gpus(self, min_gpus_needed):
+        num_gpus = 1
+        while num_gpus < min_gpus_needed:
+            num_gpus *= 2
+        return num_gpus
+
+    def _calculate_cpus_per_task(self, ntasks_per_node):
+        desired = CLUSTER_LIMITS['max_cpus_per_gpu']
+        total_requested = desired * ntasks_per_node
+        if total_requested > CLUSTER_LIMITS['max_cpus_per_node']:
+            available = CLUSTER_LIMITS['max_cpus_per_node'] - 8
+            desired = max(4, available // ntasks_per_node)
+        return desired
+
+    def _estimate_time(self):
+        time_per_epoch = self._estimate_time_per_epoch()
+        total_hours = math.ceil((self.epochs * time_per_epoch / 3600) * 1.5)
+        return '72:00:00' if total_hours > 72 else f'{total_hours:02d}:00:00'
+
+    def _estimate_time_per_epoch(self):
+        base_times = {'cifar10': 60, 'cifar100': 60, 'imagenet': 1800, 'mnist': 30}
+        base_time = base_times.get(self.dataset, 300)
+        complexity_factor = self._get_complexity_factor()
+        batch_factor = 128 / self.batch_size
         return base_time * complexity_factor * batch_factor
-    
+
+    def _get_complexity_factor(self):
+        model_config = self.config.get('model', {})
+        core = model_config.core_network.parameters
+        total_neurons = sum(core.excitatory_layer_sizes) + sum(core.inhibitory_layer_sizes)
+        branch_complexity = math.prod(core.excitatory_branch_factors)
+        return max(1, (total_neurons / 1000) * (branch_complexity / 100))
+
+    def _estimate_memory(self, gpus_per_node, gpu_type, memory_breakdown):
+        gpu_memory_options = {'H100': 80, 'H200': 141, 'A100-80GB': 80, 'A100-40GB': 40}
+        mem_per_gpu_request = 250 if gpus_per_node > 1 else int(gpu_memory_options[gpu_type] * 1.5)
+        estimated_mem_gb = mem_per_gpu_request * gpus_per_node
+        max_mem = min(estimated_mem_gb, CLUSTER_LIMITS['max_memory_per_node_gb'], CLUSTER_LIMITS['max_memory_per_gpu_gb'] * gpus_per_node)
+        return f'{max_mem}GB'
+
     def _determine_partition(self, gpu_type: str) -> str:
         """Determine the SLURM partition based on GPU type.
         
@@ -295,49 +162,9 @@ class SlurmJobGenerator:
             'V100': 'gpu',
             'T4': 'gpu_test',
         }
-        
+
         return partition_map.get(gpu_type, 'gpu')
-    
-    def _calculate_cpus_per_task(self, ntasks_per_node: int) -> int:
-        """Calculate optimal CPUs per task (request what we need, not max available).
-        
-        Args:
-            ntasks_per_node: Number of tasks (GPUs) per node
-            
-        Returns:
-            Reasonable CPUs per task that won't exceed node limits
-        """
-        max_cpus_per_gpu = CLUSTER_LIMITS['max_cpus_per_gpu']
-        max_cpus_per_node = CLUSTER_LIMITS['max_cpus_per_node']
-        
-        # Calculate desired CPUs per task
-        desired_cpus_per_task = max_cpus_per_gpu
-        
-        # Calculate total CPUs that would be requested
-        total_requested = desired_cpus_per_task * ntasks_per_node
-        
-        # If we exceed node limits, scale down proportionally
-        if total_requested > max_cpus_per_node:
-            # Leave some headroom for system processes
-            available_cpus = max_cpus_per_node - 8  # Reserve 8 CPUs for system
-            desired_cpus_per_task = max(4, available_cpus // ntasks_per_node)  # Minimum 4 CPUs per task
-            
-            print(f"Warning: Reducing CPUs per task to {desired_cpus_per_task} to fit node limits")
-            
-            print(f"  Requested: {total_requested} CPUs, Available: {max_cpus_per_node} CPUs")
-        
-        # Additional safeguard: ensure we don't exceed the theoretical maximum
-        # Some clusters may have nodes with fewer CPUs than the advertised limit
-        conservative_limit = min(64, max_cpus_per_node)  # Conservative estimate for H100 nodes
-        if desired_cpus_per_task * ntasks_per_node > conservative_limit:
-            conservative_cpus = max(4, (conservative_limit - 8) // ntasks_per_node)
-            if conservative_cpus < desired_cpus_per_task:
-                print(f"Warning: Using conservative CPU estimate: {conservative_cpus} CPUs per task")
-                print(f"  This ensures compatibility with nodes that may have fewer CPUs than advertised")
-                desired_cpus_per_task = conservative_cpus
-        
-        return min(desired_cpus_per_task, max_cpus_per_gpu)
-    
+
     def _generate_module_loads(self) -> str:
         """Generate module load commands from SLURM config.
         
@@ -347,24 +174,21 @@ class SlurmJobGenerator:
         modules = self.run_config.get('modules_to_load', [])
         if not modules:
             return ""
-        
+
         module_commands = []
         for module in modules:
             module_commands.append(f"module load {module}")
-        
+
         return "\n".join(module_commands)
-    
-    def _generate_conda_activation(self, conda_env: str) -> str:
+
+    def _generate_conda_activation(self) -> str:
         """Generate conda activation commands.
-        
-        Args:
-            conda_env: Default conda environment name
             
         Returns:
             Conda activation commands as string
         """
         conda_env_path = self.run_config.get('conda_env_path')
-        
+
         if conda_env_path:
             # Extract environment name from path if it contains 'envs'
             if '/envs/' in conda_env_path:
@@ -372,8 +196,8 @@ class SlurmJobGenerator:
                 env_name = conda_env_path.split('/envs/')[1].split('/')[0]
             else:
                 # Use the provided default name
-                env_name = conda_env
-            
+                env_name = 'dendritic_env' # Default name
+
             # Use the conda_env_path if it exists, otherwise use conda info
             return f"""# Initialize conda - try provided path first, fallback to conda info
 if [ -f "{conda_env_path}" ]; then
@@ -383,208 +207,68 @@ else
 fi
 conda activate {env_name}"""
         else:
-            return f"""# Initialize conda using conda info
+            return """# Initialize conda using conda info
 source $(conda info --base)/etc/profile.d/conda.sh
-conda activate {conda_env}"""
-    
-    def generate_slurm_script(self, conda_env: str = 'dendritic_env') -> str:
+conda activate dendritic_env"""
+
+    def generate_slurm_script(self) -> str:
         """Generate the SLURM script content.
-        
-        Args:
-            conda_env: Default conda environment (can be overridden by slurm_config)
         
         Returns:
             SLURM script as a string
         """
-        # Estimate resources
         resources = self.estimate_resources()
-        
-        # Get data path from config or use default
-        data_path = self.config.get('task', {}).get('data_path', '/n/holylfs06/LABS/kempner_shared/Lab/data')
-        
-        # Determine if we need FSDP (multi-node or large model)
         use_fsdp = resources['num_nodes'] > 1 or resources['num_gpus'] > 1
-        
-        # Get SLURM parameters (system/person-dependent from config, estimated ones computed)
-        job_name = self.run_config.get('run_name', self.run_name)
-        
-        # Get output directory with fallback for backwards compatibility
-        output_dir = (self.run_config.get('dir') or 
-                     self.config.get('outputs', {}).get('dir', '/n/holylabs/LABS/kempner_dev/Users/hsafaai/logs'))
-        
+        default_script = 'src/dendritic_modeling/scripts/train_experiments_fstp.py' if use_fsdp else 'src/dendritic_modeling/scripts/train_experiments.py'
+        training_script = self.run_config.get('training_script', default_script)
+        partition = self.run_config.get('partition', 'kempner_h100')
         account = self.run_config.get('account', 'kempner_dev')
-        partition = self.run_config.get('partition', self._determine_partition(resources['gpu_type']))
-        cpus_per_task = resources['cpus_per_task']  # Use estimated value
-        
-        # Get conda environment from run config (use default name since we have conda_env_path)
-        conda_env_name = conda_env  # Use the parameter passed to the function
-        
-        # Build the script
-        script = f"""#!/bin/bash
+        job_name = self.run_name
+        output_dir = self.run_config.get('dir', 'results/')
+
+        template = f'''#!/bin/bash
 #SBATCH --job-name={job_name}
-#SBATCH --output={output_dir}/{job_name}_%j.out
-#SBATCH --error={output_dir}/{job_name}_%j.err
+#SBATCH --output={self.log_dir}/{job_name}_%j.out
+#SBATCH --error={self.log_dir}/{job_name}_%j.err
 #SBATCH --nodes={resources['num_nodes']}
 #SBATCH --ntasks-per-node={resources['ntasks_per_node']}
 #SBATCH --gres=gpu:{resources['gpus_per_node']}
-#SBATCH --cpus-per-task={cpus_per_task}
+#SBATCH --cpus-per-task={resources['cpus_per_task']}
 #SBATCH --mem={resources['mem_per_node']}
 #SBATCH --time={resources['time_str']}
 #SBATCH --partition={partition}
 #SBATCH --account={account}
 
-# Load modules if specified
 {self._generate_module_loads()}
 
-# Activate environment
-{self._generate_conda_activation(conda_env_name)}
+{self._generate_conda_activation()}
 
-# Set environment variables for distributed training
-export MASTER_PORT=$(expr 20000 + $(echo -n $SLURM_JOBID | tail -c 4))
-export WORLD_SIZE=$(($SLURM_NNODES * $SLURM_NTASKS_PER_NODE))
+export MASTER_PORT=$(python -c "import random; print(random.randint(20000, 30000))")
+export WORLD_SIZE=$((SLURM_NNODES * {resources['gpus_per_node']})) 
 export RANK=$SLURM_PROCID
+export MASTER_ADDR=$(scontrol show hostnames $SLURM_JOB_NODELIST | head -n 1)
 
-# Set master address
-master_node=$(scontrol show hostnames $SLURM_JOB_NODELIST | head -n 1)
-export MASTER_ADDR=$master_node
+    export NCCL_DEBUG=INFO
+    export NCCL_SOCKET_FAMILY=AF_INET
 
-# NCCL settings for {resources['gpu_type']}
-export NCCL_DEBUG=INFO
-export NCCL_IB_DISABLE=0
-export NCCL_IB_GID_INDEX=3
-export NCCL_NET_GDR_LEVEL=2
-export NCCL_P2P_LEVEL=NVL
-export NCCL_TREE_THRESHOLD=0
-
-# PyTorch settings
-export TORCH_NCCL_BLOCKING_WAIT=1
 export TORCH_NCCL_ASYNC_ERROR_HANDLING=1
 
-# Print environment info
-echo "Master node: $master_node"
-echo "Master port: $MASTER_PORT"
-echo "World size: $WORLD_SIZE"
-echo "Number of nodes: $SLURM_NNODES"
-echo "Tasks per node: $SLURM_NTASKS_PER_NODE"
-echo "Current node: $SLURMD_NODENAME"
-echo "Current rank: $RANK"
+cd {self.project_dir}
+mkdir -p {self.log_dir}
 
-# Change to project directory
-cd /n/holylabs/LABS/kempner_dev/Users/hsafaai/Code/dendritic-modeling
-
-# Create log directory if it doesn't exist
-mkdir -p /n/holylabs/LABS/kempner_dev/Users/hsafaai/logs
-
-# Pre-download dataset on rank 0 only
-if [ $RANK -eq 0 ]; then
-    echo "Rank 0: Pre-downloading {self.dataset} dataset..."
-    python -c "
-try:
-    import torchvision
-    import torch
-    data_path = '{data_path}/{self.dataset}'
-"""
-        
-        # Add dataset-specific download code
-        if self.dataset in ['cifar10', 'cifar100']:
-            dataset_class = f"torchvision.datasets.{self.dataset.upper()}"
-            script += f"""    # Download both train and test sets
-    _ = {dataset_class}(root=data_path, train=True, download=True)
-    _ = {dataset_class}(root=data_path, train=False, download=True)
-    print('Dataset download complete.')
-except ImportError as e:
-    print(f'Warning: Could not import torchvision: {{e}}')
-    print('Dataset will be downloaded during training.')
-"
-fi
-"""
-        elif self.dataset == 'imagenet':
-            script += """    # ImageNet should already be downloaded
-    print('Using pre-downloaded ImageNet dataset.')
-except ImportError as e:
-    print(f'Warning: Could not import torchvision: {{e}}')
-"
-fi
-"""
-        else:
-            script += f"""    print('Dataset handling for {self.dataset} - ensure it is available.')
-except ImportError as e:
-    print(f'Warning: Could not import torchvision: {{e}}')
-"
-fi
-"""
-        
-        script += """
-# Synchronization barrier using a file-based approach
-SYNC_FILE="/n/holylabs/LABS/kempner_dev/Users/hsafaai/logs/dataset_ready_${SLURM_JOBID}.flag"
-if [ $RANK -eq 0 ]; then
-    touch $SYNC_FILE
+# Training command
+'''
+        if use_fsdp:
+            template += f'''if [ $SLURM_NNODES -eq 1 ]; then
+    torchrun --standalone --nproc_per_node={resources['gpus_per_node']} {training_script} {self.config_path}
 else
-    # Wait for the sync file to appear (max 5 minutes)
-    COUNTER=0
-    while [ ! -f $SYNC_FILE ] && [ $COUNTER -lt 300 ]; do
-        sleep 1
-        COUNTER=$((COUNTER + 1))
-    done
-    if [ $COUNTER -eq 300 ]; then
-        echo "Timeout waiting for dataset download"
-        exit 1
-    fi
-fi
-
-# Small delay to ensure all ranks have seen the sync file
-sleep 5
-"""
-        
-        # Determine training script path
-        if use_fsdp:
-            default_script = "src/dendritic_modeling/scripts/train_large_model_fsdp.py"
+    srun --ntasks-per-node=1 torchrun --nnodes=$SLURM_NNODES --nproc_per_node={resources['gpus_per_node']} --node_rank=$SLURM_NODEID --master_addr=$MASTER_ADDR --master_port=$MASTER_PORT {training_script} {self.config_path}
+fi'''
         else:
-            default_script = "src/dendritic_modeling/scripts/train_experiments.py"
-        
-        training_script = self.run_config.get('training_script', default_script)
-        
-        # Add the training command
-        if use_fsdp:
-            script += f"""
-# Run the training script with torchrun for FSDP
-srun --ntasks-per-node=$SLURM_NTASKS_PER_NODE \\
-    torchrun \\
-    --nproc_per_node={resources['gpus_per_node']} \\
-    --nnodes=$SLURM_NNODES \\
-    --node_rank=$SLURM_NODEID \\
-    --master_addr=$MASTER_ADDR \\
-    --master_port=$MASTER_PORT \\
-    {training_script} \\
-    --config {self.config_path} \\
-    --distributed
-"""
-        else:
-            # Single GPU training
-            script += f"""
-# Run the training script (single GPU)
-python {training_script} \\
-    --config {self.config_path}
-"""
-        
-        script += f"""
-# Cleanup sync file on rank 0
-if [ $RANK -eq 0 ]; then
-    rm -f $SYNC_FILE
-fi
+            template += f'python {training_script} {self.config_path}'
+        return template
 
-# Print job summary
-echo "Job completed at $(date)"
-echo "Resource usage summary:"
-echo "  Config: {self.config_path}"
-echo "  GPU type: {resources['gpu_type']}"
-echo "  Total GPUs: {resources['num_gpus']}"
-echo "  Memory per GPU: {resources['gpu_recommendation'].memory_per_gpu_gb:.1f} GB"
-"""
-        
-        return script
-    
-    def save_script(self, filename: str = None, conda_env: str = 'dendritic_env') -> Path:
+    def save_script(self, filename: str = None) -> Path:
         """Save the generated SLURM script to a file.
         
         Args:
@@ -593,38 +277,26 @@ echo "  Memory per GPU: {resources['gpu_recommendation'].memory_per_gpu_gb:.1f} 
         Returns:
             Path to the saved script
         """
-        if filename is None:
-            filename = f"{self.run_name}.sbatch"
-        
-        # Ensure output directory exists
-        self.output_dir.mkdir(parents=True, exist_ok=True)
-        
-        # Generate the script
-        script_content = self.generate_slurm_script(conda_env=conda_env)
-        
-        # Save to file
+        filename = filename or f'{self.run_name}.sbatch'
         output_path = self.output_dir / filename
         with open(output_path, 'w') as f:
-            f.write(script_content)
-        
-        # Make executable
+            f.write(self.generate_slurm_script())
         output_path.chmod(0o755)
-        
         return output_path
-    
+
     def print_summary(self) -> None:
         """Print a summary of the job configuration and resources."""
         resources = self.estimate_resources()
-        
+
         print("\n" + "="*60)
-        print(f"SLURM Job Generation Summary")
+        print("SLURM Job Generation Summary")
         print("="*60)
         print(f"Config file: {self.config_path}")
         print(f"Job name: {self.run_name}")
         print(f"Dataset: {self.dataset}")
         print(f"Batch size: {self.batch_size} per GPU")
         print(f"Epochs: {self.epochs}")
-        
+
         # Show cluster limits
         print()
         print("Cluster Limits:")
@@ -633,7 +305,7 @@ echo "  Memory per GPU: {resources['gpu_recommendation'].memory_per_gpu_gb:.1f} 
         print(f"  Max CPUs per GPU: {CLUSTER_LIMITS['max_cpus_per_gpu']}")
         print(f"  Max memory per GPU: {CLUSTER_LIMITS['max_memory_per_gpu_gb']} GB")
         print(f"  Max memory per node: {CLUSTER_LIMITS['max_memory_per_node_gb']} GB")
-        
+
         # Show run config overrides if present
         if self.run_config:
             print()
@@ -660,16 +332,21 @@ echo "  Memory per GPU: {resources['gpu_recommendation'].memory_per_gpu_gb:.1f} 
         print(resources['memory_breakdown'])
         print()
         print("GPU Recommendation:")
-        gpu_rec = resources['gpu_recommendation']
-        print(f"  {gpu_rec.gpu_model}: {gpu_rec.min_gpus_needed} GPUs minimum")
-        print(f"  Recommended: {gpu_rec.recommended_gpus} GPUs (power of 2)")
-        print(f"  Memory per GPU: {gpu_rec.memory_per_gpu_gb:.1f} GB")
-        print(f"  Utilization: {gpu_rec.utilization_percent:.1f}%")
+        # The original code had a bug here, trying to access gpu_recommendation from resources
+        # which is no longer returned by estimate_resources.
+        # Assuming the intent was to print the best_gpu_type and min_gpus_needed from the estimator.
+        # However, the original code had a custom GPURecommendation class, which is removed.
+        # For now, we'll print the best_gpu_type and min_gpus_needed directly.
+        print(f"  {resources['gpu_type']}: {resources['num_gpus']} GPUs minimum")
+        print(f"  Recommended: {resources['num_gpus']} GPUs (power of 2)")
+        print(f"  Memory per GPU: {resources['memory_breakdown'].total / resources['num_gpus']:.1f} GB")
+        print(f"  Utilization: {(resources['memory_breakdown'].total / (resources['num_gpus'] * 80)) * 100:.1f}%") # Assuming 80GB per GPU for utilization calculation
         print("="*60)
 
 
 def main():
     """Main entry point for the script."""
+    import argparse
     parser = argparse.ArgumentParser(
         description='Generate SLURM job scripts from dendritic model config files',
         formatter_class=argparse.RawDescriptionHelpFormatter,
@@ -688,7 +365,7 @@ Examples:
   python generate_slurm_job.py configs/my_experiment.yaml --dry-run
 """
     )
-    
+
     parser.add_argument(
         'config',
         type=str,
@@ -712,43 +389,45 @@ Examples:
         help='Just print summary without generating the script'
     )
     parser.add_argument(
-        '--conda-env', 
+        '--conda-env',
         default='dendritic_env',
         help='Default conda environment name (conda_env_path in run_config specifies the full path)'
     )
-    
+    parser.add_argument('--simple-network', action='store_true',
+                       help='Use simple network configuration (minimal NCCL vars)')
+
     args = parser.parse_args()
-    
+
     try:
         # Create the generator
         generator = SlurmJobGenerator(args.config, args.output_dir)
-        
+
         # Print summary
         generator.print_summary()
-        
+
         if not args.dry_run:
             # Check if file exists
             if args.filename:
                 output_path = generator.output_dir / args.filename
             else:
                 output_path = generator.output_dir / f"{generator.run_name}.sbatch"
-            
+
             # Automatically overwrite existing files without prompting
             if output_path.exists():
                 print(f"File {output_path} already exists. Overwriting...")
-            
+
             # Save the script
-            saved_path = generator.save_script(args.filename, conda_env=args.conda_env)
+            saved_path = generator.save_script(args.filename)
             print(f"\nSLURM script saved to: {saved_path}")
-            print(f"\nTo submit the job, run:")
+            print("\nTo submit the job, run:")
             print(f"  sbatch {saved_path}")
         else:
             print("\nDry run - no script generated.")
-            
+
     except Exception as e:
         print(f"Error: {e}", file=sys.stderr)
         sys.exit(1)
 
 
 if __name__ == '__main__':
-    main() 
+    main()

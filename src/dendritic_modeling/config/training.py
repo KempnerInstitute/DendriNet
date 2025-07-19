@@ -59,3 +59,4 @@ class TrainConfig(BaseConfig):
     train_valid_split: float = 0.8
     encoder: EncoderTrainConfig = field(default_factory=EncoderTrainConfig)
     main: MainTrainConfig = field(default_factory=MainTrainConfig)
+    run_name: str = 'experiment'

@@ -39,6 +39,8 @@ class Trainer:
         suppress_prints=False,
         print_every=10,
         analysis_manager: Optional[object] = None,
+        save_every_n_epochs: Optional[int] = None,
+        checkpoint_dir: Optional[str] = None,
         **kwargs,
     ):
         self.optimizer = optimizer
@@ -55,6 +57,20 @@ class Trainer:
         self.suppress_prints = suppress_prints
         self.print_every = print_every
         self.analysis_manager = analysis_manager
+
+        # Checkpoint configuration
+        self.save_every_n_epochs = save_every_n_epochs
+
+        # Set up checkpoint directory structure
+        if (
+            checkpoint_dir is not None
+            and save_every_n_epochs is not None
+            and save_every_n_epochs > 0
+        ):
+            self.checkpoint_dir = os.path.join(checkpoint_dir, "checkpoints")
+            os.makedirs(self.checkpoint_dir, exist_ok=True)
+        else:
+            self.checkpoint_dir = None
 
         self.filename_prefix = ""
         for k, v in kwargs.items():
@@ -119,7 +135,9 @@ class Trainer:
         if self.best_state_dict:
             model.load_state_dict(self.best_state_dict)
 
-        logger.info(f"The best validation loss was {self.best_loss} at epoch {self.best_epoch}")
+        logger.info(
+            f"The best validation loss was {self.best_loss} at epoch {self.best_epoch}"
+        )
 
         results = {
             "best_epoch": self.best_epoch,
@@ -144,30 +162,39 @@ class Trainer:
         valid_loader: DataLoader,
         train_losses: list[float],
         valid_losses: list[float],
-        train_accs: list[float], # Added train_accs
-        valid_accs: list[float], # Added valid_accs
+        train_accs: list[float],  # Added train_accs
+        valid_accs: list[float],  # Added valid_accs
         logger_info: str = "",
         wandb_info: Optional[dict] = None,
-    ) -> tuple[list[float], list[float], list[float], list[float]]: # Added train_accs, valid_accs
+    ) -> tuple[
+        list[float], list[float], list[float], list[float]
+    ]:  # Added train_accs, valid_accs
         if wandb_info is None:
             wandb_info = {}
         for _ in range(1, n_epochs + 1):
-            train_losses, valid_losses, train_accs, valid_accs = self._run_epoch( # Updated return
-                model=model,
-                train_loader=train_loader,
-                valid_loader=valid_loader,
-                train_losses=train_losses,
-                valid_losses=valid_losses,
-                train_accs=train_accs, # Passed train_accs
-                valid_accs=valid_accs, # Passed valid_accs
-                logger_info=logger_info,
-                wandb_info=wandb_info,
+            train_losses, valid_losses, train_accs, valid_accs = (
+                self._run_epoch(  # Updated return
+                    model=model,
+                    train_loader=train_loader,
+                    valid_loader=valid_loader,
+                    train_losses=train_losses,
+                    valid_losses=valid_losses,
+                    train_accs=train_accs,  # Passed train_accs
+                    valid_accs=valid_accs,  # Passed valid_accs
+                    logger_info=logger_info,
+                    wandb_info=wandb_info,
+                )
             )
 
             if self._check_early_stopping():
                 break
 
-        return train_losses, valid_losses, train_accs, valid_accs # Added train_accs, valid_accs
+        return (
+            train_losses,
+            valid_losses,
+            train_accs,
+            valid_accs,
+        )  # Added train_accs, valid_accs
 
     def _run_epoch(
         self,
@@ -188,22 +215,25 @@ class Trainer:
         train_loss, train_acc = self._epoch_train(model, train_loader)
         train_losses.append(train_loss)
         train_accs.append(train_acc)
-        
+
         valid_loss, valid_acc = self._epoch_valid(model, valid_loader)
         valid_losses.append(valid_loss)
         valid_accs.append(valid_acc)
 
         self._update_best(model, valid_loss)
         self._analyze()
+        self._save_checkpoint(model)
         self._tracking(train_loss, valid_loss, logger_info, wandb_info)
         return train_losses, valid_losses, train_accs, valid_accs
 
-    def _epoch_train(self, model: BaseModel, train_loader: DataLoader) -> tuple[float, float]:
+    def _epoch_train(
+        self, model: BaseModel, train_loader: DataLoader
+    ) -> tuple[float, float]:
         model.train()
         train_loss = 0
         correct = 0
         total = 0
-        
+
         for x_batch, y_batch in train_loader:
             x_batch, y_batch = x_batch.to(self.device), y_batch.to(self.device)
             loss = self.loss_function(model, x_batch, y_batch)
@@ -217,24 +247,30 @@ class Trainer:
 
             # Calculate accuracy for classification tasks
             # Only compute accuracy if y_batch contains class labels (not images for autoencoder)
-            if hasattr(model, 'forward') and y_batch.dim() == 1:  # y_batch is 1D tensor of labels
+            if (
+                hasattr(model, "forward") and y_batch.dim() == 1
+            ):  # y_batch is 1D tensor of labels
                 with torch.no_grad():
                     outputs = model(x_batch)
-                    if outputs.dim() > 1 and outputs.size(1) > 1:  # Multi-class classification
+                    if (
+                        outputs.dim() > 1 and outputs.size(1) > 1
+                    ):  # Multi-class classification
                         predicted = outputs.argmax(dim=1)
                         correct += (predicted == y_batch).sum().item()
                         total += y_batch.size(0)
-        
+
         avg_loss = train_loss / len(train_loader)
         accuracy = (correct / total * 100) if total > 0 else 0.0
         return avg_loss, accuracy
 
-    def _epoch_valid(self, model: BaseModel, valid_loader: DataLoader) -> tuple[float, float]:
+    def _epoch_valid(
+        self, model: BaseModel, valid_loader: DataLoader
+    ) -> tuple[float, float]:
         model.eval()
         valid_loss = 0
         correct = 0
         total = 0
-        
+
         with torch.no_grad():
             for x_batch, y_batch in valid_loader:
                 x_batch, y_batch = x_batch.to(self.device), y_batch.to(self.device)
@@ -245,11 +281,13 @@ class Trainer:
                 # Only compute accuracy if y_batch contains class labels (not images for autoencoder)
                 if y_batch.dim() == 1:  # y_batch is 1D tensor of labels
                     outputs = model(x_batch)
-                    if outputs.dim() > 1 and outputs.size(1) > 1:  # Multi-class classification
+                    if (
+                        outputs.dim() > 1 and outputs.size(1) > 1
+                    ):  # Multi-class classification
                         predicted = outputs.argmax(dim=1)
                         correct += (predicted == y_batch).sum().item()
                         total += y_batch.size(0)
-        
+
         avg_loss = valid_loss / len(valid_loader)
         accuracy = (correct / total * 100) if total > 0 else 0.0
         return avg_loss, accuracy
@@ -279,6 +317,33 @@ class Trainer:
                 self.analysis_manager.run_analysis(
                     filename=f"epoch{self.epoch_counter}", training=True
                 )
+
+    def _save_checkpoint(self, model: BaseModel) -> None:
+        """Save checkpoint if configured to do so."""
+        if (
+            self.checkpoint_dir is not None
+            and self.save_every_n_epochs is not None
+            and self.save_every_n_epochs > 0
+            and self.epoch_counter % self.save_every_n_epochs == 0
+        ):
+
+            checkpoint = {
+                "epoch": self.epoch_counter,
+                "model_state_dict": model.state_dict(),
+                "optimizer_state_dict": self.optimizer.state_dict(),
+                "best_loss": self.best_loss,
+                "best_epoch": self.best_epoch,
+                "loss_function": self.loss_function._loss_name,
+            }
+
+            checkpoint_path = os.path.join(
+                self.checkpoint_dir,
+                f"{self.filename_prefix}checkpoint_epoch_{self.epoch_counter}.pt",
+            )
+            torch.save(checkpoint, checkpoint_path)
+
+            if not self.suppress_prints:
+                logger.info(f"Saved checkpoint to {checkpoint_path}")
 
     def _tracking(
         self,
@@ -330,12 +395,15 @@ class Trainer:
                     filename_prefix=self.filename_prefix,
                 )
 
-    def _accuracy_plotting(self, train_accs: list[float], valid_accs: list[float]) -> None:
+    def _accuracy_plotting(
+        self, train_accs: list[float], valid_accs: list[float]
+    ) -> None:
         """Plot accuracy curves similar to loss curves."""
         if self.plot_losses and len(train_accs) > 1:
             if self.save_path and os.path.exists(self.save_path):
                 try:
                     from dendritic_modeling.plotting.training import plot_loss_curves
+
                     # Reuse the loss plotting function but with accuracy label
                     plot_loss_curves(
                         train_losses=train_accs,

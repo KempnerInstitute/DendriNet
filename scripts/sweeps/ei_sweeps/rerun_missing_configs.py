@@ -14,10 +14,8 @@ Usage:
 import argparse
 import glob
 import os
-import re
 import sys
 from datetime import datetime
-from pathlib import Path
 
 import yaml
 
@@ -158,7 +156,7 @@ def check_result_for_config(
 
             # Check if log contains success message
             try:
-                with open(output_log, "r") as f:
+                with open(output_log) as f:
                     content = f.read()
                     if "Training experiment completed successfully" in content:
                         if verbose:
@@ -187,7 +185,7 @@ def extract_model_dir_from_log(log_file):
     Looks for 'Saved model to' lines in the log that show where models were saved.
     """
     try:
-        with open(log_file, "r") as f:
+        with open(log_file) as f:
             for line in f:
                 if "Saved model to" in line and (
                     "final_model.pt" in line or "best_model.pt" in line
@@ -269,7 +267,7 @@ def find_missing_configs(
                     )
 
     if verbose:
-        print(f"\nCompletion check summary:")
+        print("\nCompletion check summary:")
         print(f"- Total configs checked: {len(config_ids)}")
         print(
             f"- Completed configs: {len(completed_ids)} - {sorted(list(completed_ids))}"
@@ -287,7 +285,7 @@ def get_base_dir_from_config(config_file, verbose=False):
         print(f"Reading base directory from config file: {config_file}")
 
     try:
-        with open(config_file, "r") as f:
+        with open(config_file) as f:
             config = yaml.safe_load(f)
 
             if "run_config" in config and "output_dir" in config["run_config"]:
@@ -327,7 +325,7 @@ def get_job_files_for_config(sweep_dir, config_id):
         if file.endswith(".sh"):
             file_path = os.path.join(jobs_dir, file)
             try:
-                with open(file_path, "r") as f:
+                with open(file_path) as f:
                     content = f.read()
                     # Check if file contains array job line with this config ID
                     array_lines = [
@@ -381,17 +379,17 @@ def get_original_run_config(sweep_dir):
     if not config_files:
         print(f"No config files found in {sweep_dir}")
         return None
-    
+
     # Use the first config file found
     config_file = config_files[0]
     try:
-        with open(config_file, 'r') as f:
+        with open(config_file) as f:
             config = yaml.safe_load(f)
             if "run_config" in config:
                 return config["run_config"]
     except Exception as e:
         print(f"Error reading config file {config_file}: {e}")
-    
+
     return None
 
 
@@ -523,7 +521,7 @@ def generate_rerun_script(
     # Activate conda environment
     lines.extend([
         "",
-        "# Activate conda environment", 
+        "# Activate conda environment",
         f"conda activate {run_config.get('conda_env_path', '/path/to/conda/env')}",
     ])
 
@@ -654,7 +652,7 @@ def main():
     results_dir = os.path.join(sweep_dir, "results")
 
     if not os.path.isdir(configs_dir) or not os.path.isdir(results_dir):
-        print(f"ERROR: Could not find configs or results directories")
+        print("ERROR: Could not find configs or results directories")
         sys.exit(1)
 
     # Find missing configurations
@@ -667,7 +665,7 @@ def main():
         force_config_ids=force_config_ids,
     )
 
-    print(f"\nSUMMARY:")
+    print("\nSUMMARY:")
     print(f"Found {len(config_ids)} total configurations")
     print(
         f"Found {len(completed_ids)} completed configurations (with successful completion messages)"

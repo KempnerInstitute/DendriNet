@@ -5,12 +5,8 @@ Sweep script for noise experiments with EI networks.
 This script performs parameter sweeps over noise levels and other hyperparameters
 for EI networks on synthetic datasets.
 """
-import argparse
-import json
 import os
 import sys
-import time
-from pathlib import Path
 from copy import deepcopy
 from typing import Dict
 
@@ -18,15 +14,10 @@ import pandas as pd
 import torch
 from torch.utils.data import TensorDataset
 
-from dendritic_modeling import logger, logger_manager
+from dendritic_modeling import logger
 from dendritic_modeling.config import load_config
 from dendritic_modeling.models import Classifier
 from dendritic_modeling.networks import ExcitationInhibitionNetwork, MatchedParamMLP
-from dendritic_modeling.plotting.utils import (
-    plot_activation_tuning,
-    plot_voltage_before_activation,
-    split_MNIST_inputs,
-)
 from dendritic_modeling.datasets import get_unified_datasets
 from dendritic_modeling.training.utils.evaluation import evaluate_accuracy
 from dendritic_modeling.datasets.augmentation.noise import (
@@ -36,10 +27,8 @@ from dendritic_modeling.datasets.augmentation.noise import (
     add_uniform_noise,
 )
 from dendritic_modeling.utils import (
-    save_dict,
     set_seed,
 )
-from dendritic_modeling.datasets import get_data_directory
 
 
 def initialize_model(model_cfg):
@@ -377,7 +366,7 @@ def main():
                         "sweeps",
                         f'branching_{"_".join(map(str, branch_factors))}',
                         f"seed{seed}",
-                        f"mlp",
+                        "mlp",
                         "best_model.pt",
                     )
                 else:

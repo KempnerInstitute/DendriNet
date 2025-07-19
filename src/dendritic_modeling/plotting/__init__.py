@@ -55,14 +55,6 @@ from dendritic_modeling.plotting.network import (
     plot_excitation_inhibition_weights,
 )
 
-# Import basic plotting functions
-from dendritic_modeling.plotting.simple_plots import (
-    add_colorbars,
-    plot_nll_loss_curves,
-    plot_with_color,
-    shape_helper,
-)
-
 # Import training plotting functions
 from dendritic_modeling.plotting.training import (
     plot_branch_sweep_results,

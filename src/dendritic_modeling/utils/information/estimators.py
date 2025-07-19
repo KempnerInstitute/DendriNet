@@ -362,7 +362,6 @@ class CopulaEstimator(BaseInformationEstimator):
         """Use DVC tensorflow for copula-based MI estimation."""
         # This would implement the full DVC copula estimation
         # For now, fall back to simple copula
-        self.logger.debug("Using simple copula estimation (full DVC not implemented)")
         return self._simple_copula_mi(x, y)
 
 

@@ -58,8 +58,11 @@ class InputNetTransform(nn.Module):
             )
 
         elif network_type == "MLPInputTransform":
-            # Placeholder - actual implementation would need the MLPInputTransform class
-            raise NotImplementedError("MLPInputTransform not implemented")
+            self.input_transform = MLPInputTransform(
+                input_dim=input_dim, hidden_dims=hidden_dims, output_dim=output_dim
+            )
+            self.input_transform.set_readout(False)
+            self.input_transform.disable_grad()
 
         elif network_type == "FeatureExtractorMLP":
             from ..mlp import FeatureExtractorMLP

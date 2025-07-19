@@ -8,7 +8,6 @@ across the dendritic network, including excitatory weights, inhibitory weights, 
 from typing import Optional
 
 import torch
-import os
 
 from dendritic_modeling.config import WeightAnalysisParams
 from dendritic_modeling.models import BaseModel
@@ -122,67 +121,4 @@ class WeightAnalyzer:
 
         if save_path is not None:
             save_dict(weights, save_path, filename)
-
-            # Generate weight distribution plots
-            try:
-                from dendritic_modeling.plotting.analysis import plot_weight_distributions
-                import matplotlib.pyplot as plt
-                import logging
-                import traceback
-
-                plot_save_path = os.path.join(save_path, "plots")
-                os.makedirs(plot_save_path, exist_ok=True)
-
-                # Prepare weight data for plotting
-                weight_data = {}
-                if len(exc_weights) > 0:
-                    weight_data["Excitatory"] = exc_weights.detach().numpy()
-                if len(inh_weights) > 0:
-                    weight_data["Inhibitory"] = inh_weights.detach().numpy()
-                if len(branch_weights) > 0:
-                    weight_data["Branch"] = branch_weights.detach().numpy()
-
-                if weight_data:
-                    try:
-                        # Create weight distribution plot
-                        logging.info(f"Calling plot_weight_distributions with {len(weight_data)} weight types")
-                        result = plot_weight_distributions(
-                            weight_data,
-                            save_path=plot_save_path,
-                            filename=filename
-                        )
-                        logging.info(f"plot_weight_distributions returned type: {type(result)}")
-                        # result is a tuple (fig, ax)
-                        if result is not None:
-                            if isinstance(result, tuple) and len(result) == 2:
-                                fig, ax = result
-                                plt.close(fig)
-                            else:
-                                logging.warning(f"Unexpected return type from plot_weight_distributions: {type(result)}")
-                    except Exception as e:
-                        logging.error(f"Error in plot_weight_distributions: {e}")
-                        import traceback
-                        logging.error(traceback.format_exc())
-
-                    # Also create histogram plots
-                    fig, axes = plt.subplots(1, len(weight_data), figsize=(5*len(weight_data), 4))
-                    if len(weight_data) == 1:
-                        axes = [axes]
-
-                    for ax, (name, weights_array) in zip(axes, weight_data.items()):
-                        ax.hist(weights_array, bins=50, alpha=0.7, edgecolor='black')
-                        ax.set_xlabel('Weight Value')
-                        ax.set_ylabel('Count')
-                        ax.set_title(f'{name} Weight Distribution')
-                        ax.grid(True, alpha=0.3)
-
-                    plt.tight_layout()
-                    hist_path = os.path.join(plot_save_path, f"{filename}_weight_histograms.png")
-                    plt.savefig(hist_path, dpi=300, bbox_inches='tight')
-                    plt.close()
-
-            except Exception as e:
-                import logging
-                logging.warning(f"Could not generate weight plots: {e}")
-        else:
-            return weights
+        return weights
