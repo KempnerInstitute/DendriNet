@@ -30,8 +30,6 @@ import json
 import os
 import re
 import traceback
-from datetime import datetime
-from pathlib import Path
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -53,7 +51,6 @@ except AttributeError:
         matplotlib.cm.register_cmap = matplotlib.colormaps.register
         import seaborn as sns
 
-from matplotlib.colors import LinearSegmentedColormap
 from omegaconf import OmegaConf
 
 
@@ -197,7 +194,7 @@ def collect_params_data(exp_dir):
                 print(
                     f"Warning: Could not extract EE/IE values from {config_file}: {e}"
                 )
-                print(f"Trying alternative structure...")
+                print("Trying alternative structure...")
 
                 # Try alternative paths
                 try:
@@ -290,7 +287,7 @@ def extract_metrics_from_final_file(perf_dir, task_id=-1):
 
     try:
         # Read the file content
-        with open(final_file, "r") as f:
+        with open(final_file) as f:
             content = f.read()
 
         # Add closing brace if missing
@@ -403,7 +400,7 @@ def process_performance_directory(perf_dir, exp_timestamp, params_df, has_task_i
             all_files = os.listdir(perf_dir)
             print(f"Contents of performance directory: {all_files}")
             if "final" in all_files:
-                print(f"Found 'final' file in performance directory.")
+                print("Found 'final' file in performance directory.")
         except Exception as e:
             print(f"Error listing performance directory: {e}")
 
@@ -476,7 +473,7 @@ def check_final_directory_for_metrics(
     if os.path.exists(final_file):
         try:
             # Read the file content
-            with open(final_file, "r") as f:
+            with open(final_file) as f:
                 content = f.read()
 
             # Add closing brace if missing
@@ -496,7 +493,7 @@ def check_final_directory_for_metrics(
             except json.JSONDecodeError:
                 # If JSON parsing fails, try regex extraction
                 if task_id < 5:
-                    print(f"Failed to parse final file as JSON, trying regex...")
+                    print("Failed to parse final file as JSON, trying regex...")
 
                 train_match = re.search(r"train accuracy[\":]?\s*([\d\.]+)", content)
                 valid_match = re.search(r"valid accuracy[\":]?\s*([\d\.]+)", content)
@@ -687,7 +684,7 @@ def collect_results(exp_dir, params_df):
                 if task_id < 5:  # Debug output for sample tasks
                     print(f"Task {task_id}: About to extract metrics from {final_file}")
                 try:
-                    with open(final_file, "r") as f:
+                    with open(final_file) as f:
                         content = f.read()
 
                     # Add closing brace if missing
@@ -773,7 +770,7 @@ def collect_results(exp_dir, params_df):
                     missing_data.append(
                         {
                             "task_id": task_id,
-                            "reason": f"Error processing final file: {str(e)}",
+                            "reason": f"Error processing final file: {e!s}",
                             "status": "error",
                         }
                     )
@@ -790,10 +787,10 @@ def collect_results(exp_dir, params_df):
         except Exception as e:
             print(f"Error processing config folder for task {task_id}: {e}")
             missing_data.append(
-                {"task_id": task_id, "reason": f"Error: {str(e)}", "status": "error"}
+                {"task_id": task_id, "reason": f"Error: {e!s}", "status": "error"}
             )
 
-    print(f"Finished processing all config folders.")
+    print("Finished processing all config folders.")
     print(f"Collected results for {len(results_data)} tasks.")
 
     # Create DataFrames
@@ -906,7 +903,7 @@ def process_performance_file(
 ):
     """Process a performance file and extract metrics"""
     try:
-        with open(file_path, "r") as f:
+        with open(file_path) as f:
             perf_data = json.load(f)
 
         # Get parameter values for this task if we have task_ids
@@ -949,7 +946,7 @@ def process_performance_file(
         missing_data.append(
             {
                 "task_id": task_id,
-                "reason": f"Error processing performance file: {str(e)}",
+                "reason": f"Error processing performance file: {e!s}",
                 "status": "error",
             }
         )
@@ -968,7 +965,7 @@ def process_output_log(
     """Process an output log file and extract metrics"""
     try:
         # Read the file
-        with open(file_path, "r") as f:
+        with open(file_path) as f:
             log_content = f.read()
 
         # Use regex to extract metrics
@@ -1015,7 +1012,7 @@ def process_output_log(
         missing_data.append(
             {
                 "task_id": task_id,
-                "reason": f"Error processing output log: {str(e)}",
+                "reason": f"Error processing output log: {e!s}",
                 "status": "error",
             }
         )
@@ -1041,7 +1038,7 @@ def process_config_file(
             else:
                 config_data = config
         except:
-            with open(file_path, "r") as f:
+            with open(file_path) as f:
                 if file_path.endswith(".json"):
                     config_data = json.load(f)
                 else:
@@ -1106,7 +1103,7 @@ def process_config_file(
         missing_data.append(
             {
                 "task_id": task_id,
-                "reason": f"Error processing config file: {str(e)}",
+                "reason": f"Error processing config file: {e!s}",
                 "status": "error",
             }
         )
@@ -1658,7 +1655,7 @@ def compare_multiple_experiments(exp_results, summary_dir):
                             f"   IE values: {', '.join(map(str, sorted(df_summary['ie_value'].dropna().unique())))}\n"
                         )
                 else:
-                    f.write(f"   No results available\n")
+                    f.write("   No results available\n")
             f.write(
                 "\nBest Results Across All Experiments\n================================\n\n"
             )
@@ -1782,7 +1779,7 @@ def process_log_file(
 
     try:
         # Read the file
-        with open(file_path, "r") as f:
+        with open(file_path) as f:
             log_content = f.read()
 
         # Look for different patterns of reporting accuracy
@@ -1924,7 +1921,7 @@ def process_log_file(
         missing_data.append(
             {
                 "job_dir": job_dir,
-                "reason": f"Error processing log file: {str(e)}",
+                "reason": f"Error processing log file: {e!s}",
                 "status": "error",
             }
         )
@@ -2290,7 +2287,7 @@ def clean_results_data(results_df):
     clean_df = results_df.copy()
 
     # Print initial data diagnostic
-    print(f"\nInitial data in clean_results_data:")
+    print("\nInitial data in clean_results_data:")
     print(f"Total rows: {len(clean_df)}")
     print(
         f"Data types: ee_value: {clean_df['ee_value'].dtype}, ie_value: {clean_df['ie_value'].dtype}"
@@ -2335,7 +2332,7 @@ def clean_results_data(results_df):
             clean_df[col] = clean_df[col].apply(extract_first)
 
     # Print after conversion
-    print(f"\nAfter conversion:")
+    print("\nAfter conversion:")
     print(
         f"Data types: ee_value: {clean_df['ee_value'].dtype}, ie_value: {clean_df['ie_value'].dtype}"
     )
@@ -2375,7 +2372,7 @@ def clean_results_data(results_df):
         ] = "no_shunting"
 
     # Print diagnostics about the cleaned data
-    print(f"\nCleaned data summary:")
+    print("\nCleaned data summary:")
     print(f"Total rows: {len(clean_df)}")
     if "network_category" in clean_df.columns and len(clean_df) > 0:
         for category in clean_df["network_category"].unique():
@@ -2903,7 +2900,7 @@ def plot_branch_information_vs_ei_ratio(branch_info_df, output_dir):
             ei_ratios = sorted(analysis_data["ei_ratio"].unique())
             print(f"{analysis_type}: {len(layers)} layers ({min(layers)}-{max(layers)}), {len(ei_ratios)} E/I ratios")
             print(f"  When plotting vs E/I ratio, values are AVERAGED across all {len(layers)} layers")
-            
+
             # Show example of averaging for first E/I ratio
             if ei_ratios and "I_V_C" in analysis_data.columns:
                 first_ei = ei_ratios[0]
@@ -3124,7 +3121,7 @@ def plot_branch_information_vs_ei_ratio(branch_info_df, output_dir):
                 # First pass: collect all y-values to determine global y-axis range
                 all_y_values = []
                 plot_data = {}  # Store data for second pass
-                
+
                 for use_shunting in [True, False]:
                     shunt_data = latest_data[
                         latest_data["use_shunting"] == use_shunting
@@ -3210,7 +3207,7 @@ def plot_branch_information_vs_ei_ratio(branch_info_df, output_dir):
                         ax.xaxis.set_major_formatter(formatter)
 
                         # Set nice tick positions
-                        if use_shunting in plot_data and plot_data[use_shunting]:
+                        if plot_data.get(use_shunting):
                             # Get E/I ratios from any available metric
                             sample_data = next(iter(plot_data[use_shunting].values()))
                             if not sample_data.empty:
@@ -3252,7 +3249,7 @@ def plot_branch_information_vs_ei_ratio(branch_info_df, output_dir):
             # First pass: collect all y-values to determine global y-axis range
             all_y_values = []
             plot_data = {}  # Store data for second pass
-            
+
             for use_shunting in [True, False]:
                 shunt_data = latest_data[latest_data["use_shunting"] == use_shunting]
                 plot_data[use_shunting] = None  # Initialize all keys
@@ -3282,7 +3279,7 @@ def plot_branch_information_vs_ei_ratio(branch_info_df, output_dir):
                         grouped_exc = shunt_data.groupby("ei_ratio")[exc_col].mean()
                         grouped_inh = shunt_data.groupby("ei_ratio")[inh_col].mean()
                         info_ratio = grouped_exc / (grouped_inh + 1e-10)
-                        
+
                         plot_data[use_shunting] = info_ratio
                         all_y_values.extend(info_ratio.values)
 
@@ -3315,7 +3312,7 @@ def plot_branch_information_vs_ei_ratio(branch_info_df, output_dir):
                 continue
 
             info_ratio = plot_data[use_shunting]
-            
+
             ax.plot(
                 info_ratio.index,
                 info_ratio.values,
@@ -3541,73 +3538,73 @@ def plot_branch_information_vs_ei_ratio(branch_info_df, output_dir):
 
 def plot_custom_branch_information_plots(branch_info_df, output_dir):
     """Generate custom plots based on user requirements"""
-    
+
     # Define consistent colors and markers for shunting vs non-shunting
     STYLE_CONFIG = {
         True: {'color': '#1f77b4', 'marker': 'o', 'linestyle': '-', 'label': 'Shunting'},      # Blue circles
         False: {'color': '#ff7f0e', 'marker': 's', 'linestyle': '--', 'label': 'Non-Shunting'} # Orange squares
     }
-    
+
     # Process different analysis types
     analysis_types = branch_info_df["analysis_type"].unique()
-    
+
     for analysis_type in analysis_types:
         analysis_data = branch_info_df[branch_info_df["analysis_type"] == analysis_type]
-        
+
         if analysis_data.empty:
             continue
-            
+
         print(f"Creating custom plots for {analysis_type} analysis...")
-        
+
         # Get the latest epoch data
         epochs = sorted(analysis_data["epoch"].unique()) if "epoch" in analysis_data.columns else [0]
         latest_epoch = max(epochs)
         latest_data = analysis_data[analysis_data["epoch"] == latest_epoch]
-        
+
         # 1. I(V;C) plot for shunting vs non-shunting
         plot_ivc_comparison(latest_data, analysis_type, output_dir, STYLE_CONFIG)
-        
-        # 2. I(E;I) - I(E;I|C) plot for shunting vs non-shunting  
+
+        # 2. I(E;I) - I(E;I|C) plot for shunting vs non-shunting
         plot_iei_difference_comparison(latest_data, analysis_type, output_dir, STYLE_CONFIG)
-        
+
         # 3. E, I information balance plot for shunting vs non-shunting
         plot_ei_information_balance_comparison(latest_data, analysis_type, output_dir, STYLE_CONFIG)
-        
+
         # 4. I(V;C) heatmap with E/I on x-axis and layer on y-axis
         plot_ivc_heatmap_by_layer(latest_data, analysis_type, output_dir)
-        
+
         # 5. Smoothed ablation plots (if ablation data is available)
         plot_smoothed_ablation_per_layer(latest_data, analysis_type, output_dir)
 
 
 def plot_ivc_comparison(data, analysis_type, output_dir, style_config):
     """Plot I(V;C) for shunting vs non-shunting in one plot"""
-    
+
     # Determine the correct column name based on analysis type
     ivc_col = "I_V_C_mean" if analysis_type == "per_branch" and "I_V_C_mean" in data.columns else "I_V_C"
-    
+
     if ivc_col not in data.columns:
         print(f"Column {ivc_col} not found for I(V;C) comparison")
         return
-    
+
     fig, ax = plt.subplots(figsize=(10, 6))
-    
+
     y_min, y_max = float('inf'), float('-inf')
-    
+
     for use_shunting in [True, False]:
         shunt_data = data[data["use_shunting"] == use_shunting]
-        
+
         if shunt_data.empty:
             continue
-            
+
         # Group by E/I ratio and calculate mean (no error bars)
         grouped = shunt_data.groupby("ei_ratio")[ivc_col].mean()
-        
+
         style = style_config[use_shunting]
-        
+
         # Plot without error bars
         ax.plot(
-            grouped.index, 
+            grouped.index,
             grouped.values,
             color=style['color'],
             marker=style['marker'],
@@ -3617,35 +3614,35 @@ def plot_ivc_comparison(data, analysis_type, output_dir, style_config):
             markersize=8,
             alpha=0.8
         )
-        
+
         # Track y-axis range
         y_min = min(y_min, grouped.values.min())
         y_max = max(y_max, grouped.values.max())
-    
+
     ax.set_xlabel("E/I Ratio", fontsize=12)
     ax.set_ylabel("I(V;C) - Mutual Information (bits)", fontsize=12)
     ax.set_title(f"Output-Class Information I(V;C) Comparison\n{analysis_type.replace('_', ' ').title()} Analysis", fontsize=14)
     ax.legend(fontsize=11)
     ax.grid(True, alpha=0.3)
-    
+
     # Set consistent y-axis range
     if y_min != float('inf') and y_max != float('-inf'):
         y_margin = (y_max - y_min) * 0.1
         ax.set_ylim(y_min - y_margin, y_max + y_margin)
-    
+
     # Log scale for x-axis
     ax.set_xscale("log")
-    
+
     plt.tight_layout()
     plt.savefig(os.path.join(output_dir, f"ivc_comparison_{analysis_type}.png"), dpi=300, bbox_inches='tight')
     plt.close()
-    
+
     print(f"  Created I(V;C) comparison plot for {analysis_type}")
 
 
 def plot_iei_difference_comparison(data, analysis_type, output_dir, style_config):
     """Plot I(E;I) - I(E;I|C) for shunting vs non-shunting in one plot"""
-    
+
     # Determine the correct column names based on analysis type
     if analysis_type == "per_branch":
         iei_col = "I_E_I_mean"
@@ -3653,33 +3650,33 @@ def plot_iei_difference_comparison(data, analysis_type, output_dir, style_config
     else:
         iei_col = "I_E_I"
         iei_cond_col = "I_E_I_given_C"
-    
+
     if iei_col not in data.columns or iei_cond_col not in data.columns:
         print(f"Columns {iei_col} or {iei_cond_col} not found for I(E;I) difference comparison")
         return
-    
+
     # Calculate the difference I(E;I) - I(E;I|C)
     data_copy = data.copy()
     data_copy['iei_difference'] = data_copy[iei_col] - data_copy[iei_cond_col]
-    
+
     fig, ax = plt.subplots(figsize=(10, 6))
-    
+
     y_min, y_max = float('inf'), float('-inf')
-    
+
     for use_shunting in [True, False]:
         shunt_data = data_copy[data_copy["use_shunting"] == use_shunting]
-        
+
         if shunt_data.empty:
             continue
-            
+
         # Group by E/I ratio and calculate mean (no error bars)
         grouped = shunt_data.groupby("ei_ratio")['iei_difference'].mean()
-        
+
         style = style_config[use_shunting]
-        
+
         # Plot without error bars
         ax.plot(
-            grouped.index, 
+            grouped.index,
             grouped.values,
             color=style['color'],
             marker=style['marker'],
@@ -3689,38 +3686,38 @@ def plot_iei_difference_comparison(data, analysis_type, output_dir, style_config
             markersize=8,
             alpha=0.8
         )
-        
+
         # Track y-axis range
         y_min = min(y_min, grouped.values.min())
         y_max = max(y_max, grouped.values.max())
-    
+
     ax.set_xlabel("E/I Ratio", fontsize=12)
     ax.set_ylabel("I(E;I) - I(E;I|C) Co-information (bits)", fontsize=12)
     ax.set_title(f"Excitatory-Inhibitory Co-information\n{analysis_type.replace('_', ' ').title()} Analysis", fontsize=14)
     ax.legend(fontsize=11)
     ax.grid(True, alpha=0.3)
-    
+
     # Add reference line at y=0
     ax.axhline(y=0, color='black', linestyle='-', alpha=0.3, linewidth=1)
-    
+
     # Set consistent y-axis range
     if y_min != float('inf') and y_max != float('-inf'):
         y_margin = (y_max - y_min) * 0.1
         ax.set_ylim(y_min - y_margin, y_max + y_margin)
-    
+
     # Log scale for x-axis
     ax.set_xscale("log")
-    
+
     plt.tight_layout()
     plt.savefig(os.path.join(output_dir, f"iei_difference_comparison_{analysis_type}.png"), dpi=300, bbox_inches='tight')
     plt.close()
-    
+
     print(f"  Created I(E;I) - I(E;I|C) comparison plot for {analysis_type}")
 
 
 def plot_ei_information_balance_comparison(data, analysis_type, output_dir, style_config):
     """Plot E, I information balance for shunting vs non-shunting in one plot"""
-    
+
     # Determine the correct column names based on analysis type
     if analysis_type == "per_branch":
         exc_col = "I_E_C_mean"
@@ -3728,30 +3725,30 @@ def plot_ei_information_balance_comparison(data, analysis_type, output_dir, styl
     else:
         exc_col = "I_E_C"
         inh_col = "I_I_C"
-    
+
     if exc_col not in data.columns or inh_col not in data.columns:
         print(f"Columns {exc_col} or {inh_col} not found for E/I information balance comparison")
         return
-    
+
     fig, ax = plt.subplots(figsize=(10, 6))
-    
+
     y_min, y_max = float('inf'), float('-inf')
-    
+
     for use_shunting in [True, False]:
         shunt_data = data[data["use_shunting"] == use_shunting]
-        
+
         if shunt_data.empty:
             continue
-            
+
         # Group by E/I ratio and calculate information ratio
         grouped_exc = shunt_data.groupby("ei_ratio")[exc_col].mean()
         grouped_inh = shunt_data.groupby("ei_ratio")[inh_col].mean()
-        
+
         # Calculate E/I information ratio
         info_ratio = grouped_exc / (grouped_inh + 1e-10)
-        
+
         style = style_config[use_shunting]
-        
+
         # Plot the information balance
         ax.plot(
             grouped_exc.index,
@@ -3764,56 +3761,56 @@ def plot_ei_information_balance_comparison(data, analysis_type, output_dir, styl
             markersize=8,
             alpha=0.8
         )
-        
+
         # Track y-axis range
         y_min = min(y_min, info_ratio.min())
         y_max = max(y_max, info_ratio.max())
-    
+
     ax.set_xlabel("E/I Ratio", fontsize=12)
     ax.set_ylabel("E/I Information Ratio I(E;C)/I(I;C)", fontsize=12)
     ax.set_title(f"Excitatory/Inhibitory Information Balance\n{analysis_type.replace('_', ' ').title()} Analysis", fontsize=14)
     ax.legend(fontsize=11)
     ax.grid(True, alpha=0.3)
-    
+
     # Add reference line at ratio = 1 (equal E/I information)
     ax.axhline(y=1.0, color='black', linestyle='--', alpha=0.5, label='Equal E/I Information')
-    
+
     # Set consistent y-axis range
     if y_min != float('inf') and y_max != float('-inf'):
         y_margin = (y_max - y_min) * 0.1
         ax.set_ylim(y_min - y_margin, y_max + y_margin)
-    
+
     # Log scale for x-axis
     ax.set_xscale("log")
-    
+
     plt.tight_layout()
     plt.savefig(os.path.join(output_dir, f"ei_balance_comparison_{analysis_type}.png"), dpi=300, bbox_inches='tight')
     plt.close()
-    
+
     print(f"  Created E/I information balance comparison plot for {analysis_type}")
 
 
 def plot_ivc_heatmap_by_layer(data, analysis_type, output_dir):
     """Plot I(V;C) as a heatmap with E/I on x-axis and layer on y-axis"""
-    
+
     # Determine the correct column name based on analysis type
     ivc_col = "I_V_C_mean" if analysis_type == "per_branch" and "I_V_C_mean" in data.columns else "I_V_C"
-    
+
     if ivc_col not in data.columns or "layer" not in data.columns:
         print(f"Required columns {ivc_col} or 'layer' not found for I(V;C) heatmap")
         return
-    
+
     # Create separate heatmaps for shunting and non-shunting
     fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(16, 8))
-    
+
     # First, calculate the global min/max for consistent color scaling
     all_values = []
     shunting_pivot = None
     nonshunting_pivot = None
-    
+
     for use_shunting in [True, False]:
         shunt_data = data[data["use_shunting"] == use_shunting]
-        
+
         if not shunt_data.empty:
             try:
                 pivot = shunt_data.pivot_table(
@@ -3822,7 +3819,7 @@ def plot_ivc_heatmap_by_layer(data, analysis_type, output_dir):
                     columns="ei_ratio",
                     aggfunc="mean"
                 )
-                
+
                 if not pivot.empty:
                     all_values.extend(pivot.values.flatten())
                     if use_shunting:
@@ -3831,23 +3828,23 @@ def plot_ivc_heatmap_by_layer(data, analysis_type, output_dir):
                         nonshunting_pivot = pivot
             except Exception:
                 pass
-    
+
     # Calculate global color scale
     if all_values:
         vmin = np.nanmin(all_values)
         vmax = np.nanmax(all_values)
     else:
         vmin, vmax = 0, 1
-    
-    for use_shunting, ax, title_suffix, pivot in [(True, ax1, "Shunting", shunting_pivot), 
+
+    for use_shunting, ax, title_suffix, pivot in [(True, ax1, "Shunting", shunting_pivot),
                                                    (False, ax2, "Non-Shunting", nonshunting_pivot)]:
-        
+
         if pivot is None or pivot.empty:
-            ax.text(0.5, 0.5, f"No data for\n{title_suffix}", 
+            ax.text(0.5, 0.5, f"No data for\n{title_suffix}",
                    transform=ax.transAxes, ha='center', va='center', fontsize=12)
             ax.set_title(f"I(V;C) Heatmap - {title_suffix}")
             continue
-        
+
         try:
             # Create heatmap with consistent color scale
             im = sns.heatmap(
@@ -3860,59 +3857,59 @@ def plot_ivc_heatmap_by_layer(data, analysis_type, output_dir):
                 vmin=vmin,
                 vmax=vmax
             )
-            
+
             ax.set_xlabel("E/I Ratio", fontsize=12)
             ax.set_ylabel("Layer Index", fontsize=12)
             ax.set_title(f"I(V;C) Heatmap - {title_suffix}", fontsize=14)
-            
+
             # Improve x-axis labels for better readability
             x_labels = [f"{float(x):.1f}" for x in pivot.columns]
             ax.set_xticklabels(x_labels, rotation=45)
-            
+
         except Exception as e:
             print(f"Error creating I(V;C) heatmap for {title_suffix}: {e}")
-            ax.text(0.5, 0.5, f"Error creating\n{title_suffix} heatmap", 
+            ax.text(0.5, 0.5, f"Error creating\n{title_suffix} heatmap",
                    transform=ax.transAxes, ha='center', va='center', fontsize=12)
             ax.set_title(f"I(V;C) Heatmap - {title_suffix}")
-    
+
     plt.suptitle(f"I(V;C) Information by Layer and E/I Ratio\n{analysis_type.replace('_', ' ').title()} Analysis", fontsize=16)
     plt.tight_layout()
     plt.savefig(os.path.join(output_dir, f"ivc_heatmap_by_layer_{analysis_type}.png"), dpi=300, bbox_inches='tight')
     plt.close()
-    
+
     print(f"  Created I(V;C) heatmap by layer for {analysis_type}")
 
 
 def plot_smoothed_ablation_per_layer(data, analysis_type, output_dir):
     """Plot smoothed ablation results per layer (if ablation data is available)"""
-    
+
     # Check if we have layer information and any ablation-related columns
     if "layer" not in data.columns:
-        print(f"No layer information available for smoothed ablation plots")
+        print("No layer information available for smoothed ablation plots")
         return
-    
+
     # Look for potential ablation columns (this might need adjustment based on actual data structure)
     ablation_cols = [col for col in data.columns if 'ablation' in col.lower() or 'contribution' in col.lower()]
-    
+
     if not ablation_cols:
-        print(f"No ablation/contribution columns found for smoothed ablation plots")
+        print("No ablation/contribution columns found for smoothed ablation plots")
         return
-    
+
     layers = sorted(data["layer"].unique())
-    
+
     fig, axes = plt.subplots(len(ablation_cols), 1, figsize=(12, 4 * len(ablation_cols)))
     if len(ablation_cols) == 1:
         axes = [axes]
-    
+
     for idx, col in enumerate(ablation_cols):
         ax = axes[idx]
-        
+
         for use_shunting in [True, False]:
             shunt_data = data[data["use_shunting"] == use_shunting]
-            
+
             if shunt_data.empty:
                 continue
-            
+
             # Calculate mean values per layer
             layer_means = []
             for layer in layers:
@@ -3921,38 +3918,38 @@ def plot_smoothed_ablation_per_layer(data, analysis_type, output_dir):
                     layer_means.append(layer_data[col].mean())
                 else:
                     layer_means.append(np.nan)
-            
+
             # Remove NaN values for smoothing
             valid_indices = ~np.isnan(layer_means)
             if np.sum(valid_indices) < 3:  # Need at least 3 points for smoothing
                 continue
-                
+
             valid_layers = np.array(layers)[valid_indices]
             valid_means = np.array(layer_means)[valid_indices]
-            
+
             # Apply Gaussian smoothing
             smoothed_values = gaussian_filter1d(valid_means, sigma=1.0)
-            
+
             # Plot
             style = {'color': '#1f77b4', 'marker': 'o', 'label': 'Shunting'} if use_shunting else \
                     {'color': '#ff7f0e', 'marker': 's', 'label': 'Non-Shunting'}
-            
-            ax.plot(valid_layers, valid_means, alpha=0.3, color=style['color'], marker=style['marker'], 
+
+            ax.plot(valid_layers, valid_means, alpha=0.3, color=style['color'], marker=style['marker'],
                    linestyle=':', markersize=4, label=f"{style['label']} (Raw)")
-            ax.plot(valid_layers, smoothed_values, color=style['color'], marker=style['marker'], 
+            ax.plot(valid_layers, smoothed_values, color=style['color'], marker=style['marker'],
                    linewidth=2, markersize=6, label=f"{style['label']} (Smoothed)")
-        
+
         ax.set_xlabel("Layer Index", fontsize=12)
         ax.set_ylabel(f"{col}", fontsize=12)
         ax.set_title(f"Smoothed {col} per Layer", fontsize=14)
         ax.legend(fontsize=10)
         ax.grid(True, alpha=0.3)
-    
+
     plt.suptitle(f"Smoothed Ablation Analysis per Layer\n{analysis_type.replace('_', ' ').title()} Analysis", fontsize=16)
     plt.tight_layout()
     plt.savefig(os.path.join(output_dir, f"smoothed_ablation_per_layer_{analysis_type}.png"), dpi=300, bbox_inches='tight')
     plt.close()
-    
+
     print(f"  Created smoothed ablation per layer plots for {analysis_type}")
 
 
@@ -3981,31 +3978,31 @@ def plot_first_last_layer_information(branch_info_df, output_dir):
 
     # Process different analysis types
     analysis_types = branch_info_df["analysis_type"].unique()
-    
+
     for analysis_type in analysis_types:
         analysis_data = branch_info_df[branch_info_df["analysis_type"] == analysis_type]
-        
+
         if analysis_data.empty or "layer" not in analysis_data.columns:
             continue
-            
+
         print(f"Creating first/last layer plots for {analysis_type} analysis...")
-        
+
         # Get the latest epoch data
         epochs = sorted(analysis_data["epoch"].unique()) if "epoch" in analysis_data.columns else [0]
         latest_epoch = max(epochs)
         latest_data = analysis_data[analysis_data["epoch"] == latest_epoch]
-        
+
         # Get unique layers and identify first and last
         layers = sorted(latest_data["layer"].unique())
         if len(layers) < 2:
             print(f"  Not enough layers ({len(layers)}) for first/last comparison in {analysis_type}")
             continue
-            
+
         first_layer = layers[0]
         last_layer = layers[-1]
-        
+
         print(f"  Analyzing layers: First={first_layer}, Last={last_layer} (out of {len(layers)} total layers)")
-        
+
         # Define key information metrics to plot
         metric_groups = {
             "class_information": {
@@ -4030,7 +4027,7 @@ def plot_first_last_layer_information(branch_info_df, output_dir):
                 "ylabel": "Mutual Information (bits)"
             }
         }
-        
+
         # Create plots for each metric group
         for group_name, group_info in metric_groups.items():
             metrics = group_info["metrics"]
@@ -4038,67 +4035,67 @@ def plot_first_last_layer_information(branch_info_df, output_dir):
             metric_colors = group_info["colors"]
             group_title = group_info["title"]
             ylabel = group_info["ylabel"]
-            
+
             # Check which metrics are available
             available_metrics = []
             available_labels = []
             available_colors = []
-            
+
             for metric, label, color in zip(metrics, labels, metric_colors):
                 metric_col = (
-                    f"{metric}_mean" if analysis_type == "per_branch" 
-                    and f"{metric}_mean" in latest_data.columns 
+                    f"{metric}_mean" if analysis_type == "per_branch"
+                    and f"{metric}_mean" in latest_data.columns
                     else metric
                 )
-                
+
                 if metric_col in latest_data.columns:
                     available_metrics.append(metric_col)
                     available_labels.append(label)
                     available_colors.append(color)
-            
+
             if not available_metrics:
                 print(f"    No {group_name} metrics found for {analysis_type}")
                 continue
-            
+
             # Create the comparison plot: first layer vs last layer
             fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(16, 6))
-            
-            for layer_idx, ax, title_suffix in [(first_layer, ax1, f"First Layer (Layer {first_layer})"), 
+
+            for layer_idx, ax, title_suffix in [(first_layer, ax1, f"First Layer (Layer {first_layer})"),
                                                  (last_layer, ax2, f"Last Layer (Layer {last_layer})")]:
-                
+
                 layer_data = latest_data[latest_data["layer"] == layer_idx]
-                
+
                 if layer_data.empty:
-                    ax.text(0.5, 0.5, f"No data for\nLayer {layer_idx}", 
+                    ax.text(0.5, 0.5, f"No data for\nLayer {layer_idx}",
                            transform=ax.transAxes, ha='center', va='center')
                     ax.set_title(title_suffix)
                     continue
-                
+
                 # Track y-axis range for this subplot
                 y_values = []
-                
+
                 # Plot each metric for both shunting conditions
                 for metric, label, color in zip(available_metrics, available_labels, available_colors):
                     for use_shunting in [True, False]:
                         shunt_layer_data = layer_data[layer_data["use_shunting"] == use_shunting]
-                        
+
                         if shunt_layer_data.empty:
                             continue
-                        
+
                         # Group by E/I ratio and calculate mean
                         grouped = shunt_layer_data.groupby("ei_ratio")[metric].mean()
-                        
+
                         if grouped.empty:
                             continue
-                        
+
                         # Create line style based on shunting
                         linestyle = '-' if use_shunting else '--'
                         alpha = 0.8
                         linewidth = 2 if use_shunting else 1.5
-                        
+
                         # Create label that includes both metric and shunting info
                         plot_label = f"{label} ({'Shunt' if use_shunting else 'No Shunt'})"
-                        
+
                         ax.plot(
                             grouped.index,
                             grouped.values,
@@ -4110,69 +4107,69 @@ def plot_first_last_layer_information(branch_info_df, output_dir):
                             markersize=6,
                             alpha=alpha
                         )
-                        
+
                         y_values.extend(grouped.values)
-                
+
                 ax.set_xlabel("E/I Ratio", fontsize=12)
                 ax.set_ylabel(ylabel, fontsize=12)
                 ax.set_title(title_suffix, fontsize=14)
                 ax.legend(bbox_to_anchor=(1.05, 1), loc='upper left', fontsize=9)
                 ax.grid(True, alpha=0.3)
                 ax.set_xscale("log")
-                
+
                 # Set y-axis range
                 if y_values:
                     y_min, y_max = min(y_values), max(y_values)
                     y_margin = (y_max - y_min) * 0.1
                     ax.set_ylim(y_min - y_margin, y_max + y_margin)
-            
+
             plt.suptitle(f"{group_title} - First vs Last Layer Comparison\n{analysis_type.replace('_', ' ').title()} Analysis", fontsize=16)
             plt.tight_layout()
             plt.savefig(
-                os.path.join(first_last_dir, f"{group_name}_first_last_layer_{analysis_type}.png"), 
+                os.path.join(first_last_dir, f"{group_name}_first_last_layer_{analysis_type}.png"),
                 dpi=300, bbox_inches='tight'
             )
             plt.close()
-            
+
             print(f"    Created {group_name} first/last layer comparison plot")
-        
+
         # Special plot: I(V;C) comparison between first and last layers
         ivc_col = "I_V_C_mean" if analysis_type == "per_branch" and "I_V_C_mean" in latest_data.columns else "I_V_C"
-        
+
         if ivc_col in latest_data.columns:
             fig, ax = plt.subplots(figsize=(12, 6))
-            
-            for layer_idx, layer_name in [(first_layer, f"Layer {first_layer} (First)"), 
+
+            for layer_idx, layer_name in [(first_layer, f"Layer {first_layer} (First)"),
                                           (last_layer, f"Layer {last_layer} (Last)")]:
                 layer_data = latest_data[latest_data["layer"] == layer_idx]
-                
+
                 if layer_data.empty:
                     continue
-                
+
                 for use_shunting in [True, False]:
                     shunt_layer_data = layer_data[layer_data["use_shunting"] == use_shunting]
-                    
+
                     if shunt_layer_data.empty:
                         continue
-                    
+
                     # Group by E/I ratio and calculate mean
                     grouped = shunt_layer_data.groupby("ei_ratio")[ivc_col].mean()
-                    
+
                     if grouped.empty:
                         continue
-                    
+
                     # Create unique style for each combination
                     if layer_idx == first_layer:
                         color = '#1f77b4' if use_shunting else '#aec7e8'  # Blue tones
                         marker = 'o' if use_shunting else '^'
                     else:  # last layer
-                        color = '#ff7f0e' if use_shunting else '#ffbb78'  # Orange tones  
+                        color = '#ff7f0e' if use_shunting else '#ffbb78'  # Orange tones
                         marker = 's' if use_shunting else 'v'
-                    
+
                     linestyle = '-' if use_shunting else '--'
-                    
+
                     plot_label = f"{layer_name} ({'Shunt' if use_shunting else 'No Shunt'})"
-                    
+
                     ax.plot(
                         grouped.index,
                         grouped.values,
@@ -4184,22 +4181,22 @@ def plot_first_last_layer_information(branch_info_df, output_dir):
                         markersize=8,
                         alpha=0.8
                     )
-            
+
             ax.set_xlabel("E/I Ratio", fontsize=12)
             ax.set_ylabel("I(V;C) - Output-Class Information (bits)", fontsize=12)
             ax.set_title(f"Output Information: First vs Last Layer\n{analysis_type.replace('_', ' ').title()} Analysis", fontsize=14)
             ax.legend(fontsize=11)
             ax.grid(True, alpha=0.3)
             ax.set_xscale("log")
-            
+
             plt.tight_layout()
             plt.savefig(
-                os.path.join(first_last_dir, f"ivc_first_last_layer_comparison_{analysis_type}.png"), 
+                os.path.join(first_last_dir, f"ivc_first_last_layer_comparison_{analysis_type}.png"),
                 dpi=300, bbox_inches='tight'
             )
             plt.close()
-            
-            print(f"    Created I(V;C) first/last layer comparison plot")
+
+            print("    Created I(V;C) first/last layer comparison plot")
 
     print(f"Saved first/last layer comparison plots to {first_last_dir}")
 

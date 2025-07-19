@@ -52,13 +52,8 @@ Filter Examples:
 
 import argparse
 import datetime
-import glob
 import math
 import os
-import shutil
-import subprocess
-import time
-from pathlib import Path
 
 from omegaconf import OmegaConf
 
@@ -772,12 +767,12 @@ def generate_custom_run_script(
     lines.append("# Path to the config file directory")
     lines.append(f"CONFIG_DIR={output_dir}/configs")
     lines.append("")
-    lines.append(f"# Path to main output directory")
+    lines.append("# Path to main output directory")
     lines.append(f"MAIN_OUTPUT_DIR={output_dir}")
     lines.append("")
-    lines.append(f"# Subdirectories")
-    lines.append(f"RESULTS_DIR=${{MAIN_OUTPUT_DIR}}/results")
-    lines.append(f"PLOTS_DIR=${{MAIN_OUTPUT_DIR}}/plots")
+    lines.append("# Subdirectories")
+    lines.append("RESULTS_DIR=${MAIN_OUTPUT_DIR}/results")
+    lines.append("PLOTS_DIR=${MAIN_OUTPUT_DIR}/plots")
     lines.append("")
 
     lines.append(f"CONFIG_FILE_NAME_INIT={run_config.config_filename_init}")
@@ -816,9 +811,9 @@ def generate_custom_run_script(
     lines.append("")
 
     # Set up output folders with config-based directories instead of job/task based
-    lines.append(f"# Path to the config-specific results folder")
-    lines.append(f"CONFIG_FOLDER_PATH=${{RESULTS_DIR}}/config_${{CONFIG_IDX}}")
-    lines.append(f"PLOT_FOLDER_PATH=${{PLOTS_DIR}}")
+    lines.append("# Path to the config-specific results folder")
+    lines.append("CONFIG_FOLDER_PATH=${RESULTS_DIR}/config_${CONFIG_IDX}")
+    lines.append("PLOT_FOLDER_PATH=${PLOTS_DIR}")
     lines.append("")
 
     # Create output directory
@@ -1066,7 +1061,7 @@ def main():
     print(
         f"5. Plots will be saved to: {os.path.join(output_dir, 'plots')}/config_<config_idx>/"
     )
-    print(f"6. To run the complete sweep, use: ./run.sh")
+    print("6. To run the complete sweep, use: ./run.sh")
     if args.filter_mode != "all":
         print(
             f"7. Applied filtering mode '{args.filter_mode}' with value {args.filter_value}"

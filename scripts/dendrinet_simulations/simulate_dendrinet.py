@@ -1009,7 +1009,7 @@ def visualize_all_results(df):
             "E_group",
             "I_group",
             "accuracy",
-            f"Accuracy by E and I Group Assignment",
+            "Accuracy by E and I Group Assignment",
             f"plots/accuracy_by_group_{model}.png",
             model_type=model,
         )
@@ -1269,7 +1269,7 @@ def run_ei_ratio_sweep(
             f"Error: Total synapses ({total_synapses}) exceeds twice the group size ({dgrp})."
         )
         logger.error(
-            f"E and I dimensions might need to come from the same group, which would exceed the group size."
+            "E and I dimensions might need to come from the same group, which would exceed the group size."
         )
         logger.error(f"Please ensure total_synapses <= {2 * dgrp}.")
         return pd.DataFrame()
@@ -1644,7 +1644,7 @@ if __name__ == "__main__":
 
         logger.info("Simulation and analysis complete.")
     except Exception as e:
-        logger.error(f"Error during visualization: {str(e)}")
+        logger.error(f"Error during visualization: {e!s}")
         import traceback
 
         logger.error(traceback.format_exc())

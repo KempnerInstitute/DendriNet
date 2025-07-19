@@ -4,7 +4,7 @@
 # Usage:
 #   torchrun --nproc_per_node=4 src/dendritic_modeling/scripts/train_experiments.py configs/example_fsdp_integration.yaml
 #
-# For now, we recommend using train_large_model_fsdp.py for FSDP training
+# For now, we recommend using train_experiment_fstp.py for FSDP training
 # as it handles all the distributed setup automatically.
 
 model:

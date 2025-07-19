@@ -6,9 +6,6 @@ from torch import nn
 
 logger = logging.getLogger(__name__)
 
-from dendritic_modeling.networks.architectures.excitation_inhibition.dendritic.dendrinet import (
-    DendriNet,
-)
 from dendritic_modeling.networks.architectures.excitation_inhibition.input_transform.identity import (
     IdentityInputTransform,
 )
@@ -55,11 +52,13 @@ class TransferLayer(nn.Module):
         super().__init__()
 
         self.input_mode = input_mode = transfer_params.get("input_mode", 0)
-        self.independent_pathways = independent_pathways = transfer_params.get("independent_pathways", False)
-        
+        self.independent_pathways = independent_pathways = transfer_params.get(
+            "independent_pathways", False
+        )
+
         # Add output activation option
         self.output_activation = transfer_params.get("output_activation", None)
-        
+
         # Create activation function if specified
         if self.output_activation == "sigmoid":
             self.activation_fn = nn.Sigmoid()
@@ -78,20 +77,24 @@ class TransferLayer(nn.Module):
             # Get dimensions from transfer_params, checking for None, 0, or missing
             excitatory_dim = transfer_params.get("excitatory_dim", None)
             inhibitory_dim = transfer_params.get("inhibitory_dim", None)
-            
+
             # If excitatory_dim is None, 0, or not provided, use input_dim / 2
             if not excitatory_dim:  # This covers None, 0, empty string, etc.
                 excitatory_dim = int(input_dim / 2)
-                logger.info(f"excitatory_dim not provided or is 0/None. Setting to input_dim/2 = {excitatory_dim}")
-            
+                logger.info(
+                    f"excitatory_dim not provided or is 0/None. Setting to input_dim/2 = {excitatory_dim}"
+                )
+
             # If inhibitory_dim is None, 0, or not provided, use remaining dimensions
             if not inhibitory_dim:  # This covers None, 0, empty string, etc.
                 inhibitory_dim = int(input_dim - excitatory_dim)
-                logger.info(f"inhibitory_dim not provided or is 0/None. Setting to input_dim - excitatory_dim = {inhibitory_dim}")
-            
+                logger.info(
+                    f"inhibitory_dim not provided or is 0/None. Setting to input_dim - excitatory_dim = {inhibitory_dim}"
+                )
+
             excitatory_input_dim = excitatory_dim
             inhibitory_input_dim = inhibitory_dim
-            
+
             self.pathway_split = IndexInputTransform(
                 input_dim=input_dim,
                 excitatory_dim=excitatory_input_dim,

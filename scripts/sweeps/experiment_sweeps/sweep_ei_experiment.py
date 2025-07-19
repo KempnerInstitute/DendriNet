@@ -5,16 +5,9 @@ Comprehensive EI parameter sweep script.
 This script performs parameter sweeps over excitation-inhibition (EI) parameters
 for dendritic networks on synthetic datasets.
 """
-import argparse
-import csv
 import itertools
-import json
-import math
 import os
-import random
 import sys
-import warnings
-from pathlib import Path
 from copy import deepcopy
 from dataclasses import asdict
 from datetime import datetime
@@ -25,7 +18,6 @@ import torch
 from dendritic_modeling import logger, logger_manager
 from dendritic_modeling.config import load_config
 from dendritic_modeling.training.factory import get_trainer
-from dendritic_modeling.training.strategies import Trainer
 from dendritic_modeling.training.optimizers import CustomWeightDecayOptimizer
 from dendritic_modeling.models import Classifier
 from dendritic_modeling.networks import ExcitationInhibitionNetwork, MatchedParamMLP
@@ -184,7 +176,7 @@ def main():
 
     # Setup logging
     logger_manager.set_log_file(os.path.join(base_save_path, "sweep_ei.log"))
-    logger.info(f"Starting/Resuming parameter sweep experiment")
+    logger.info("Starting/Resuming parameter sweep experiment")
     logger.info(f"Config loaded from: {config_path}")
     logger.info(f"Results will be saved to: {base_save_path}")
 
@@ -275,7 +267,7 @@ def main():
                 None,
             )
         except Exception as e:
-            logger.error(f"Error in MLP training with seed {seed}: {str(e)}")
+            logger.error(f"Error in MLP training with seed {seed}: {e!s}")
             continue
 
     logger.info("MLP baseline experiments completed.")
@@ -363,7 +355,7 @@ def main():
                 except Exception as e:
                     logger.error(
                         f"Error in combination {exp_name} seed {seed} "
-                        f"shunting {use_shunting}: {str(e)}"
+                        f"shunting {use_shunting}: {e!s}"
                     )
                     continue
 

@@ -3,7 +3,7 @@ from utils.bijector import *
 from utils.tensor_op import check_bound3
 
 
-class Transform(object):
+class Transform:
     """Copula object."""
 
     def __init__(self, n_cop):

@@ -21,9 +21,9 @@ try:
     from external import PID  # type: ignore
 except Exception as e:  # pragma: no cover - best effort
     PID = None
-    _import_error = e
+    pid_error: Exception = e
 else:
-    _import_error = None
+    pid_error = None
 
 
 def check_pid_available() -> None:
@@ -33,7 +33,7 @@ def check_pid_available() -> None:
         raise ImportError(
             "PID package not found. Ensure the external PID library is "
             "available in the 'external' directory."
-        ) from _import_error
+        ) from pid_error
 
 
 def pid_synergy_redundancy(

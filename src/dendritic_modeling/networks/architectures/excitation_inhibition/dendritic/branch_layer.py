@@ -169,7 +169,9 @@ class DendriticBranchLayer(nn.Module):
 
         self.input_branches = input_branch_factor is not None
         if self.input_branches:
-            BlockCls = EfficientBlockLinear if self.efficient_blocklinear else BlockLinear
+            BlockCls = (
+                EfficientBlockLinear if self.efficient_blocklinear else BlockLinear
+            )
             self.branches_to_output = BlockCls(
                 output_dim * input_branch_factor, output_dim
             )
@@ -194,7 +196,11 @@ class DendriticBranchLayer(nn.Module):
         #     initialize_dendritic_branch_layer(self)
         # else:
         #     self.initialize()
-        initialize_dendritic_branch_layer(self, adaptive=self.adaptive_initialization, branch_factors=self.branch_factors)
+        initialize_dendritic_branch_layer(
+            self,
+            adaptive=self.adaptive_initialization,
+            branch_factors=self.branch_factors,
+        )
 
     def _create_topk_layer(
         self,

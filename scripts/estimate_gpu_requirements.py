@@ -35,7 +35,7 @@ Examples:
     python scripts/estimate_gpu_requirements.py configs/distributed/example_large_model_fsdp.yaml
 """
     )
-    
+
     parser.add_argument(
         'config_file',
         help='Path to configuration file'
@@ -46,14 +46,14 @@ Examples:
         default=None,
         help='Override batch size from config'
     )
-    
+
     args = parser.parse_args()
-    
+
     # Check if config exists
     if not os.path.exists(args.config_file):
         print(f"Error: Configuration file '{args.config_file}' not found!")
         sys.exit(1)
-    
+
     # Estimate GPU requirements
     try:
         estimator, model = estimate_from_config(args.config_file, args.batch_size)
@@ -65,4 +65,4 @@ Examples:
 
 
 if __name__ == '__main__':
-    main() 
+    main()

@@ -99,7 +99,11 @@ class ExcitationInhibitionLayer(nn.Module):
 
         # Excitatory cells receive inhibitory input from the inhibitory cells in the same layer
         # The dimension is the number of inhibitory neurons (each outputs one value)
-        excitatory_inhibitory_input_dim = n_inhibitory_cells if (build_inhibitory_cells and n_inhibitory_cells is not None) else inhibitory_input_dim
+        excitatory_inhibitory_input_dim = (
+            n_inhibitory_cells
+            if (build_inhibitory_cells and n_inhibitory_cells is not None)
+            else inhibitory_input_dim
+        )
 
         self.excitatory_cells = DendriNet(
             n_soma=n_excitatory_cells,

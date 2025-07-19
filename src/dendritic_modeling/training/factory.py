@@ -59,8 +59,11 @@ def get_trainer(
         # Note: FSDP requires additional setup (distributed init, special config)
         # This would need to be called from a distributed context
         from dendritic_modeling.training.strategies.fsdp_standard import FSDPTrainer
-        if 'fsdp_config' not in trainer_config_dict:
-            raise ValueError("FSDP strategy requires 'fsdp_config' in trainer_config_dict")
+
+        if "fsdp_config" not in trainer_config_dict:
+            raise ValueError(
+                "FSDP strategy requires 'fsdp_config' in trainer_config_dict"
+            )
         return FSDPTrainer(**trainer_config_dict)
     else:
         logger.info(f"Unrecognized strategy '{strategy}', defaulting to 'standard'.")

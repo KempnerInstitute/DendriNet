@@ -20,10 +20,45 @@ from dendritic_modeling.networks.architectures.excitation_inhibition.input_trans
 from dendritic_modeling.networks.base import BaseNetwork
 
 
-class ExcitationInhibitionNetwork(BaseNetwork):
-    """
-    A neural network model that implements excitatory and inhibitory pathways.
-    This is a placeholder implementation based on common patterns.
+class ExcitationInhibitionNetwork(nn.Module):
+    """Excitation-Inhibition network for dendritic modeling.
+
+    Args:
+        input_dim: Input dimension
+        transfer_params: Parameters for the transfer function.
+        excitatory_layer_sizes: List of integers specifying the number of excitatory cells in each layer.
+        inhibitory_layer_sizes: List of integers specifying the number of inhibitory cells in each layer.
+        excitatory_branch_factors: List of integers specifying the number of branches for excitatory cells.
+        inhibitory_branch_factors: List of integers specifying the number of branches for inhibitory cells.
+        reactivate: Whether to reactivate cells.
+        reactivation_init_m: Initial m parameter for reactivation.
+        reactivation_init_b: Initial b parameter for reactivation.
+        somatic_synapses: Whether to use somatic synapses.
+        ee_synapses_per_branch_per_layer: List of integers specifying the number of excitatory-excitatory synapses per branch per layer.
+        ei_synapses_per_branch_per_layer: List of integers specifying the number of excitatory-inhibitory synapses per branch per layer.
+        ie_synapses_per_branch_per_layer: List of integers specifying the number of inhibitory-excitatory synapses per branch per layer.
+        ii_synapses_per_branch_per_layer: List of integers specifying the number of inhibitory-inhibitory synapses per branch per layer.
+        use_shunting: Whether to use shunting inhibition.
+        reactivation_type: Type of reactivation function.
+        reactivation_strategy: Strategy for reactivation.
+        blocklinear_strategy: Strategy for blocklinear computation.
+        topk_init_method: Method for initializing topk.
+        topk_strategy: Strategy for topk.
+        topk_type: Type of topk.
+        print_hooks: Whether to print hooks.
+        excitatory_target_density: Target density for excitatory cells.
+        inhibitory_target_density: Target density for inhibitory cells.
+        use_noise: Whether to use noise.
+        sigma: Standard deviation for noise.
+        rewiring_mode: Mode for rewiring.
+        rewire_frequency: Frequency for rewiring.
+        synapses_per_branch: Number of synapses per branch.
+        efficient_blocklinear: Whether to use efficient blocklinear.
+        freeze_excitatory_connectivity: Whether to freeze excitatory connectivity.
+        freeze_inhibitory_connectivity: Whether to freeze inhibitory connectivity.
+        init_method: Method for initializing weights.
+        weight_threshold: Threshold for weight pruning.
+        adaptive_initialization: Whether to use adaptive initialization.
     """
 
     def __init__(
@@ -120,14 +155,20 @@ class ExcitationInhibitionNetwork(BaseNetwork):
 
     def setup_transfer_function(self):
         # For input_mode=1 with no inhibitory layers, n_inhibitory_cells can be None
-        n_inhibitory_cells = self.inhibitory_layer_sizes[0] if self.inhibitory_layer_sizes else None
-        
+        n_inhibitory_cells = (
+            self.inhibitory_layer_sizes[0] if self.inhibitory_layer_sizes else None
+        )
+
         self.transfer_fn = TransferLayer(
             input_dim=self.input_dim,
             transfer_params=self.transfer_params,
             n_inhibitory_cells=n_inhibitory_cells,
             inhibitory_branch_factors=self.inhibitory_branch_factors,
-            excitatory_synapses_per_branch=self.ee_synapses_per_branch_per_layer[0] if self.ee_synapses_per_branch_per_layer else None,
+            excitatory_synapses_per_branch=(
+                self.ee_synapses_per_branch_per_layer[0]
+                if self.ee_synapses_per_branch_per_layer
+                else None
+            ),
             reactivate=self.reactivate,
             reactivation_init_m=self.reactivation_init_m,
             reactivation_init_b=self.reactivation_init_b,
@@ -167,7 +208,7 @@ class ExcitationInhibitionNetwork(BaseNetwork):
 
         # Insert input_dim at the beginning
         excitatory_layer_sizes.insert(0, self.input_dim)
-        
+
         # For input_mode=1, inhibitory_layer_sizes should remain empty or filled with None
         if self.transfer_params.get("input_mode", 0) == 1:
             # Ensure we have None for each layer if the list is empty
@@ -202,10 +243,10 @@ class ExcitationInhibitionNetwork(BaseNetwork):
             # For input_mode=1, don't build inhibitory cells
             # Also check if inhibitory layer size exists for this layer
             build_inhibitory_cells = (
-                self.transfer_params.get("input_mode", 0) != 1 and 
-                i + 1 < len(inhibitory_layer_sizes) and 
-                inhibitory_layer_sizes[i + 1] is not None and
-                inhibitory_layer_sizes[i + 1] > 0
+                self.transfer_params.get("input_mode", 0) != 1
+                and i + 1 < len(inhibitory_layer_sizes)
+                and inhibitory_layer_sizes[i + 1] is not None
+                and inhibitory_layer_sizes[i + 1] > 0
             )
 
             # For the first layer, determine correct dimensions
@@ -215,7 +256,10 @@ class ExcitationInhibitionNetwork(BaseNetwork):
                 layer_inhibitory_input_dim = inhibitory_input_dim
                 # Excitatory cells receive inhibitory output from same layer's inhibitory cells
                 # Check if inhibitory layer exists
-                if i + 1 < len(inhibitory_layer_sizes) and inhibitory_layer_sizes[i + 1] is not None:
+                if (
+                    i + 1 < len(inhibitory_layer_sizes)
+                    and inhibitory_layer_sizes[i + 1] is not None
+                ):
                     excitatory_inhibitory_input_dim = inhibitory_layer_sizes[i + 1]
                 else:
                     # For input_mode=1, there are no inhibitory neurons
@@ -223,17 +267,28 @@ class ExcitationInhibitionNetwork(BaseNetwork):
             else:
                 # Subsequent layers receive outputs from previous layer
                 layer_excitatory_input_dim = excitatory_layer_sizes[i]
-                layer_inhibitory_input_dim = inhibitory_layer_sizes[i] if i < len(inhibitory_layer_sizes) else None
+                layer_inhibitory_input_dim = (
+                    inhibitory_layer_sizes[i]
+                    if i < len(inhibitory_layer_sizes)
+                    else None
+                )
                 # Excitatory cells receive inhibitory output from same layer's inhibitory cells
                 # Check if inhibitory layer exists
-                if i + 1 < len(inhibitory_layer_sizes) and inhibitory_layer_sizes[i + 1] is not None:
+                if (
+                    i + 1 < len(inhibitory_layer_sizes)
+                    and inhibitory_layer_sizes[i + 1] is not None
+                ):
                     excitatory_inhibitory_input_dim = inhibitory_layer_sizes[i + 1]
                 else:
                     # For input_mode=1, there are no inhibitory neurons
                     excitatory_inhibitory_input_dim = None
 
             # Get n_inhibitory_cells for this layer
-            n_inhibitory_cells = inhibitory_layer_sizes[i + 1] if i + 1 < len(inhibitory_layer_sizes) else None
+            n_inhibitory_cells = (
+                inhibitory_layer_sizes[i + 1]
+                if i + 1 < len(inhibitory_layer_sizes)
+                else None
+            )
 
             # Create ExcitationInhibitionLayer
             layer = ExcitationInhibitionLayer(

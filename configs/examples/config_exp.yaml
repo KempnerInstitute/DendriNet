@@ -29,8 +29,8 @@ model:
       inhibitory_branch_factors: [5, 5, 5]
       ee_synapses_per_branch_per_layer: [5]
       ei_synapses_per_branch_per_layer: [5]  # Changed from 200 to 20 (less than 40 inhibitory neurons)
-      ie_synapses_per_branch_per_layer: [2]
-      ii_synapses_per_branch_per_layer: [2]   # Changed from 0 to 5 (must be positive)
+      ie_synapses_per_branch_per_layer: [1]
+      ii_synapses_per_branch_per_layer: [1]
       somatic_synapses: true
       use_shunting: true
       # topk parameters
@@ -290,7 +290,7 @@ slurm_config:
     - "python/3.12.5-fasrc01"
     - "cuda/12.4.1-fasrc01" 
     - "cudnn/8.9.2.26_cuda12-fasrc01"
-  training_script: "scripts/train_large_model_fsdp.py"
+  training_script: "scripts/train_experiment_fstp.py"
   account: "kempner_dev"
   partition: "kempner_h100"
   run_name: "imagenet_16gpu_large_dendritic"

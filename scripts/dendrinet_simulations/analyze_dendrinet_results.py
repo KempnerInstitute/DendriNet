@@ -21,19 +21,14 @@ import glob
 import json
 import os
 import re
-import shutil
 import sys
 import warnings
-from collections import defaultdict
 from datetime import datetime
-from pathlib import Path
 
 import matplotlib.pyplot as plt
-import numpy as np
 import pandas as pd
 import seaborn as sns
 import yaml
-from matplotlib.colors import LinearSegmentedColormap
 
 
 def parse_args():
@@ -118,12 +113,12 @@ def collect_configs(exp_dir):
             task_id = int(task_match.group(1))
 
             # Load config
-            with open(config_file, "r") as f:
+            with open(config_file) as f:
                 config = yaml.safe_load(f)
 
             configs[task_id] = {"config_file": config_file, "parameters": config}
         except Exception as e:
-            print(f"Error processing config file {config_file}: {str(e)}")
+            print(f"Error processing config file {config_file}: {e!s}")
 
     return configs
 
@@ -173,7 +168,7 @@ def collect_results(exp_dir, configs):
 
             # Load results
             try:
-                with open(results_file, "r") as f:
+                with open(results_file) as f:
                     job_results = json.load(f)
 
                 # Add task ID and config parameters to each result
@@ -189,7 +184,7 @@ def collect_results(exp_dir, configs):
                 all_results.extend(job_results)
                 found_task_ids.add(task_id)
             except Exception as e:
-                print(f"Error processing results from task {task_id}: {str(e)}")
+                print(f"Error processing results from task {task_id}: {e!s}")
                 missing_jobs.append(task_id)
 
     # Check for configs without results
@@ -885,7 +880,7 @@ def process_experiment(exp_dir, show_plots=False, report_missing=False):
                 plt.title(f"Sample plot: {os.path.basename(most_recent)}")
                 plt.show()
             except Exception as e:
-                print(f"Failed to display plot: {str(e)}")
+                print(f"Failed to display plot: {e!s}")
 
 
 def main():
@@ -931,7 +926,7 @@ def main():
             print(f"\nProcessed {len(folders)} experiment folders")
 
     except Exception as e:
-        print(f"Error during analysis: {str(e)}")
+        print(f"Error during analysis: {e!s}")
         import traceback
 
         traceback.print_exc()

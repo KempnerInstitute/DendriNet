@@ -103,7 +103,7 @@ srun --ntasks-per-node=$SLURM_NTASKS_PER_NODE \
     --node_rank=$SLURM_NODEID \
     --master_addr=$MASTER_ADDR \
     --master_port=$MASTER_PORT \
-    src/dendritic_modeling/scripts/train_large_model_fsdp.py \
+    src/dendritic_modeling/scripts/train_experiment_fstp.py \
     --config configs/distributed/cifar10_fstp.yaml \
     --distributed
 

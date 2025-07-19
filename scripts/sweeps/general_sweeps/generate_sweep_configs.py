@@ -2,7 +2,6 @@ import argparse
 import os
 from copy import deepcopy
 from itertools import product
-from pathlib import Path
 
 from omegaconf import DictConfig, OmegaConf
 
@@ -394,7 +393,7 @@ def generate_run_sh(
     lines.append("# Path to the config file directory")
     lines.append(f"CONFIG_DIR={config_dir}")
     lines.append("")
-    lines.append(f"# Path to output directory")
+    lines.append("# Path to output directory")
     lines.append(f"OUTPUT_DIR={output_dir}")
     lines.append("")
     lines.append(f"CONFIG_FILE_NAME_INIT={config_filename_init}")
@@ -418,14 +417,14 @@ def generate_run_sh(
         lines.append("CONFIG=${CONFIG_DIR}/${CONFIG_FILE_NAME_INIT}_0.yaml")
         lines.append("RUN_NAME=${SC_RUN_NAME}_${SLURM_JOB_ID}")
     lines.append("")
-    lines.append(f"# Path to the folder to save outputs")
+    lines.append("# Path to the folder to save outputs")
     if array_job_flag:
         lines.append(
-            f"OUTPUT_FOLDER_PATH=${{OUTPUT_DIR}}/${{SC_RUN_NAME}}_${{SLURM_ARRAY_JOB_ID}}/${{SLURM_ARRAY_JOB_ID}}_${{SLURM_ARRAY_TASK_ID}}"
+            "OUTPUT_FOLDER_PATH=${OUTPUT_DIR}/${SC_RUN_NAME}_${SLURM_ARRAY_JOB_ID}/${SLURM_ARRAY_JOB_ID}_${SLURM_ARRAY_TASK_ID}"
         )
     else:
         lines.append(
-            f"OUTPUT_FOLDER_PATH=${{OUTPUT_DIR}}/${{SC_RUN_NAME}}_${{SLURM_JOB_ID}}"
+            "OUTPUT_FOLDER_PATH=${OUTPUT_DIR}/${SC_RUN_NAME}_${SLURM_JOB_ID}"
         )
     lines.append("")
     lines.append("# Create output directory")
@@ -469,7 +468,7 @@ def generate_run_sh(
                 file.write(line + "\n")
 
     print(f"[INFO] run.sh file has been generated at {run_script_path}")
-    print(f"[INFO] A copy/link has been created in the current directory")
+    print("[INFO] A copy/link has been created in the current directory")
 
 
 def parse_args():
@@ -534,7 +533,7 @@ if __name__ == "__main__":
     # Read the config file
     params = read_config(config_dir, param_filename)
     if params is None:
-        print(f"[ERROR] Failed to read config file")
+        print("[ERROR] Failed to read config file")
         exit(1)
 
     print("[INFO] Validating parameters...")
@@ -595,14 +594,14 @@ if __name__ == "__main__":
     with open(readme_path, "w") as f:
         f.write(f"# Sweep Configuration: {params.train_config.train.run_name}\n\n")
         f.write(f"Generated on: {os.popen('date').read().strip()}\n\n")
-        f.write(f"## Contents\n\n")
-        f.write(f"- configs/: Configuration files for each run\n")
-        f.write(f"- run.sh: SLURM batch script to run the sweep\n\n")
-        f.write(f"## Parameters\n\n")
+        f.write("## Contents\n\n")
+        f.write("- configs/: Configuration files for each run\n")
+        f.write("- run.sh: SLURM batch script to run the sweep\n\n")
+        f.write("## Parameters\n\n")
         f.write(f"Base seed: {base_seed}\n")
         f.write(f"Seeds per condition: {seeds_per_condition}\n")
         f.write(f"Total configurations: {len(configs)}\n\n")
-        f.write(f"## Command to run\n\n")
+        f.write("## Command to run\n\n")
         f.write(f"```bash\nsbatch {output_dir}/run.sh\n```\n")
 
     print(f"[INFO] Sweep README file created at {readme_path}")
@@ -610,4 +609,4 @@ if __name__ == "__main__":
         f"[INFO] Successfully generated {len(configs)} configuration files and run script"
     )
     print(f"[INFO] To run the sweep, execute: sbatch {output_dir}/run.sh")
-    print(f"[INFO] (A copy/link of run.sh is also available in the current directory)")
+    print("[INFO] (A copy/link of run.sh is also available in the current directory)")

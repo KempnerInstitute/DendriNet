@@ -90,7 +90,7 @@ run_config:
     - "python/3.12.5-fasrc01"
     - "cuda/12.4.1-fasrc01"
     - "cudnn/8.9.2.26_cuda12-fasrc01"
-  training_script: "src/dendritic_modeling/scripts/train_large_model_fsdp.py"
+  training_script: "src/dendritic_modeling/scripts/train_experiment_fstp.py"
   account: "kempner_dev"
   partition: "kempner_h100"
   run_name: "imagenet_16gpu_large"

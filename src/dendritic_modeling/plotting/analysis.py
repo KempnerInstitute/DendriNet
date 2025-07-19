@@ -346,7 +346,7 @@ class AblationPlotter:
             ylabel="Relative Change (%)",
             colors=["red" if x < 0 else "green" for x in relative_changes],
         )
-        
+
         # Handle return value
         if isinstance(result, plt.Figure):
             fig, ax = result, result.axes[0] if result.axes else None
@@ -400,7 +400,7 @@ class NoiseAnalysisPlotter:
             xlabel="Noise Level",
             ylabel="Accuracy",
         )
-        
+
         # Handle return value
         if isinstance(result, plt.Figure):
             fig, ax = result, result.axes[0] if result.axes else None
@@ -479,7 +479,7 @@ class WeightDistributionPlotter:
             ylabel="Weight Value",
             colors=colors,
         )
-        
+
         # Handle the return value - could be fig or ax
         if isinstance(result, plt.Figure):
             fig, ax = result, result.axes[0] if result.axes else None
@@ -598,7 +598,7 @@ class InformationAnalysisPlotter:
             xlabel="Layer (Soma → Distal)",
             ylabel="Mutual Information (bits)",
         )
-        
+
         # Get the axes from the figure
         ax = fig.axes[0] if fig.axes else None
 
@@ -618,11 +618,20 @@ class InformationAnalysisPlotter:
         h_c = results.get("H_C", 1.0)  # Avoid division by zero
 
         if "I_E_C" in results and h_c > 0:
-            plot_data["I(E;C)/H(C)"] = (layer_indices, [x / h_c for x in results["I_E_C"]])
+            plot_data["I(E;C)/H(C)"] = (
+                layer_indices,
+                [x / h_c for x in results["I_E_C"]],
+            )
         if "I_I_C" in results and h_c > 0:
-            plot_data["I(I;C)/H(C)"] = (layer_indices, [x / h_c for x in results["I_I_C"]])
+            plot_data["I(I;C)/H(C)"] = (
+                layer_indices,
+                [x / h_c for x in results["I_I_C"]],
+            )
         if "I_V_C" in results and h_c > 0:
-            plot_data["I(V;C)/H(C)"] = (layer_indices, [x / h_c for x in results["I_V_C"]])
+            plot_data["I(V;C)/H(C)"] = (
+                layer_indices,
+                [x / h_c for x in results["I_V_C"]],
+            )
 
         result = self.line_plotter.plot(
             data=plot_data,
@@ -630,7 +639,7 @@ class InformationAnalysisPlotter:
             xlabel="Layer (Soma → Distal)",
             ylabel="Normalized Mutual Information",
         )
-        
+
         fig, ax = self._get_fig_ax(result)
 
         # Customize x-axis
@@ -972,3 +981,37 @@ def plot_einet_activations(einet, input_list, **kwargs):
     """Convenience function for EINet activation plotting."""
     plotter = ActivationPlotter()
     return plotter.plot_einet_activations(einet, input_list, **kwargs)
+
+
+def plot_performance_metrics(
+    results: dict,
+    save_path: Optional[str] = None,
+    filename: str = "performance",
+) -> dict[str, tuple[plt.Figure, plt.Axes]]:
+    """Generate bar plots for performance metrics across datasets."""
+    plots = {}
+    for metric_name, metric_values in results.items():
+        if isinstance(metric_values, dict) and len(metric_values) > 0:
+            fig, ax = plt.subplots(figsize=(10, 6))
+            datasets = list(metric_values.keys())
+            values = list(metric_values.values())
+            bars = ax.bar(datasets, values)
+            ax.set_xlabel("Dataset")
+            ax.set_ylabel(metric_name.replace("_", " ").title())
+            ax.set_title(f"Performance: {metric_name.replace('_', ' ').title()}")
+            for bar, val in zip(bars, values):
+                height = bar.get_height()
+                ax.text(
+                    bar.get_x() + bar.get_width() / 2.0,
+                    height,
+                    f"{val:.3f}",
+                    ha="center",
+                    va="bottom",
+                )
+            plt.tight_layout()
+            if save_path:
+                plot_path = os.path.join(save_path, f"{filename}_{metric_name}.png")
+                plt.savefig(plot_path, dpi=300, bbox_inches="tight")
+                plt.close()
+            plots[metric_name] = (fig, ax)
+    return plots

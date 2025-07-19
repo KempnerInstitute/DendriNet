@@ -7,10 +7,8 @@ all the different analysis tools in the dendritic modeling package.
 
 import logging
 import os
-from typing import Optional
 
 import numpy as np
-import torch
 
 from dendritic_modeling.analysis.core.ablation import AblationAnalyzer
 from dendritic_modeling.analysis.core.branch_activation import BranchActivationAnalyzer
@@ -28,28 +26,19 @@ from dendritic_modeling.analysis.tools.synaptic_activation import (
 )
 from dendritic_modeling.analysis.tools.synaptic_turnover import SynapticTurnoverAnalyzer
 from dendritic_modeling.analysis.tools.weight import WeightAnalyzer
-from dendritic_modeling.config import AnalysisConfig
-from dendritic_modeling.models import BaseModel
+from dendritic_modeling.plotting.analysis import (
+    plot_performance_metrics,
+    plot_information_analysis,
+    plot_weight_distributions,
+    # Add others as needed
+)
 
 
 class AnalysisManager:
-    """
-    Coordinates and orchestrates all analysis tools for dendritic modeling.
+    """Manager for running multiple analyses on models."""
 
-    This class manages the initialization and execution of various analysis tools
-    based on configuration settings, providing a unified interface for running
-    comprehensive model analysis.
-    """
-
-    def __init__(
-        self,
-        model: BaseModel,
-        data: dict[str, torch.utils.data.Dataset],
-        analysis_config: AnalysisConfig,
-        save_root: Optional[str] = None,
-        device: str = "cpu",
-        train_config: Optional[dict] = None,
-    ):
+    def __init__(self, model, data, analysis_config, save_root, device='cpu', train_config=None):
+        """Initialize with model, data, and configs."""
         self.model = model
         self.data = data
         self.config = analysis_config
@@ -121,18 +110,10 @@ class AnalysisManager:
             self.correlation_analysis_enabled = False
 
     def run_analysis(self, filename: str = "final", training: bool = False):
-        """
-        Run all enabled analysis tools.
-
-        Args:
-            filename: Base filename for saving analysis results
-            training: Whether this is being called during training (affects which analyses run)
-        """
-        # Performance Analysis
-        if self.config.performance_analysis.enabled and (
-            (self.config.performance_analysis.training and training) or not training
-        ):
-            self.performance_analyzer.analyze(
+        """Run configured analyses and generate plots."""
+        # Run analyses and get results
+        if self.config.performance_analysis.enabled:
+            perf_results = self.performance_analyzer.analyze(
                 model=self.model,
                 train_ds=self.data["train"],
                 valid_ds=self.data["valid"],
@@ -141,18 +122,27 @@ class AnalysisManager:
                 save_path=os.path.join(self.save_root, "performance"),
                 filename=filename,
             )
+            if not training:
+                plot_performance_metrics(
+                    perf_results, save_path=os.path.join(self.save_root, "performance")
+                )
 
         # Information Analysis
         if self.config.information_analysis.enabled and (
             (self.config.information_analysis.training and training) or not training
         ):
-            self.information_analyzer.analyze(
+            info_results = self.information_analyzer.analyze(
                 model=self.model,
                 test_dataset=self.data["test"],
                 device=self.device,
                 save_path=os.path.join(self.save_root, "information_analysis"),
                 filename=filename,
             )
+            if not training:
+                plot_information_analysis(
+                    info_results,
+                    save_path=os.path.join(self.save_root, "information_analysis"),
+                )
 
         # Synaptic Turnover Analysis
         if self.config.synapse_turnover_analysis.enabled and (
@@ -208,11 +198,16 @@ class AnalysisManager:
         if self.config.weight_analysis.enabled and (
             (self.config.weight_analysis.training and training) or not training
         ):
-            self.weight_analyzer.analyze(
+            weight_results = self.weight_analyzer.analyze(
                 model=self.model,
                 save_path=os.path.join(self.save_root, "weight_analysis"),
                 filename=filename,
             )
+            if not training:
+                plot_weight_distributions(
+                    weight_results,
+                    save_path=os.path.join(self.save_root, "weight_analysis"),
+                )
 
         # Synaptic Activation Analysis
         if self.config.synaptic_activation_analysis.enabled and (

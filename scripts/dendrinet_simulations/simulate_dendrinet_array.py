@@ -11,7 +11,6 @@ This reduces the number of array jobs needed while still exploring the full para
 """
 
 import argparse
-import itertools
 import json
 import logging
 import os
@@ -99,7 +98,7 @@ def main():
     logger.info(f"Output directory: {args.output_dir}")
 
     # Load config file
-    with open(args.config, "r") as f:
+    with open(args.config) as f:
         config = yaml.safe_load(f)
 
     logger.info("Configuration loaded successfully")
@@ -151,7 +150,7 @@ def main():
                     all_results.extend(results)
                     progress_bar.update(1)
                 except Exception as e:
-                    logger.error(f"Error running simulation: {str(e)}")
+                    logger.error(f"Error running simulation: {e!s}")
                     progress_bar.update(1)
                     continue
 

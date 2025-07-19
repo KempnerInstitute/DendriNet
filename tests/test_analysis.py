@@ -15,6 +15,10 @@ from unittest.mock import patch
 
 import torch
 
+import pytest
+from dendritic_modeling.analysis.core.information import InformationAnalyzer
+from dendritic_modeling.datasets.synthetic_datasets import generate_synthetic_data  # Assuming this exists
+
 from dendritic_modeling.analysis import (
     AblationAnalyzer,
     AnalysisManager,
@@ -22,6 +26,8 @@ from dendritic_modeling.analysis import (
     InformationAnalyzer,
     PerformanceAnalyzer,
 )
+from dendritic_modeling.analysis.core.ablation import AblationAnalyzer
+from dendritic_modeling.analysis.core.information import InformationAnalyzer
 from dendritic_modeling.analysis.tools import SynapticActivationAnalyzer
 from dendritic_modeling.config import (
     AblationAnalysisParams,
@@ -30,9 +36,13 @@ from dendritic_modeling.config import (
     PerformanceAnalysisParams,
     SynapticActivationAnalysisParams,
     TransferFunctionParams,
+    InformationAnalysisParams,
 )
 from dendritic_modeling.models import Classifier
 from dendritic_modeling.networks import ExcitationInhibitionNetwork, Identity
+
+from unittest.mock import Mock
+import numpy as np
 
 
 class TestPerformanceAnalyzer(unittest.TestCase):
@@ -172,8 +182,6 @@ class TestInformationAnalyzer(unittest.TestCase):
 
     def setUp(self):
         """Set up test fixtures."""
-        from dendritic_modeling.config import InformationAnalysisParams
-
         params = InformationAnalysisParams()
         self.analyzer = InformationAnalyzer(params)
 
@@ -359,6 +367,49 @@ class TestAnalysisManager(unittest.TestCase):
 
                 # The method doesn't return results, so just check it doesn't crash
                 self.assertIsNone(results)
+
+
+def test_ablation_analyzer():
+    params = {'layer_ablation': True, 'compartment_ablation': True}
+    analyzer = AblationAnalyzer(params)
+    assert analyzer.layer_ablation
+    assert analyzer.compartment_ablation
+
+def test_ablation_analyze(simple_model, sample_data):
+    params = {'layer_ablation': True}
+    analyzer = AblationAnalyzer(params)
+    results = analyzer.analyze(simple_model, sample_data)
+    assert isinstance(results, dict)
+    assert 'layer_ablation' in results or 'compartment_ablation' in results
+
+def test_information_analyzer():
+    params = {'method': 'kraskov'}
+    analyzer = InformationAnalyzer(params)
+    assert analyzer.params.method == 'kraskov'
+
+@pytest.fixture
+def sample_analyzer():
+    params = InformationAnalysisParams()
+    return InformationAnalyzer(params)
+
+@pytest.fixture
+def sample_data():
+    return generate_synthetic_data(num_samples=100, num_features=10)  # Adjust as needed
+
+def test_compute_class_mi(sample_analyzer, sample_data):
+    mock_model = Mock()
+    mock_model.get_branch_activations.return_value = np.random.rand(100, 1)
+    results = sample_analyzer.analyze(mock_model, sample_data)
+    assert 'mi_class' in results['branch_0']
+    assert isinstance(results['branch_0']['mi_class'], float)
+
+def test_compute_conditional_mi(sample_analyzer, sample_data):
+    # Similar, with condition
+    pass
+
+def test_compute_pid_per_branch(sample_analyzer, sample_data):
+    # Test PID
+    pass
 
 
 if __name__ == "__main__":

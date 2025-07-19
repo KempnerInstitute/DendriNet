@@ -22,7 +22,6 @@ import itertools
 import os
 import re
 import shutil
-from pathlib import Path
 
 import numpy as np
 
@@ -75,7 +74,7 @@ def load_config(config_file):
         # Convert OmegaConf object to dict for easier handling
         config = OmegaConf.to_container(config, resolve=True)
     else:
-        with open(config_file, "r") as f:
+        with open(config_file) as f:
             config = yaml.safe_load(f)
     return config
 
@@ -315,7 +314,7 @@ mkdir -p ${{PLOTS_DIR}}/${{JOB_ID}}/task_${{TASK_ID}}
 """
 
     # Add conda environment activation if specified
-    if "conda_env_path" in slurm_config and slurm_config["conda_env_path"]:
+    if slurm_config.get("conda_env_path"):
         script_content += f"""
 # Set up conda environment
 echo "Setting up conda environment..."
@@ -755,7 +754,7 @@ echo "sbatch {output_dir}/run_dendrinet_sweep.sh"
     os.chmod(script_path, 0o755)  # Make the script executable
 
     print(f"Created environment check script: {script_path}")
-    print(f"Run this script to verify the environment before submitting the job:")
+    print("Run this script to verify the environment before submitting the job:")
     print(f"  {script_path}")
 
     return script_path
