@@ -14,8 +14,8 @@ import math
 from omegaconf import OmegaConf
 
 # Add parent directory to path to import dendritic_modeling
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), '../src'))
-
+# sys.path.insert(0, os.path.join(os.path.dirname(__file__), '../../'))  # to reach root
+# But since in package, imports should work relatively
 from dendritic_modeling.utils.gpu_estimation import estimate_from_config
 
 

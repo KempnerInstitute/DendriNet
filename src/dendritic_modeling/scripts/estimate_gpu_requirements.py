@@ -13,9 +13,6 @@ import argparse
 import sys
 import os
 
-# Add parent directory to path
-sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-
 from dendritic_modeling.utils.gpu_estimation import estimate_from_config
 
 
