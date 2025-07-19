@@ -56,6 +56,7 @@ from dendritic_modeling.training.fsdp_utils import (
     get_fsdp_config,
 )
 from dendritic_modeling.training.strategies.fsdp_standard import FSDPTrainer
+from dendritic_modeling.plotting.analysis import plot_information_analysis
 
 
 def setup_wandb(config, rank, world_size):
