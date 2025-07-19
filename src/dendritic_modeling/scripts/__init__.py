@@ -12,6 +12,9 @@ from dendritic_modeling.scripts.train_experiments import (
     save_model,
     setup_environment,
 )
+from .generate_slurm_job import SlurmJobGenerator
+from .estimate_gpu_requirements import main as estimate_gpu
+from .check_ei_config_detailed import estimate_ei_model_detailed
 
 __all__ = [
     "initialize_model"

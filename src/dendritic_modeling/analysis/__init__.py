@@ -26,15 +26,6 @@ Classifiers:
 
 # Core analyzers
 # Classifiers
-from .classifiers import (
-    MLPClassifier,
-    analyze_layerwise_ablation,
-    evaluate_classifier,
-    get_ablated_activations,
-    get_layer_activations,
-    train_and_evaluate_classifier,
-    train_classifier,
-)
 from .core import (
     AblationAnalyzer,
     BranchActivationAnalyzer,
@@ -68,18 +59,12 @@ __all__ = [
     "AblationAnalyzer"
     # Manager
     "AnalysisManager"
-    "analyze_layerwise_ablation"
     "BranchActivationAnalyzer"
     # Tools
     "CorrelationAnalyzer"
     "direction_selectivity_index"
-    "evaluate_classifier"
-    "get_ablated_activations"
-    "get_layer_activations"
     "InformationAnalyzer"
     "length_selectivity_index"
-    # Classifiers
-    "MLPClassifier"
     # Metrics
     "NoisePerturbationAnalyzer"
     "orientation_selectivity_index"
@@ -88,7 +73,5 @@ __all__ = [
     "size_tuning_index"
     "SynapticActivationAnalyzer"
     "SynapticTurnoverAnalyzer"
-    "train_and_evaluate_classifier"
-    "train_classifier"
     "WeightAnalyzer"
 ]

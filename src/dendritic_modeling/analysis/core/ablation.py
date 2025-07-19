@@ -8,7 +8,7 @@ disabling or ablating different network components to understand their contribut
 from typing import Optional
 
 import torch
-from torch.utils.data import TensorDataset
+from torch.utils.data import TensorDataset, DataLoader
 
 from dendritic_modeling.config.analysis import AblationAnalysisParams
 from dendritic_modeling.models import BaseModel
@@ -196,6 +196,7 @@ class AblationAnalyzer:
         device: str = "cpu",
         save_path: Optional[str] = None,
         filename: str = "final",
+        batch_size: int = 32,  # adding optional batch_size for evaluations
     ):
         """Perform ablation analysis and return results."""
         try:
@@ -212,18 +213,22 @@ class AblationAnalyzer:
 
         state_dict = deepcopy(model.state_dict())
 
+        # Wrapping dataset in DataLoader for batched evaluation if large
+        test_loader = DataLoader(test_dataset, batch_size=batch_size, shuffle=False)
+
+        # Modifying baseline calculations to use loader
         baselines = {}
         if self.accuracy:
             baselines["accuracy"] = evaluate_accuracy(
-                classifier=model, test_ds=test_dataset, move_device=False
-            )[-1]
+                classifier=model, test_loader=test_loader, device=device
+            )[-1]  # assuming evaluate functions accept loader
         if self.auc:
             baselines["auc"] = evaluate_auc(
-                classifier=model, test_ds=test_dataset, move_device=False
+                classifier=model, test_loader=test_loader, device=device
             )[-1]
         if self.categorical_ll:
             baselines["categorical_loglikelihood"] = evaluate_categorical_loglikelihood(
-                classifier=model, test_ds=test_dataset, move_device=False
+                classifier=model, test_loader=test_loader, device=device
             )[-1]
         if self.mse:
             # Check if model is a regressor before using MSE
@@ -231,7 +236,7 @@ class AblationAnalyzer:
 
             if isinstance(model, Regressor):
                 baselines["mse"] = evaluate_mse(
-                    regressor=model, test_ds=test_dataset, move_device=False
+                    regressor=model, test_loader=test_loader, device=device
                 )[-1]
             else:
                 # Skip MSE for non-regressor models
@@ -245,7 +250,7 @@ class AblationAnalyzer:
 
             if isinstance(model, Regressor):
                 baselines["cosine similarity"] = evaluate_cosine_similarity(
-                    regressor=model, test_ds=test_dataset, move_device=False
+                    regressor=model, test_loader=test_loader, device=device
                 )[-1]
             else:
                 # Skip cosine similarity for non-regressor models

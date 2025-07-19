@@ -63,6 +63,7 @@ from dendritic_modeling.networks.architectures.factory import get_architecture
 from dendritic_modeling.scripts.train_encoder_network import load_train_encoder_network
 from dendritic_modeling.training import CustomWeightDecayOptimizer, get_trainer
 from dendritic_modeling.utils import save_dict, validate_config, set_seed
+from .check_ei_config_detailed import check_ei_config  # assuming function name
 
 
 def initialize_model(model_config: ModelConfig):
@@ -200,11 +201,15 @@ def run_analysis(
     test_ds: torch.utils.data.Dataset,
     run_save_path: str,
     analysis_manager: AnalysisManager | None = None,
+    training: bool = False,
 ):
     """Run analysis using the AnalysisManager."""
     logger.info("Running analyses...")
     if analysis_manager is not None:
-        analysis_manager.run_analysis()
+        results = analysis_manager.run_analysis()
+        if not training:
+            from dendritic_modeling.plotting.analysis import plot_information_analysis  # import if needed
+            # Call plotting functions on results
 
 
 def main(config_path: str, args=None):
@@ -246,6 +251,9 @@ def main(config_path: str, args=None):
     analysis_config = config.analysis
     outputs_config = config.outputs
     run_config = getattr(config, "run_config", None)
+
+    if not check_ei_config(config):
+        raise ValueError('EI config validation failed')
 
     (run_save_path, train_ds, valid_ds, test_ds, model, encoder_network) = (
         setup_environment(
