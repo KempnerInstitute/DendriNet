@@ -23,13 +23,15 @@ from dendritic_modeling.training.utils.evaluation import (
 )
 from dendritic_modeling.utils import save_dict
 from copy import deepcopy
+from dendritic_modeling.analysis.core.base import AbstractAnalyzer
 
 
-class AblationAnalyzer:
+class AblationAnalyzer(AbstractAnalyzer):
     """Analyzer for performing ablation studies on model components."""
 
     def __init__(self, params: AblationAnalysisParams):
         """Initialize with ablation parameters."""
+        super().__init__("AblationAnalyzer")
         self.layer_ablation = getattr(params, "layer_ablation", False)
         self.compartment_ablation = getattr(params, "compartment_ablation", False)
         self.ablate_all_synapses = getattr(params, "ablate_all_synapses", False)

@@ -28,9 +28,10 @@ from dendritic_modeling.utils.information.pid import (
     check_pid_available,
     pid_synergy_redundancy,
 )
+from dendritic_modeling.analysis.core.base import AbstractAnalyzer
 
 
-class InformationAnalyzer:
+class InformationAnalyzer(AbstractAnalyzer):
     """Unified analyzer for computing information-theoretic metrics in dendritic networks.
 
     This analyzer uses the multivariate-aware methods from information.py to compute
@@ -46,7 +47,7 @@ class InformationAnalyzer:
         config : InformationAnalysisConfig or dict
             Configuration from the main config system (analysis.information_analysis)
         """
-        self.logger = logging.getLogger(self.__class__.__name__)
+        super().__init__("InformationAnalyzer")
 
         # Extract configuration parameters
         self.method = getattr(params, "method", "kraskov")
