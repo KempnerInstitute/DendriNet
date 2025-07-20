@@ -32,21 +32,29 @@ os.environ["TF_CPP_MIN_LOG_LEVEL"] = (
 )
 os.environ["TF_ENABLE_ONEDNN_OPTS"] = "0"  # Disable oneDNN optimizations warnings
 
+# Core imports
 import argparse
-import logging
+import sys
+import warnings
 from dataclasses import asdict
 from datetime import datetime
 
-import torch
-
+# Optional imports (with fallbacks)
 try:
     import torchinfo
-
     TORCHINFO_AVAILABLE = True
 except ImportError:
     TORCHINFO_AVAILABLE = False
-    torchinfo = None
+    warnings.warn("torchinfo not available. Model summary will be skipped.")
 
+# Distributed training imports
+try:
+    import torch.distributed as dist
+    DISTRIBUTED_AVAILABLE = True
+except ImportError:
+    DISTRIBUTED_AVAILABLE = False
+
+import torch
 import wandb
 from omegaconf import OmegaConf
 
@@ -68,35 +76,43 @@ from dendritic_modeling.plotting.analysis import plot_information_analysis
 # Import the extracted utilities
 from .utils.setup_utils import setup_environment, save_model, load_model, initialize_model
 
+# FSDP import (conditional)
+try:
+    from dendritic_modeling.training.strategies.fsdp_standard import FSDPTrainer
+    FSDP_AVAILABLE = True
+except ImportError:
+    FSDP_AVAILABLE = False
+
 
 def _run_fsdp_training(config):
     """
-    Run FSDP training mode.
+    Run FSDP (Fully Sharded Data Parallel) training for large models.
     
-    This function handles the setup and execution of FSDP training,
+    This function sets up distributed training using PyTorch's FSDP,
     which is used for large models that don't fit on a single GPU.
     """
-    import torch.distributed as dist
     
     # Set NCCL environment variables for better communication
-    import os
-    os.environ.setdefault("NCCL_ASYNC_ERROR_HANDLING", "1")
-    os.environ.setdefault("NCCL_TIMEOUT", "1800") 
+    # os already imported at top
+    os.environ["NCCL_TIMEOUT"] = "1800"  # 30 minutes timeout
+    os.environ["NCCL_DEBUG"] = "INFO"
+
+    # torchinfo already conditionally imported at top
+    if TORCHINFO_AVAILABLE:
+        logger.info("Model summary available via torchinfo")
     
-    # Check if we're in a distributed environment
-    if "RANK" not in os.environ or "WORLD_SIZE" not in os.environ:
-        logger.error("FSDP training requires a distributed environment.")
-        logger.error("Please run with: torchrun --nproc_per_node=<num_gpus> train_experiments.py config.yaml --use_fsdp")
-        logger.error("Or use the dedicated script: torchrun --nproc_per_node=<num_gpus> train_experiments_fsdp.py config.yaml")
-        raise RuntimeError("Distributed environment not detected")
-    
-    try:
-        from dendritic_modeling.training.strategies.fsdp_standard import FSDPTrainer
-    except ImportError:
-        logger.error("FSDP training requires additional dependencies.")
-        logger.error("Please ensure FSDP components are available in your PyTorch installation.")
-        raise
-    
+    # torch.distributed already conditionally imported at top
+    if not DISTRIBUTED_AVAILABLE:
+        raise RuntimeError("Distributed training not available")
+        
+    # Check if this is actually a distributed run
+    if not dist.is_available():
+        raise RuntimeError("Distributed package not available")
+        
+    # FSDP trainer already conditionally imported at top 
+    if not FSDP_AVAILABLE:
+        raise RuntimeError("FSDP trainer not available")
+
     # Initialize distributed environment
     if not dist.is_initialized():
         dist.init_process_group(backend='nccl')

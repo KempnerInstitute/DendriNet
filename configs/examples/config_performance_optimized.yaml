@@ -1,0 +1,136 @@
+# ============================================================================
+# PERFORMANCE-OPTIMIZED CONFIGURATION EXAMPLE
+# ============================================================================
+# This config demonstrates the new performance features for different use cases
+# ============================================================================
+
+model:
+  task: classification
+  base:
+    output_layer: true
+    output_dim: 10
+  network:
+    type: EINet
+    params:
+      input_dim: 784
+      hidden_dims: [512, 256, 128]
+      ei_params:
+        ei_balance: 0.8
+        branches_per_neuron: 4
+        synapses_per_branch: 64
+        topk_value: 32
+        input_mode: 1
+        independent_pathways: true
+
+train:
+  run_name: "performance_optimized_example"
+  
+  # ==========================================
+  # KEY NEW PERFORMANCE FEATURES
+  # ==========================================
+  
+  # Mixed Precision - 2x speed, 50% memory reduction
+  enable_amp: true
+  
+  # Hook Management - disable for benchmarking, enable for research
+  enable_hooks: true          # Set to false for pure speed
+  performance_mode: false     # Set to true to disable ALL analysis
+  
+  # Profiling - enable only when needed
+  enable_profiling: false     # Enable for performance analysis
+  profiling_output_dir: "outputs/profiling/"
+  
+  # FSDP for multi-GPU large models
+  use_fsdp: false            # Enable for very large models
+  
+  # ==========================================
+  # TRAINING SETTINGS
+  # ==========================================
+  
+  main:
+    trainer:
+      epochs: 50
+      batch_size: 256         # Auto-optimized DataLoader
+      learning_rate: 0.001
+      early_stopping: true
+      patience: 10
+      grad_clip_value: 5.0
+    
+    optimizer:
+      type: "adam"
+      params:
+        lr: 0.001
+        weight_decay: 0.0001
+
+task:
+  dataset: mnist
+  preprocessing:
+    normalize: true
+    augmentation: false
+  data_loader:
+    auto_optimize: true       # Automatic DataLoader optimization
+  validation_split: 0.2
+
+wandb:
+  enabled: true
+  project: "dendritic-performance-test"
+  tags: ["performance", "amp", "optimized"]
+
+analysis:
+  enabled: true
+  respect_hook_settings: true  # Skip analysis if hooks disabled
+  
+  performance_analysis:
+    enabled: true
+    training: false
+    params:
+      memory_usage: true
+      throughput: true
+      gpu_utilization: true
+      profiling_integration: true
+  
+  information_analysis:
+    enabled: true
+    training: false
+    params:
+      mutual_information: true
+      entropy: true
+      save_plots: true
+      samples: 1000
+
+outputs:
+  dir: "./outputs/"
+  cleanup:
+    enabled: true
+    old_runs_days: 30
+    wandb_cleanup: true
+
+compute:
+  device: "auto"
+  memory:
+    gradient_checkpointing: false
+    empty_cache_freq: 100
+    max_memory_fraction: 0.9
+
+# ============================================================================
+# USAGE SCENARIOS
+# ============================================================================
+#
+# FOR RESEARCH (full analysis):
+# - enable_hooks: true
+# - performance_mode: false
+# - analysis.enabled: true
+# - enable_profiling: true (optional)
+#
+# FOR BENCHMARKING (maximum speed):
+# - enable_hooks: false  OR  performance_mode: true
+# - analysis.enabled: false
+# - enable_profiling: false
+# - enable_amp: true (for large models)
+#
+# FOR LARGE MODELS (memory efficient):
+# - enable_amp: true
+# - use_fsdp: true (if multi-GPU)
+# - batch_size: larger values
+# - compute.memory.gradient_checkpointing: true (if needed)
+# ============================================================================ 
