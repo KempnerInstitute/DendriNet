@@ -5,11 +5,13 @@ This module contains classes for evaluating model performance by systematically
 disabling or ablating different network components to understand their contributions.
 """
 
+from copy import deepcopy
 from typing import Optional
 
 import torch
 from torch.utils.data import TensorDataset, DataLoader
 
+from dendritic_modeling.analysis.core.base import AbstractAnalyzer
 from dendritic_modeling.config.analysis import AblationAnalysisParams
 from dendritic_modeling.models import BaseModel
 from dendritic_modeling.networks import ExcitationInhibitionNetwork
@@ -22,14 +24,14 @@ from dendritic_modeling.training.utils.evaluation import (
     evaluate_mse,
 )
 from dendritic_modeling.utils import save_dict
-from copy import deepcopy
 
 
-class AblationAnalyzer:
+class AblationAnalyzer(AbstractAnalyzer):
     """Analyzer for performing ablation studies on model components."""
 
     def __init__(self, params: AblationAnalysisParams):
         """Initialize with ablation parameters."""
+        super().__init__("AblationAnalyzer")
         self.layer_ablation = getattr(params, "layer_ablation", False)
         self.compartment_ablation = getattr(params, "compartment_ablation", False)
         self.ablate_all_synapses = getattr(params, "ablate_all_synapses", False)

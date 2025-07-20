@@ -28,6 +28,8 @@ class TrainerConfig(BaseConfig):
     save_path: Optional[str] = None
     suppress_prints: bool = False
     print_every: int = 10
+    # Mixed precision training
+    use_amp: bool = False
     # for learning strategies other than standard:
     pretrain_epochs: int = 50
     target_voltage: float = 0.5
