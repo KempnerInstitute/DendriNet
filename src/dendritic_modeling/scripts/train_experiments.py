@@ -403,6 +403,13 @@ def main(config_path: str, args=None):
         )
         main_trainer_config_dict["checkpoint_dir"] = run_save_path
 
+    # Add profiling configuration if specified
+    enable_profiling = config.get('train', {}).get('enable_profiling', False)
+    if enable_profiling:
+        main_trainer_config_dict["enable_profiling"] = True
+        main_trainer_config_dict["profiling_output_dir"] = os.path.join(run_save_path, "profiling")
+        logger.info("Profiling enabled for this training run")
+
     optimizer = CustomWeightDecayOptimizer(
         model=model,
         optimizer=torch.optim.Adam(

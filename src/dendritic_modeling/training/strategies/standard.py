@@ -69,6 +69,28 @@ class Trainer:
                 logger.warning("AMP not available, falling back to standard precision")
                 self.use_amp = False
 
+        # Profiling Support
+        self.enable_profiling = kwargs.get('enable_profiling', False)
+        self.profiler = None
+        
+        if self.enable_profiling:
+            try:
+                import torch.profiler
+                profiling_output_dir = kwargs.get('profiling_output_dir', 'outputs/profiling/')
+                os.makedirs(profiling_output_dir, exist_ok=True)
+                
+                self.profiler = torch.profiler.profile(
+                    activities=[torch.profiler.ProfilerActivity.CPU, torch.profiler.ProfilerActivity.CUDA],
+                    schedule=torch.profiler.schedule(wait=1, warmup=1, active=3, repeat=2),
+                    on_trace_ready=torch.profiler.tensorboard_trace_handler(profiling_output_dir),
+                    record_shapes=True,
+                    with_stack=True
+                )
+                logger.info(f"Profiling enabled - output directory: {profiling_output_dir}")
+            except ImportError:
+                logger.warning("torch.profiler not available, profiling disabled")
+                self.enable_profiling = False
+
         # Checkpoint configuration
         self.save_every_n_epochs = save_every_n_epochs
 
@@ -143,6 +165,10 @@ class Trainer:
 
         self._initialize_attributes(model, self.epochs)
 
+        # Start profiler if enabled
+        if self.profiler is not None:
+            self.profiler.start()
+
         train_losses, valid_losses, train_accs, valid_accs = self._run_training_loop(
             n_epochs=self.epochs,
             model=model,
@@ -155,6 +181,11 @@ class Trainer:
             logger_info="[Standard] ",
             wandb_info={},
         )
+
+        # Stop profiler if enabled
+        if self.profiler is not None:
+            self.profiler.stop()
+            logger.info("✅ Profiling complete. View in TensorBoard: tensorboard --logdir=outputs/profiling/")
 
         if self.best_state_dict:
             model.load_state_dict(self.best_state_dict)
@@ -306,6 +337,10 @@ class Trainer:
                         predicted = outputs.argmax(dim=1)
                         correct += (predicted == y_batch).sum().item()
                         total += y_batch.size(0)
+
+            # Step profiler if enabled
+            if self.profiler is not None:
+                self.profiler.step()
 
         avg_loss = train_loss / len(train_loader)
         accuracy = (correct / total * 100) if total > 0 else 0.0
