@@ -2,7 +2,7 @@
 """Configuration validation for dendritic networks"""
 
 import logging
-from typing import Dict
+from typing import Dict, List
 
 logger = logging.getLogger(__name__)
 
@@ -23,8 +23,8 @@ class ConfigValidator:
         else:
             self.network_config = {}
 
-        self.errors = []
-        self.warnings = []
+        self.errors: List[str] = []
+        self.warnings: List[str] = []
 
     def validate(self) -> bool:
         """Validate all constraints and return True if config is valid"""

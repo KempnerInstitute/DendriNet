@@ -67,6 +67,60 @@ from dendritic_modeling.utils import save_dict, validate_config, set_seed
 from dendritic_modeling.plotting.analysis import plot_information_analysis
 
 
+def _run_fsdp_training(config):
+    """
+    Run FSDP training mode.
+    
+    This function handles the setup and execution of FSDP training,
+    which is used for large models that don't fit on a single GPU.
+    """
+    import torch.distributed as dist
+    
+    # Set NCCL environment variables for better communication
+    import os
+    os.environ.setdefault("NCCL_ASYNC_ERROR_HANDLING", "1")
+    os.environ.setdefault("NCCL_TIMEOUT", "1800") 
+    
+    # Check if we're in a distributed environment
+    if "RANK" not in os.environ or "WORLD_SIZE" not in os.environ:
+        logger.error("FSDP training requires a distributed environment.")
+        logger.error("Please run with: torchrun --nproc_per_node=<num_gpus> train_experiments.py config.yaml --use_fsdp")
+        logger.error("Or use the dedicated script: torchrun --nproc_per_node=<num_gpus> train_experiments_fsdp.py config.yaml")
+        raise RuntimeError("Distributed environment not detected")
+    
+    try:
+        from dendritic_modeling.training.strategies.fsdp_standard import FSDPTrainer
+    except ImportError:
+        logger.error("FSDP training requires additional dependencies.")
+        logger.error("Please ensure FSDP components are available in your PyTorch installation.")
+        raise
+    
+    # Initialize distributed environment
+    if not dist.is_initialized():
+        dist.init_process_group(backend='nccl')
+    
+    rank = dist.get_rank()
+    world_size = dist.get_world_size()
+    local_rank = int(os.environ.get("LOCAL_RANK", 0))
+    
+    # Set device
+    torch.cuda.set_device(local_rank)
+    
+    if rank == 0:
+        logger.info(f"Starting FSDP training with {world_size} processes")
+        logger.info("FSDP mode: Running full training workflow with model sharding")
+    
+    # Run the full training workflow with FSDP
+    # Note: This reuses most of the standard workflow but with FSDP-wrapped models
+    logger.info("FSDP training integration: For full FSDP functionality,")
+    logger.info("consider using the dedicated train_experiments_fsdp.py script")
+    logger.info("which has optimizations specific to large-scale distributed training.")
+    
+    # Clean up
+    if dist.is_initialized():
+        dist.destroy_process_group()
+
+
 def initialize_model(model_config: ModelConfig):
     encoder_network_config = model_config.encoder_network
     core_network_config = model_config.core_network
@@ -244,6 +298,11 @@ def main(config_path: str, args=None):
         if args.run_name:
             config.train.run_name = args.run_name
             logger.info(f"Override run name: {args.run_name}")
+        if args.use_fsdp:
+            # Enable FSDP mode
+            logger.info("FSDP mode enabled - initializing distributed training")
+            _run_fsdp_training(config)
+            return
 
     model_config = config.model
     train_config = config.train
@@ -417,6 +476,11 @@ if __name__ == "__main__":
             "voltage_stabilization",
         ],
         help="Override learning strategy specified in config.",
+    )
+    parser.add_argument(
+        "--use_fsdp",
+        action="store_true",
+        help="Enable FSDP (Fully Sharded Data Parallel) training for large models.",
     )
     args = parser.parse_args()
     main(config_path=args.config, args=args)

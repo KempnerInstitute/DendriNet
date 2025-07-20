@@ -1,3 +1,7 @@
+from typing import Dict, Any, Union
+
+import torch.nn as nn
+
 from dendritic_modeling.networks.architectures.classical.autoencoder import (
     CNNAutoencoder,
     CNNVariationalAutoencoder,
@@ -16,7 +20,7 @@ from dendritic_modeling.networks.architectures.excitation_inhibition import (
 )
 
 
-def get_architecture(type: str, parameters: dict):
+def get_architecture(type: str, parameters: Dict[str, Any]) -> nn.Module:
     type = type.lower()
     if type == "alexnet":
         return AlexNet(**parameters)

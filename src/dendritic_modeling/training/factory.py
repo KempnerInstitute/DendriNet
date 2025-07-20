@@ -6,7 +6,7 @@ This module contains factory functions for creating training strategies
 and utility functions for training simple MLPs and weight transfer.
 """
 
-from typing import Optional
+from typing import Optional, Dict, Any, Union
 
 import torch
 
@@ -24,9 +24,9 @@ from dendritic_modeling.training.strategies import (
 def get_trainer(
     strategy: str,
     optimizer: torch.optim.Optimizer,
-    trainer_config_dict: dict,
+    trainer_config_dict: Dict[str, Any],
     analysis_manager: Optional[object] = None,
-):
+) -> Trainer:
     """
     Factory function to create training strategies.
 
