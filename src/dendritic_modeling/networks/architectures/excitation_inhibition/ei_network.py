@@ -334,6 +334,13 @@ class ExcitationInhibitionNetwork(nn.Module):
 
         # Create ModuleList with the layers
         self.layers = nn.ModuleList(layers)
+        
+        # Enable JIT compilation for better performance (PyTorch 2.0+)
+        try:
+            self.forward = torch.compile(self.forward, dynamic=True)
+        except AttributeError:
+            # torch.compile not available in older PyTorch versions
+            pass
 
     def decay_weights(self, weight_decay):
         for layer in self.layers:
@@ -355,9 +362,9 @@ class ExcitationInhibitionNetwork(nn.Module):
         """
         excitatory_x, inhibitory_x = self.transfer_fn(x)
 
-        for i in range(len(self.layers)):
-            # Each layer receives the previous layer's outputs
-            excitatory_x, inhibitory_x = self.layers[i](excitatory_x, inhibitory_x)
+        # Optimized: Use direct iteration over ModuleList
+        for layer in self.layers:
+            excitatory_x, inhibitory_x = layer(excitatory_x, inhibitory_x)
 
         return excitatory_x
 
