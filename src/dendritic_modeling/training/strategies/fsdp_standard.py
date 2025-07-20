@@ -1,26 +1,36 @@
 """
-FSDP-Enabled Training Strategy for Large Dendritic Models
-=========================================================
+FSDP (Fully Sharded Data Parallel) training strategy.
 
-This module extends the standard trainer to support FSDP for models
-that are too large to fit on a single GPU.
+This module provides FSDP-based distributed training functionality
+for scaling to very large models across multiple GPUs and nodes.
 """
 
 import os
 import time
+from pathlib import Path
 from typing import Optional, Dict, Any
+
 import torch
 import torch.distributed as dist
+import torch.nn as nn
+from torch.distributed.fsdp import FullyShardedDataParallel as FSDP
+from torch.distributed.fsdp.fully_sharded_data_parallel import StateDictType
+from torch.distributed.fsdp.wrap import (
+    enable_wrap,
+    wrap,
+)
 from torch.utils.data import DataLoader
+from torch.cuda.amp import autocast, GradScaler
 
 from dendritic_modeling import logger
 from dendritic_modeling.models import BaseModel
-from dendritic_modeling.training.strategies.standard import Trainer
 from dendritic_modeling.training.fsdp_utils import (
     wrap_model_with_fsdp,
     save_fsdp_checkpoint,
     get_fsdp_config,
 )
+from dendritic_modeling.training.strategies.standard import Trainer
+from dendritic_modeling.plotting.training import plot_loss_curves
 
 
 class FSDPTrainer(Trainer):
@@ -98,7 +108,7 @@ class FSDPTrainer(Trainer):
         self.use_amp = kwargs.get('use_amp', False)
         if self.use_amp:
             try:
-                from torch.cuda.amp import autocast, GradScaler
+                # autocast and GradScaler already imported at top
                 self.scaler = GradScaler()
                 if self.rank == 0:
                     logger.info("Mixed precision training enabled for FSDP")
@@ -305,13 +315,15 @@ class FSDPTrainer(Trainer):
             # Analysis (only on rank 0 to avoid duplication)
             if self.rank == 0 and self.analysis_manager is not None:
                 try:
-                    # Conditional import to avoid circular dependency
-                    from dendritic_modeling.analysis import AnalysisManager
-
-                    if isinstance(self.analysis_manager, AnalysisManager):
-                        self.analysis_manager.run_analysis(
-                            filename=f"epoch{epoch + 1}", training=True
-                        )
+                    # Run analysis if enabled and we have the manager
+                    if self.analysis_manager is not None:
+                        # Conditional import to avoid circular dependency
+                        from dendritic_modeling.analysis import AnalysisManager
+                        
+                        if isinstance(self.analysis_manager, AnalysisManager):
+                            self.analysis_manager.run_analysis(
+                                filename=f"epoch{epoch + 1}", training=True
+                            )
                 except Exception as e:
                     logger.warning(f"Analysis failed for epoch {epoch}: {e}")
 
@@ -396,7 +408,6 @@ class FSDPTrainer(Trainer):
 
             if self.use_amp:
                 # Mixed precision forward pass
-                from torch.cuda.amp import autocast
                 with autocast():
                     outputs = model(x_batch)
                     loss = self.loss_fn(outputs, y_batch)
@@ -508,8 +519,6 @@ class FSDPTrainer(Trainer):
         # Reuse loss plotting util with accuracy label
         if self.plot_losses and len(train_accs) > 1:
             try:
-                from dendritic_modeling.plotting.training import plot_loss_curves
-
                 plot_loss_curves(
                     train_losses=train_accs,
                     valid_losses=valid_accs,

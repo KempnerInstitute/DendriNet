@@ -11,15 +11,18 @@ from copy import deepcopy
 from typing import Optional
 
 import torch
+import torch.profiler as torch_profiler
 import torch.utils.data
 import wandb
 from torch.nn.utils import clip_grad_value_
 from torch.utils.data import DataLoader
+from torch.cuda.amp import GradScaler, autocast
 
 from dendritic_modeling import logger
 from dendritic_modeling.models import BaseModel
 from dendritic_modeling.plotting import plot_loss_curves
 from dendritic_modeling.training.loss.functions import LossFunction, get_loss_function
+from dendritic_modeling.plotting.training import plot_loss_curves as plot_training_loss_curves
 
 
 class Trainer:
@@ -73,7 +76,6 @@ class Trainer:
                 self.enable_profiling = False
             else:
                 try:
-                    import torch.profiler as torch_profiler
                     profiling_output_dir = kwargs.get('profiling_output_dir', 'outputs/profiling/')
                     os.makedirs(profiling_output_dir, exist_ok=True)
                     
@@ -93,7 +95,6 @@ class Trainer:
         self.enable_amp = kwargs.get('enable_amp', torch.cuda.is_available())
         if self.enable_amp and torch.cuda.is_available():
             try:
-                from torch.cuda.amp import GradScaler, autocast
                 self.scaler = GradScaler()
                 logger.info("Mixed precision training enabled")
             except ImportError:
@@ -365,9 +366,8 @@ class Trainer:
         for x_batch, y_batch in train_loader:
             x_batch, y_batch = x_batch.to(self.device), y_batch.to(self.device)
             
-            if self.use_amp:
+            if self.enable_amp:
                 # Mixed precision forward pass
-                from torch.cuda.amp import autocast
                 with autocast():
                     loss = self.loss_function(model, x_batch, y_batch)
                 
@@ -398,8 +398,7 @@ class Trainer:
                 hasattr(model, "forward") and y_batch.dim() == 1
             ):  # y_batch is 1D tensor of labels
                 with torch.no_grad():
-                    if self.use_amp:
-                        from torch.cuda.amp import autocast
+                    if self.enable_amp:
                         with autocast():
                             outputs = model(x_batch)
                     else:
@@ -432,7 +431,6 @@ class Trainer:
                 x_batch, y_batch = x_batch.to(self.device), y_batch.to(self.device)
                 
                 if self.enable_amp:
-                    from torch.cuda.amp import autocast
                     with autocast():
                         loss = self.loss_function(model, x_batch, y_batch)
                         outputs = model(x_batch)
@@ -566,10 +564,10 @@ class Trainer:
         if self.plot_losses and len(train_accs) > 1:
             if self.save_path and os.path.exists(self.save_path):
                 try:
-                    from dendritic_modeling.plotting.training import plot_loss_curves
+                    # plot_training_loss_curves already imported at top
 
                     # Reuse the loss plotting function but with accuracy label
-                    plot_loss_curves(
+                    plot_training_loss_curves(
                         train_losses=train_accs,
                         valid_losses=valid_accs,
                         loss_name="Accuracy (%)",
