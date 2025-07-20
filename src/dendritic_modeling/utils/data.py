@@ -9,7 +9,7 @@ and basic data transformations.
 import json
 import os
 import random
-from typing import Any
+from typing import Any, Dict, Union, List, Tuple
 
 import numpy as np
 import torch

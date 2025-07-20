@@ -57,6 +57,39 @@ class Trainer:
         self.suppress_prints = suppress_prints
         self.print_every = print_every
         self.analysis_manager = analysis_manager
+        
+        # Mixed Precision Training Support
+        self.use_amp = kwargs.get('use_amp', False)
+        if self.use_amp:
+            try:
+                from torch.cuda.amp import autocast, GradScaler
+                self.scaler = GradScaler()
+                logger.info("Mixed precision training enabled")
+            except ImportError:
+                logger.warning("AMP not available, falling back to standard precision")
+                self.use_amp = False
+
+        # Profiling Support
+        self.enable_profiling = kwargs.get('enable_profiling', False)
+        self.profiler = None
+        
+        if self.enable_profiling:
+            try:
+                import torch.profiler
+                profiling_output_dir = kwargs.get('profiling_output_dir', 'outputs/profiling/')
+                os.makedirs(profiling_output_dir, exist_ok=True)
+                
+                self.profiler = torch.profiler.profile(
+                    activities=[torch.profiler.ProfilerActivity.CPU, torch.profiler.ProfilerActivity.CUDA],
+                    schedule=torch.profiler.schedule(wait=1, warmup=1, active=3, repeat=2),
+                    on_trace_ready=torch.profiler.tensorboard_trace_handler(profiling_output_dir),
+                    record_shapes=True,
+                    with_stack=True
+                )
+                logger.info(f"Profiling enabled - output directory: {profiling_output_dir}")
+            except ImportError:
+                logger.warning("torch.profiler not available, profiling disabled")
+                self.enable_profiling = False
 
         # Checkpoint configuration
         self.save_every_n_epochs = save_every_n_epochs
@@ -79,10 +112,23 @@ class Trainer:
     def _dataloaders(
         self, train_data: torch.utils.data.Dataset, valid_data: torch.utils.data.Dataset
     ) -> tuple[DataLoader, DataLoader]:
+        # Optimized DataLoader settings for better performance
         train_loader = DataLoader(
-            train_data, batch_size=self.batch_size, shuffle=self.shuffle
+            train_data, 
+            batch_size=self.batch_size, 
+            shuffle=self.shuffle,
+            num_workers=4,  # Parallel data loading
+            pin_memory=True,  # Faster GPU transfer
+            persistent_workers=True,  # Keep workers alive between epochs
         )
-        valid_loader = DataLoader(valid_data, batch_size=self.batch_size, shuffle=False)
+        valid_loader = DataLoader(
+            valid_data, 
+            batch_size=self.batch_size, 
+            shuffle=False,
+            num_workers=2,  # Fewer workers for validation
+            pin_memory=True,
+            persistent_workers=True,
+        )
         return train_loader, valid_loader
 
     def _initialize_attributes(self, model: BaseModel, total_epochs: int) -> None:
@@ -119,6 +165,10 @@ class Trainer:
 
         self._initialize_attributes(model, self.epochs)
 
+        # Start profiler if enabled
+        if self.profiler is not None:
+            self.profiler.start()
+
         train_losses, valid_losses, train_accs, valid_accs = self._run_training_loop(
             n_epochs=self.epochs,
             model=model,
@@ -131,6 +181,11 @@ class Trainer:
             logger_info="[Standard] ",
             wandb_info={},
         )
+
+        # Stop profiler if enabled
+        if self.profiler is not None:
+            self.profiler.stop()
+            logger.info("✅ Profiling complete. View in TensorBoard: tensorboard --logdir=outputs/profiling/")
 
         if self.best_state_dict:
             model.load_state_dict(self.best_state_dict)
@@ -236,12 +291,31 @@ class Trainer:
 
         for x_batch, y_batch in train_loader:
             x_batch, y_batch = x_batch.to(self.device), y_batch.to(self.device)
-            loss = self.loss_function(model, x_batch, y_batch)
+            
+            if self.use_amp:
+                # Mixed precision forward pass
+                from torch.cuda.amp import autocast
+                with autocast():
+                    loss = self.loss_function(model, x_batch, y_batch)
+                
+                self.optimizer.zero_grad()
+                self.scaler.scale(loss).backward()
+                
+                if self.grad_clip_value:
+                    # Unscale gradients before clipping
+                    self.scaler.unscale_(self.optimizer)
+                    clip_grad_value_(model.parameters(), self.grad_clip_value)
+                
+                self.scaler.step(self.optimizer)
+                self.scaler.update()
+            else:
+                # Standard precision training
+                loss = self.loss_function(model, x_batch, y_batch)
 
-            self.optimizer.zero_grad()
-            loss.backward()
-            clip_grad_value_(model.parameters(), self.grad_clip_value)
-            self.optimizer.step()
+                self.optimizer.zero_grad()
+                loss.backward()
+                clip_grad_value_(model.parameters(), self.grad_clip_value)
+                self.optimizer.step()
 
             train_loss += loss.item()
 
@@ -251,13 +325,22 @@ class Trainer:
                 hasattr(model, "forward") and y_batch.dim() == 1
             ):  # y_batch is 1D tensor of labels
                 with torch.no_grad():
-                    outputs = model(x_batch)
+                    if self.use_amp:
+                        from torch.cuda.amp import autocast
+                        with autocast():
+                            outputs = model(x_batch)
+                    else:
+                        outputs = model(x_batch)
                     if (
                         outputs.dim() > 1 and outputs.size(1) > 1
                     ):  # Multi-class classification
                         predicted = outputs.argmax(dim=1)
                         correct += (predicted == y_batch).sum().item()
                         total += y_batch.size(0)
+
+            # Step profiler if enabled
+            if self.profiler is not None:
+                self.profiler.step()
 
         avg_loss = train_loss / len(train_loader)
         accuracy = (correct / total * 100) if total > 0 else 0.0
