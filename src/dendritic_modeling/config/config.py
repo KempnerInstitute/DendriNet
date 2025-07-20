@@ -11,6 +11,8 @@ from typing import Optional, List, Dict
 
 from omegaconf import OmegaConf
 
+from functools import lru_cache
+
 from dendritic_modeling.config.analysis import AnalysisConfig
 from dendritic_modeling.config.base import BaseConfig
 from dendritic_modeling.config.model import ModelConfig
@@ -49,6 +51,7 @@ class Config:
     outputs: OutputsConfig = field(default_factory=OutputsConfig)
 
 
+@lru_cache(maxsize=10)  # Cache up to 10 configs
 def load_config(path: Optional[str] = None) -> Config:
     """Load configuration from a file or use defaults."""
     if path:
