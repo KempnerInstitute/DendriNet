@@ -57,6 +57,17 @@ class Trainer:
         self.suppress_prints = suppress_prints
         self.print_every = print_every
         self.analysis_manager = analysis_manager
+        
+        # Mixed Precision Training Support
+        self.use_amp = kwargs.get('use_amp', False)
+        if self.use_amp:
+            try:
+                from torch.cuda.amp import autocast, GradScaler
+                self.scaler = GradScaler()
+                logger.info("Mixed precision training enabled")
+            except ImportError:
+                logger.warning("AMP not available, falling back to standard precision")
+                self.use_amp = False
 
         # Checkpoint configuration
         self.save_every_n_epochs = save_every_n_epochs
@@ -79,10 +90,23 @@ class Trainer:
     def _dataloaders(
         self, train_data: torch.utils.data.Dataset, valid_data: torch.utils.data.Dataset
     ) -> tuple[DataLoader, DataLoader]:
+        # Optimized DataLoader settings for better performance
         train_loader = DataLoader(
-            train_data, batch_size=self.batch_size, shuffle=self.shuffle
+            train_data, 
+            batch_size=self.batch_size, 
+            shuffle=self.shuffle,
+            num_workers=4,  # Parallel data loading
+            pin_memory=True,  # Faster GPU transfer
+            persistent_workers=True,  # Keep workers alive between epochs
         )
-        valid_loader = DataLoader(valid_data, batch_size=self.batch_size, shuffle=False)
+        valid_loader = DataLoader(
+            valid_data, 
+            batch_size=self.batch_size, 
+            shuffle=False,
+            num_workers=2,  # Fewer workers for validation
+            pin_memory=True,
+            persistent_workers=True,
+        )
         return train_loader, valid_loader
 
     def _initialize_attributes(self, model: BaseModel, total_epochs: int) -> None:
@@ -236,12 +260,31 @@ class Trainer:
 
         for x_batch, y_batch in train_loader:
             x_batch, y_batch = x_batch.to(self.device), y_batch.to(self.device)
-            loss = self.loss_function(model, x_batch, y_batch)
+            
+            if self.use_amp:
+                # Mixed precision forward pass
+                from torch.cuda.amp import autocast
+                with autocast():
+                    loss = self.loss_function(model, x_batch, y_batch)
+                
+                self.optimizer.zero_grad()
+                self.scaler.scale(loss).backward()
+                
+                if self.grad_clip_value:
+                    # Unscale gradients before clipping
+                    self.scaler.unscale_(self.optimizer)
+                    clip_grad_value_(model.parameters(), self.grad_clip_value)
+                
+                self.scaler.step(self.optimizer)
+                self.scaler.update()
+            else:
+                # Standard precision training
+                loss = self.loss_function(model, x_batch, y_batch)
 
-            self.optimizer.zero_grad()
-            loss.backward()
-            clip_grad_value_(model.parameters(), self.grad_clip_value)
-            self.optimizer.step()
+                self.optimizer.zero_grad()
+                loss.backward()
+                clip_grad_value_(model.parameters(), self.grad_clip_value)
+                self.optimizer.step()
 
             train_loss += loss.item()
 
@@ -251,7 +294,12 @@ class Trainer:
                 hasattr(model, "forward") and y_batch.dim() == 1
             ):  # y_batch is 1D tensor of labels
                 with torch.no_grad():
-                    outputs = model(x_batch)
+                    if self.use_amp:
+                        from torch.cuda.amp import autocast
+                        with autocast():
+                            outputs = model(x_batch)
+                    else:
+                        outputs = model(x_batch)
                     if (
                         outputs.dim() > 1 and outputs.size(1) > 1
                     ):  # Multi-class classification

@@ -1,0 +1,94 @@
+# Example Configuration with Mixed Precision Training
+# This demonstrates the new AMP (Automatic Mixed Precision) support
+
+model:
+  task: classification
+
+  encoder_network:
+    type: identity
+    parameters: {}
+
+  core_network:
+    type: EINet
+    parameters:
+      # Network architecture
+      excitatory_layer_sizes: [10]
+      inhibitory_layer_sizes: [20]
+      excitatory_branch_factors: [2, 2]
+      inhibitory_branch_factors: [2]
+      
+      # Synaptic connectivity
+      ee_synapses_per_branch_per_layer: [24]
+      ei_synapses_per_branch_per_layer: [50]
+      ie_synapses_per_branch_per_layer: [1]
+      ii_synapses_per_branch_per_layer: []
+      
+      # Transfer function
+      transfer_params:
+        input_mode: 0
+        independent_pathways: false
+        excitatory_dim: []
+        inhibitory_dim: []
+        output_activation: none
+        
+      # TopK configuration
+      topk_init_method: xavier_normal
+      topk_type: standard
+      topk_strategy: conductance_dynamic
+      
+      # Other parameters
+      reactivate: true
+      somatic_synapses: true
+      use_shunting: true
+
+  decoder_network:
+    type: identity
+    parameters: {}
+
+train:
+  seed: 42
+  train_valid_split: 0.8
+  run_name: "amp_example"
+
+  encoder:
+    lr: 0.001
+    trainer:
+      epochs: 10
+      batch_size: 32
+
+  main:
+    learning_strategy: standard
+    weight_decay_rate: 0.0001
+    
+    param_groups:
+      lr: 0.001
+      weight_decay: 0.0001
+    
+    trainer:
+      loss_function: categorical_nll
+      epochs: 20
+      batch_size: 64
+      # ENABLE MIXED PRECISION TRAINING
+      use_amp: true
+      early_stopping: false
+      grad_clip_value: 5.0
+      print_every: 5
+
+task:
+  dataset: mnist
+  data_path: ""
+  parameters:
+    flatten: true
+    normalize: true
+
+wandb:
+  use_wandb: false
+  project: "dendritic-modeling"
+  entity: ""
+  tags: ["amp", "example"]
+
+analysis:
+  run_analysis: false
+
+outputs:
+  dir: "results/" 

@@ -93,6 +93,19 @@ class FSDPTrainer(Trainer):
             self.loss_fn = torch.nn.MSELoss()
         else:
             raise ValueError(f"Unknown loss function: {loss_fn_name}")
+            
+        # Mixed Precision Training Support
+        self.use_amp = kwargs.get('use_amp', False)
+        if self.use_amp:
+            try:
+                from torch.cuda.amp import autocast, GradScaler
+                self.scaler = GradScaler()
+                if self.rank == 0:
+                    logger.info("Mixed precision training enabled for FSDP")
+            except ImportError:
+                if self.rank == 0:
+                    logger.warning("AMP not available, falling back to standard precision")
+                self.use_amp = False
 
     def _wrap_model(self, model: BaseModel) -> BaseModel:
         """Wrap model with FSDP."""
@@ -381,20 +394,40 @@ class FSDPTrainer(Trainer):
             x_batch = x_batch.to(self.device)
             y_batch = y_batch.to(self.device)
 
-            # Forward pass
-            outputs = model(x_batch)
-            loss = self.loss_fn(outputs, y_batch)
+            if self.use_amp:
+                # Mixed precision forward pass
+                from torch.cuda.amp import autocast
+                with autocast():
+                    outputs = model(x_batch)
+                    loss = self.loss_fn(outputs, y_batch)
 
-            # Backward pass
-            self.optimizer.zero_grad()
-            loss.backward()
+                # Backward pass with scaling
+                self.optimizer.zero_grad()
+                self.scaler.scale(loss).backward()
 
-            # Gradient clipping
-            if self.grad_clip_value is not None:
-                torch.nn.utils.clip_grad_norm_(model.parameters(), self.grad_clip_value)
+                # Gradient clipping
+                if self.grad_clip_value is not None:
+                    self.scaler.unscale_(self.optimizer)
+                    torch.nn.utils.clip_grad_norm_(model.parameters(), self.grad_clip_value)
 
-            # Optimizer step
-            self.optimizer.step()
+                # Optimizer step with scaling
+                self.scaler.step(self.optimizer)
+                self.scaler.update()
+            else:
+                # Standard precision training
+                outputs = model(x_batch)
+                loss = self.loss_fn(outputs, y_batch)
+
+                # Backward pass
+                self.optimizer.zero_grad()
+                loss.backward()
+
+                # Gradient clipping
+                if self.grad_clip_value is not None:
+                    torch.nn.utils.clip_grad_norm_(model.parameters(), self.grad_clip_value)
+
+                # Optimizer step
+                self.optimizer.step()
 
             total_loss += loss.item()
             total_correct += (outputs.argmax(dim=1) == y_batch).sum().item()
