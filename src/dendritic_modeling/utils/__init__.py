@@ -12,6 +12,12 @@ This module contains core utility functions for:
 from .data import Shaper, convert_to_serializable, save_dict, set_seed
 from .logging_config import get_logger, setup_logging
 from dendritic_modeling.utils.config_validator import ConfigValidator, validate_config
+from .topk import (
+    get_topk_layer,
+    get_available_topk_types,
+    calculate_effective_sparsity,
+    count_active_parameters,
+)
 
 # Math utilities
 from .math import roc_auc_score
