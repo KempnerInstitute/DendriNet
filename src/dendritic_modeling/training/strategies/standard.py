@@ -57,39 +57,62 @@ class Trainer:
         self.suppress_prints = suppress_prints
         self.print_every = print_every
         self.analysis_manager = analysis_manager
-        
-        # Mixed Precision Training Support
-        self.use_amp = kwargs.get('use_amp', False)
-        if self.use_amp:
-            try:
-                from torch.cuda.amp import autocast, GradScaler
-                self.scaler = GradScaler()
-                logger.info("Mixed precision training enabled")
-            except ImportError:
-                logger.warning("AMP not available, falling back to standard precision")
-                self.use_amp = False
+
 
         # Profiling Support
         self.enable_profiling = kwargs.get('enable_profiling', False)
         self.profiler = None
         
         if self.enable_profiling:
-            try:
-                import torch.profiler
-                profiling_output_dir = kwargs.get('profiling_output_dir', 'outputs/profiling/')
-                os.makedirs(profiling_output_dir, exist_ok=True)
-                
-                self.profiler = torch.profiler.profile(
-                    activities=[torch.profiler.ProfilerActivity.CPU, torch.profiler.ProfilerActivity.CUDA],
-                    schedule=torch.profiler.schedule(wait=1, warmup=1, active=3, repeat=2),
-                    on_trace_ready=torch.profiler.tensorboard_trace_handler(profiling_output_dir),
-                    record_shapes=True,
-                    with_stack=True
-                )
-                logger.info(f"Profiling enabled - output directory: {profiling_output_dir}")
-            except ImportError:
-                logger.warning("torch.profiler not available, profiling disabled")
+            # Auto-disable profiling for small-scale/CPU runs to improve speed
+            if not torch.cuda.is_available():
+                logger.info("Profiling auto-disabled for CPU run to improve speed")
                 self.enable_profiling = False
+            elif self.batch_size < 32:
+                logger.info("Profiling auto-disabled for small batch size to reduce overhead")
+                self.enable_profiling = False
+            else:
+                try:
+                    import torch.profiler as torch_profiler
+                    profiling_output_dir = kwargs.get('profiling_output_dir', 'outputs/profiling/')
+                    os.makedirs(profiling_output_dir, exist_ok=True)
+                    
+                    self.profiler = torch_profiler.profile(
+                        activities=[torch_profiler.ProfilerActivity.CPU, torch_profiler.ProfilerActivity.CUDA],
+                        schedule=torch_profiler.schedule(wait=1, warmup=1, active=3, repeat=2),
+                        on_trace_ready=torch_profiler.tensorboard_trace_handler(profiling_output_dir),
+                        record_shapes=True,
+                        with_stack=True
+                    )
+                    logger.info(f"Profiling enabled - output directory: {profiling_output_dir}")
+                except ImportError:
+                    logger.warning("torch.profiler not available, profiling disabled")
+                    self.enable_profiling = False
+
+        # Mixed Precision Training Support
+        self.enable_amp = kwargs.get('enable_amp', torch.cuda.is_available())
+        if self.enable_amp and torch.cuda.is_available():
+            try:
+                from torch.cuda.amp import GradScaler, autocast
+                self.scaler = GradScaler()
+                logger.info("Mixed precision training enabled")
+            except ImportError:
+                logger.warning("AMP not available, falling back to standard precision")
+                self.enable_amp = False
+        else:
+            self.enable_amp = False
+
+        # Hook Management for Performance
+        self.enable_hooks = kwargs.get('enable_hooks', True)
+        self.performance_mode = kwargs.get('performance_mode', False)
+        if self.performance_mode:
+            self.enable_hooks = False
+            logger.info("Performance mode enabled - hooks disabled for maximum speed")
+        elif not self.enable_hooks:
+            logger.info("Hooks manually disabled")
+        
+        # Store hook handles for cleanup
+        self.hook_handles = []
 
         # Checkpoint configuration
         self.save_every_n_epochs = save_every_n_epochs
@@ -109,25 +132,75 @@ class Trainer:
         for k, v in kwargs.items():
             setattr(self, k, v)
 
+    def register_conditional_hook(self, module, hook_fn, hook_type='forward'):
+        """
+        Register a hook only if hooks are enabled. This allows disabling hooks
+        for maximum performance during large-scale experiments.
+        
+        Args:
+            module: PyTorch module to attach hook to
+            hook_fn: Hook function
+            hook_type: 'forward', 'backward', or 'full_backward'
+        
+        Returns:
+            Hook handle if registered, None otherwise
+        """
+        if not self.enable_hooks:
+            return None
+            
+        if hook_type == 'forward':
+            handle = module.register_forward_hook(hook_fn)
+        elif hook_type == 'backward':
+            handle = module.register_backward_hook(hook_fn)
+        elif hook_type == 'full_backward':
+            handle = module.register_full_backward_hook(hook_fn)
+        else:
+            raise ValueError(f"Unknown hook type: {hook_type}")
+            
+        self.hook_handles.append(handle)
+        return handle
+    
+    def remove_all_hooks(self):
+        """Remove all registered hooks to clean up resources."""
+        for handle in self.hook_handles:
+            handle.remove()
+        self.hook_handles.clear()
+        logger.info("All hooks removed")
+
     def _dataloaders(
         self, train_data: torch.utils.data.Dataset, valid_data: torch.utils.data.Dataset
     ) -> tuple[DataLoader, DataLoader]:
-        # Optimized DataLoader settings for better performance
+        # Adaptive DataLoader settings based on dataset size and available resources
+        dataset_size = len(train_data)
+        
+        # Optimize for small datasets (reduce multiprocessing overhead)
+        if dataset_size < 10000:
+            num_workers_train = 0  # No multiprocessing for small datasets
+            num_workers_valid = 0
+            pin_memory = False  # Skip pinning for small data
+            persistent_workers = False
+            logger.info("Using optimized DataLoader settings for small dataset")
+        else:
+            num_workers_train = 4  # Parallel data loading for large datasets
+            num_workers_valid = 2  
+            pin_memory = torch.cuda.is_available()  # Only pin if GPU available
+            persistent_workers = True
+        
         train_loader = DataLoader(
             train_data, 
             batch_size=self.batch_size, 
             shuffle=self.shuffle,
-            num_workers=4,  # Parallel data loading
-            pin_memory=True,  # Faster GPU transfer
-            persistent_workers=True,  # Keep workers alive between epochs
+            num_workers=num_workers_train,
+            pin_memory=pin_memory,
+            persistent_workers=persistent_workers,
         )
         valid_loader = DataLoader(
             valid_data, 
             batch_size=self.batch_size, 
             shuffle=False,
-            num_workers=2,  # Fewer workers for validation
-            pin_memory=True,
-            persistent_workers=True,
+            num_workers=num_workers_valid,
+            pin_memory=pin_memory,
+            persistent_workers=persistent_workers,
         )
         return train_loader, valid_loader
 
@@ -357,13 +430,21 @@ class Trainer:
         with torch.no_grad():
             for x_batch, y_batch in valid_loader:
                 x_batch, y_batch = x_batch.to(self.device), y_batch.to(self.device)
-                loss = self.loss_function(model, x_batch, y_batch)
+                
+                if self.enable_amp:
+                    from torch.cuda.amp import autocast
+                    with autocast():
+                        loss = self.loss_function(model, x_batch, y_batch)
+                        outputs = model(x_batch)
+                else:
+                    loss = self.loss_function(model, x_batch, y_batch)
+                    outputs = model(x_batch)
+                    
                 valid_loss += loss.item()
 
                 # Calculate accuracy for classification tasks
                 # Only compute accuracy if y_batch contains class labels (not images for autoencoder)
                 if y_batch.dim() == 1:  # y_batch is 1D tensor of labels
-                    outputs = model(x_batch)
                     if (
                         outputs.dim() > 1 and outputs.size(1) > 1
                     ):  # Multi-class classification

@@ -63,8 +63,10 @@ from dendritic_modeling.networks.architectures.factory import get_architecture
 from dendritic_modeling.scripts.train_encoder_network import load_train_encoder_network
 from dendritic_modeling.training import CustomWeightDecayOptimizer, get_trainer
 from dendritic_modeling.utils import save_dict, validate_config, set_seed
-# from .check_ei_config_detailed import estimate_ei_model_detailed  # Not currently used
 from dendritic_modeling.plotting.analysis import plot_information_analysis
+
+# Import the extracted utilities
+from .utils.setup_utils import setup_environment, save_model, load_model, initialize_model
 
 
 def _run_fsdp_training(config):
@@ -119,134 +121,6 @@ def _run_fsdp_training(config):
     # Clean up
     if dist.is_initialized():
         dist.destroy_process_group()
-
-
-def initialize_model(model_config: ModelConfig):
-    encoder_network_config = model_config.encoder_network
-    core_network_config = model_config.core_network
-    decoder_network_config = model_config.decoder_network
-
-    encoder_network = get_architecture(
-        encoder_network_config.type,
-        OmegaConf.to_container(encoder_network_config.parameters, resolve=True),
-    )
-    if isinstance(encoder_network, Identity):
-        encoder = encoder_network
-    else:
-        encoder = encoder_network.encoder
-
-    core_network_config.parameters.input_dim = encoder.output_dim
-    core_network = get_architecture(
-        core_network_config.type,
-        OmegaConf.to_container(core_network_config.parameters, resolve=True),
-    )
-
-    decoder_network_config.parameters.input_dim = core_network.output_dim
-    decoder_network = get_architecture(
-        decoder_network_config.type,
-        OmegaConf.to_container(decoder_network_config.parameters, resolve=True),
-    )
-
-    if model_config.task == "classification":
-        model = Classifier(encoder, core_network, decoder_network)
-    elif model_config.task == "regression":
-        model = Regressor(encoder, core_network, decoder_network)
-    else:
-        raise ValueError(f"Invalid task: {model_config.task}")
-
-    logger.info(f"Initialized model: {type(model).__name__}")
-
-    return model, encoder_network
-
-
-def save_model(model: torch.nn.Module, save_path: str, filename: str):
-    os.makedirs(save_path, exist_ok=True)
-    full_path = os.path.join(save_path, filename)
-    torch.save(model.state_dict(), full_path)
-    logger.info(f"Saved model to {full_path}")
-    return full_path
-
-
-def load_model(model: torch.nn.Module, load_path: str):
-    model.load_state_dict(torch.load(load_path))
-    logger.info(f"Loaded model from {load_path}")
-    return model
-
-
-def setup_environment(
-    model_config,
-    train_config,
-    task_config,
-    wandb_config,
-    outputs_config,
-    run_config=None,
-):
-    """
-    Set up the environment for training.
-    """
-    # Set random seed
-    set_seed(train_config.seed)
-
-    # Create run directory using run_config.dir if available, fallback to outputs_config.dir
-    output_dir = (
-        run_config.dir
-        if run_config and hasattr(run_config, "dir")
-        else outputs_config.dir
-    )
-    run_id = f"{train_config.run_name}_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
-    run_save_path = os.path.join(output_dir, run_id)
-
-    # Set the logger manager to use the same directory for the main log file
-    logger_manager.set_log_directory(run_save_path)
-
-    log_file = os.path.join(run_save_path, "train.log")
-    file_handler = logging.FileHandler(log_file)
-    file_handler.setFormatter(
-        logging.Formatter("%(asctime)s - %(name)s - %(levelname)s - %(message)s")
-    )
-    logger.addHandler(file_handler)
-    logger.info(f"Logging to {log_file}")
-
-    if hasattr(wandb_config, "use_wandb") and wandb_config.use_wandb:
-        try:
-            wandb.init(
-                entity=wandb_config.entity,
-                project=wandb_config.project,
-                group=wandb_config.group,
-                tags=wandb_config.tags,
-                name=train_config.run_name,
-                config=asdict(train_config),
-            )
-            logger.info("Successfully initialized W&B")
-        except Exception as e:
-            logger.error(f"Error initializing W&B: {e}")
-            logger.error("Continuing without W&B logging")
-            wandb_config.use_wandb = False
-
-    # Get datasets using the correct output directory
-    unified_datasets = get_unified_datasets(
-        task_cfg=task_config,
-        train_cfg=train_config,
-        output_dir=output_dir,
-        outputs_cfg=None,  # No longer using outputs_cfg
-    )
-    train_ds, valid_ds, test_ds = unified_datasets
-
-    train_ds: torch.utils.data.Dataset
-    valid_ds: torch.utils.data.Dataset
-    test_ds: torch.utils.data.Dataset
-
-    logger.info(
-        f"Loaded datasets: {len(train_ds)} training, {len(valid_ds)} validation, {len(test_ds)} test samples"
-    )
-
-    input_sample: torch.Tensor = train_ds[0][0]
-    model_config.encoder_network.parameters.input_dim = input_sample.numel()
-    model_config.encoder_network.parameters.input_shape = tuple(input_sample.shape)
-
-    model, encoder_network = initialize_model(model_config)
-
-    return run_save_path, train_ds, valid_ds, test_ds, model, encoder_network
 
 
 def run_analysis(
