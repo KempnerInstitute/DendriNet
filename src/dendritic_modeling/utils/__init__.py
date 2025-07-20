@@ -12,11 +12,13 @@ This module contains core utility functions for:
 from .data import Shaper, convert_to_serializable, save_dict, set_seed
 from .logging_config import get_logger, setup_logging
 from dendritic_modeling.utils.config_validator import ConfigValidator, validate_config
-from .topk import (
-    get_topk_layer,
-    get_available_topk_types,
+from .sparse_ops import (
+    get_sparse_layer,
+    get_available_sparse_types,
     calculate_effective_sparsity,
     count_active_parameters,
+    estimate_memory_usage,
+    parallel_topk_selection,
 )
 
 # Math utilities

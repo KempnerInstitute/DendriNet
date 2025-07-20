@@ -4,50 +4,50 @@ import unittest
 import torch
 import torch.nn as nn
 
-from dendritic_modeling.utils.topk import (
-    get_topk_layer,
-    get_available_topk_types,
+from dendritic_modeling.utils.sparse_ops import (
+    get_sparse_layer,
+    get_available_sparse_types,
     calculate_effective_sparsity,
-    topk_mask_from_weights,
-    apply_topk_sparsity,
+    create_topk_mask,
+    apply_sparse_mask,
     count_active_parameters,
-    estimate_topk_memory_usage,
-    register_topk_layer
+    estimate_memory_usage,
+    register_sparse_layer
 )
 from dendritic_modeling.networks.architectures.excitation_inhibition.synapse.topk import TopKLinear
 
 
-class TestTopKUtils(unittest.TestCase):
-    """Test TopK utility functions."""
+class TestSparseOps(unittest.TestCase):
+    """Test sparse operations utility functions."""
     
-    def test_get_available_topk_types(self):
-        """Test getting available TopK types."""
-        types = get_available_topk_types()
+    def test_get_available_sparse_types(self):
+        """Test getting available sparse layer types."""
+        types = get_available_sparse_types()
         self.assertIn("standard", types)
         self.assertIn("stochastic", types)
         self.assertIn("variance", types)
         self.assertIsInstance(types, list)
     
-    def test_get_topk_layer_standard(self):
-        """Test creating standard TopK layer."""
-        layer = get_topk_layer("standard", 10, 5, 3)
+    def test_get_sparse_layer_standard(self):
+        """Test creating standard sparse layer."""
+        layer = get_sparse_layer("standard", 10, 5, 3)
         self.assertIsInstance(layer, TopKLinear)
         self.assertEqual(layer.in_features, 10)
         self.assertEqual(layer.out_features, 5)
         self.assertEqual(layer.K, 3)
     
-    def test_get_topk_layer_stochastic(self):
-        """Test creating stochastic TopK layer."""
-        layer = get_topk_layer("stochastic", 10, 5, 3, temperature=0.5)
+    def test_get_sparse_layer_stochastic(self):
+        """Test creating stochastic sparse layer."""
+        layer = get_sparse_layer("stochastic", 10, 5, 3, temperature=0.5)
         self.assertIsInstance(layer, TopKLinear)
         self.assertEqual(layer.in_features, 10)
         self.assertEqual(layer.out_features, 5)
         self.assertEqual(layer.K, 3)
     
-    def test_get_topk_layer_invalid_type(self):
-        """Test error for invalid TopK type."""
+    def test_get_sparse_layer_invalid_type(self):
+        """Test error for invalid sparse layer type."""
         with self.assertRaises(ValueError):
-            get_topk_layer("invalid_type", 10, 5, 3)
+            get_sparse_layer("invalid_type", 10, 5, 3)
     
     def test_calculate_effective_sparsity(self):
         """Test sparsity calculation."""
@@ -56,10 +56,10 @@ class TestTopKUtils(unittest.TestCase):
         expected_sparsity = 1.0 - (5 * 3) / (5 * 10)
         self.assertAlmostEqual(sparsity, expected_sparsity, places=6)
     
-    def test_topk_mask_from_weights(self):
+    def test_create_topk_mask(self):
         """Test TopK mask creation."""
         weights = torch.tensor([[1.0, 3.0, 2.0], [0.5, 2.5, 1.5]])
-        mask = topk_mask_from_weights(weights, K=2)
+        mask = create_topk_mask(weights, K=2)
         
         # Should select top 2 elements per row
         self.assertEqual(mask.sum(dim=1).tolist(), [2.0, 2.0])
@@ -69,10 +69,10 @@ class TestTopKUtils(unittest.TestCase):
         self.assertEqual(mask[0, 2].item(), 1.0)  # 2.0 selected
         self.assertEqual(mask[0, 0].item(), 0.0)  # 1.0 not selected
     
-    def test_apply_topk_sparsity(self):
-        """Test applying TopK sparsity to weights."""
+    def test_apply_sparse_mask(self):
+        """Test applying sparse mask to weights."""
         weights = torch.tensor([[1.0, 3.0, 2.0, 0.5], [0.5, 2.5, 1.5, 3.0]])
-        sparse_weights = apply_topk_sparsity(weights, K=2)
+        sparse_weights = apply_sparse_mask(weights, K=2)
         
         # Should have only top 2 elements per row non-zero
         self.assertEqual((sparse_weights != 0).sum(dim=1).tolist(), [2, 2])
@@ -84,17 +84,15 @@ class TestTopKUtils(unittest.TestCase):
         self.assertEqual(sparse_weights[0, 3].item(), 0.0)  # Zeroed out
     
     def test_count_active_parameters(self):
-        """Test counting active parameters in TopK layers."""
-        layer1 = get_topk_layer("standard", 10, 5, 3)
-        layer2 = get_topk_layer("standard", 8, 4, 2)
-        
-        total_active = count_active_parameters([layer1, layer2])
-        expected = (5 * 3) + (4 * 2)  # 15 + 8 = 23
-        self.assertEqual(total_active, expected)
+        """Test counting active parameters in sparse layers."""
+        weights = torch.randn(5, 10)
+        active_count = count_active_parameters(weights, K=3)
+        expected = 5 * 3  # 5 outputs * 3 connections each
+        self.assertEqual(active_count, expected)
     
-    def test_estimate_topk_memory_usage(self):
+    def test_estimate_memory_usage(self):
         """Test memory usage estimation."""
-        memory_usage = estimate_topk_memory_usage(
+        memory_usage = estimate_memory_usage(
             in_features=100,
             out_features=50,
             K=10,
