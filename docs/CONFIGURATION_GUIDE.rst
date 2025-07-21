@@ -1,25 +1,29 @@
-# Dendritic Modeling Configuration Guide
+Dendritic Modeling Configuration Guide
+==================================================
 
 This comprehensive guide covers all configuration options available in the Dendritic Modeling Framework. All configurations are specified using YAML files that are passed to the training script.
 
-## Table of Contents
+Table of Contents
+------------------------------
 
-1. [Overview](#overview)
-2. [Model Configuration](#model-configuration)
-3. [Training Configuration](#training-configuration)
-4. [Task/Dataset Configuration](#taskdataset-configuration)
-5. [Analysis Configuration](#analysis-configuration)
-6. [Visualization Configuration](#visualization-configuration)
-7. [Output Configuration](#output-configuration)
-8. [Weights & Biases Configuration](#weights--biases-configuration)
-9. [Complete Examples](#complete-examples)
+#. [Overview](#overview)
+#. [Model Configuration](#model-configuration)
+#. [Training Configuration](#training-configuration)
+#. [Task/Dataset Configuration](#taskdataset-configuration)
+#. [Analysis Configuration](#analysis-configuration)
+#. [Visualization Configuration](#visualization-configuration)
+#. [Output Configuration](#output-configuration)
+#. [Weights & Biases Configuration](#weights--biases-configuration)
+#. [Complete Examples](#complete-examples)
 
-## Overview
+Overview
+------------------------------
 
 Configuration files define all aspects of dendritic modeling experiments:
 
-```yaml
-# Basic structure
+`````yaml
+Basic structure
+==================================================
 model:          # Network architecture and parameters
 train:          # Training strategy and hyperparameters  
 task:           # Dataset and task configuration
@@ -27,15 +31,17 @@ analysis:       # Analysis and metrics configuration
 visualization:  # Plotting and visualization options
 outputs:        # Output directories and saving options
 wandb:          # Weights & Biases logging configuration
-```
+`````
 
-## Model Configuration
+Model Configuration
+------------------------------
 
-### Network Types
+Network Types
+~~~~~~~~~~~~~~~~~~~~
 
 The framework supports multiple network architectures:
 
-```yaml
+`````yaml
 model:
   task: classification  # or "regression"
   
@@ -54,15 +60,17 @@ model:
     type: Identity      # Output decoder (Identity, MLP)
     parameters:
       output_dim: 10
-```
+`````
 
-### EINet Parameters
+EINet Parameters
+~~~~~~~~~~~~~~~~~~~~
 
 **EINet** (Excitation-Inhibition Network) is the main dendritic architecture:
 
-#### Architecture Parameters
+Architecture Parameters
+^^^^^^^^^^^^^^^
 
-```yaml
+`````yaml
 model:
   core_network:
     type: EINet
@@ -84,11 +92,12 @@ model:
       # Synaptic properties
       somatic_synapses: true                   # Allow direct soma connections
       use_shunting: true                       # Shunting vs subtractive inhibition
-```
+`````
 
-#### Synaptic Selection Mechanisms
+Synaptic Selection Mechanisms
+^^^^^^^^^^^^^^^
 
-```yaml
+`````yaml
       # TopK synapse selection
       topk_type: standard           # "standard", "stochastic", "variance", "deepst"
       topk_init_method: xavier_normal  # Weight initialization method
@@ -108,35 +117,37 @@ model:
       freeze_excitatory_connectivity: false
       freeze_inhibitory_connectivity: false
       weight_threshold: 1e-6        # Pruning threshold
-```
+`````
 
-#### Activation Functions
+Activation Functions
+^^^^^^^^^^^^^^^
 
-```yaml
+`````yaml
       # Reactivation functions
       reactivate: true              # Enable reactivation after branches
       reactivation_type: param_tanh # Activation function type
       reactivation_init_m: 1.5      # Initial slope parameter
       reactivation_init_b: 0.5      # Initial bias parameter
-```
+`````
 
 **Available reactivation types:**
-- `none`: No reactivation (identity)
-- `param_tanh`: Parametric tanh with learnable m and b
-- `param_tanh_only_m`: Parametric tanh with only m learnable
-- `relu`: Standard ReLU
-- `sigmoid`: Standard sigmoid
-- `tanh`: Standard tanh
-- `param_linear_sigmoid`: Interpolates between linear and sigmoid
-- `linear_sigmoid`: Non-trainable linear-sigmoid interpolation
-- `param_linear_tanh`: Trainable linear-tanh interpolation
-- `linear_tanh`: Non-trainable linear-tanh interpolation
-- `param_linear_tanh_transition`: Smooth transition from linear to tanh
-- `linear_tanh_transition`: Non-trainable version
+* ``none``: No reactivation (identity)
+* ``param_tanh``: Parametric tanh with learnable m and b
+* ``param_tanh_only_m``: Parametric tanh with only m learnable
+* ``relu``: Standard ReLU
+* ``sigmoid``: Standard sigmoid
+* ``tanh``: Standard tanh
+* ``param_linear_sigmoid``: Interpolates between linear and sigmoid
+* ``linear_sigmoid``: Non-trainable linear-sigmoid interpolation
+* ``param_linear_tanh``: Trainable linear-tanh interpolation
+* ``linear_tanh``: Non-trainable linear-tanh interpolation
+* ``param_linear_tanh_transition``: Smooth transition from linear to tanh
+* ``linear_tanh_transition``: Non-trainable version
 
-#### Gradient Scaling
+Gradient Scaling
+^^^^^^^^^^^^^^^
 
-```yaml
+`````yaml
       # Gradient scaling strategies
       reactivation_strategy: inverse    # "none", "inverse"
       topk_strategy: conductance_dynamic # "none", "conductance_dynamic"
@@ -144,11 +155,12 @@ model:
       
       # Debugging
       print_hooks: false            # Print gradient statistics
-```
+`````
 
-#### Input Processing
+Input Processing
+^^^^^^^^^^^^^^^
 
-```yaml
+`````yaml
       # Input modes
       input_mode: 1                 # 0: raw→E, None→I; 1: same→E,I; 2: network transform
       
@@ -169,21 +181,23 @@ model:
         hidden_dims: [512, 256]     # Hidden layer sizes
         excitatory_dim: 256          # E pathway output dimension
         inhibitory_dim: 64           # I pathway output dimension
-```
+`````
 
 **Available input transform types:**
-- `IndexInputTransform`: Random index splitting
-- `MLPInputTransform`: MLP-based transformation
-- `CNNInputTransform`: CNN-based transformation
-- `AlexNetTransform`: Pre-trained AlexNet features
-- `FeatureExtractorMLP`: Feature extraction MLP
-- `SigmoidInputNetTransform`: MLP with sigmoid output
+* ``IndexInputTransform``: Random index splitting
+* ``MLPInputTransform``: MLP-based transformation
+* ``CNNInputTransform``: CNN-based transformation
+* ``AlexNetTransform``: Pre-trained AlexNet features
+* ``FeatureExtractorMLP``: Feature extraction MLP
+* ``SigmoidInputNetTransform``: MLP with sigmoid output
 
-### Other Network Types
+Other Network Types
+~~~~~~~~~~~~~~~~~~~~
 
-#### Standard MLP
+Standard MLP
+^^^^^^^^^^^^^^^
 
-```yaml
+`````yaml
 model:
   core_network:
     type: MLP
@@ -192,11 +206,12 @@ model:
       hidden_dims: [512, 256, 128]
       activation: relu              # "relu", "sigmoid", "tanh"
       output_dim: 10
-```
+`````
 
-#### Parameter-Matched MLP
+Parameter-Matched MLP
+^^^^^^^^^^^^^^^
 
-```yaml
+`````yaml
 model:
   core_network:
     type: MatchedParamMLP
@@ -206,13 +221,15 @@ model:
       excitatory_layer_sizes: [128, 64]
       inhibitory_layer_sizes: [64, 32]
       # ... other EINet parameters
-```
+`````
 
-## Training Configuration
+Training Configuration
+------------------------------
 
-### Learning Strategies
+Learning Strategies
+~~~~~~~~~~~~~~~~~~~~
 
-```yaml
+`````yaml
 train:
   learning_strategy: standard      # Training strategy
   
@@ -221,19 +238,20 @@ train:
   seed: 42                         # Random seed
   train_valid_split: 0.8           # Train/validation split ratio
   weight_decay_rate: 0.1           # L2 regularization
-```
+`````
 
 **Available learning strategies:**
-- `standard`: Traditional backpropagation
-- `freeze_layers`: Train layers sequentially
-- `freeze_branches`: Train branches sequentially (local learning)
-- `two_step`: Local pretraining + global fine-tuning
-- `two_step_kl`: Two-step with KL divergence
-- `voltage_stabilization`: Biologically-motivated warm-up
+* ``standard``: Traditional backpropagation
+* ``freeze_layers``: Train layers sequentially
+* ``freeze_branches``: Train branches sequentially (local learning)
+* ``two_step``: Local pretraining + global fine-tuning
+* ``two_step_kl``: Two-step with KL divergence
+* ``voltage_stabilization``: Biologically-motivated warm-up
 
-### Optimizer Configuration
+Optimizer Configuration
+~~~~~~~~~~~~~~~~~~~~
 
-```yaml
+`````yaml
 train:
   optim_dict:
     # Simple configuration
@@ -247,11 +265,12 @@ train:
     blocklinear_lr: 0.001        # Branch aggregation learning rate
     reactivation_lr: 0.01        # Activation parameter learning rate
     output_layer_lr: 0.001       # Output layer learning rate
-```
+`````
 
-### Trainer Parameters
+Trainer Parameters
+~~~~~~~~~~~~~~~~~~~~
 
-```yaml
+`````yaml
 train:
   trainer:
     # Basic training
@@ -281,19 +300,20 @@ train:
     epochs_per_layer: 10         # Epochs per layer (freeze_layers)
     epochs_per_branch: 10        # Epochs per branch (freeze_branches)
     final_tune_epochs: 20        # Final tuning epochs (multi-stage strategies)
-```
+`````
 
 **Available loss functions:**
-- `categorical_nll`: Categorical negative log-likelihood
-- `mse`: Mean squared error
-- `cross_entropy`: Cross-entropy loss
-- `bce`: Binary cross-entropy
+* ``categorical_nll``: Categorical negative log-likelihood
+* ``mse``: Mean squared error
+* ``cross_entropy``: Cross-entropy loss
+* ``bce``: Binary cross-entropy
 
-### Encoder Network Training
+Encoder Network Training
+~~~~~~~~~~~~~~~~~~~~
 
 For models with sophisticated encoder networks:
 
-```yaml
+`````yaml
 train:
   encoder:
     # Training mode
@@ -311,13 +331,14 @@ train:
       source: none               # "file", "pytorch", "none"
       weights_path: ""           # Path to weights file
       pytorch_model: ""          # PyTorch model name (e.g., "alexnet")
-```
+`````
 
-### Main Network Training
+Main Network Training
+~~~~~~~~~~~~~~~~~~~~
 
 For multi-stage training strategies:
 
-```yaml
+`````yaml
 train:
   main:
     # Parameter groups for different learning rates
@@ -334,13 +355,15 @@ train:
       epochs: 80
       batch_size: 128
       # ...
-```
+`````
 
-## Task/Dataset Configuration
+Task/Dataset Configuration
+------------------------------
 
-### Dataset Selection
+Dataset Selection
+~~~~~~~~~~~~~~~~~~~~
 
-```yaml
+`````yaml
 task:
   dataset: mnist                 # Dataset name
   data_path: ""                  # Custom data path (empty = default)
@@ -352,74 +375,87 @@ task:
     test_size: 1000              # Test samples
     flatten: true                # Flatten images
     normalize: false             # Normalize inputs
-```
+`````
 
-### Supported Datasets
+Supported Datasets
+~~~~~~~~~~~~~~~~~~~~
 
-#### Vision Datasets
+Vision Datasets
+^^^^^^^^^^^^^^^
 
-```yaml
-# MNIST handwritten digits
+`````yaml
+MNIST handwritten digits
+==================================================
 task:
   dataset: mnist
   parameters:
     flatten: true               # Flatten 28x28 → 784
     normalize: true             # Apply normalization
 
-# CIFAR-10 natural images  
+CIFAR-10 natural images  
+==================================================
 task:
   dataset: cifar10
   parameters:
     flatten: false              # Keep spatial structure
     normalize: true
-```
+`````
 
-#### Synthetic Datasets
+Synthetic Datasets
+^^^^^^^^^^^^^^^
 
-```yaml
-# Line detection
+`````yaml
+Line detection
+==================================================
 task:
   dataset: line
   parameters:
     image_size: 16              # Image dimensions
     
-# Center-surround patterns
+Center-surround patterns
+==================================================
 task:
   dataset: center_surround  
   parameters:
     image_size: 15
 
-# Orientation bars
+Orientation bars
+==================================================
 task:
   dataset: orientation_bars
   parameters:
     image_size: 16
     n_orient_classes: 8         # Number of orientations
 
-# Multi-bit XOR
+Multi-bit XOR
+==================================================
 task:
   dataset: multi_xor
   parameters:
     n_bits: 8                   # Number of input bits
     
-# Information routing
+Information routing
+==================================================
 task:
   dataset: info_shunting
   parameters:
     input_dim: 10               # Input dimensionality
     
-# Noisy line detection
+Noisy line detection
+==================================================
 task:
   dataset: noise_resilience
   parameters:
     image_size: 16
     noise_level: 0.2            # Gaussian noise level
-```
+`````
 
-#### Advanced Datasets
+Advanced Datasets
+^^^^^^^^^^^^^^^
 
-```yaml
-# Correlated Gaussian inputs
+`````yaml
+Correlated Gaussian inputs
+==================================================
 task:
   dataset: synthetic_correlated
   parameters:
@@ -427,14 +463,16 @@ task:
     correlation_range: [-0.1, 0.1]  # Correlation range
     mean_magnitude: 0.5         # Class separation
     
-# Poisson-sampled data
+Poisson-sampled data
+==================================================
 task:
   dataset: poisson_generator
   parameters:
     base_dataset: mnist         # Base dataset
     rate_multiplier: 1.0        # Poisson rate
     
-# Orthogonal network data
+Orthogonal network data
+==================================================
 task:
   dataset: orthonet
   parameters:
@@ -443,47 +481,55 @@ task:
     nonlinearity: sigmoid       # "sigmoid", "tanh", None
     repeat_layers: false        # Repeat layer weights
     noise_std: 0.1             # Noise for repeated layers
-```
+`````
 
-#### MNIST Variants
+MNIST Variants
+^^^^^^^^^^^^^^^
 
-```yaml
-# MNIST with modulo labels
+`````yaml
+MNIST with modulo labels
+==================================================
 task:
   dataset: mnist_modulo10
   parameters:
     shuffle_iterations: 2
     
-# MNIST with random flips
+MNIST with random flips
+==================================================
 task:
   dataset: random_flip_mnist
   parameters:
     random_flip: true
     
-# Sparse MNIST (feature selectivity)
+Sparse MNIST (feature selectivity)
+==================================================
 task:
   dataset: feature_selectivity
   parameters:
     threshold: 0.3
     
-# Contextual figure-ground
+Contextual figure-ground
+==================================================
 task:
   dataset: context_gating
   parameters:
     noise_level: 0.1
     
-# Compositional MNIST
+Compositional MNIST
+==================================================
 task:
   dataset: hierarchical_processing
   parameters:
     n_samples: 10000
-```
+`````
 
-## Analysis Configuration
+Analysis Configuration
+------------------------------
 
-### Performance Analysis
+Performance Analysis
+~~~~~~~~~~~~~~~~~~~~
 
-```yaml
+`````yaml
 analysis:
   performance_analysis:
     enabled: true               # Enable performance metrics
@@ -492,11 +538,12 @@ analysis:
       accuracy: true            # Classification accuracy
       categorical_loglikelihood: true  # Log-likelihood
       mse: false               # Mean squared error (regression)
-```
+`````
 
-### Information-Theoretic Analysis
+Information-Theoretic Analysis
+~~~~~~~~~~~~~~~~~~~~
 
-```yaml
+`````yaml
 analysis:
   information_analysis:
     enabled: true
@@ -532,11 +579,12 @@ analysis:
       verbose: false           # Detailed progress
       compute_per_branch: true  # Per-branch analysis
       branch_aggregation: none  # Branch aggregation method
-```
+`````
 
-### Ablation Analysis
+Ablation Analysis
+~~~~~~~~~~~~~~~~~~~~
 
-```yaml
+`````yaml
 analysis:
   ablation_analysis:
     enabled: true
@@ -550,11 +598,12 @@ analysis:
       ablate_upstream: true     # Test removing branches
       accuracy: true           # Measure accuracy
       categorical_loglikelihood: true # Measure log-likelihood
-```
+`````
 
-### Specialized Analyses
+Specialized Analyses
+~~~~~~~~~~~~~~~~~~~~
 
-```yaml
+`````yaml
 analysis:
   # Synaptic turnover tracking
   synapse_turnover_analysis:
@@ -617,11 +666,12 @@ analysis:
     params:
       save_plots: true         # Generate plots
       save_csv: true          # Save numerical results
-```
+`````
 
-## Visualization Configuration
+Visualization Configuration
+------------------------------
 
-```yaml
+`````yaml
 visualization:
   enabled: true                # Enable visualization
   visualize_epochs: [10, 30, 50] # Epochs for visualization
@@ -639,11 +689,12 @@ visualization:
     - dendritic_information   # Information processing
     - dendritic_information_inputs      # Input information
     - dendritic_information_activations # Activation information
-```
+`````
 
-## Output Configuration
+Output Configuration
+------------------------------
 
-```yaml
+`````yaml
 outputs:
   dir: ./outputs/              # Base output directory
   run_name: experiment_001     # Run identifier
@@ -653,39 +704,44 @@ outputs:
   # - logs/: Training logs  
   # - analysis/: Analysis results
   # - visualizations/: Generated plots
-```
+`````
 
-## Weights & Biases Configuration
+Weights & Biases Configuration
+------------------------------
 
-```yaml
+`````yaml
 wandb:
   use_wandb: true             # Enable W&B logging
   entity: my_username         # W&B username/team
   project: dendritic_modeling # Project name
   group: experiments          # Run group
   tags: [dendritic, ei_network] # Run tags
-```
+`````
 
-## FSDP Configuration
+FSDP Configuration
+------------------------------
 
 For large models, enable FSDP in train section:
-```yaml
+`````yaml
 train:
   use_fsdp: true
   fsdp_config:
     mixed_precision: true
     cpu_offload: false
     sharding_strategy: full
-```
+`````
 
 Run with torchrun for multi-GPU.
 
-## Complete Examples
+Complete Examples
+------------------------------
 
-### Simple EINet Classification
+Simple EINet Classification
+~~~~~~~~~~~~~~~~~~~~
 
-```yaml
-# configs/simple_einet.yaml
+`````yaml
+configs/simple_einet.yaml
+==================================================
 model:
   task: classification
   encoder_network:
@@ -725,12 +781,14 @@ analysis:
     
 outputs:
   dir: ./results/simple_einet/
-```
+`````
 
-### Advanced Multi-Layer EINet
+Advanced Multi-Layer EINet
+~~~~~~~~~~~~~~~~~~~~
 
-```yaml
-# configs/advanced_einet.yaml
+`````yaml
+configs/advanced_einet.yaml
+==================================================
 model:
   task: classification
   encoder_network:
@@ -819,12 +877,14 @@ wandb:
 
 outputs:
   dir: ./results/advanced_einet/
-```
+`````
 
-### Dynamic Sparse Training Example
+Dynamic Sparse Training Example
+~~~~~~~~~~~~~~~~~~~~
 
-```yaml
-# configs/deepst_example.yaml
+`````yaml
+configs/deepst_example.yaml
+==================================================
 model:
   task: classification
   encoder_network:
@@ -876,12 +936,14 @@ analysis:
 
 outputs:
   dir: ./results/deepst_experiment/
-```
+`````
 
-### Regression Example
+Regression Example
+~~~~~~~~~~~~~~~~~~~~
 
-```yaml
-# configs/regression_example.yaml
+`````yaml
+configs/regression_example.yaml
+==================================================
 model:
   task: regression
   encoder_network:
@@ -927,12 +989,14 @@ analysis:
 
 outputs:
   dir: ./results/regression/
-```
+`````
 
-### FSDP Large Model Example
+FSDP Large Model Example
+~~~~~~~~~~~~~~~~~~~~
 
-```yaml
-# configs/fsdp_large_model.yaml
+`````yaml
+configs/fsdp_large_model.yaml
+==================================================
 model:
   task: classification
   core_network:
@@ -943,18 +1007,20 @@ train:
   use_fsdp: true
   trainer:
     batch_size: 64
-```
+`````
 
-### Sweep Configuration Example
+Sweep Configuration Example
+~~~~~~~~~~~~~~~~~~~~
 
-```yaml
-# configs/sweep_config.yaml
+`````yaml
+configs/sweep_config.yaml
+==================================================
 sweep_config:
   model.network.parameters.excitatory_layer_sizes: [[10], [20]]
 train:
   use_fsdp: true  # FSDP in sweeps
-```
+`````
 
 ---
 
-This configuration guide covers all the available options in the Dendritic Modeling Framework. For additional examples and tutorials, see the `configs/` directory and the framework documentation. 
+This configuration guide covers all the available options in the Dendritic Modeling Framework. For additional examples and tutorials, see the ``configs/`` directory and the framework documentation. 

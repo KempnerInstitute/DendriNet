@@ -116,32 +116,7 @@ InputNetwork
 Input Transforms
 ~~~~~~~~~~~~~~~~
 
-.. automodule:: dendritic_modeling.networks.input_transforms
-   :members:
-   :undoc-members:
-
-Available transforms:
-
-Conv2dTransform
-^^^^^^^^^^^^^^^
-
-.. autoclass:: dendritic_modeling.networks.input_transforms.Conv2dTransform
-   :members:
-   :show-inheritance:
-
-MLPTransform
-^^^^^^^^^^^^
-
-.. autoclass:: dendritic_modeling.networks.input_transforms.MLPTransform
-   :members:
-   :show-inheritance:
-
-GaborTransform
-^^^^^^^^^^^^^^
-
-.. autoclass:: dendritic_modeling.networks.input_transforms.GaborTransform
-   :members:
-   :show-inheritance:
+Input transformation modules are available for preprocessing data before feeding to dendritic networks. These include convolutional transforms, Gabor filter banks, and other preprocessing utilities.
 
 Specialized Architectures
 -------------------------
@@ -185,15 +160,7 @@ Factory Functions
 Creating Visual Units
 ~~~~~~~~~~~~~~~~~~~~~
 
-.. automodule:: dendritic_modeling.networks.factories.vision_units
-   :members:
-
-Factory functions for creating biologically-inspired visual units:
-
-.. autofunction:: dendritic_modeling.networks.factories.vision_units.create_gabor_units
-.. autofunction:: dendritic_modeling.networks.factories.vision_units.create_center_surround_units
-.. autofunction:: dendritic_modeling.networks.factories.vision_units.create_motion_detector_units
-.. autofunction:: dendritic_modeling.networks.factories.vision_units.create_end_stopped_units
+Factory functions are available for creating biologically-inspired visual units including Gabor units, center-surround units, motion detectors, and end-stopped units.
 
 Converting CNNs
 ~~~~~~~~~~~~~~~
@@ -212,10 +179,7 @@ Utilities
 Network Analysis
 ~~~~~~~~~~~~~~~~
 
-.. automodule:: dendritic_modeling.networks.utils
-   :members:
-
-Helper functions for network analysis and visualization:
+Helper functions for network analysis and visualization are available in the utils modules:
 
 - ``count_parameters(model)``: Count trainable parameters
 - ``get_activation_shapes(model, input_shape)``: Get activation shapes at each layer

@@ -232,29 +232,7 @@ Factory function for creating models from configuration:
 Model Utilities
 ---------------
 
-Checkpointing
-~~~~~~~~~~~~~
-
-.. automodule:: dendritic_modeling.models.utils.checkpointing
-   :members:
-
-Functions for saving and loading model checkpoints:
-
-- ``save_checkpoint(model, path, metadata=None)``
-- ``load_checkpoint(model, path, strict=True)``
-- ``get_best_checkpoint(checkpoint_dir, metric="val_acc")``
-
-Model Analysis
-~~~~~~~~~~~~~~
-
-.. automodule:: dendritic_modeling.models.utils.analysis
-   :members:
-
-Tools for analyzing trained models:
-
-- ``get_layer_representations(model, dataloader)``
-- ``compute_feature_importance(model, dataset)``
-- ``visualize_learned_features(model)``
+Model utilities are available in the main utils module. See :doc:`/api/utils` for available functions.
 
 Integration with PyTorch Lightning
 ----------------------------------

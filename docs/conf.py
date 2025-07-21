@@ -41,15 +41,12 @@ extensions = [
     'sphinx.ext.graphviz',    # For drawing graphs
     'sphinx_copybutton',      # Copy button for code blocks
     'sphinx_design',          # Enhanced design elements
-    'myst_parser',            # Markdown support
+    # 'myst_parser',            # Markdown support - disabled until myst_parser issue is resolved
     'nbsphinx',              # Jupyter notebook support
 ]
 
-# Source file parsers
-source_suffix = {
-    '.rst': None,
-    '.md': 'myst_parser',
-}
+# Source file parsers - only RST for now
+source_suffix = '.rst'
 
 # Autodoc settings
 autodoc_default_options = {
@@ -63,6 +60,9 @@ autodoc_default_options = {
 # Autosummary settings
 autosummary_generate = True
 autosummary_generate_overwrite = True
+
+# Exclude patterns
+exclude_patterns = ['_build', 'Thumbs.db', '.DS_Store', 'md_backup', 'convert_md_to_rst.py', 'figures/md_backup']
 
 # Napoleon settings for Google/NumPy docstring support
 napoleon_google_docstring = True
@@ -99,21 +99,21 @@ mathjax3_config = {
     }
 }
 
-# MyST parser settings
-myst_enable_extensions = [
-    "colon_fence",
-    "deflist",
-    "dollarmath",
-    "fieldlist", 
-    "html_admonition",
-    "html_image",
-    "linkify",
-    "replacements",
-    "smartquotes",
-    "strikethrough",
-    "substitution",
-    "tasklist",
-]
+# MyST parser settings - disabled
+# myst_enable_extensions = [
+#     "colon_fence",
+#     "deflist",
+#     "dollarmath",
+#     "fieldlist", 
+#     "html_admonition",
+#     "html_image",
+#     "linkify",
+#     "replacements",
+#     "smartquotes",
+#     "strikethrough",
+#     "substitution",
+#     "tasklist",
+# ]
 
 # NBSphinx settings for Jupyter notebooks
 nbsphinx_allow_errors = True
@@ -270,11 +270,11 @@ def setup(app):
     # Add custom directives if needed
     pass
 
-# Source suffix
-source_suffix = {
-    '.rst': None,
-    '.md': 'myst_parser',
-}
+# Source suffix - RST only
+# source_suffix = {
+#     '.rst': None,
+#     '.md': 'myst_parser',
+# }
 
 # Master document
 master_doc = 'index'
