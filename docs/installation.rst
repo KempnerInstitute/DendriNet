@@ -15,19 +15,6 @@ System Requirements
 - CUDA-compatible GPU (recommended)
 - 10 GB free disk space
 
-**Recommended Requirements:**
-- Python 3.9+
-- 16+ GB RAM
-- NVIDIA GPU with 8+ GB VRAM
-- CUDA 11.8 or 12.x
-- 50+ GB free disk space (for datasets and results)
-
-**For Large-Scale Training:**
-- Multiple GPUs (4-8 recommended)
-- 32+ GB RAM
-- High-speed interconnect (NVLink/InfiniBand)
-- NCCL for multi-GPU communication
-
 Software Dependencies
 ~~~~~~~~~~~~~~~~~~~~
 
@@ -399,10 +386,10 @@ Now that you have the framework installed:
 4. **Examples**: Explore :doc:`tutorials/index`
 
 .. note::
-   If you encounter any installation issues not covered here, please check our `GitHub Issues <https://github.com/KempnerInstitute/dendritic-modeling/issues>`_ or create a new issue with your system details.
+   If you encounter any installation issues not covered here, please check our :doc:`faq` for common solutions, consult our `GitHub Issues <https://github.com/KempnerInstitute/dendritic-modeling/issues>`_, or create a new issue with your system details.
 
-Keeping Updated
----------------
+Stay Current
+------------
 
 To update to the latest version:
 

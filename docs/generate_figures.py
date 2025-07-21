@@ -1,6 +1,6 @@
 """
 Final figure generation script for dendritic modeling documentation.
-Generates high-quality, professional figures with improved designs.
+Generates high-quality, professional figures for documentation.
 """
 
 import matplotlib.pyplot as plt
@@ -53,8 +53,8 @@ def save_figure(fig, name, dpi=600):
         fig.savefig(f'{dir_path}/{name}.svg', format='svg', transparent=True, bbox_inches='tight')
     print(f"Saved: {name}")
 
-def create_improved_dendritic_neuron():
-    """Create an improved dendritic neuron with better structure."""
+def create_dendritic_neuron():
+    """Create a detailed dendritic neuron with proper structure."""
     fig, ax = plt.subplots(figsize=(10, 12))
 
     # Draw soma (much lighter color)
@@ -291,7 +291,7 @@ def create_improved_dendritic_neuron():
                 fontsize=16, fontweight='bold', pad=20)
 
     plt.tight_layout()
-    save_figure(fig, 'dendritic_neuron_improved')
+    save_figure(fig, 'dendritic_neuron')
     plt.close()
 
 def create_accurate_block_linear():
@@ -453,7 +453,7 @@ def create_accurate_block_linear():
     save_figure(fig, 'block_linear_accurate')
     plt.close()
 
-# Additional figures from the original script
+    # Additional documentation figures
 def create_network_architecture():
     """Create the E/I network architecture diagram."""
     fig, ax = plt.subplots(figsize=(12, 10))
@@ -634,10 +634,10 @@ def create_shunting_inhibition():
 
 def main():
     """Generate all figures."""
-    print("Generating improved figures...")
+    print("Generating documentation figures...")
 
-    # Generate the improved figures
-    create_improved_dendritic_neuron()
+    # Generate the figures
+    create_dendritic_neuron()
     create_accurate_block_linear()
 
     # Generate other figures

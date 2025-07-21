@@ -454,22 +454,25 @@ slurm_config:
 # WHAT WAS RESTORED VS WHAT WAS ADDED
 # ============================================================================
 #
-# RESTORED FUNCTIONALITY (that was accidentally removed):
-# Encoder networks: VAE, CNN VAE, MLPAutoencoder, CNNVariationalAutoencoder
-# Complex EINet architecture: multi-layer branching, morphological definitions
-# All connection types: ee, ei, ie, ii synapses per branch per layer
-# Decoder networks: MLP, CNN with configurable parameters
-# Advanced training strategies: freeze_layers, voltage_stabilization, two_step, etc.
-# Parameter groups: Different learning rates for different components
-# Rich dataset options: All synthetic and real datasets with parameters
-# Complete analysis suite: All original analysis modules
-# SLURM configuration: Complete cluster integration
-# Morphological parameters: Branch factors, reactivation, gradient scaling
-# DEEPST parameters: All dynamic sparse training options
+# COMPREHENSIVE CONFIGURATION:
+# Comprehensive Configuration Example
+# 
+# This configuration demonstrates the full capabilities of the framework:
+# - Encoder networks: VAE, CNN VAE, MLPAutoencoder, CNNVariationalAutoencoder
+# - Complex EINet architecture: multi-layer branching, morphological definitions
+# - All connection types: ee, ei, ie, ii synapses per branch per layer
+# - Decoder networks: MLP, CNN with configurable parameters
+# - Advanced training strategies: freeze_layers, voltage_stabilization, two_step, etc.
+# - Parameter groups: Different learning rates for different components
+# - Rich dataset options: All synthetic and real datasets with parameters
+# - Complete analysis suite: All analysis modules
+# - SLURM configuration: Complete cluster integration
+# - Morphological parameters: Branch factors, reactivation, gradient scaling
+# - DEEPST parameters: All dynamic sparse training options
 #
-# ADDED NEW FUNCTIONALITY (performance enhancements):
-# 🆕 Mixed precision training (AMP) for speed and memory efficiency
-# 🆕 Conditional profiling for performance analysis
+# PERFORMANCE FEATURES:
+# Mixed precision training (AMP) for speed and memory efficiency
+# Conditional profiling for performance analysis
 # 🆕 Hook management for research vs benchmarking modes
 # 🆕 FSDP support for very large models
 # 🆕 Adaptive DataLoader optimization

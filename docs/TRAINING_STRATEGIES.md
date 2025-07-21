@@ -382,7 +382,7 @@ train:
 
 ### Two-Step with KL Divergence
 
-Enhanced version with KL regularization between local and global representations:
+Version with KL regularization between local and global representations:
 
 ```yaml
 train:
@@ -598,7 +598,7 @@ def get_trainer(strategy, ...):
 | Task Characteristics | Recommended Strategy | Rationale |
 |---------------------|---------------------|-----------|
 | **Simple datasets** | Standard | Fast convergence, well-understood |
-| **Deep networks (3+ layers)** | Layer-wise or Two-step | Better gradient flow |
+| **Deep networks (3+ layers)** | Layer-wise or Two-step | Improved gradient flow |
 | **Multi-branch architectures** | Branch-wise | Natural branch specialization |
 | **EINet with E-I dynamics** | Voltage stabilization | Stable E-I balance |
 | **Representation learning** | Two-step | Interpretable intermediate features |
@@ -628,7 +628,7 @@ def get_trainer(strategy, ...):
 ### Debugging Strategy Issues
 
 #### Poor Convergence
-1. Try two-step training for better initialization
+1. Try two-step training for improved initialization
 2. Use layer-wise if deep network struggles
 3. Check learning rates for each component
 
@@ -776,7 +776,7 @@ optimizer = torch.optim.Adam(param_groups)
 The Dendritic Modeling Framework provides a comprehensive suite of training strategies:
 
 - **Standard**: Fast, reliable, good for most tasks
-- **Layer-wise**: Better for deep networks, hierarchical learning
+- **Layer-wise**: Suitable for deep networks, hierarchical learning
 - **Branch-wise**: Biologically realistic, good for interpretability
 - **Two-step**: Excellent for representation learning and deep networks
 - **Voltage stabilization**: Essential for stable E-I dynamics

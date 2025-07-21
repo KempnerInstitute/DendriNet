@@ -51,7 +51,7 @@ conda activate dendritic_env
 pip install -e .
 ```
 
-That's it! The framework is now ready to use.
+The framework is ready to use.
 
 ## Quick Start
 
@@ -90,7 +90,7 @@ For a detailed walkthrough, see the [documentation](https://studious-bassoon-39j
 
 ### EINet (Excitation-Inhibition Networks)
 
-![EINet Architecture](docs/figures/architecture/network_architecture_enhanced.png)
+![EINet Architecture](docs/figures/architecture/network_architecture.png)
 
 The primary architecture featuring separate excitatory and inhibitory pathways with dendritic computation.
 
@@ -298,13 +298,13 @@ parameters:
 |------|-------------|------------|
 | **none** | Identity (no reactivation) | None |
 | **param_tanh** | Parametric tanh with learnable slope and bias | `init_m`, `init_b` |
-| **param_tanh_only_m** | Parametric tanh with only slope learnable | `init_m`, `fixed_b` |
+| **param_tanh_only_m** | Parametric tanh with learnable slope | `init_m`, `fixed_b` |
 | **param_linear_sigmoid** | Trainable linear-sigmoid interpolation | `init_m`, `init_b` |
-| **linear_sigmoid** | Fixed linear-sigmoid interpolation | `init_m`, `init_b` |
+| **linear_sigmoid** | Linear-sigmoid interpolation | `init_m`, `init_b` |
 | **param_linear_tanh** | Trainable linear-tanh interpolation | `init_m`, `init_b` |
-| **linear_tanh** | Fixed linear-tanh interpolation | `init_m`, `init_b` |
+| **linear_tanh** | Linear-tanh interpolation | `init_m`, `init_b` |
 | **param_linear_tanh_transition** | Smooth transition linear to tanh | `init_threshold`, `init_slope` |
-| **linear_tanh_transition** | Fixed transition function | `init_threshold`, `init_slope` |
+| **linear_tanh_transition** | Transition function | `init_threshold`, `init_slope` |
 | **relu** | Standard ReLU | None |
 | **sigmoid** | Standard sigmoid | None |
 | **tanh** | Standard tanh | None |

@@ -18,7 +18,7 @@ This guide addresses common issues with FSDP (Fully Sharded Data Parallel) train
 ## Solutions
 
 ### 1. Environment Variables (Already Applied)
-The script now automatically sets these NCCL environment variables:
+The script automatically sets these NCCL environment variables:
 ```bash
 export NCCL_ASYNC_ERROR_HANDLING=1
 export NCCL_TIMEOUT=1800              # 30 minutes timeout

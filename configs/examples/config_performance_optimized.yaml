@@ -1,7 +1,7 @@
 # ============================================================================
 # PERFORMANCE-OPTIMIZED CONFIGURATION EXAMPLE
 # ============================================================================
-# This config demonstrates the new performance features for different use cases
+# This config demonstrates performance optimization features for different use cases
 # ============================================================================
 
 model:
@@ -74,7 +74,7 @@ train:
   run_name: "performance_optimized_example"
   
   # ==========================================
-  # KEY NEW PERFORMANCE FEATURES
+  # KEY PERFORMANCE FEATURES
   # ==========================================
   
   # Mixed Precision - 2x speed, 50% memory reduction

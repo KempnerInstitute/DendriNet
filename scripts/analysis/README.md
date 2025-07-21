@@ -74,7 +74,7 @@ pip install scikit-learn torch torchvision
 
 ### Optional Dependencies
 ```bash
-# Enhanced clustering
+# Advanced clustering
 pip install scikit-learn[extra]
 
 # High-performance computing
@@ -222,7 +222,7 @@ chunk_size = 1000  # Process 1000 pairs at a time
 ```python
 # Adaptive binning based on data distribution
 def adaptive_discretize(pixel_data, target_bins=5):
-    # Use quantile-based binning for better distribution
+    # Use quantile-based binning for improved distribution
     quantiles = np.linspace(0, 1, target_bins + 1)
     bin_edges = np.quantile(pixel_data, quantiles)
     return np.digitize(pixel_data, bin_edges[:-1])

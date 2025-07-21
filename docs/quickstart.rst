@@ -314,15 +314,19 @@ For hands-on learning, explore our Jupyter notebooks:
 .. code-block:: bash
 
    # Start Jupyter (if installed)
-   jupyter notebook notebooks/
+   jupyter notebook docs/notebooks/
    
    # Or use Jupyter Lab
-   jupyter lab notebooks/
+   jupyter lab docs/notebooks/
 
 Available notebooks:
-- ``01_quickstart_interactive.ipynb`` - This guide as an interactive notebook
-- ``02_architecture_comparison.ipynb`` - Compare different network types
-- ``03_biological_realism.ipynb`` - Explore bio-inspired features
+- ``quickstart_interactive.ipynb`` - This guide as an interactive notebook with runnable code
+- ``architecture_comparison.ipynb`` - Compare EINet, DendriNet, and MLP architectures
+- ``information_analysis.ipynb`` - Explore information theory analysis tools
+- ``parameter_sweeps.ipynb`` - Learn to run systematic parameter exploration
+
+.. note::
+   Interactive notebooks are also available on Google Colab for easy experimentation without local installation.
 
 Getting Help
 ------------
@@ -348,6 +352,15 @@ You're now ready to dive deeper into the fascinating world of dendritic computat
 
 .. tip::
    **Bookmark this page** - you'll likely want to reference these commands as you explore more advanced features.
+
+.. note::
+   **Feedback Welcome!** 
+   
+   Found this tutorial helpful? Have suggestions for improvement? 
+   
+   - Open an issue on `GitHub <https://github.com/KempnerInstitute/dendritic-modeling/issues>`_
+   - Edit this page directly via the "Edit on GitHub" link
+   - Rate this tutorial: `Quick Feedback Form <https://forms.gle/example>`_
 
 .. seealso::
    * :doc:`core_concepts` - Deep dive into the science

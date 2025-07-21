@@ -8,7 +8,7 @@ This unified framework consolidates all parameter sweep functionality for the de
 - **Consistent Configuration**: Standardized YAML format across all sweeps
 - **Unified Analysis**: Common analysis pipeline with type-specific visualizations
 - **Reduced Code Duplication**: ~60% reduction in codebase size
-- **Better Error Handling**: Comprehensive validation and recovery
+- **Error Handling**: Comprehensive validation and recovery
 - **Backward Compatibility**: Legacy scripts still work with deprecation warnings
 
 ##  Framework Structure
@@ -225,9 +225,9 @@ The unified framework provides significant improvements:
 
 ## Development
 
-### Adding New Sweep Types
+### Creating Custom Sweep Types
 
-1. Create new sweep implementation in `sweep_types/`:
+1. Create sweep implementation in `sweep_types/`:
 ```python
 from base_sweep import BaseSweepGenerator, BaseSweepAnalyzer
 

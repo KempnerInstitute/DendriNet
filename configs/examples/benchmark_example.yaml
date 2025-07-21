@@ -87,7 +87,7 @@ train:
   # All performance optimizations enabled
   enable_amp: true              # Mixed precision for speed
   enable_profiling: false       # Disabled - adds overhead
-  enable_hooks: false           # Disabled - analysis overhead removed
+  enable_hooks: false           # Disabled to reduce analysis overhead
   performance_mode: true        # Maximum performance mode
   use_fsdp: false              # Single GPU benchmark
   

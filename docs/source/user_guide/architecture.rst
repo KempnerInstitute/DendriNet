@@ -73,7 +73,7 @@ Complete Architecture Flow
 
 The complete network architecture integrates all components:
 
-.. figure:: ../../_static/network_architecture_enhanced.png
+.. figure:: ../../_static/network_architecture.png
    :align: center
    :width: 1000px
    :alt: Network architecture overview

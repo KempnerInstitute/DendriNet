@@ -51,7 +51,7 @@ Excitation-Inhibition Balance
 
 Following Dale's principle, neurons in biological networks are either excitatory or inhibitory, but not both:
 
-.. image:: source/_static/network_architecture_enhanced.png
+.. image:: source/_static/network_architecture.png
    :alt: E/I network architecture
    :align: center
    :width: 800px
@@ -147,12 +147,12 @@ The dendritic modeling framework offers several advantages over traditional neur
 
 **Computational Benefits**
    - Natural normalization through shunting inhibition
-   - Improved gradient flow through dendrites
+   - Enhanced gradient flow through dendrites
    - Sparse connectivity for efficiency
 
 **Robustness**
    - Inherent stability from divisive normalization
-   - Better noise tolerance
+   - Superior noise tolerance
    - Reduced need for explicit regularization
 
 References

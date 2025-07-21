@@ -79,6 +79,8 @@ Get up and running in minutes:
    :caption: Reference
 
    api/index
+   faq
+   glossary
    troubleshooting
    contributing
    appendix
@@ -86,7 +88,7 @@ Get up and running in minutes:
 **Navigation Guide**
 ---------------------
 
-**New to dendritic modeling?**
+**Getting started with dendritic modeling?**
    Start with :doc:`introduction` → :doc:`installation` → :doc:`quickstart`
 
 **Want to understand the science?**
@@ -135,14 +137,21 @@ The framework facilitates research in several important areas:
      - Multi-billion parameters
      - Multi-node FSDP, CPU offload
 
-**What's New**
---------------
+**Current Features** (v0.1.0)
+---------------------------
 
 * **FSDP Support**: Scale to billion-parameter dendritic models
 * **Unified Sweeps**: Comprehensive parameter exploration framework
-* **Enhanced Analysis**: Information-theoretic tools with multiple estimators
+* **Advanced Analysis**: Information-theoretic tools with multiple estimators
 * **Performance Optimization**: Mixed precision, profiling, memory management
 * **Rich Visualizations**: Professional figures and interactive plots
+
+**Latest Updates**
+
+* **v0.1.0**: Initial release with core dendritic modeling capabilities
+* **Documentation**: Comprehensive user guides, tutorials, and API reference
+* **Analysis Tools**: Information theory, ablation studies, visualization suite
+* **Training Strategies**: Multiple bio-inspired learning approaches
 
 **Community & Support**
 -----------------------
@@ -153,6 +162,8 @@ The framework facilitates research in several important areas:
 * **Contributing**: Guidelines for extending the framework
 
 **Citation**: If you use this framework in your research, please cite our paper (see :doc:`appendix` for details).
+
+**Need Help?** Check our :doc:`faq`, search the :doc:`glossary`, or open an issue on `GitHub <https://github.com/KempnerInstitute/dendritic-modeling/issues>`_.
 
 Indices and Tables
 ==================

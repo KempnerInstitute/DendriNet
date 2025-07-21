@@ -34,7 +34,7 @@ Real neurons are far more sophisticated than the simple summation units used in 
 Shunting Inhibition
 ~~~~~~~~~~~~~~~~~~
 
-The cornerstone of dendritic computation in our framework is **shunting inhibition**—a divisive form of inhibition found throughout the nervous system:
+The cornerstone of dendritic computation in our framework is :term:`shunting inhibition`—a divisive form of inhibition found throughout the nervous system:
 
 .. math::
    V_{out} = \frac{E}{E + I + \varepsilon}
@@ -549,6 +549,8 @@ Now that you understand the core concepts:
 2. **Training Strategies**: Explore different learning approaches in :doc:`training/index`  
 3. **Configuration Guide**: Master all options in :doc:`configuration/index`
 4. **Performance Optimization**: Scale effectively with :doc:`performance/index`
+5. **Key Terms**: Reference definitions in :doc:`glossary`
+6. **Common Issues**: Get help from :doc:`faq`
 
 .. seealso::
    * :doc:`architectures/einet` - Detailed EINet architecture guide

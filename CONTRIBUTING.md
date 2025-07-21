@@ -12,7 +12,7 @@ We adhere to the [Successful Git Branching](https://nvie.com/posts/a-successful-
 - `main`: Contains production-ready code.
 - `develop`: Serves as the integration branch for features.
 
-For new features or fixes, create a feature branch from the `develop` branch. Name your branch descriptively, such as `iss[issue number]_[short description]`.
+For features or fixes, create a feature branch from the `develop` branch. Name your branch descriptively, such as `iss[issue number]_[short description]`.
 
 ## Development Workflow
 

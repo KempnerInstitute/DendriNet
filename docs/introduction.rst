@@ -1,7 +1,7 @@
 Introduction
 ============
 
-.. figure:: _static/dendritic_neuron_improved.png
+.. figure:: _static/dendritic_neuron.png
    :align: center
    :width: 80%
    :alt: Dendritic neuron architecture showing excitatory and inhibitory synapses
@@ -94,7 +94,7 @@ Gradient Scaling Strategies
 
 * **Inverse scaling**: Compensates for vanishing gradients in deep dendrites
 * **Conductance-based**: Biologically-motivated gradient flow
-* **Distal upweighting**: Enhanced learning in distal dendritic branches
+* **Distal upweighting**: Strengthened learning in distal dendritic branches
 
 Training Strategies
 ~~~~~~~~~~~~~~~~~~
@@ -153,15 +153,15 @@ Framework Capabilities
    * - **Performance**
      - GPU acceleration, Memory optimization, Distributed training
 
-What's New in This Version
---------------------------
+Current Features
+----------------
 
 Recent Enhancements
 ~~~~~~~~~~~~~~~~~~
 
 * **FSDP Support**: Scale to billion-parameter dendritic models across multiple GPUs
 * **Unified Sweep Framework**: Comprehensive parameter exploration with automated analysis
-* **Enhanced Visualizations**: Professional-quality figures with improved clarity
+* **Professional Visualizations**: High-quality figures with clear presentation
 * **Performance Optimizations**: Mixed precision training, gradient checkpointing, memory management
 * **Expanded Analysis Tools**: Information-theoretic measures with multiple estimators
 
@@ -204,7 +204,7 @@ Contributing to the Field
 
 This framework represents a collaborative effort to advance our understanding of neural computation. Whether you're interested in:
 
-* **Extending the codebase** with new features
+* **Extending the codebase** with custom features
 * **Contributing biological insights** to improve realism  
 * **Applying the framework** to novel research questions
 * **Sharing results** that advance the field

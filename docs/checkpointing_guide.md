@@ -4,7 +4,7 @@ This guide explains how to configure checkpoint saving in the dendritic modeling
 
 ## Overview
 
-Both training scripts now support periodic checkpoint saving with a consistent directory structure:
+Both training scripts support periodic checkpoint saving with a consistent directory structure:
 
 ```
 results/
@@ -160,7 +160,7 @@ print(f"Loaded checkpoint from epoch {epoch}")
 
 ## Directory Structure
 
-Both trainers now use the same checkpoint directory structure:
+Both trainers use the same checkpoint directory structure:
 
 ```
 {output_dir}/

@@ -136,7 +136,7 @@ Sequential training of network layers, inspired by developmental biology.
 - Reduces memory usage for deep networks
 - More stable training for very deep dendrites
 - Biological plausibility (developmental learning)
-- Better gradient flow in deep branches
+- Enhanced gradient flow in deep branches
 
 **Use cases**:
 - Very deep dendritic networks
@@ -198,7 +198,7 @@ Local pre-training followed by global fine-tuning.
 
 **Benefits**:
 - Stable training for complex architectures
-- Better initialization than random
+- Superior initialization to random
 - Combines unsupervised and supervised learning
 - Biologically plausible (development + experience)
 
@@ -227,7 +227,7 @@ Two-step training with KL divergence regularization.
 Voltage Stabilization Training
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-Warm-up phase to stabilize dendritic voltages before main training.
+Warm-up phase to stabilize dendritic voltages prior to main training.
 
 .. code-block:: yaml
 
@@ -237,7 +237,7 @@ Warm-up phase to stabilize dendritic voltages before main training.
        stabilization_epochs: 10     # Warm-up phase duration
        target_voltage: 0.5          # Target average voltage
        stabilization_lr: 0.1       # High LR for quick stabilization
-       main_learning_rate: 0.001   # Normal LR after stabilization
+       main_learning_rate: 0.001   # Standard LR post-stabilization
 
 **Purpose**:
 - Prevents initial training instability
@@ -528,8 +528,8 @@ Early Stopping and Checkpointing
    train:
      trainer:
        early_stopping: true
-       patience: 10                # Stop after 10 epochs without improvement
-       min_delta: 0.001           # Minimum improvement threshold
+       patience: 10                # Stop at 10 epochs without progress  
+min_delta: 0.001           # Minimum progress threshold
        
        checkpointing:
          save_best: true           # Save best model
