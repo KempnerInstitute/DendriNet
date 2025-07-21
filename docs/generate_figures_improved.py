@@ -370,8 +370,8 @@ def create_accurate_block_linear():
     ax.text(matrix_center_x, 8, 'Block-Diagonal Weight Matrix', ha='center', fontsize=14, weight='bold')
     ax.text(output_x, 8, 'Output Neurons with Dendrites', ha='center', fontsize=14, weight='bold')
     
-    # Math note (fixed for mathtext compatibility)
-    ax.text(matrix_center_x, -0.5, r'$W = \left[ \begin{array}{ccc} B_1 & 0 & 0 \\ 0 & B_2 & 0 \\ 0 & 0 & B_3 \end{array} \right]$', ha='center', fontsize=14, bbox=dict(fc='white', alpha=0.8))
+    # Math note (simplified for matplotlib compatibility)
+    ax.text(matrix_center_x, -0.5, r'$W = \mathrm{diag}(B_1, B_2, B_3)$', ha='center', fontsize=14, bbox=dict(fc='white', alpha=0.8))
 
     ax.set_xlim(0, 13)
     ax.set_ylim(-1, 9)
@@ -400,24 +400,54 @@ def create_network_architecture():
         ('Layer1_I', 'Layer2_E', {'label': 'IE'}), ('Layer1_I', 'Layer2_I', {'label': 'II'}),
         ('Layer2_E', 'Output'), ('Layer2_I', 'Output')
     ]
-    G.add_edges_from([(u, v) for u, v, d in edges])
+    # Handle edges with and without attributes
+    for edge in edges:
+        if len(edge) == 2:
+            G.add_edge(edge[0], edge[1])
+        else:
+            G.add_edge(edge[0], edge[1], **edge[2])
     
     pos = {'Input': (0, 1), 'Layer1_E': (1, 1.5), 'Layer1_I': (1, 0.5), 
            'Layer2_E': (2, 1.5), 'Layer2_I': (2, 0.5), 'Output': (3, 1)}
     
     node_colors = ['#E69F00' if n=='Input' else colors['excitatory'] if 'E' in n else colors['inhibitory'] if 'I' in n else colors['output'] for n in G.nodes()]
-    nx.draw_networkx_nodes(G, pos, node_size=3000, node_color=node_colors, ax=ax_main, edgecolors=colors['text'], lw=2)
+    nx.draw_networkx_nodes(G, pos, node_size=3000, node_color=node_colors, ax=ax_main, edgecolors=colors['text'], linewidths=2)
     nx.draw_networkx_labels(G, pos, font_size=12, font_weight='bold', ax=ax_main)
     
-    edge_colors = [colors['connection_ee'] if d.get('label')=='EE' else colors['connection_ei'] if d.get('label')=='EI' else colors['connection_ie'] if d.get('label')=='IE' else colors['connection_ii'] for u,v,d in edges]
-    nx.draw_networkx_edges(G, pos, edgelist=[(u,v) for u,v,d in edges], arrowstyle='->', arrowsize=25, edge_color=edge_colors, width=2.5, ax=ax_main)
+    # Process edges for drawing and coloring
+    edgelist = []
+    edge_colors = []
+    
+    for edge in edges:
+        if len(edge) == 2:
+            u, v = edge
+            edgelist.append((u, v))
+            edge_colors.append(colors['connection_default'] if 'connection_default' in colors else '#666666')
+        else:
+            u, v, d = edge
+            edgelist.append((u, v))
+            label = d.get('label', '')
+            if label == 'EE':
+                edge_colors.append(colors.get('connection_ee', '#2E8B57'))
+            elif label == 'EI':
+                edge_colors.append(colors.get('connection_ei', '#DC143C'))
+            elif label == 'IE':
+                edge_colors.append(colors.get('connection_ie', '#FF8C00'))
+            elif label == 'II':
+                edge_colors.append(colors.get('connection_ii', '#9932CC'))
+            else:
+                edge_colors.append('#666666')
+    
+    nx.draw_networkx_edges(G, pos, edgelist=edgelist, arrowstyle='->', arrowsize=25, edge_color=edge_colors, width=2.5, ax=ax_main)
     
     # Add edge labels
-    for (u, v, d) in edges:
-        if 'label' in d:
-            x = (pos[u][0] + pos[v][0]) / 2 + 0.1
-            y = (pos[u][1] + pos[v][1]) / 2 + 0.1
-            ax_main.text(x, y, d['label'], fontsize=12, color=edge_colors[edges.index((u,v,d))], weight='bold')
+    for edge in edges:
+        if len(edge) == 3:
+            u, v, d = edge
+            if 'label' in d:
+                x = (pos[u][0] + pos[v][0]) / 2 + 0.1
+                y = (pos[u][1] + pos[v][1]) / 2 + 0.1
+                ax_main.text(x, y, d['label'], fontsize=12, color='black', weight='bold')
     
     ax_main.set_title('EINet Architecture with E/I Connectivity', fontsize=18)
     ax_main.axis('off')
