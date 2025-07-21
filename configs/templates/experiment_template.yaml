@@ -1,0 +1,213 @@
+# ============================================================================
+# EXPERIMENT TEMPLATE - COPY AND MODIFY FOR NEW EXPERIMENTS
+# ============================================================================
+# Use this as a base for running multiple experiments. Change parameters as needed.
+# 
+# Usage:
+#   1. Copy this file: cp configs/templates/experiment_template.yaml configs/my_experiment.yaml
+#   2. Replace placeholders: {{task}}, {{network_type}}, {{dataset}}, {{run_name}}
+#   3. Adjust parameters for your specific experiment
+#   4. Run: python src/dendritic_modeling/scripts/train_experiments.py configs/my_experiment.yaml
+# ============================================================================
+
+# ============================================================================
+# MODEL CONFIGURATION
+# ============================================================================
+model:
+  # Task type - classification or regression
+  task: "{{task}}"  # Replace with: classification, regression
+  
+  base:
+    output_layer: true
+    output_dim: "{{output_dim}}"  # Replace with: 10 (MNIST/CIFAR10), 100 (CIFAR100), etc.
+  
+  network:
+    # Network type
+    type: "{{network_type}}"  # Replace with: EINet, MLP, MatchedParamMLP, SimpleMLPNet
+    
+    params:
+      input_dim: "{{input_dim}}"  # Replace with: 784 (MNIST), 3072 (CIFAR10), etc.
+      hidden_dims: [512, 256, 128]  # Adjust as needed
+      
+      # EI-specific parameters (only used when type=EINet)
+      ei_params:
+        ei_balance: 0.8
+        branches_per_neuron: 4
+        synapses_per_branch: 64
+        topk_value: 32
+        input_mode: 1
+        independent_pathways: true
+
+# ============================================================================
+# TRAINING CONFIGURATION
+# ============================================================================
+train:
+  run_name: "{{run_name}}"  # Replace with descriptive name
+  
+  # Performance optimization settings
+  enable_amp: true              # Mixed precision for speed/memory
+  enable_profiling: false       # Enable for performance analysis
+  enable_hooks: true            # Disable for pure benchmarking
+  performance_mode: false       # True = maximum speed, no analysis
+  use_fsdp: false              # Enable for very large models
+  
+  # Core training parameters
+  main:
+    trainer:
+      epochs: 100
+      batch_size: 256
+      learning_rate: 0.001
+      early_stopping: true
+      patience: 10
+      grad_clip_value: 5.0
+    
+    optimizer:
+      type: "adam"
+      params:
+        lr: 0.001
+        weight_decay: 0.0001
+        betas: [0.9, 0.999]
+        eps: 1e-8
+    
+    scheduler:
+      type: "cosine"
+      params:
+        T_max: 100
+        eta_min: 0.00001
+  
+  # Checkpointing
+  checkpointing:
+    enabled: true
+    save_every_n_epochs: 10
+    checkpoint_dir: "outputs/checkpoints/"
+  
+  # Model saving
+  save_model: true
+  save_results: true
+  
+  # Logging
+  suppress_prints: false
+  print_every: 10
+  plot_losses: true
+
+# ============================================================================
+# DATASET CONFIGURATION
+# ============================================================================
+task:
+  dataset: "{{dataset}}"  # Replace with: mnist, cifar10, cifar100, imagenet, synthetic
+  
+  preprocessing:
+    normalize: true
+    augmentation: false
+  
+  data_loader:
+    auto_optimize: true  # Automatic DataLoader optimization
+  
+  validation_split: 0.2
+
+# ============================================================================
+# WANDB LOGGING
+# ============================================================================
+wandb:
+  enabled: true
+  project: "dendritic-experiments"
+  entity: "your-wandb-entity"  # Replace with your W&B entity
+  tags: ["template", "{{network_type}}", "{{dataset}}"]  # Adjust tags
+  notes: "Experiment based on template"
+  
+  log_freq: 100
+  log_gradients: false
+  log_parameters: false
+  log_activations: false
+
+# ============================================================================
+# ANALYSIS CONFIGURATION
+# ============================================================================
+analysis:
+  enabled: true
+  respect_hook_settings: true
+  
+  performance_analysis:
+    enabled: true
+    training: false
+    params:
+      memory_usage: true
+      throughput: true
+      gpu_utilization: true
+      profiling_integration: true
+  
+  information_analysis:
+    enabled: true
+    training: false
+    params:
+      mutual_information: true
+      entropy: true
+      information_flow: true
+      save_plots: true
+      samples: 1000
+  
+  # Disable expensive analysis by default
+  ablation_analysis:
+    enabled: false
+    training: false
+  
+  connectivity_analysis:
+    enabled: true
+    training: false
+    params:
+      sparsity_patterns: true
+      connection_strength: true
+      topk_analysis: true
+
+# ============================================================================
+# OUTPUT CONFIGURATION
+# ============================================================================
+outputs:
+  dir: "./outputs/"
+  
+  cleanup:
+    enabled: true
+    old_runs_days: 30
+    wandb_cleanup: true
+  
+  subdirs:
+    models: "models/"
+    logs: "logs/"
+    analysis: "analysis/"
+    visualizations: "plots/"
+    profiling: "profiling/"
+    checkpoints: "checkpoints/"
+
+# ============================================================================
+# COMPUTATIONAL RESOURCES
+# ============================================================================
+compute:
+  device: "auto"
+  
+  memory:
+    gradient_checkpointing: false
+    empty_cache_freq: 100
+    max_memory_fraction: 0.9
+  
+  distributed:
+    backend: "nccl"
+    timeout_minutes: 30
+
+# ============================================================================
+# TEMPLATE USAGE EXAMPLES
+# ============================================================================
+# 
+# EXAMPLE 1 - MNIST Classification:
+# Replace: {{task}}="classification", {{network_type}}="EINet", {{dataset}}="mnist"
+#          {{input_dim}}=784, {{output_dim}}=10, {{run_name}}="mnist_ei_baseline"
+#
+# EXAMPLE 2 - CIFAR10 with MLP:
+# Replace: {{task}}="classification", {{network_type}}="MLP", {{dataset}}="cifar10"
+#          {{input_dim}}=3072, {{output_dim}}=10, {{run_name}}="cifar10_mlp_comparison"
+#
+# EXAMPLE 3 - Large Scale Training:
+# Same as above but set: use_fsdp=true, batch_size=1024, enable_amp=true
+#
+# EXAMPLE 4 - Benchmarking:
+# Same as above but set: performance_mode=true, analysis.enabled=false
+# ============================================================================ 

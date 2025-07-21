@@ -6,11 +6,13 @@ This script analyzes a config file to determine resource requirements and create
 an appropriate SLURM submission script.
 """
 
+import argparse
+import math
 import os
 import sys
 from pathlib import Path
 from typing import Dict, Any
-import math
+
 from omegaconf import OmegaConf
 
 # Add parent directory to path to import dendritic_modeling
