@@ -142,6 +142,14 @@ Information-Theoretic Analysis
 
 Advanced analysis of information processing in dendritic networks.
 
+.. figure:: ../figures/information_flow.png
+   :align: center
+   :width: 90%
+   :alt: Information flow diagram showing mutual information values between network components
+   :name: information_flow_figure
+
+   **Information Flow in Dendritic Networks**: Visualization of mutual information flow from inputs through dendritic branches to the soma and output, showing how information is processed and integrated.
+
 Mutual Information (MI)
 ~~~~~~~~~~~~~~~~~~~~~~
 

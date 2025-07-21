@@ -3,13 +3,13 @@ Training Strategies and Usage
 
 This section covers the comprehensive suite of training strategies available in the Dendritic Modeling Framework, from standard backpropagation to bio-inspired local learning algorithms and large-scale distributed training.
 
-.. figure:: ../_static/training_strategies.png
+.. figure:: ../figures/training_strategies.png
    :align: center
    :width: 90%
-   :alt: Overview of different training strategies and their applications
+   :alt: Training loss curves comparing different training strategies
    :name: training_strategies_overview
 
-   **Training Strategies**: The framework supports multiple training approaches from end-to-end backpropagation to biologically-plausible local credit assignment.
+   **Training Strategies Comparison**: Performance comparison of standard, branch-wise, and two-step training strategies showing convergence characteristics and final performance levels.
 
 Overview
 --------

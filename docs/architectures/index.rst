@@ -3,13 +3,21 @@ Network Architectures and Design
 
 This section provides comprehensive guidance on designing and configuring neural networks with the Dendritic Modeling Framework. From simple EINet models to complex hybrid architectures, learn how to build networks that capture sophisticated dendritic computation.
 
-.. figure:: ../_static/network_architecture.png
+.. figure:: ../figures/network_architecture.png
    :align: center
    :width: 90%
    :alt: Overview of different network architectures available in the framework
    :name: architecture_overview
 
    **Architecture Overview**: The framework supports multiple network types from simple MLPs to complex dendritic networks with E/I dynamics.
+
+.. figure:: ../figures/ei_dynamics.png
+   :align: center
+   :width: 80%
+   :alt: E/I connectivity patterns showing the four types of connections in excitation-inhibition networks
+   :name: ei_dynamics_figure
+
+   **E/I Connectivity Patterns**: The four fundamental connection types in excitation-inhibition networks: EE (excitatory-to-excitatory), EI (excitatory-to-inhibitory), IE (inhibitory-to-excitatory), and II (inhibitory-to-inhibitory).
 
 Overview
 --------

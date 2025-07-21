@@ -3,7 +3,7 @@ Core Concepts
 
 This section introduces the fundamental computational and biological principles underlying the Dendritic Modeling Framework. Understanding these concepts is essential for effectively using the framework and interpreting results.
 
-.. figure:: _static/shunting_inhibition.png
+.. figure:: figures/shunting_inhibition.png
    :align: center
    :width: 90%
    :alt: Shunting inhibition mechanism showing circuit diagram and voltage dynamics
@@ -178,6 +178,14 @@ TopK Selection Mechanisms
 
 Our framework implements several sparse connectivity strategies:
 
+.. figure:: figures/sparse_connectivity.png
+   :align: center
+   :width: 80%
+   :alt: Comparison of sparse connectivity patterns showing standard vs stochastic TopK selection
+   :name: sparse_connectivity_figure
+
+   **Sparse Connectivity Patterns**: Comparison of deterministic (left) and stochastic (right) TopK selection methods showing different sparsity patterns.
+
 Standard TopK
 """"""""""""
 
@@ -267,6 +275,14 @@ Biological Motivation
 
 Dendritic branches contain voltage-gated ion channels that create nonlinear input-output relationships. Our framework captures this through parametric reactivation functions applied after branch integration.
 
+.. figure:: figures/reactivation_functions.png
+   :align: center
+   :width: 90%
+   :alt: Gallery of reactivation functions showing parametric and standard activation options
+   :name: reactivation_functions_figure
+
+   **Reactivation Functions**: Comparison of parametric and standard activation functions available for dendritic branch processing, showing how parameters control function shape and behavior.
+
 Available Functions
 ~~~~~~~~~~~~~~~~~~
 
@@ -329,6 +345,14 @@ Challenge: Vanishing Gradients
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 Deep dendritic trees can suffer from vanishing gradients, especially in distal branches. Our framework provides several strategies to address this:
+
+.. figure:: figures/gradient_scaling.png
+   :align: center
+   :width: 80%
+   :alt: Comparison of gradient scaling strategies showing how different methods maintain gradient flow across network depth
+   :name: gradient_scaling_figure
+
+   **Gradient Scaling Strategies**: Comparison of gradient norms across network layers for different scaling approaches, showing how specialized methods prevent vanishing gradients.
 
 Inverse Scaling
 ~~~~~~~~~~~~~~

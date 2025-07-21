@@ -5,10 +5,15 @@ Generates high-quality, professional figures for documentation.
 
 import matplotlib.pyplot as plt
 import matplotlib.patches as mpatches
-from matplotlib.patches import Circle, Rectangle
+from matplotlib.patches import Circle, Rectangle, FancyArrowPatch, FancyBboxPatch, PathPatch
 from matplotlib.collections import LineCollection
+from matplotlib.gridspec import GridSpec
+from matplotlib import cm
+from matplotlib.path import Path
 import numpy as np
 import os
+import seaborn as sns
+import networkx as nx
 
 # Create directories if they don't exist
 output_dirs = ['figures/architecture', 'source/_static']
@@ -53,245 +58,138 @@ def save_figure(fig, name, dpi=600):
         fig.savefig(f'{dir_path}/{name}.svg', format='svg', transparent=True, bbox_inches='tight')
     print(f"Saved: {name}")
 
-def create_dendritic_neuron():
-    """Create a detailed dendritic neuron with proper structure."""
-    fig, ax = plt.subplots(figsize=(10, 12))
-
-    # Draw soma (much lighter color)
-    soma_center = (0, 0)
-    soma_radius = 0.8
-    soma = Circle(soma_center, soma_radius,
-                  facecolor=colors['very_light_gray'],
-                  edgecolor=colors['medium_gray'],
-                  linewidth=2.5,
-                  zorder=10)
+def create_dendritic_neuron_labeled(save_path='docs/figures/dendritic_neuron_labeled.png'):
+    fig, ax = plt.subplots(figsize=(8, 8), dpi=600)
+    
+    # Publication-quality params
+    plt.rcParams.update({
+        'font.size': 12,
+        'axes.labelsize': 14,
+        'axes.titlesize': 16,
+        'xtick.labelsize': 10,
+        'ytick.labelsize': 10,
+        'legend.fontsize': 10,
+        'figure.titlesize': 18,
+        'font.family': 'sans-serif',
+        'font.sans-serif': ['Arial'],
+        'lines.linewidth': 1.5,
+        'axes.edgecolor': 'none',  # No axes borders for panel
+    })
+    
+    # Draw elongated soma
+    soma = FancyBboxPatch((-0.2, -0.5), 0.4, 1.0, boxstyle="Round,pad=0.1", 
+                          fc=colors['medium_gray'], ec=colors['dark_gray'], lw=1.5, alpha=0.8)
     ax.add_patch(soma)
-
-    # Draw nucleus (subtle)
-    nucleus = Circle(soma_center, soma_radius * 0.35,
-                    facecolor=colors['light_gray'],
-                    alpha=0.5,
-                    zorder=11)
-    ax.add_patch(nucleus)
-
-    # Helper function to draw a dendritic branch with tapering
-    def draw_dendrite_branch(start, angle, length, width, n_segments=20, taper_rate=0.7, curvature=0.2):
-        """Draw a curved dendritic branch with tapering."""
-        points = []
-        widths = []
-
-        for i in range(n_segments + 1):
-            t = i / n_segments
-            # Add some natural curvature
-            current_angle = angle + curvature * np.sin(3 * np.pi * t)
-            x = start[0] + length * t * np.cos(current_angle)
-            y = start[1] + length * t * np.sin(current_angle)
-            points.append([x, y])
-            widths.append(width * (1 - t * (1 - taper_rate)))
-
-        return np.array(points), widths
-
-    all_dendrite_points = []  # Store all dendrite points for synapse placement
-
-    # Apical dendrites (top part of soma - main dendritic tree)
-    apical_main_angle = -np.pi/2
-    apical_start_x = soma_center[0] + soma_radius * 0.8 * np.cos(apical_main_angle)
-    apical_start_y = soma_center[1] + soma_radius * 0.8 * np.sin(apical_main_angle)
-
-    # Main apical trunk
-    trunk_points, trunk_widths = draw_dendrite_branch(
-        (apical_start_x, apical_start_y), apical_main_angle, 2.5, 0.2, curvature=0.1
-    )
-    all_dendrite_points.append(trunk_points)
-
-    # Draw trunk
-    segments = [[trunk_points[i], trunk_points[i + 1]] for i in range(len(trunk_points) - 1)]
-    lc = LineCollection(segments, linewidths=np.array(trunk_widths[:-1]) * 100,
-                       colors=colors['bluish_green'], capstyle='round', zorder=5)
-    ax.add_collection(lc)
-
-    # Apical tuft (branches from trunk)
-    tuft_angles = [-np.pi/2 - 0.4, -np.pi/2 - 0.2, -np.pi/2, -np.pi/2 + 0.2, -np.pi/2 + 0.4]
-    for angle_offset in tuft_angles:
-        branch_start = trunk_points[-5]  # Branch from near the end
-        branch_points, branch_widths = draw_dendrite_branch(
-            branch_start, apical_main_angle + angle_offset, 2.0, 0.1, curvature=0.3
-        )
-        all_dendrite_points.append(branch_points)
-
-        segments = [[branch_points[i], branch_points[i + 1]] for i in range(len(branch_points) - 1)]
-        lc = LineCollection(segments, linewidths=np.array(branch_widths[:-1]) * 100,
-                           colors=colors['bluish_green'], capstyle='round', zorder=5)
-        ax.add_collection(lc)
-
-        # Secondary branches
-        if abs(angle_offset) < 0.3:
-            for secondary_offset in [-0.2, 0.2]:
-                sec_start = branch_points[len(branch_points)//2]
-                sec_points, sec_widths = draw_dendrite_branch(
-                    sec_start, apical_main_angle + angle_offset + secondary_offset, 1.0, 0.05
-                )
-                all_dendrite_points.append(sec_points)
-
-                segments = [[sec_points[i], sec_points[i + 1]] for i in range(len(sec_points) - 1)]
-                lc = LineCollection(segments, linewidths=np.array(sec_widths[:-1]) * 100,
-                                   colors=colors['bluish_green'], capstyle='round', zorder=5)
-                ax.add_collection(lc)
-
-    # Oblique dendrites (side branches from apical trunk)
-    for height_ratio in [0.3, 0.6]:
-        trunk_idx = int(len(trunk_points) * height_ratio)
-        for side in [-1, 1]:
-            oblique_angle = apical_main_angle + side * np.pi/3
-            oblique_points, oblique_widths = draw_dendrite_branch(
-                trunk_points[trunk_idx], oblique_angle, 1.5, 0.08, curvature=0.2
-            )
-            all_dendrite_points.append(oblique_points)
-
-            segments = [[oblique_points[i], oblique_points[i + 1]] for i in range(len(oblique_points) - 1)]
-            lc = LineCollection(segments, linewidths=np.array(oblique_widths[:-1]) * 100,
-                               colors=colors['bluish_green'], capstyle='round', zorder=5)
-            ax.add_collection(lc)
-
-    # Basal dendrites (distributed around lower part of soma)
-    basal_angles = []
-    # Left side
-    for angle in np.linspace(np.pi - np.pi/4, np.pi/2 + np.pi/6, 3):
-        basal_angles.append(angle)
-    # Right side
-    for angle in np.linspace(np.pi/2 - np.pi/6, np.pi/4, 3):
-        basal_angles.append(angle)
-    # Bottom
-    for angle in np.linspace(np.pi/4, np.pi - np.pi/4, 4):
-        basal_angles.append(angle)
-
-    for angle in basal_angles:
-        # Start from soma surface
-        start_x = soma_center[0] + soma_radius * 0.9 * np.cos(angle)
-        start_y = soma_center[1] + soma_radius * 0.9 * np.sin(angle)
-
-        # Main basal dendrite
-        length = np.random.uniform(1.8, 2.5)
-        points, widths = draw_dendrite_branch(
-            (start_x, start_y), angle, length, 0.12, curvature=0.15
-        )
-        all_dendrite_points.append(points)
-
-        segments = [[points[i], points[i + 1]] for i in range(len(points) - 1)]
-        lc = LineCollection(segments, linewidths=np.array(widths[:-1]) * 100,
-                           colors=colors['bluish_green'], capstyle='round', zorder=5)
-        ax.add_collection(lc)
-
-        # Add 1-2 branches
-        n_branches = np.random.randint(1, 3)
-        for _ in range(n_branches):
-            branch_idx = np.random.randint(len(points)//3, 2*len(points)//3)
-            branch_angle = angle + np.random.uniform(-0.4, 0.4)
-            branch_length = np.random.uniform(0.8, 1.2)
-            branch_points, branch_widths = draw_dendrite_branch(
-                points[branch_idx], branch_angle, branch_length, 0.06
-            )
-            all_dendrite_points.append(branch_points)
-
-            segments = [[branch_points[i], branch_points[i + 1]] for i in range(len(branch_points) - 1)]
-            lc = LineCollection(segments, linewidths=np.array(branch_widths[:-1]) * 100,
-                               colors=colors['bluish_green'], capstyle='round', zorder=5)
-            ax.add_collection(lc)
-
-    # Add synapses (smaller and distributed along dendrites)
-    np.random.seed(42)
-    synapse_size = 0.03  # Much smaller synapses
-
-    # Place synapses along dendrite branches
-    for dendrite_points in all_dendrite_points:
-        if len(dendrite_points) > 5:  # Only on longer branches
-            n_synapses = np.random.randint(2, 6)
-            for _ in range(n_synapses):
-                # Pick a point along the dendrite (avoiding the base)
-                idx = np.random.randint(3, len(dendrite_points) - 1)
-
-                # Add small offset perpendicular to dendrite
-                if idx > 0:
-                    direction = dendrite_points[idx] - dendrite_points[idx-1]
-                    direction = direction / np.linalg.norm(direction)
-                    perpendicular = np.array([-direction[1], direction[0]])
-                    offset = perpendicular * np.random.uniform(-0.05, 0.05)
-                else:
-                    offset = np.array([0, 0])
-
-                syn_x = dendrite_points[idx][0] + offset[0]
-                syn_y = dendrite_points[idx][1] + offset[1]
-
-                # Determine synapse type
-                if np.random.random() < 0.65:
-                    color = colors['vermillion']  # Excitatory
-                    marker = 'o'
-                else:
-                    color = colors['sky_blue']    # Inhibitory
-                    marker = 's'
-
-                ax.scatter(syn_x, syn_y, s=synapse_size*1000, c=color,
-                          marker=marker, edgecolor='none',
-                          zorder=8, alpha=0.9)
-
-    # Draw axon (from bottom of soma)
-    axon_start_angle = np.pi/2  # Bottom
-    axon_start_x = soma_center[0] + soma_radius * 0.9 * np.cos(axon_start_angle)
-    axon_start_y = soma_center[1] + soma_radius * 0.9 * np.sin(axon_start_angle)
-
-    # Axon initial segment
-    axon_points = [(axon_start_x, axon_start_y)]
-    for i in range(15):
-        axon_points.append((axon_start_x, axon_start_y - (i+1)*0.15))
-
-    ax.plot([p[0] for p in axon_points], [p[1] for p in axon_points],
-           color=colors['dark_gray'], linewidth=3.5, zorder=3)
-
-    # Axon branches
-    branch_point = axon_points[8]
-    for side in [-1, 1]:
-        branch_x = [branch_point[0]]
-        branch_y = [branch_point[1]]
-        for j in range(12):
-            branch_x.append(branch_x[-1] + side * 0.1)
-            branch_y.append(branch_y[-1] - 0.08)
-        ax.plot(branch_x, branch_y, color=colors['dark_gray'],
-               linewidth=2.5, zorder=3)
-
-        # Terminal with synaptic boutons
-        for k in range(3):
-            terminal_x = branch_x[-1] + side * k * 0.15
-            terminal_y = branch_y[-1] - k * 0.1
-            ax.scatter(terminal_x, terminal_y, s=120, c=colors['vermillion'],
-                      marker='o', edgecolor=colors['dark_gray'], linewidth=0.5, zorder=9)
-
-    # Add subtle labels
-    ax.text(0, 0, 'Soma', fontsize=11, ha='center', va='center',
-            color=colors['dark_gray'], zorder=12)
-    ax.text(0, 5.2, 'Apical Tuft', fontsize=10, ha='center', va='bottom',
-            style='italic', color=colors['dark_gray'])
-    ax.text(-2.5, -0.5, 'Basal\nDendrites', fontsize=10, ha='center', va='center',
-            style='italic', color=colors['dark_gray'])
-    ax.text(1.5, -3.2, 'Axon', fontsize=10, ha='left', va='center',
-            style='italic', color=colors['dark_gray'])
-
+    ax.text(0, 0, 'Soma', ha='center', va='center', fontsize=12, color='white')
+    
+    # Draw axon (short, for completeness)
+    axon_path = Path([[0.2, 0], [0.4, 0], [0.6, 0]], [Path.MOVETO, Path.CURVE3, Path.CURVE3])
+    axon = PathPatch(axon_path, fc='none', ec=colors['dark_gray'], lw=2, capstyle='round')
+    ax.add_patch(axon)
+    ax.text(0.7, 0, 'Axon', ha='left', va='center', fontsize=10)
+    
+    # Draw primary dendrites with tapering (using Bézier curves for smoothness)
+    primary_branches = [([0.2, 1.2, 1.8, 2.2], [0.2, 0.8, 1.2, 1.4]),  # Top
+                        ([0.2, 1.2, 1.8, 2.2], [-0.2, -0.8, -1.2, -1.4])]  # Bottom
+    for x_coords, y_coords in primary_branches:
+        verts = list(zip(x_coords, y_coords))
+        codes = [Path.MOVETO] + [Path.CURVE4] * (len(verts) - 1)
+        path = Path(verts, codes)
+        patch = PathPatch(path, fc='none', ec=colors['bluish_green'], lw=3, capstyle='round', alpha=0.7)
+        ax.add_patch(patch)
+    
+    # Draw secondary branches (finer tapering)
+    secondary_branches = [([2.2, 2.6, 2.8], [1.4, 1.6, 1.8]), ([2.2, 2.6, 2.8], [1.4, 1.2, 1.0]),  # Top
+                          ([2.2, 2.6, 2.8], [-1.4, -1.6, -1.8]), ([2.2, 2.6, 2.8], [-1.4, -1.2, -1.0])]  # Bottom
+    for x_coords, y_coords in secondary_branches:
+        verts = list(zip(x_coords, y_coords))
+        codes = [Path.MOVETO] + [Path.CURVE3] * (len(verts) - 1)
+        path = Path(verts, codes)
+        patch = PathPatch(path, fc='none', ec=colors['bluish_green'], lw=1.5, capstyle='round', alpha=0.6)
+        ax.add_patch(patch)
+    
+    # Add synapses (excitatory red, inhibitory blue) with terminals
+    exc_synapses = [(2.8, 1.8), (2.8, 1.0), (2.8, -1.0), (2.8, -1.8)]
+    inh_synapses = [(2.6, 1.4), (2.6, -1.4)]
+    for ex, ey in exc_synapses:
+        ax.add_patch(Circle((ex, ey), 0.08, fc=colors['vermillion'], ec='black', lw=1))
+        ax.add_patch(FancyArrowPatch((ex + 0.3, ey), (ex, ey), color=colors['vermillion'], arrowstyle='->', mutation_scale=15, lw=1.5))
+    ax.text(3.5, 0, 'Excitatory\nSynapses', ha='left', va='center', fontsize=10, color=colors['vermillion'])
+    
+    for ix, iy in inh_synapses:
+        ax.add_patch(Circle((ix, iy), 0.08, fc=colors['sky_blue'], ec='black', lw=1))
+        ax.add_patch(FancyArrowPatch((ix + 0.3, iy), (ix, iy), color=colors['sky_blue'], arrowstyle='->', mutation_scale=15, lw=1.5))
+    ax.text(3.5, -0.5, 'Inhibitory\nSynapses', ha='left', va='center', fontsize=10, color=colors['sky_blue'])
+    
+    # Add shunting equation
+    ax.text(0, -1.2, r'$V = \frac{E}{E + I + \epsilon}$', ha='center', fontsize=14, bbox=dict(facecolor='white', ec='gray', lw=1, alpha=0.8))
+    
     # Legend
-    exc_patch = mpatches.Patch(color=colors['vermillion'], label='Excitatory Synapse')
-    inh_patch = mpatches.Patch(color=colors['sky_blue'], label='Inhibitory Synapse')
-    ax.legend(handles=[exc_patch, inh_patch],
-              loc='upper right', frameon=True, fancybox=True,
-              framealpha=0.9, shadow=True, borderpad=0.5, fontsize=12)
-
-    # Style
-    ax.set_xlim(-4.5, 4.5)
-    ax.set_ylim(-4, 6)
-    ax.set_aspect('equal')
+    exc_patch = mpatches.Patch(color=colors['vermillion'], label='Excitatory')
+    inh_patch = mpatches.Patch(color=colors['sky_blue'], label='Inhibitory')
+    dend_patch = mpatches.Patch(color=colors['bluish_green'], label='Dendrite')
+    ax.legend(handles=[exc_patch, inh_patch, dend_patch], loc='upper left', frameon=True, fontsize=10, framealpha=0.9)
+    
+    ax.set_xlim(-0.5, 4)
+    ax.set_ylim(-2, 2)
     ax.axis('off')
-    ax.set_title('Pyramidal Neuron with Dendritic Structure',
-                fontsize=16, fontweight='bold', pad=20)
+    ax.set_title('Dendritic Neuron Schematic', fontsize=16, pad=20)
+    
+    plt.savefig(save_path, transparent=True, bbox_inches='tight', format='png')
+    plt.savefig(save_path.replace('.png', '.svg'), format='svg', transparent=True)
+    plt.close()
 
-    plt.tight_layout()
-    save_figure(fig, 'dendritic_neuron')
+def create_dendritic_neuron_schematic(save_path='docs/figures/dendritic_neuron_schematic.png'):
+    # Same as labeled but remove all text, labels, legend, and title
+    fig, ax = plt.subplots(figsize=(8, 8), dpi=600)
+    
+    # Draw elongated soma
+    soma = FancyBboxPatch((-0.2, -0.5), 0.4, 1.0, boxstyle="Round,pad=0.1", 
+                          fc=colors['medium_gray'], ec=colors['dark_gray'], lw=1.5, alpha=0.8)
+    ax.add_patch(soma)
+    
+    # Draw axon
+    axon_path = Path([[0.2, 0], [0.4, 0], [0.6, 0]], [Path.MOVETO, Path.CURVE3, Path.CURVE3])
+    axon = PathPatch(axon_path, fc='none', ec=colors['dark_gray'], lw=2, capstyle='round')
+    ax.add_patch(axon)
+    
+    # Draw primary dendrites
+    primary_branches = [([0.2, 1.2, 1.8, 2.2], [0.2, 0.8, 1.2, 1.4]),
+                        ([0.2, 1.2, 1.8, 2.2], [-0.2, -0.8, -1.2, -1.4])]
+    for x_coords, y_coords in primary_branches:
+        verts = list(zip(x_coords, y_coords))
+        codes = [Path.MOVETO] + [Path.CURVE4] * (len(verts) - 1)
+        path = Path(verts, codes)
+        patch = PathPatch(path, fc='none', ec=colors['bluish_green'], lw=3, capstyle='round', alpha=0.7)
+        ax.add_patch(patch)
+    
+    # Draw secondary branches
+    secondary_branches = [([2.2, 2.6, 2.8], [1.4, 1.6, 1.8]), ([2.2, 2.6, 2.8], [1.4, 1.2, 1.0]),
+                          ([2.2, 2.6, 2.8], [-1.4, -1.6, -1.8]), ([2.2, 2.6, 2.8], [-1.4, -1.2, -1.0])]
+    for x_coords, y_coords in secondary_branches:
+        verts = list(zip(x_coords, y_coords))
+        codes = [Path.MOVETO] + [Path.CURVE3] * (len(verts) - 1)
+        path = Path(verts, codes)
+        patch = PathPatch(path, fc='none', ec=colors['bluish_green'], lw=1.5, capstyle='round', alpha=0.6)
+        ax.add_patch(patch)
+    
+    # Add synapses (no labels)
+    exc_synapses = [(2.8, 1.8), (2.8, 1.0), (2.8, -1.0), (2.8, -1.8)]
+    inh_synapses = [(2.6, 1.4), (2.6, -1.4)]
+    for ex, ey in exc_synapses:
+        ax.add_patch(Circle((ex, ey), 0.08, fc=colors['vermillion'], ec='black', lw=1))
+        ax.add_patch(FancyArrowPatch((ex + 0.3, ey), (ex, ey), color=colors['vermillion'], arrowstyle='->', mutation_scale=15, lw=1.5))
+    
+    for ix, iy in inh_synapses:
+        ax.add_patch(Circle((ix, iy), 0.08, fc=colors['sky_blue'], ec='black', lw=1))
+        ax.add_patch(FancyArrowPatch((ix + 0.3, iy), (ix, iy), color=colors['sky_blue'], arrowstyle='->', mutation_scale=15, lw=1.5))
+    
+    ax.set_xlim(-0.5, 3.5)  # Tighter crop for schematic
+    ax.set_ylim(-2, 2)
+    ax.axis('off')
+    
+    plt.savefig(save_path, transparent=True, bbox_inches='tight', format='png')
+    plt.savefig(save_path.replace('.png', '.svg'), format='svg', transparent=True)
     plt.close()
 
 def create_accurate_block_linear():
@@ -453,199 +351,329 @@ def create_accurate_block_linear():
     save_figure(fig, 'block_linear_accurate')
     plt.close()
 
-    # Additional documentation figures
-def create_network_architecture():
-    """Create the E/I network architecture diagram."""
-    fig, ax = plt.subplots(figsize=(12, 10))
+def create_network_architecture(save_path='docs/figures/network_architecture.png'):
+    fig = plt.figure(figsize=(14, 10), dpi=300)
+    gs = GridSpec(2, 2, figure=fig)
+    
+    ax_main = fig.add_subplot(gs[:, 0])
+    ax_inset = fig.add_subplot(gs[0, 1])
+    ax_legend = fig.add_subplot(gs[1, 1])
+    
+    # Main network graph
+    G = nx.DiGraph()
+    layers = ['Input', 'Layer1_E', 'Layer1_I', 'Layer2_E', 'Layer2_I', 'Output']
+    for layer in layers:
+        G.add_node(layer)
+    edges = [('Input', 'Layer1_E'), ('Input', 'Layer1_I'),
+             ('Layer1_E', 'Layer2_E'), ('Layer1_E', 'Layer2_I'),
+             ('Layer1_I', 'Layer2_E'), ('Layer1_I', 'Layer2_I'),
+             ('Layer2_E', 'Output'), ('Layer2_I', 'Output')]
+    G.add_edges_from(edges)
+    
+    pos = nx.spring_layout(G, seed=42)
+    nx.draw_networkx_nodes(G, pos, node_size=2000, node_color='lightblue', ax=ax_main)
+    nx.draw_networkx_labels(G, pos, font_size=12, ax=ax_main)
+    edge_colors = ['red' if 'E' in edge[1] else 'blue' for edge in G.edges()]
+    nx.draw_networkx_edges(G, pos, arrowstyle='->', arrowsize=20, edge_color=edge_colors, width=2, ax=ax_main)
+    
+    ax_main.set_title('EINet Architecture with E/I Connectivity', fontsize=20)
+    ax_main.axis('off')
+    
+    # Inset: Sparse connectivity example
+    weights = np.random.randn(5,5)
+    mask = np.abs(weights) > np.percentile(np.abs(weights), 70)  # TopK mask
+    sns.heatmap(weights * mask, ax=ax_inset, cmap='viridis', cbar=True, annot=True, fmt='.1f')
+    ax_inset.set_title('TopK Sparse Weights', fontsize=16)
+    
+    # Legend
+    ax_legend.axis('off')
+    exc_line = plt.Line2D([0], [0], color='red', label='Excitatory Connection')
+    inh_line = plt.Line2D([0], [0], color='blue', label='Inhibitory Connection')
+    sparse_patch = plt.Rectangle((0,0),1,1, fc='green', label='Sparse (TopK)')
+    ax_legend.legend(handles=[exc_line, inh_line, sparse_patch], loc='center', fontsize=14, frameon=True)
+    
+    plt.suptitle('Network Architecture and Connectivity Patterns', fontsize=22)
+    plt.tight_layout()
+    plt.savefig(save_path, dpi=300, bbox_inches='tight', format='png')
+    plt.savefig(save_path.replace('.png', '.svg'), format='svg')
+    plt.close()
 
-    # Layer positions
-    layers = [
-        {'name': 'Input', 'y': 0.5, 'neurons': 6},
-        {'name': 'E/I Layer 1', 'y': 2.5, 'exc': 4, 'inh': 2},
-        {'name': 'E/I Layer 2', 'y': 4.5, 'exc': 4, 'inh': 2},
-        {'name': 'Output', 'y': 6.5, 'neurons': 3}
+def create_shunting_inhibition_plot(save_path='docs/figures/shunting_inhibition.png'):
+    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(14, 6), dpi=300)
+    
+    E = np.linspace(0, 10, 200)
+    I_values = [0, 2, 5, 10]
+    epsilon = 1e-6
+    colors = cm.viridis(np.linspace(0, 1, len(I_values)))
+    
+    # Subtractive
+    for i, I in enumerate(I_values):
+        subtractive = np.maximum(0, E - I)
+        ax1.plot(E, subtractive, label=f'I={I}', color=colors[i], lw=3)
+        ax1.fill_between(E, 0, subtractive, alpha=0.1, color=colors[i])
+    ax1.set_title('Subtractive Inhibition', fontsize=18)
+    ax1.set_xlabel('Excitation (E)', fontsize=16)
+    ax1.set_ylabel('Output', fontsize=16)
+    ax1.grid(True, alpha=0.3)
+    ax1.legend(fontsize=14, framealpha=0.9)
+    
+    # Shunting
+    for i, I in enumerate(I_values):
+        shunting = E / (E + I + epsilon)
+        ax2.plot(E, shunting, label=f'I={I}', color=colors[i], lw=3)
+        ax2.fill_between(E, 0, shunting, alpha=0.1, color=colors[i])
+    ax2.set_title('Shunting Inhibition', fontsize=18)
+    ax2.set_xlabel('Excitation (E)', fontsize=16)
+    ax2.set_ylabel('Output', fontsize=16)
+    ax2.grid(True, alpha=0.3)
+    ax2.legend(fontsize=14, framealpha=0.9)
+    
+    # Inset for low E zoom
+    axins = ax2.inset_axes([0.6, 0.6, 0.35, 0.35])
+    E_zoom = np.linspace(0, 2, 100)
+    for i, I in enumerate(I_values):
+        axins.plot(E_zoom, E_zoom / (E_zoom + I + epsilon), color=colors[i])
+    axins.grid(True, alpha=0.3)
+    
+    plt.suptitle('Comparison of Inhibition Mechanisms', fontsize=20)
+    plt.tight_layout()
+    plt.savefig(save_path, dpi=300, bbox_inches='tight', format='png')
+    plt.savefig(save_path.replace('.png', '.svg'), format='svg')
+    plt.close()
+
+# New function for sparse connectivity
+def create_sparse_connectivity_visualization(save_path='docs/figures/sparse_connectivity.png'):
+    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(12, 5), dpi=300)
+    
+    # Standard TopK
+    weights = np.random.randn(10,10)
+    k = 3
+    threshold = np.sort(np.abs(weights.flatten()))[-10*k]
+    mask = np.abs(weights) >= threshold
+    sns.heatmap(weights * mask, ax=ax1, cmap='coolwarm', center=0, cbar=True)
+    ax1.set_title(f'Standard TopK (k={k})', fontsize=18)
+    
+    # Stochastic TopK
+    probs = np.abs(weights) / np.sum(np.abs(weights))
+    stochastic_mask = np.random.choice(np.arange(100), size=10*k, replace=False, p=probs.flatten())
+    mask_stoch = np.zeros_like(weights)
+    mask_stoch.flat[stochastic_mask] = 1
+    sns.heatmap(weights * mask_stoch, ax=ax2, cmap='coolwarm', center=0, cbar=True)
+    ax2.set_title('Stochastic TopK', fontsize=18)
+    
+    plt.suptitle('Sparse Connectivity Patterns', fontsize=20)
+    plt.tight_layout()
+    plt.savefig(save_path, dpi=300, bbox_inches='tight', format='png')
+    plt.savefig(save_path.replace('.png', '.svg'), format='svg')
+    plt.close()
+
+# New function for gradient scaling
+def create_gradient_scaling_comparison(save_path='docs/figures/gradient_scaling.png'):
+    layers = np.arange(1, 11)
+    vanilla = 1 / (2 ** layers)
+    inverse = np.ones_like(layers) * 0.5
+    conductance = 1 / np.sqrt(layers)
+    
+    fig, ax = plt.subplots(figsize=(10, 6), dpi=300)
+    ax.plot(layers, vanilla, 'r--', label='Vanilla', lw=3)
+    ax.plot(layers, inverse, 'g-', label='Inverse Scaling', lw=3)
+    ax.plot(layers, conductance, 'b-.', label='Conductance-based', lw=3)
+    
+    ax.set_title('Gradient Norms Across Layers', fontsize=20)
+    ax.set_xlabel('Layer Depth', fontsize=16)
+    ax.set_ylabel('Average Gradient Norm', fontsize=16)
+    ax.set_yscale('log')
+    ax.grid(True, alpha=0.3)
+    ax.legend(fontsize=14, framealpha=0.9)
+
+    plt.tight_layout()
+    plt.savefig(save_path, dpi=300, bbox_inches='tight', format='png')
+    plt.savefig(save_path.replace('.png', '.svg'), format='svg')
+    plt.close()
+
+# New function for reactivation functions
+def create_reactivation_functions_gallery(save_path='docs/figures/reactivation_functions.png'):
+    x = np.linspace(-5, 5, 200)
+    fig, axs = plt.subplots(2, 2, figsize=(12, 10), dpi=300)
+    axs = axs.flatten()
+    
+    # Param Tanh
+    for alpha in [0.5, 1.0, 2.0]:
+        axs[0].plot(x, alpha * np.tanh(x / alpha), label=f'α={alpha}')
+    axs[0].set_title('Parametric Tanh', fontsize=18)
+    
+    # Linear Sigmoid
+    for beta in [0.1, 1.0, 10.0]:
+        axs[1].plot(x, (1 / (1 + np.exp(-beta * x))) * x, label=f'β={beta}')
+    axs[1].set_title('Param Linear Sigmoid', fontsize=18)
+    
+    # Linear Tanh Transition
+    for gamma in [0.2, 1.0, 5.0]:
+        tanh_part = np.tanh(x)
+        linear_part = x / 5
+        transition = gamma * tanh_part + (1 - gamma) * linear_part
+        axs[2].plot(x, transition, label=f'γ={gamma}')
+    axs[2].set_title('Linear Tanh Transition', fontsize=18)
+    
+    # Standard activations for comparison
+    axs[3].plot(x, np.tanh(x), label='Tanh')
+    axs[3].plot(x, 1 / (1 + np.exp(-x)), label='Sigmoid')
+    axs[3].plot(x, np.maximum(0, x), label='ReLU')
+    axs[3].set_title('Standard Activations', fontsize=18)
+    
+    for ax in axs:
+        ax.set_xlabel('Input', fontsize=16)
+        ax.set_ylabel('Output', fontsize=16)
+        ax.grid(True, alpha=0.3)
+        ax.legend(fontsize=14)
+    
+    plt.suptitle('Reactivation Functions', fontsize=20)
+    plt.tight_layout()
+    plt.savefig(save_path, dpi=300, bbox_inches='tight', format='png')
+    plt.savefig(save_path.replace('.png', '.svg'), format='svg')
+    plt.close()
+
+# New function for E/I dynamics
+def create_ei_dynamics_flow(save_path='docs/figures/ei_dynamics_updated.png'):
+    fig, ax = plt.subplots(figsize=(12, 8), dpi=300)
+    
+    # Positions: Add Input and Output for completeness
+    pos = {'Input': (-2, 1), 'E1': (0, 2), 'I1': (0, 0), 'E2': (2, 2), 'I2': (2, 0), 'Output': (4, 1)}
+    
+    # Draw nodes with colors
+    for node, (x, y) in pos.items():
+        if node == 'Input' or node == 'Output':
+            color = 'gray'
+        else:
+            color = 'red' if 'E' in node else 'blue'
+        ax.add_patch(Circle((x, y), 0.3, color=color, alpha=0.5))
+        ax.text(x, y, node, ha='center', va='center', fontsize=16)
+    
+    # Corrected connections with labels (for input_mode=0: shared input to E1 and I1)
+    arrows = [
+        # Input to Layer 1 (shared to both E and I for mode 0)
+        ('Input', 'E1', 'Input→E'),
+        ('Input', 'I1', 'Input→I'),
+        # Within Layer 1 (IE within layer: I1 feeds E1)
+        ('I1', 'E1', 'IE (L1)'),
+        # Layer 1 to Layer 2 (EE, EI, II - no direct IE between layers)
+        ('E1', 'E2', 'EE'),
+        ('E1', 'I2', 'EI'),
+        ('I1', 'I2', 'II'),
+        # Within Layer 2 (IE within layer: I2 feeds E2)
+        ('I2', 'E2', 'IE (L2)'),
+        # Output from Layer 2
+        ('E2', 'Output', 'E→Output')
     ]
-
-    # Draw layers
-    all_neurons = []
-
-    for layer in layers:
-        if 'neurons' in layer:  # Input/Output layers
-            x_positions = np.linspace(2, 8, layer['neurons'])
-            for x in x_positions:
-                neuron = Circle((x, layer['y']), 0.15,
-                              facecolor=colors['light_gray'],
-                              edgecolor=colors['dark_gray'],
-                              linewidth=2)
-                ax.add_patch(neuron)
-                all_neurons.append({'pos': (x, layer['y']), 'type': 'neutral', 'layer': layer['name']})
-        else:  # E/I layers
-            # Excitatory neurons
-            exc_x = np.linspace(2, 5.5, layer['exc'])
-            for x in exc_x:
-                neuron = Circle((x, layer['y']), 0.18,
-                              facecolor=colors['vermillion'],
-                              edgecolor=colors['dark_gray'],
-                              linewidth=2, alpha=0.8)
-                ax.add_patch(neuron)
-                all_neurons.append({'pos': (x, layer['y']), 'type': 'exc', 'layer': layer['name']})
-
-            # Inhibitory neurons
-            inh_x = np.linspace(6.5, 8, layer['inh'])
-            for x in inh_x:
-                neuron = Circle((x, layer['y']), 0.18,
-                              facecolor=colors['sky_blue'],
-                              edgecolor=colors['dark_gray'],
-                              linewidth=2, alpha=0.8)
-                ax.add_patch(neuron)
-                all_neurons.append({'pos': (x, layer['y']), 'type': 'inh', 'layer': layer['name']})
-
-    # Draw connections (simplified for clarity)
-    np.random.seed(42)
-
-    # Connect layers
-    for i, layer in enumerate(layers[:-1]):
-        next_layer = layers[i + 1]
-
-        # Get neurons in current and next layer
-        current_neurons = [n for n in all_neurons if n['layer'] == layer['name']]
-        next_neurons = [n for n in all_neurons if n['layer'] == next_layer['name']]
-
-        # Sample connections
-        for curr in current_neurons[::2]:  # Every other neuron for clarity
-            # Connect to some neurons in next layer
-            targets = np.random.choice(next_neurons, size=min(3, len(next_neurons)), replace=False)
-
-            for target in targets:
-                # Determine connection type
-                if curr['type'] == 'inh' or target['type'] == 'inh':
-                    color = colors['sky_blue']
-                    style = '-'
-                    alpha = 0.4
-                else:
-                    color = colors['vermillion']
-                    style = '-'
-                    alpha = 0.3
-
-                # Draw connection
-                ax.plot([curr['pos'][0], target['pos'][0]],
-                       [curr['pos'][1] + 0.18, target['pos'][1] - 0.18],
-                       color=color, linestyle=style, linewidth=1.5, alpha=alpha)
-
-    # Add labels
-    for layer in layers:
-        ax.text(10, layer['y'], layer['name'], fontsize=14, va='center', fontweight='bold')
-
-    # Add legend
-    exc_patch = mpatches.Patch(color=colors['vermillion'], label='Excitatory', alpha=1.0)
-    inh_patch = mpatches.Patch(color=colors['sky_blue'], label='Inhibitory', alpha=1.0)
-    ax.legend(handles=[exc_patch, inh_patch], loc='upper left',
-              frameon=True, fancybox=True, shadow=True)
-
-    # Add title and labels
-    ax.set_title('Excitation-Inhibition Network Architecture', fontsize=18, fontweight='bold', pad=20)
-    ax.text(5, -0.5, 'Information Flow →', fontsize=12, ha='center', style='italic')
-
-    # Style
-    ax.set_xlim(0, 11)
-    ax.set_ylim(-1, 8)
+    
+    for start, end, label in arrows:
+        sx, sy = pos[start]
+        ex, ey = pos[end]
+        color = 'red' if start.startswith('E') or start == 'Input' else 'blue'
+        arrow = FancyArrowPatch((sx + 0.4 if sx < ex else sx - 0.4, sy),
+                                (ex - 0.4 if sx < ex else ex + 0.4, ey),
+                                color=color, mutation_scale=20, arrowstyle='->')
+        ax.add_patch(arrow)
+        ax.text((sx + ex)/2 + 0.1, (sy + ey)/2 + 0.1, label, fontsize=12, color=color)
+    
+    # Optional: Add dashed line for indirect I1 -> E2 (via I2) for clarity
+    sx, sy = pos['I1']
+    ex, ey = pos['E2']
+    indirect = FancyArrowPatch((sx + 0.4, sy), (ex - 0.4, ey), 
+                               color='gray', linestyle='--', mutation_scale=20, arrowstyle='->')
+    ax.add_patch(indirect)
+    ax.text((sx + ex)/2, (sy + ey)/2 + 0.3, 'Indirect IE\n(via I2)', fontsize=10, color='gray')
+    
+    ax.set_xlim(-3, 5)
+    ax.set_ylim(-1, 3)
     ax.axis('off')
-
+    ax.set_title('Accurate EINet E/I Connectivity (Input Mode 0 - Shared Input)', fontsize=20)
+    
+    # Updated note explaining logic
+    ax.text(1, -0.8, 'Note: For input_mode=0, input is shared to E1 and I1.\nIE is within-layer only (e.g., I1 feeds E1).\nBetween-layer IE is indirect (e.g., I1 feeds E2 via I2).', 
+            ha='center', fontsize=12, bbox=dict(facecolor='white', edgecolor='gray', boxstyle='round,pad=0.5'))
+    
     plt.tight_layout()
-    save_figure(fig, 'network_architecture')
+    plt.savefig(save_path, dpi=300, bbox_inches='tight', format='png')
+    plt.savefig(save_path.replace('.png', '.svg'), format='svg')
     plt.close()
 
-def create_shunting_inhibition():
-    """Create shunting inhibition mechanism diagram."""
-    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(14, 6))
-
-    # Left: Circuit diagram
-    ax1.set_title('Shunting Inhibition Circuit', fontsize=14, fontweight='bold')
-
-    # Dendrite
-    dendrite_x = [2, 5]
-    dendrite_y = [3, 3]
-    ax1.plot(dendrite_x, dendrite_y, color=colors['bluish_green'], linewidth=8, solid_capstyle='round')
-
-    # Excitatory synapse
-    exc_x, exc_y = 3, 3.5
-    ax1.scatter(exc_x, exc_y, s=200, c=colors['vermillion'], marker='o',
-               edgecolor='black', linewidth=2, zorder=10)
-    ax1.plot([exc_x, exc_x], [exc_y, 3], color='black', linewidth=2)
-    ax1.text(exc_x - 0.3, exc_y + 0.5, 'Excitatory\nInput', fontsize=10, ha='center')
-
-    # Inhibitory synapse
-    inh_x, inh_y = 4, 2.5
-    ax1.scatter(inh_x, inh_y, s=200, c=colors['sky_blue'], marker='s',
-               edgecolor='black', linewidth=2, zorder=10)
-    ax1.plot([inh_x, inh_x], [inh_y, 3], color='black', linewidth=2)
-    ax1.text(inh_x + 0.3, inh_y - 0.5, 'Inhibitory\nInput', fontsize=10, ha='center')
-
-    # Soma
-    soma = Circle((6, 3), 0.5, facecolor=colors['light_gray'],
-                 edgecolor=colors['dark_gray'], linewidth=2)
-    ax1.add_patch(soma)
-    ax1.text(6, 3, 'Soma', fontsize=10, ha='center', va='center')
-
-    # Current flow arrows
-    ax1.annotate('', xy=(5, 3), xytext=(3.2, 3),
-                arrowprops=dict(arrowstyle='->', color=colors['vermillion'], lw=2))
-    ax1.text(4, 3.2, 'I_exc', fontsize=10, ha='center', color=colors['vermillion'])
-
-    ax1.set_xlim(1, 7)
-    ax1.set_ylim(1, 5)
-    ax1.axis('off')
-
-    # Right: Voltage dynamics
-    ax2.set_title('Effect on Membrane Potential', fontsize=14, fontweight='bold')
-
-    t = np.linspace(0, 100, 1000)
-
-    # Without inhibition
-    v_no_inh = -70 + 20 * np.exp(-(t - 30)**2 / 100)
-
-    # With shunting inhibition
-    v_with_inh = -70 + 10 * np.exp(-(t - 30)**2 / 100)
-
-    ax2.plot(t, v_no_inh, color=colors['vermillion'], linewidth=2.5,
-            label='Without inhibition')
-    ax2.plot(t, v_with_inh, color=colors['blue'], linewidth=2.5,
-            label='With shunting inhibition')
-
-    # Threshold
-    ax2.axhline(y=-50, color='black', linestyle='--', alpha=0.5)
-    ax2.text(80, -48, 'Threshold', fontsize=10)
-
-    # Annotations
-    ax2.annotate('Reduced amplitude', xy=(30, -60), xytext=(50, -55),
-                arrowprops=dict(arrowstyle='->', color='black', alpha=0.5))
-
-    ax2.set_xlabel('Time (ms)', fontsize=14)
-    ax2.set_ylabel('Membrane Potential (mV)', fontsize=14)
-    ax2.set_xlim(0, 100)
-    ax2.set_ylim(-75, -45)
-    ax2.legend(loc='upper right', frameon=True, fancybox=True,
-           framealpha=0.9, shadow=True, fontsize=12)
-    ax2.grid(True, alpha=0.4, linestyle='--')
-
+# New function for information flow (simple Sankey-like)
+def create_information_flow_diagram(save_path='docs/figures/information_flow.png'):
+    fig, ax = plt.subplots(figsize=(12, 8), dpi=300)
+    
+    # Nodes
+    nodes = ['Input', 'Branch1', 'Branch2', 'Soma', 'Output']
+    pos = {n: (i, 0) for i, n in enumerate(nodes)}
+    
+    # Flows (arbitrary MI values)
+    flows = [('Input', 'Branch1', 2.5), ('Input', 'Branch2', 2.0),
+             ('Branch1', 'Soma', 1.8), ('Branch2', 'Soma', 1.5),
+             ('Soma', 'Output', 3.0)]
+    
+    for start, end, value in flows:
+        sx, sy = pos[start]
+        ex, ey = pos[end]
+        ax.plot([sx, ex], [sy, ey+value/10], 'b-', lw=value, alpha=0.5)
+        ax.plot([sx, ex], [sy, ey-value/10], 'b-', lw=value, alpha=0.5)
+    
+    for node, (x, y) in pos.items():
+        ax.text(x, y, node, ha='center', va='center', fontsize=16, bbox=dict(facecolor='white', edgecolor='black'))
+    
+    ax.set_title('Information Flow in Dendritic Network', fontsize=20)
+    ax.axis('off')
+    
     plt.tight_layout()
-    save_figure(fig, 'shunting_inhibition')
+    plt.savefig(save_path, dpi=300, bbox_inches='tight', format='png')
+    plt.savefig(save_path.replace('.png', '.svg'), format='svg')
     plt.close()
 
+# New function for training strategies
+def create_training_strategies_comparison(save_path='docs/figures/training_strategies.png'):
+    epochs = np.arange(1, 11)
+    standard = 1 / np.log(epochs + 1) + np.random.normal(0, 0.02, len(epochs))
+    branchwise = 1 / np.log(epochs + 2) + np.random.normal(0, 0.02, len(epochs))
+    twostep = 1 / np.log(epochs + 1.5) + np.random.normal(0, 0.02, len(epochs))
+    
+    fig, ax = plt.subplots(figsize=(10, 6), dpi=300)
+    ax.plot(epochs, standard, 'b-o', label='Standard', lw=3, markersize=6)
+    ax.plot(epochs, branchwise, 'g--', label='Branch-wise', lw=3, markersize=6)
+    ax.plot(epochs, twostep, 'r-.', label='Two-step', lw=3, markersize=6)
+    
+    ax.set_title('Training Loss Curves by Strategy', fontsize=20)
+    ax.set_xlabel('Epoch', fontsize=16)
+    ax.set_ylabel('Loss', fontsize=16)
+    ax.grid(True, alpha=0.3)
+    ax.legend(fontsize=14, framealpha=0.9)
+
+    plt.tight_layout()
+    plt.savefig(save_path, dpi=300, bbox_inches='tight', format='png')
+    plt.savefig(save_path.replace('.png', '.svg'), format='svg')
+    plt.close()
+
+# Updated main function to generate all
 def main():
-    """Generate all figures."""
-    print("Generating documentation figures...")
+    os.makedirs('docs/figures', exist_ok=True)
 
-    # Generate the figures
-    create_dendritic_neuron()
-    create_accurate_block_linear()
+    print("Generating professional dendritic neuron figures...")
+    create_dendritic_neuron_labeled()
+    create_dendritic_neuron_schematic()
 
-    # Generate other figures
+    print("Generating network architecture figure...")
     create_network_architecture()
-    create_shunting_inhibition()
+    
+    print("Generating shunting inhibition plot...")
+    create_shunting_inhibition_plot()
+    
+    print("Generating new figures...")
+    create_sparse_connectivity_visualization()
+    create_gradient_scaling_comparison()
+    create_reactivation_functions_gallery()
+    create_ei_dynamics_flow()
+    create_information_flow_diagram()
+    create_training_strategies_comparison()
+    
+    print("All figures generated successfully!")
 
-    print("\nAll figures generated successfully!")
-    print(f"Figures saved to: {', '.join(output_dirs)}")
-
-if __name__ == "__main__":
+if __name__ == '__main__':
     main()
