@@ -304,6 +304,8 @@ Network Configuration Details
 **TopK Selection Types** (``topk_type``):
    - ``standard``: Basic TopK selection by weight magnitude (default)
    - ``stochastic``: Probabilistic selection with temperature control
+     - ``topk_temperature``: Float - Selection sharpness (default: 0.5)
+     - ``topk_ultrafast``: Bool - Enable faster computation (default: False)
    - ``variance``: Selection based on input variance and weight magnitude
    - ``deepst``: Dynamic sparse training with rewiring
 
@@ -312,10 +314,17 @@ Network Configuration Details
    - ``local``: Connections rewired only within the same neuron
    - ``constant_branch``: Maintain constant number of synapses per branch
 
+**DeepST-Specific Options**:
+   - ``use_noise``: Bool - Enable Gaussian noise for Brownian motion (default: True)
+   - ``sigma``: Float - Noise standard deviation (default: 0.05)
+   - ``freeze_excitatory_connectivity``: Bool - Freeze excitatory synapse locations (default: False)
+   - ``freeze_inhibitory_connectivity``: Bool - Freeze inhibitory synapse locations (default: False)
+   - ``weight_threshold``: Float - Pruning threshold for weights (default: 1e-6)
+
 **Gradient Scaling Strategies**:
    - ``reactivation_strategy``: 'none', 'inverse' (default: 'inverse')
    - ``topk_strategy``: 'none', 'conductance_dynamic' (default: 'conductance_dynamic')
-   - ``blocklinear_strategy``: 'none', 'conductance_dynamic' (default: 'conductance_dynamic')
+   - ``blocklinear_strategy``: 'none', 'distal_upweight_by_idx', 'conductance_dynamic' (default: 'conductance_dynamic')
 
 **Reactivation Functions** (``reactivation_type``):
    - ``none``: Identity function
@@ -340,6 +349,10 @@ Network Configuration Details
    - ``normal``: Standard normal initialization
    - ``uniform``: Uniform initialization
    - ``eye``: Identity matrix initialization
+   - ``adaptive_initialization``: Bool - Use network-aware weight scaling (default: True)
+
+**Weight Parameterization**:
+   - ``param_space``: String - Weight parameterization: 'log', 'presigmoid', 'uniform' (default: 'log')
 
 **Transfer Function Options** (``transfer_params``):
    - ``input_mode``: 0 (raw→E, None→I), 1 (same→E,I), 2 (network transform)

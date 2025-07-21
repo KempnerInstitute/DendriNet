@@ -598,6 +598,7 @@ The framework provides flexible network components with various options:
      - ``rewiring_mode``: String - For DeepST: 'global', 'local', 'constant_branch' (default: 'global').
      - ``blocklinear_strategy``: String - Gradient scaling strategy: 'none', 'conductance_dynamic' (default: 'conductance_dynamic').
      - ``topk_strategy``: String - TopK gradient strategy: 'none', 'conductance_dynamic' (default: 'conductance_dynamic').
+     - ``efficient_blocklinear``: Bool - Use memory-efficient BlockLinear implementation (default: False).
    - **Example**: To create a 3-layer network with stochastic TopK and global rewiring: ``ExcitationInhibitionNetwork(input_dim=784, excitatory_layer_sizes=[512, 256, 10], inhibitory_layer_sizes=[128, 64, 0], use_shunting=True, topk_type='stochastic', rewiring_mode='global')``.
 
 2. **DendriticBranchLayer** (per-layer component):
@@ -607,6 +608,7 @@ The framework provides flexible network components with various options:
      - ``ee_synapses_per_branch``: Int - Excitatory synapses per branch.
      - ``ie_synapses_per_branch``: Int - Inhibitory synapses per branch.
      - ``reactivation_type``: String - Activation function type (see Transfer Functions below).
+     - ``somatic_synapses``: Bool - Include somatic (direct) synapses (default: True).
 
 3. **Synaptic Selection Types**:
    - **Implementation**: Different algorithms for selecting active synaptic connections.
