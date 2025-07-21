@@ -1,0 +1,867 @@
+
+<!DOCTYPE html>
+
+
+<html lang="en" data-content_root="../../../" >
+
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+    <title>EI Sweep Analysis &#8212; Dendritic Modeling Framework v0.1.0</title>
+  
+  
+  
+  <script data-cfasync="false">
+    document.documentElement.dataset.mode = localStorage.getItem("mode") || "";
+    document.documentElement.dataset.theme = localStorage.getItem("theme") || "";
+  </script>
+  <!--
+    this give us a css class that will be invisible only if js is disabled
+  -->
+  <noscript>
+    <style>
+      .pst-js-only { display: none !important; }
+
+    </style>
+  </noscript>
+  
+  <!-- Loaded before other Sphinx assets -->
+  <link href="../../../_static/styles/theme.css?digest=8878045cc6db502f8baf" rel="stylesheet" />
+<link href="../../../_static/styles/pydata-sphinx-theme.css?digest=8878045cc6db502f8baf" rel="stylesheet" />
+
+    <link rel="stylesheet" type="text/css" href="../../../_static/pygments.css?v=8f2a1f02" />
+    <link rel="stylesheet" type="text/css" href="../../../_static/graphviz.css?v=4ae1632d" />
+    <link rel="stylesheet" type="text/css" href="../../../_static/copybutton.css?v=76b2166b" />
+    <link rel="stylesheet" type="text/css" href="../../../_static/custom.css?v=eced55a1" />
+    <link rel="stylesheet" type="text/css" href="../../../_static/sphinx-design.min.css?v=95c83b7e" />
+    <link rel="stylesheet" type="text/css" href="../../../_static/custom.css?v=eced55a1" />
+  
+  <!-- So that users can add custom icons -->
+  <script src="../../../_static/scripts/fontawesome.js?digest=8878045cc6db502f8baf"></script>
+  <!-- Pre-loaded scripts that we'll load fully later -->
+  <link rel="preload" as="script" href="../../../_static/scripts/bootstrap.js?digest=8878045cc6db502f8baf" />
+<link rel="preload" as="script" href="../../../_static/scripts/pydata-sphinx-theme.js?digest=8878045cc6db502f8baf" />
+
+    <script src="../../../_static/documentation_options.js?v=38b66d78"></script>
+    <script src="../../../_static/doctools.js?v=9bcbadda"></script>
+    <script src="../../../_static/sphinx_highlight.js?v=dc90522c"></script>
+    <script src="../../../_static/clipboard.min.js?v=a7894cd8"></script>
+    <script src="../../../_static/copybutton.js?v=30646c52"></script>
+    <script src="../../../_static/design-tabs.js?v=f930bc37"></script>
+    <script crossorigin="anonymous" integrity="sha256-Ae2Vz/4ePdIu6ZyI/5ZGsYnb+m0JlOmKPjt6XZ9JJkA=" src="https://cdnjs.cloudflare.com/ajax/libs/require.js/2.3.4/require.min.js"></script>
+    <script>DOCUMENTATION_OPTIONS.pagename = 'source/advanced/analysis/ei_sweep_analysis';</script>
+    <script src="../../../_static/custom.js"></script>
+    <link rel="author" title="About these documents" href="../../../about.html" />
+    <link rel="index" title="Index" href="../../../genindex.html" />
+    <link rel="search" title="Search" href="../../../search.html" />
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <meta name="docsearch:language" content="en"/>
+  <meta name="docsearch:version" content="0.1.0" />
+    <meta name="docbuild:last-update" content="Jul 21, 2025"/>
+  </head>
+  
+  
+  <body data-bs-spy="scroll" data-bs-target=".bd-toc-nav" data-offset="180" data-bs-root-margin="0px 0px -60%" data-default-mode="">
+
+  
+  
+  <div id="pst-skip-link" class="skip-link d-print-none"><a href="#main-content">Skip to main content</a></div>
+  
+  <div id="pst-scroll-pixel-helper"></div>
+  
+  <button type="button" class="btn rounded-pill" id="pst-back-to-top">
+    <i class="fa-solid fa-arrow-up"></i>Back to top</button>
+
+  
+  <dialog id="pst-search-dialog">
+    
+<form class="bd-search d-flex align-items-center"
+      action="../../../search.html"
+      method="get">
+  <i class="fa-solid fa-magnifying-glass"></i>
+  <input type="search"
+         class="form-control"
+         name="q"
+         placeholder="Search the docs..."
+         aria-label="Search the docs..."
+         autocomplete="off"
+         autocorrect="off"
+         autocapitalize="off"
+         spellcheck="false"/>
+  <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd>K</kbd></span>
+</form>
+  </dialog>
+
+  <div class="pst-async-banner-revealer d-none">
+  <aside id="bd-header-version-warning" class="d-none d-print-none" aria-label="Version warning"></aside>
+</div>
+
+  
+    <header class="bd-header navbar navbar-expand-lg bd-navbar d-print-none">
+<div class="bd-header__inner bd-page-width">
+  <button class="pst-navbar-icon sidebar-toggle primary-toggle" aria-label="Site navigation">
+    <span class="fa-solid fa-bars"></span>
+  </button>
+  
+  
+  <div class=" navbar-header-items__start">
+    
+      <div class="navbar-item">
+
+  
+    
+  
+
+<a class="navbar-brand logo" href="../../../index.html">
+  
+  
+  
+  
+  
+    
+    
+      
+    
+    
+    <img src="../../../_static/logo_light.png" class="logo__image only-light" alt=""/>
+    <img src="../../../_static/logo_dark.png" class="logo__image only-dark pst-js-only" alt=""/>
+  
+  
+    <p class="title logo__title">Dendritic Modeling</p>
+  
+</a></div>
+    
+  </div>
+  
+  <div class=" navbar-header-items">
+    
+    <div class="me-auto navbar-header-items__center">
+      
+        <div class="navbar-item">
+<nav>
+  <ul class="bd-navbar-elements navbar-nav">
+    
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../../introduction.html">
+    Introduction
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../../installation.html">
+    Installation and Setup
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../../quickstart.html">
+    Quickstart Guide
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../../core_concepts.html">
+    Core Concepts
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../../architectures/index.html">
+    Network Architectures and Design
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../../training/index.html">
+    Training Strategies and Usage
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../../analysis/index.html">
+    Analysis Tools and Methods
+  </a>
+</li>
+
+            <li class="nav-item dropdown">
+                <button class="btn dropdown-toggle nav-item" type="button"
+                data-bs-toggle="dropdown" aria-expanded="false"
+                aria-controls="pst-nav-more-links">
+                    More
+                </button>
+                <ul id="pst-nav-more-links" class="dropdown-menu">
+                    
+<li class=" ">
+  <a class="nav-link dropdown-item nav-internal" href="../../../performance/index.html">
+    Performance, Speed, and Efficiency
+  </a>
+</li>
+
+
+<li class=" ">
+  <a class="nav-link dropdown-item nav-internal" href="../../../faq.html">
+    Frequently Asked Questions (FAQ)
+  </a>
+</li>
+
+
+<li class=" ">
+  <a class="nav-link dropdown-item nav-internal" href="../../../glossary.html">
+    Glossary
+  </a>
+</li>
+
+
+<li class=" ">
+  <a class="nav-link dropdown-item nav-internal" href="../../../troubleshooting.html">
+    Troubleshooting Guide
+  </a>
+</li>
+
+
+<li class=" ">
+  <a class="nav-link dropdown-item nav-internal" href="../../../contributing.html">
+    Contributing Guide
+  </a>
+</li>
+
+                </ul>
+            </li>
+            
+  </ul>
+</nav></div>
+      
+    </div>
+    
+    
+    <div class="navbar-header-items__end">
+      
+        <div class="navbar-item navbar-persistent--container">
+          
+
+<button class="btn search-button-field search-button__button pst-js-only" title="Search" aria-label="Search" data-bs-placement="bottom" data-bs-toggle="tooltip">
+ <i class="fa-solid fa-magnifying-glass"></i>
+ <span class="search-button__default-text">Search</span>
+ <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd class="kbd-shortcut__modifier">K</kbd></span>
+</button>
+        </div>
+      
+      
+        <div class="navbar-item">
+<form class="bd-search d-flex align-items-center"
+      action="../../../search.html"
+      method="get">
+  <i class="fa-solid fa-magnifying-glass"></i>
+  <input type="search"
+         class="form-control"
+         name="q"
+         placeholder="Search the docs..."
+         aria-label="Search the docs..."
+         autocomplete="off"
+         autocorrect="off"
+         autocapitalize="off"
+         spellcheck="false"/>
+  <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd>K</kbd></span>
+</form></div>
+      
+        <div class="navbar-item"><ul class="navbar-icon-links"
+    aria-label="Icon Links">
+        <li class="nav-item">
+          
+          
+          
+          
+          
+          
+          
+          
+          <a href="https://github.com/KempnerInstitute/dendritic-modeling" title="GitHub" class="nav-link pst-navbar-icon" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><i class="fa-brands fa-square-github fa-lg" aria-hidden="true"></i>
+            <span class="sr-only">GitHub</span></a>
+        </li>
+        <li class="nav-item">
+          
+          
+          
+          
+          
+          
+          
+          
+          <a href="https://twitter.com/KempnerInstitute" title="Twitter" class="nav-link pst-navbar-icon" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><i class="fa-brands fa-square-twitter fa-lg" aria-hidden="true"></i>
+            <span class="sr-only">Twitter</span></a>
+        </li>
+</ul></div>
+      
+    </div>
+    
+  </div>
+  
+  
+    <div class="navbar-persistent--mobile">
+
+<button class="btn search-button-field search-button__button pst-js-only" title="Search" aria-label="Search" data-bs-placement="bottom" data-bs-toggle="tooltip">
+ <i class="fa-solid fa-magnifying-glass"></i>
+ <span class="search-button__default-text">Search</span>
+ <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd class="kbd-shortcut__modifier">K</kbd></span>
+</button>
+    </div>
+  
+
+  
+    <button class="pst-navbar-icon sidebar-toggle secondary-toggle" aria-label="On this page">
+      <span class="fa-solid fa-outdent"></span>
+    </button>
+  
+</div>
+
+    </header>
+  
+
+  <div class="bd-container">
+    <div class="bd-container__inner bd-page-width">
+      
+      
+      
+      <dialog id="pst-primary-sidebar-modal"></dialog>
+      <div id="pst-primary-sidebar" class="bd-sidebar-primary bd-sidebar">
+        
+
+  
+  <div class="sidebar-header-items sidebar-primary__section">
+    
+    
+      <div class="sidebar-header-items__center">
+        
+          
+          
+            <div class="navbar-item">
+<nav>
+  <ul class="bd-navbar-elements navbar-nav">
+    
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../../introduction.html">
+    Introduction
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../../installation.html">
+    Installation and Setup
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../../quickstart.html">
+    Quickstart Guide
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../../core_concepts.html">
+    Core Concepts
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../../architectures/index.html">
+    Network Architectures and Design
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../../training/index.html">
+    Training Strategies and Usage
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../../analysis/index.html">
+    Analysis Tools and Methods
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../../performance/index.html">
+    Performance, Speed, and Efficiency
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../../faq.html">
+    Frequently Asked Questions (FAQ)
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../../glossary.html">
+    Glossary
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../../troubleshooting.html">
+    Troubleshooting Guide
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../../contributing.html">
+    Contributing Guide
+  </a>
+</li>
+
+  </ul>
+</nav></div>
+          
+        
+      </div>
+    
+    
+    
+      <div class="sidebar-header-items__end">
+        
+          <div class="navbar-item">
+<form class="bd-search d-flex align-items-center"
+      action="../../../search.html"
+      method="get">
+  <i class="fa-solid fa-magnifying-glass"></i>
+  <input type="search"
+         class="form-control"
+         name="q"
+         placeholder="Search the docs..."
+         aria-label="Search the docs..."
+         autocomplete="off"
+         autocorrect="off"
+         autocapitalize="off"
+         spellcheck="false"/>
+  <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd>K</kbd></span>
+</form></div>
+        
+          <div class="navbar-item"><ul class="navbar-icon-links"
+    aria-label="Icon Links">
+        <li class="nav-item">
+          
+          
+          
+          
+          
+          
+          
+          
+          <a href="https://github.com/KempnerInstitute/dendritic-modeling" title="GitHub" class="nav-link pst-navbar-icon" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><i class="fa-brands fa-square-github fa-lg" aria-hidden="true"></i>
+            <span class="sr-only">GitHub</span></a>
+        </li>
+        <li class="nav-item">
+          
+          
+          
+          
+          
+          
+          
+          
+          <a href="https://twitter.com/KempnerInstitute" title="Twitter" class="nav-link pst-navbar-icon" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><i class="fa-brands fa-square-twitter fa-lg" aria-hidden="true"></i>
+            <span class="sr-only">Twitter</span></a>
+        </li>
+</ul></div>
+        
+      </div>
+    
+  </div>
+  
+    <div class="sidebar-primary-items__start sidebar-primary__section">
+        <div class="sidebar-primary-item">
+<form class="bd-search d-flex align-items-center"
+      action="../../../search.html"
+      method="get">
+  <i class="fa-solid fa-magnifying-glass"></i>
+  <input type="search"
+         class="form-control"
+         name="q"
+         placeholder="Search the docs..."
+         aria-label="Search the docs..."
+         autocomplete="off"
+         autocorrect="off"
+         autocapitalize="off"
+         spellcheck="false"/>
+  <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd>K</kbd></span>
+</form></div>
+        <div class="sidebar-primary-item">
+<nav class="bd-docs-nav bd-links"
+     aria-label="Section Navigation">
+  <p class="bd-links__title" role="heading" aria-level="1">Section Navigation</p>
+  <div class="bd-toc-item navbar-nav"></div>
+</nav></div>
+    </div>
+  
+  
+  <div class="sidebar-primary-items__end sidebar-primary__section">
+      <div class="sidebar-primary-item">
+<div id="ethical-ad-placement"
+      class="flat"
+      data-ea-publisher="readthedocs"
+      data-ea-type="readthedocs-sidebar"
+      data-ea-manual="true">
+</div></div>
+  </div>
+
+
+      </div>
+      
+      <main id="main-content" class="bd-main" role="main">
+        
+        
+          <div class="bd-content">
+            <div class="bd-article-container">
+              
+              <div class="bd-header-article d-print-none">
+<div class="header-article-items header-article__inner">
+  
+    <div class="header-article-items__start">
+      
+        <div class="header-article-item">
+
+<nav aria-label="Breadcrumb" class="d-print-none">
+  <ul class="bd-breadcrumbs">
+    
+    <li class="breadcrumb-item breadcrumb-home">
+      <a href="../../../index.html" class="nav-link" aria-label="Home">
+        <i class="fa-solid fa-home"></i>
+      </a>
+    </li>
+    <li class="breadcrumb-item active" aria-current="page"><span class="ellipsis">EI Sweep Analysis</span></li>
+  </ul>
+</nav>
+</div>
+      
+    </div>
+  
+  
+</div>
+</div>
+              
+              
+              
+                
+<div id="searchbox"></div>
+                <article class="bd-article">
+                  
+  <section id="ei-sweep-analysis">
+<span id="id1"></span><h1>EI Sweep Analysis<a class="headerlink" href="#ei-sweep-analysis" title="Link to this heading">#</a></h1>
+<p>The <code class="docutils literal notranslate"><span class="pre">analyze_ei_sweep.py</span></code> script provides comprehensive analysis and visualization tools for Excitatory-Inhibitory (EI) sweep experiments. This tool helps researchers understand how different combinations of excitatory and inhibitory parameters affect model performance.</p>
+<section id="overview">
+<h2>Overview<a class="headerlink" href="#overview" title="Link to this heading">#</a></h2>
+<p>After running EI sweep experiments (see <a class="reference internal" href="../configuration/parameter_sweeps.html#parameter-sweeps"><span class="std std-ref">Parameter Sweeps</span></a>), you’ll have results from many different parameter combinations. The <code class="docutils literal notranslate"><span class="pre">analyze_ei_sweep.py</span></code> script helps you:</p>
+<ol class="arabic simple">
+<li><p>Aggregate results from all jobs (potentially across multiple SLURM array jobs)</p></li>
+<li><p>Generate visualizations to understand parameter impact on performance</p></li>
+<li><p>Identify optimal parameter combinations</p></li>
+<li><p>Track missing or incomplete runs</p></li>
+<li><p>Compare results across multiple experiments</p></li>
+</ol>
+</section>
+<section id="command-line-arguments">
+<h2>Command-Line Arguments<a class="headerlink" href="#command-line-arguments" title="Link to this heading">#</a></h2>
+<p>The script supports various command-line arguments to customize the analysis:</p>
+<div class="highlight-text notranslate"><div class="highlight"><pre><span></span>python scripts/analyze_ei_sweep.py [OPTION]...
+
+Required arguments (one of these must be specified):
+  --timestamp TIMESTAMP  Timestamp ID of the experiment (e.g. 20250411144518)
+  --folder FOLDER        Full path to the experiment folder
+  --all                  Analyze all ei_ folders in the output directory
+  --multiple TIMESTAMPS  List of timestamps or folder paths to analyze together
+
+Optional arguments:
+  --output-base DIR      Base output directory (default: ./output)
+  --prefix PREFIX        Prefix of experiment folders to look for (default: ei_)
+  --show-plots           Display plots in addition to saving them
+  --report-missing       Report detail of missing or unfinished runs
+</pre></div>
+</div>
+</section>
+<section id="visualizations-explained">
+<h2>Visualizations Explained<a class="headerlink" href="#visualizations-explained" title="Link to this heading">#</a></h2>
+<p>The script generates several types of visualizations to help you understand parameter relationships:</p>
+<section id="heatmaps-accuracy">
+<h3>Heatmaps (Accuracy)<a class="headerlink" href="#heatmaps-accuracy" title="Link to this heading">#</a></h3>
+<p>The heatmaps show how model performance varies with different combinations of EE and IE parameters:</p>
+<ul class="simple">
+<li><p>X-axis: IE parameter values</p></li>
+<li><p>Y-axis: EE parameter values</p></li>
+<li><p>Color: Accuracy value (from 0.0 to 1.0)</p></li>
+<li><p>Missing values: Shown as grey cells with “N/A” annotation</p></li>
+</ul>
+<p>Separate heatmaps are generated for train, validation, and test sets (e.g., <code class="docutils literal notranslate"><span class="pre">heatmap_train_acc.png</span></code>).</p>
+</section>
+<section id="parameter-sweep-line-plots-grouped-by-network-type">
+<h3>Parameter Sweep Line Plots (Grouped by Network Type)<a class="headerlink" href="#parameter-sweep-line-plots-grouped-by-network-type" title="Link to this heading">#</a></h3>
+<p>When your sweep includes different network types (via <code class="docutils literal notranslate"><span class="pre">model.network.parameters.use_shunting:</span> <span class="pre">[true,</span> <span class="pre">false,</span> <span class="pre">&quot;MLP&quot;]</span></code>), the script automatically generates additional visualizations for comparing them. These plots show the relationship between specific E/I parameters and model performance, with separate lines for each network category (EINet with Shunting, EINet without Shunting, MLP):</p>
+<ul class="simple">
+<li><p><strong>Network-Grouped Heatmaps</strong>: Separate heatmaps for each network category (e.g., <code class="docutils literal notranslate"><span class="pre">*_heatmap_EINet_shunting.png</span></code>, <code class="docutils literal notranslate"><span class="pre">*_heatmap_MLP.png</span></code>) are generated, showing performance against EE and IE values for that specific category.</p></li>
+<li><p><strong>Comparison Line Plots</strong> (Accuracy vs. an E/I parameter, lines for the other E/I parameter, grouped by Network Type):
+- <code class="docutils literal notranslate"><span class="pre">*_ie_lines_by_network_per_ee.png</span></code>: Compares how different network types respond to varying <strong>IE values</strong>. To maintain clarity, lines are drawn for up to 5 representative <strong>EE values</strong>.
+- <code class="docutils literal notranslate"><span class="pre">*_ee_lines_by_network_per_ie.png</span></code>: Compares how different network types respond to varying <strong>EE values</strong>. Similarly, lines are drawn for up to 5 representative <strong>IE values</strong>.
+- <code class="docutils literal notranslate"><span class="pre">*_ei_ratio_by_network.png</span></code>: Compares how different network types respond to varying <strong>E/I ratios</strong>. Each network category will have its own line on this plot.</p></li>
+</ul>
+<p>These visualizations make it easy to compare the performance of dendritic networks (EINet with and without shunting) against standard MLP networks using the same parameter values.</p>
+</section>
+<section id="top-combinations-bar-chart">
+<h3>Top Combinations Bar Chart<a class="headerlink" href="#top-combinations-bar-chart" title="Link to this heading">#</a></h3>
+<p>The <code class="docutils literal notranslate"><span class="pre">top_combinations.png</span></code> chart shows the top-performing parameter combinations:</p>
+<ul class="simple">
+<li><p>X-axis: Parameter combinations (EE and IE values)</p></li>
+<li><p>Y-axis: Accuracy</p></li>
+<li><p>Bars: Paired bars showing validation and test accuracy</p></li>
+<li><p>Sorting: Combinations are sorted by validation accuracy</p></li>
+</ul>
+<p>This visualization helps quickly identify the best parameter settings.</p>
+</section>
+<section id="multi-experiment-comparison">
+<h3>Multi-Experiment Comparison<a class="headerlink" href="#multi-experiment-comparison" title="Link to this heading">#</a></h3>
+<p>When analyzing multiple experiments with the <code class="docutils literal notranslate"><span class="pre">--multiple</span></code> option:</p>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">experiment_comparison.png</span></code>: Bar chart comparing the best results from each experiment</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">multi_experiment_summary.txt</span></code>: Text summary of the comparison</p></li>
+</ul>
+</section>
+</section>
+<section id="output-files">
+<h2>Output Files<a class="headerlink" href="#output-files" title="Link to this heading">#</a></h2>
+<p>The script generates several output files in the <code class="docutils literal notranslate"><span class="pre">plots</span></code> subdirectory of your experiment folder:</p>
+<p><strong>Data Files</strong>:</p>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">ei_sweep_results_original.csv</span></code>: Raw collected data before extensive cleaning/pivoting.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">ei_sweep_results.csv</span></code>: Processed results in tabular format, used for some plots.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">ei_sweep_&lt;metric&gt;_clean.csv</span></code>: Data subset used for plotting a specific metric after NaN removal for EE/IE.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">ei_sweep_&lt;metric&gt;_pivot.csv</span></code>: Pivot table for a specific metric (EE vs IE).</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">missing_runs.csv</span></code>: Details about missing or incomplete runs (if any).</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">network_comparison_summary.txt</span></code>: A summary listing all generated network comparison plots.</p></li>
+</ul>
+<p><strong>Plot Files (Examples)</strong>:</p>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">ei_sweep_train_acc_heatmap.png</span></code> (and similar for val/test, and per-network-category)</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">ei_sweep_test_acc_ie_lines_by_network_per_ee.png</span></code></p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">ei_sweep_test_acc_ee_lines_by_network_per_ie.png</span></code></p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">ei_sweep_test_acc_ei_ratio_by_network.png</span></code></p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">top_combinations.png</span></code></p></li>
+</ul>
+<p>(Note: General 3D surface plots and non-grouped scatter plots are no longer generated by default.)</p>
+</section>
+<section id="example-usage">
+<h2>Example Usage<a class="headerlink" href="#example-usage" title="Link to this heading">#</a></h2>
+<p><strong>Analyzing a Single Experiment</strong>:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># Using timestamp ID</span>
+python<span class="w"> </span>scripts/analyze_ei_sweep.py<span class="w"> </span>--timestamp<span class="w"> </span><span class="m">20250411144518</span>
+
+<span class="c1"># Using full path</span>
+python<span class="w"> </span>scripts/analyze_ei_sweep.py<span class="w"> </span>--folder<span class="w"> </span>/path/to/outputs/ei_20250411144518
+
+<span class="c1"># With additional options</span>
+python<span class="w"> </span>scripts/analyze_ei_sweep.py<span class="w"> </span>--timestamp<span class="w"> </span><span class="m">20250411144518</span><span class="w"> </span>--show-plots<span class="w"> </span>--report-missing
+</pre></div>
+</div>
+<p><strong>Analyzing Multiple Experiments</strong>:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># Compare two experiments using timestamp IDs</span>
+python<span class="w"> </span>scripts/analyze_ei_sweep.py<span class="w"> </span>--multiple<span class="w"> </span><span class="m">20250411144518</span><span class="w"> </span><span class="m">20250412123456</span>
+
+<span class="c1"># Compare using full paths</span>
+python<span class="w"> </span>scripts/analyze_ei_sweep.py<span class="w"> </span>--multiple<span class="w"> </span>/path/to/exp1<span class="w"> </span>/path/to/exp2
+</pre></div>
+</div>
+<p><strong>Analyzing All Experiments</strong>:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># Analyze all experiments with default prefix</span>
+python<span class="w"> </span>scripts/analyze_ei_sweep.py<span class="w"> </span>--all
+
+<span class="c1"># Analyze all experiments with custom prefix</span>
+python<span class="w"> </span>scripts/analyze_ei_sweep.py<span class="w"> </span>--all<span class="w"> </span>--prefix<span class="w"> </span>custom_ei_
+</pre></div>
+</div>
+</section>
+<section id="handling-missing-data">
+<h2>Handling Missing Data<a class="headerlink" href="#handling-missing-data" title="Link to this heading">#</a></h2>
+<p>The script automatically identifies and reports on missing or incomplete runs:</p>
+<ul class="simple">
+<li><p><strong>Missing</strong>: No task directory found for the configuration</p></li>
+<li><p><strong>Incomplete</strong>: Task directory exists but no final.json performance file</p></li>
+<li><p><strong>Error</strong>: Exception occurred while processing the results</p></li>
+</ul>
+<p>Use the <code class="docutils literal notranslate"><span class="pre">--report-missing</span></code> flag to get detailed information about these runs, which can help you:</p>
+<ol class="arabic simple">
+<li><p>Identify failed jobs</p></li>
+<li><p>Determine which configurations need to be rerun</p></li>
+<li><p>Debug issues with specific parameter combinations</p></li>
+</ol>
+</section>
+<section id="tips-for-effective-analysis">
+<h2>Tips for Effective Analysis<a class="headerlink" href="#tips-for-effective-analysis" title="Link to this heading">#</a></h2>
+<ol class="arabic simple">
+<li><p><strong>Start with Overview</strong>: First analyze without <code class="docutils literal notranslate"><span class="pre">--show-plots</span></code> to get a quick summary</p></li>
+<li><p><strong>Check for Missing Data</strong>: Use <code class="docutils literal notranslate"><span class="pre">--report-missing</span></code> to identify gaps</p></li>
+<li><p><strong>Compare Validation vs Test</strong>: Look for discrepancies that might indicate overfitting</p></li>
+<li><p><strong>Examine Parameter Trends</strong>: Use line plots to understand how parameters interact</p></li>
+<li><p><strong>Multi-Experiment Analysis</strong>: Use <code class="docutils literal notranslate"><span class="pre">--multiple</span></code> to track progress across experiments</p></li>
+</ol>
+</section>
+<section id="implementation-details">
+<h2>Implementation Details<a class="headerlink" href="#implementation-details" title="Link to this heading">#</a></h2>
+<p>The script follows this workflow:</p>
+<ol class="arabic simple">
+<li><p>Locate experiment directories based on command-line arguments.</p></li>
+<li><p>For each experiment (<cite>process_single_experiment</cite>):
+- Collect parameter data from original config files (<cite>collect_params_data</cite>).
+- Collect results by parsing <cite>output.log</cite> files from <cite>config_X</cite> directories. Crucially, this step also loads the original config for each run to extract <cite>network_type</cite> and <cite>use_shunting</cite> to determine the <cite>network_category</cite> (<cite>collect_results</cite>).
+- Generate visualizations and summary files (<cite>generate_plots</cite>). This includes averaging results for repeated E/I and network configurations (e.g., across different seeds) when creating pivot tables and line plot data points.</p></li>
+<li><p>If analyzing multiple experiments, combine results and generate comparative visualizations (<cite>compare_multiple_experiments</cite>).</p></li>
+</ol>
+<p>The implementation handles various edge cases including experiments with different parameter ranges, missing or incomplete runs, and multiple random seeds for each parameter combination. The primary grouping for comparative plots is by <cite>network_category</cite>.</p>
+<p>See the source code in <code class="docutils literal notranslate"><span class="pre">scripts/analyze_ei_sweep.py</span></code> for full implementation details.</p>
+</section>
+</section>
+
+
+                </article>
+              
+              
+              
+              
+              
+                <footer class="prev-next-footer d-print-none">
+                  
+<div class="prev-next-area">
+</div>
+                </footer>
+              
+            </div>
+            
+            
+              
+                <dialog id="pst-secondary-sidebar-modal"></dialog>
+                <div id="pst-secondary-sidebar" class="bd-sidebar-secondary bd-toc"><div class="sidebar-secondary-items sidebar-secondary__inner">
+
+
+  <div class="sidebar-secondary-item">
+<div
+    id="pst-page-navigation-heading-2"
+    class="page-toc tocsection onthispage">
+    <i class="fa-solid fa-list"></i> On this page
+  </div>
+  <nav class="bd-toc-nav page-toc" aria-labelledby="pst-page-navigation-heading-2">
+    <ul class="visible nav section-nav flex-column">
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#overview">Overview</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#command-line-arguments">Command-Line Arguments</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#visualizations-explained">Visualizations Explained</a><ul class="visible nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#heatmaps-accuracy">Heatmaps (Accuracy)</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#parameter-sweep-line-plots-grouped-by-network-type">Parameter Sweep Line Plots (Grouped by Network Type)</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#top-combinations-bar-chart">Top Combinations Bar Chart</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#multi-experiment-comparison">Multi-Experiment Comparison</a></li>
+</ul>
+</li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#output-files">Output Files</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#example-usage">Example Usage</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#handling-missing-data">Handling Missing Data</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#tips-for-effective-analysis">Tips for Effective Analysis</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#implementation-details">Implementation Details</a></li>
+</ul>
+  </nav></div>
+
+  <div class="sidebar-secondary-item">
+
+  
+  <div class="tocsection editthispage">
+    <a href="https://github.com/KempnerInstitute/dendritic-modeling/edit/main/docs/source/advanced/analysis/ei_sweep_analysis.rst">
+      <i class="fa-solid fa-pencil"></i>
+      
+      
+        
+          Edit on GitHub
+        
+      
+    </a>
+  </div>
+</div>
+
+  <div class="sidebar-secondary-item">
+  <div role="note" aria-label="source link">
+    <h3>This Page</h3>
+    <ul class="this-page-menu">
+      <li><a href="../../../_sources/source/advanced/analysis/ei_sweep_analysis.rst.txt"
+            rel="nofollow">Show Source</a></li>
+    </ul>
+   </div></div>
+
+</div></div>
+              
+            
+          </div>
+          <footer class="bd-footer-content">
+            
+          </footer>
+        
+      </main>
+    </div>
+  </div>
+  
+  <!-- Scripts loaded after <body> so the DOM is not blocked -->
+  <script defer src="../../../_static/scripts/bootstrap.js?digest=8878045cc6db502f8baf"></script>
+<script defer src="../../../_static/scripts/pydata-sphinx-theme.js?digest=8878045cc6db502f8baf"></script>
+
+  <footer class="bd-footer">
+<div class="bd-footer__inner bd-page-width">
+  
+    <div class="footer-items__start">
+      
+        <div class="footer-item">
+
+  <p class="copyright">
+    
+      © Copyright 2024, Kempner Institute for the Study of Natural and Artificial Intelligence.
+      <br/>
+    
+  </p>
+</div>
+      
+        <div class="footer-item">
+
+  <p class="sphinx-version">
+    Created using <a href="https://www.sphinx-doc.org/">Sphinx</a> 8.1.3.
+    <br/>
+  </p>
+</div>
+      
+    </div>
+  
+  
+  
+    <div class="footer-items__end">
+      
+        <div class="footer-item">
+<p class="theme-version">
+  <!-- # L10n: Setting the PST URL as an argument as this does not need to be localized -->
+  Built with the <a href="https://pydata-sphinx-theme.readthedocs.io/en/stable/index.html">PyData Sphinx Theme</a> 0.16.1.
+</p></div>
+      
+    </div>
+  
+</div>
+
+  </footer>
+  </body>
+</html>

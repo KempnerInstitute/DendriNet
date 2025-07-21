@@ -1,0 +1,941 @@
+
+<!DOCTYPE html>
+
+
+<html lang="en" data-content_root="../../" >
+
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+    <title>&lt;no title&gt; &#8212; Dendritic Modeling Framework v0.1.0</title>
+  
+  
+  
+  <script data-cfasync="false">
+    document.documentElement.dataset.mode = localStorage.getItem("mode") || "";
+    document.documentElement.dataset.theme = localStorage.getItem("theme") || "";
+  </script>
+  <!--
+    this give us a css class that will be invisible only if js is disabled
+  -->
+  <noscript>
+    <style>
+      .pst-js-only { display: none !important; }
+
+    </style>
+  </noscript>
+  
+  <!-- Loaded before other Sphinx assets -->
+  <link href="../../_static/styles/theme.css?digest=8878045cc6db502f8baf" rel="stylesheet" />
+<link href="../../_static/styles/pydata-sphinx-theme.css?digest=8878045cc6db502f8baf" rel="stylesheet" />
+
+    <link rel="stylesheet" type="text/css" href="../../_static/pygments.css?v=8f2a1f02" />
+    <link rel="stylesheet" type="text/css" href="../../_static/graphviz.css?v=4ae1632d" />
+    <link rel="stylesheet" type="text/css" href="../../_static/copybutton.css?v=76b2166b" />
+    <link rel="stylesheet" type="text/css" href="../../_static/custom.css?v=eced55a1" />
+    <link rel="stylesheet" type="text/css" href="../../_static/sphinx-design.min.css?v=95c83b7e" />
+    <link rel="stylesheet" type="text/css" href="../../_static/custom.css?v=eced55a1" />
+  
+  <!-- So that users can add custom icons -->
+  <script src="../../_static/scripts/fontawesome.js?digest=8878045cc6db502f8baf"></script>
+  <!-- Pre-loaded scripts that we'll load fully later -->
+  <link rel="preload" as="script" href="../../_static/scripts/bootstrap.js?digest=8878045cc6db502f8baf" />
+<link rel="preload" as="script" href="../../_static/scripts/pydata-sphinx-theme.js?digest=8878045cc6db502f8baf" />
+
+    <script src="../../_static/documentation_options.js?v=38b66d78"></script>
+    <script src="../../_static/doctools.js?v=9bcbadda"></script>
+    <script src="../../_static/sphinx_highlight.js?v=dc90522c"></script>
+    <script src="../../_static/clipboard.min.js?v=a7894cd8"></script>
+    <script src="../../_static/copybutton.js?v=30646c52"></script>
+    <script src="../../_static/design-tabs.js?v=f930bc37"></script>
+    <script crossorigin="anonymous" integrity="sha256-Ae2Vz/4ePdIu6ZyI/5ZGsYnb+m0JlOmKPjt6XZ9JJkA=" src="https://cdnjs.cloudflare.com/ajax/libs/require.js/2.3.4/require.min.js"></script>
+    <script>DOCUMENTATION_OPTIONS.pagename = 'source/user_guide/information_analysis_guide';</script>
+    <script src="../../_static/custom.js"></script>
+    <link rel="author" title="About these documents" href="../../about.html" />
+    <link rel="index" title="Index" href="../../genindex.html" />
+    <link rel="search" title="Search" href="../../search.html" />
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <meta name="docsearch:language" content="en"/>
+  <meta name="docsearch:version" content="0.1.0" />
+    <meta name="docbuild:last-update" content="Jul 21, 2025"/>
+  </head>
+  
+  
+  <body data-bs-spy="scroll" data-bs-target=".bd-toc-nav" data-offset="180" data-bs-root-margin="0px 0px -60%" data-default-mode="">
+
+  
+  
+  <div id="pst-skip-link" class="skip-link d-print-none"><a href="#main-content">Skip to main content</a></div>
+  
+  <div id="pst-scroll-pixel-helper"></div>
+  
+  <button type="button" class="btn rounded-pill" id="pst-back-to-top">
+    <i class="fa-solid fa-arrow-up"></i>Back to top</button>
+
+  
+  <dialog id="pst-search-dialog">
+    
+<form class="bd-search d-flex align-items-center"
+      action="../../search.html"
+      method="get">
+  <i class="fa-solid fa-magnifying-glass"></i>
+  <input type="search"
+         class="form-control"
+         name="q"
+         placeholder="Search the docs..."
+         aria-label="Search the docs..."
+         autocomplete="off"
+         autocorrect="off"
+         autocapitalize="off"
+         spellcheck="false"/>
+  <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd>K</kbd></span>
+</form>
+  </dialog>
+
+  <div class="pst-async-banner-revealer d-none">
+  <aside id="bd-header-version-warning" class="d-none d-print-none" aria-label="Version warning"></aside>
+</div>
+
+  
+    <header class="bd-header navbar navbar-expand-lg bd-navbar d-print-none">
+<div class="bd-header__inner bd-page-width">
+  <button class="pst-navbar-icon sidebar-toggle primary-toggle" aria-label="Site navigation">
+    <span class="fa-solid fa-bars"></span>
+  </button>
+  
+  
+  <div class=" navbar-header-items__start">
+    
+      <div class="navbar-item">
+
+  
+    
+  
+
+<a class="navbar-brand logo" href="../../index.html">
+  
+  
+  
+  
+  
+    
+    
+      
+    
+    
+    <img src="../../_static/logo_light.png" class="logo__image only-light" alt=""/>
+    <img src="../../_static/logo_dark.png" class="logo__image only-dark pst-js-only" alt=""/>
+  
+  
+    <p class="title logo__title">Dendritic Modeling</p>
+  
+</a></div>
+    
+  </div>
+  
+  <div class=" navbar-header-items">
+    
+    <div class="me-auto navbar-header-items__center">
+      
+        <div class="navbar-item">
+<nav>
+  <ul class="bd-navbar-elements navbar-nav">
+    
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../introduction.html">
+    Introduction
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../installation.html">
+    Installation and Setup
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../quickstart.html">
+    Quickstart Guide
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../core_concepts.html">
+    Core Concepts
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../architectures/index.html">
+    Network Architectures and Design
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../training/index.html">
+    Training Strategies and Usage
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../analysis/index.html">
+    Analysis Tools and Methods
+  </a>
+</li>
+
+            <li class="nav-item dropdown">
+                <button class="btn dropdown-toggle nav-item" type="button"
+                data-bs-toggle="dropdown" aria-expanded="false"
+                aria-controls="pst-nav-more-links">
+                    More
+                </button>
+                <ul id="pst-nav-more-links" class="dropdown-menu">
+                    
+<li class=" ">
+  <a class="nav-link dropdown-item nav-internal" href="../../performance/index.html">
+    Performance, Speed, and Efficiency
+  </a>
+</li>
+
+
+<li class=" ">
+  <a class="nav-link dropdown-item nav-internal" href="../../faq.html">
+    Frequently Asked Questions (FAQ)
+  </a>
+</li>
+
+
+<li class=" ">
+  <a class="nav-link dropdown-item nav-internal" href="../../glossary.html">
+    Glossary
+  </a>
+</li>
+
+
+<li class=" ">
+  <a class="nav-link dropdown-item nav-internal" href="../../troubleshooting.html">
+    Troubleshooting Guide
+  </a>
+</li>
+
+
+<li class=" ">
+  <a class="nav-link dropdown-item nav-internal" href="../../contributing.html">
+    Contributing Guide
+  </a>
+</li>
+
+                </ul>
+            </li>
+            
+  </ul>
+</nav></div>
+      
+    </div>
+    
+    
+    <div class="navbar-header-items__end">
+      
+        <div class="navbar-item navbar-persistent--container">
+          
+
+<button class="btn search-button-field search-button__button pst-js-only" title="Search" aria-label="Search" data-bs-placement="bottom" data-bs-toggle="tooltip">
+ <i class="fa-solid fa-magnifying-glass"></i>
+ <span class="search-button__default-text">Search</span>
+ <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd class="kbd-shortcut__modifier">K</kbd></span>
+</button>
+        </div>
+      
+      
+        <div class="navbar-item">
+<form class="bd-search d-flex align-items-center"
+      action="../../search.html"
+      method="get">
+  <i class="fa-solid fa-magnifying-glass"></i>
+  <input type="search"
+         class="form-control"
+         name="q"
+         placeholder="Search the docs..."
+         aria-label="Search the docs..."
+         autocomplete="off"
+         autocorrect="off"
+         autocapitalize="off"
+         spellcheck="false"/>
+  <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd>K</kbd></span>
+</form></div>
+      
+        <div class="navbar-item"><ul class="navbar-icon-links"
+    aria-label="Icon Links">
+        <li class="nav-item">
+          
+          
+          
+          
+          
+          
+          
+          
+          <a href="https://github.com/KempnerInstitute/dendritic-modeling" title="GitHub" class="nav-link pst-navbar-icon" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><i class="fa-brands fa-square-github fa-lg" aria-hidden="true"></i>
+            <span class="sr-only">GitHub</span></a>
+        </li>
+        <li class="nav-item">
+          
+          
+          
+          
+          
+          
+          
+          
+          <a href="https://twitter.com/KempnerInstitute" title="Twitter" class="nav-link pst-navbar-icon" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><i class="fa-brands fa-square-twitter fa-lg" aria-hidden="true"></i>
+            <span class="sr-only">Twitter</span></a>
+        </li>
+</ul></div>
+      
+    </div>
+    
+  </div>
+  
+  
+    <div class="navbar-persistent--mobile">
+
+<button class="btn search-button-field search-button__button pst-js-only" title="Search" aria-label="Search" data-bs-placement="bottom" data-bs-toggle="tooltip">
+ <i class="fa-solid fa-magnifying-glass"></i>
+ <span class="search-button__default-text">Search</span>
+ <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd class="kbd-shortcut__modifier">K</kbd></span>
+</button>
+    </div>
+  
+
+  
+    <button class="pst-navbar-icon sidebar-toggle secondary-toggle" aria-label="On this page">
+      <span class="fa-solid fa-outdent"></span>
+    </button>
+  
+</div>
+
+    </header>
+  
+
+  <div class="bd-container">
+    <div class="bd-container__inner bd-page-width">
+      
+      
+      
+      <dialog id="pst-primary-sidebar-modal"></dialog>
+      <div id="pst-primary-sidebar" class="bd-sidebar-primary bd-sidebar">
+        
+
+  
+  <div class="sidebar-header-items sidebar-primary__section">
+    
+    
+      <div class="sidebar-header-items__center">
+        
+          
+          
+            <div class="navbar-item">
+<nav>
+  <ul class="bd-navbar-elements navbar-nav">
+    
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../introduction.html">
+    Introduction
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../installation.html">
+    Installation and Setup
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../quickstart.html">
+    Quickstart Guide
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../core_concepts.html">
+    Core Concepts
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../architectures/index.html">
+    Network Architectures and Design
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../training/index.html">
+    Training Strategies and Usage
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../analysis/index.html">
+    Analysis Tools and Methods
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../performance/index.html">
+    Performance, Speed, and Efficiency
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../faq.html">
+    Frequently Asked Questions (FAQ)
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../glossary.html">
+    Glossary
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../troubleshooting.html">
+    Troubleshooting Guide
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../contributing.html">
+    Contributing Guide
+  </a>
+</li>
+
+  </ul>
+</nav></div>
+          
+        
+      </div>
+    
+    
+    
+      <div class="sidebar-header-items__end">
+        
+          <div class="navbar-item">
+<form class="bd-search d-flex align-items-center"
+      action="../../search.html"
+      method="get">
+  <i class="fa-solid fa-magnifying-glass"></i>
+  <input type="search"
+         class="form-control"
+         name="q"
+         placeholder="Search the docs..."
+         aria-label="Search the docs..."
+         autocomplete="off"
+         autocorrect="off"
+         autocapitalize="off"
+         spellcheck="false"/>
+  <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd>K</kbd></span>
+</form></div>
+        
+          <div class="navbar-item"><ul class="navbar-icon-links"
+    aria-label="Icon Links">
+        <li class="nav-item">
+          
+          
+          
+          
+          
+          
+          
+          
+          <a href="https://github.com/KempnerInstitute/dendritic-modeling" title="GitHub" class="nav-link pst-navbar-icon" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><i class="fa-brands fa-square-github fa-lg" aria-hidden="true"></i>
+            <span class="sr-only">GitHub</span></a>
+        </li>
+        <li class="nav-item">
+          
+          
+          
+          
+          
+          
+          
+          
+          <a href="https://twitter.com/KempnerInstitute" title="Twitter" class="nav-link pst-navbar-icon" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><i class="fa-brands fa-square-twitter fa-lg" aria-hidden="true"></i>
+            <span class="sr-only">Twitter</span></a>
+        </li>
+</ul></div>
+        
+      </div>
+    
+  </div>
+  
+    <div class="sidebar-primary-items__start sidebar-primary__section">
+        <div class="sidebar-primary-item">
+<form class="bd-search d-flex align-items-center"
+      action="../../search.html"
+      method="get">
+  <i class="fa-solid fa-magnifying-glass"></i>
+  <input type="search"
+         class="form-control"
+         name="q"
+         placeholder="Search the docs..."
+         aria-label="Search the docs..."
+         autocomplete="off"
+         autocorrect="off"
+         autocapitalize="off"
+         spellcheck="false"/>
+  <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd>K</kbd></span>
+</form></div>
+        <div class="sidebar-primary-item">
+<nav class="bd-docs-nav bd-links"
+     aria-label="Section Navigation">
+  <p class="bd-links__title" role="heading" aria-level="1">Section Navigation</p>
+  <div class="bd-toc-item navbar-nav"></div>
+</nav></div>
+    </div>
+  
+  
+  <div class="sidebar-primary-items__end sidebar-primary__section">
+      <div class="sidebar-primary-item">
+<div id="ethical-ad-placement"
+      class="flat"
+      data-ea-publisher="readthedocs"
+      data-ea-type="readthedocs-sidebar"
+      data-ea-manual="true">
+</div></div>
+  </div>
+
+
+      </div>
+      
+      <main id="main-content" class="bd-main" role="main">
+        
+        
+          <div class="bd-content">
+            <div class="bd-article-container">
+              
+              <div class="bd-header-article d-print-none">
+<div class="header-article-items header-article__inner">
+  
+    <div class="header-article-items__start">
+      
+        <div class="header-article-item">
+
+<nav aria-label="Breadcrumb" class="d-print-none">
+  <ul class="bd-breadcrumbs">
+    
+    <li class="breadcrumb-item breadcrumb-home">
+      <a href="../../index.html" class="nav-link" aria-label="Home">
+        <i class="fa-solid fa-home"></i>
+      </a>
+    </li>
+    <li class="breadcrumb-item active" aria-current="page"><span class="ellipsis">&lt;no title&gt;</span></li>
+  </ul>
+</nav>
+</div>
+      
+    </div>
+  
+  
+</div>
+</div>
+              
+              
+              
+                
+<div id="searchbox"></div>
+                <article class="bd-article">
+                  
+  <p># Information-Theoretic Analysis Guide for Dendritic Networks</p>
+<p>This guide explains how to train Excitation-Inhibition (EI) networks and compute information-theoretic measures between network components.</p>
+<p>## Quick Start</p>
+<p>### 1. Basic Training with Information Analysis</p>
+<p>To train an EI network and compute information values, use the quick-start configuration:</p>
+<p><a href="#id1"><span class="problematic" id="id2">``</span></a><a href="#id3"><span class="problematic" id="id4">`</span></a>bash
+python -m dendritic_modeling.scripts.train_experiments </p>
+<blockquote>
+<div><p>–config configs/ei_network_info_analysis_quickstart.yaml</p>
+</div></blockquote>
+<p><a href="#id5"><span class="problematic" id="id6">``</span></a><a href="#id7"><span class="problematic" id="id8">`</span></a></p>
+<p>This will:
+- Train a small EI network on MNIST for 20 epochs
+- Compute mutual information between E/I inputs, branch outputs, and class labels
+- Save results to <cite>./outputs/ei_info_quickstart/</cite></p>
+<p>### 2. Understanding the Results</p>
+<p>After training, check the output directory:</p>
+<p><a href="#id9"><span class="problematic" id="id10">``</span></a>`
+outputs/ei_info_quickstart/
+├── models/           # Saved model checkpoints
+├── logs/             # Training logs
+└── analysis/         # Analysis results</p>
+<blockquote>
+<div><p>├── information_analysis/
+│   ├── information_analysis_results.json  # Raw MI values
+│   └── information_analysis_summary.txt   # Human-readable summary
+└── performance_analysis/</p>
+<blockquote>
+<div><p>└── test_metrics.json                  # Final accuracy</p>
+</div></blockquote>
+</div></blockquote>
+<p><a href="#id11"><span class="problematic" id="id12">``</span></a><a href="#id13"><span class="problematic" id="id14">`</span></a></p>
+<p>The summary file will contain values like:
+- <cite>I(E;C)</cite>: Mutual information between excitatory inputs and class labels
+- <cite>I(I;C)</cite>: Mutual information between inhibitory inputs and class labels
+- <cite>I(E;I)</cite>: Mutual information between E and I (their dependence)
+- <cite>I(Vout;C)</cite>: Information carried by branch outputs about the class
+- <cite>I(Vinf;C)</cite>: Information at the soma level</p>
+<p>## Configuration Options</p>
+<p>### Information Analysis Parameters</p>
+<p>The key configuration section is <cite>analysis.information_analysis</cite>:</p>
+<p><a href="#id15"><span class="problematic" id="id16">``</span></a><a href="#id17"><span class="problematic" id="id18">`</span></a>yaml
+analysis:</p>
+<blockquote>
+<div><dl>
+<dt>information_analysis:</dt><dd><p># Estimation method
+method: kraskov      # Options: kraskov, sklearn, copula, auto</p>
+<p># Method-specific parameters
+n_neighbors: 10      # For kraskov (k-NN estimator)
+n_bins: 20          # For sklearn (histogram bins)
+copula_type: gaussian # For copula</p>
+<p># What to compute
+compute_basic_mi: true      # I(X;C) for all variables X
+compute_pairwise_mi: true   # I(X;Y) between all pairs
+compute_conditional_mi: true # I(X;Y|C) conditioned on class
+compute_pid: false          # Partial Information Decomposition</p>
+<p># Additional options
+include_vinf: true     # Include soma activation
+normalize_mi: false    # Normalize by entropy
+verbose: true         # Print progress</p>
+</dd>
+</dl>
+</div></blockquote>
+<p><a href="#id19"><span class="problematic" id="id20">``</span></a><a href="#id21"><span class="problematic" id="id22">`</span></a></p>
+<p>### Choosing an Estimation Method</p>
+<ol class="arabic simple">
+<li><p><strong>Kraskov</strong> (Recommended for most cases)
+- Best for: Continuous multivariate data
+- Pros: Non-parametric, handles high dimensions
+- Cons: Can be slow for large datasets
+<code class="docutils literal notranslate"><span class="pre">`yaml</span>
+<span class="pre">method:</span> <span class="pre">kraskov</span>
+<span class="pre">n_neighbors:</span> <span class="pre">10</span>&#160; <span class="pre">#</span> <span class="pre">5-15</span> <span class="pre">is</span> <span class="pre">typical</span>
+<span class="pre">`</span></code></p></li>
+<li><p><strong>Sklearn</strong> (Fast but less accurate)
+- Best for: Quick exploration or mixed data types
+- Pros: Fast, handles discrete variables
+- Cons: Less accurate for complex distributions
+<code class="docutils literal notranslate"><span class="pre">`yaml</span>
+<span class="pre">method:</span> <span class="pre">sklearn</span>
+<span class="pre">n_bins:</span> <span class="pre">20</span>&#160; <span class="pre">#</span> <span class="pre">Adjust</span> <span class="pre">based</span> <span class="pre">on</span> <span class="pre">data</span> <span class="pre">size</span>
+<span class="pre">`</span></code></p></li>
+<li><p><strong>Copula</strong> (For complex dependencies)
+- Best for: Non-linear relationships
+- Pros: Captures complex dependencies
+- Cons: Currently limited to bivariate
+<code class="docutils literal notranslate"><span class="pre">`yaml</span>
+<span class="pre">method:</span> <span class="pre">copula</span>
+<span class="pre">copula_type:</span> <span class="pre">gaussian</span>&#160; <span class="pre">#</span> <span class="pre">or</span> <span class="pre">t,</span> <span class="pre">clayton,</span> <span class="pre">gumbel,</span> <span class="pre">frank</span>
+<span class="pre">`</span></code></p></li>
+</ol>
+<p>## Network Architecture for Information Analysis</p>
+<p>For meaningful information analysis, configure your EI network appropriately:</p>
+<p><a href="#id23"><span class="problematic" id="id24">``</span></a><a href="#id25"><span class="problematic" id="id26">`</span></a>yaml
+model:</p>
+<blockquote>
+<div><dl>
+<dt>network:</dt><dd><p>type: EINet
+parameters:</p>
+<blockquote>
+<div><p># Use input_mode 0 for clear E/I separation
+input_mode: 0  # E gets input, I gets nothing</p>
+<p># Enable shunting for biologically plausible computation
+use_shunting: true  # V = E/(E+I+1)</p>
+<p># Ensure sufficient connectivity
+ee_synapses_per_branch_per_layer: [50]   # E→E
+ei_synapses_per_branch_per_layer: [100]  # E→I
+ie_synapses_per_branch_per_layer: [20]   # I→E
+ii_synapses_per_branch_per_layer: [0]    # I→I (usually 0)</p>
+</div></blockquote>
+</dd>
+</dl>
+</div></blockquote>
+<p><a href="#id27"><span class="problematic" id="id28">``</span></a><a href="#id29"><span class="problematic" id="id30">`</span></a></p>
+<p>## Advanced Use Cases</p>
+<p>### 1. Detailed Analysis (Slow but Thorough)</p>
+<p><a href="#id31"><span class="problematic" id="id32">``</span></a><a href="#id33"><span class="problematic" id="id34">`</span></a>yaml
+analysis:</p>
+<blockquote>
+<div><dl class="simple">
+<dt>information_analysis:</dt><dd><p>method: kraskov
+n_neighbors: 15
+compute_basic_mi: true
+compute_pairwise_mi: true
+compute_conditional_mi: true
+compute_pid: true  # Requires external PID package
+verbose: true</p>
+</dd>
+</dl>
+</div></blockquote>
+<p><a href="#id35"><span class="problematic" id="id36">``</span></a><a href="#id37"><span class="problematic" id="id38">`</span></a></p>
+<p>### 2. Quick Exploration (Fast)</p>
+<p><a href="#id39"><span class="problematic" id="id40">``</span></a><a href="#id41"><span class="problematic" id="id42">`</span></a>yaml
+analysis:</p>
+<blockquote>
+<div><dl class="simple">
+<dt>information_analysis:</dt><dd><p>method: sklearn
+n_bins: 15
+compute_basic_mi: true
+compute_pairwise_mi: false
+compute_conditional_mi: false
+compute_pid: false</p>
+</dd>
+</dl>
+</div></blockquote>
+<p><a href="#id43"><span class="problematic" id="id44">``</span></a><a href="#id45"><span class="problematic" id="id46">`</span></a></p>
+<p>### 3. Focus on E/I Interactions</p>
+<p><a href="#id47"><span class="problematic" id="id48">``</span></a><a href="#id49"><span class="problematic" id="id50">`</span></a>yaml
+analysis:</p>
+<blockquote>
+<div><dl class="simple">
+<dt>information_analysis:</dt><dd><p>method: kraskov
+n_neighbors: 10
+compute_basic_mi: false     # Skip I(X;C)
+compute_pairwise_mi: true   # Focus on I(E;I), etc.
+compute_conditional_mi: true # I(E;I|C)
+compute_pid: false</p>
+</dd>
+</dl>
+</div></blockquote>
+<p><a href="#id51"><span class="problematic" id="id52">``</span></a><a href="#id53"><span class="problematic" id="id54">`</span></a></p>
+<p>## Interpreting Results</p>
+<p>### Basic Mutual Information
+- <strong>I(E;C)</strong>: How much excitatory activity predicts the class</p>
+<blockquote>
+<div><ul class="simple">
+<li><p>High values (&gt;1.5 nats): Strong class information in E</p></li>
+<li><p>Low values (&lt;0.5 nats): Weak class information</p></li>
+</ul>
+</div></blockquote>
+<ul class="simple">
+<li><p><strong>I(I;C)</strong>: How much inhibitory activity predicts the class
+- Often lower than I(E;C) if I serves modulatory role</p></li>
+<li><p><strong>I(Vout;C)</strong>: Information at branch outputs
+- Should be ≥ max(I(E;C), I(I;C)) if integration is effective</p></li>
+</ul>
+<p>### Pairwise Information
+- <strong>I(E;I)</strong>: Dependence between E and I</p>
+<blockquote>
+<div><ul class="simple">
+<li><p>High values: E and I are strongly coupled</p></li>
+<li><p>Low values: E and I process information independently</p></li>
+</ul>
+</div></blockquote>
+<ul class="simple">
+<li><p><strong>I(E;Vout)</strong>, <strong>I(I;Vout)</strong>: How inputs influence outputs
+- Indicates which pathway contributes more</p></li>
+</ul>
+<p>### Conditional Information
+- <strong>I(E;I|C)</strong>: E/I dependence after accounting for class</p>
+<blockquote>
+<div><ul class="simple">
+<li><p>High values: E/I interact differently for different classes</p></li>
+<li><p>Low values: E/I relationship is class-independent</p></li>
+</ul>
+</div></blockquote>
+<p>## Common Issues and Solutions</p>
+<p>### 1. Low Information Values
+- <strong>Problem</strong>: All MI values are near zero
+- <strong>Solutions</strong>:</p>
+<blockquote>
+<div><ul class="simple">
+<li><p>Check if network is trained properly (accuracy &gt; chance)</p></li>
+<li><p>Increase connectivity (more synapses)</p></li>
+<li><p>Use <cite>input_mode: 0</cite> for clear E/I separation</p></li>
+<li><p>Ensure sufficient data samples</p></li>
+</ul>
+</div></blockquote>
+<p>### 2. Estimation Errors
+- <strong>Problem</strong>: Negative MI values or unrealistic numbers
+- <strong>Solutions</strong>:</p>
+<blockquote>
+<div><ul class="simple">
+<li><p>Increase <cite>n_neighbors</cite> for kraskov method</p></li>
+<li><p>Use more data samples</p></li>
+<li><p>Try different estimation method</p></li>
+<li><p>Check for numerical issues in activations</p></li>
+</ul>
+</div></blockquote>
+<p>### 3. Slow Computation
+- <strong>Problem</strong>: Analysis takes too long
+- <strong>Solutions</strong>:</p>
+<blockquote>
+<div><ul class="simple">
+<li><p>Reduce test set size</p></li>
+<li><p>Use sklearn method for quick estimates</p></li>
+<li><p>Disable conditional MI or PID</p></li>
+<li><p>Use fewer neighbors for kraskov</p></li>
+</ul>
+</div></blockquote>
+<p>## Example Configurations</p>
+<p>### Minimal Configuration
+See: <cite>configs/ei_network_info_analysis_quickstart.yaml</cite></p>
+<p>### Detailed Analysis
+See: <cite>configs/example_information_analysis_documented.yaml</cite></p>
+<p>### Parameter Sweeps
+See: <cite>.vscode/sweep_params_seeds_ei_documented.yaml</cite></p>
+<p>## Running Parameter Sweeps</p>
+<p>To systematically explore how network parameters affect information flow:</p>
+<ol class="arabic simple">
+<li><p>Create a sweep configuration (see documented examples)</p></li>
+<li><p>Use SLURM scripts for HPC clusters</p></li>
+<li><p>Aggregate results across seeds for statistical analysis</p></li>
+</ol>
+<p>## Best Practices</p>
+<ol class="arabic simple">
+<li><p><strong>Always verify model performance first</strong>
+- Ensure accuracy is above chance before analyzing information</p></li>
+<li><p><strong>Use multiple seeds</strong>
+- Information values can vary; use 3-5 seeds minimum</p></li>
+<li><p><strong>Start simple</strong>
+- Begin with basic MI before adding conditional/PID</p></li>
+<li><p><strong>Validate with known cases</strong>
+- Test on simple datasets where expected MI is known</p></li>
+<li><p><strong>Document your configuration</strong>
+- Use the documented YAML files as templates
+- Record all parameter choices for reproducibility</p></li>
+</ol>
+
+
+                </article>
+              
+              
+              
+              
+              
+                <footer class="prev-next-footer d-print-none">
+                  
+<div class="prev-next-area">
+</div>
+                </footer>
+              
+            </div>
+            
+            
+              
+                <dialog id="pst-secondary-sidebar-modal"></dialog>
+                <div id="pst-secondary-sidebar" class="bd-sidebar-secondary bd-toc"><div class="sidebar-secondary-items sidebar-secondary__inner">
+
+
+  <div class="sidebar-secondary-item">
+<div
+    id="pst-page-navigation-heading-2"
+    class="page-toc tocsection onthispage">
+    <i class="fa-solid fa-list"></i> On this page
+  </div>
+  <nav class="bd-toc-nav page-toc" aria-labelledby="pst-page-navigation-heading-2">
+    <ul class="simple visible nav section-nav flex-column">
+</ul>
+
+  </nav></div>
+
+  <div class="sidebar-secondary-item">
+
+  
+  <div class="tocsection editthispage">
+    <a href="https://github.com/KempnerInstitute/dendritic-modeling/edit/main/docs/source/user_guide/information_analysis_guide.rst">
+      <i class="fa-solid fa-pencil"></i>
+      
+      
+        
+          Edit on GitHub
+        
+      
+    </a>
+  </div>
+</div>
+
+  <div class="sidebar-secondary-item">
+  <div role="note" aria-label="source link">
+    <h3>This Page</h3>
+    <ul class="this-page-menu">
+      <li><a href="../../_sources/source/user_guide/information_analysis_guide.rst.txt"
+            rel="nofollow">Show Source</a></li>
+    </ul>
+   </div></div>
+
+</div></div>
+              
+            
+          </div>
+          <footer class="bd-footer-content">
+            
+          </footer>
+        
+      </main>
+    </div>
+  </div>
+  
+  <!-- Scripts loaded after <body> so the DOM is not blocked -->
+  <script defer src="../../_static/scripts/bootstrap.js?digest=8878045cc6db502f8baf"></script>
+<script defer src="../../_static/scripts/pydata-sphinx-theme.js?digest=8878045cc6db502f8baf"></script>
+
+  <footer class="bd-footer">
+<div class="bd-footer__inner bd-page-width">
+  
+    <div class="footer-items__start">
+      
+        <div class="footer-item">
+
+  <p class="copyright">
+    
+      © Copyright 2024, Kempner Institute for the Study of Natural and Artificial Intelligence.
+      <br/>
+    
+  </p>
+</div>
+      
+        <div class="footer-item">
+
+  <p class="sphinx-version">
+    Created using <a href="https://www.sphinx-doc.org/">Sphinx</a> 8.1.3.
+    <br/>
+  </p>
+</div>
+      
+    </div>
+  
+  
+  
+    <div class="footer-items__end">
+      
+        <div class="footer-item">
+<p class="theme-version">
+  <!-- # L10n: Setting the PST URL as an argument as this does not need to be localized -->
+  Built with the <a href="https://pydata-sphinx-theme.readthedocs.io/en/stable/index.html">PyData Sphinx Theme</a> 0.16.1.
+</p></div>
+      
+    </div>
+  
+</div>
+
+  </footer>
+  </body>
+</html>

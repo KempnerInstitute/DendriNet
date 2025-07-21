@@ -582,3 +582,52 @@ Now that you understand the core concepts:
    * :doc:`architectures/einet` - Detailed EINet architecture guide
    * :doc:`training/strategies` - Comprehensive training strategy reference
    * :doc:`analysis/information_theory` - Information-theoretic analysis tools 
+
+Network Components and Options
+------------------------------
+
+The framework provides flexible network components with various options:
+
+1. **ExcitationInhibitionNetwork** (core network):
+   - **Implementation**: Multi-layer network with separate E/I populations. Each layer processes excitatory/inhibitory inputs via dendritic branches, applying shunting (E/(E+I+ε)) or linear (E - I) computation.
+   - **Options**:
+     - ``use_shunting``: Bool - Enable shunting inhibition (default: True). Implemented in ``DendriticLayer.forward()``.
+     - ``reactivation_strategy``: String - 'inverse' for shunting reactivation, 'none' for linear (default: 'inverse' if shunting).
+     - ``epsilon``: Float - Small constant for numerical stability in shunting (default: 1e-6).
+     - ``connectivity``: String - 'dense' or 'sparse' (uses TopKLinear for sparsity).
+     - ``sparsity``: Float - Fraction of connections to keep if sparse (0-1).
+   - **Example**: To create a 3-layer network with shunting and 0.5 sparsity: ``ExcitationInhibitionNetwork(input_dim=784, excitatory_layer_sizes=[512, 256, 10], inhibitory_layer_sizes=[128, 64, 0], use_shunting=True, connectivity='sparse', sparsity=0.5)``.
+
+2. **DendriticBranchLayer** (per-layer component):
+   - **Implementation**: Computes branch-wise outputs with E/I integration. Supports multiple branches per neuron.
+   - **Options**:
+     - ``num_branches``: Int - Number of dendritic branches per layer.
+     - ``ee_synapses_per_branch``: Int - Excitatory synapses per branch.
+     - ``ie_synapses_per_branch``: Int - Inhibitory synapses per branch.
+     - ``transfer_function``: Callable - Custom activation (default: ReLU).
+
+3. **Sparse Connectivity**:
+   - **Implementation**: Uses ``TopKLinear`` or ``StochasticTopKLinear`` for sparse weights.
+   - **Options**:
+     - ``K``: Int - Number of top connections to keep.
+     - ``temperature``: Float - For stochastic selection (default: 1.0).
+
+4. **Input Transforms**:
+   - **Implementation**: Preprocessing layers before core network (e.g., VAE, AlexNet, etc).
+   - **Options**: ``identity``.
+
+**Implementation Details**: All options are passed via config YAML to factory functions in ``networks/architectures/factory.py``. For example, shunting is implemented as ``output = exc / (exc + inh + epsilon)`` in ``DendriticLayer.forward()``.
+
+Transfer Function Parameters
+~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+The ``TransferFunctionParams`` class controls dendritic computation behavior:
+
+- ``input_mode``: Int - Input processing mode (0: standard, 1: normalized).
+- ``multiplicative``: Bool - Use multiplicative interactions between branches.
+- ``shunting_inhibition``: Bool - Enable shunting inhibition mechanism.
+- ``use_shunting``: Bool - Overall shunting control flag.
+- ``epsilon``: Float - Numerical stability constant for division.
+- ``reactivation_strategy``: String - How to handle reactivation ('inverse', 'none').
+
+These parameters are loaded from YAML configs and applied during network initialization. 

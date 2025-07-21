@@ -1,0 +1,1301 @@
+
+<!DOCTYPE html>
+
+
+<html lang="en" data-content_root="../" >
+
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+    <title>Training Strategies and Usage &#8212; Dendritic Modeling Framework v0.1.0</title>
+  
+  
+  
+  <script data-cfasync="false">
+    document.documentElement.dataset.mode = localStorage.getItem("mode") || "";
+    document.documentElement.dataset.theme = localStorage.getItem("theme") || "";
+  </script>
+  <!--
+    this give us a css class that will be invisible only if js is disabled
+  -->
+  <noscript>
+    <style>
+      .pst-js-only { display: none !important; }
+
+    </style>
+  </noscript>
+  
+  <!-- Loaded before other Sphinx assets -->
+  <link href="../_static/styles/theme.css?digest=8878045cc6db502f8baf" rel="stylesheet" />
+<link href="../_static/styles/pydata-sphinx-theme.css?digest=8878045cc6db502f8baf" rel="stylesheet" />
+
+    <link rel="stylesheet" type="text/css" href="../_static/pygments.css?v=8f2a1f02" />
+    <link rel="stylesheet" type="text/css" href="../_static/graphviz.css?v=4ae1632d" />
+    <link rel="stylesheet" type="text/css" href="../_static/copybutton.css?v=76b2166b" />
+    <link rel="stylesheet" type="text/css" href="../_static/custom.css?v=eced55a1" />
+    <link rel="stylesheet" type="text/css" href="../_static/sphinx-design.min.css?v=95c83b7e" />
+    <link rel="stylesheet" type="text/css" href="../_static/custom.css?v=eced55a1" />
+  
+  <!-- So that users can add custom icons -->
+  <script src="../_static/scripts/fontawesome.js?digest=8878045cc6db502f8baf"></script>
+  <!-- Pre-loaded scripts that we'll load fully later -->
+  <link rel="preload" as="script" href="../_static/scripts/bootstrap.js?digest=8878045cc6db502f8baf" />
+<link rel="preload" as="script" href="../_static/scripts/pydata-sphinx-theme.js?digest=8878045cc6db502f8baf" />
+
+    <script src="../_static/documentation_options.js?v=38b66d78"></script>
+    <script src="../_static/doctools.js?v=9bcbadda"></script>
+    <script src="../_static/sphinx_highlight.js?v=dc90522c"></script>
+    <script src="../_static/clipboard.min.js?v=a7894cd8"></script>
+    <script src="../_static/copybutton.js?v=30646c52"></script>
+    <script src="../_static/design-tabs.js?v=f930bc37"></script>
+    <script crossorigin="anonymous" integrity="sha256-Ae2Vz/4ePdIu6ZyI/5ZGsYnb+m0JlOmKPjt6XZ9JJkA=" src="https://cdnjs.cloudflare.com/ajax/libs/require.js/2.3.4/require.min.js"></script>
+    <script>DOCUMENTATION_OPTIONS.pagename = 'training/index';</script>
+    <script src="../_static/custom.js"></script>
+    <link rel="author" title="About these documents" href="../about.html" />
+    <link rel="index" title="Index" href="../genindex.html" />
+    <link rel="search" title="Search" href="../search.html" />
+    <link rel="next" title="Analysis Tools and Methods" href="../analysis/index.html" />
+    <link rel="prev" title="Network Architectures and Design" href="../architectures/index.html" />
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <meta name="docsearch:language" content="en"/>
+  <meta name="docsearch:version" content="0.1.0" />
+    <meta name="docbuild:last-update" content="Jul 21, 2025"/>
+  </head>
+  
+  
+  <body data-bs-spy="scroll" data-bs-target=".bd-toc-nav" data-offset="180" data-bs-root-margin="0px 0px -60%" data-default-mode="">
+
+  
+  
+  <div id="pst-skip-link" class="skip-link d-print-none"><a href="#main-content">Skip to main content</a></div>
+  
+  <div id="pst-scroll-pixel-helper"></div>
+  
+  <button type="button" class="btn rounded-pill" id="pst-back-to-top">
+    <i class="fa-solid fa-arrow-up"></i>Back to top</button>
+
+  
+  <dialog id="pst-search-dialog">
+    
+<form class="bd-search d-flex align-items-center"
+      action="../search.html"
+      method="get">
+  <i class="fa-solid fa-magnifying-glass"></i>
+  <input type="search"
+         class="form-control"
+         name="q"
+         placeholder="Search the docs..."
+         aria-label="Search the docs..."
+         autocomplete="off"
+         autocorrect="off"
+         autocapitalize="off"
+         spellcheck="false"/>
+  <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd>K</kbd></span>
+</form>
+  </dialog>
+
+  <div class="pst-async-banner-revealer d-none">
+  <aside id="bd-header-version-warning" class="d-none d-print-none" aria-label="Version warning"></aside>
+</div>
+
+  
+    <header class="bd-header navbar navbar-expand-lg bd-navbar d-print-none">
+<div class="bd-header__inner bd-page-width">
+  <button class="pst-navbar-icon sidebar-toggle primary-toggle" aria-label="Site navigation">
+    <span class="fa-solid fa-bars"></span>
+  </button>
+  
+  
+  <div class=" navbar-header-items__start">
+    
+      <div class="navbar-item">
+
+  
+    
+  
+
+<a class="navbar-brand logo" href="../index.html">
+  
+  
+  
+  
+  
+    
+    
+      
+    
+    
+    <img src="../_static/logo_light.png" class="logo__image only-light" alt=""/>
+    <img src="../_static/logo_dark.png" class="logo__image only-dark pst-js-only" alt=""/>
+  
+  
+    <p class="title logo__title">Dendritic Modeling</p>
+  
+</a></div>
+    
+  </div>
+  
+  <div class=" navbar-header-items">
+    
+    <div class="me-auto navbar-header-items__center">
+      
+        <div class="navbar-item">
+<nav>
+  <ul class="bd-navbar-elements navbar-nav">
+    
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../introduction.html">
+    Introduction
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../installation.html">
+    Installation and Setup
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../quickstart.html">
+    Quickstart Guide
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../core_concepts.html">
+    Core Concepts
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../architectures/index.html">
+    Network Architectures and Design
+  </a>
+</li>
+
+
+<li class="nav-item current active">
+  <a class="nav-link nav-internal" href="#">
+    Training Strategies and Usage
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../analysis/index.html">
+    Analysis Tools and Methods
+  </a>
+</li>
+
+            <li class="nav-item dropdown">
+                <button class="btn dropdown-toggle nav-item" type="button"
+                data-bs-toggle="dropdown" aria-expanded="false"
+                aria-controls="pst-nav-more-links">
+                    More
+                </button>
+                <ul id="pst-nav-more-links" class="dropdown-menu">
+                    
+<li class=" ">
+  <a class="nav-link dropdown-item nav-internal" href="../performance/index.html">
+    Performance, Speed, and Efficiency
+  </a>
+</li>
+
+
+<li class=" ">
+  <a class="nav-link dropdown-item nav-internal" href="../faq.html">
+    Frequently Asked Questions (FAQ)
+  </a>
+</li>
+
+
+<li class=" ">
+  <a class="nav-link dropdown-item nav-internal" href="../glossary.html">
+    Glossary
+  </a>
+</li>
+
+
+<li class=" ">
+  <a class="nav-link dropdown-item nav-internal" href="../troubleshooting.html">
+    Troubleshooting Guide
+  </a>
+</li>
+
+
+<li class=" ">
+  <a class="nav-link dropdown-item nav-internal" href="../contributing.html">
+    Contributing Guide
+  </a>
+</li>
+
+                </ul>
+            </li>
+            
+  </ul>
+</nav></div>
+      
+    </div>
+    
+    
+    <div class="navbar-header-items__end">
+      
+        <div class="navbar-item navbar-persistent--container">
+          
+
+<button class="btn search-button-field search-button__button pst-js-only" title="Search" aria-label="Search" data-bs-placement="bottom" data-bs-toggle="tooltip">
+ <i class="fa-solid fa-magnifying-glass"></i>
+ <span class="search-button__default-text">Search</span>
+ <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd class="kbd-shortcut__modifier">K</kbd></span>
+</button>
+        </div>
+      
+      
+        <div class="navbar-item">
+<form class="bd-search d-flex align-items-center"
+      action="../search.html"
+      method="get">
+  <i class="fa-solid fa-magnifying-glass"></i>
+  <input type="search"
+         class="form-control"
+         name="q"
+         placeholder="Search the docs..."
+         aria-label="Search the docs..."
+         autocomplete="off"
+         autocorrect="off"
+         autocapitalize="off"
+         spellcheck="false"/>
+  <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd>K</kbd></span>
+</form></div>
+      
+        <div class="navbar-item"><ul class="navbar-icon-links"
+    aria-label="Icon Links">
+        <li class="nav-item">
+          
+          
+          
+          
+          
+          
+          
+          
+          <a href="https://github.com/KempnerInstitute/dendritic-modeling" title="GitHub" class="nav-link pst-navbar-icon" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><i class="fa-brands fa-square-github fa-lg" aria-hidden="true"></i>
+            <span class="sr-only">GitHub</span></a>
+        </li>
+        <li class="nav-item">
+          
+          
+          
+          
+          
+          
+          
+          
+          <a href="https://twitter.com/KempnerInstitute" title="Twitter" class="nav-link pst-navbar-icon" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><i class="fa-brands fa-square-twitter fa-lg" aria-hidden="true"></i>
+            <span class="sr-only">Twitter</span></a>
+        </li>
+</ul></div>
+      
+    </div>
+    
+  </div>
+  
+  
+    <div class="navbar-persistent--mobile">
+
+<button class="btn search-button-field search-button__button pst-js-only" title="Search" aria-label="Search" data-bs-placement="bottom" data-bs-toggle="tooltip">
+ <i class="fa-solid fa-magnifying-glass"></i>
+ <span class="search-button__default-text">Search</span>
+ <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd class="kbd-shortcut__modifier">K</kbd></span>
+</button>
+    </div>
+  
+
+  
+    <button class="pst-navbar-icon sidebar-toggle secondary-toggle" aria-label="On this page">
+      <span class="fa-solid fa-outdent"></span>
+    </button>
+  
+</div>
+
+    </header>
+  
+
+  <div class="bd-container">
+    <div class="bd-container__inner bd-page-width">
+      
+      
+      
+      <dialog id="pst-primary-sidebar-modal"></dialog>
+      <div id="pst-primary-sidebar" class="bd-sidebar-primary bd-sidebar">
+        
+
+  
+  <div class="sidebar-header-items sidebar-primary__section">
+    
+    
+      <div class="sidebar-header-items__center">
+        
+          
+          
+            <div class="navbar-item">
+<nav>
+  <ul class="bd-navbar-elements navbar-nav">
+    
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../introduction.html">
+    Introduction
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../installation.html">
+    Installation and Setup
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../quickstart.html">
+    Quickstart Guide
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../core_concepts.html">
+    Core Concepts
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../architectures/index.html">
+    Network Architectures and Design
+  </a>
+</li>
+
+
+<li class="nav-item current active">
+  <a class="nav-link nav-internal" href="#">
+    Training Strategies and Usage
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../analysis/index.html">
+    Analysis Tools and Methods
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../performance/index.html">
+    Performance, Speed, and Efficiency
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../faq.html">
+    Frequently Asked Questions (FAQ)
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../glossary.html">
+    Glossary
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../troubleshooting.html">
+    Troubleshooting Guide
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../contributing.html">
+    Contributing Guide
+  </a>
+</li>
+
+  </ul>
+</nav></div>
+          
+        
+      </div>
+    
+    
+    
+      <div class="sidebar-header-items__end">
+        
+          <div class="navbar-item">
+<form class="bd-search d-flex align-items-center"
+      action="../search.html"
+      method="get">
+  <i class="fa-solid fa-magnifying-glass"></i>
+  <input type="search"
+         class="form-control"
+         name="q"
+         placeholder="Search the docs..."
+         aria-label="Search the docs..."
+         autocomplete="off"
+         autocorrect="off"
+         autocapitalize="off"
+         spellcheck="false"/>
+  <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd>K</kbd></span>
+</form></div>
+        
+          <div class="navbar-item"><ul class="navbar-icon-links"
+    aria-label="Icon Links">
+        <li class="nav-item">
+          
+          
+          
+          
+          
+          
+          
+          
+          <a href="https://github.com/KempnerInstitute/dendritic-modeling" title="GitHub" class="nav-link pst-navbar-icon" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><i class="fa-brands fa-square-github fa-lg" aria-hidden="true"></i>
+            <span class="sr-only">GitHub</span></a>
+        </li>
+        <li class="nav-item">
+          
+          
+          
+          
+          
+          
+          
+          
+          <a href="https://twitter.com/KempnerInstitute" title="Twitter" class="nav-link pst-navbar-icon" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><i class="fa-brands fa-square-twitter fa-lg" aria-hidden="true"></i>
+            <span class="sr-only">Twitter</span></a>
+        </li>
+</ul></div>
+        
+      </div>
+    
+  </div>
+  
+    <div class="sidebar-primary-items__start sidebar-primary__section">
+        <div class="sidebar-primary-item">
+<form class="bd-search d-flex align-items-center"
+      action="../search.html"
+      method="get">
+  <i class="fa-solid fa-magnifying-glass"></i>
+  <input type="search"
+         class="form-control"
+         name="q"
+         placeholder="Search the docs..."
+         aria-label="Search the docs..."
+         autocomplete="off"
+         autocorrect="off"
+         autocapitalize="off"
+         spellcheck="false"/>
+  <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd>K</kbd></span>
+</form></div>
+        <div class="sidebar-primary-item">
+<nav class="bd-docs-nav bd-links"
+     aria-label="Section Navigation">
+  <p class="bd-links__title" role="heading" aria-level="1">Section Navigation</p>
+  <div class="bd-toc-item navbar-nav"></div>
+</nav></div>
+    </div>
+  
+  
+  <div class="sidebar-primary-items__end sidebar-primary__section">
+      <div class="sidebar-primary-item">
+<div id="ethical-ad-placement"
+      class="flat"
+      data-ea-publisher="readthedocs"
+      data-ea-type="readthedocs-sidebar"
+      data-ea-manual="true">
+</div></div>
+  </div>
+
+
+      </div>
+      
+      <main id="main-content" class="bd-main" role="main">
+        
+        
+          <div class="bd-content">
+            <div class="bd-article-container">
+              
+              <div class="bd-header-article d-print-none">
+<div class="header-article-items header-article__inner">
+  
+    <div class="header-article-items__start">
+      
+        <div class="header-article-item">
+
+<nav aria-label="Breadcrumb" class="d-print-none">
+  <ul class="bd-breadcrumbs">
+    
+    <li class="breadcrumb-item breadcrumb-home">
+      <a href="../index.html" class="nav-link" aria-label="Home">
+        <i class="fa-solid fa-home"></i>
+      </a>
+    </li>
+    <li class="breadcrumb-item active" aria-current="page"><span class="ellipsis">Training Strategies and Usage</span></li>
+  </ul>
+</nav>
+</div>
+      
+    </div>
+  
+  
+</div>
+</div>
+              
+              
+              
+                
+<div id="searchbox"></div>
+                <article class="bd-article">
+                  
+  <section id="training-strategies-and-usage">
+<h1>Training Strategies and Usage<a class="headerlink" href="#training-strategies-and-usage" title="Link to this heading">#</a></h1>
+<p>This section covers the comprehensive suite of training strategies available in the Dendritic Modeling Framework, from standard backpropagation to bio-inspired local learning algorithms and large-scale distributed training.</p>
+<figure class="align-center" id="training-strategies-overview">
+<a class="reference internal image-reference" href="../_images/training_strategies.png"><img alt="Training loss curves comparing different training strategies" src="../_images/training_strategies.png" style="width: 90%;" />
+</a>
+<figcaption>
+<p><span class="caption-number">Figure 8 </span><span class="caption-text"><strong>Training Strategies Comparison</strong>: Performance comparison of standard, branch-wise, and two-step training strategies showing convergence characteristics and final performance levels.</span><a class="headerlink" href="#training-strategies-overview" title="Link to this image">#</a></p>
+</figcaption>
+</figure>
+<section id="overview">
+<h2>Overview<a class="headerlink" href="#overview" title="Link to this heading">#</a></h2>
+<p>The framework provides multiple training strategies to suit different research goals and computational constraints:</p>
+<ul class="simple">
+<li><p><strong>Standard Training</strong>: Traditional end-to-end backpropagation</p></li>
+<li><p><strong>Bio-inspired Strategies</strong>: Layer-wise, branch-wise, and local credit assignment</p></li>
+<li><p><strong>Specialized Methods</strong>: Two-step training, voltage stabilization</p></li>
+<li><p><strong>Distributed Training</strong>: FSDP for large-scale models</p></li>
+<li><p><strong>Custom Strategies</strong>: Extensible framework for novel approaches</p></li>
+</ul>
+<div class="toctree-wrapper compound">
+</div>
+</section>
+<section id="training-strategy-framework">
+<h2>Training Strategy Framework<a class="headerlink" href="#training-strategy-framework" title="Link to this heading">#</a></h2>
+<p>All training strategies in the framework follow a common interface that allows for easy switching and comparison:</p>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">train</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">learning_strategy</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;standard&quot;</span><span class="w">  </span><span class="c1"># or &quot;layer_wise&quot;, &quot;two_step&quot;, etc.</span>
+<span class="w">  </span><span class="nt">trainer</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">epochs</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">100</span>
+<span class="w">    </span><span class="nt">batch_size</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">64</span>
+<span class="w">    </span><span class="nt">learning_rate</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">0.001</span>
+<span class="w">  </span><span class="c1"># Strategy-specific parameters</span>
+<span class="w">  </span><span class="nt">strategy_params</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">key</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">value</span>
+</pre></div>
+</div>
+<p>This design enables researchers to:
+- Compare different learning algorithms on the same task
+- Gradually transition from standard to bio-inspired training
+- Combine strategies for hybrid approaches
+- Extend with custom implementations</p>
+</section>
+<section id="standard-training">
+<h2>Standard Training<a class="headerlink" href="#standard-training" title="Link to this heading">#</a></h2>
+<p>Traditional end-to-end backpropagation for fast, reliable training.</p>
+<section id="configuration">
+<h3>Configuration<a class="headerlink" href="#configuration" title="Link to this heading">#</a></h3>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">train</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">learning_strategy</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;standard&quot;</span>
+<span class="w">  </span><span class="nt">trainer</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">epochs</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">100</span>
+<span class="w">    </span><span class="nt">batch_size</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">64</span>
+<span class="w">    </span><span class="nt">learning_rate</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">0.001</span>
+<span class="w">    </span><span class="nt">optimizer</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;adam&quot;</span>
+<span class="w">    </span><span class="nt">scheduler</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;cosine&quot;</span>
+<span class="w">    </span><span class="nt">early_stopping</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+<span class="w">    </span><span class="nt">patience</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">10</span>
+</pre></div>
+</div>
+</section>
+<section id="features">
+<h3>Features<a class="headerlink" href="#features" title="Link to this heading">#</a></h3>
+<ul class="simple">
+<li><p><strong>Full end-to-end optimization</strong>: All parameters updated simultaneously</p></li>
+<li><p><strong>Standard optimizers</strong>: Adam, SGD, AdamW, RMSprop</p></li>
+<li><p><strong>Learning rate scheduling</strong>: Cosine, exponential, step, plateau</p></li>
+<li><p><strong>Early stopping</strong>: Automatic training termination</p></li>
+<li><p><strong>Gradient clipping</strong>: Prevent exploding gradients</p></li>
+</ul>
+</section>
+<section id="when-to-use">
+<h3>When to Use<a class="headerlink" href="#when-to-use" title="Link to this heading">#</a></h3>
+<ul class="simple">
+<li><p><strong>Quick prototyping</strong>: Fast iteration and testing</p></li>
+<li><p><strong>Baseline comparisons</strong>: Standard ML benchmark</p></li>
+<li><p><strong>Small to medium models</strong>: When computational resources allow</p></li>
+<li><p><strong>Well-understood tasks</strong>: Classification, regression</p></li>
+</ul>
+</section>
+<section id="performance-optimizations">
+<h3>Performance Optimizations<a class="headerlink" href="#performance-optimizations" title="Link to this heading">#</a></h3>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">train</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">learning_strategy</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;standard&quot;</span>
+<span class="w">  </span><span class="nt">trainer</span><span class="p">:</span>
+<span class="w">    </span><span class="c1"># Performance optimizations</span>
+<span class="w">    </span><span class="nt">enable_amp</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span><span class="w">              </span><span class="c1"># Mixed precision training</span>
+<span class="w">    </span><span class="nt">gradient_accumulation_steps</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">4</span><span class="w"> </span><span class="c1"># Larger effective batch size</span>
+<span class="w">    </span><span class="nt">dataloader_num_workers</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">8</span><span class="w">     </span><span class="c1"># Parallel data loading</span>
+<span class="w">    </span><span class="nt">pin_memory</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span><span class="w">              </span><span class="c1"># Faster GPU transfers</span>
+</pre></div>
+</div>
+</section>
+</section>
+<section id="bio-inspired-training-strategies">
+<h2>Bio-inspired Training Strategies<a class="headerlink" href="#bio-inspired-training-strategies" title="Link to this heading">#</a></h2>
+<p>Strategies that capture aspects of biological learning mechanisms.</p>
+<section id="layer-wise-training">
+<h3>Layer-wise Training<a class="headerlink" href="#layer-wise-training" title="Link to this heading">#</a></h3>
+<p>Sequential training of network layers, inspired by developmental biology.</p>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">train</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">learning_strategy</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;layer_wise&quot;</span>
+<span class="w">  </span><span class="nt">strategy_params</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">epochs_per_layer</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">20</span><span class="w">          </span><span class="c1"># Train each layer for 20 epochs</span>
+<span class="w">    </span><span class="nt">freeze_trained_layers</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span><span class="w">   </span><span class="c1"># Keep trained layers frozen</span>
+<span class="w">    </span><span class="nt">layer_wise_lr_decay</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">0.9</span><span class="w">      </span><span class="c1"># Reduce LR for deeper layers</span>
+</pre></div>
+</div>
+<p><strong>How it works</strong>:
+1. Train only the first layer while keeping others frozen
+2. Once converged, freeze first layer and train second layer
+3. Continue sequentially through all layers
+4. Optional final fine-tuning of all layers</p>
+<p><strong>Benefits</strong>:
+- Reduces memory usage for deep networks
+- More stable training for very deep dendrites
+- Biological plausibility (developmental learning)
+- Enhanced gradient flow in deep branches</p>
+<p><strong>Use cases</strong>:
+- Very deep dendritic networks
+- Limited computational resources
+- Studying layer-wise learning dynamics</p>
+</section>
+<section id="branch-wise-training">
+<h3>Branch-wise Training<a class="headerlink" href="#branch-wise-training" title="Link to this heading">#</a></h3>
+<p>Local credit assignment at the dendritic branch level.</p>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">train</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">learning_strategy</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;branch_wise&quot;</span>
+<span class="w">  </span><span class="nt">strategy_params</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">local_learning_rate</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">0.01</span><span class="w">     </span><span class="c1"># LR for local updates</span>
+<span class="w">    </span><span class="nt">global_learning_rate</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">0.001</span><span class="w">   </span><span class="c1"># LR for global updates</span>
+<span class="w">    </span><span class="nt">local_epochs</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">5</span><span class="w">               </span><span class="c1"># Local updates per global step</span>
+<span class="w">    </span><span class="nt">branch_independence</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">0.8</span><span class="w">      </span><span class="c1"># How independent branches are</span>
+</pre></div>
+</div>
+<p><strong>Mechanism</strong>:
+- Each dendritic branch maintains local learning objectives
+- Branches update based on local error signals
+- Periodic global coordination aligns branch objectives
+- Mimics biological local plasticity</p>
+<p><strong>Benefits</strong>:
+- High biological realism
+- Parallelizable across branches
+- Robust to local damage/noise
+- Novel learning dynamics</p>
+</section>
+<section id="two-step-training">
+<h3>Two-step Training<a class="headerlink" href="#two-step-training" title="Link to this heading">#</a></h3>
+<p>Local pre-training followed by global fine-tuning.</p>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">train</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">learning_strategy</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;two_step&quot;</span>
+<span class="w">  </span><span class="nt">strategy_params</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">pretrain_epochs</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">50</span><span class="w">           </span><span class="c1"># Local pre-training phase</span>
+<span class="w">    </span><span class="nt">finetune_epochs</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">30</span><span class="w">           </span><span class="c1"># Global fine-tuning phase</span>
+<span class="w">    </span><span class="nt">pretrain_learning_rate</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">0.01</span><span class="w">  </span><span class="c1"># Higher LR for pre-training</span>
+<span class="w">    </span><span class="nt">finetune_learning_rate</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">0.001</span><span class="w"> </span><span class="c1"># Lower LR for fine-tuning</span>
+<span class="w">    </span><span class="nt">freeze_pretrained</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">false</span><span class="w">      </span><span class="c1"># Allow updates during fine-tuning</span>
+</pre></div>
+</div>
+<p><strong>Phase 1 - Local Pre-training</strong>:
+- Each component learns local representations
+- Unsupervised or self-supervised objectives
+- High learning rates for fast convergence</p>
+<p><strong>Phase 2 - Global Fine-tuning</strong>:
+- End-to-end supervised training
+- Lower learning rates for stability
+- Fine-tune pre-trained representations</p>
+<p><strong>Benefits</strong>:
+- Stable training for complex architectures
+- Superior initialization to random
+- Combines unsupervised and supervised learning
+- Biologically plausible (development + experience)</p>
+</section>
+<section id="two-step-kl-training">
+<h3>Two-step KL Training<a class="headerlink" href="#two-step-kl-training" title="Link to this heading">#</a></h3>
+<p>Two-step training with KL divergence regularization.</p>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">train</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">learning_strategy</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;two_step_kl&quot;</span>
+<span class="w">  </span><span class="nt">strategy_params</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">pretrain_epochs</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">50</span>
+<span class="w">    </span><span class="nt">finetune_epochs</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">30</span>
+<span class="w">    </span><span class="nt">kl_weight</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">0.1</span><span class="w">               </span><span class="c1"># KL regularization strength</span>
+<span class="w">    </span><span class="nt">kl_schedule</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;linear&quot;</span><span class="w">        </span><span class="c1"># How KL weight changes</span>
+<span class="w">    </span><span class="nt">target_distribution</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;uniform&quot;</span><span class="w"> </span><span class="c1"># Target for KL divergence</span>
+</pre></div>
+</div>
+<p><strong>Additional Features</strong>:
+- KL divergence encourages specific activation patterns
+- Regularizes against overfitting during fine-tuning
+- Can target different activation distributions
+- Helps maintain biological realism</p>
+</section>
+<section id="voltage-stabilization-training">
+<h3>Voltage Stabilization Training<a class="headerlink" href="#voltage-stabilization-training" title="Link to this heading">#</a></h3>
+<p>Warm-up phase to stabilize dendritic voltages prior to main training.</p>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">train</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">learning_strategy</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;voltage_stabilization&quot;</span>
+<span class="w">  </span><span class="nt">strategy_params</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">stabilization_epochs</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">10</span><span class="w">     </span><span class="c1"># Warm-up phase duration</span>
+<span class="w">    </span><span class="nt">target_voltage</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">0.5</span><span class="w">          </span><span class="c1"># Target average voltage</span>
+<span class="w">    </span><span class="nt">stabilization_lr</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">0.1</span><span class="w">       </span><span class="c1"># High LR for quick stabilization</span>
+<span class="w">    </span><span class="nt">main_learning_rate</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">0.001</span><span class="w">   </span><span class="c1"># Standard LR post-stabilization</span>
+</pre></div>
+</div>
+<p><strong>Purpose</strong>:
+- Prevents initial training instability
+- Ensures biological voltage ranges
+- Particularly important for shunting inhibition
+- Improves convergence in deep dendritic networks</p>
+<p><strong>Use cases</strong>:
+- Networks with shunting inhibition
+- Deep dendritic architectures
+- When experiencing training instability</p>
+</section>
+</section>
+<section id="advanced-optimization-techniques">
+<h2>Advanced Optimization Techniques<a class="headerlink" href="#advanced-optimization-techniques" title="Link to this heading">#</a></h2>
+<section id="split-parameter-optimization">
+<h3>Split Parameter Optimization<a class="headerlink" href="#split-parameter-optimization" title="Link to this heading">#</a></h3>
+<p>Different optimization strategies for excitatory and inhibitory parameters.</p>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">train</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">trainer</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">split_params</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+<span class="w">    </span><span class="nt">excitatory_optimizer</span><span class="p">:</span>
+<span class="w">      </span><span class="nt">type</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;adam&quot;</span>
+<span class="w">      </span><span class="nt">lr</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">0.001</span>
+<span class="w">      </span><span class="nt">weight_decay</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">0.0001</span>
+<span class="w">    </span><span class="nt">inhibitory_optimizer</span><span class="p">:</span>
+<span class="w">      </span><span class="nt">type</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;sgd&quot;</span>
+<span class="w">      </span><span class="nt">lr</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">0.01</span>
+<span class="w">      </span><span class="nt">momentum</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">0.9</span>
+</pre></div>
+</div>
+<p><strong>Benefits</strong>:
+- Excitatory and inhibitory neurons have different dynamics
+- Allows for biologically-motivated learning rules
+- Can improve training stability
+- Enables asymmetric regularization</p>
+</section>
+<section id="adaptive-learning-rates">
+<h3>Adaptive Learning Rates<a class="headerlink" href="#adaptive-learning-rates" title="Link to this heading">#</a></h3>
+<p>Learning rate schedules adapted to dendritic networks.</p>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">train</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">trainer</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">scheduler</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;dendritic_adaptive&quot;</span>
+<span class="w">    </span><span class="nt">scheduler_params</span><span class="p">:</span>
+<span class="w">      </span><span class="nt">base_lr</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">0.001</span>
+<span class="w">      </span><span class="nt">branch_lr_factor</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">0.1</span><span class="w">      </span><span class="c1"># Distal branches learn slower</span>
+<span class="w">      </span><span class="nt">inhibitory_lr_factor</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">2.0</span><span class="w">  </span><span class="c1"># Inhibitory faster</span>
+<span class="w">      </span><span class="nt">adaptation_window</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">100</span><span class="w">     </span><span class="c1"># Adaptation frequency</span>
+</pre></div>
+</div>
+</section>
+<section id="gradient-scaling-and-clipping">
+<h3>Gradient Scaling and Clipping<a class="headerlink" href="#gradient-scaling-and-clipping" title="Link to this heading">#</a></h3>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">train</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">trainer</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">gradient_clipping</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+<span class="w">    </span><span class="nt">max_grad_norm</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">1.0</span>
+<span class="w">    </span><span class="nt">gradient_scaling</span><span class="p">:</span>
+<span class="w">      </span><span class="nt">method</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;dendritic_aware&quot;</span><span class="w">   </span><span class="c1"># Scale by branch depth</span>
+<span class="w">      </span><span class="nt">scale_factor</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">2.0</span>
+</pre></div>
+</div>
+</section>
+</section>
+<section id="distributed-training-with-fsdp">
+<h2>Distributed Training with FSDP<a class="headerlink" href="#distributed-training-with-fsdp" title="Link to this heading">#</a></h2>
+<p>For large-scale models requiring multiple GPUs or nodes.</p>
+<section id="basic-fsdp-configuration">
+<h3>Basic FSDP Configuration<a class="headerlink" href="#basic-fsdp-configuration" title="Link to this heading">#</a></h3>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">train</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">use_fsdp</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+<span class="w">  </span><span class="nt">fsdp_config</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">mixed_precision</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+<span class="w">    </span><span class="nt">sharding_strategy</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;full&quot;</span><span class="w">    </span><span class="c1"># &quot;full&quot;, &quot;grad_op&quot;, &quot;no_shard&quot;</span>
+<span class="w">    </span><span class="nt">cpu_offload</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">false</span><span class="w">          </span><span class="c1"># Keep parameters on GPU</span>
+<span class="w">    </span><span class="nt">backward_prefetch</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span><span class="w">     </span><span class="c1"># Optimize communication</span>
+<span class="w">    </span><span class="nt">limit_all_gathers</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span><span class="w">     </span><span class="c1"># Memory optimization</span>
+</pre></div>
+</div>
+</section>
+<section id="advanced-fsdp-settings">
+<h3>Advanced FSDP Settings<a class="headerlink" href="#advanced-fsdp-settings" title="Link to this heading">#</a></h3>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">train</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">fsdp_config</span><span class="p">:</span>
+<span class="w">    </span><span class="c1"># Memory management</span>
+<span class="w">    </span><span class="nt">cpu_offload</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span><span class="w">           </span><span class="c1"># Offload to CPU when memory-constrained</span>
+<span class="w">    </span><span class="nt">offload_params</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+<span class="w">    </span><span class="nt">offload_optimizer</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+
+<span class="w">    </span><span class="c1"># Communication optimization</span>
+<span class="w">    </span><span class="nt">backward_prefetch</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;backward_post&quot;</span>
+<span class="w">    </span><span class="nt">forward_prefetch</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">false</span>
+<span class="w">    </span><span class="nt">limit_all_gathers</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+
+<span class="w">    </span><span class="c1"># Precision settings</span>
+<span class="w">    </span><span class="nt">mixed_precision</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+<span class="w">    </span><span class="nt">mixed_precision_param_dtype</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;float16&quot;</span>
+<span class="w">    </span><span class="nt">mixed_precision_reduce_dtype</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;float16&quot;</span>
+<span class="w">    </span><span class="nt">mixed_precision_buffer_dtype</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;float16&quot;</span>
+</pre></div>
+</div>
+</section>
+<section id="multi-node-training">
+<h3>Multi-node Training<a class="headerlink" href="#multi-node-training" title="Link to this heading">#</a></h3>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># Launch distributed training across nodes</span>
+torchrun<span class="w"> </span>--nnodes<span class="o">=</span><span class="m">4</span><span class="w"> </span>--nproc_per_node<span class="o">=</span><span class="m">8</span><span class="w"> </span><span class="se">\</span>
+<span class="w">         </span>--master_addr<span class="o">=</span>node0<span class="w"> </span>--master_port<span class="o">=</span><span class="m">29500</span><span class="w"> </span><span class="se">\</span>
+<span class="w">         </span>train_experiments_fsdp.py<span class="w"> </span>config.yaml
+</pre></div>
+</div>
+</section>
+<section id="fsdp-performance-optimization">
+<h3>FSDP Performance Optimization<a class="headerlink" href="#fsdp-performance-optimization" title="Link to this heading">#</a></h3>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">train</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">fsdp_config</span><span class="p">:</span>
+<span class="w">    </span><span class="c1"># For maximum performance</span>
+<span class="w">    </span><span class="nt">sharding_strategy</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;full&quot;</span>
+<span class="w">    </span><span class="nt">mixed_precision</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+<span class="w">    </span><span class="nt">cpu_offload</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">false</span>
+<span class="w">    </span><span class="nt">backward_prefetch</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;backward_post&quot;</span>
+
+<span class="w">    </span><span class="c1"># For maximum memory efficiency</span>
+<span class="w">    </span><span class="nt">sharding_strategy</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;full&quot;</span>
+<span class="w">    </span><span class="nt">mixed_precision</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+<span class="w">    </span><span class="nt">cpu_offload</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+<span class="w">    </span><span class="nt">gradient_checkpointing</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+</pre></div>
+</div>
+</section>
+</section>
+<section id="memory-management-strategies">
+<h2>Memory Management Strategies<a class="headerlink" href="#memory-management-strategies" title="Link to this heading">#</a></h2>
+<section id="gradient-checkpointing">
+<h3>Gradient Checkpointing<a class="headerlink" href="#gradient-checkpointing" title="Link to this heading">#</a></h3>
+<p>Trade computation for memory by recomputing activations.</p>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">train</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">memory_management</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">gradient_checkpointing</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+<span class="w">    </span><span class="nt">checkpoint_ratio</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">0.5</span><span class="w">       </span><span class="c1"># Checkpoint every 2nd layer</span>
+</pre></div>
+</div>
+</section>
+<section id="gradient-accumulation">
+<h3>Gradient Accumulation<a class="headerlink" href="#gradient-accumulation" title="Link to this heading">#</a></h3>
+<p>Simulate larger batch sizes with limited memory.</p>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">train</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">trainer</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">batch_size</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">32</span><span class="w">              </span><span class="c1"># Physical batch size</span>
+<span class="w">    </span><span class="nt">gradient_accumulation_steps</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">4</span><span class="w">  </span><span class="c1"># Effective batch size = 128</span>
+</pre></div>
+</div>
+</section>
+<section id="mixed-precision-training">
+<h3>Mixed Precision Training<a class="headerlink" href="#mixed-precision-training" title="Link to this heading">#</a></h3>
+<p>Use float16 for training while maintaining float32 precision where needed.</p>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">train</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">trainer</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">enable_amp</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+<span class="w">    </span><span class="nt">grad_scaler_init_scale</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">65536.0</span>
+<span class="w">    </span><span class="nt">grad_scaler_growth_factor</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">2.0</span>
+</pre></div>
+</div>
+</section>
+</section>
+<section id="custom-training-strategies">
+<h2>Custom Training Strategies<a class="headerlink" href="#custom-training-strategies" title="Link to this heading">#</a></h2>
+<p>The framework allows for easy extension with custom training strategies.</p>
+<section id="creating-custom-strategies">
+<h3>Creating Custom Strategies<a class="headerlink" href="#creating-custom-strategies" title="Link to this heading">#</a></h3>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span><span class="w"> </span><span class="nn">dendritic_modeling.training.base</span><span class="w"> </span><span class="kn">import</span> <span class="n">BaseTrainingStrategy</span>
+
+<span class="k">class</span><span class="w"> </span><span class="nc">MyCustomStrategy</span><span class="p">(</span><span class="n">BaseTrainingStrategy</span><span class="p">):</span>
+    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">custom_param</span><span class="o">=</span><span class="mf">1.0</span><span class="p">):</span>
+        <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="fm">__init__</span><span class="p">()</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">custom_param</span> <span class="o">=</span> <span class="n">custom_param</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">training_step</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">batch</span><span class="p">,</span> <span class="n">model</span><span class="p">,</span> <span class="n">optimizer</span><span class="p">):</span>
+        <span class="c1"># Implement custom training logic</span>
+        <span class="n">loss</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">compute_custom_loss</span><span class="p">(</span><span class="n">batch</span><span class="p">,</span> <span class="n">model</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">loss</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">compute_custom_loss</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">batch</span><span class="p">,</span> <span class="n">model</span><span class="p">):</span>
+        <span class="c1"># Custom loss computation</span>
+        <span class="k">pass</span>
+</pre></div>
+</div>
+<p><strong>Register the strategy</strong>:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span><span class="w"> </span><span class="nn">dendritic_modeling.core.factory</span><span class="w"> </span><span class="kn">import</span> <span class="n">register_strategy</span>
+
+<span class="nd">@register_strategy</span><span class="p">(</span><span class="s2">&quot;my_custom&quot;</span><span class="p">)</span>
+<span class="k">class</span><span class="w"> </span><span class="nc">MyCustomStrategy</span><span class="p">(</span><span class="n">BaseTrainingStrategy</span><span class="p">):</span>
+    <span class="c1"># Implementation</span>
+</pre></div>
+</div>
+<p><strong>Use in configuration</strong>:</p>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">train</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">learning_strategy</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;my_custom&quot;</span>
+<span class="w">  </span><span class="nt">strategy_params</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">custom_param</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">2.0</span>
+</pre></div>
+</div>
+</section>
+<section id="example-custom-strategies">
+<h3>Example Custom Strategies<a class="headerlink" href="#example-custom-strategies" title="Link to this heading">#</a></h3>
+<p><strong>Hebbian Learning</strong>:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="k">class</span><span class="w"> </span><span class="nc">HebbianStrategy</span><span class="p">(</span><span class="n">BaseTrainingStrategy</span><span class="p">):</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">training_step</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">batch</span><span class="p">,</span> <span class="n">model</span><span class="p">,</span> <span class="n">optimizer</span><span class="p">):</span>
+        <span class="c1"># Implement Hebbian learning rule</span>
+        <span class="n">x</span><span class="p">,</span> <span class="n">y</span> <span class="o">=</span> <span class="n">batch</span>
+        <span class="n">activations</span> <span class="o">=</span> <span class="n">model</span><span class="o">.</span><span class="n">get_activations</span><span class="p">(</span><span class="n">x</span><span class="p">)</span>
+        <span class="n">hebbian_updates</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">compute_hebbian_updates</span><span class="p">(</span><span class="n">activations</span><span class="p">)</span>
+        <span class="n">model</span><span class="o">.</span><span class="n">apply_hebbian_updates</span><span class="p">(</span><span class="n">hebbian_updates</span><span class="p">)</span>
+</pre></div>
+</div>
+<p><strong>Contrastive Learning</strong>:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="k">class</span><span class="w"> </span><span class="nc">ContrastiveStrategy</span><span class="p">(</span><span class="n">BaseTrainingStrategy</span><span class="p">):</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">training_step</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">batch</span><span class="p">,</span> <span class="n">model</span><span class="p">,</span> <span class="n">optimizer</span><span class="p">):</span>
+        <span class="c1"># Implement contrastive divergence</span>
+        <span class="n">positive_phase</span> <span class="o">=</span> <span class="n">model</span><span class="o">.</span><span class="n">forward</span><span class="p">(</span><span class="n">batch</span><span class="p">)</span>
+        <span class="n">negative_phase</span> <span class="o">=</span> <span class="n">model</span><span class="o">.</span><span class="n">generate_negative_samples</span><span class="p">()</span>
+        <span class="n">loss</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">contrastive_loss</span><span class="p">(</span><span class="n">positive_phase</span><span class="p">,</span> <span class="n">negative_phase</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">loss</span>
+</pre></div>
+</div>
+</section>
+</section>
+<section id="performance-monitoring-and-debugging">
+<h2>Performance Monitoring and Debugging<a class="headerlink" href="#performance-monitoring-and-debugging" title="Link to this heading">#</a></h2>
+<section id="training-metrics">
+<h3>Training Metrics<a class="headerlink" href="#training-metrics" title="Link to this heading">#</a></h3>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">train</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">monitoring</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">log_frequency</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">100</span><span class="w">          </span><span class="c1"># Log every 100 steps</span>
+<span class="w">    </span><span class="nt">metrics</span><span class="p">:</span>
+<span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="s">&quot;loss&quot;</span>
+<span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="s">&quot;accuracy&quot;</span>
+<span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="s">&quot;gradient_norm&quot;</span>
+<span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="s">&quot;learning_rate&quot;</span>
+<span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="s">&quot;memory_usage&quot;</span>
+</pre></div>
+</div>
+</section>
+<section id="profiling-training">
+<h3>Profiling Training<a class="headerlink" href="#profiling-training" title="Link to this heading">#</a></h3>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">train</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">profiling</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">enabled</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+<span class="w">    </span><span class="nt">profile_memory</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+<span class="w">    </span><span class="nt">profile_compute</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+<span class="w">    </span><span class="nt">output_dir</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;./profiling_results&quot;</span>
+</pre></div>
+</div>
+</section>
+<section id="early-stopping-and-checkpointing">
+<h3>Early Stopping and Checkpointing<a class="headerlink" href="#early-stopping-and-checkpointing" title="Link to this heading">#</a></h3>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">train</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">trainer</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">early_stopping</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+<span class="w">    </span><span class="nt">patience</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">10</span><span class="w">                </span><span class="c1"># Stop at 10 epochs without progress</span>
+</pre></div>
+</div>
+<p>min_delta: 0.001           # Minimum progress threshold</p>
+<blockquote>
+<div><dl class="simple">
+<dt>checkpointing:</dt><dd><p>save_best: true           # Save best model
+save_frequency: 10        # Save every 10 epochs
+keep_last_n: 3           # Keep last 3 checkpoints</p>
+</dd>
+</dl>
+</div></blockquote>
+</section>
+</section>
+<section id="best-practices">
+<h2>Best Practices<a class="headerlink" href="#best-practices" title="Link to this heading">#</a></h2>
+<section id="choosing-training-strategies">
+<h3>Choosing Training Strategies<a class="headerlink" href="#choosing-training-strategies" title="Link to this heading">#</a></h3>
+<p><strong>Use Standard Training when</strong>:
+- Baseline comparisons needed
+- Fast prototyping required
+- Standard ML tasks
+- Computational resources abundant</p>
+<p><strong>Use Bio-inspired Training when</strong>:
+- Studying biological learning
+- Deep dendritic networks
+- Memory constraints exist
+- Novel learning dynamics desired</p>
+<p><strong>Use FSDP Training when</strong>:
+- Model size &gt; 1B parameters
+- Multiple GPUs available
+- Distributed computation needed
+- Maximum scaling required</p>
+</section>
+<section id="common-training-issues">
+<h3>Common Training Issues<a class="headerlink" href="#common-training-issues" title="Link to this heading">#</a></h3>
+<p><strong>Convergence Problems</strong>:
+- Try voltage stabilization for shunting inhibition
+- Use gradient clipping for deep dendrites
+- Consider layer-wise training for stability</p>
+<p><strong>Memory Issues</strong>:
+- Enable gradient checkpointing
+- Use gradient accumulation
+- Try CPU offloading with FSDP</p>
+<p><strong>Performance Issues</strong>:
+- Enable mixed precision training
+- Optimize data loading pipeline
+- Use appropriate batch sizes</p>
+</section>
+<section id="hyperparameter-guidelines">
+<h3>Hyperparameter Guidelines<a class="headerlink" href="#hyperparameter-guidelines" title="Link to this heading">#</a></h3>
+<p><strong>Learning Rates</strong>:
+- Standard training: 0.001 - 0.01
+- Bio-inspired: 0.01 - 0.1 (often higher)
+- Fine-tuning: 0.0001 - 0.001</p>
+<p><strong>Batch Sizes</strong>:
+- Small models: 32 - 128
+- Medium models: 64 - 256
+- Large models: 128 - 512 (with accumulation)</p>
+<p><strong>Training Duration</strong>:
+- Simple tasks: 50 - 100 epochs
+- Complex tasks: 100 - 500 epochs
+- Bio-inspired: Often requires more epochs</p>
+</section>
+</section>
+<section id="next-steps">
+<h2>Next Steps<a class="headerlink" href="#next-steps" title="Link to this heading">#</a></h2>
+<p>Explore specific training approaches:</p>
+<ol class="arabic simple">
+<li><p><strong>Try standard training</strong>: Start with <span class="xref std std-doc">strategies</span></p></li>
+<li><p><strong>Explore bio-inspired methods</strong>: Learn about layer-wise and branch-wise training</p></li>
+<li><p><strong>Scale up</strong>: Master <span class="xref std std-doc">distributed</span> training with FSDP</p></li>
+<li><p><strong>Optimize performance</strong>: Check <a class="reference internal" href="../performance/index.html"><span class="doc">Performance, Speed, and Efficiency</span></a></p></li>
+<li><p><strong>Create custom strategies</strong>: Extend with <span class="xref std std-doc">custom_training</span></p></li>
+</ol>
+<div class="admonition seealso">
+<p class="admonition-title">See also</p>
+<ul class="simple">
+<li><p><a class="reference internal" href="../architectures/index.html"><span class="doc">Network Architectures and Design</span></a> - Choosing the right architecture for your training strategy</p></li>
+<li><p><span class="xref std std-doc">../configuration/index</span> - Complete training configuration options</p></li>
+<li><p><a class="reference internal" href="../troubleshooting.html"><span class="doc">Troubleshooting Guide</span></a> - Solutions for common training issues</p></li>
+</ul>
+</div>
+</section>
+</section>
+
+
+                </article>
+              
+              
+              
+              
+              
+                <footer class="prev-next-footer d-print-none">
+                  
+<div class="prev-next-area">
+    <a class="left-prev"
+       href="../architectures/index.html"
+       title="previous page">
+      <i class="fa-solid fa-angle-left"></i>
+      <div class="prev-next-info">
+        <p class="prev-next-subtitle">previous</p>
+        <p class="prev-next-title">Network Architectures and Design</p>
+      </div>
+    </a>
+    <a class="right-next"
+       href="../analysis/index.html"
+       title="next page">
+      <div class="prev-next-info">
+        <p class="prev-next-subtitle">next</p>
+        <p class="prev-next-title">Analysis Tools and Methods</p>
+      </div>
+      <i class="fa-solid fa-angle-right"></i>
+    </a>
+</div>
+                </footer>
+              
+            </div>
+            
+            
+              
+                <dialog id="pst-secondary-sidebar-modal"></dialog>
+                <div id="pst-secondary-sidebar" class="bd-sidebar-secondary bd-toc"><div class="sidebar-secondary-items sidebar-secondary__inner">
+
+
+  <div class="sidebar-secondary-item">
+<div
+    id="pst-page-navigation-heading-2"
+    class="page-toc tocsection onthispage">
+    <i class="fa-solid fa-list"></i> On this page
+  </div>
+  <nav class="bd-toc-nav page-toc" aria-labelledby="pst-page-navigation-heading-2">
+    <ul class="visible nav section-nav flex-column">
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#overview">Overview</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#training-strategy-framework">Training Strategy Framework</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#standard-training">Standard Training</a><ul class="visible nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#configuration">Configuration</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#features">Features</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#when-to-use">When to Use</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#performance-optimizations">Performance Optimizations</a></li>
+</ul>
+</li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#bio-inspired-training-strategies">Bio-inspired Training Strategies</a><ul class="visible nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#layer-wise-training">Layer-wise Training</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#branch-wise-training">Branch-wise Training</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#two-step-training">Two-step Training</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#two-step-kl-training">Two-step KL Training</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#voltage-stabilization-training">Voltage Stabilization Training</a></li>
+</ul>
+</li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#advanced-optimization-techniques">Advanced Optimization Techniques</a><ul class="visible nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#split-parameter-optimization">Split Parameter Optimization</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#adaptive-learning-rates">Adaptive Learning Rates</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#gradient-scaling-and-clipping">Gradient Scaling and Clipping</a></li>
+</ul>
+</li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#distributed-training-with-fsdp">Distributed Training with FSDP</a><ul class="visible nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#basic-fsdp-configuration">Basic FSDP Configuration</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#advanced-fsdp-settings">Advanced FSDP Settings</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#multi-node-training">Multi-node Training</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#fsdp-performance-optimization">FSDP Performance Optimization</a></li>
+</ul>
+</li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#memory-management-strategies">Memory Management Strategies</a><ul class="visible nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#gradient-checkpointing">Gradient Checkpointing</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#gradient-accumulation">Gradient Accumulation</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#mixed-precision-training">Mixed Precision Training</a></li>
+</ul>
+</li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#custom-training-strategies">Custom Training Strategies</a><ul class="visible nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#creating-custom-strategies">Creating Custom Strategies</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#example-custom-strategies">Example Custom Strategies</a></li>
+</ul>
+</li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#performance-monitoring-and-debugging">Performance Monitoring and Debugging</a><ul class="visible nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#training-metrics">Training Metrics</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#profiling-training">Profiling Training</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#early-stopping-and-checkpointing">Early Stopping and Checkpointing</a></li>
+</ul>
+</li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#best-practices">Best Practices</a><ul class="visible nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#choosing-training-strategies">Choosing Training Strategies</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#common-training-issues">Common Training Issues</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#hyperparameter-guidelines">Hyperparameter Guidelines</a></li>
+</ul>
+</li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#next-steps">Next Steps</a></li>
+</ul>
+  </nav></div>
+
+  <div class="sidebar-secondary-item">
+
+  
+  <div class="tocsection editthispage">
+    <a href="https://github.com/KempnerInstitute/dendritic-modeling/edit/main/docs/training/index.rst">
+      <i class="fa-solid fa-pencil"></i>
+      
+      
+        
+          Edit on GitHub
+        
+      
+    </a>
+  </div>
+</div>
+
+  <div class="sidebar-secondary-item">
+  <div role="note" aria-label="source link">
+    <h3>This Page</h3>
+    <ul class="this-page-menu">
+      <li><a href="../_sources/training/index.rst.txt"
+            rel="nofollow">Show Source</a></li>
+    </ul>
+   </div></div>
+
+</div></div>
+              
+            
+          </div>
+          <footer class="bd-footer-content">
+            
+          </footer>
+        
+      </main>
+    </div>
+  </div>
+  
+  <!-- Scripts loaded after <body> so the DOM is not blocked -->
+  <script defer src="../_static/scripts/bootstrap.js?digest=8878045cc6db502f8baf"></script>
+<script defer src="../_static/scripts/pydata-sphinx-theme.js?digest=8878045cc6db502f8baf"></script>
+
+  <footer class="bd-footer">
+<div class="bd-footer__inner bd-page-width">
+  
+    <div class="footer-items__start">
+      
+        <div class="footer-item">
+
+  <p class="copyright">
+    
+      © Copyright 2024, Kempner Institute for the Study of Natural and Artificial Intelligence.
+      <br/>
+    
+  </p>
+</div>
+      
+        <div class="footer-item">
+
+  <p class="sphinx-version">
+    Created using <a href="https://www.sphinx-doc.org/">Sphinx</a> 8.1.3.
+    <br/>
+  </p>
+</div>
+      
+    </div>
+  
+  
+  
+    <div class="footer-items__end">
+      
+        <div class="footer-item">
+<p class="theme-version">
+  <!-- # L10n: Setting the PST URL as an argument as this does not need to be localized -->
+  Built with the <a href="https://pydata-sphinx-theme.readthedocs.io/en/stable/index.html">PyData Sphinx Theme</a> 0.16.1.
+</p></div>
+      
+    </div>
+  
+</div>
+
+  </footer>
+  </body>
+</html>

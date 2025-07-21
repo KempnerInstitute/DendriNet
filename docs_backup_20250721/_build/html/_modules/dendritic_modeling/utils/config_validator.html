@@ -1,0 +1,1110 @@
+
+<!DOCTYPE html>
+
+
+<html lang="en" data-content_root="../../../" >
+
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>dendritic_modeling.utils.config_validator &#8212; Dendritic Modeling Framework v0.1.0</title>
+  
+  
+  
+  <script data-cfasync="false">
+    document.documentElement.dataset.mode = localStorage.getItem("mode") || "";
+    document.documentElement.dataset.theme = localStorage.getItem("theme") || "";
+  </script>
+  <!--
+    this give us a css class that will be invisible only if js is disabled
+  -->
+  <noscript>
+    <style>
+      .pst-js-only { display: none !important; }
+
+    </style>
+  </noscript>
+  
+  <!-- Loaded before other Sphinx assets -->
+  <link href="../../../_static/styles/theme.css?digest=8878045cc6db502f8baf" rel="stylesheet" />
+<link href="../../../_static/styles/pydata-sphinx-theme.css?digest=8878045cc6db502f8baf" rel="stylesheet" />
+
+    <link rel="stylesheet" type="text/css" href="../../../_static/pygments.css?v=8f2a1f02" />
+    <link rel="stylesheet" type="text/css" href="../../../_static/graphviz.css?v=4ae1632d" />
+    <link rel="stylesheet" type="text/css" href="../../../_static/copybutton.css?v=76b2166b" />
+    <link rel="stylesheet" type="text/css" href="../../../_static/custom.css?v=eced55a1" />
+    <link rel="stylesheet" type="text/css" href="../../../_static/sphinx-design.min.css?v=95c83b7e" />
+    <link rel="stylesheet" type="text/css" href="../../../_static/custom.css?v=eced55a1" />
+  
+  <!-- So that users can add custom icons -->
+  <script src="../../../_static/scripts/fontawesome.js?digest=8878045cc6db502f8baf"></script>
+  <!-- Pre-loaded scripts that we'll load fully later -->
+  <link rel="preload" as="script" href="../../../_static/scripts/bootstrap.js?digest=8878045cc6db502f8baf" />
+<link rel="preload" as="script" href="../../../_static/scripts/pydata-sphinx-theme.js?digest=8878045cc6db502f8baf" />
+
+    <script src="../../../_static/documentation_options.js?v=38b66d78"></script>
+    <script src="../../../_static/doctools.js?v=9bcbadda"></script>
+    <script src="../../../_static/sphinx_highlight.js?v=dc90522c"></script>
+    <script src="../../../_static/clipboard.min.js?v=a7894cd8"></script>
+    <script src="../../../_static/copybutton.js?v=30646c52"></script>
+    <script src="../../../_static/design-tabs.js?v=f930bc37"></script>
+    <script crossorigin="anonymous" integrity="sha256-Ae2Vz/4ePdIu6ZyI/5ZGsYnb+m0JlOmKPjt6XZ9JJkA=" src="https://cdnjs.cloudflare.com/ajax/libs/require.js/2.3.4/require.min.js"></script>
+    <script>DOCUMENTATION_OPTIONS.pagename = '_modules/dendritic_modeling/utils/config_validator';</script>
+    <script src="../../../_static/custom.js"></script>
+    <link rel="author" title="About these documents" href="../../../about.html" />
+    <link rel="index" title="Index" href="../../../genindex.html" />
+    <link rel="search" title="Search" href="../../../search.html" />
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <meta name="docsearch:language" content="en"/>
+  <meta name="docsearch:version" content="0.1.0" />
+    <meta name="docbuild:last-update" content="Jul 21, 2025"/>
+  </head>
+  
+  
+  <body data-bs-spy="scroll" data-bs-target=".bd-toc-nav" data-offset="180" data-bs-root-margin="0px 0px -60%" data-default-mode="">
+
+  
+  
+  <div id="pst-skip-link" class="skip-link d-print-none"><a href="#main-content">Skip to main content</a></div>
+  
+  <div id="pst-scroll-pixel-helper"></div>
+  
+  <button type="button" class="btn rounded-pill" id="pst-back-to-top">
+    <i class="fa-solid fa-arrow-up"></i>Back to top</button>
+
+  
+  <dialog id="pst-search-dialog">
+    
+<form class="bd-search d-flex align-items-center"
+      action="../../../search.html"
+      method="get">
+  <i class="fa-solid fa-magnifying-glass"></i>
+  <input type="search"
+         class="form-control"
+         name="q"
+         placeholder="Search the docs..."
+         aria-label="Search the docs..."
+         autocomplete="off"
+         autocorrect="off"
+         autocapitalize="off"
+         spellcheck="false"/>
+  <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd>K</kbd></span>
+</form>
+  </dialog>
+
+  <div class="pst-async-banner-revealer d-none">
+  <aside id="bd-header-version-warning" class="d-none d-print-none" aria-label="Version warning"></aside>
+</div>
+
+  
+    <header class="bd-header navbar navbar-expand-lg bd-navbar d-print-none">
+<div class="bd-header__inner bd-page-width">
+  <button class="pst-navbar-icon sidebar-toggle primary-toggle" aria-label="Site navigation">
+    <span class="fa-solid fa-bars"></span>
+  </button>
+  
+  
+  <div class=" navbar-header-items__start">
+    
+      <div class="navbar-item">
+
+  
+    
+  
+
+<a class="navbar-brand logo" href="../../../index.html">
+  
+  
+  
+  
+  
+    
+    
+      
+    
+    
+    <img src="../../../_static/logo_light.png" class="logo__image only-light" alt=""/>
+    <img src="../../../_static/logo_dark.png" class="logo__image only-dark pst-js-only" alt=""/>
+  
+  
+    <p class="title logo__title">Dendritic Modeling</p>
+  
+</a></div>
+    
+  </div>
+  
+  <div class=" navbar-header-items">
+    
+    <div class="me-auto navbar-header-items__center">
+      
+        <div class="navbar-item">
+<nav>
+  <ul class="bd-navbar-elements navbar-nav">
+    
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../../introduction.html">
+    Introduction
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../../installation.html">
+    Installation and Setup
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../../quickstart.html">
+    Quickstart Guide
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../../core_concepts.html">
+    Core Concepts
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../../architectures/index.html">
+    Network Architectures and Design
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../../training/index.html">
+    Training Strategies and Usage
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../../analysis/index.html">
+    Analysis Tools and Methods
+  </a>
+</li>
+
+            <li class="nav-item dropdown">
+                <button class="btn dropdown-toggle nav-item" type="button"
+                data-bs-toggle="dropdown" aria-expanded="false"
+                aria-controls="pst-nav-more-links">
+                    More
+                </button>
+                <ul id="pst-nav-more-links" class="dropdown-menu">
+                    
+<li class=" ">
+  <a class="nav-link dropdown-item nav-internal" href="../../../performance/index.html">
+    Performance, Speed, and Efficiency
+  </a>
+</li>
+
+
+<li class=" ">
+  <a class="nav-link dropdown-item nav-internal" href="../../../faq.html">
+    Frequently Asked Questions (FAQ)
+  </a>
+</li>
+
+
+<li class=" ">
+  <a class="nav-link dropdown-item nav-internal" href="../../../glossary.html">
+    Glossary
+  </a>
+</li>
+
+
+<li class=" ">
+  <a class="nav-link dropdown-item nav-internal" href="../../../troubleshooting.html">
+    Troubleshooting Guide
+  </a>
+</li>
+
+
+<li class=" ">
+  <a class="nav-link dropdown-item nav-internal" href="../../../contributing.html">
+    Contributing Guide
+  </a>
+</li>
+
+                </ul>
+            </li>
+            
+  </ul>
+</nav></div>
+      
+    </div>
+    
+    
+    <div class="navbar-header-items__end">
+      
+        <div class="navbar-item navbar-persistent--container">
+          
+
+<button class="btn search-button-field search-button__button pst-js-only" title="Search" aria-label="Search" data-bs-placement="bottom" data-bs-toggle="tooltip">
+ <i class="fa-solid fa-magnifying-glass"></i>
+ <span class="search-button__default-text">Search</span>
+ <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd class="kbd-shortcut__modifier">K</kbd></span>
+</button>
+        </div>
+      
+      
+        <div class="navbar-item">
+<form class="bd-search d-flex align-items-center"
+      action="../../../search.html"
+      method="get">
+  <i class="fa-solid fa-magnifying-glass"></i>
+  <input type="search"
+         class="form-control"
+         name="q"
+         placeholder="Search the docs..."
+         aria-label="Search the docs..."
+         autocomplete="off"
+         autocorrect="off"
+         autocapitalize="off"
+         spellcheck="false"/>
+  <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd>K</kbd></span>
+</form></div>
+      
+        <div class="navbar-item"><ul class="navbar-icon-links"
+    aria-label="Icon Links">
+        <li class="nav-item">
+          
+          
+          
+          
+          
+          
+          
+          
+          <a href="https://github.com/KempnerInstitute/dendritic-modeling" title="GitHub" class="nav-link pst-navbar-icon" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><i class="fa-brands fa-square-github fa-lg" aria-hidden="true"></i>
+            <span class="sr-only">GitHub</span></a>
+        </li>
+        <li class="nav-item">
+          
+          
+          
+          
+          
+          
+          
+          
+          <a href="https://twitter.com/KempnerInstitute" title="Twitter" class="nav-link pst-navbar-icon" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><i class="fa-brands fa-square-twitter fa-lg" aria-hidden="true"></i>
+            <span class="sr-only">Twitter</span></a>
+        </li>
+</ul></div>
+      
+    </div>
+    
+  </div>
+  
+  
+    <div class="navbar-persistent--mobile">
+
+<button class="btn search-button-field search-button__button pst-js-only" title="Search" aria-label="Search" data-bs-placement="bottom" data-bs-toggle="tooltip">
+ <i class="fa-solid fa-magnifying-glass"></i>
+ <span class="search-button__default-text">Search</span>
+ <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd class="kbd-shortcut__modifier">K</kbd></span>
+</button>
+    </div>
+  
+
+  
+</div>
+
+    </header>
+  
+
+  <div class="bd-container">
+    <div class="bd-container__inner bd-page-width">
+      
+      
+      
+        
+      
+      <dialog id="pst-primary-sidebar-modal"></dialog>
+      <div id="pst-primary-sidebar" class="bd-sidebar-primary bd-sidebar">
+        
+
+  
+  <div class="sidebar-header-items sidebar-primary__section">
+    
+    
+      <div class="sidebar-header-items__center">
+        
+          
+          
+            <div class="navbar-item">
+<nav>
+  <ul class="bd-navbar-elements navbar-nav">
+    
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../../introduction.html">
+    Introduction
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../../installation.html">
+    Installation and Setup
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../../quickstart.html">
+    Quickstart Guide
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../../core_concepts.html">
+    Core Concepts
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../../architectures/index.html">
+    Network Architectures and Design
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../../training/index.html">
+    Training Strategies and Usage
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../../analysis/index.html">
+    Analysis Tools and Methods
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../../performance/index.html">
+    Performance, Speed, and Efficiency
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../../faq.html">
+    Frequently Asked Questions (FAQ)
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../../glossary.html">
+    Glossary
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../../troubleshooting.html">
+    Troubleshooting Guide
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../../contributing.html">
+    Contributing Guide
+  </a>
+</li>
+
+  </ul>
+</nav></div>
+          
+        
+      </div>
+    
+    
+    
+      <div class="sidebar-header-items__end">
+        
+          <div class="navbar-item">
+<form class="bd-search d-flex align-items-center"
+      action="../../../search.html"
+      method="get">
+  <i class="fa-solid fa-magnifying-glass"></i>
+  <input type="search"
+         class="form-control"
+         name="q"
+         placeholder="Search the docs..."
+         aria-label="Search the docs..."
+         autocomplete="off"
+         autocorrect="off"
+         autocapitalize="off"
+         spellcheck="false"/>
+  <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd>K</kbd></span>
+</form></div>
+        
+          <div class="navbar-item"><ul class="navbar-icon-links"
+    aria-label="Icon Links">
+        <li class="nav-item">
+          
+          
+          
+          
+          
+          
+          
+          
+          <a href="https://github.com/KempnerInstitute/dendritic-modeling" title="GitHub" class="nav-link pst-navbar-icon" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><i class="fa-brands fa-square-github fa-lg" aria-hidden="true"></i>
+            <span class="sr-only">GitHub</span></a>
+        </li>
+        <li class="nav-item">
+          
+          
+          
+          
+          
+          
+          
+          
+          <a href="https://twitter.com/KempnerInstitute" title="Twitter" class="nav-link pst-navbar-icon" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><i class="fa-brands fa-square-twitter fa-lg" aria-hidden="true"></i>
+            <span class="sr-only">Twitter</span></a>
+        </li>
+</ul></div>
+        
+      </div>
+    
+  </div>
+  
+    <div class="sidebar-primary-items__start sidebar-primary__section">
+        <div class="sidebar-primary-item">
+<form class="bd-search d-flex align-items-center"
+      action="../../../search.html"
+      method="get">
+  <i class="fa-solid fa-magnifying-glass"></i>
+  <input type="search"
+         class="form-control"
+         name="q"
+         placeholder="Search the docs..."
+         aria-label="Search the docs..."
+         autocomplete="off"
+         autocorrect="off"
+         autocapitalize="off"
+         spellcheck="false"/>
+  <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd>K</kbd></span>
+</form></div>
+    </div>
+  
+  
+  <div class="sidebar-primary-items__end sidebar-primary__section">
+      <div class="sidebar-primary-item">
+<div id="ethical-ad-placement"
+      class="flat"
+      data-ea-publisher="readthedocs"
+      data-ea-type="readthedocs-sidebar"
+      data-ea-manual="true">
+</div></div>
+  </div>
+
+
+      </div>
+      
+      <main id="main-content" class="bd-main" role="main">
+        
+        
+          <div class="bd-content">
+            <div class="bd-article-container">
+              
+              <div class="bd-header-article d-print-none">
+<div class="header-article-items header-article__inner">
+  
+    <div class="header-article-items__start">
+      
+        <div class="header-article-item">
+
+<nav aria-label="Breadcrumb" class="d-print-none">
+  <ul class="bd-breadcrumbs">
+    
+    <li class="breadcrumb-item breadcrumb-home">
+      <a href="../../../index.html" class="nav-link" aria-label="Home">
+        <i class="fa-solid fa-home"></i>
+      </a>
+    </li>
+    
+    <li class="breadcrumb-item"><a href="../../index.html" class="nav-link">Module code</a></li>
+    
+    <li class="breadcrumb-item active" aria-current="page"><span class="ellipsis">dendritic_modeling.utils.config_validator</span></li>
+  </ul>
+</nav>
+</div>
+      
+    </div>
+  
+  
+</div>
+</div>
+              
+              
+              
+                
+<div id="searchbox"></div>
+                <article class="bd-article">
+                  
+  <h1>Source code for dendritic_modeling.utils.config_validator</h1><div class="highlight"><pre>
+<span></span><span class="ch">#!/usr/bin/env python3</span>
+<span class="sd">&quot;&quot;&quot;Configuration validation for dendritic networks&quot;&quot;&quot;</span>
+
+<span class="kn">import</span><span class="w"> </span><span class="nn">logging</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">typing</span><span class="w"> </span><span class="kn">import</span> <span class="n">Dict</span><span class="p">,</span> <span class="n">List</span>
+
+<span class="n">logger</span> <span class="o">=</span> <span class="n">logging</span><span class="o">.</span><span class="n">getLogger</span><span class="p">(</span><span class="vm">__name__</span><span class="p">)</span>
+
+
+<div class="viewcode-block" id="ConfigValidator">
+<a class="viewcode-back" href="../../../source/api/dendritic_modeling.html#dendritic_modeling.utils.ConfigValidator">[docs]</a>
+<span class="k">class</span><span class="w"> </span><span class="nc">ConfigValidator</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Validates configuration parameters for dendritic networks&quot;&quot;&quot;</span>
+
+<div class="viewcode-block" id="ConfigValidator.__init__">
+<a class="viewcode-back" href="../../../source/api/dendritic_modeling.html#dendritic_modeling.utils.ConfigValidator.__init__">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">config</span><span class="p">:</span> <span class="n">Dict</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">config</span> <span class="o">=</span> <span class="n">config</span>
+
+        <span class="c1"># Try different paths for network config</span>
+        <span class="k">if</span> <span class="s2">&quot;model&quot;</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">config</span> <span class="ow">and</span> <span class="s2">&quot;core_network&quot;</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">config</span><span class="p">[</span><span class="s2">&quot;model&quot;</span><span class="p">]:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">network_config</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">config</span><span class="p">[</span><span class="s2">&quot;model&quot;</span><span class="p">][</span><span class="s2">&quot;core_network&quot;</span><span class="p">]</span><span class="o">.</span><span class="n">get</span><span class="p">(</span>
+                <span class="s2">&quot;parameters&quot;</span><span class="p">,</span> <span class="p">{}</span>
+            <span class="p">)</span>
+        <span class="k">elif</span> <span class="s2">&quot;network&quot;</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">config</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">network_config</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">config</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;network&quot;</span><span class="p">,</span> <span class="p">{})</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">network_config</span> <span class="o">=</span> <span class="p">{}</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">errors</span><span class="p">:</span> <span class="n">List</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">warnings</span><span class="p">:</span> <span class="n">List</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="p">[]</span></div>
+
+
+<div class="viewcode-block" id="ConfigValidator.validate">
+<a class="viewcode-back" href="../../../source/api/dendritic_modeling.html#dendritic_modeling.utils.ConfigValidator.validate">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">validate</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">bool</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Validate all constraints and return True if config is valid&quot;&quot;&quot;</span>
+        <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s2">&quot;Starting configuration validation&quot;</span><span class="p">)</span>
+
+        <span class="c1"># Extract key parameters</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">extract_parameters</span><span class="p">()</span>
+
+        <span class="c1"># Run all checks</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">check_input_mode_consistency</span><span class="p">()</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">check_layer_dimensions</span><span class="p">()</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">check_synapses_per_branch</span><span class="p">()</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">check_topk_constraints</span><span class="p">()</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">check_branch_factors</span><span class="p">()</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">check_empty_lists</span><span class="p">()</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">check_transfer_dimensions</span><span class="p">()</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">check_biological_plausibility</span><span class="p">()</span>
+
+        <span class="c1"># Report results</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">report_results</span><span class="p">()</span>
+
+        <span class="k">return</span> <span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">errors</span><span class="p">)</span> <span class="o">==</span> <span class="mi">0</span></div>
+
+
+<div class="viewcode-block" id="ConfigValidator.extract_parameters">
+<a class="viewcode-back" href="../../../source/api/dendritic_modeling.html#dendritic_modeling.utils.ConfigValidator.extract_parameters">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">extract_parameters</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Extract key parameters from config&quot;&quot;&quot;</span>
+        <span class="c1"># Get transfer params first to determine input_dim</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">transfer_params</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">network_config</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;transfer_params&quot;</span><span class="p">,</span> <span class="p">{})</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">input_mode</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">transfer_params</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;input_mode&quot;</span><span class="p">,</span> <span class="mi">0</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">independent_pathways</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">transfer_params</span><span class="o">.</span><span class="n">get</span><span class="p">(</span>
+            <span class="s2">&quot;independent_pathways&quot;</span><span class="p">,</span> <span class="kc">False</span>
+        <span class="p">)</span>
+
+        <span class="c1"># Get input dimension from task config (preferred) or data config (fallback)</span>
+        <span class="n">task_config</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">config</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;task&quot;</span><span class="p">,</span> <span class="p">{})</span>
+        <span class="n">data_config</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">config</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;data&quot;</span><span class="p">,</span> <span class="p">{})</span>
+        <span class="n">dataset_name</span> <span class="o">=</span> <span class="n">task_config</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;dataset&quot;</span><span class="p">,</span> <span class="s2">&quot;&quot;</span><span class="p">)</span> <span class="ow">or</span> <span class="n">data_config</span><span class="o">.</span><span class="n">get</span><span class="p">(</span>
+            <span class="s2">&quot;dataset_name&quot;</span><span class="p">,</span> <span class="s2">&quot;&quot;</span>
+        <span class="p">)</span>
+
+        <span class="k">if</span> <span class="n">dataset_name</span> <span class="o">==</span> <span class="s2">&quot;cifar10&quot;</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">input_dim</span> <span class="o">=</span> <span class="mi">3072</span>  <span class="c1"># 32x32x3</span>
+        <span class="k">elif</span> <span class="n">dataset_name</span> <span class="o">==</span> <span class="s2">&quot;imagenet&quot;</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">input_dim</span> <span class="o">=</span> <span class="mi">150528</span>  <span class="c1"># 224x224x3</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">input_dim</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">network_config</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;input_dim&quot;</span><span class="p">,</span> <span class="mi">0</span><span class="p">)</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">excitatory_layer_sizes</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">network_config</span><span class="o">.</span><span class="n">get</span><span class="p">(</span>
+            <span class="s2">&quot;excitatory_layer_sizes&quot;</span><span class="p">,</span> <span class="p">[]</span>
+        <span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">inhibitory_layer_sizes</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">network_config</span><span class="o">.</span><span class="n">get</span><span class="p">(</span>
+            <span class="s2">&quot;inhibitory_layer_sizes&quot;</span><span class="p">,</span> <span class="p">[]</span>
+        <span class="p">)</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">excitatory_branch_factors</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">network_config</span><span class="o">.</span><span class="n">get</span><span class="p">(</span>
+            <span class="s2">&quot;excitatory_branch_factors&quot;</span><span class="p">,</span> <span class="p">[]</span>
+        <span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">inhibitory_branch_factors</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">network_config</span><span class="o">.</span><span class="n">get</span><span class="p">(</span>
+            <span class="s2">&quot;inhibitory_branch_factors&quot;</span><span class="p">,</span> <span class="p">[]</span>
+        <span class="p">)</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">ee_synapses</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">network_config</span><span class="o">.</span><span class="n">get</span><span class="p">(</span>
+            <span class="s2">&quot;ee_synapses_per_branch_per_layer&quot;</span><span class="p">,</span> <span class="p">[]</span>
+        <span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">ei_synapses</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">network_config</span><span class="o">.</span><span class="n">get</span><span class="p">(</span>
+            <span class="s2">&quot;ei_synapses_per_branch_per_layer&quot;</span><span class="p">,</span> <span class="p">[]</span>
+        <span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">ie_synapses</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">network_config</span><span class="o">.</span><span class="n">get</span><span class="p">(</span>
+            <span class="s2">&quot;ie_synapses_per_branch_per_layer&quot;</span><span class="p">,</span> <span class="p">[]</span>
+        <span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">ii_synapses</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">network_config</span><span class="o">.</span><span class="n">get</span><span class="p">(</span>
+            <span class="s2">&quot;ii_synapses_per_branch_per_layer&quot;</span><span class="p">,</span> <span class="p">[]</span>
+        <span class="p">)</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">num_layers</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">excitatory_layer_sizes</span><span class="p">)</span>
+
+        <span class="c1"># Transfer dimensions</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">excitatory_dim</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">transfer_params</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;excitatory_dim&quot;</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">inhibitory_dim</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">transfer_params</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;inhibitory_dim&quot;</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="ConfigValidator.check_input_mode_consistency">
+<a class="viewcode-back" href="../../../source/api/dendritic_modeling.html#dendritic_modeling.utils.ConfigValidator.check_input_mode_consistency">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">check_input_mode_consistency</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Check input_mode and independent_pathways consistency&quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">input_mode</span> <span class="o">==</span> <span class="mi">0</span> <span class="ow">and</span> <span class="bp">self</span><span class="o">.</span><span class="n">independent_pathways</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">errors</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="s2">&quot;input_mode=0 requires independent_pathways=False&quot;</span><span class="p">)</span>
+        <span class="k">elif</span> <span class="bp">self</span><span class="o">.</span><span class="n">input_mode</span> <span class="o">==</span> <span class="mi">1</span> <span class="ow">and</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">independent_pathways</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">errors</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="s2">&quot;input_mode=1 requires independent_pathways=True&quot;</span><span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="ConfigValidator.check_layer_dimensions">
+<a class="viewcode-back" href="../../../source/api/dendritic_modeling.html#dendritic_modeling.utils.ConfigValidator.check_layer_dimensions">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">check_layer_dimensions</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Check layer size consistency&quot;&quot;&quot;</span>
+        <span class="n">exc_layers</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">excitatory_layer_sizes</span><span class="p">)</span>
+        <span class="n">inh_layers</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">inhibitory_layer_sizes</span><span class="p">)</span>
+
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">input_mode</span> <span class="o">==</span> <span class="mi">1</span><span class="p">:</span>
+            <span class="c1"># For input_mode=1, inhibitory layers can be:</span>
+            <span class="c1"># - Empty (no inhibitory layers)</span>
+            <span class="c1"># - Equal to excitatory layers (allowing 0 values for some layers)</span>
+            <span class="c1"># - One less than excitatory layers</span>
+            <span class="k">if</span> <span class="n">inh_layers</span> <span class="ow">not</span> <span class="ow">in</span> <span class="p">[</span><span class="mi">0</span><span class="p">,</span> <span class="n">exc_layers</span> <span class="o">-</span> <span class="mi">1</span><span class="p">,</span> <span class="n">exc_layers</span><span class="p">]:</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">errors</span><span class="o">.</span><span class="n">append</span><span class="p">(</span>
+                    <span class="sa">f</span><span class="s2">&quot;For input_mode=1, inhibitory layer count (</span><span class="si">{</span><span class="n">inh_layers</span><span class="si">}</span><span class="s2">) must be &quot;</span>
+                    <span class="sa">f</span><span class="s2">&quot;0, </span><span class="si">{</span><span class="n">exc_layers</span><span class="o">-</span><span class="mi">1</span><span class="si">}</span><span class="s2">, or </span><span class="si">{</span><span class="n">exc_layers</span><span class="si">}</span><span class="s2"> (excitatory count: </span><span class="si">{</span><span class="n">exc_layers</span><span class="si">}</span><span class="s2">)&quot;</span>
+                <span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="c1"># For other input modes, they should match</span>
+            <span class="k">if</span> <span class="n">exc_layers</span> <span class="o">!=</span> <span class="n">inh_layers</span><span class="p">:</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">errors</span><span class="o">.</span><span class="n">append</span><span class="p">(</span>
+                    <span class="sa">f</span><span class="s2">&quot;Mismatch in layer counts - &quot;</span>
+                    <span class="sa">f</span><span class="s2">&quot;excitatory: </span><span class="si">{</span><span class="n">exc_layers</span><span class="si">}</span><span class="s2">, &quot;</span>
+                    <span class="sa">f</span><span class="s2">&quot;inhibitory: </span><span class="si">{</span><span class="n">inh_layers</span><span class="si">}</span><span class="s2">&quot;</span>
+                <span class="p">)</span>
+
+        <span class="c1"># Check for zero-sized layers</span>
+        <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="n">exc</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">excitatory_layer_sizes</span><span class="p">):</span>
+            <span class="k">if</span> <span class="n">exc</span> <span class="o">&lt;=</span> <span class="mi">0</span><span class="p">:</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">errors</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Layer </span><span class="si">{</span><span class="n">i</span><span class="si">}</span><span class="s2"> has non-positive excitatory size: </span><span class="si">{</span><span class="n">exc</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+
+        <span class="c1"># Only check inhibitory if they exist</span>
+        <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="n">inh</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">inhibitory_layer_sizes</span><span class="p">):</span>
+            <span class="k">if</span> <span class="n">inh</span> <span class="o">&lt;</span> <span class="mi">0</span><span class="p">:</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">errors</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Layer </span><span class="si">{</span><span class="n">i</span><span class="si">}</span><span class="s2"> has negative inhibitory size: </span><span class="si">{</span><span class="n">inh</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="ConfigValidator.check_synapses_per_branch">
+<a class="viewcode-back" href="../../../source/api/dendritic_modeling.html#dendritic_modeling.utils.ConfigValidator.check_synapses_per_branch">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">check_synapses_per_branch</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Check synapses per branch constraints&quot;&quot;&quot;</span>
+        <span class="c1"># Determine expected lengths (empty lists will be extended with default=1)</span>
+        <span class="n">expected_len</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">num_layers</span>
+
+        <span class="c1"># Check each synapse type</span>
+        <span class="k">for</span> <span class="n">layer_idx</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">expected_len</span><span class="p">):</span>
+            <span class="c1"># Get dimensions for this layer</span>
+            <span class="k">if</span> <span class="n">layer_idx</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
+                <span class="c1"># First layer receives from transfer/encoder</span>
+                <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">independent_pathways</span><span class="p">:</span>
+                    <span class="n">exc_input</span> <span class="o">=</span> <span class="p">(</span>
+                        <span class="bp">self</span><span class="o">.</span><span class="n">excitatory_dim</span>
+                        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">excitatory_dim</span>
+                        <span class="k">else</span> <span class="bp">self</span><span class="o">.</span><span class="n">input_dim</span> <span class="o">//</span> <span class="mi">2</span>
+                    <span class="p">)</span>
+                    <span class="n">inh_input</span> <span class="o">=</span> <span class="p">(</span>
+                        <span class="bp">self</span><span class="o">.</span><span class="n">inhibitory_dim</span>
+                        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">inhibitory_dim</span>
+                        <span class="k">else</span> <span class="bp">self</span><span class="o">.</span><span class="n">input_dim</span> <span class="o">//</span> <span class="mi">2</span>
+                    <span class="p">)</span>
+                <span class="k">else</span><span class="p">:</span>
+                    <span class="n">exc_input</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">input_dim</span>
+                    <span class="n">inh_input</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">input_dim</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="c1"># Subsequent layers receive from previous layer</span>
+                <span class="n">exc_input</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">excitatory_layer_sizes</span><span class="p">[</span><span class="n">layer_idx</span> <span class="o">-</span> <span class="mi">1</span><span class="p">]</span>
+                <span class="c1"># Only get inhibitory input if inhibitory layers exist</span>
+                <span class="k">if</span> <span class="n">layer_idx</span> <span class="o">-</span> <span class="mi">1</span> <span class="o">&lt;</span> <span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">inhibitory_layer_sizes</span><span class="p">):</span>
+                    <span class="n">inh_input</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">inhibitory_layer_sizes</span><span class="p">[</span><span class="n">layer_idx</span> <span class="o">-</span> <span class="mi">1</span><span class="p">]</span>
+                <span class="k">else</span><span class="p">:</span>
+                    <span class="n">inh_input</span> <span class="o">=</span> <span class="mi">0</span>
+
+            <span class="c1"># Inhibitory input to excitatory cells comes from same layer (if exists)</span>
+            <span class="k">if</span> <span class="n">layer_idx</span> <span class="o">&lt;</span> <span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">inhibitory_layer_sizes</span><span class="p">):</span>
+                <span class="n">inh_to_exc</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">inhibitory_layer_sizes</span><span class="p">[</span><span class="n">layer_idx</span><span class="p">]</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="n">inh_to_exc</span> <span class="o">=</span> <span class="mi">0</span>
+
+            <span class="c1"># Check EE synapses</span>
+            <span class="n">ee_val</span> <span class="o">=</span> <span class="p">(</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">ee_synapses</span><span class="p">[</span><span class="n">layer_idx</span><span class="p">]</span>
+                <span class="k">if</span> <span class="n">layer_idx</span> <span class="o">&lt;</span> <span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">ee_synapses</span><span class="p">)</span>
+                <span class="k">else</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">ee_synapses</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span> <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">ee_synapses</span> <span class="k">else</span> <span class="mi">1</span><span class="p">)</span>
+            <span class="p">)</span>
+            <span class="k">if</span> <span class="n">ee_val</span> <span class="o">&gt;</span> <span class="n">exc_input</span><span class="p">:</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">errors</span><span class="o">.</span><span class="n">append</span><span class="p">(</span>
+                    <span class="sa">f</span><span class="s2">&quot;Layer </span><span class="si">{</span><span class="n">layer_idx</span><span class="si">}</span><span class="s2"> - ee_synapses (</span><span class="si">{</span><span class="n">ee_val</span><span class="si">}</span><span class="s2">) &gt; &quot;</span>
+                    <span class="sa">f</span><span class="s2">&quot;excitatory input dim (</span><span class="si">{</span><span class="n">exc_input</span><span class="si">}</span><span class="s2">)&quot;</span>
+                <span class="p">)</span>
+
+            <span class="c1"># Check EI synapses</span>
+            <span class="n">ei_val</span> <span class="o">=</span> <span class="p">(</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">ei_synapses</span><span class="p">[</span><span class="n">layer_idx</span><span class="p">]</span>
+                <span class="k">if</span> <span class="n">layer_idx</span> <span class="o">&lt;</span> <span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">ei_synapses</span><span class="p">)</span>
+                <span class="k">else</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">ei_synapses</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span> <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">ei_synapses</span> <span class="k">else</span> <span class="mi">1</span><span class="p">)</span>
+            <span class="p">)</span>
+            <span class="k">if</span> <span class="n">inh_to_exc</span> <span class="o">&gt;</span> <span class="mi">0</span> <span class="ow">and</span> <span class="n">ei_val</span> <span class="o">&gt;</span> <span class="n">inh_to_exc</span><span class="p">:</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">errors</span><span class="o">.</span><span class="n">append</span><span class="p">(</span>
+                    <span class="sa">f</span><span class="s2">&quot;Layer </span><span class="si">{</span><span class="n">layer_idx</span><span class="si">}</span><span class="s2"> - ei_synapses (</span><span class="si">{</span><span class="n">ei_val</span><span class="si">}</span><span class="s2">) &gt; &quot;</span>
+                    <span class="sa">f</span><span class="s2">&quot;inhibitory neurons in layer (</span><span class="si">{</span><span class="n">inh_to_exc</span><span class="si">}</span><span class="s2">)&quot;</span>
+                <span class="p">)</span>
+            <span class="k">elif</span> <span class="n">inh_to_exc</span> <span class="o">==</span> <span class="mi">0</span> <span class="ow">and</span> <span class="n">ei_val</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">:</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">warnings</span><span class="o">.</span><span class="n">append</span><span class="p">(</span>
+                    <span class="sa">f</span><span class="s2">&quot;Layer </span><span class="si">{</span><span class="n">layer_idx</span><span class="si">}</span><span class="s2"> has ei_synapses=</span><span class="si">{</span><span class="n">ei_val</span><span class="si">}</span><span class="s2"> but no inhibitory neurons&quot;</span>
+                <span class="p">)</span>
+
+            <span class="c1"># Check IE synapses (inhibitory TO excitatory connections)</span>
+            <span class="c1"># All layers can have IE synapses - first layer from transfer function, others from previous layer</span>
+            <span class="n">ie_val</span> <span class="o">=</span> <span class="p">(</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">ie_synapses</span><span class="p">[</span><span class="n">layer_idx</span><span class="p">]</span>
+                <span class="k">if</span> <span class="n">layer_idx</span> <span class="o">&lt;</span> <span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">ie_synapses</span><span class="p">)</span>
+                <span class="k">else</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">ie_synapses</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span> <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">ie_synapses</span> <span class="k">else</span> <span class="mi">1</span><span class="p">)</span>
+            <span class="p">)</span>
+
+            <span class="c1"># Determine the source of inhibitory input</span>
+            <span class="k">if</span> <span class="n">layer_idx</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
+                <span class="c1"># First layer gets inhibitory input from transfer function</span>
+                <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">input_mode</span> <span class="o">==</span> <span class="mi">1</span> <span class="ow">and</span> <span class="bp">self</span><span class="o">.</span><span class="n">independent_pathways</span><span class="p">:</span>
+                    <span class="c1"># In input_mode=1, transfer function provides inhibitory input</span>
+                    <span class="n">inhibitory_source_dim</span> <span class="o">=</span> <span class="p">(</span>
+                        <span class="bp">self</span><span class="o">.</span><span class="n">inhibitory_dim</span>
+                        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">inhibitory_dim</span>
+                        <span class="k">else</span> <span class="bp">self</span><span class="o">.</span><span class="n">input_dim</span> <span class="o">//</span> <span class="mi">2</span>
+                    <span class="p">)</span>
+                <span class="k">else</span><span class="p">:</span>
+                    <span class="n">inhibitory_source_dim</span> <span class="o">=</span> <span class="mi">0</span>  <span class="c1"># No inhibitory input in other modes</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="c1"># Subsequent layers get inhibitory input from previous layer&#39;s inhibitory neurons</span>
+                <span class="k">if</span> <span class="n">layer_idx</span> <span class="o">-</span> <span class="mi">1</span> <span class="o">&lt;</span> <span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">inhibitory_layer_sizes</span><span class="p">):</span>
+                    <span class="n">inhibitory_source_dim</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">inhibitory_layer_sizes</span><span class="p">[</span><span class="n">layer_idx</span> <span class="o">-</span> <span class="mi">1</span><span class="p">]</span>
+                <span class="k">else</span><span class="p">:</span>
+                    <span class="n">inhibitory_source_dim</span> <span class="o">=</span> <span class="mi">0</span>
+
+            <span class="c1"># Check IE constraint</span>
+            <span class="k">if</span> <span class="n">inhibitory_source_dim</span> <span class="o">&gt;</span> <span class="mi">0</span> <span class="ow">and</span> <span class="n">ie_val</span> <span class="o">&gt;</span> <span class="n">inhibitory_source_dim</span><span class="p">:</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">errors</span><span class="o">.</span><span class="n">append</span><span class="p">(</span>
+                    <span class="sa">f</span><span class="s2">&quot;Layer </span><span class="si">{</span><span class="n">layer_idx</span><span class="si">}</span><span class="s2"> - ie_synapses (</span><span class="si">{</span><span class="n">ie_val</span><span class="si">}</span><span class="s2">) &gt; &quot;</span>
+                    <span class="sa">f</span><span class="s2">&quot;inhibitory input dim (</span><span class="si">{</span><span class="n">inhibitory_source_dim</span><span class="si">}</span><span class="s2">)&quot;</span>
+                <span class="p">)</span>
+            <span class="k">elif</span> <span class="n">inhibitory_source_dim</span> <span class="o">==</span> <span class="mi">0</span> <span class="ow">and</span> <span class="n">ie_val</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">:</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">warnings</span><span class="o">.</span><span class="n">append</span><span class="p">(</span>
+                    <span class="sa">f</span><span class="s2">&quot;Layer </span><span class="si">{</span><span class="n">layer_idx</span><span class="si">}</span><span class="s2"> has ie_synapses=</span><span class="si">{</span><span class="n">ie_val</span><span class="si">}</span><span class="s2"> but no inhibitory input available&quot;</span>
+                <span class="p">)</span>
+
+            <span class="c1"># Check II synapses (only if inhibitory neurons exist)</span>
+            <span class="k">if</span> <span class="p">(</span>
+                <span class="n">layer_idx</span> <span class="o">&lt;</span> <span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">inhibitory_layer_sizes</span><span class="p">)</span>
+                <span class="ow">and</span> <span class="bp">self</span><span class="o">.</span><span class="n">inhibitory_layer_sizes</span><span class="p">[</span><span class="n">layer_idx</span><span class="p">]</span> <span class="o">&gt;</span> <span class="mi">0</span>
+            <span class="p">):</span>
+                <span class="n">ii_val</span> <span class="o">=</span> <span class="p">(</span>
+                    <span class="bp">self</span><span class="o">.</span><span class="n">ii_synapses</span><span class="p">[</span><span class="n">layer_idx</span><span class="p">]</span>
+                    <span class="k">if</span> <span class="n">layer_idx</span> <span class="o">&lt;</span> <span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">ii_synapses</span><span class="p">)</span>
+                    <span class="k">else</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">ii_synapses</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span> <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">ii_synapses</span> <span class="k">else</span> <span class="mi">1</span><span class="p">)</span>
+                <span class="p">)</span>
+                <span class="k">if</span> <span class="n">ii_val</span> <span class="o">&gt;</span> <span class="n">inh_input</span><span class="p">:</span>
+                    <span class="bp">self</span><span class="o">.</span><span class="n">errors</span><span class="o">.</span><span class="n">append</span><span class="p">(</span>
+                        <span class="sa">f</span><span class="s2">&quot;Layer </span><span class="si">{</span><span class="n">layer_idx</span><span class="si">}</span><span class="s2"> - ii_synapses (</span><span class="si">{</span><span class="n">ii_val</span><span class="si">}</span><span class="s2">) &gt; &quot;</span>
+                        <span class="sa">f</span><span class="s2">&quot;inhibitory input dim (</span><span class="si">{</span><span class="n">inh_input</span><span class="si">}</span><span class="s2">)&quot;</span>
+                    <span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="ConfigValidator.check_topk_constraints">
+<a class="viewcode-back" href="../../../source/api/dendritic_modeling.html#dendritic_modeling.utils.ConfigValidator.check_topk_constraints">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">check_topk_constraints</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Check TopK constraints&quot;&quot;&quot;</span>
+        <span class="c1"># EE synapses must always be positive (excitatory neurons always exist)</span>
+        <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="n">val</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">ee_synapses</span><span class="p">):</span>
+            <span class="k">if</span> <span class="n">val</span> <span class="o">&lt;=</span> <span class="mi">0</span><span class="p">:</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">errors</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;ee_synapses[</span><span class="si">{</span><span class="n">i</span><span class="si">}</span><span class="s2">] must be positive, got </span><span class="si">{</span><span class="n">val</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+
+        <span class="c1"># Other synapse types can be 0 when target neurons don&#39;t exist</span>
+        <span class="k">for</span> <span class="n">syn_type</span><span class="p">,</span> <span class="n">syn_list</span> <span class="ow">in</span> <span class="p">[</span>
+            <span class="p">(</span><span class="s2">&quot;ei&quot;</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">ei_synapses</span><span class="p">),</span>
+            <span class="p">(</span><span class="s2">&quot;ie&quot;</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">ie_synapses</span><span class="p">),</span>
+            <span class="p">(</span><span class="s2">&quot;ii&quot;</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">ii_synapses</span><span class="p">),</span>
+        <span class="p">]:</span>
+            <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="n">val</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">syn_list</span><span class="p">):</span>
+                <span class="k">if</span> <span class="n">val</span> <span class="o">&lt;</span> <span class="mi">0</span><span class="p">:</span>  <span class="c1"># Allow 0, but not negative</span>
+                    <span class="bp">self</span><span class="o">.</span><span class="n">errors</span><span class="o">.</span><span class="n">append</span><span class="p">(</span>
+                        <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">syn_type</span><span class="si">}</span><span class="s2">_synapses[</span><span class="si">{</span><span class="n">i</span><span class="si">}</span><span class="s2">] must be non-negative, got </span><span class="si">{</span><span class="n">val</span><span class="si">}</span><span class="s2">&quot;</span>
+                    <span class="p">)</span>
+                <span class="k">elif</span> <span class="n">val</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
+                    <span class="c1"># Check if 0 makes sense given the layer configuration</span>
+                    <span class="k">if</span> <span class="n">syn_type</span> <span class="o">==</span> <span class="s2">&quot;ei&quot;</span> <span class="ow">and</span> <span class="n">i</span> <span class="o">&lt;</span> <span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">inhibitory_layer_sizes</span><span class="p">):</span>
+                        <span class="c1"># EI: excitatory TO inhibitory connections</span>
+                        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">inhibitory_layer_sizes</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">:</span>
+                            <span class="bp">self</span><span class="o">.</span><span class="n">warnings</span><span class="o">.</span><span class="n">append</span><span class="p">(</span>
+                                <span class="sa">f</span><span class="s2">&quot;ei_synapses[</span><span class="si">{</span><span class="n">i</span><span class="si">}</span><span class="s2">] is 0 but layer </span><span class="si">{</span><span class="n">i</span><span class="si">}</span><span class="s2"> has &quot;</span>
+                                <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">inhibitory_layer_sizes</span><span class="p">[</span><span class="n">i</span><span class="p">]</span><span class="si">}</span><span class="s2"> inhibitory neurons&quot;</span>
+                            <span class="p">)</span>
+                    <span class="k">elif</span> <span class="n">syn_type</span> <span class="o">==</span> <span class="s2">&quot;ie&quot;</span> <span class="ow">and</span> <span class="n">i</span> <span class="o">&lt;</span> <span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">inhibitory_layer_sizes</span><span class="p">):</span>
+                        <span class="c1"># IE: inhibitory TO excitatory connections</span>
+                        <span class="c1"># In input_mode=1, first layer gets inhibitory input from transfer function</span>
+                        <span class="c1"># Subsequent layers get inhibitory input from previous layer&#39;s inhibitory neurons</span>
+                        <span class="k">if</span> <span class="n">i</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
+                            <span class="c1"># First layer can have IE synapses from transfer function</span>
+                            <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">input_mode</span> <span class="o">==</span> <span class="mi">1</span><span class="p">:</span>
+                                <span class="bp">self</span><span class="o">.</span><span class="n">warnings</span><span class="o">.</span><span class="n">append</span><span class="p">(</span>
+                                    <span class="s2">&quot;ie_synapses[0] is 0 - layer 0 excitatory neurons won&#39;t receive &quot;</span>
+                                    <span class="s2">&quot;inhibitory input from transfer function&quot;</span>
+                                <span class="p">)</span>
+                        <span class="k">else</span><span class="p">:</span>
+                            <span class="c1"># Other layers need previous layer to have inhibitory neurons</span>
+                            <span class="k">if</span> <span class="p">(</span>
+                                <span class="n">i</span> <span class="o">-</span> <span class="mi">1</span> <span class="o">&lt;</span> <span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">inhibitory_layer_sizes</span><span class="p">)</span>
+                                <span class="ow">and</span> <span class="bp">self</span><span class="o">.</span><span class="n">inhibitory_layer_sizes</span><span class="p">[</span><span class="n">i</span> <span class="o">-</span> <span class="mi">1</span><span class="p">]</span> <span class="o">&gt;</span> <span class="mi">0</span>
+                            <span class="p">):</span>
+                                <span class="bp">self</span><span class="o">.</span><span class="n">warnings</span><span class="o">.</span><span class="n">append</span><span class="p">(</span>
+                                    <span class="sa">f</span><span class="s2">&quot;ie_synapses[</span><span class="si">{</span><span class="n">i</span><span class="si">}</span><span class="s2">] is 0 but previous layer </span><span class="si">{</span><span class="n">i</span><span class="o">-</span><span class="mi">1</span><span class="si">}</span><span class="s2"> has &quot;</span>
+                                    <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">inhibitory_layer_sizes</span><span class="p">[</span><span class="n">i</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span><span class="si">}</span><span class="s2"> inhibitory neurons&quot;</span>
+                                <span class="p">)</span>
+                    <span class="k">elif</span> <span class="n">syn_type</span> <span class="o">==</span> <span class="s2">&quot;ii&quot;</span> <span class="ow">and</span> <span class="n">i</span> <span class="o">&lt;</span> <span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">inhibitory_layer_sizes</span><span class="p">):</span>
+                        <span class="c1"># For II synapses, check if previous layer had inhibitory neurons</span>
+                        <span class="k">if</span> <span class="n">i</span> <span class="o">&gt;</span> <span class="mi">0</span> <span class="ow">and</span> <span class="n">i</span> <span class="o">-</span> <span class="mi">1</span> <span class="o">&lt;</span> <span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">inhibitory_layer_sizes</span><span class="p">):</span>
+                            <span class="k">if</span> <span class="p">(</span>
+                                <span class="bp">self</span><span class="o">.</span><span class="n">inhibitory_layer_sizes</span><span class="p">[</span><span class="n">i</span> <span class="o">-</span> <span class="mi">1</span><span class="p">]</span> <span class="o">&gt;</span> <span class="mi">0</span>
+                                <span class="ow">and</span> <span class="bp">self</span><span class="o">.</span><span class="n">inhibitory_layer_sizes</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="o">&gt;</span> <span class="mi">0</span>
+                            <span class="p">):</span>
+                                <span class="bp">self</span><span class="o">.</span><span class="n">warnings</span><span class="o">.</span><span class="n">append</span><span class="p">(</span>
+                                    <span class="sa">f</span><span class="s2">&quot;ii_synapses[</span><span class="si">{</span><span class="n">i</span><span class="si">}</span><span class="s2">] is 0 but both layer </span><span class="si">{</span><span class="n">i</span><span class="o">-</span><span class="mi">1</span><span class="si">}</span><span class="s2"> and </span><span class="si">{</span><span class="n">i</span><span class="si">}</span><span class="s2"> have inhibitory neurons&quot;</span>
+                                <span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="ConfigValidator.check_branch_factors">
+<a class="viewcode-back" href="../../../source/api/dendritic_modeling.html#dendritic_modeling.utils.ConfigValidator.check_branch_factors">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">check_branch_factors</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Check branch factor constraints&quot;&quot;&quot;</span>
+        <span class="c1"># Branch factors represent hierarchical branching structure</span>
+        <span class="c1"># e.g., [2, 2] means 2 branches that each split into 2 more (total 4 branches)</span>
+        <span class="c1"># They don&#39;t need to match the number of layers</span>
+
+        <span class="c1"># Just check that they are valid positive integers</span>
+        <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="n">bf</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">excitatory_branch_factors</span><span class="p">):</span>
+            <span class="k">if</span> <span class="n">bf</span> <span class="o">&lt;=</span> <span class="mi">0</span><span class="p">:</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">errors</span><span class="o">.</span><span class="n">append</span><span class="p">(</span>
+                    <span class="sa">f</span><span class="s2">&quot;excitatory_branch_factors[</span><span class="si">{</span><span class="n">i</span><span class="si">}</span><span class="s2">] must be positive, got </span><span class="si">{</span><span class="n">bf</span><span class="si">}</span><span class="s2">&quot;</span>
+                <span class="p">)</span>
+
+        <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="n">bf</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">inhibitory_branch_factors</span><span class="p">):</span>
+            <span class="k">if</span> <span class="n">bf</span> <span class="o">&lt;=</span> <span class="mi">0</span><span class="p">:</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">errors</span><span class="o">.</span><span class="n">append</span><span class="p">(</span>
+                    <span class="sa">f</span><span class="s2">&quot;inhibitory_branch_factors[</span><span class="si">{</span><span class="n">i</span><span class="si">}</span><span class="s2">] must be positive, got </span><span class="si">{</span><span class="n">bf</span><span class="si">}</span><span class="s2">&quot;</span>
+                <span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="ConfigValidator.check_empty_lists">
+<a class="viewcode-back" href="../../../source/api/dendritic_modeling.html#dendritic_modeling.utils.ConfigValidator.check_empty_lists">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">check_empty_lists</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Check and warn about empty lists that will use defaults&quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">ee_synapses</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">warnings</span><span class="o">.</span><span class="n">append</span><span class="p">(</span>
+                <span class="s2">&quot;ee_synapses_per_branch_per_layer is empty, will default to 1&quot;</span>
+            <span class="p">)</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">ei_synapses</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">warnings</span><span class="o">.</span><span class="n">append</span><span class="p">(</span>
+                <span class="s2">&quot;ei_synapses_per_branch_per_layer is empty, will default to 1&quot;</span>
+            <span class="p">)</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">ie_synapses</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">warnings</span><span class="o">.</span><span class="n">append</span><span class="p">(</span>
+                <span class="s2">&quot;ie_synapses_per_branch_per_layer is empty, will default to 1&quot;</span>
+            <span class="p">)</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">ii_synapses</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">warnings</span><span class="o">.</span><span class="n">append</span><span class="p">(</span>
+                <span class="s2">&quot;ii_synapses_per_branch_per_layer is empty, will default to 1&quot;</span>
+            <span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="ConfigValidator.check_transfer_dimensions">
+<a class="viewcode-back" href="../../../source/api/dendritic_modeling.html#dendritic_modeling.utils.ConfigValidator.check_transfer_dimensions">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">check_transfer_dimensions</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Check transfer function dimension settings&quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">independent_pathways</span><span class="p">:</span>
+            <span class="c1"># With independent pathways, check if dimensions are auto-set</span>
+            <span class="k">if</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">excitatory_dim</span> <span class="ow">or</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">inhibitory_dim</span><span class="p">:</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">warnings</span><span class="o">.</span><span class="n">append</span><span class="p">(</span>
+                    <span class="s2">&quot;Transfer dimensions not set, will auto-set to input_dim/2 each&quot;</span>
+                <span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="c1"># With shared pathway, dimensions should match input</span>
+            <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">excitatory_dim</span> <span class="ow">and</span> <span class="bp">self</span><span class="o">.</span><span class="n">excitatory_dim</span> <span class="o">!=</span> <span class="bp">self</span><span class="o">.</span><span class="n">input_dim</span><span class="p">:</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">warnings</span><span class="o">.</span><span class="n">append</span><span class="p">(</span>
+                    <span class="sa">f</span><span class="s2">&quot;With shared pathway, excitatory_dim (</span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">excitatory_dim</span><span class="si">}</span><span class="s2">) &quot;</span>
+                    <span class="sa">f</span><span class="s2">&quot;should match input_dim (</span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">input_dim</span><span class="si">}</span><span class="s2">)&quot;</span>
+                <span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="ConfigValidator.check_biological_plausibility">
+<a class="viewcode-back" href="../../../source/api/dendritic_modeling.html#dendritic_modeling.utils.ConfigValidator.check_biological_plausibility">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">check_biological_plausibility</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Check biological plausibility constraints&quot;&quot;&quot;</span>
+        <span class="c1"># Warn if too many synapses per branch</span>
+        <span class="k">for</span> <span class="n">syn_type</span><span class="p">,</span> <span class="n">syn_list</span> <span class="ow">in</span> <span class="p">[</span>
+            <span class="p">(</span><span class="s2">&quot;ee&quot;</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">ee_synapses</span><span class="p">),</span>
+            <span class="p">(</span><span class="s2">&quot;ei&quot;</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">ei_synapses</span><span class="p">),</span>
+            <span class="p">(</span><span class="s2">&quot;ie&quot;</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">ie_synapses</span><span class="p">),</span>
+            <span class="p">(</span><span class="s2">&quot;ii&quot;</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">ii_synapses</span><span class="p">),</span>
+        <span class="p">]:</span>
+            <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="n">val</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">syn_list</span><span class="p">):</span>
+                <span class="k">if</span> <span class="n">val</span> <span class="o">&gt;</span> <span class="mi">100</span><span class="p">:</span>
+                    <span class="bp">self</span><span class="o">.</span><span class="n">warnings</span><span class="o">.</span><span class="n">append</span><span class="p">(</span>
+                        <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">syn_type</span><span class="si">}</span><span class="s2">_synapses[</span><span class="si">{</span><span class="n">i</span><span class="si">}</span><span class="s2">] = </span><span class="si">{</span><span class="n">val</span><span class="si">}</span><span class="s2"> is very high. &quot;</span>
+                        <span class="s2">&quot;Biological neurons typically have 10-50 synapses per dendrite&quot;</span>
+                    <span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="ConfigValidator.report_results">
+<a class="viewcode-back" href="../../../source/api/dendritic_modeling.html#dendritic_modeling.utils.ConfigValidator.report_results">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">report_results</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Report all errors and warnings&quot;&quot;&quot;</span>
+        <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s2">&quot;Configuration validation summary:&quot;</span><span class="p">)</span>
+        <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;  Input mode: </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">input_mode</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+        <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;  Independent pathways: </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">independent_pathways</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+        <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;  Number of layers: </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">num_layers</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">errors</span><span class="p">:</span>
+            <span class="n">logger</span><span class="o">.</span><span class="n">error</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Configuration validation found </span><span class="si">{</span><span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">errors</span><span class="p">)</span><span class="si">}</span><span class="s2"> error(s):&quot;</span><span class="p">)</span>
+            <span class="k">for</span> <span class="n">error</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">errors</span><span class="p">:</span>
+                <span class="n">logger</span><span class="o">.</span><span class="n">error</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;  </span><span class="si">{</span><span class="n">error</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">warnings</span><span class="p">:</span>
+            <span class="n">logger</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span>
+                <span class="sa">f</span><span class="s2">&quot;Configuration validation found </span><span class="si">{</span><span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">warnings</span><span class="p">)</span><span class="si">}</span><span class="s2"> warning(s):&quot;</span>
+            <span class="p">)</span>
+            <span class="k">for</span> <span class="n">warning</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">warnings</span><span class="p">:</span>
+                <span class="n">logger</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;  </span><span class="si">{</span><span class="n">warning</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+
+        <span class="k">if</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">errors</span> <span class="ow">and</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">warnings</span><span class="p">:</span>
+            <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s2">&quot;Configuration validation passed - all constraints satisfied&quot;</span><span class="p">)</span>
+        <span class="k">elif</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">errors</span><span class="p">:</span>
+            <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s2">&quot;Configuration validation passed with warnings&quot;</span><span class="p">)</span></div>
+</div>
+
+
+
+<div class="viewcode-block" id="validate_config">
+<a class="viewcode-back" href="../../../source/api/dendritic_modeling.html#dendritic_modeling.utils.validate_config">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">validate_config</span><span class="p">(</span><span class="n">config</span><span class="p">:</span> <span class="n">Dict</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">bool</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Validate a configuration dictionary</span>
+
+<span class="sd">    Args:</span>
+<span class="sd">        config: Configuration dictionary</span>
+
+<span class="sd">    Returns:</span>
+<span class="sd">        True if config is valid, False otherwise</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">validator</span> <span class="o">=</span> <span class="n">ConfigValidator</span><span class="p">(</span><span class="n">config</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">validator</span><span class="o">.</span><span class="n">validate</span><span class="p">()</span></div>
+
+</pre></div>
+
+                </article>
+              
+              
+              
+              
+              
+                <footer class="prev-next-footer d-print-none">
+                  
+<div class="prev-next-area">
+</div>
+                </footer>
+              
+            </div>
+            
+            
+              
+            
+          </div>
+          <footer class="bd-footer-content">
+            
+          </footer>
+        
+      </main>
+    </div>
+  </div>
+  
+  <!-- Scripts loaded after <body> so the DOM is not blocked -->
+  <script defer src="../../../_static/scripts/bootstrap.js?digest=8878045cc6db502f8baf"></script>
+<script defer src="../../../_static/scripts/pydata-sphinx-theme.js?digest=8878045cc6db502f8baf"></script>
+
+  <footer class="bd-footer">
+<div class="bd-footer__inner bd-page-width">
+  
+    <div class="footer-items__start">
+      
+        <div class="footer-item">
+
+  <p class="copyright">
+    
+      © Copyright 2024, Kempner Institute for the Study of Natural and Artificial Intelligence.
+      <br/>
+    
+  </p>
+</div>
+      
+        <div class="footer-item">
+
+  <p class="sphinx-version">
+    Created using <a href="https://www.sphinx-doc.org/">Sphinx</a> 8.1.3.
+    <br/>
+  </p>
+</div>
+      
+    </div>
+  
+  
+  
+    <div class="footer-items__end">
+      
+        <div class="footer-item">
+<p class="theme-version">
+  <!-- # L10n: Setting the PST URL as an argument as this does not need to be localized -->
+  Built with the <a href="https://pydata-sphinx-theme.readthedocs.io/en/stable/index.html">PyData Sphinx Theme</a> 0.16.1.
+</p></div>
+      
+    </div>
+  
+</div>
+
+  </footer>
+  </body>
+</html>

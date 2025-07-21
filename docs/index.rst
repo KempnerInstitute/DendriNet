@@ -78,6 +78,9 @@ Get up and running in minutes:
    :maxdepth: 2
    :caption: Reference
 
+   examples
+   sweeps
+   CONFIGURATION_GUIDE
    api/index
    faq
    glossary

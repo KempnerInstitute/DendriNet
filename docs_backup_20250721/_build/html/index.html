@@ -1,0 +1,960 @@
+
+<!DOCTYPE html>
+
+
+<html lang="en" data-content_root="./" >
+
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+    <title>Dendritic Modeling Framework Documentation &#8212; Dendritic Modeling Framework v0.1.0</title>
+  
+  
+  
+  <script data-cfasync="false">
+    document.documentElement.dataset.mode = localStorage.getItem("mode") || "";
+    document.documentElement.dataset.theme = localStorage.getItem("theme") || "";
+  </script>
+  <!--
+    this give us a css class that will be invisible only if js is disabled
+  -->
+  <noscript>
+    <style>
+      .pst-js-only { display: none !important; }
+
+    </style>
+  </noscript>
+  
+  <!-- Loaded before other Sphinx assets -->
+  <link href="_static/styles/theme.css?digest=8878045cc6db502f8baf" rel="stylesheet" />
+<link href="_static/styles/pydata-sphinx-theme.css?digest=8878045cc6db502f8baf" rel="stylesheet" />
+
+    <link rel="stylesheet" type="text/css" href="_static/pygments.css?v=8f2a1f02" />
+    <link rel="stylesheet" type="text/css" href="_static/graphviz.css?v=4ae1632d" />
+    <link rel="stylesheet" type="text/css" href="_static/copybutton.css?v=76b2166b" />
+    <link rel="stylesheet" type="text/css" href="_static/custom.css?v=eced55a1" />
+    <link rel="stylesheet" type="text/css" href="_static/sphinx-design.min.css?v=95c83b7e" />
+    <link rel="stylesheet" type="text/css" href="_static/custom.css?v=eced55a1" />
+  
+  <!-- So that users can add custom icons -->
+  <script src="_static/scripts/fontawesome.js?digest=8878045cc6db502f8baf"></script>
+  <!-- Pre-loaded scripts that we'll load fully later -->
+  <link rel="preload" as="script" href="_static/scripts/bootstrap.js?digest=8878045cc6db502f8baf" />
+<link rel="preload" as="script" href="_static/scripts/pydata-sphinx-theme.js?digest=8878045cc6db502f8baf" />
+
+    <script src="_static/documentation_options.js?v=38b66d78"></script>
+    <script src="_static/doctools.js?v=9bcbadda"></script>
+    <script src="_static/sphinx_highlight.js?v=dc90522c"></script>
+    <script src="_static/clipboard.min.js?v=a7894cd8"></script>
+    <script src="_static/copybutton.js?v=30646c52"></script>
+    <script src="_static/design-tabs.js?v=f930bc37"></script>
+    <script crossorigin="anonymous" integrity="sha256-Ae2Vz/4ePdIu6ZyI/5ZGsYnb+m0JlOmKPjt6XZ9JJkA=" src="https://cdnjs.cloudflare.com/ajax/libs/require.js/2.3.4/require.min.js"></script>
+    <script>window.MathJax = {"tex": {"inlineMath": [["$", "$"], ["\\(", "\\)"]], "processEscapes": true, "displayMath": [["$$", "$$"], ["\\[", "\\]"]]}, "options": {"ignoreHtmlClass": "tex2jax_ignore|mathjax_ignore|document", "processHtmlClass": "tex2jax_process|mathjax_process|math|output_area"}}</script>
+    <script defer="defer" src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+    <script>DOCUMENTATION_OPTIONS.pagename = 'index';</script>
+    <script src="_static/custom.js"></script>
+    <link rel="author" title="About these documents" href="about.html" />
+    <link rel="index" title="Index" href="genindex.html" />
+    <link rel="search" title="Search" href="search.html" />
+    <link rel="next" title="Introduction" href="introduction.html" />
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <meta name="docsearch:language" content="en"/>
+  <meta name="docsearch:version" content="0.1.0" />
+    <meta name="docbuild:last-update" content="Jul 21, 2025"/>
+  </head>
+  
+  
+  <body data-bs-spy="scroll" data-bs-target=".bd-toc-nav" data-offset="180" data-bs-root-margin="0px 0px -60%" data-default-mode="">
+
+  
+  
+  <div id="pst-skip-link" class="skip-link d-print-none"><a href="#main-content">Skip to main content</a></div>
+  
+  <div id="pst-scroll-pixel-helper"></div>
+  
+  <button type="button" class="btn rounded-pill" id="pst-back-to-top">
+    <i class="fa-solid fa-arrow-up"></i>Back to top</button>
+
+  
+  <dialog id="pst-search-dialog">
+    
+<form class="bd-search d-flex align-items-center"
+      action="search.html"
+      method="get">
+  <i class="fa-solid fa-magnifying-glass"></i>
+  <input type="search"
+         class="form-control"
+         name="q"
+         placeholder="Search the docs..."
+         aria-label="Search the docs..."
+         autocomplete="off"
+         autocorrect="off"
+         autocapitalize="off"
+         spellcheck="false"/>
+  <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd>K</kbd></span>
+</form>
+  </dialog>
+
+  <div class="pst-async-banner-revealer d-none">
+  <aside id="bd-header-version-warning" class="d-none d-print-none" aria-label="Version warning"></aside>
+</div>
+
+  
+    <header class="bd-header navbar navbar-expand-lg bd-navbar d-print-none">
+<div class="bd-header__inner bd-page-width">
+  <button class="pst-navbar-icon sidebar-toggle primary-toggle" aria-label="Site navigation">
+    <span class="fa-solid fa-bars"></span>
+  </button>
+  
+  
+  <div class=" navbar-header-items__start">
+    
+      <div class="navbar-item">
+
+  
+    
+  
+
+<a class="navbar-brand logo" href="#">
+  
+  
+  
+  
+  
+    
+    
+      
+    
+    
+    <img src="_static/logo_light.png" class="logo__image only-light" alt=""/>
+    <img src="_static/logo_dark.png" class="logo__image only-dark pst-js-only" alt=""/>
+  
+  
+    <p class="title logo__title">Dendritic Modeling</p>
+  
+</a></div>
+    
+  </div>
+  
+  <div class=" navbar-header-items">
+    
+    <div class="me-auto navbar-header-items__center">
+      
+        <div class="navbar-item">
+<nav>
+  <ul class="bd-navbar-elements navbar-nav">
+    
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="introduction.html">
+    Introduction
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="installation.html">
+    Installation and Setup
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="quickstart.html">
+    Quickstart Guide
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="core_concepts.html">
+    Core Concepts
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="architectures/index.html">
+    Network Architectures and Design
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="training/index.html">
+    Training Strategies and Usage
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="analysis/index.html">
+    Analysis Tools and Methods
+  </a>
+</li>
+
+            <li class="nav-item dropdown">
+                <button class="btn dropdown-toggle nav-item" type="button"
+                data-bs-toggle="dropdown" aria-expanded="false"
+                aria-controls="pst-nav-more-links">
+                    More
+                </button>
+                <ul id="pst-nav-more-links" class="dropdown-menu">
+                    
+<li class=" ">
+  <a class="nav-link dropdown-item nav-internal" href="performance/index.html">
+    Performance, Speed, and Efficiency
+  </a>
+</li>
+
+
+<li class=" ">
+  <a class="nav-link dropdown-item nav-internal" href="faq.html">
+    Frequently Asked Questions (FAQ)
+  </a>
+</li>
+
+
+<li class=" ">
+  <a class="nav-link dropdown-item nav-internal" href="glossary.html">
+    Glossary
+  </a>
+</li>
+
+
+<li class=" ">
+  <a class="nav-link dropdown-item nav-internal" href="troubleshooting.html">
+    Troubleshooting Guide
+  </a>
+</li>
+
+
+<li class=" ">
+  <a class="nav-link dropdown-item nav-internal" href="contributing.html">
+    Contributing Guide
+  </a>
+</li>
+
+                </ul>
+            </li>
+            
+  </ul>
+</nav></div>
+      
+    </div>
+    
+    
+    <div class="navbar-header-items__end">
+      
+        <div class="navbar-item navbar-persistent--container">
+          
+
+<button class="btn search-button-field search-button__button pst-js-only" title="Search" aria-label="Search" data-bs-placement="bottom" data-bs-toggle="tooltip">
+ <i class="fa-solid fa-magnifying-glass"></i>
+ <span class="search-button__default-text">Search</span>
+ <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd class="kbd-shortcut__modifier">K</kbd></span>
+</button>
+        </div>
+      
+      
+        <div class="navbar-item">
+<form class="bd-search d-flex align-items-center"
+      action="search.html"
+      method="get">
+  <i class="fa-solid fa-magnifying-glass"></i>
+  <input type="search"
+         class="form-control"
+         name="q"
+         placeholder="Search the docs..."
+         aria-label="Search the docs..."
+         autocomplete="off"
+         autocorrect="off"
+         autocapitalize="off"
+         spellcheck="false"/>
+  <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd>K</kbd></span>
+</form></div>
+      
+        <div class="navbar-item"><ul class="navbar-icon-links"
+    aria-label="Icon Links">
+        <li class="nav-item">
+          
+          
+          
+          
+          
+          
+          
+          
+          <a href="https://github.com/KempnerInstitute/dendritic-modeling" title="GitHub" class="nav-link pst-navbar-icon" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><i class="fa-brands fa-square-github fa-lg" aria-hidden="true"></i>
+            <span class="sr-only">GitHub</span></a>
+        </li>
+        <li class="nav-item">
+          
+          
+          
+          
+          
+          
+          
+          
+          <a href="https://twitter.com/KempnerInstitute" title="Twitter" class="nav-link pst-navbar-icon" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><i class="fa-brands fa-square-twitter fa-lg" aria-hidden="true"></i>
+            <span class="sr-only">Twitter</span></a>
+        </li>
+</ul></div>
+      
+    </div>
+    
+  </div>
+  
+  
+    <div class="navbar-persistent--mobile">
+
+<button class="btn search-button-field search-button__button pst-js-only" title="Search" aria-label="Search" data-bs-placement="bottom" data-bs-toggle="tooltip">
+ <i class="fa-solid fa-magnifying-glass"></i>
+ <span class="search-button__default-text">Search</span>
+ <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd class="kbd-shortcut__modifier">K</kbd></span>
+</button>
+    </div>
+  
+
+  
+    <button class="pst-navbar-icon sidebar-toggle secondary-toggle" aria-label="On this page">
+      <span class="fa-solid fa-outdent"></span>
+    </button>
+  
+</div>
+
+    </header>
+  
+
+  <div class="bd-container">
+    <div class="bd-container__inner bd-page-width">
+      
+      
+      
+        
+      
+      <dialog id="pst-primary-sidebar-modal"></dialog>
+      <div id="pst-primary-sidebar" class="bd-sidebar-primary bd-sidebar hide-on-wide">
+        
+
+  
+  <div class="sidebar-header-items sidebar-primary__section">
+    
+    
+      <div class="sidebar-header-items__center">
+        
+          
+          
+            <div class="navbar-item">
+<nav>
+  <ul class="bd-navbar-elements navbar-nav">
+    
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="introduction.html">
+    Introduction
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="installation.html">
+    Installation and Setup
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="quickstart.html">
+    Quickstart Guide
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="core_concepts.html">
+    Core Concepts
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="architectures/index.html">
+    Network Architectures and Design
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="training/index.html">
+    Training Strategies and Usage
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="analysis/index.html">
+    Analysis Tools and Methods
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="performance/index.html">
+    Performance, Speed, and Efficiency
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="faq.html">
+    Frequently Asked Questions (FAQ)
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="glossary.html">
+    Glossary
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="troubleshooting.html">
+    Troubleshooting Guide
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="contributing.html">
+    Contributing Guide
+  </a>
+</li>
+
+  </ul>
+</nav></div>
+          
+        
+      </div>
+    
+    
+    
+      <div class="sidebar-header-items__end">
+        
+          <div class="navbar-item">
+<form class="bd-search d-flex align-items-center"
+      action="search.html"
+      method="get">
+  <i class="fa-solid fa-magnifying-glass"></i>
+  <input type="search"
+         class="form-control"
+         name="q"
+         placeholder="Search the docs..."
+         aria-label="Search the docs..."
+         autocomplete="off"
+         autocorrect="off"
+         autocapitalize="off"
+         spellcheck="false"/>
+  <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd>K</kbd></span>
+</form></div>
+        
+          <div class="navbar-item"><ul class="navbar-icon-links"
+    aria-label="Icon Links">
+        <li class="nav-item">
+          
+          
+          
+          
+          
+          
+          
+          
+          <a href="https://github.com/KempnerInstitute/dendritic-modeling" title="GitHub" class="nav-link pst-navbar-icon" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><i class="fa-brands fa-square-github fa-lg" aria-hidden="true"></i>
+            <span class="sr-only">GitHub</span></a>
+        </li>
+        <li class="nav-item">
+          
+          
+          
+          
+          
+          
+          
+          
+          <a href="https://twitter.com/KempnerInstitute" title="Twitter" class="nav-link pst-navbar-icon" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><i class="fa-brands fa-square-twitter fa-lg" aria-hidden="true"></i>
+            <span class="sr-only">Twitter</span></a>
+        </li>
+</ul></div>
+        
+      </div>
+    
+  </div>
+  
+  
+  <div class="sidebar-primary-items__end sidebar-primary__section">
+      <div class="sidebar-primary-item">
+<div id="ethical-ad-placement"
+      class="flat"
+      data-ea-publisher="readthedocs"
+      data-ea-type="readthedocs-sidebar"
+      data-ea-manual="true">
+</div></div>
+  </div>
+
+
+      </div>
+      
+      <main id="main-content" class="bd-main" role="main">
+        
+        
+          <div class="bd-content">
+            <div class="bd-article-container">
+              
+              <div class="bd-header-article d-print-none"></div>
+              
+              
+              
+                
+<div id="searchbox"></div>
+                <article class="bd-article">
+                  
+  <section id="dendritic-modeling-framework-documentation">
+<h1>Dendritic Modeling Framework Documentation<a class="headerlink" href="#dendritic-modeling-framework-documentation" title="Link to this heading">#</a></h1>
+<a class="reference internal image-reference" href="_images/dendritic_diagram.png"><img alt="Dendritic neuron architecture" class="align-center" src="_images/dendritic_diagram.png" style="width: 600px;" />
+</a>
+<p><strong>A comprehensive PyTorch-based framework for biologically-inspired neural networks with dendritic computation, excitation-inhibition dynamics, and advanced analysis tools.</strong></p>
+<p>Welcome to the Dendritic Modeling Framework - your complete toolkit for building, training, and analyzing neural networks that capture the sophisticated computational properties of biological dendrites. Whether you’re a neuroscience researcher exploring dendritic mechanisms or an ML practitioner seeking bio-inspired architectures, this framework provides the tools you need.</p>
+<section id="quick-start">
+<h2><strong>Quick Start</strong><a class="headerlink" href="#quick-start" title="Link to this heading">#</a></h2>
+<p>Get up and running in minutes:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># Installation</span>
+git<span class="w"> </span>clone<span class="w"> </span>https://github.com/KempnerInstitute/dendritic-modeling.git
+<span class="nb">cd</span><span class="w"> </span>dendritic-modeling
+conda<span class="w"> </span>env<span class="w"> </span>create<span class="w"> </span>-f<span class="w"> </span>environment.yml
+conda<span class="w"> </span>activate<span class="w"> </span>dendritic_env
+pip<span class="w"> </span>install<span class="w"> </span>-e<span class="w"> </span>.
+
+<span class="c1"># Run your first experiment</span>
+python<span class="w"> </span>src/dendritic_modeling/scripts/train_experiments.py<span class="w"> </span>configs/config_exp.yaml
+</pre></div>
+</div>
+</section>
+<section id="key-features">
+<h2><strong>Key Features</strong><a class="headerlink" href="#key-features" title="Link to this heading">#</a></h2>
+<ul class="simple">
+<li><p><strong>Advanced Architectures</strong>: EINet, DendriNet, and hybrid models with configurable dendritic morphologies</p></li>
+<li><p><strong>Biological Realism</strong>: Shunting inhibition, Dale’s principle, sparse connectivity patterns</p></li>
+<li><p><strong>Scalability</strong>: From single GPU experiments to large-scale FSDP training on clusters</p></li>
+<li><p><strong>Analysis Suite</strong>: Information theory, ablation studies, visualization tools</p></li>
+<li><p><strong>Performance Optimization</strong>: Mixed precision, gradient checkpointing, dynamic sparse training</p></li>
+<li><p><strong>Extensive Datasets</strong>: Vision, synthetic, and biological task datasets</p></li>
+</ul>
+</section>
+<section id="documentation-structure">
+<h2><strong>Documentation Structure</strong><a class="headerlink" href="#documentation-structure" title="Link to this heading">#</a></h2>
+<div class="toctree-wrapper compound">
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Getting Started</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="introduction.html">Introduction</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="introduction.html#purpose-and-vision">Purpose and Vision</a></li>
+<li class="toctree-l2"><a class="reference internal" href="introduction.html#biological-motivation">Biological Motivation</a></li>
+<li class="toctree-l2"><a class="reference internal" href="introduction.html#key-innovations">Key Innovations</a></li>
+<li class="toctree-l2"><a class="reference internal" href="introduction.html#target-audience">Target Audience</a></li>
+<li class="toctree-l2"><a class="reference internal" href="introduction.html#framework-capabilities">Framework Capabilities</a></li>
+<li class="toctree-l2"><a class="reference internal" href="introduction.html#current-features">Current Features</a></li>
+<li class="toctree-l2"><a class="reference internal" href="introduction.html#getting-started">Getting Started</a></li>
+<li class="toctree-l2"><a class="reference internal" href="introduction.html#research-impact">Research Impact</a></li>
+<li class="toctree-l2"><a class="reference internal" href="introduction.html#contributing-to-the-field">Contributing to the Field</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="installation.html">Installation and Setup</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="installation.html#prerequisites">Prerequisites</a></li>
+<li class="toctree-l2"><a class="reference internal" href="installation.html#quick-installation">Quick Installation</a></li>
+<li class="toctree-l2"><a class="reference internal" href="installation.html#detailed-installation-options">Detailed Installation Options</a></li>
+<li class="toctree-l2"><a class="reference internal" href="installation.html#verification">Verification</a></li>
+<li class="toctree-l2"><a class="reference internal" href="installation.html#advanced-setup">Advanced Setup</a></li>
+<li class="toctree-l2"><a class="reference internal" href="installation.html#troubleshooting">Troubleshooting</a></li>
+<li class="toctree-l2"><a class="reference internal" href="installation.html#next-steps">Next Steps</a></li>
+<li class="toctree-l2"><a class="reference internal" href="installation.html#stay-current">Stay Current</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="quickstart.html">Quickstart Guide</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="quickstart.html#prerequisites-check">Prerequisites Check</a></li>
+<li class="toctree-l2"><a class="reference internal" href="quickstart.html#installation-2-minutes">Installation (2 minutes)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="quickstart.html#your-first-experiment-3-minutes">Your First Experiment (3 minutes)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="quickstart.html#understanding-what-just-happened">Understanding What Just Happened</a></li>
+<li class="toctree-l2"><a class="reference internal" href="quickstart.html#quick-customization">Quick Customization</a></li>
+<li class="toctree-l2"><a class="reference internal" href="quickstart.html#exploring-results-in-detail">Exploring Results in Detail</a></li>
+<li class="toctree-l2"><a class="reference internal" href="quickstart.html#common-issues-and-solutions">Common Issues and Solutions</a></li>
+<li class="toctree-l2"><a class="reference internal" href="quickstart.html#what-s-next">What’s Next?</a></li>
+<li class="toctree-l2"><a class="reference internal" href="quickstart.html#example-tutorials">Example Tutorials</a></li>
+<li class="toctree-l2"><a class="reference internal" href="quickstart.html#interactive-examples">Interactive Examples</a></li>
+<li class="toctree-l2"><a class="reference internal" href="quickstart.html#getting-help">Getting Help</a></li>
+<li class="toctree-l2"><a class="reference internal" href="quickstart.html#congratulations">Congratulations!</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="core_concepts.html">Core Concepts</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="core_concepts.html#dendritic-computation">Dendritic Computation</a></li>
+<li class="toctree-l2"><a class="reference internal" href="core_concepts.html#excitation-inhibition-e-i-dynamics">Excitation-Inhibition (E/I) Dynamics</a></li>
+<li class="toctree-l2"><a class="reference internal" href="core_concepts.html#sparse-connectivity">Sparse Connectivity</a></li>
+<li class="toctree-l2"><a class="reference internal" href="core_concepts.html#reactivation-functions">Reactivation Functions</a></li>
+<li class="toctree-l2"><a class="reference internal" href="core_concepts.html#gradient-scaling-strategies">Gradient Scaling Strategies</a></li>
+<li class="toctree-l2"><a class="reference internal" href="core_concepts.html#input-processing-modes">Input Processing Modes</a></li>
+<li class="toctree-l2"><a class="reference internal" href="core_concepts.html#scalability-considerations">Scalability Considerations</a></li>
+<li class="toctree-l2"><a class="reference internal" href="core_concepts.html#next-steps">Next Steps</a></li>
+</ul>
+</li>
+</ul>
+</div>
+<div class="toctree-wrapper compound">
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Architecture &amp; Design</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="architectures/index.html">Network Architectures and Design</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="architectures/index.html#overview">Overview</a></li>
+<li class="toctree-l2"><a class="reference internal" href="architectures/index.html#modular-design-principles">Modular Design Principles</a></li>
+<li class="toctree-l2"><a class="reference internal" href="architectures/index.html#einet-excitation-inhibition-networks">EINet (Excitation-Inhibition Networks)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="architectures/index.html#dendrinet-pure-dendritic-networks">DendriNet (Pure Dendritic Networks)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="architectures/index.html#mlp-variants">MLP Variants</a></li>
+<li class="toctree-l2"><a class="reference internal" href="architectures/index.html#convolutional-networks">Convolutional Networks</a></li>
+<li class="toctree-l2"><a class="reference internal" href="architectures/index.html#hybrid-architecture-designs">Hybrid Architecture Designs</a></li>
+<li class="toctree-l2"><a class="reference internal" href="architectures/index.html#custom-architecture-design">Custom Architecture Design</a></li>
+<li class="toctree-l2"><a class="reference internal" href="architectures/index.html#scaling-considerations">Scaling Considerations</a></li>
+<li class="toctree-l2"><a class="reference internal" href="architectures/index.html#best-practices">Best Practices</a></li>
+<li class="toctree-l2"><a class="reference internal" href="architectures/index.html#next-steps">Next Steps</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="training/index.html">Training Strategies and Usage</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="training/index.html#overview">Overview</a></li>
+<li class="toctree-l2"><a class="reference internal" href="training/index.html#training-strategy-framework">Training Strategy Framework</a></li>
+<li class="toctree-l2"><a class="reference internal" href="training/index.html#standard-training">Standard Training</a></li>
+<li class="toctree-l2"><a class="reference internal" href="training/index.html#bio-inspired-training-strategies">Bio-inspired Training Strategies</a></li>
+<li class="toctree-l2"><a class="reference internal" href="training/index.html#advanced-optimization-techniques">Advanced Optimization Techniques</a></li>
+<li class="toctree-l2"><a class="reference internal" href="training/index.html#distributed-training-with-fsdp">Distributed Training with FSDP</a></li>
+<li class="toctree-l2"><a class="reference internal" href="training/index.html#memory-management-strategies">Memory Management Strategies</a></li>
+<li class="toctree-l2"><a class="reference internal" href="training/index.html#custom-training-strategies">Custom Training Strategies</a></li>
+<li class="toctree-l2"><a class="reference internal" href="training/index.html#performance-monitoring-and-debugging">Performance Monitoring and Debugging</a></li>
+<li class="toctree-l2"><a class="reference internal" href="training/index.html#best-practices">Best Practices</a></li>
+<li class="toctree-l2"><a class="reference internal" href="training/index.html#next-steps">Next Steps</a></li>
+</ul>
+</li>
+</ul>
+</div>
+<div class="toctree-wrapper compound">
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Analysis &amp; Visualization</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="analysis/index.html">Analysis Tools and Methods</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="analysis/index.html#overview">Overview</a></li>
+<li class="toctree-l2"><a class="reference internal" href="analysis/index.html#analysis-configuration-framework">Analysis Configuration Framework</a></li>
+<li class="toctree-l2"><a class="reference internal" href="analysis/index.html#performance-analysis">Performance Analysis</a></li>
+<li class="toctree-l2"><a class="reference internal" href="analysis/index.html#information-theoretic-analysis">Information-Theoretic Analysis</a></li>
+<li class="toctree-l2"><a class="reference internal" href="analysis/index.html#ablation-studies">Ablation Studies</a></li>
+<li class="toctree-l2"><a class="reference internal" href="analysis/index.html#noise-robustness-analysis">Noise Robustness Analysis</a></li>
+<li class="toctree-l2"><a class="reference internal" href="analysis/index.html#synaptic-analysis">Synaptic Analysis</a></li>
+<li class="toctree-l2"><a class="reference internal" href="analysis/index.html#branch-activation-analysis">Branch Activation Analysis</a></li>
+<li class="toctree-l2"><a class="reference internal" href="analysis/index.html#comparative-analysis-tools">Comparative Analysis Tools</a></li>
+<li class="toctree-l2"><a class="reference internal" href="analysis/index.html#biological-realism-assessment">Biological Realism Assessment</a></li>
+<li class="toctree-l2"><a class="reference internal" href="analysis/index.html#analysis-output-and-reporting">Analysis Output and Reporting</a></li>
+<li class="toctree-l2"><a class="reference internal" href="analysis/index.html#performance-considerations">Performance Considerations</a></li>
+<li class="toctree-l2"><a class="reference internal" href="analysis/index.html#best-practices">Best Practices</a></li>
+<li class="toctree-l2"><a class="reference internal" href="analysis/index.html#next-steps">Next Steps</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="performance/index.html">Performance, Speed, and Efficiency</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="performance/index.html#overview">Overview</a></li>
+<li class="toctree-l2"><a class="reference internal" href="performance/index.html#small-models-and-datasets">Small Models and Datasets</a></li>
+<li class="toctree-l2"><a class="reference internal" href="performance/index.html#large-models-and-datasets">Large Models and Datasets</a></li>
+<li class="toctree-l2"><a class="reference internal" href="performance/index.html#memory-management-strategies">Memory Management Strategies</a></li>
+<li class="toctree-l2"><a class="reference internal" href="performance/index.html#performance-profiling-and-optimization">Performance Profiling and Optimization</a></li>
+<li class="toctree-l2"><a class="reference internal" href="performance/index.html#benchmarking-and-evaluation">Benchmarking and Evaluation</a></li>
+<li class="toctree-l2"><a class="reference internal" href="performance/index.html#scaling-guidelines">Scaling Guidelines</a></li>
+<li class="toctree-l2"><a class="reference internal" href="performance/index.html#cost-optimization">Cost Optimization</a></li>
+<li class="toctree-l2"><a class="reference internal" href="performance/index.html#performance-best-practices">Performance Best Practices</a></li>
+<li class="toctree-l2"><a class="reference internal" href="performance/index.html#troubleshooting-performance-issues">Troubleshooting Performance Issues</a></li>
+<li class="toctree-l2"><a class="reference internal" href="performance/index.html#next-steps">Next Steps</a></li>
+</ul>
+</li>
+</ul>
+</div>
+<div class="toctree-wrapper compound">
+</div>
+<div class="toctree-wrapper compound">
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Reference</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="faq.html">Frequently Asked Questions (FAQ)</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="faq.html#installation-and-setup">Installation and Setup</a></li>
+<li class="toctree-l2"><a class="reference internal" href="faq.html#training-and-performance">Training and Performance</a></li>
+<li class="toctree-l2"><a class="reference internal" href="faq.html#configuration-and-architecture">Configuration and Architecture</a></li>
+<li class="toctree-l2"><a class="reference internal" href="faq.html#analysis-and-debugging">Analysis and Debugging</a></li>
+<li class="toctree-l2"><a class="reference internal" href="faq.html#advanced-topics">Advanced Topics</a></li>
+<li class="toctree-l2"><a class="reference internal" href="faq.html#troubleshooting-specific-errors">Troubleshooting Specific Errors</a></li>
+<li class="toctree-l2"><a class="reference internal" href="faq.html#getting-further-help">Getting Further Help</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="glossary.html">Glossary</a></li>
+<li class="toctree-l1"><a class="reference internal" href="troubleshooting.html">Troubleshooting Guide</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="troubleshooting.html#quick-diagnosis">Quick Diagnosis</a></li>
+<li class="toctree-l2"><a class="reference internal" href="troubleshooting.html#installation-issues">Installation Issues</a></li>
+<li class="toctree-l2"><a class="reference internal" href="troubleshooting.html#training-issues">Training Issues</a></li>
+<li class="toctree-l2"><a class="reference internal" href="troubleshooting.html#configuration-issues">Configuration Issues</a></li>
+<li class="toctree-l2"><a class="reference internal" href="troubleshooting.html#gpu-issues">GPU Issues</a></li>
+<li class="toctree-l2"><a class="reference internal" href="troubleshooting.html#analysis-issues">Analysis Issues</a></li>
+<li class="toctree-l2"><a class="reference internal" href="troubleshooting.html#getting-help">Getting Help</a></li>
+<li class="toctree-l2"><a class="reference internal" href="troubleshooting.html#advanced-debugging">Advanced Debugging</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="contributing.html">Contributing Guide</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="contributing.html#code-of-conduct">Code of Conduct</a></li>
+<li class="toctree-l2"><a class="reference internal" href="contributing.html#getting-started">Getting Started</a></li>
+<li class="toctree-l2"><a class="reference internal" href="contributing.html#contributing-code">Contributing Code</a></li>
+<li class="toctree-l2"><a class="reference internal" href="contributing.html#contributing-documentation">Contributing Documentation</a></li>
+<li class="toctree-l2"><a class="reference internal" href="contributing.html#contributing-examples">Contributing Examples</a></li>
+<li class="toctree-l2"><a class="reference internal" href="contributing.html#research-contributions">Research Contributions</a></li>
+<li class="toctree-l2"><a class="reference internal" href="contributing.html#review-process">Review Process</a></li>
+<li class="toctree-l2"><a class="reference internal" href="contributing.html#community">Community</a></li>
+<li class="toctree-l2"><a class="reference internal" href="contributing.html#thank-you">Thank You!</a></li>
+</ul>
+</li>
+</ul>
+</div>
+</section>
+<section id="navigation-guide">
+<h2><strong>Navigation Guide</strong><a class="headerlink" href="#navigation-guide" title="Link to this heading">#</a></h2>
+<dl class="simple">
+<dt><strong>Getting started with dendritic modeling?</strong></dt><dd><p>Start with <a class="reference internal" href="introduction.html"><span class="doc">Introduction</span></a> → <a class="reference internal" href="installation.html"><span class="doc">Installation and Setup</span></a> → <a class="reference internal" href="quickstart.html"><span class="doc">Quickstart Guide</span></a></p>
+</dd>
+<dt><strong>Want to understand the science?</strong></dt><dd><p>Read <a class="reference internal" href="core_concepts.html"><span class="doc">Core Concepts</span></a> → <a class="reference internal" href="architectures/index.html"><span class="doc">Network Architectures and Design</span></a> → <a class="reference internal" href="analysis/index.html"><span class="doc">Analysis Tools and Methods</span></a></p>
+</dd>
+<dt><strong>Building custom models?</strong></dt><dd><p>Check <span class="xref std std-doc">configuration/index</span> → <span class="xref std std-doc">architectures/custom_design</span> → <span class="xref std std-doc">api/index</span></p>
+</dd>
+<dt><strong>Scaling to large datasets?</strong></dt><dd><p>See <a class="reference internal" href="performance/index.html"><span class="doc">Performance, Speed, and Efficiency</span></a> → <span class="xref std std-doc">scaling/index</span> → <a class="reference internal" href="troubleshooting.html"><span class="doc">Troubleshooting Guide</span></a></p>
+</dd>
+<dt><strong>Running experiments?</strong></dt><dd><p>Follow <a class="reference internal" href="training/index.html"><span class="doc">Training Strategies and Usage</span></a> → <span class="xref std std-doc">sweeps/index</span> → <span class="xref std std-doc">tutorials/index</span></p>
+</dd>
+</dl>
+</section>
+<section id="research-applications">
+<h2><strong>Research Applications</strong><a class="headerlink" href="#research-applications" title="Link to this heading">#</a></h2>
+<p>The framework facilitates research in several important areas:</p>
+<ul class="simple">
+<li><p><strong>Dendritic Computation</strong>: Understanding how dendrites process information</p></li>
+<li><p><strong>E/I Balance</strong>: Exploring excitation-inhibition dynamics in networks</p></li>
+<li><p><strong>Sparse Connectivity</strong>: Developing efficient bio-inspired architectures</p></li>
+<li><p><strong>Learning Mechanisms</strong>: Testing biologically-plausible training strategies</p></li>
+<li><p><strong>Information Processing</strong>: Analyzing neural information flow and capacity</p></li>
+</ul>
+</section>
+<section id="performance-scalability">
+<h2><strong>Performance &amp; Scalability</strong><a class="headerlink" href="#performance-scalability" title="Link to this heading">#</a></h2>
+<div class="pst-scrollable-table-container"><table class="table" id="id1">
+<caption><span class="caption-number">Table 10 </span><span class="caption-text">Framework Capabilities</span><a class="headerlink" href="#id1" title="Link to this table">#</a></caption>
+<colgroup>
+<col style="width: 30.0%" />
+<col style="width: 35.0%" />
+<col style="width: 35.0%" />
+</colgroup>
+<thead>
+<tr class="row-odd"><th class="head"><p>Scale</p></th>
+<th class="head"><p>Model Size</p></th>
+<th class="head"><p>Recommended Setup</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p>Small Experiments</p></td>
+<td><p>&lt; 1M parameters</p></td>
+<td><p>Single GPU, Standard training</p></td>
+</tr>
+<tr class="row-odd"><td><p>Medium Models</p></td>
+<td><p>1M - 100M parameters</p></td>
+<td><p>Multi-GPU, Mixed precision</p></td>
+</tr>
+<tr class="row-even"><td><p>Large Models</p></td>
+<td><p>100M - 1B+ parameters</p></td>
+<td><p>FSDP, Gradient checkpointing</p></td>
+</tr>
+<tr class="row-odd"><td><p>Research Clusters</p></td>
+<td><p>Multi-billion parameters</p></td>
+<td><p>Multi-node FSDP, CPU offload</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+</section>
+<section id="current-features-v0-1-0">
+<h2><strong>Current Features</strong> (v0.1.0)<a class="headerlink" href="#current-features-v0-1-0" title="Link to this heading">#</a></h2>
+<ul class="simple">
+<li><p><strong>FSDP Support</strong>: Scale to billion-parameter dendritic models</p></li>
+<li><p><strong>Unified Sweeps</strong>: Comprehensive parameter exploration framework</p></li>
+<li><p><strong>Advanced Analysis</strong>: Information-theoretic tools with multiple estimators</p></li>
+<li><p><strong>Performance Optimization</strong>: Mixed precision, profiling, memory management</p></li>
+<li><p><strong>Rich Visualizations</strong>: Professional figures and interactive plots</p></li>
+</ul>
+<p><strong>Latest Updates</strong></p>
+<ul class="simple">
+<li><p><strong>v0.1.0</strong>: Initial release with core dendritic modeling capabilities</p></li>
+<li><p><strong>Documentation</strong>: Comprehensive user guides, tutorials, and API reference</p></li>
+<li><p><strong>Analysis Tools</strong>: Information theory, ablation studies, visualization suite</p></li>
+<li><p><strong>Training Strategies</strong>: Multiple bio-inspired learning approaches</p></li>
+</ul>
+</section>
+<section id="community-support">
+<h2><strong>Community &amp; Support</strong><a class="headerlink" href="#community-support" title="Link to this heading">#</a></h2>
+<ul class="simple">
+<li><p><strong>GitHub Issues</strong>: Report bugs and request features</p></li>
+<li><p><strong>Documentation</strong>: Comprehensive guides and API reference</p></li>
+<li><p><strong>Examples</strong>: Jupyter notebooks and complete workflows</p></li>
+<li><p><strong>Contributing</strong>: Guidelines for extending the framework</p></li>
+</ul>
+<p><strong>Citation</strong>: If you use this framework in your research, please cite our paper (see <span class="xref std std-doc">appendix</span> for details).</p>
+<p><strong>Need Help?</strong> Check our <a class="reference internal" href="faq.html"><span class="doc">Frequently Asked Questions (FAQ)</span></a>, search the <a class="reference internal" href="glossary.html"><span class="doc">Glossary</span></a>, or open an issue on <a class="reference external" href="https://github.com/KempnerInstitute/dendritic-modeling/issues">GitHub</a>.</p>
+</section>
+</section>
+<section id="indices-and-tables">
+<h1>Indices and Tables<a class="headerlink" href="#indices-and-tables" title="Link to this heading">#</a></h1>
+<ul class="simple">
+<li><p><a class="reference internal" href="genindex.html"><span class="std std-ref">Index</span></a></p></li>
+<li><p><a class="reference internal" href="py-modindex.html"><span class="std std-ref">Module Index</span></a></p></li>
+<li><p><a class="reference internal" href="search.html"><span class="std std-ref">Search Page</span></a></p></li>
+</ul>
+</section>
+
+
+                </article>
+              
+              
+              
+              
+              
+                <footer class="prev-next-footer d-print-none">
+                  
+<div class="prev-next-area">
+    <a class="right-next"
+       href="introduction.html"
+       title="next page">
+      <div class="prev-next-info">
+        <p class="prev-next-subtitle">next</p>
+        <p class="prev-next-title">Introduction</p>
+      </div>
+      <i class="fa-solid fa-angle-right"></i>
+    </a>
+</div>
+                </footer>
+              
+            </div>
+            
+            
+              
+                <dialog id="pst-secondary-sidebar-modal"></dialog>
+                <div id="pst-secondary-sidebar" class="bd-sidebar-secondary bd-toc"><div class="sidebar-secondary-items sidebar-secondary__inner">
+
+
+  <div class="sidebar-secondary-item">
+<div
+    id="pst-page-navigation-heading-2"
+    class="page-toc tocsection onthispage">
+    <i class="fa-solid fa-list"></i> On this page
+  </div>
+  <nav class="bd-toc-nav page-toc" aria-labelledby="pst-page-navigation-heading-2">
+    <ul class="visible nav section-nav flex-column">
+<li class="toc-h1 nav-item toc-entry"><a class="reference internal nav-link" href="#">Dendritic Modeling Framework Documentation</a><ul class="visible nav section-nav flex-column">
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#quick-start"><strong>Quick Start</strong></a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#key-features"><strong>Key Features</strong></a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#documentation-structure"><strong>Documentation Structure</strong></a><ul class="visible nav section-nav flex-column">
+</ul>
+</li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#navigation-guide"><strong>Navigation Guide</strong></a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#research-applications"><strong>Research Applications</strong></a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#performance-scalability"><strong>Performance &amp; Scalability</strong></a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#current-features-v0-1-0"><strong>Current Features</strong> (v0.1.0)</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#community-support"><strong>Community &amp; Support</strong></a></li>
+</ul>
+</li>
+<li class="toc-h1 nav-item toc-entry"><a class="reference internal nav-link" href="#indices-and-tables">Indices and Tables</a></li>
+</ul>
+
+  </nav></div>
+
+  <div class="sidebar-secondary-item">
+
+  
+  <div class="tocsection editthispage">
+    <a href="https://github.com/KempnerInstitute/dendritic-modeling/edit/main/docs/index.rst">
+      <i class="fa-solid fa-pencil"></i>
+      
+      
+        
+          Edit on GitHub
+        
+      
+    </a>
+  </div>
+</div>
+
+  <div class="sidebar-secondary-item">
+  <div role="note" aria-label="source link">
+    <h3>This Page</h3>
+    <ul class="this-page-menu">
+      <li><a href="_sources/index.rst.txt"
+            rel="nofollow">Show Source</a></li>
+    </ul>
+   </div></div>
+
+</div></div>
+              
+            
+          </div>
+          <footer class="bd-footer-content">
+            
+          </footer>
+        
+      </main>
+    </div>
+  </div>
+  
+  <!-- Scripts loaded after <body> so the DOM is not blocked -->
+  <script defer src="_static/scripts/bootstrap.js?digest=8878045cc6db502f8baf"></script>
+<script defer src="_static/scripts/pydata-sphinx-theme.js?digest=8878045cc6db502f8baf"></script>
+
+  <footer class="bd-footer">
+<div class="bd-footer__inner bd-page-width">
+  
+    <div class="footer-items__start">
+      
+        <div class="footer-item">
+
+  <p class="copyright">
+    
+      © Copyright 2024, Kempner Institute for the Study of Natural and Artificial Intelligence.
+      <br/>
+    
+  </p>
+</div>
+      
+        <div class="footer-item">
+
+  <p class="sphinx-version">
+    Created using <a href="https://www.sphinx-doc.org/">Sphinx</a> 8.1.3.
+    <br/>
+  </p>
+</div>
+      
+    </div>
+  
+  
+  
+    <div class="footer-items__end">
+      
+        <div class="footer-item">
+<p class="theme-version">
+  <!-- # L10n: Setting the PST URL as an argument as this does not need to be localized -->
+  Built with the <a href="https://pydata-sphinx-theme.readthedocs.io/en/stable/index.html">PyData Sphinx Theme</a> 0.16.1.
+</p></div>
+      
+    </div>
+  
+</div>
+
+  </footer>
+  </body>
+</html>

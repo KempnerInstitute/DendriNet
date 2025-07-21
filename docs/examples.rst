@@ -435,5 +435,108 @@ Interactive Examples
 --------------------
 
 - `Basic Training <../notebooks/basic_training.ipynb>`_
+- `Advanced Models <../notebooks/advanced_models.ipynb>`_
+- `Parameter Sweeps <../notebooks/parameter_sweeps.ipynb>`_
+- `Analysis Examples <../notebooks/analysis_examples.ipynb>`_
+- `Vision Experiments <../notebooks/vision_experiments.ipynb>`_
 
-These examples demonstrate the key capabilities of the Dendritic Modeling Framework. For more details, see the :doc:`api_reference`. 
+These examples demonstrate the key capabilities of the Dendritic Modeling Framework.
+
+Possible Experiments
+--------------------
+
+The framework supports various types of experiments with clear prompts for execution:
+
+1. **Vision Experiments** (experiments/vision_experiments/):
+   - **Gabor Orientation**: Test selectivity to orientations.
+     - **Prompt**: ``python experiments/vision_experiments/gabor_orientation.py --orientations 8 --scales 4``
+     - **Implementation**: Uses GaborTransform to create filter banks; computes response curves.
+   - **Motion Detection**: Test directional selectivity.
+     - **Prompt**: ``python experiments/vision_experiments/motion_DS.py --directions 8``
+     - **Implementation**: Creates motion stimuli and analyzes directional tuning.
+
+2. **Parameter Sweeps** (src/dendritic_modeling/sweeps/):
+   - **EI Sweep**: Sweep E/I ratios systematically.
+     - **Prompt**: ``python -m dendritic_modeling.sweeps.unified.sweep_manager ei --config configs/ei_sweep.yaml --run``
+     - **Implementation**: Generates configs, submits SLURM jobs, analyzes results with heatmaps.
+   - **Branch Sweep**: Sweep branch factors across layers.
+     - **Prompt**: ``python -m dendritic_modeling.sweeps.unified.sweep_manager branch --config configs/branch_sweep.yaml --generate-only``
+     - **Implementation**: Layer-wise branch variation, performance analysis.
+   - **Noise Sweep**: Test robustness to different noise types.
+     - **Prompt**: ``python -m dendritic_modeling.sweeps.unified.sweep_manager noise --config configs/noise_sweep.yaml --run``
+     - **Implementation**: Adds various noise types (Gaussian, Poisson) to inputs.
+
+3. **Synaptic Correlation** (experiments/synaptic_correlation/):
+   - **Correlation Analysis**: Analyze accuracy vs. input correlations.
+     - **Prompt**: ``python experiments/synaptic_correlation/run_correlation_analysis_multi.py --n-runs 10``
+     - **Implementation**: Multiple data realizations, correlation matrix generation, PID analysis.
+
+4. **DendriNet Simulations** (experiments/dendrinet_simulations/):
+   - **Comprehensive Simulations**: Large-scale dendritic simulations.
+     - **Prompt**: ``python experiments/dendrinet_simulations/simulate_dendrinet.py --D 30 --C 3 --N_E 5 --N_I 5``
+     - **Implementation**: Correlation enumeration, synergy/redundancy analysis.
+
+5. **Neuron Modeling** (experiments/neuron_modeling/):
+   - **Fit Real Neuron**: Fit model parameters to real neuron data.
+     - **Prompt**: ``python experiments/neuron_modeling/fit_real_neuron.py --data data/real_neuron.h5``
+     - **Implementation**: Optimizes parameters to match real neuron responses.
+
+All experiments use YAML configs. See :doc:`CONFIGURATION_GUIDE` for parameter details.
+
+Demo Notebooks
+--------------
+
+The framework includes comprehensive Jupyter notebooks that demonstrate different aspects:
+
+1. **basic_training.ipynb**: Train EINet on MNIST
+   - **Explanation**: 
+     - Cell 1: Imports and environment setup
+     - Cell 2: Load configuration and data
+     - Cell 3: Initialize and train model
+     - Cell 4: Evaluate accuracy and plot results
+   - **Implementation**: Uses Classifier with ExcitationInhibitionNetwork
+   - **Prompt**: ``jupyter notebook notebooks/basic_training.ipynb`` then run all cells
+
+2. **advanced_models.ipynb**: DendriNet with shunting mechanisms
+   - **Explanation**: 
+     - Demonstrates E/I ratio effects
+     - Shows transfer function variations
+     - Compares shunting vs. linear modes
+   - **Implementation**: DendriticBranchLayer with configurable shunting
+   - **Prompt**: Explore different ``use_shunting`` and ``reactivation_strategy`` settings
+
+3. **parameter_sweeps.ipynb**: Run and analyze parameter sweeps
+   - **Explanation**: 
+     - Uses SweepManager to generate configurations
+     - Submits jobs and monitors progress
+     - Analyzes results with heatmaps and statistical plots
+   - **Implementation**: Unified framework from ``src/dendritic_modeling/sweeps/``
+   - **Prompt**: Execute cells to run EI sweep and visualize results
+
+4. **analysis_examples.ipynb**: Network analysis with AnalysisManager
+   - **Explanation**: 
+     - Network activation analysis
+     - Weight distribution visualization
+     - Information flow computation
+   - **Implementation**: Uses InformationAnalyzer for MI/PID calculations
+   - **Prompt**: Run analysis on trained networks to understand information processing
+
+5. **vision_experiments.ipynb**: Gabor filters and motion detection
+   - **Explanation**: 
+     - Visual neuroscience experiments
+     - Receptive field analysis
+     - Motion selectivity testing
+   - **Implementation**: Uses ``create_gabor_units`` from ``networks/factories``
+   - **Prompt**: Experiment with different orientations and spatial frequencies
+
+6. **quickstart_interactive.ipynb**: Basic framework introduction
+   - **Explanation**: 
+     - Quick setup and imports
+     - Simple training example
+     - Basic visualization
+   - **Implementation**: Minimal example for getting started
+   - **Prompt**: Start here for first-time users
+
+**Running Notebooks**: Execute ``jupyter notebook notebooks/`` from the project root to launch the notebook server.
+
+For more details, see the :doc:`api_reference`. 

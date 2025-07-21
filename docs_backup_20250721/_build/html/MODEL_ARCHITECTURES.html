@@ -1,0 +1,1185 @@
+
+<!DOCTYPE html>
+
+
+<html lang="en" data-content_root="./" >
+
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+    <title>Model Architectures Guide &#8212; Dendritic Modeling Framework v0.1.0</title>
+  
+  
+  
+  <script data-cfasync="false">
+    document.documentElement.dataset.mode = localStorage.getItem("mode") || "";
+    document.documentElement.dataset.theme = localStorage.getItem("theme") || "";
+  </script>
+  <!--
+    this give us a css class that will be invisible only if js is disabled
+  -->
+  <noscript>
+    <style>
+      .pst-js-only { display: none !important; }
+
+    </style>
+  </noscript>
+  
+  <!-- Loaded before other Sphinx assets -->
+  <link href="_static/styles/theme.css?digest=8878045cc6db502f8baf" rel="stylesheet" />
+<link href="_static/styles/pydata-sphinx-theme.css?digest=8878045cc6db502f8baf" rel="stylesheet" />
+
+    <link rel="stylesheet" type="text/css" href="_static/pygments.css?v=8f2a1f02" />
+    <link rel="stylesheet" type="text/css" href="_static/graphviz.css?v=4ae1632d" />
+    <link rel="stylesheet" type="text/css" href="_static/copybutton.css?v=76b2166b" />
+    <link rel="stylesheet" type="text/css" href="_static/custom.css?v=eced55a1" />
+    <link rel="stylesheet" type="text/css" href="_static/sphinx-design.min.css?v=95c83b7e" />
+    <link rel="stylesheet" type="text/css" href="_static/custom.css?v=eced55a1" />
+  
+  <!-- So that users can add custom icons -->
+  <script src="_static/scripts/fontawesome.js?digest=8878045cc6db502f8baf"></script>
+  <!-- Pre-loaded scripts that we'll load fully later -->
+  <link rel="preload" as="script" href="_static/scripts/bootstrap.js?digest=8878045cc6db502f8baf" />
+<link rel="preload" as="script" href="_static/scripts/pydata-sphinx-theme.js?digest=8878045cc6db502f8baf" />
+
+    <script src="_static/documentation_options.js?v=38b66d78"></script>
+    <script src="_static/doctools.js?v=9bcbadda"></script>
+    <script src="_static/sphinx_highlight.js?v=dc90522c"></script>
+    <script src="_static/clipboard.min.js?v=a7894cd8"></script>
+    <script src="_static/copybutton.js?v=30646c52"></script>
+    <script src="_static/design-tabs.js?v=f930bc37"></script>
+    <script crossorigin="anonymous" integrity="sha256-Ae2Vz/4ePdIu6ZyI/5ZGsYnb+m0JlOmKPjt6XZ9JJkA=" src="https://cdnjs.cloudflare.com/ajax/libs/require.js/2.3.4/require.min.js"></script>
+    <script>DOCUMENTATION_OPTIONS.pagename = 'MODEL_ARCHITECTURES';</script>
+    <script src="_static/custom.js"></script>
+    <link rel="author" title="About these documents" href="about.html" />
+    <link rel="index" title="Index" href="genindex.html" />
+    <link rel="search" title="Search" href="search.html" />
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <meta name="docsearch:language" content="en"/>
+  <meta name="docsearch:version" content="0.1.0" />
+    <meta name="docbuild:last-update" content="Jul 21, 2025"/>
+  </head>
+  
+  
+  <body data-bs-spy="scroll" data-bs-target=".bd-toc-nav" data-offset="180" data-bs-root-margin="0px 0px -60%" data-default-mode="">
+
+  
+  
+  <div id="pst-skip-link" class="skip-link d-print-none"><a href="#main-content">Skip to main content</a></div>
+  
+  <div id="pst-scroll-pixel-helper"></div>
+  
+  <button type="button" class="btn rounded-pill" id="pst-back-to-top">
+    <i class="fa-solid fa-arrow-up"></i>Back to top</button>
+
+  
+  <dialog id="pst-search-dialog">
+    
+<form class="bd-search d-flex align-items-center"
+      action="search.html"
+      method="get">
+  <i class="fa-solid fa-magnifying-glass"></i>
+  <input type="search"
+         class="form-control"
+         name="q"
+         placeholder="Search the docs..."
+         aria-label="Search the docs..."
+         autocomplete="off"
+         autocorrect="off"
+         autocapitalize="off"
+         spellcheck="false"/>
+  <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd>K</kbd></span>
+</form>
+  </dialog>
+
+  <div class="pst-async-banner-revealer d-none">
+  <aside id="bd-header-version-warning" class="d-none d-print-none" aria-label="Version warning"></aside>
+</div>
+
+  
+    <header class="bd-header navbar navbar-expand-lg bd-navbar d-print-none">
+<div class="bd-header__inner bd-page-width">
+  <button class="pst-navbar-icon sidebar-toggle primary-toggle" aria-label="Site navigation">
+    <span class="fa-solid fa-bars"></span>
+  </button>
+  
+  
+  <div class=" navbar-header-items__start">
+    
+      <div class="navbar-item">
+
+  
+    
+  
+
+<a class="navbar-brand logo" href="index.html">
+  
+  
+  
+  
+  
+    
+    
+      
+    
+    
+    <img src="_static/logo_light.png" class="logo__image only-light" alt=""/>
+    <img src="_static/logo_dark.png" class="logo__image only-dark pst-js-only" alt=""/>
+  
+  
+    <p class="title logo__title">Dendritic Modeling</p>
+  
+</a></div>
+    
+  </div>
+  
+  <div class=" navbar-header-items">
+    
+    <div class="me-auto navbar-header-items__center">
+      
+        <div class="navbar-item">
+<nav>
+  <ul class="bd-navbar-elements navbar-nav">
+    
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="introduction.html">
+    Introduction
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="installation.html">
+    Installation and Setup
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="quickstart.html">
+    Quickstart Guide
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="core_concepts.html">
+    Core Concepts
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="architectures/index.html">
+    Network Architectures and Design
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="training/index.html">
+    Training Strategies and Usage
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="analysis/index.html">
+    Analysis Tools and Methods
+  </a>
+</li>
+
+            <li class="nav-item dropdown">
+                <button class="btn dropdown-toggle nav-item" type="button"
+                data-bs-toggle="dropdown" aria-expanded="false"
+                aria-controls="pst-nav-more-links">
+                    More
+                </button>
+                <ul id="pst-nav-more-links" class="dropdown-menu">
+                    
+<li class=" ">
+  <a class="nav-link dropdown-item nav-internal" href="performance/index.html">
+    Performance, Speed, and Efficiency
+  </a>
+</li>
+
+
+<li class=" ">
+  <a class="nav-link dropdown-item nav-internal" href="faq.html">
+    Frequently Asked Questions (FAQ)
+  </a>
+</li>
+
+
+<li class=" ">
+  <a class="nav-link dropdown-item nav-internal" href="glossary.html">
+    Glossary
+  </a>
+</li>
+
+
+<li class=" ">
+  <a class="nav-link dropdown-item nav-internal" href="troubleshooting.html">
+    Troubleshooting Guide
+  </a>
+</li>
+
+
+<li class=" ">
+  <a class="nav-link dropdown-item nav-internal" href="contributing.html">
+    Contributing Guide
+  </a>
+</li>
+
+                </ul>
+            </li>
+            
+  </ul>
+</nav></div>
+      
+    </div>
+    
+    
+    <div class="navbar-header-items__end">
+      
+        <div class="navbar-item navbar-persistent--container">
+          
+
+<button class="btn search-button-field search-button__button pst-js-only" title="Search" aria-label="Search" data-bs-placement="bottom" data-bs-toggle="tooltip">
+ <i class="fa-solid fa-magnifying-glass"></i>
+ <span class="search-button__default-text">Search</span>
+ <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd class="kbd-shortcut__modifier">K</kbd></span>
+</button>
+        </div>
+      
+      
+        <div class="navbar-item">
+<form class="bd-search d-flex align-items-center"
+      action="search.html"
+      method="get">
+  <i class="fa-solid fa-magnifying-glass"></i>
+  <input type="search"
+         class="form-control"
+         name="q"
+         placeholder="Search the docs..."
+         aria-label="Search the docs..."
+         autocomplete="off"
+         autocorrect="off"
+         autocapitalize="off"
+         spellcheck="false"/>
+  <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd>K</kbd></span>
+</form></div>
+      
+        <div class="navbar-item"><ul class="navbar-icon-links"
+    aria-label="Icon Links">
+        <li class="nav-item">
+          
+          
+          
+          
+          
+          
+          
+          
+          <a href="https://github.com/KempnerInstitute/dendritic-modeling" title="GitHub" class="nav-link pst-navbar-icon" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><i class="fa-brands fa-square-github fa-lg" aria-hidden="true"></i>
+            <span class="sr-only">GitHub</span></a>
+        </li>
+        <li class="nav-item">
+          
+          
+          
+          
+          
+          
+          
+          
+          <a href="https://twitter.com/KempnerInstitute" title="Twitter" class="nav-link pst-navbar-icon" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><i class="fa-brands fa-square-twitter fa-lg" aria-hidden="true"></i>
+            <span class="sr-only">Twitter</span></a>
+        </li>
+</ul></div>
+      
+    </div>
+    
+  </div>
+  
+  
+    <div class="navbar-persistent--mobile">
+
+<button class="btn search-button-field search-button__button pst-js-only" title="Search" aria-label="Search" data-bs-placement="bottom" data-bs-toggle="tooltip">
+ <i class="fa-solid fa-magnifying-glass"></i>
+ <span class="search-button__default-text">Search</span>
+ <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd class="kbd-shortcut__modifier">K</kbd></span>
+</button>
+    </div>
+  
+
+  
+    <button class="pst-navbar-icon sidebar-toggle secondary-toggle" aria-label="On this page">
+      <span class="fa-solid fa-outdent"></span>
+    </button>
+  
+</div>
+
+    </header>
+  
+
+  <div class="bd-container">
+    <div class="bd-container__inner bd-page-width">
+      
+      
+      
+        
+      
+      <dialog id="pst-primary-sidebar-modal"></dialog>
+      <div id="pst-primary-sidebar" class="bd-sidebar-primary bd-sidebar">
+        
+
+  
+  <div class="sidebar-header-items sidebar-primary__section">
+    
+    
+      <div class="sidebar-header-items__center">
+        
+          
+          
+            <div class="navbar-item">
+<nav>
+  <ul class="bd-navbar-elements navbar-nav">
+    
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="introduction.html">
+    Introduction
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="installation.html">
+    Installation and Setup
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="quickstart.html">
+    Quickstart Guide
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="core_concepts.html">
+    Core Concepts
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="architectures/index.html">
+    Network Architectures and Design
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="training/index.html">
+    Training Strategies and Usage
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="analysis/index.html">
+    Analysis Tools and Methods
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="performance/index.html">
+    Performance, Speed, and Efficiency
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="faq.html">
+    Frequently Asked Questions (FAQ)
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="glossary.html">
+    Glossary
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="troubleshooting.html">
+    Troubleshooting Guide
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="contributing.html">
+    Contributing Guide
+  </a>
+</li>
+
+  </ul>
+</nav></div>
+          
+        
+      </div>
+    
+    
+    
+      <div class="sidebar-header-items__end">
+        
+          <div class="navbar-item">
+<form class="bd-search d-flex align-items-center"
+      action="search.html"
+      method="get">
+  <i class="fa-solid fa-magnifying-glass"></i>
+  <input type="search"
+         class="form-control"
+         name="q"
+         placeholder="Search the docs..."
+         aria-label="Search the docs..."
+         autocomplete="off"
+         autocorrect="off"
+         autocapitalize="off"
+         spellcheck="false"/>
+  <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd>K</kbd></span>
+</form></div>
+        
+          <div class="navbar-item"><ul class="navbar-icon-links"
+    aria-label="Icon Links">
+        <li class="nav-item">
+          
+          
+          
+          
+          
+          
+          
+          
+          <a href="https://github.com/KempnerInstitute/dendritic-modeling" title="GitHub" class="nav-link pst-navbar-icon" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><i class="fa-brands fa-square-github fa-lg" aria-hidden="true"></i>
+            <span class="sr-only">GitHub</span></a>
+        </li>
+        <li class="nav-item">
+          
+          
+          
+          
+          
+          
+          
+          
+          <a href="https://twitter.com/KempnerInstitute" title="Twitter" class="nav-link pst-navbar-icon" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><i class="fa-brands fa-square-twitter fa-lg" aria-hidden="true"></i>
+            <span class="sr-only">Twitter</span></a>
+        </li>
+</ul></div>
+        
+      </div>
+    
+  </div>
+  
+    <div class="sidebar-primary-items__start sidebar-primary__section">
+        <div class="sidebar-primary-item">
+<form class="bd-search d-flex align-items-center"
+      action="search.html"
+      method="get">
+  <i class="fa-solid fa-magnifying-glass"></i>
+  <input type="search"
+         class="form-control"
+         name="q"
+         placeholder="Search the docs..."
+         aria-label="Search the docs..."
+         autocomplete="off"
+         autocorrect="off"
+         autocapitalize="off"
+         spellcheck="false"/>
+  <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd>K</kbd></span>
+</form></div>
+    </div>
+  
+  
+  <div class="sidebar-primary-items__end sidebar-primary__section">
+      <div class="sidebar-primary-item">
+<div id="ethical-ad-placement"
+      class="flat"
+      data-ea-publisher="readthedocs"
+      data-ea-type="readthedocs-sidebar"
+      data-ea-manual="true">
+</div></div>
+  </div>
+
+
+      </div>
+      
+      <main id="main-content" class="bd-main" role="main">
+        
+        
+          <div class="bd-content">
+            <div class="bd-article-container">
+              
+              <div class="bd-header-article d-print-none">
+<div class="header-article-items header-article__inner">
+  
+    <div class="header-article-items__start">
+      
+        <div class="header-article-item">
+
+<nav aria-label="Breadcrumb" class="d-print-none">
+  <ul class="bd-breadcrumbs">
+    
+    <li class="breadcrumb-item breadcrumb-home">
+      <a href="index.html" class="nav-link" aria-label="Home">
+        <i class="fa-solid fa-home"></i>
+      </a>
+    </li>
+    <li class="breadcrumb-item active" aria-current="page"><span class="ellipsis">Model Architectures Guide</span></li>
+  </ul>
+</nav>
+</div>
+      
+    </div>
+  
+  
+</div>
+</div>
+              
+              
+              
+                
+<div id="searchbox"></div>
+                <article class="bd-article">
+                  
+  <section id="model-architectures-guide">
+<h1>Model Architectures Guide<a class="headerlink" href="#model-architectures-guide" title="Link to this heading">#</a></h1>
+<p>This guide provides detailed documentation for all network architectures available in the Dendritic Modeling Framework, from basic MLPs to sophisticated dendritic networks with excitation-inhibition dynamics.</p>
+<section id="table-of-contents">
+<h2>Table of Contents<a class="headerlink" href="#table-of-contents" title="Link to this heading">#</a></h2>
+<ol class="arabic simple">
+<li><p>[Architecture Overview](#architecture-overview)</p></li>
+<li><p>[EINet - Excitation-Inhibition Networks](#einet—excitation-inhibition-networks)</p></li>
+<li><p>[DendriNet - Pure Dendritic Networks](#dendrinet—pure-dendritic-networks)</p></li>
+<li><p>[Classical Networks](#classical-networks)</p></li>
+<li><p>[Input Processing Networks](#input-processing-networks)</p></li>
+<li><p>[Synaptic Mechanisms](#synaptic-mechanisms)</p></li>
+<li><p>[Activation Functions](#activation-functions)</p></li>
+<li><p>[Gradient Scaling Strategies](#gradient-scaling-strategies)</p></li>
+</ol>
+</section>
+<section id="architecture-overview">
+<h2>Architecture Overview<a class="headerlink" href="#architecture-overview" title="Link to this heading">#</a></h2>
+<p>The framework uses a three-component architecture:</p>
+<section id="input-encoder-network-core-network-decoder-network-output">
+<h3>Input → Encoder Network → Core Network → Decoder Network → Output<a class="headerlink" href="#input-encoder-network-core-network-decoder-network-output" title="Link to this heading">#</a></h3>
+<ul class="simple">
+<li><p><strong>Encoder Network</strong>: Preprocesses raw inputs (Identity, CNN, MLP, AlexNet)</p></li>
+<li><p><strong>Core Network</strong>: Main computational unit (EINet, DendriNet, MLP)</p></li>
+<li><p><strong>Decoder Network</strong>: Post-processes outputs (Identity, MLP)</p></li>
+</ul>
+<p>This modular design allows mixing and matching different components for various tasks.</p>
+</section>
+</section>
+<section id="einet-excitation-inhibition-networks">
+<h2>EINet - Excitation-Inhibition Networks<a class="headerlink" href="#einet-excitation-inhibition-networks" title="Link to this heading">#</a></h2>
+<p><strong>EINet</strong> is the flagship architecture, implementing biologically-inspired excitation-inhibition dynamics with dendritic computation.</p>
+<ul class="simple">
+<li><p><strong>Excitatory (E) neurons</strong>: Positive signal transmission</p></li>
+<li><p><strong>Inhibitory (I) neurons</strong>: Negative signal modulation</p></li>
+<li><p><strong>Shunting inhibition</strong>: Biologically-plausible divisive normalization</p></li>
+<li><p><strong>Subtractive inhibition</strong>: Traditional linear subtraction</p></li>
+</ul>
+<ul class="simple">
+<li><p><strong>Hierarchical structure</strong>: Multi-level branching from soma to dendrites</p></li>
+<li><p><strong>Branch factors</strong>: Control branching pattern (e.g., [2,2] = 4→2→1)</p></li>
+<li><p><strong>Synaptic integration</strong>: Complex input combination at each branch level</p></li>
+</ul>
+<ul class="simple">
+<li><p><strong>E→E connections</strong>: Excitatory-to-excitatory pathways</p></li>
+<li><p><strong>E→I connections</strong>: Excitatory-to-inhibitory pathways</p></li>
+<li><p><strong>I→E connections</strong>: Inhibitory-to-excitatory pathways</p></li>
+<li><p><strong>I→I connections</strong>: Inhibitory-to-inhibitory (usually zero)</p></li>
+</ul>
+<p><code class="docutils literal notranslate"><span class="pre">```yaml</span>
+<span class="pre">excitatory_layer_sizes:</span> <span class="pre">[256,</span> <span class="pre">128,</span> <span class="pre">64]</span>&#160;&#160;&#160;&#160; <span class="pre">#</span> <span class="pre">E</span> <span class="pre">neurons</span> <span class="pre">per</span> <span class="pre">layer</span>
+<span class="pre">inhibitory_layer_sizes:</span> <span class="pre">[128,</span> <span class="pre">64,</span> <span class="pre">32]</span>&#160;&#160;&#160;&#160;&#160; <span class="pre">#</span> <span class="pre">I</span> <span class="pre">neurons</span> <span class="pre">per</span> <span class="pre">layer</span>
+<span class="pre">excitatory_branch_factors:</span> <span class="pre">[2,</span> <span class="pre">2]</span>&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160; <span class="pre">#</span> <span class="pre">E</span> <span class="pre">branching</span> <span class="pre">pattern</span>
+<span class="pre">inhibitory_branch_factors:</span> <span class="pre">[]</span>&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160; <span class="pre">#</span> <span class="pre">I</span> <span class="pre">branching</span> <span class="pre">(usually</span> <span class="pre">none)</span>
+<span class="pre">```</span></code></p>
+<p><code class="docutils literal notranslate"><span class="pre">```yaml</span>
+<span class="pre">ee_synapses_per_branch_per_layer:</span> <span class="pre">[200,</span> <span class="pre">100]</span>&#160; <span class="pre">#</span> <span class="pre">E→E</span> <span class="pre">connections</span>
+<span class="pre">ei_synapses_per_branch_per_layer:</span> <span class="pre">[100,</span> <span class="pre">50]</span>&#160;&#160; <span class="pre">#</span> <span class="pre">E→I</span> <span class="pre">connections</span>
+<span class="pre">ie_synapses_per_branch_per_layer:</span> <span class="pre">[50,</span> <span class="pre">25]</span>&#160;&#160;&#160; <span class="pre">#</span> <span class="pre">I→E</span> <span class="pre">connections</span>
+<span class="pre">ii_synapses_per_branch_per_layer:</span> <span class="pre">[0,</span> <span class="pre">0]</span>&#160;&#160;&#160;&#160;&#160; <span class="pre">#</span> <span class="pre">I→I</span> <span class="pre">connections</span>
+<span class="pre">```</span></code></p>
+<p><strong>Connection density calculation:</strong>
+* Total E inputs to layer L: <code class="docutils literal notranslate"><span class="pre">excitatory_layer_sizes[L-1]</span> <span class="pre">*</span> <span class="pre">ee_synapses_per_branch_per_layer[L-1]</span></code>
+* Effective sparsity: <code class="docutils literal notranslate"><span class="pre">synapses_per_branch</span> <span class="pre">/</span> <span class="pre">total_possible_connections</span></code></p>
+<ul class="simple">
+<li><p>Divisive normalization</p></li>
+<li><p>Bounded output [0, 1]</p></li>
+<li><p>Prevents runaway excitation</p></li>
+</ul>
+<ul class="simple">
+<li><p>Linear subtraction</p></li>
+<li><p>Unbounded output</p></li>
+<li><p>Simpler computation</p></li>
+</ul>
+<p><code class="docutils literal notranslate"><span class="pre">```yaml</span>
+<span class="pre">input_mode:</span> <span class="pre">0</span>
+<span class="pre">Excitatory</span> <span class="pre">pathway:</span> <span class="pre">raw</span> <span class="pre">input</span>
+<span class="pre">==================================================</span>
+<span class="pre">Inhibitory</span> <span class="pre">pathway:</span> <span class="pre">None</span> <span class="pre">(zeros)</span>
+<span class="pre">==================================================</span>
+<span class="pre">```</span></code></p>
+<p><code class="docutils literal notranslate"><span class="pre">```yaml</span>
+<span class="pre">input_mode:</span> <span class="pre">1</span>
+<span class="pre">Both</span> <span class="pre">pathways:</span> <span class="pre">same</span> <span class="pre">input</span>
+<span class="pre">==================================================</span>
+<span class="pre">Simple</span> <span class="pre">and</span> <span class="pre">effective</span> <span class="pre">for</span> <span class="pre">most</span> <span class="pre">tasks</span>
+<span class="pre">==================================================</span>
+<span class="pre">```</span></code></p>
+<p><a href="#id1"><span class="problematic" id="id2">``</span></a><a href="#id3"><span class="problematic" id="id4">``</span></a><a href="#id5"><span class="problematic" id="id6">`</span></a>yaml
+input_mode: 2
+input_net_dict:</p>
+<blockquote>
+<div><p>type: CNNInputTransform
+# Separate transformation networks for E and I pathways</p>
+</div></blockquote>
+<hr class="docutils" />
+<p><code class="docutils literal notranslate"><span class="pre">```yaml</span>
+<span class="pre">somatic_synapses:</span> <span class="pre">true</span>
+<span class="pre">Allow</span> <span class="pre">direct</span> <span class="pre">connections</span> <span class="pre">to</span> <span class="pre">soma,</span> <span class="pre">bypassing</span> <span class="pre">dendritic</span> <span class="pre">tree</span>
+<span class="pre">==================================================</span>
+<span class="pre">Useful</span> <span class="pre">for</span> <span class="pre">rapid,</span> <span class="pre">direct</span> <span class="pre">signal</span> <span class="pre">transmission</span>
+<span class="pre">==================================================</span>
+<span class="pre">```</span></code></p>
+<p><code class="docutils literal notranslate"><span class="pre">```yaml</span>
+<span class="pre">reactivate:</span> <span class="pre">true</span>
+<span class="pre">reactivation_type:</span> <span class="pre">param_tanh</span>
+<span class="pre">Apply</span> <span class="pre">learnable</span> <span class="pre">activation</span> <span class="pre">functions</span> <span class="pre">after</span> <span class="pre">dendritic</span> <span class="pre">integration</span>
+<span class="pre">==================================================</span>
+<span class="pre">```</span></code></p>
+<p>For a single EINet layer with shunting inhibition:</p>
+<ol class="arabic simple">
+<li><p>E_branch = Σ(W_ee * X_e) + Σ(W_ie * X_i)
+I_branch = Σ(W_ei * X_e) + Σ(W_ii * X_i)
+<code class="docutils literal notranslate"><span class="pre">`</span></code></p></li>
+<li><p>E_soma = Σ(E_branch_k)
+I_soma = Σ(I_branch_k)
+<code class="docutils literal notranslate"><span class="pre">`</span></code></p></li>
+<li></li>
+<li></li>
+</ol>
+</section>
+<section id="dendrinet-pure-dendritic-networks">
+<h2>DendriNet - Pure Dendritic Networks<a class="headerlink" href="#dendrinet-pure-dendritic-networks" title="Link to this heading">#</a></h2>
+<p><strong>DendriNet</strong> focuses purely on dendritic computation without explicit E-I separation.</p>
+<ul class="simple">
+<li><p><strong>Soma</strong>: Final integration point</p></li>
+<li><p><strong>Primary branches</strong>: First level of dendrites</p></li>
+<li><p><strong>Secondary branches</strong>: Higher-order dendritic structures</p></li>
+<li><p><strong>Synaptic inputs</strong>: Distributed across branch levels</p></li>
+</ul>
+<p><code class="docutils literal notranslate"><span class="pre">```yaml</span>
+<span class="pre">n_soma:</span> <span class="pre">64</span>&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160; <span class="pre">#</span> <span class="pre">Number</span> <span class="pre">of</span> <span class="pre">output</span> <span class="pre">neurons</span>
+<span class="pre">branch_factors:</span> <span class="pre">[2,</span> <span class="pre">2]</span>&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160; <span class="pre">#</span> <span class="pre">64</span> <span class="pre">→</span> <span class="pre">128</span> <span class="pre">→</span> <span class="pre">256</span> <span class="pre">synapses</span>
+<span class="pre">excitatory_synapses_per_branch:</span> <span class="pre">100</span>&#160; <span class="pre">#</span> <span class="pre">Synapses</span> <span class="pre">per</span> <span class="pre">branch</span>
+<span class="pre">inhibitory_synapses_per_branch:</span> <span class="pre">50</span>&#160;&#160; <span class="pre">#</span> <span class="pre">Optional</span> <span class="pre">inhibitory</span> <span class="pre">input</span>
+<span class="pre">```</span></code></p>
+<p><code class="docutils literal notranslate"><span class="pre">```yaml</span>
+<span class="pre">reactivate:</span> <span class="pre">true</span>
+<span class="pre">reactivation_type:</span> <span class="pre">param_tanh</span>
+<span class="pre">Apply</span> <span class="pre">activation</span> <span class="pre">functions</span> <span class="pre">at</span> <span class="pre">each</span> <span class="pre">branch</span> <span class="pre">level</span>
+<span class="pre">==================================================</span>
+<span class="pre">Enables</span> <span class="pre">complex</span> <span class="pre">nonlinear</span> <span class="pre">integration</span>
+<span class="pre">==================================================</span>
+<span class="pre">```</span></code></p>
+<p><a href="#id7"><span class="problematic" id="id8">``</span></a><a href="#id9"><span class="problematic" id="id10">``</span></a><a href="#id11"><span class="problematic" id="id12">`</span></a>yaml
+model:</p>
+<blockquote>
+<div><dl>
+<dt>core_network:</dt><dd><p>type: DendriNet
+parameters:</p>
+<blockquote>
+<div><p>n_soma: 128
+branch_factors: [2, 2]           # 3-level tree: 128→256→512
+excitatory_input_dim: 784
+excitatory_synapses_per_branch: 150
+inhibitory_input_dim: 784        # Optional
+inhibitory_synapses_per_branch: 75
+reactivate: true
+reactivation_type: param_tanh
+use_shunting: true</p>
+</div></blockquote>
+</dd>
+</dl>
+</div></blockquote>
+</section>
+<hr class="docutils" />
+<section id="classical-networks">
+<h2>Classical Networks<a class="headerlink" href="#classical-networks" title="Link to this heading">#</a></h2>
+<p>Standard feedforward neural network for baseline comparisons.</p>
+<p><a href="#id13"><span class="problematic" id="id14">``</span></a><a href="#id15"><span class="problematic" id="id16">``</span></a><a href="#id17"><span class="problematic" id="id18">`</span></a>yaml
+model:</p>
+<blockquote>
+<div><dl>
+<dt>core_network:</dt><dd><p>type: MLP
+parameters:</p>
+<blockquote>
+<div><p>input_dim: 784
+hidden_dims: [512, 256, 128]     # Hidden layer sizes
+activation: relu                 # “relu”, “sigmoid”, “tanh”
+output_dim: 10</p>
+</div></blockquote>
+</dd>
+</dl>
+</div></blockquote>
+<hr class="docutils" />
+<p><strong>Features:</strong>
+* Standard weight matrices
+* Configurable activation functions
+* Batch normalization support
+* Dropout (via training config)</p>
+<p>MLP with parameter count matched to equivalent EINet for fair comparison.</p>
+<p><a href="#id19"><span class="problematic" id="id20">``</span></a><a href="#id21"><span class="problematic" id="id22">``</span></a><a href="#id23"><span class="problematic" id="id24">`</span></a>yaml
+model:</p>
+<blockquote>
+<div><dl>
+<dt>core_network:</dt><dd><p>type: MatchedParamMLP
+parameters:</p>
+<blockquote>
+<div><p># Uses EINet architecture parameters
+input_dim: 784
+excitatory_layer_sizes: [256, 128]
+inhibitory_layer_sizes: [128, 64]
+ee_synapses_per_branch_per_layer: [200]
+# … other EINet parameters
+activation: relu</p>
+</div></blockquote>
+</dd>
+</dl>
+</div></blockquote>
+<hr class="docutils" />
+<p><strong>Parameter Matching Algorithm:</strong>
+#. Calculate total parameters in equivalent EINet
+#. Design MLP layer sizes to match parameter count
+#. Minimize layers while exceeding parameter threshold</p>
+</section>
+<section id="input-processing-networks">
+<h2>Input Processing Networks<a class="headerlink" href="#input-processing-networks" title="Link to this heading">#</a></h2>
+<p><a href="#id25"><span class="problematic" id="id26">``</span></a><a href="#id27"><span class="problematic" id="id28">``</span></a><a href="#id29"><span class="problematic" id="id30">`</span></a>yaml
+encoder_network:</p>
+<blockquote>
+<div><p>type: Identity
+parameters:</p>
+<blockquote>
+<div><p>input_dim: 784    # Pass-through with shape validation</p>
+</div></blockquote>
+</div></blockquote>
+<hr class="docutils" />
+<p>For spatial input processing with downsampling:</p>
+<p><a href="#id31"><span class="problematic" id="id32">``</span></a><a href="#id33"><span class="problematic" id="id34">``</span></a><a href="#id35"><span class="problematic" id="id36">`</span></a>yaml
+encoder_network:</p>
+<blockquote>
+<div><p>type: CNNDownsample
+parameters:</p>
+<blockquote>
+<div><p>input_shape: [3, 32, 32]        # [channels, height, width]
+hidden_dims: [32, 64, 128]      # Conv channel progression
+kernel_sizes: [5, 3, 3]         # Kernel size per layer
+strides: [1, 2, 2]              # Stride per layer
+activation: relu
+output_dim: 256                 # Final flattened dimension</p>
+</div></blockquote>
+</div></blockquote>
+<hr class="docutils" />
+<p>For generative tasks with upsampling:</p>
+<p><a href="#id37"><span class="problematic" id="id38">``</span></a><a href="#id39"><span class="problematic" id="id40">``</span></a><a href="#id41"><span class="problematic" id="id42">`</span></a>yaml
+decoder_network:</p>
+<blockquote>
+<div><p>type: CNNUpsample
+parameters:</p>
+<blockquote>
+<div><p>input_dim: 256
+hidden_dims: [128, 64, 32]      # Deconv channel progression
+kernel_sizes: [3, 3, 5]         # Kernel size per layer
+strides: [2, 2, 1]              # Stride per layer
+output_shape: [3, 32, 32]       # Target output shape</p>
+</div></blockquote>
+</div></blockquote>
+<hr class="docutils" />
+<p>Pre-trained AlexNet features:</p>
+<p><a href="#id43"><span class="problematic" id="id44">``</span></a><a href="#id45"><span class="problematic" id="id46">``</span></a><a href="#id47"><span class="problematic" id="id48">`</span></a>yaml
+encoder_network:</p>
+<blockquote>
+<div><p>type: AlexNet
+parameters:</p>
+<blockquote>
+<div><p>output_dim: 1000               # Feature dimension
+freeze_weights: true           # Freeze pre-trained weights</p>
+</div></blockquote>
+</div></blockquote>
+<hr class="docutils" />
+<p>For complex input preprocessing in EINet:</p>
+<p><a href="#id49"><span class="problematic" id="id50">``</span></a><a href="#id51"><span class="problematic" id="id52">``</span></a><a href="#id53"><span class="problematic" id="id54">`</span></a>yaml
+input_net_dict:</p>
+<blockquote>
+<div><p>type: CNNInputTransform
+input_shape: [3, 32, 32]</p>
+<p># Excitatory pathway CNN
+excitatory_hidden_dims: [32, 64]
+excitatory_kernel_sizes: [5, 3]
+excitatory_strides: [1, 2]</p>
+<p># Inhibitory pathway CNN
+inhibitory_hidden_dims: [16, 32]
+inhibitory_kernel_sizes: [7, 5]
+inhibitory_strides: [1, 2]</p>
+</div></blockquote>
+<hr class="docutils" />
+<p><a href="#id55"><span class="problematic" id="id56">``</span></a><a href="#id57"><span class="problematic" id="id58">``</span></a><a href="#id59"><span class="problematic" id="id60">`</span></a>yaml
+input_net_dict:</p>
+<blockquote>
+<div><p>type: MLPInputTransform
+hidden_dims: [512, 256]          # Shared hidden layers
+excitatory_dim: 256              # E pathway output
+inhibitory_dim: 128              # I pathway output</p>
+</div></blockquote>
+</section>
+<hr class="docutils" />
+<section id="synaptic-mechanisms">
+<h2>Synaptic Mechanisms<a class="headerlink" href="#synaptic-mechanisms" title="Link to this heading">#</a></h2>
+<p>Deterministic selection of top-K strongest connections:</p>
+<p><code class="docutils literal notranslate"><span class="pre">```yaml</span>
+<span class="pre">topk_type:</span> <span class="pre">standard</span>
+<span class="pre">topk_init_method:</span> <span class="pre">xavier_normal</span>&#160;&#160;&#160;&#160; <span class="pre">#</span> <span class="pre">Weight</span> <span class="pre">initialization</span>
+<span class="pre">ee_synapses_per_branch_per_layer:</span> <span class="pre">[100,</span> <span class="pre">50]</span>
+<span class="pre">```</span></code></p>
+<p><strong>Algorithm:</strong>
+#. Initialize all potential connections
+#. Select top-K by weight magnitude
+#. Mask unused connections to zero</p>
+<p>Probabilistic selection based on weight ranks:</p>
+<p><code class="docutils literal notranslate"><span class="pre">```yaml</span>
+<span class="pre">topk_type:</span> <span class="pre">stochastic</span>
+<span class="pre">topk_temperature:</span> <span class="pre">0.3</span>&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160; <span class="pre">#</span> <span class="pre">Lower</span> <span class="pre">=</span> <span class="pre">more</span> <span class="pre">deterministic</span>
+<span class="pre">topk_ultrafast:</span> <span class="pre">true</span>&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160; <span class="pre">#</span> <span class="pre">Fast</span> <span class="pre">approximation</span>
+<span class="pre">topk_noise_level:</span> <span class="pre">0.1</span>&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160; <span class="pre">#</span> <span class="pre">Exploration</span> <span class="pre">noise</span>
+<span class="pre">```</span></code></p>
+<p>Selection based on input variance and weight magnitude:</p>
+<p><code class="docutils literal notranslate"><span class="pre">```yaml</span>
+<span class="pre">topk_type:</span> <span class="pre">variance</span>
+<span class="pre">Selects</span> <span class="pre">synapses</span> <span class="pre">with</span> <span class="pre">high</span> <span class="pre">variance</span> <span class="pre">×</span> <span class="pre">weight</span> <span class="pre">product</span>
+<span class="pre">==================================================</span>
+<span class="pre">```</span></code></p>
+<p>Evolving connectivity patterns during training:</p>
+<p><code class="docutils literal notranslate"><span class="pre">```yaml</span>
+<span class="pre">topk_type:</span> <span class="pre">deepst</span>
+<span class="pre">excitatory_target_density:</span> <span class="pre">0.1</span>&#160;&#160;&#160;&#160; <span class="pre">#</span> <span class="pre">Target</span> <span class="pre">sparsity</span> <span class="pre">(10%</span> <span class="pre">active)</span>
+<span class="pre">inhibitory_target_density:</span> <span class="pre">0.05</span>&#160;&#160;&#160; <span class="pre">#</span> <span class="pre">Different</span> <span class="pre">sparsity</span> <span class="pre">for</span> <span class="pre">I</span>
+<span class="pre">rewiring_mode:</span> <span class="pre">global</span>&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160; <span class="pre">#</span> <span class="pre">&quot;global&quot;,</span> <span class="pre">&quot;local&quot;,</span> <span class="pre">&quot;constant_branch&quot;</span>
+<span class="pre">rewire_frequency:</span> <span class="pre">10</span>&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160; <span class="pre">#</span> <span class="pre">Rewire</span> <span class="pre">every</span> <span class="pre">N</span> <span class="pre">epochs</span>
+<span class="pre">use_noise:</span> <span class="pre">true</span>&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160; <span class="pre">#</span> <span class="pre">Add</span> <span class="pre">exploration</span> <span class="pre">noise</span>
+<span class="pre">sigma:</span> <span class="pre">0.05</span>&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160; <span class="pre">#</span> <span class="pre">Noise</span> <span class="pre">standard</span> <span class="pre">deviation</span>
+<span class="pre">weight_threshold:</span> <span class="pre">1e-6</span>&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160; <span class="pre">#</span> <span class="pre">Pruning</span> <span class="pre">threshold</span>
+<span class="pre">```</span></code></p>
+<p><strong>Rewiring Modes:</strong>
+* <strong>Global</strong>: Can rewire to any neuron in layer
+* <strong>Local</strong>: Rewire only within same branch
+* <strong>Constant Branch</strong>: Maintains constant synapses per branch</p>
+<p><strong>Rewiring Algorithm:</strong>
+#. <strong>Prune</strong>: Remove connections below threshold
+#. <strong>Grow</strong>: Adds new random connections
+#. <strong>Noise</strong>: Add Gaussian noise for exploration
+#. <strong>Normalize</strong>: Maintain target density</p>
+</section>
+<section id="activation-functions">
+<h2>Activation Functions<a class="headerlink" href="#activation-functions" title="Link to this heading">#</a></h2>
+<p><code class="docutils literal notranslate"><span class="pre">```yaml</span>
+<span class="pre">reactivation_type:</span> <span class="pre">relu</span>&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160; <span class="pre">#</span> <span class="pre">Standard</span> <span class="pre">ReLU</span>
+<span class="pre">reactivation_type:</span> <span class="pre">sigmoid</span>&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160; <span class="pre">#</span> <span class="pre">Standard</span> <span class="pre">sigmoid</span>
+<span class="pre">reactivation_type:</span> <span class="pre">tanh</span>&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160; <span class="pre">#</span> <span class="pre">Standard</span> <span class="pre">tanh</span>
+<span class="pre">reactivation_type:</span> <span class="pre">none</span>&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160; <span class="pre">#</span> <span class="pre">Identity</span> <span class="pre">(no</span> <span class="pre">activation)</span>
+<span class="pre">```</span></code></p>
+<p>Learnable slope and bias parameters:</p>
+<p><code class="docutils literal notranslate"><span class="pre">```yaml</span>
+<span class="pre">reactivation_type:</span> <span class="pre">param_tanh</span>
+<span class="pre">reactivation_init_m:</span> <span class="pre">1.5</span>&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160; <span class="pre">#</span> <span class="pre">Initial</span> <span class="pre">slope</span>
+<span class="pre">reactivation_init_b:</span> <span class="pre">0.5</span>&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160; <span class="pre">#</span> <span class="pre">Initial</span> <span class="pre">bias</span>
+<span class="pre">```</span></code></p>
+<p>Only slope parameter is learnable:</p>
+<p><code class="docutils literal notranslate"><span class="pre">```yaml</span>
+<span class="pre">reactivation_type:</span> <span class="pre">param_tanh_only_m</span>
+<span class="pre">reactivation_init_m:</span> <span class="pre">1.5</span>
+<span class="pre">```</span></code></p>
+<p>Smooth transition between linear and sigmoid:</p>
+<p><a href="#id61"><span class="problematic" id="id62">``</span></a><a href="#id63"><span class="problematic" id="id64">``</span></a><a href="#id65"><span class="problematic" id="id66">`</span></a>yaml
+reactivation_type: param_linear_sigmoid
+Trainable: f(x) = α * x + (1-α) * sigmoid(x)
+==================================================</p>
+<p>reactivation_type: linear_sigmoid
+Fixed interpolation
+==================================================
+<code class="docutils literal notranslate"><span class="pre">`</span></code></p>
+<p>Smooth transition between linear and tanh:</p>
+<p><a href="#id67"><span class="problematic" id="id68">``</span></a><a href="#id69"><span class="problematic" id="id70">``</span></a><a href="#id71"><span class="problematic" id="id72">`</span></a>yaml
+reactivation_type: param_linear_tanh
+Trainable interpolation
+==================================================</p>
+<p>reactivation_type: linear_tanh
+Fixed interpolation
+==================================================
+<code class="docutils literal notranslate"><span class="pre">`</span></code></p>
+<p>Smooth transitions with learnable parameters:</p>
+<p><a href="#id73"><span class="problematic" id="id74">``</span></a><a href="#id75"><span class="problematic" id="id76">``</span></a><a href="#id77"><span class="problematic" id="id78">`</span></a>yaml
+reactivation_type: param_linear_tanh_transition
+Complex parametric transition function
+==================================================</p>
+<p>reactivation_type: linear_tanh_transition
+Fixed transition function
+==================================================
+<code class="docutils literal notranslate"><span class="pre">`</span></code></p>
+</section>
+<section id="gradient-scaling-strategies">
+<h2>Gradient Scaling Strategies<a class="headerlink" href="#gradient-scaling-strategies" title="Link to this heading">#</a></h2>
+<p>Biologically-motivated gradient modifications for stable training.</p>
+<p><code class="docutils literal notranslate"><span class="pre">```yaml</span>
+<span class="pre">reactivation_strategy:</span> <span class="pre">inverse</span>
+<span class="pre">Scale</span> <span class="pre">gradients</span> <span class="pre">by</span> <span class="pre">1/derivative</span>
+<span class="pre">==================================================</span>
+<span class="pre">Helps</span> <span class="pre">with</span> <span class="pre">vanishing</span> <span class="pre">gradients</span> <span class="pre">in</span> <span class="pre">saturated</span> <span class="pre">regions</span>
+<span class="pre">==================================================</span>
+<span class="pre">```</span></code></p>
+<p><code class="docutils literal notranslate"><span class="pre">```yaml</span>
+<span class="pre">topk_strategy:</span> <span class="pre">conductance_dynamic</span>
+<span class="pre">Scale</span> <span class="pre">based</span> <span class="pre">on</span> <span class="pre">total</span> <span class="pre">synaptic</span> <span class="pre">conductance</span>
+<span class="pre">==================================================</span>
+<span class="pre">Balances</span> <span class="pre">gradients</span> <span class="pre">across</span> <span class="pre">different</span> <span class="pre">sparsity</span> <span class="pre">levels</span>
+<span class="pre">==================================================</span>
+<span class="pre">```</span></code></p>
+<p>![Block Linear Architecture](docs/figures/architecture/block_linear_accurate.png)</p>
+<p><code class="docutils literal notranslate"><span class="pre">```yaml</span>
+<span class="pre">blocklinear_strategy:</span> <span class="pre">conductance_dynamic</span>&#160;&#160;&#160; <span class="pre">#</span> <span class="pre">Conductance-based</span> <span class="pre">scaling</span>
+<span class="pre">blocklinear_strategy:</span> <span class="pre">distal_upweight_by_idx</span> <span class="pre">#</span> <span class="pre">Upweight</span> <span class="pre">distal</span> <span class="pre">branches</span>
+<span class="pre">blocklinear_strategy:</span> <span class="pre">none</span>&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160; <span class="pre">#</span> <span class="pre">No</span> <span class="pre">scaling</span>
+<span class="pre">```</span></code></p>
+<p><strong>Conductance Dynamic Scaling:</strong>
+* Compensates for different numbers of active synapses
+* Normalizes gradients by total conductance
+* Maintains balanced learning across branches</p>
+<p><strong>Distal Upweighting:</strong>
+* Increases learning rate for branches farther from soma
+* Compensates for distance-dependent attenuation
+* Biologically-inspired gradient modification</p>
+</section>
+<section id="architecture-selection-guidelines">
+<h2>Architecture Selection Guidelines<a class="headerlink" href="#architecture-selection-guidelines" title="Link to this heading">#</a></h2>
+<p><a href="#id79"><span class="problematic" id="id80">``</span></a><a href="#id81"><span class="problematic" id="id82">``</span></a><a href="#id83"><span class="problematic" id="id84">`</span></a>yaml
+Small datasets (MNIST)
+==================================================
+encoder_network: Identity
+core_network: EINet (simple)
+decoder_network: Identity</p>
+</section>
+</section>
+<section id="large-datasets-cifar-10">
+<h1>Large datasets (CIFAR-10)<a class="headerlink" href="#large-datasets-cifar-10" title="Link to this heading">#</a></h1>
+<p>encoder_network: CNNDownsample
+core_network: EINet (multi-layer)
+decoder_network: MLP
+<code class="docutils literal notranslate"><span class="pre">`</span></code></p>
+<p><code class="docutils literal notranslate"><span class="pre">```yaml</span>
+<span class="pre">encoder_network:</span> <span class="pre">Identity</span> <span class="pre">or</span> <span class="pre">MLP</span>
+<span class="pre">core_network:</span> <span class="pre">EINet</span> <span class="pre">with</span> <span class="pre">shunting=false</span>
+<span class="pre">decoder_network:</span> <span class="pre">MLP</span>
+<span class="pre">loss_function:</span> <span class="pre">mse</span>
+<span class="pre">```</span></code></p>
+<p><code class="docutils literal notranslate"><span class="pre">```yaml</span>
+<span class="pre">For</span> <span class="pre">synthetic</span> <span class="pre">tasks</span> <span class="pre">like</span> <span class="pre">XOR,</span> <span class="pre">info</span> <span class="pre">routing</span>
+<span class="pre">==================================================</span>
+<span class="pre">encoder_network:</span> <span class="pre">Identity</span>
+<span class="pre">core_network:</span> <span class="pre">EINet</span> <span class="pre">with</span> <span class="pre">sophisticated</span> <span class="pre">branching</span>
+<span class="pre">decoder_network:</span> <span class="pre">Identity</span>
+<span class="pre">```</span></code></p>
+<ul class="simple">
+<li><p><strong>EINet</strong>: Higher memory due to sparse connectivity</p></li>
+<li><p><strong>DendriNet</strong>: Moderate memory with branching</p></li>
+<li><p><strong>MLP</strong>: Lowest memory with dense connections</p></li>
+</ul>
+<ul class="simple">
+<li><p><strong>Standard TopK</strong>: Fastest synaptic selection</p></li>
+<li><p><strong>Stochastic TopK</strong>: Moderate speed, enhanced exploration</p></li>
+<li><p><strong>DeepST</strong>: Slower due to rewiring overhead</p></li>
+</ul>
+<ul class="simple">
+<li><p><strong>Shunting inhibition</strong>: More stable (bounded output)</p></li>
+<li><p><strong>Gradient scaling</strong>: Essential for deep dendritic networks</p></li>
+<li><p><strong>Parametric activations</strong>: Enhanced gradient flow</p></li>
+</ul>
+<ol class="arabic simple">
+<li><p>Start with simple EINet configuration</p></li>
+<li><p>Use <code class="docutils literal notranslate"><span class="pre">input_mode:</span> <span class="pre">1</span></code> (shared input)</p></li>
+<li><p>Enable <code class="docutils literal notranslate"><span class="pre">use_shunting:</span> <span class="pre">true</span></code></p></li>
+<li><p>Use <code class="docutils literal notranslate"><span class="pre">topk_type:</span> <span class="pre">standard</span></code></p></li>
+<li><p>Enable gradient scaling strategies</p></li>
+</ol>
+<ol class="arabic simple">
+<li><p>Experiment with complex branching patterns</p></li>
+<li><p>Try stochastic or variance TopK selection</p></li>
+<li><p>Use sophisticated input transforms</p></li>
+<li><p>Combine multiple gradient scaling strategies</p></li>
+<li><p>Implement dynamic sparse training for evolving connectivity</p></li>
+</ol>
+<ol class="arabic simple">
+<li><p>Implement custom activation functions</p></li>
+<li><p>Design novel synaptic selection mechanisms</p></li>
+<li><p>Explore different E-I balance ratios</p></li>
+<li><p>Investigate biological constraints</p></li>
+<li><p>Implement custom gradient scaling approaches</p></li>
+</ol>
+<p>—</p>
+<p>This guide covers all the architectural components available in the Dendritic Modeling Framework. For specific configuration examples, see the [Configuration Guide](CONFIGURATION_GUIDE.md) and the example configurations in the <code class="docutils literal notranslate"><span class="pre">configs/</span></code> directory.</p>
+</section>
+
+
+                </article>
+              
+              
+              
+              
+              
+                <footer class="prev-next-footer d-print-none">
+                  
+<div class="prev-next-area">
+</div>
+                </footer>
+              
+            </div>
+            
+            
+              
+                <dialog id="pst-secondary-sidebar-modal"></dialog>
+                <div id="pst-secondary-sidebar" class="bd-sidebar-secondary bd-toc"><div class="sidebar-secondary-items sidebar-secondary__inner">
+
+
+  <div class="sidebar-secondary-item">
+<div
+    id="pst-page-navigation-heading-2"
+    class="page-toc tocsection onthispage">
+    <i class="fa-solid fa-list"></i> On this page
+  </div>
+  <nav class="bd-toc-nav page-toc" aria-labelledby="pst-page-navigation-heading-2">
+    <ul class="visible nav section-nav flex-column">
+<li class="toc-h1 nav-item toc-entry"><a class="reference internal nav-link" href="#">Model Architectures Guide</a><ul class="visible nav section-nav flex-column">
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#table-of-contents">Table of Contents</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#architecture-overview">Architecture Overview</a><ul class="visible nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#input-encoder-network-core-network-decoder-network-output">Input → Encoder Network → Core Network → Decoder Network → Output</a></li>
+</ul>
+</li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#einet-excitation-inhibition-networks">EINet - Excitation-Inhibition Networks</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#dendrinet-pure-dendritic-networks">DendriNet - Pure Dendritic Networks</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#classical-networks">Classical Networks</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#input-processing-networks">Input Processing Networks</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#synaptic-mechanisms">Synaptic Mechanisms</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#activation-functions">Activation Functions</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#gradient-scaling-strategies">Gradient Scaling Strategies</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#architecture-selection-guidelines">Architecture Selection Guidelines</a></li>
+</ul>
+</li>
+<li class="toc-h1 nav-item toc-entry"><a class="reference internal nav-link" href="#large-datasets-cifar-10">Large datasets (CIFAR-10)</a></li>
+</ul>
+
+  </nav></div>
+
+  <div class="sidebar-secondary-item">
+
+  
+  <div class="tocsection editthispage">
+    <a href="https://github.com/KempnerInstitute/dendritic-modeling/edit/main/docs/MODEL_ARCHITECTURES.rst">
+      <i class="fa-solid fa-pencil"></i>
+      
+      
+        
+          Edit on GitHub
+        
+      
+    </a>
+  </div>
+</div>
+
+  <div class="sidebar-secondary-item">
+  <div role="note" aria-label="source link">
+    <h3>This Page</h3>
+    <ul class="this-page-menu">
+      <li><a href="_sources/MODEL_ARCHITECTURES.rst.txt"
+            rel="nofollow">Show Source</a></li>
+    </ul>
+   </div></div>
+
+</div></div>
+              
+            
+          </div>
+          <footer class="bd-footer-content">
+            
+          </footer>
+        
+      </main>
+    </div>
+  </div>
+  
+  <!-- Scripts loaded after <body> so the DOM is not blocked -->
+  <script defer src="_static/scripts/bootstrap.js?digest=8878045cc6db502f8baf"></script>
+<script defer src="_static/scripts/pydata-sphinx-theme.js?digest=8878045cc6db502f8baf"></script>
+
+  <footer class="bd-footer">
+<div class="bd-footer__inner bd-page-width">
+  
+    <div class="footer-items__start">
+      
+        <div class="footer-item">
+
+  <p class="copyright">
+    
+      © Copyright 2024, Kempner Institute for the Study of Natural and Artificial Intelligence.
+      <br/>
+    
+  </p>
+</div>
+      
+        <div class="footer-item">
+
+  <p class="sphinx-version">
+    Created using <a href="https://www.sphinx-doc.org/">Sphinx</a> 8.1.3.
+    <br/>
+  </p>
+</div>
+      
+    </div>
+  
+  
+  
+    <div class="footer-items__end">
+      
+        <div class="footer-item">
+<p class="theme-version">
+  <!-- # L10n: Setting the PST URL as an argument as this does not need to be localized -->
+  Built with the <a href="https://pydata-sphinx-theme.readthedocs.io/en/stable/index.html">PyData Sphinx Theme</a> 0.16.1.
+</p></div>
+      
+    </div>
+  
+</div>
+
+  </footer>
+  </body>
+</html>

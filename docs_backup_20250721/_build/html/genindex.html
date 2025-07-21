@@ -1,0 +1,1046 @@
+
+<!DOCTYPE html>
+
+
+<html lang="en" data-content_root="./" >
+
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Index &#8212; Dendritic Modeling Framework v0.1.0</title>
+  
+  
+  
+  <script data-cfasync="false">
+    document.documentElement.dataset.mode = localStorage.getItem("mode") || "";
+    document.documentElement.dataset.theme = localStorage.getItem("theme") || "";
+  </script>
+  <!--
+    this give us a css class that will be invisible only if js is disabled
+  -->
+  <noscript>
+    <style>
+      .pst-js-only { display: none !important; }
+
+    </style>
+  </noscript>
+  
+  <!-- Loaded before other Sphinx assets -->
+  <link href="_static/styles/theme.css?digest=8878045cc6db502f8baf" rel="stylesheet" />
+<link href="_static/styles/pydata-sphinx-theme.css?digest=8878045cc6db502f8baf" rel="stylesheet" />
+
+    <link rel="stylesheet" type="text/css" href="_static/pygments.css?v=8f2a1f02" />
+    <link rel="stylesheet" type="text/css" href="_static/graphviz.css?v=4ae1632d" />
+    <link rel="stylesheet" type="text/css" href="_static/copybutton.css?v=76b2166b" />
+    <link rel="stylesheet" type="text/css" href="_static/custom.css?v=eced55a1" />
+    <link rel="stylesheet" type="text/css" href="_static/sphinx-design.min.css?v=95c83b7e" />
+    <link rel="stylesheet" type="text/css" href="_static/custom.css?v=eced55a1" />
+  
+  <!-- So that users can add custom icons -->
+  <script src="_static/scripts/fontawesome.js?digest=8878045cc6db502f8baf"></script>
+  <!-- Pre-loaded scripts that we'll load fully later -->
+  <link rel="preload" as="script" href="_static/scripts/bootstrap.js?digest=8878045cc6db502f8baf" />
+<link rel="preload" as="script" href="_static/scripts/pydata-sphinx-theme.js?digest=8878045cc6db502f8baf" />
+
+    <script src="_static/documentation_options.js?v=38b66d78"></script>
+    <script src="_static/doctools.js?v=9bcbadda"></script>
+    <script src="_static/sphinx_highlight.js?v=dc90522c"></script>
+    <script src="_static/clipboard.min.js?v=a7894cd8"></script>
+    <script src="_static/copybutton.js?v=30646c52"></script>
+    <script src="_static/design-tabs.js?v=f930bc37"></script>
+    <script crossorigin="anonymous" integrity="sha256-Ae2Vz/4ePdIu6ZyI/5ZGsYnb+m0JlOmKPjt6XZ9JJkA=" src="https://cdnjs.cloudflare.com/ajax/libs/require.js/2.3.4/require.min.js"></script>
+    <script>DOCUMENTATION_OPTIONS.pagename = 'genindex';</script>
+    <script src="_static/custom.js"></script>
+    <link rel="author" title="About these documents" href="about.html" />
+    <link rel="index" title="Index" href="#" />
+    <link rel="search" title="Search" href="search.html" />
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <meta name="docsearch:language" content="en"/>
+  <meta name="docsearch:version" content="0.1.0" />
+    <meta name="docbuild:last-update" content="Jul 21, 2025"/>
+  </head>
+  
+  
+  <body data-bs-spy="scroll" data-bs-target=".bd-toc-nav" data-offset="180" data-bs-root-margin="0px 0px -60%" data-default-mode="">
+
+  
+  
+  <div id="pst-skip-link" class="skip-link d-print-none"><a href="#main-content">Skip to main content</a></div>
+  
+  <div id="pst-scroll-pixel-helper"></div>
+  
+  <button type="button" class="btn rounded-pill" id="pst-back-to-top">
+    <i class="fa-solid fa-arrow-up"></i>Back to top</button>
+
+  
+  <dialog id="pst-search-dialog">
+    
+<form class="bd-search d-flex align-items-center"
+      action="search.html"
+      method="get">
+  <i class="fa-solid fa-magnifying-glass"></i>
+  <input type="search"
+         class="form-control"
+         name="q"
+         placeholder="Search the docs..."
+         aria-label="Search the docs..."
+         autocomplete="off"
+         autocorrect="off"
+         autocapitalize="off"
+         spellcheck="false"/>
+  <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd>K</kbd></span>
+</form>
+  </dialog>
+
+  <div class="pst-async-banner-revealer d-none">
+  <aside id="bd-header-version-warning" class="d-none d-print-none" aria-label="Version warning"></aside>
+</div>
+
+  
+    <header class="bd-header navbar navbar-expand-lg bd-navbar d-print-none">
+<div class="bd-header__inner bd-page-width">
+  <button class="pst-navbar-icon sidebar-toggle primary-toggle" aria-label="Site navigation">
+    <span class="fa-solid fa-bars"></span>
+  </button>
+  
+  
+  <div class=" navbar-header-items__start">
+    
+      <div class="navbar-item">
+
+  
+    
+  
+
+<a class="navbar-brand logo" href="index.html">
+  
+  
+  
+  
+  
+    
+    
+      
+    
+    
+    <img src="_static/logo_light.png" class="logo__image only-light" alt=""/>
+    <img src="_static/logo_dark.png" class="logo__image only-dark pst-js-only" alt=""/>
+  
+  
+    <p class="title logo__title">Dendritic Modeling</p>
+  
+</a></div>
+    
+  </div>
+  
+  <div class=" navbar-header-items">
+    
+    <div class="me-auto navbar-header-items__center">
+      
+        <div class="navbar-item">
+<nav>
+  <ul class="bd-navbar-elements navbar-nav">
+    
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="introduction.html">
+    Introduction
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="installation.html">
+    Installation and Setup
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="quickstart.html">
+    Quickstart Guide
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="core_concepts.html">
+    Core Concepts
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="architectures/index.html">
+    Network Architectures and Design
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="training/index.html">
+    Training Strategies and Usage
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="analysis/index.html">
+    Analysis Tools and Methods
+  </a>
+</li>
+
+            <li class="nav-item dropdown">
+                <button class="btn dropdown-toggle nav-item" type="button"
+                data-bs-toggle="dropdown" aria-expanded="false"
+                aria-controls="pst-nav-more-links">
+                    More
+                </button>
+                <ul id="pst-nav-more-links" class="dropdown-menu">
+                    
+<li class=" ">
+  <a class="nav-link dropdown-item nav-internal" href="performance/index.html">
+    Performance, Speed, and Efficiency
+  </a>
+</li>
+
+
+<li class=" ">
+  <a class="nav-link dropdown-item nav-internal" href="faq.html">
+    Frequently Asked Questions (FAQ)
+  </a>
+</li>
+
+
+<li class=" ">
+  <a class="nav-link dropdown-item nav-internal" href="glossary.html">
+    Glossary
+  </a>
+</li>
+
+
+<li class=" ">
+  <a class="nav-link dropdown-item nav-internal" href="troubleshooting.html">
+    Troubleshooting Guide
+  </a>
+</li>
+
+
+<li class=" ">
+  <a class="nav-link dropdown-item nav-internal" href="contributing.html">
+    Contributing Guide
+  </a>
+</li>
+
+                </ul>
+            </li>
+            
+  </ul>
+</nav></div>
+      
+    </div>
+    
+    
+    <div class="navbar-header-items__end">
+      
+        <div class="navbar-item navbar-persistent--container">
+          
+
+<button class="btn search-button-field search-button__button pst-js-only" title="Search" aria-label="Search" data-bs-placement="bottom" data-bs-toggle="tooltip">
+ <i class="fa-solid fa-magnifying-glass"></i>
+ <span class="search-button__default-text">Search</span>
+ <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd class="kbd-shortcut__modifier">K</kbd></span>
+</button>
+        </div>
+      
+      
+        <div class="navbar-item">
+<form class="bd-search d-flex align-items-center"
+      action="search.html"
+      method="get">
+  <i class="fa-solid fa-magnifying-glass"></i>
+  <input type="search"
+         class="form-control"
+         name="q"
+         placeholder="Search the docs..."
+         aria-label="Search the docs..."
+         autocomplete="off"
+         autocorrect="off"
+         autocapitalize="off"
+         spellcheck="false"/>
+  <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd>K</kbd></span>
+</form></div>
+      
+        <div class="navbar-item"><ul class="navbar-icon-links"
+    aria-label="Icon Links">
+        <li class="nav-item">
+          
+          
+          
+          
+          
+          
+          
+          
+          <a href="https://github.com/KempnerInstitute/dendritic-modeling" title="GitHub" class="nav-link pst-navbar-icon" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><i class="fa-brands fa-square-github fa-lg" aria-hidden="true"></i>
+            <span class="sr-only">GitHub</span></a>
+        </li>
+        <li class="nav-item">
+          
+          
+          
+          
+          
+          
+          
+          
+          <a href="https://twitter.com/KempnerInstitute" title="Twitter" class="nav-link pst-navbar-icon" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><i class="fa-brands fa-square-twitter fa-lg" aria-hidden="true"></i>
+            <span class="sr-only">Twitter</span></a>
+        </li>
+</ul></div>
+      
+    </div>
+    
+  </div>
+  
+  
+    <div class="navbar-persistent--mobile">
+
+<button class="btn search-button-field search-button__button pst-js-only" title="Search" aria-label="Search" data-bs-placement="bottom" data-bs-toggle="tooltip">
+ <i class="fa-solid fa-magnifying-glass"></i>
+ <span class="search-button__default-text">Search</span>
+ <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd class="kbd-shortcut__modifier">K</kbd></span>
+</button>
+    </div>
+  
+
+  
+</div>
+
+    </header>
+  
+
+  <div class="bd-container">
+    <div class="bd-container__inner bd-page-width">
+      
+      
+      
+        
+      
+      <dialog id="pst-primary-sidebar-modal"></dialog>
+      <div id="pst-primary-sidebar" class="bd-sidebar-primary bd-sidebar">
+        
+
+  
+  <div class="sidebar-header-items sidebar-primary__section">
+    
+    
+      <div class="sidebar-header-items__center">
+        
+          
+          
+            <div class="navbar-item">
+<nav>
+  <ul class="bd-navbar-elements navbar-nav">
+    
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="introduction.html">
+    Introduction
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="installation.html">
+    Installation and Setup
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="quickstart.html">
+    Quickstart Guide
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="core_concepts.html">
+    Core Concepts
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="architectures/index.html">
+    Network Architectures and Design
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="training/index.html">
+    Training Strategies and Usage
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="analysis/index.html">
+    Analysis Tools and Methods
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="performance/index.html">
+    Performance, Speed, and Efficiency
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="faq.html">
+    Frequently Asked Questions (FAQ)
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="glossary.html">
+    Glossary
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="troubleshooting.html">
+    Troubleshooting Guide
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="contributing.html">
+    Contributing Guide
+  </a>
+</li>
+
+  </ul>
+</nav></div>
+          
+        
+      </div>
+    
+    
+    
+      <div class="sidebar-header-items__end">
+        
+          <div class="navbar-item">
+<form class="bd-search d-flex align-items-center"
+      action="search.html"
+      method="get">
+  <i class="fa-solid fa-magnifying-glass"></i>
+  <input type="search"
+         class="form-control"
+         name="q"
+         placeholder="Search the docs..."
+         aria-label="Search the docs..."
+         autocomplete="off"
+         autocorrect="off"
+         autocapitalize="off"
+         spellcheck="false"/>
+  <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd>K</kbd></span>
+</form></div>
+        
+          <div class="navbar-item"><ul class="navbar-icon-links"
+    aria-label="Icon Links">
+        <li class="nav-item">
+          
+          
+          
+          
+          
+          
+          
+          
+          <a href="https://github.com/KempnerInstitute/dendritic-modeling" title="GitHub" class="nav-link pst-navbar-icon" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><i class="fa-brands fa-square-github fa-lg" aria-hidden="true"></i>
+            <span class="sr-only">GitHub</span></a>
+        </li>
+        <li class="nav-item">
+          
+          
+          
+          
+          
+          
+          
+          
+          <a href="https://twitter.com/KempnerInstitute" title="Twitter" class="nav-link pst-navbar-icon" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><i class="fa-brands fa-square-twitter fa-lg" aria-hidden="true"></i>
+            <span class="sr-only">Twitter</span></a>
+        </li>
+</ul></div>
+        
+      </div>
+    
+  </div>
+  
+    <div class="sidebar-primary-items__start sidebar-primary__section">
+        <div class="sidebar-primary-item">
+<form class="bd-search d-flex align-items-center"
+      action="search.html"
+      method="get">
+  <i class="fa-solid fa-magnifying-glass"></i>
+  <input type="search"
+         class="form-control"
+         name="q"
+         placeholder="Search the docs..."
+         aria-label="Search the docs..."
+         autocomplete="off"
+         autocorrect="off"
+         autocapitalize="off"
+         spellcheck="false"/>
+  <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd>K</kbd></span>
+</form></div>
+    </div>
+  
+  
+  <div class="sidebar-primary-items__end sidebar-primary__section">
+      <div class="sidebar-primary-item">
+<div id="ethical-ad-placement"
+      class="flat"
+      data-ea-publisher="readthedocs"
+      data-ea-type="readthedocs-sidebar"
+      data-ea-manual="true">
+</div></div>
+  </div>
+
+
+      </div>
+      
+      <main id="main-content" class="bd-main" role="main">
+        
+        
+          <div class="bd-content">
+            <div class="bd-article-container">
+              
+              <div class="bd-header-article d-print-none"></div>
+              
+              
+              
+                
+<div id="searchbox"></div>
+                <article class="bd-article">
+                  
+
+<h1 id="index">Index</h1>
+
+<div class="genindex-jumpbox">
+ <a href="#_"><strong>_</strong></a>
+ | <a href="#A"><strong>A</strong></a>
+ | <a href="#B"><strong>B</strong></a>
+ | <a href="#C"><strong>C</strong></a>
+ | <a href="#D"><strong>D</strong></a>
+ | <a href="#E"><strong>E</strong></a>
+ | <a href="#F"><strong>F</strong></a>
+ | <a href="#G"><strong>G</strong></a>
+ | <a href="#H"><strong>H</strong></a>
+ | <a href="#I"><strong>I</strong></a>
+ | <a href="#L"><strong>L</strong></a>
+ | <a href="#M"><strong>M</strong></a>
+ | <a href="#N"><strong>N</strong></a>
+ | <a href="#P"><strong>P</strong></a>
+ | <a href="#R"><strong>R</strong></a>
+ | <a href="#S"><strong>S</strong></a>
+ | <a href="#T"><strong>T</strong></a>
+ | <a href="#V"><strong>V</strong></a>
+ | <a href="#W"><strong>W</strong></a>
+ 
+</div>
+<h2 id="_">_</h2>
+<table style="width: 100%" class="indextable genindextable"><tr>
+  <td style="width: 33%; vertical-align: top;"><ul>
+      <li><a href="source/api/models.html#dendritic_modeling.models.BaseModel.__init__">__init__() (dendritic_modeling.models.BaseModel method)</a>
+
+      <ul>
+        <li><a href="source/api/networks.html#dendritic_modeling.networks.ExcitationInhibitionNetwork.__init__">(dendritic_modeling.networks.ExcitationInhibitionNetwork method)</a>
+</li>
+        <li><a href="source/api/dendritic_modeling.html#dendritic_modeling.utils.ConfigValidator.__init__">(dendritic_modeling.utils.ConfigValidator method)</a>
+</li>
+        <li><a href="source/api/dendritic_modeling.html#dendritic_modeling.utils.Shaper.__init__">(dendritic_modeling.utils.Shaper method)</a>
+</li>
+      </ul></li>
+  </ul></td>
+</tr></table>
+
+<h2 id="A">A</h2>
+<table style="width: 100%" class="indextable genindextable"><tr>
+  <td style="width: 33%; vertical-align: top;"><ul>
+      <li><a href="glossary.html#term-Ablation-Study"><strong>Ablation Study</strong></a>
+</li>
+      <li><a href="source/reference/glossary.html#term-ablation-study"><strong>ablation study</strong></a>
+</li>
+      <li><a href="source/reference/glossary.html#term-activation-function"><strong>activation function</strong></a>
+</li>
+  </ul></td>
+  <td style="width: 33%; vertical-align: top;"><ul>
+      <li><a href="glossary.html#term-Analysis-Pipeline"><strong>Analysis Pipeline</strong></a>
+</li>
+      <li><a href="source/api/models.html#dendritic_modeling.models.BaseModel.apply_rewiring">apply_rewiring() (dendritic_modeling.models.BaseModel method)</a>
+
+      <ul>
+        <li><a href="source/api/networks.html#dendritic_modeling.networks.ExcitationInhibitionNetwork.apply_rewiring">(dendritic_modeling.networks.ExcitationInhibitionNetwork method)</a>
+</li>
+      </ul></li>
+  </ul></td>
+</tr></table>
+
+<h2 id="B">B</h2>
+<table style="width: 100%" class="indextable genindextable"><tr>
+  <td style="width: 33%; vertical-align: top;"><ul>
+      <li><a href="source/api/models.html#dendritic_modeling.models.BaseModel">BaseModel (class in dendritic_modeling.models)</a>
+</li>
+      <li><a href="glossary.html#term-Biological-Realism"><strong>Biological Realism</strong></a>
+</li>
+      <li><a href="source/reference/glossary.html#term-block-conductance"><strong>block conductance</strong></a>
+</li>
+      <li><a href="glossary.html#term-Block-Linear"><strong>Block Linear</strong></a>
+</li>
+  </ul></td>
+  <td style="width: 33%; vertical-align: top;"><ul>
+      <li><a href="source/reference/glossary.html#term-BlockLinear"><strong>BlockLinear</strong></a>
+</li>
+      <li><a href="glossary.html#term-Branch-Factor"><strong>Branch Factor</strong></a>
+</li>
+      <li><a href="source/reference/glossary.html#term-branch-factor"><strong>branch factor</strong></a>
+</li>
+      <li><a href="glossary.html#term-Branch-wise-Training"><strong>Branch-wise Training</strong></a>
+</li>
+      <li><a href="source/api/networks.html#dendritic_modeling.networks.ExcitationInhibitionNetwork.branch_layers">branch_layers (dendritic_modeling.networks.ExcitationInhibitionNetwork property)</a>
+</li>
+  </ul></td>
+</tr></table>
+
+<h2 id="C">C</h2>
+<table style="width: 100%" class="indextable genindextable"><tr>
+  <td style="width: 33%; vertical-align: top;"><ul>
+      <li><a href="source/api/dendritic_modeling.html#dendritic_modeling.utils.ConfigValidator.check_biological_plausibility">check_biological_plausibility() (dendritic_modeling.utils.ConfigValidator method)</a>
+</li>
+      <li><a href="source/api/dendritic_modeling.html#dendritic_modeling.utils.ConfigValidator.check_branch_factors">check_branch_factors() (dendritic_modeling.utils.ConfigValidator method)</a>
+</li>
+      <li><a href="source/api/dendritic_modeling.html#dendritic_modeling.utils.ConfigValidator.check_empty_lists">check_empty_lists() (dendritic_modeling.utils.ConfigValidator method)</a>
+</li>
+      <li><a href="source/api/dendritic_modeling.html#dendritic_modeling.utils.ConfigValidator.check_input_mode_consistency">check_input_mode_consistency() (dendritic_modeling.utils.ConfigValidator method)</a>
+</li>
+      <li><a href="source/api/dendritic_modeling.html#dendritic_modeling.utils.ConfigValidator.check_layer_dimensions">check_layer_dimensions() (dendritic_modeling.utils.ConfigValidator method)</a>
+</li>
+      <li><a href="source/api/dendritic_modeling.html#dendritic_modeling.utils.ConfigValidator.check_synapses_per_branch">check_synapses_per_branch() (dendritic_modeling.utils.ConfigValidator method)</a>
+</li>
+  </ul></td>
+  <td style="width: 33%; vertical-align: top;"><ul>
+      <li><a href="source/api/dendritic_modeling.html#dendritic_modeling.utils.ConfigValidator.check_topk_constraints">check_topk_constraints() (dendritic_modeling.utils.ConfigValidator method)</a>
+</li>
+      <li><a href="source/api/dendritic_modeling.html#dendritic_modeling.utils.ConfigValidator.check_transfer_dimensions">check_transfer_dimensions() (dendritic_modeling.utils.ConfigValidator method)</a>
+</li>
+      <li><a href="source/reference/glossary.html#term-CIFAR10"><strong>CIFAR10</strong></a>
+</li>
+      <li><a href="glossary.html#term-Configuration-System"><strong>Configuration System</strong></a>
+</li>
+      <li><a href="source/api/dendritic_modeling.html#dendritic_modeling.utils.ConfigValidator">ConfigValidator (class in dendritic_modeling.utils)</a>
+</li>
+      <li><a href="source/api/networks.html#dendritic_modeling.networks.convert.cnn_to_dendrite.conv2d_to_dendrite">conv2d_to_dendrite() (in module dendritic_modeling.networks.convert.cnn_to_dendrite)</a>
+</li>
+      <li><a href="source/api/dendritic_modeling.html#dendritic_modeling.utils.convert_to_serializable">convert_to_serializable() (in module dendritic_modeling.utils)</a>
+</li>
+  </ul></td>
+</tr></table>
+
+<h2 id="D">D</h2>
+<table style="width: 100%" class="indextable genindextable"><tr>
+  <td style="width: 33%; vertical-align: top;"><ul>
+      <li><a href="glossary.html#term-Dale-s-Principle"><strong>Dale&#39;s Principle</strong></a>
+</li>
+      <li><a href="source/api/models.html#dendritic_modeling.models.BaseModel.decay_weights">decay_weights() (dendritic_modeling.models.BaseModel method)</a>
+
+      <ul>
+        <li><a href="source/api/networks.html#dendritic_modeling.networks.ExcitationInhibitionNetwork.decay_weights">(dendritic_modeling.networks.ExcitationInhibitionNetwork method)</a>
+</li>
+      </ul></li>
+      <li><a href="glossary.html#term-DeepST"><strong>DeepST</strong></a>
+</li>
+      <li><a href="source/reference/glossary.html#term-dendritic-branch"><strong>dendritic branch</strong></a>
+</li>
+      <li><a href="glossary.html#term-Dendritic-Branch-Layer"><strong>Dendritic Branch Layer</strong></a>
+</li>
+      <li><a href="glossary.html#term-Dendritic-Computation"><strong>Dendritic Computation</strong></a>
+</li>
+      <li><a href="source/reference/glossary.html#term-dendritic-computing"><strong>dendritic computing</strong></a>
+</li>
+      <li>
+    dendritic_modeling.config
+
+      <ul>
+        <li><a href="source/api/dendritic_modeling.html#module-dendritic_modeling.config">module</a>
+</li>
+      </ul></li>
+  </ul></td>
+  <td style="width: 33%; vertical-align: top;"><ul>
+      <li>
+    dendritic_modeling.models
+
+      <ul>
+        <li><a href="source/api/dendritic_modeling.html#module-dendritic_modeling.models">module</a>
+</li>
+      </ul></li>
+      <li>
+    dendritic_modeling.networks
+
+      <ul>
+        <li><a href="source/api/dendritic_modeling.html#module-dendritic_modeling.networks">module</a>
+</li>
+      </ul></li>
+      <li>
+    dendritic_modeling.networks.convert.cnn_to_dendrite
+
+      <ul>
+        <li><a href="source/api/networks.html#module-dendritic_modeling.networks.convert.cnn_to_dendrite">module</a>
+</li>
+      </ul></li>
+      <li>
+    dendritic_modeling.utils
+
+      <ul>
+        <li><a href="source/api/dendritic_modeling.html#module-dendritic_modeling.utils">module</a>
+</li>
+      </ul></li>
+      <li><a href="glossary.html#term-Dynamic-Sparse-Training"><strong>Dynamic Sparse Training</strong></a>
+</li>
+  </ul></td>
+</tr></table>
+
+<h2 id="E">E</h2>
+<table style="width: 100%" class="indextable genindextable"><tr>
+  <td style="width: 33%; vertical-align: top;"><ul>
+      <li><a href="glossary.html#term-E-I-Balance"><strong>E/I Balance</strong></a>
+</li>
+      <li><a href="glossary.html#term-EINet"><strong>EINet</strong></a>
+</li>
+      <li><a href="source/reference/glossary.html#term-excitation-inhibition-balance"><strong>excitation-inhibition balance</strong></a>
+</li>
+      <li><a href="glossary.html#term-Excitation-Inhibition-Network"><strong>Excitation-Inhibition Network</strong></a>
+</li>
+  </ul></td>
+  <td style="width: 33%; vertical-align: top;"><ul>
+      <li><a href="source/api/networks.html#dendritic_modeling.networks.ExcitationInhibitionNetwork">ExcitationInhibitionNetwork (class in dendritic_modeling.networks)</a>
+</li>
+      <li><a href="source/reference/glossary.html#term-excitatory"><strong>excitatory</strong></a>
+</li>
+      <li><a href="source/reference/glossary.html#term-experiment-tracking"><strong>experiment tracking</strong></a>
+</li>
+      <li><a href="source/api/dendritic_modeling.html#dendritic_modeling.utils.ConfigValidator.extract_parameters">extract_parameters() (dendritic_modeling.utils.ConfigValidator method)</a>
+</li>
+  </ul></td>
+</tr></table>
+
+<h2 id="F">F</h2>
+<table style="width: 100%" class="indextable genindextable"><tr>
+  <td style="width: 33%; vertical-align: top;"><ul>
+      <li><a href="source/api/models.html#dendritic_modeling.models.BaseModel.forward">forward() (dendritic_modeling.models.BaseModel method)</a>
+
+      <ul>
+        <li><a href="source/api/networks.html#dendritic_modeling.networks.ExcitationInhibitionNetwork.forward">(dendritic_modeling.networks.ExcitationInhibitionNetwork method)</a>
+</li>
+      </ul></li>
+  </ul></td>
+  <td style="width: 33%; vertical-align: top;"><ul>
+      <li><a href="glossary.html#term-FSDP"><strong>FSDP</strong></a>
+</li>
+      <li><a href="glossary.html#term-Fully-Sharded-Data-Parallel"><strong>Fully Sharded Data Parallel</strong></a>
+</li>
+  </ul></td>
+</tr></table>
+
+<h2 id="G">G</h2>
+<table style="width: 100%" class="indextable genindextable"><tr>
+  <td style="width: 33%; vertical-align: top;"><ul>
+      <li><a href="source/api/networks.html#dendritic_modeling.networks.ExcitationInhibitionNetwork.get_effective_params">get_effective_params() (dendritic_modeling.networks.ExcitationInhibitionNetwork method)</a>
+</li>
+      <li><a href="source/api/dendritic_modeling.html#dendritic_modeling.utils.get_logger">get_logger() (in module dendritic_modeling.utils)</a>
+</li>
+      <li><a href="source/api/models.html#dendritic_modeling.models.BaseModel.get_param_groups">get_param_groups() (dendritic_modeling.models.BaseModel method)</a>
+</li>
+  </ul></td>
+  <td style="width: 33%; vertical-align: top;"><ul>
+      <li><a href="glossary.html#term-Gradient-Checkpointing"><strong>Gradient Checkpointing</strong></a>
+</li>
+      <li><a href="glossary.html#term-Gradient-Scaling"><strong>Gradient Scaling</strong></a>
+</li>
+      <li><a href="source/reference/glossary.html#term-gradient-scaling"><strong>gradient scaling</strong></a>
+</li>
+  </ul></td>
+</tr></table>
+
+<h2 id="H">H</h2>
+<table style="width: 100%" class="indextable genindextable"><tr>
+  <td style="width: 33%; vertical-align: top;"><ul>
+      <li><a href="glossary.html#term-Homeostatic-Regularization"><strong>Homeostatic Regularization</strong></a>
+</li>
+  </ul></td>
+</tr></table>
+
+<h2 id="I">I</h2>
+<table style="width: 100%" class="indextable genindextable"><tr>
+  <td style="width: 33%; vertical-align: top;"><ul>
+      <li><a href="glossary.html#term-Information-Theory-Analysis"><strong>Information Theory Analysis</strong></a>
+</li>
+      <li><a href="source/reference/glossary.html#term-inhibitory"><strong>inhibitory</strong></a>
+</li>
+  </ul></td>
+  <td style="width: 33%; vertical-align: top;"><ul>
+      <li><a href="glossary.html#term-Input-Mode"><strong>Input Mode</strong></a>
+</li>
+      <li><a href="source/reference/glossary.html#term-input-transformation-network"><strong>input transformation network</strong></a>
+</li>
+  </ul></td>
+</tr></table>
+
+<h2 id="L">L</h2>
+<table style="width: 100%" class="indextable genindextable"><tr>
+  <td style="width: 33%; vertical-align: top;"><ul>
+      <li><a href="glossary.html#term-Learning-Strategy"><strong>Learning Strategy</strong></a>
+</li>
+  </ul></td>
+  <td style="width: 33%; vertical-align: top;"><ul>
+      <li><a href="source/reference/glossary.html#term-learning-strategy"><strong>learning strategy</strong></a>
+</li>
+  </ul></td>
+</tr></table>
+
+<h2 id="M">M</h2>
+<table style="width: 100%" class="indextable genindextable"><tr>
+  <td style="width: 33%; vertical-align: top;"><ul>
+      <li><a href="source/reference/glossary.html#term-maximum-likelihood-estimation-MLE"><strong>maximum likelihood estimation (MLE)</strong></a>
+</li>
+      <li><a href="glossary.html#term-Mixed-Precision-Training"><strong>Mixed Precision Training</strong></a>
+</li>
+      <li><a href="source/reference/glossary.html#term-MNIST"><strong>MNIST</strong></a>
+</li>
+      <li>
+    module
+
+      <ul>
+        <li><a href="source/api/dendritic_modeling.html#module-dendritic_modeling.config">dendritic_modeling.config</a>
+</li>
+        <li><a href="source/api/dendritic_modeling.html#module-dendritic_modeling.models">dendritic_modeling.models</a>
+</li>
+        <li><a href="source/api/dendritic_modeling.html#module-dendritic_modeling.networks">dendritic_modeling.networks</a>
+</li>
+        <li><a href="source/api/networks.html#module-dendritic_modeling.networks.convert.cnn_to_dendrite">dendritic_modeling.networks.convert.cnn_to_dendrite</a>
+</li>
+        <li><a href="source/api/dendritic_modeling.html#module-dendritic_modeling.utils">dendritic_modeling.utils</a>
+</li>
+      </ul></li>
+  </ul></td>
+  <td style="width: 33%; vertical-align: top;"><ul>
+      <li><a href="glossary.html#term-Morphological-Parameters"><strong>Morphological Parameters</strong></a>
+</li>
+      <li><a href="source/reference/glossary.html#term-mutual-information"><strong>mutual information</strong></a>
+</li>
+  </ul></td>
+</tr></table>
+
+<h2 id="N">N</h2>
+<table style="width: 100%" class="indextable genindextable"><tr>
+  <td style="width: 33%; vertical-align: top;"><ul>
+      <li><a href="source/api/networks.html#dendritic_modeling.networks.ExcitationInhibitionNetwork.n_branch_layers">n_branch_layers (dendritic_modeling.networks.ExcitationInhibitionNetwork property)</a>
+</li>
+  </ul></td>
+</tr></table>
+
+<h2 id="P">P</h2>
+<table style="width: 100%" class="indextable genindextable"><tr>
+  <td style="width: 33%; vertical-align: top;"><ul>
+      <li><a href="glossary.html#term-Parameter-Sweeps"><strong>Parameter Sweeps</strong></a>
+</li>
+  </ul></td>
+  <td style="width: 33%; vertical-align: top;"><ul>
+      <li><a href="source/reference/glossary.html#term-ParametricTanh"><strong>ParametricTanh</strong></a>
+</li>
+      <li><a href="source/api/models.html#dendritic_modeling.models.BaseModel.predict">predict() (dendritic_modeling.models.BaseModel method)</a>
+</li>
+  </ul></td>
+</tr></table>
+
+<h2 id="R">R</h2>
+<table style="width: 100%" class="indextable genindextable"><tr>
+  <td style="width: 33%; vertical-align: top;"><ul>
+      <li><a href="source/reference/glossary.html#term-reactivation"><strong>reactivation</strong></a>
+</li>
+      <li><a href="glossary.html#term-Reactivation-Function"><strong>Reactivation Function</strong></a>
+</li>
+  </ul></td>
+  <td style="width: 33%; vertical-align: top;"><ul>
+      <li><a href="source/api/dendritic_modeling.html#dendritic_modeling.utils.ConfigValidator.report_results">report_results() (dendritic_modeling.utils.ConfigValidator method)</a>
+</li>
+      <li><a href="source/api/dendritic_modeling.html#dendritic_modeling.utils.Shaper.reshape">reshape() (dendritic_modeling.utils.Shaper method)</a>
+</li>
+      <li><a href="source/api/dendritic_modeling.html#dendritic_modeling.utils.roc_auc_score">roc_auc_score() (in module dendritic_modeling.utils)</a>
+</li>
+  </ul></td>
+</tr></table>
+
+<h2 id="S">S</h2>
+<table style="width: 100%" class="indextable genindextable"><tr>
+  <td style="width: 33%; vertical-align: top;"><ul>
+      <li><a href="source/api/dendritic_modeling.html#dendritic_modeling.utils.save_dict">save_dict() (in module dendritic_modeling.utils)</a>
+</li>
+      <li><a href="source/api/dendritic_modeling.html#dendritic_modeling.utils.set_seed">set_seed() (in module dendritic_modeling.utils)</a>
+</li>
+      <li><a href="source/api/dendritic_modeling.html#dendritic_modeling.utils.setup_logging">setup_logging() (in module dendritic_modeling.utils)</a>
+</li>
+      <li><a href="source/api/networks.html#dendritic_modeling.networks.ExcitationInhibitionNetwork.setup_network_layers">setup_network_layers() (dendritic_modeling.networks.ExcitationInhibitionNetwork method)</a>
+</li>
+      <li><a href="source/api/networks.html#dendritic_modeling.networks.ExcitationInhibitionNetwork.setup_transfer_function">setup_transfer_function() (dendritic_modeling.networks.ExcitationInhibitionNetwork method)</a>
+</li>
+      <li><a href="source/api/dendritic_modeling.html#dendritic_modeling.utils.Shaper">Shaper (class in dendritic_modeling.utils)</a>
+</li>
+      <li><a href="glossary.html#term-Shunting-Inhibition"><strong>Shunting Inhibition</strong></a>
+</li>
+  </ul></td>
+  <td style="width: 33%; vertical-align: top;"><ul>
+      <li><a href="source/reference/glossary.html#term-shunting-inhibition"><strong>shunting inhibition</strong></a>
+</li>
+      <li><a href="source/reference/glossary.html#term-soma"><strong>soma</strong></a>
+</li>
+      <li><a href="glossary.html#term-Somatic-Integration"><strong>Somatic Integration</strong></a>
+</li>
+      <li><a href="source/reference/glossary.html#term-sparse-connectivity"><strong>sparse connectivity</strong></a>
+</li>
+      <li><a href="glossary.html#term-Sparse-Training"><strong>Sparse Training</strong></a>
+</li>
+      <li><a href="glossary.html#term-Synapses-per-Branch"><strong>Synapses per Branch</strong></a>
+</li>
+      <li><a href="source/reference/glossary.html#term-synapses-per-branch"><strong>synapses per branch</strong></a>
+</li>
+      <li><a href="source/reference/glossary.html#term-synthetic-dataset"><strong>synthetic dataset</strong></a>
+</li>
+  </ul></td>
+</tr></table>
+
+<h2 id="T">T</h2>
+<table style="width: 100%" class="indextable genindextable"><tr>
+  <td style="width: 33%; vertical-align: top;"><ul>
+      <li><a href="glossary.html#term-TopK-Sparse-Connectivity"><strong>TopK Sparse Connectivity</strong></a>
+</li>
+      <li><a href="source/reference/glossary.html#term-TopKLinear"><strong>TopKLinear</strong></a>
+</li>
+  </ul></td>
+  <td style="width: 33%; vertical-align: top;"><ul>
+      <li><a href="glossary.html#term-Two-step-Training"><strong>Two-step Training</strong></a>
+</li>
+      <li><a href="source/reference/glossary.html#term-two-step-training"><strong>two-step training</strong></a>
+</li>
+  </ul></td>
+</tr></table>
+
+<h2 id="V">V</h2>
+<table style="width: 100%" class="indextable genindextable"><tr>
+  <td style="width: 33%; vertical-align: top;"><ul>
+      <li><a href="source/api/dendritic_modeling.html#dendritic_modeling.utils.ConfigValidator.validate">validate() (dendritic_modeling.utils.ConfigValidator method)</a>
+</li>
+  </ul></td>
+  <td style="width: 33%; vertical-align: top;"><ul>
+      <li><a href="source/api/dendritic_modeling.html#dendritic_modeling.utils.validate_config">validate_config() (in module dendritic_modeling.utils)</a>
+</li>
+      <li><a href="glossary.html#term-Voltage-Stabilization"><strong>Voltage Stabilization</strong></a>
+</li>
+  </ul></td>
+</tr></table>
+
+<h2 id="W">W</h2>
+<table style="width: 100%" class="indextable genindextable"><tr>
+  <td style="width: 33%; vertical-align: top;"><ul>
+      <li><a href="source/reference/glossary.html#term-weight-decay"><strong>weight decay</strong></a>
+</li>
+  </ul></td>
+  <td style="width: 33%; vertical-align: top;"><ul>
+      <li><a href="glossary.html#term-Weight-Initialization"><strong>Weight Initialization</strong></a>
+</li>
+      <li><a href="source/reference/glossary.html#term-weight-initialization"><strong>weight initialization</strong></a>
+</li>
+  </ul></td>
+</tr></table>
+
+
+
+                </article>
+              
+              
+              
+              
+              
+                <footer class="prev-next-footer d-print-none">
+                  
+<div class="prev-next-area">
+</div>
+                </footer>
+              
+            </div>
+            
+            
+              
+            
+          </div>
+          <footer class="bd-footer-content">
+            
+          </footer>
+        
+      </main>
+    </div>
+  </div>
+  
+  <!-- Scripts loaded after <body> so the DOM is not blocked -->
+  <script defer src="_static/scripts/bootstrap.js?digest=8878045cc6db502f8baf"></script>
+<script defer src="_static/scripts/pydata-sphinx-theme.js?digest=8878045cc6db502f8baf"></script>
+
+  <footer class="bd-footer">
+<div class="bd-footer__inner bd-page-width">
+  
+    <div class="footer-items__start">
+      
+        <div class="footer-item">
+
+  <p class="copyright">
+    
+      © Copyright 2024, Kempner Institute for the Study of Natural and Artificial Intelligence.
+      <br/>
+    
+  </p>
+</div>
+      
+        <div class="footer-item">
+
+  <p class="sphinx-version">
+    Created using <a href="https://www.sphinx-doc.org/">Sphinx</a> 8.1.3.
+    <br/>
+  </p>
+</div>
+      
+    </div>
+  
+  
+  
+    <div class="footer-items__end">
+      
+        <div class="footer-item">
+<p class="theme-version">
+  <!-- # L10n: Setting the PST URL as an argument as this does not need to be localized -->
+  Built with the <a href="https://pydata-sphinx-theme.readthedocs.io/en/stable/index.html">PyData Sphinx Theme</a> 0.16.1.
+</p></div>
+      
+    </div>
+  
+</div>
+
+  </footer>
+  </body>
+</html>

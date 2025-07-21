@@ -1,3 +1,108 @@
+Configuration Guide
+===================
+
+All configurations use YAML files parsed by OmegaConf. Key sections:
+
+Model Configuration
+------------------
+
+1. **Network Configuration**:
+   - ``network.type``: String - 'EINet' or 'DendriNet' (default: 'EINet').
+   - ``network.parameters.input_dim``: Int - Input dimension (e.g., 784 for MNIST).
+   - ``network.parameters.output_dim``: Int - Output dimension (e.g., 10 for classification).
+   - ``network.parameters.num_layers``: Int - Number of layers (default: 3).
+   - ``network.parameters.excitatory_layer_sizes``: List[Int] - Sizes for excitatory paths (e.g., [512, 256, 10]).
+   - ``network.parameters.inhibitory_layer_sizes``: List[Int] - Sizes for inhibitory paths (e.g., [128, 64, 0]).
+   - ``network.parameters.use_shunting``: Bool - Enable shunting (explained in core_concepts).
+   - ``network.parameters.ee_synapses_per_branch_per_layer``: List[Int] - Excitatory synapses per branch per layer.
+   - ``network.parameters.ie_synapses_per_branch_per_layer``: List[Int] - Inhibitory synapses per branch per layer.
+   - ``network.parameters.reactivation_strategy``: String - 'inverse' or 'none'.
+   - ``network.parameters.epsilon``: Float - Numerical stability constant (default: 1e-6).
+
+Training Configuration
+---------------------
+
+2. **Train Config**:
+   - ``optimizer``: String - 'adam' or 'sgd' (default: 'adam').
+   - ``learning_rate``: Float - Initial LR (default: 0.001).
+   - ``batch_size``: Int - Batch size (default: 64).
+   - ``num_epochs``: Int - Training epochs (default: 100).
+   - ``seed``: Int - Random seed (default: 42).
+   - ``learning_strategy``: String - 'mle', 'voltage_stabilization', etc.
+   - ``weight_decay``: Float - L2 regularization strength (default: 0.0001).
+
+Task Configuration
+-----------------
+
+3. **Task Config**:
+   - ``dataset``: String - 'mnist', 'cifar10', or 'multixor' (synthetic).
+   - ``parameters.num_samples``: Int - For synthetic datasets (default: 5000).
+   - ``parameters.input_dim``: Int - Dataset input dimension.
+   - ``parameters.num_classes``: Int - Number of output classes.
+
+Sweep Configuration
+------------------
+
+4. **Sweep Config** (for unified sweeps):
+   - ``type``: String - 'ei', 'branch', 'noise', 'general'.
+   - ``parameters``: Dict - Parameters to sweep (e.g., ee_synapses: [10,20,30]).
+   - ``slurm_config``: Dict - SLURM job configuration for cluster runs.
+   - ``experiment_settings.seeds_per_condition``: Int - Number of random seeds per parameter combination.
+   - ``experiment_settings.base_seed``: Int - Starting random seed.
+
+Example Configuration Files
+---------------------------
+
+**Basic Training Config (configs/basic_training.yaml)**:
+
+.. code-block:: yaml
+
+   task:
+     dataset: "mnist"
+     parameters:
+       input_dim: 784
+       num_classes: 10
+
+   model:
+     network:
+       type: "EINet"
+       parameters:
+         input_dim: 784
+         output_dim: 10
+         num_layers: 3
+         excitatory_layer_sizes: [512, 256, 10]
+         inhibitory_layer_sizes: [128, 64, 0]
+         use_shunting: true
+         epsilon: 1e-6
+
+   train:
+     optimizer: "adam"
+     learning_rate: 0.001
+     batch_size: 64
+     num_epochs: 100
+     seed: 42
+
+**EI Sweep Config (configs/ei_sweep.yaml)**:
+
+.. code-block:: yaml
+
+   sweep_config:
+     model.network.parameters.ee_synapses_per_branch_per_layer: [[10], [20], [30]]
+     model.network.parameters.ie_synapses_per_branch_per_layer: [[10], [20], [30]]
+     model.network.parameters.use_shunting: [true, false]
+
+   experiment_settings:
+     seeds_per_condition: 3
+     base_seed: 42
+
+   slurm_config:
+     account: "kempner_dev"
+     partition: "kempner"
+     time: "02:00:00"
+     gpus_per_node: 1
+
+**Implementation**: Configs are loaded in ``config.py`` and used in factory functions. The ``load_config()`` function parses YAML files and creates dataclass instances for type safety.
+
 Dendritic Modeling Configuration Guide
 ==================================================
 

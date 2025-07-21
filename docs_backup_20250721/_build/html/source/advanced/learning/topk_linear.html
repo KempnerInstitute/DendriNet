@@ -1,0 +1,1062 @@
+
+<!DOCTYPE html>
+
+
+<html lang="en" data-content_root="../../../" >
+
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+    <title>TopKLinear Layers and Dendritic Processing &#8212; Dendritic Modeling Framework v0.1.0</title>
+  
+  
+  
+  <script data-cfasync="false">
+    document.documentElement.dataset.mode = localStorage.getItem("mode") || "";
+    document.documentElement.dataset.theme = localStorage.getItem("theme") || "";
+  </script>
+  <!--
+    this give us a css class that will be invisible only if js is disabled
+  -->
+  <noscript>
+    <style>
+      .pst-js-only { display: none !important; }
+
+    </style>
+  </noscript>
+  
+  <!-- Loaded before other Sphinx assets -->
+  <link href="../../../_static/styles/theme.css?digest=8878045cc6db502f8baf" rel="stylesheet" />
+<link href="../../../_static/styles/pydata-sphinx-theme.css?digest=8878045cc6db502f8baf" rel="stylesheet" />
+
+    <link rel="stylesheet" type="text/css" href="../../../_static/pygments.css?v=8f2a1f02" />
+    <link rel="stylesheet" type="text/css" href="../../../_static/graphviz.css?v=4ae1632d" />
+    <link rel="stylesheet" type="text/css" href="../../../_static/copybutton.css?v=76b2166b" />
+    <link rel="stylesheet" type="text/css" href="../../../_static/custom.css?v=eced55a1" />
+    <link rel="stylesheet" type="text/css" href="../../../_static/sphinx-design.min.css?v=95c83b7e" />
+    <link rel="stylesheet" type="text/css" href="../../../_static/custom.css?v=eced55a1" />
+  
+  <!-- So that users can add custom icons -->
+  <script src="../../../_static/scripts/fontawesome.js?digest=8878045cc6db502f8baf"></script>
+  <!-- Pre-loaded scripts that we'll load fully later -->
+  <link rel="preload" as="script" href="../../../_static/scripts/bootstrap.js?digest=8878045cc6db502f8baf" />
+<link rel="preload" as="script" href="../../../_static/scripts/pydata-sphinx-theme.js?digest=8878045cc6db502f8baf" />
+
+    <script src="../../../_static/documentation_options.js?v=38b66d78"></script>
+    <script src="../../../_static/doctools.js?v=9bcbadda"></script>
+    <script src="../../../_static/sphinx_highlight.js?v=dc90522c"></script>
+    <script src="../../../_static/clipboard.min.js?v=a7894cd8"></script>
+    <script src="../../../_static/copybutton.js?v=30646c52"></script>
+    <script src="../../../_static/design-tabs.js?v=f930bc37"></script>
+    <script crossorigin="anonymous" integrity="sha256-Ae2Vz/4ePdIu6ZyI/5ZGsYnb+m0JlOmKPjt6XZ9JJkA=" src="https://cdnjs.cloudflare.com/ajax/libs/require.js/2.3.4/require.min.js"></script>
+    <script>DOCUMENTATION_OPTIONS.pagename = 'source/advanced/learning/topk_linear';</script>
+    <script src="../../../_static/custom.js"></script>
+    <link rel="author" title="About these documents" href="../../../about.html" />
+    <link rel="index" title="Index" href="../../../genindex.html" />
+    <link rel="search" title="Search" href="../../../search.html" />
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <meta name="docsearch:language" content="en"/>
+  <meta name="docsearch:version" content="0.1.0" />
+    <meta name="docbuild:last-update" content="Jul 21, 2025"/>
+  </head>
+  
+  
+  <body data-bs-spy="scroll" data-bs-target=".bd-toc-nav" data-offset="180" data-bs-root-margin="0px 0px -60%" data-default-mode="">
+
+  
+  
+  <div id="pst-skip-link" class="skip-link d-print-none"><a href="#main-content">Skip to main content</a></div>
+  
+  <div id="pst-scroll-pixel-helper"></div>
+  
+  <button type="button" class="btn rounded-pill" id="pst-back-to-top">
+    <i class="fa-solid fa-arrow-up"></i>Back to top</button>
+
+  
+  <dialog id="pst-search-dialog">
+    
+<form class="bd-search d-flex align-items-center"
+      action="../../../search.html"
+      method="get">
+  <i class="fa-solid fa-magnifying-glass"></i>
+  <input type="search"
+         class="form-control"
+         name="q"
+         placeholder="Search the docs..."
+         aria-label="Search the docs..."
+         autocomplete="off"
+         autocorrect="off"
+         autocapitalize="off"
+         spellcheck="false"/>
+  <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd>K</kbd></span>
+</form>
+  </dialog>
+
+  <div class="pst-async-banner-revealer d-none">
+  <aside id="bd-header-version-warning" class="d-none d-print-none" aria-label="Version warning"></aside>
+</div>
+
+  
+    <header class="bd-header navbar navbar-expand-lg bd-navbar d-print-none">
+<div class="bd-header__inner bd-page-width">
+  <button class="pst-navbar-icon sidebar-toggle primary-toggle" aria-label="Site navigation">
+    <span class="fa-solid fa-bars"></span>
+  </button>
+  
+  
+  <div class=" navbar-header-items__start">
+    
+      <div class="navbar-item">
+
+  
+    
+  
+
+<a class="navbar-brand logo" href="../../../index.html">
+  
+  
+  
+  
+  
+    
+    
+      
+    
+    
+    <img src="../../../_static/logo_light.png" class="logo__image only-light" alt=""/>
+    <img src="../../../_static/logo_dark.png" class="logo__image only-dark pst-js-only" alt=""/>
+  
+  
+    <p class="title logo__title">Dendritic Modeling</p>
+  
+</a></div>
+    
+  </div>
+  
+  <div class=" navbar-header-items">
+    
+    <div class="me-auto navbar-header-items__center">
+      
+        <div class="navbar-item">
+<nav>
+  <ul class="bd-navbar-elements navbar-nav">
+    
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../../introduction.html">
+    Introduction
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../../installation.html">
+    Installation and Setup
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../../quickstart.html">
+    Quickstart Guide
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../../core_concepts.html">
+    Core Concepts
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../../architectures/index.html">
+    Network Architectures and Design
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../../training/index.html">
+    Training Strategies and Usage
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../../analysis/index.html">
+    Analysis Tools and Methods
+  </a>
+</li>
+
+            <li class="nav-item dropdown">
+                <button class="btn dropdown-toggle nav-item" type="button"
+                data-bs-toggle="dropdown" aria-expanded="false"
+                aria-controls="pst-nav-more-links">
+                    More
+                </button>
+                <ul id="pst-nav-more-links" class="dropdown-menu">
+                    
+<li class=" ">
+  <a class="nav-link dropdown-item nav-internal" href="../../../performance/index.html">
+    Performance, Speed, and Efficiency
+  </a>
+</li>
+
+
+<li class=" ">
+  <a class="nav-link dropdown-item nav-internal" href="../../../faq.html">
+    Frequently Asked Questions (FAQ)
+  </a>
+</li>
+
+
+<li class=" ">
+  <a class="nav-link dropdown-item nav-internal" href="../../../glossary.html">
+    Glossary
+  </a>
+</li>
+
+
+<li class=" ">
+  <a class="nav-link dropdown-item nav-internal" href="../../../troubleshooting.html">
+    Troubleshooting Guide
+  </a>
+</li>
+
+
+<li class=" ">
+  <a class="nav-link dropdown-item nav-internal" href="../../../contributing.html">
+    Contributing Guide
+  </a>
+</li>
+
+                </ul>
+            </li>
+            
+  </ul>
+</nav></div>
+      
+    </div>
+    
+    
+    <div class="navbar-header-items__end">
+      
+        <div class="navbar-item navbar-persistent--container">
+          
+
+<button class="btn search-button-field search-button__button pst-js-only" title="Search" aria-label="Search" data-bs-placement="bottom" data-bs-toggle="tooltip">
+ <i class="fa-solid fa-magnifying-glass"></i>
+ <span class="search-button__default-text">Search</span>
+ <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd class="kbd-shortcut__modifier">K</kbd></span>
+</button>
+        </div>
+      
+      
+        <div class="navbar-item">
+<form class="bd-search d-flex align-items-center"
+      action="../../../search.html"
+      method="get">
+  <i class="fa-solid fa-magnifying-glass"></i>
+  <input type="search"
+         class="form-control"
+         name="q"
+         placeholder="Search the docs..."
+         aria-label="Search the docs..."
+         autocomplete="off"
+         autocorrect="off"
+         autocapitalize="off"
+         spellcheck="false"/>
+  <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd>K</kbd></span>
+</form></div>
+      
+        <div class="navbar-item"><ul class="navbar-icon-links"
+    aria-label="Icon Links">
+        <li class="nav-item">
+          
+          
+          
+          
+          
+          
+          
+          
+          <a href="https://github.com/KempnerInstitute/dendritic-modeling" title="GitHub" class="nav-link pst-navbar-icon" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><i class="fa-brands fa-square-github fa-lg" aria-hidden="true"></i>
+            <span class="sr-only">GitHub</span></a>
+        </li>
+        <li class="nav-item">
+          
+          
+          
+          
+          
+          
+          
+          
+          <a href="https://twitter.com/KempnerInstitute" title="Twitter" class="nav-link pst-navbar-icon" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><i class="fa-brands fa-square-twitter fa-lg" aria-hidden="true"></i>
+            <span class="sr-only">Twitter</span></a>
+        </li>
+</ul></div>
+      
+    </div>
+    
+  </div>
+  
+  
+    <div class="navbar-persistent--mobile">
+
+<button class="btn search-button-field search-button__button pst-js-only" title="Search" aria-label="Search" data-bs-placement="bottom" data-bs-toggle="tooltip">
+ <i class="fa-solid fa-magnifying-glass"></i>
+ <span class="search-button__default-text">Search</span>
+ <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd class="kbd-shortcut__modifier">K</kbd></span>
+</button>
+    </div>
+  
+
+  
+    <button class="pst-navbar-icon sidebar-toggle secondary-toggle" aria-label="On this page">
+      <span class="fa-solid fa-outdent"></span>
+    </button>
+  
+</div>
+
+    </header>
+  
+
+  <div class="bd-container">
+    <div class="bd-container__inner bd-page-width">
+      
+      
+      
+      <dialog id="pst-primary-sidebar-modal"></dialog>
+      <div id="pst-primary-sidebar" class="bd-sidebar-primary bd-sidebar">
+        
+
+  
+  <div class="sidebar-header-items sidebar-primary__section">
+    
+    
+      <div class="sidebar-header-items__center">
+        
+          
+          
+            <div class="navbar-item">
+<nav>
+  <ul class="bd-navbar-elements navbar-nav">
+    
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../../introduction.html">
+    Introduction
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../../installation.html">
+    Installation and Setup
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../../quickstart.html">
+    Quickstart Guide
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../../core_concepts.html">
+    Core Concepts
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../../architectures/index.html">
+    Network Architectures and Design
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../../training/index.html">
+    Training Strategies and Usage
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../../analysis/index.html">
+    Analysis Tools and Methods
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../../performance/index.html">
+    Performance, Speed, and Efficiency
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../../faq.html">
+    Frequently Asked Questions (FAQ)
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../../glossary.html">
+    Glossary
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../../troubleshooting.html">
+    Troubleshooting Guide
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../../contributing.html">
+    Contributing Guide
+  </a>
+</li>
+
+  </ul>
+</nav></div>
+          
+        
+      </div>
+    
+    
+    
+      <div class="sidebar-header-items__end">
+        
+          <div class="navbar-item">
+<form class="bd-search d-flex align-items-center"
+      action="../../../search.html"
+      method="get">
+  <i class="fa-solid fa-magnifying-glass"></i>
+  <input type="search"
+         class="form-control"
+         name="q"
+         placeholder="Search the docs..."
+         aria-label="Search the docs..."
+         autocomplete="off"
+         autocorrect="off"
+         autocapitalize="off"
+         spellcheck="false"/>
+  <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd>K</kbd></span>
+</form></div>
+        
+          <div class="navbar-item"><ul class="navbar-icon-links"
+    aria-label="Icon Links">
+        <li class="nav-item">
+          
+          
+          
+          
+          
+          
+          
+          
+          <a href="https://github.com/KempnerInstitute/dendritic-modeling" title="GitHub" class="nav-link pst-navbar-icon" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><i class="fa-brands fa-square-github fa-lg" aria-hidden="true"></i>
+            <span class="sr-only">GitHub</span></a>
+        </li>
+        <li class="nav-item">
+          
+          
+          
+          
+          
+          
+          
+          
+          <a href="https://twitter.com/KempnerInstitute" title="Twitter" class="nav-link pst-navbar-icon" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><i class="fa-brands fa-square-twitter fa-lg" aria-hidden="true"></i>
+            <span class="sr-only">Twitter</span></a>
+        </li>
+</ul></div>
+        
+      </div>
+    
+  </div>
+  
+    <div class="sidebar-primary-items__start sidebar-primary__section">
+        <div class="sidebar-primary-item">
+<form class="bd-search d-flex align-items-center"
+      action="../../../search.html"
+      method="get">
+  <i class="fa-solid fa-magnifying-glass"></i>
+  <input type="search"
+         class="form-control"
+         name="q"
+         placeholder="Search the docs..."
+         aria-label="Search the docs..."
+         autocomplete="off"
+         autocorrect="off"
+         autocapitalize="off"
+         spellcheck="false"/>
+  <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd>K</kbd></span>
+</form></div>
+        <div class="sidebar-primary-item">
+<nav class="bd-docs-nav bd-links"
+     aria-label="Section Navigation">
+  <p class="bd-links__title" role="heading" aria-level="1">Section Navigation</p>
+  <div class="bd-toc-item navbar-nav"></div>
+</nav></div>
+    </div>
+  
+  
+  <div class="sidebar-primary-items__end sidebar-primary__section">
+      <div class="sidebar-primary-item">
+<div id="ethical-ad-placement"
+      class="flat"
+      data-ea-publisher="readthedocs"
+      data-ea-type="readthedocs-sidebar"
+      data-ea-manual="true">
+</div></div>
+  </div>
+
+
+      </div>
+      
+      <main id="main-content" class="bd-main" role="main">
+        
+        
+          <div class="bd-content">
+            <div class="bd-article-container">
+              
+              <div class="bd-header-article d-print-none">
+<div class="header-article-items header-article__inner">
+  
+    <div class="header-article-items__start">
+      
+        <div class="header-article-item">
+
+<nav aria-label="Breadcrumb" class="d-print-none">
+  <ul class="bd-breadcrumbs">
+    
+    <li class="breadcrumb-item breadcrumb-home">
+      <a href="../../../index.html" class="nav-link" aria-label="Home">
+        <i class="fa-solid fa-home"></i>
+      </a>
+    </li>
+    <li class="breadcrumb-item active" aria-current="page"><span class="ellipsis">TopKLinear Layers and Dendritic Processing</span></li>
+  </ul>
+</nav>
+</div>
+      
+    </div>
+  
+  
+</div>
+</div>
+              
+              
+              
+                
+<div id="searchbox"></div>
+                <article class="bd-article">
+                  
+  <section id="topklinear-layers-and-dendritic-processing">
+<span id="topk-linear"></span><h1>TopKLinear Layers and Dendritic Processing<a class="headerlink" href="#topklinear-layers-and-dendritic-processing" title="Link to this heading">#</a></h1>
+<p>The TopKLinear layer is the core building block of dendritic computation in the framework. This document explains how TopKLinear layers model biological dendritic computation and how they can be configured.</p>
+<section id="overview">
+<h2>Overview<a class="headerlink" href="#overview" title="Link to this heading">#</a></h2>
+<p>Biological dendrites perform selective integration of inputs by activating only the strongest synaptic connections. The <code class="docutils literal notranslate"><span class="pre">TopKLinear</span></code> layer implements this selective activation mechanism by:</p>
+<ol class="arabic simple">
+<li><p>Computing the potential contribution of all inputs</p></li>
+<li><p>Selecting the top k strongest inputs for each output unit</p></li>
+<li><p>Summing only the selected inputs to produce the output</p></li>
+</ol>
+<p>This selective integration is a fundamental departure from standard neural network layers and allows dendritic networks to implement powerful computational properties like context-dependent processing and feature binding.</p>
+</section>
+<section id="topklinear-variants">
+<h2>TopKLinear Variants<a class="headerlink" href="#topklinear-variants" title="Link to this heading">#</a></h2>
+<p>The framework provides three variants of TopKLinear layers, each with different connection selection strategies:</p>
+<ol class="arabic simple">
+<li><p><strong>Standard TopKLinear</strong>: Deterministically selects the k strongest connections for each branch.</p></li>
+<li><p><strong>StochasticTopKLinear</strong>: Selects connections probabilistically based on their strength rank.</p></li>
+<li><p><strong>VarianceTopKLinear</strong>: Selects connections based on a combination of weight magnitude and input variance.</p></li>
+</ol>
+<p>These variants can be configured using the <code class="docutils literal notranslate"><span class="pre">topk_strategy</span></code> parameter:</p>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">model</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">network</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">parameters</span><span class="p">:</span>
+<span class="w">      </span><span class="nt">topk_strategy</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;stochastic&quot;</span><span class="w">  </span><span class="c1"># Options: &quot;standard&quot;, &quot;stochastic&quot;, &quot;variance&quot;</span>
+<span class="w">      </span><span class="c1"># Additional parameters for specific strategies</span>
+<span class="w">      </span><span class="nt">topk_temperature</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">0.5</span><span class="w">        </span><span class="c1"># For stochastic TopK (controls randomness)</span>
+<span class="w">      </span><span class="nt">topk_noise_level</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">0.1</span><span class="w">        </span><span class="c1"># Adds noise to weight selection (all strategies)</span>
+<span class="w">      </span><span class="nt">topk_ultrafast</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span><span class="w">         </span><span class="c1"># Enables highly optimized implementation for stochastic TopK</span>
+</pre></div>
+</div>
+<section id="standard-topklinear">
+<h3>Standard TopKLinear<a class="headerlink" href="#standard-topklinear" title="Link to this heading">#</a></h3>
+<p>The standard TopKLinear implementation deterministically selects the k strongest inputs for each branch:</p>
+<ol class="arabic simple">
+<li><p><strong>Deterministic selection</strong>: Always selects the same k connections for identical inputs</p></li>
+<li><p><strong>Based purely on weight magnitude</strong>: Only the absolute strength of the weight matters</p></li>
+<li><p><strong>Sharp selection boundary</strong>: There is a hard cutoff between selected and non-selected inputs</p></li>
+</ol>
+<p>This approach is the fastest and most predictable, but might lead to less flexible representations.</p>
+</section>
+<section id="stochastictopklinear">
+<h3>StochasticTopKLinear<a class="headerlink" href="#stochastictopklinear" title="Link to this heading">#</a></h3>
+<p>The StochasticTopKLinear layer introduces controlled randomness to the selection process:</p>
+<ol class="arabic simple">
+<li><p><strong>Probabilistic selection</strong>: Each connection has a probability of being selected based on its rank</p></li>
+<li><p><strong>Sigmoid probability function</strong>: P(select) = sigmoid((k - rank)/(k * temperature))</p></li>
+<li><p><strong>Temperature parameter</strong>: Controls the “sharpness” of the selection threshold
+- Lower temperature (e.g., 0.1): More deterministic, similar to standard TopK
+- Higher temperature (e.g., 1.0): More random, allowing weaker connections to participate</p></li>
+</ol>
+<p>This stochastic approach has several benefits:
+- Helps escape local minima during training by occasionally trying different connection patterns
+- Prevents overfitting by introducing controlled noise into the model
+- Closer to biological reality where synaptic activation has stochastic elements</p>
+<p>Configure StochasticTopKLinear with:</p>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">model</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">network</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">parameters</span><span class="p">:</span>
+<span class="w">      </span><span class="nt">topk_strategy</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;stochastic&quot;</span><span class="w">     </span><span class="c1"># Select stochastic TopK</span>
+<span class="w">      </span><span class="nt">topk_temperature</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">0.5</span><span class="w">           </span><span class="c1"># Control randomness (0.1-1.0)</span>
+<span class="w">      </span><span class="nt">topk_noise_level</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">0.1</span><span class="w">           </span><span class="c1"># Add noise to weight values</span>
+<span class="w">      </span><span class="nt">topk_ultrafast</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span><span class="w">            </span><span class="c1"># Enable ultrafast implementation</span>
+</pre></div>
+</div>
+<section id="ultrafast-mode-for-stochastic-topk">
+<h4>Ultrafast Mode for Stochastic TopK<a class="headerlink" href="#ultrafast-mode-for-stochastic-topk" title="Link to this heading">#</a></h4>
+<p>The <code class="docutils literal notranslate"><span class="pre">topk_ultrafast</span></code> option enables a highly optimized implementation that significantly speeds up training:</p>
+<ol class="arabic simple">
+<li><p><strong>Simplified algorithm</strong>: Replaces the full stochastic procedure with a noise-based approximation</p></li>
+<li><p><strong>10-50x faster</strong>: Greatly reduces computational overhead during training</p></li>
+<li><p><strong>Similar behavior</strong>: Maintains the key properties of stochastic selection</p></li>
+</ol>
+<p>With ultrafast mode enabled, noise is directly added to the weights before a single standard TopK selection, approximating the more complex sampling procedure of the full implementation.</p>
+</section>
+</section>
+<section id="variancetopklinear">
+<h3>VarianceTopKLinear<a class="headerlink" href="#variancetopklinear" title="Link to this heading">#</a></h3>
+<p>The VarianceTopKLinear layer selects connections based on both weight magnitude and input statistics:</p>
+<ol class="arabic simple">
+<li><p><strong>Variance tracking</strong>: Maintains exponential moving averages of input activation statistics</p></li>
+<li><p><strong>Information-based selection</strong>: Prioritizes inputs with high variance (information content)</p></li>
+<li><p><strong>Combined score</strong>: Select based on weight_magnitude * input_variance</p></li>
+</ol>
+<p>This approach focuses connections on inputs that:
+- Carry more information (high variance = more discriminative signal)
+- Already have strong weights in the model</p>
+<p>This can be especially valuable when some inputs are more informative than others, or when dealing with noisy or redundant inputs.</p>
+<p>Configure VarianceTopKLinear with:</p>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">model</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">network</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">parameters</span><span class="p">:</span>
+<span class="w">      </span><span class="nt">topk_strategy</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;variance&quot;</span><span class="w">      </span><span class="c1"># Select variance-based TopK</span>
+<span class="w">      </span><span class="nt">topk_noise_level</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">0.0</span><span class="w">          </span><span class="c1"># Typically less noise is needed with this approach</span>
+</pre></div>
+</div>
+</section>
+</section>
+<section id="topklinear-architecture">
+<h2>TopKLinear Architecture<a class="headerlink" href="#topklinear-architecture" title="Link to this heading">#</a></h2>
+<p>The <code class="docutils literal notranslate"><span class="pre">TopKLinear</span></code> layer extends the standard linear layer with a top-k selection mechanism:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="k">class</span><span class="w"> </span><span class="nc">TopKLinear</span><span class="p">(</span><span class="n">nn</span><span class="o">.</span><span class="n">Module</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Linear layer with top-k activation.</span>
+
+<span class="sd">    This layer processes inputs by selecting the top k inputs for each output unit,</span>
+<span class="sd">    modeling the selective integration property of biological dendrites.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    in_features : int</span>
+<span class="sd">        Number of input features</span>
+<span class="sd">    out_features : int</span>
+<span class="sd">        Number of output features</span>
+<span class="sd">    k : int</span>
+<span class="sd">        Number of inputs to select for each output unit</span>
+<span class="sd">    bias : bool</span>
+<span class="sd">        Whether to use a bias term</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">in_features</span><span class="p">,</span> <span class="n">out_features</span><span class="p">,</span> <span class="n">k</span><span class="p">,</span> <span class="n">bias</span><span class="o">=</span><span class="kc">True</span><span class="p">):</span>
+        <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="fm">__init__</span><span class="p">()</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">in_features</span> <span class="o">=</span> <span class="n">in_features</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">out_features</span> <span class="o">=</span> <span class="n">out_features</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">k</span> <span class="o">=</span> <span class="n">k</span>
+
+        <span class="c1"># Initialize weights and bias</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">weight</span> <span class="o">=</span> <span class="n">nn</span><span class="o">.</span><span class="n">Parameter</span><span class="p">(</span><span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">(</span><span class="n">out_features</span><span class="p">,</span> <span class="n">in_features</span><span class="p">))</span>
+        <span class="k">if</span> <span class="n">bias</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">bias</span> <span class="o">=</span> <span class="n">nn</span><span class="o">.</span><span class="n">Parameter</span><span class="p">(</span><span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">(</span><span class="n">out_features</span><span class="p">))</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">register_parameter</span><span class="p">(</span><span class="s1">&#39;bias&#39;</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span>
+
+        <span class="c1"># Initialize parameters</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">reset_parameters</span><span class="p">()</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">forward</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="nb">input</span><span class="p">):</span>
+        <span class="c1"># Compute all potential contributions</span>
+        <span class="n">potential</span> <span class="o">=</span> <span class="n">F</span><span class="o">.</span><span class="n">linear</span><span class="p">(</span><span class="nb">input</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">weight</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span>
+
+        <span class="c1"># Get the indices of the top k inputs for each output unit</span>
+        <span class="n">_</span><span class="p">,</span> <span class="n">indices</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">topk</span><span class="p">(</span><span class="n">potential</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">k</span><span class="p">,</span> <span class="n">dim</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span>
+
+        <span class="c1"># Create a mask for the selected inputs</span>
+        <span class="n">mask</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">zeros_like</span><span class="p">(</span><span class="n">potential</span><span class="p">)</span>
+        <span class="n">mask</span><span class="o">.</span><span class="n">scatter_</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="n">indices</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span>
+
+        <span class="c1"># Apply the mask to select only the top k inputs</span>
+        <span class="n">selected</span> <span class="o">=</span> <span class="n">potential</span> <span class="o">*</span> <span class="n">mask</span>
+
+        <span class="c1"># Sum the selected inputs and add bias if present</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">bias</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">selected</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="n">dim</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span> <span class="o">+</span> <span class="bp">self</span><span class="o">.</span><span class="n">bias</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">selected</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="n">dim</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span>
+</pre></div>
+</div>
+<p>The key components of the TopKLinear layer are:</p>
+<ol class="arabic simple">
+<li><p><strong>Weight matrix</strong> (out_features × in_features): Stores the connection strengths</p></li>
+<li><p><strong>k parameter</strong>: Controls how many inputs are selected for each output</p></li>
+<li><p><strong>Selection mechanism</strong>: Identifies and activates only the strongest connections</p></li>
+<li><p><strong>Masked summation</strong>: Sums only the selected inputs</p></li>
+</ol>
+</section>
+<section id="configuration">
+<h2>Configuration<a class="headerlink" href="#configuration" title="Link to this heading">#</a></h2>
+<p>The TopKLinear layer is configured through several parameters:</p>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">model</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">network</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">parameters</span><span class="p">:</span>
+<span class="w">      </span><span class="c1"># TopKLinear configuration</span>
+<span class="w">      </span><span class="nt">excitatory_branch_factors</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">64</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">32</span><span class="p p-Indicator">]</span><span class="w">  </span><span class="c1"># k values for excitatory layers</span>
+<span class="w">      </span><span class="nt">inhibitory_branch_factors</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">32</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">16</span><span class="p p-Indicator">]</span><span class="w">  </span><span class="c1"># k values for inhibitory layers</span>
+<span class="w">      </span><span class="nt">topk_init_method</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;xavier_normal&quot;</span><span class="w">    </span><span class="c1"># Weight initialization method</span>
+<span class="w">      </span><span class="nt">topk_strategy</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;stochastic&quot;</span><span class="w">          </span><span class="c1"># Selection strategy</span>
+<span class="w">      </span><span class="nt">topk_temperature</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">0.5</span><span class="w">                </span><span class="c1"># For stochastic TopK</span>
+<span class="w">      </span><span class="nt">topk_noise_level</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">0.1</span><span class="w">                </span><span class="c1"># Noise level for weight selection</span>
+<span class="w">      </span><span class="nt">topk_ultrafast</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span><span class="w">                 </span><span class="c1"># Enable faster implementation</span>
+</pre></div>
+</div>
+<p>The <code class="docutils literal notranslate"><span class="pre">branch_factors</span></code> parameters define the k value for each layer, which determines how many inputs are selected by each dendritic branch.</p>
+</section>
+<section id="branch-factor-selection">
+<h2>Branch Factor Selection<a class="headerlink" href="#branch-factor-selection" title="Link to this heading">#</a></h2>
+<p>The branch factor (k) is a critical parameter that affects the computational properties of the dendritic network:</p>
+<ol class="arabic simple">
+<li><p><strong>Small k values</strong> (1-10):
+- More selective branches that respond to specific input patterns
+- Greater sparsity and specialization
+- May require more branches to cover the input space</p></li>
+<li><p><strong>Medium k values</strong> (10-100):
+- Balance between selectivity and generalization
+- Good for most applications
+- Approximate biological values for many neural types</p></li>
+<li><p><strong>Large k values</strong> (&gt;100):
+- Less selective, more like standard linear layers
+- Good for dense, distributed representations
+- May require fewer branches overall</p></li>
+</ol>
+<p>The optimal branch factor depends on the input dimensionality and the desired properties of the network. A common rule of thumb is to set k to approximately 10-20% of the input dimensionality for each branch.</p>
+</section>
+<section id="biological-intuition">
+<h2>Biological Intuition<a class="headerlink" href="#biological-intuition" title="Link to this heading">#</a></h2>
+<p>The TopKLinear layer is inspired by several properties of biological dendrites:</p>
+<ol class="arabic simple">
+<li><p><strong>Dendritic spikes</strong>: Dendrites generate local spikes when sufficient inputs are activated</p></li>
+<li><p><strong>Nonlinear integration</strong>: Inputs that arrive on the same dendritic branch can interact nonlinearly</p></li>
+<li><p><strong>Branch-specific processing</strong>: Each dendritic branch can function as a semi-independent processing unit</p></li>
+<li><p><strong>Sparse activation</strong>: Only a subset of synapses are strongly active for any given input</p></li>
+<li><p><strong>Stochastic activation</strong>: Biological synapses have probabilistic activation properties</p></li>
+</ol>
+<p>The top-k selection mechanism is a simplified model of these biological properties, capturing the essential computational feature of selective integration.</p>
+</section>
+<section id="forward-pass-implementation">
+<h2>Forward Pass Implementation<a class="headerlink" href="#forward-pass-implementation" title="Link to this heading">#</a></h2>
+<p>The forward pass in TopKLinear involves several key steps:</p>
+<ol class="arabic simple">
+<li><p><strong>Linear projection</strong>: Calculate the potential contribution of each input</p></li>
+<li><p><strong>Top-k selection</strong>: Select the k highest-potential inputs</p></li>
+<li><p><strong>Masked summation</strong>: Sum only the selected inputs</p></li>
+</ol>
+<p>Implementation details:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="k">def</span><span class="w"> </span><span class="nf">forward</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="nb">input</span><span class="p">):</span>
+    <span class="c1"># Compute all potential contributions</span>
+    <span class="c1"># Shape: [batch_size, in_features]</span>
+    <span class="n">potential</span> <span class="o">=</span> <span class="n">F</span><span class="o">.</span><span class="n">linear</span><span class="p">(</span><span class="nb">input</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">weight</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span>
+
+    <span class="c1"># Get the indices of the top k inputs for each output unit</span>
+    <span class="c1"># Shape of values: [batch_size, k]</span>
+    <span class="c1"># Shape of indices: [batch_size, k]</span>
+    <span class="n">values</span><span class="p">,</span> <span class="n">indices</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">topk</span><span class="p">(</span><span class="n">potential</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">k</span><span class="p">,</span> <span class="n">dim</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span>
+
+    <span class="c1"># Create a mask for the selected inputs</span>
+    <span class="c1"># Shape: [batch_size, in_features]</span>
+    <span class="n">mask</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">zeros_like</span><span class="p">(</span><span class="n">potential</span><span class="p">)</span>
+    <span class="n">mask</span><span class="o">.</span><span class="n">scatter_</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="n">indices</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span>
+
+    <span class="c1"># Apply the mask to select only the top k inputs</span>
+    <span class="c1"># Shape: [batch_size, in_features]</span>
+    <span class="n">selected</span> <span class="o">=</span> <span class="n">potential</span> <span class="o">*</span> <span class="n">mask</span>
+
+    <span class="c1"># Sum the selected inputs and add bias if present</span>
+    <span class="c1"># Shape: [batch_size, out_features]</span>
+    <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">bias</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="k">return</span> <span class="n">selected</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="n">dim</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span> <span class="o">+</span> <span class="bp">self</span><span class="o">.</span><span class="n">bias</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="k">return</span> <span class="n">selected</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="n">dim</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span>
+</pre></div>
+</div>
+</section>
+<section id="reactivation-strategies">
+<h2>Reactivation Strategies<a class="headerlink" href="#reactivation-strategies" title="Link to this heading">#</a></h2>
+<p>The framework supports reactivation strategies that modify the behavior of TopKLinear layers:</p>
+<ol class="arabic simple">
+<li><p><strong>None</strong>: Standard top-k selection without any modification</p></li>
+<li><p><strong>Inverse</strong>: Scales the activations by the inverse of the sum, encouraging more balanced activation</p></li>
+<li><p><strong>Param_tanh</strong>: Uses a parametric tanh activation after selection for smoother activation profiles</p></li>
+</ol>
+<p>These can be configured in the YAML configuration:</p>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">model</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">network</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">parameters</span><span class="p">:</span>
+<span class="w">      </span><span class="nt">reactivation_strategy</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;inverse&quot;</span><span class="w">  </span><span class="c1"># Options: &quot;none&quot;, &quot;inverse&quot;</span>
+<span class="w">      </span><span class="nt">reactivation_type</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;param_tanh&quot;</span><span class="w">   </span><span class="c1"># Options: &quot;none&quot;, &quot;param_tanh&quot;, &quot;relu&quot;, &quot;sigmoid&quot;, &quot;tanh&quot;</span>
+</pre></div>
+</div>
+</section>
+<section id="gradient-flow-in-topklinear">
+<h2>Gradient Flow in TopKLinear<a class="headerlink" href="#gradient-flow-in-topklinear" title="Link to this heading">#</a></h2>
+<p>The top-k selection creates a sparse computational graph that affects gradient flow:</p>
+<ol class="arabic simple">
+<li><p>During the forward pass, only k inputs are selected</p></li>
+<li><p>During backpropagation, gradients flow only through the selected inputs</p></li>
+<li><p>This creates sparse gradients that can lead to unstable training</p></li>
+</ol>
+<p>To address this, the framework uses gradient clipping and appropriate initialization strategies to stabilize training.</p>
+</section>
+<section id="comparison-with-standard-linear-layers">
+<h2>Comparison with Standard Linear Layers<a class="headerlink" href="#comparison-with-standard-linear-layers" title="Link to this heading">#</a></h2>
+<p>Compared to standard linear layers, TopKLinear has several key differences:</p>
+<ol class="arabic simple">
+<li><p><strong>Computational complexity</strong>:
+- Forward pass: O(n log k) for top-k selection vs. O(n) for standard linear
+- More computationally intensive due to sorting operation</p></li>
+<li><p><strong>Memory usage</strong>:
+- Similar number of parameters
+- Higher memory usage during training due to storing indices and masks</p></li>
+<li><p><strong>Representational power</strong>:
+- Can implement nonlinear operations that standard linear layers cannot
+- Can adapt its computational behavior to different inputs (context-dependent processing)</p></li>
+<li><p><strong>Sparsity</strong>:
+- Naturally sparse activations (only k connections are active)
+- Sparse gradient flow during training</p></li>
+</ol>
+</section>
+<section id="blocklinear-strategies">
+<h2>BlockLinear Strategies<a class="headerlink" href="#blocklinear-strategies" title="Link to this heading">#</a></h2>
+<p>The framework implements different blocklinear strategies that affect how inputs are processed:</p>
+<ol class="arabic simple">
+<li><p><strong>None</strong>: No special processing</p></li>
+<li><p><strong>Distal upweight by idx</strong>: Upweights inputs based on their distance</p></li>
+<li><p><strong>Block conductance dynamic</strong>: Uses a dynamic conductance mechanism</p></li>
+</ol>
+<p>Configure these strategies in the YAML configuration:</p>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">model</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">network</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">parameters</span><span class="p">:</span>
+<span class="w">      </span><span class="nt">blocklinear_strategy</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;block_conductance_dynamic&quot;</span><span class="w">  </span><span class="c1"># Options: &quot;none&quot;, &quot;distal_upweight_by_idx&quot;, &quot;block_conductance_dynamic&quot;</span>
+</pre></div>
+</div>
+</section>
+<section id="best-practices">
+<h2>Best Practices<a class="headerlink" href="#best-practices" title="Link to this heading">#</a></h2>
+<p>For optimal performance with TopKLinear layers:</p>
+<ol class="arabic simple">
+<li><p><strong>Choosing K values</strong>:
+- For deterministic TopK: Start with 10-20% of input dimensionality
+- For stochastic TopK: Use smaller K values (5-15% of input dim) with temperature 0.3-0.7
+- For variance-based TopK: Similar to deterministic, but monitor input statistics</p></li>
+<li><p><strong>Training stability</strong>:
+- Use gradient clipping (values between 1.0-10.0 work well)
+- Consider lower learning rates for stochastic variants (0.5-0.8× standard rate)</p></li>
+<li><p><strong>Computational efficiency</strong>:
+- Enable ultrafast mode for stochastic TopK during large-scale training
+- Use standard TopK for inference if deterministic outputs are required</p></li>
+<li><p><strong>Hyperparameter tuning</strong>:
+- For stochastic TopK: Sweep temperature (0.1-1.0) and noise level (0-0.2)
+- For variance TopK: Focus on momentum values (0.9-0.99)</p></li>
+<li><p><strong>When to use each variant</strong>:
+- Standard TopK: When deterministic behavior is needed or for baseline comparisons
+- Stochastic TopK: When training gets stuck or for more flexible representations
+- Variance TopK: When dealing with varied information content across inputs or noisy data</p></li>
+</ol>
+</section>
+<section id="example-configuration">
+<h2>Example Configuration<a class="headerlink" href="#example-configuration" title="Link to this heading">#</a></h2>
+<p>Here’s a complete configuration example for a network using TopKLinear layers:</p>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">model</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">network</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">type</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;EINet&quot;</span>
+<span class="w">    </span><span class="nt">parameters</span><span class="p">:</span>
+<span class="w">      </span><span class="nt">input_dim</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">784</span>
+<span class="w">      </span><span class="nt">excitatory_layer_sizes</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">512</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">256</span><span class="p p-Indicator">]</span>
+<span class="w">      </span><span class="nt">inhibitory_layer_sizes</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">200</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">100</span><span class="p p-Indicator">]</span>
+<span class="w">      </span><span class="nt">excitatory_branch_factors</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">64</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">32</span><span class="p p-Indicator">]</span>
+<span class="w">      </span><span class="nt">inhibitory_branch_factors</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">32</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">16</span><span class="p p-Indicator">]</span>
+<span class="w">      </span><span class="nt">reactivate</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+<span class="w">      </span><span class="nt">somatic_synapses</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+<span class="w">      </span><span class="nt">topk_init_method</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;xavier_normal&quot;</span>
+<span class="w">      </span><span class="nt">reactivation_type</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;param_tanh&quot;</span>
+<span class="w">      </span><span class="nt">reactivation_strategy</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;inverse&quot;</span>
+<span class="w">      </span><span class="nt">blocklinear_strategy</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;block_conductance_dynamic&quot;</span>
+<span class="w">      </span><span class="nt">output_dim</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">10</span>
+</pre></div>
+</div>
+</section>
+</section>
+
+
+                </article>
+              
+              
+              
+              
+              
+                <footer class="prev-next-footer d-print-none">
+                  
+<div class="prev-next-area">
+</div>
+                </footer>
+              
+            </div>
+            
+            
+              
+                <dialog id="pst-secondary-sidebar-modal"></dialog>
+                <div id="pst-secondary-sidebar" class="bd-sidebar-secondary bd-toc"><div class="sidebar-secondary-items sidebar-secondary__inner">
+
+
+  <div class="sidebar-secondary-item">
+<div
+    id="pst-page-navigation-heading-2"
+    class="page-toc tocsection onthispage">
+    <i class="fa-solid fa-list"></i> On this page
+  </div>
+  <nav class="bd-toc-nav page-toc" aria-labelledby="pst-page-navigation-heading-2">
+    <ul class="visible nav section-nav flex-column">
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#overview">Overview</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#topklinear-variants">TopKLinear Variants</a><ul class="visible nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#standard-topklinear">Standard TopKLinear</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#stochastictopklinear">StochasticTopKLinear</a><ul class="nav section-nav flex-column">
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#ultrafast-mode-for-stochastic-topk">Ultrafast Mode for Stochastic TopK</a></li>
+</ul>
+</li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#variancetopklinear">VarianceTopKLinear</a></li>
+</ul>
+</li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#topklinear-architecture">TopKLinear Architecture</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#configuration">Configuration</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#branch-factor-selection">Branch Factor Selection</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#biological-intuition">Biological Intuition</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#forward-pass-implementation">Forward Pass Implementation</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#reactivation-strategies">Reactivation Strategies</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#gradient-flow-in-topklinear">Gradient Flow in TopKLinear</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#comparison-with-standard-linear-layers">Comparison with Standard Linear Layers</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#blocklinear-strategies">BlockLinear Strategies</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#best-practices">Best Practices</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#example-configuration">Example Configuration</a></li>
+</ul>
+  </nav></div>
+
+  <div class="sidebar-secondary-item">
+
+  
+  <div class="tocsection editthispage">
+    <a href="https://github.com/KempnerInstitute/dendritic-modeling/edit/main/docs/source/advanced/learning/topk_linear.rst">
+      <i class="fa-solid fa-pencil"></i>
+      
+      
+        
+          Edit on GitHub
+        
+      
+    </a>
+  </div>
+</div>
+
+  <div class="sidebar-secondary-item">
+  <div role="note" aria-label="source link">
+    <h3>This Page</h3>
+    <ul class="this-page-menu">
+      <li><a href="../../../_sources/source/advanced/learning/topk_linear.rst.txt"
+            rel="nofollow">Show Source</a></li>
+    </ul>
+   </div></div>
+
+</div></div>
+              
+            
+          </div>
+          <footer class="bd-footer-content">
+            
+          </footer>
+        
+      </main>
+    </div>
+  </div>
+  
+  <!-- Scripts loaded after <body> so the DOM is not blocked -->
+  <script defer src="../../../_static/scripts/bootstrap.js?digest=8878045cc6db502f8baf"></script>
+<script defer src="../../../_static/scripts/pydata-sphinx-theme.js?digest=8878045cc6db502f8baf"></script>
+
+  <footer class="bd-footer">
+<div class="bd-footer__inner bd-page-width">
+  
+    <div class="footer-items__start">
+      
+        <div class="footer-item">
+
+  <p class="copyright">
+    
+      © Copyright 2024, Kempner Institute for the Study of Natural and Artificial Intelligence.
+      <br/>
+    
+  </p>
+</div>
+      
+        <div class="footer-item">
+
+  <p class="sphinx-version">
+    Created using <a href="https://www.sphinx-doc.org/">Sphinx</a> 8.1.3.
+    <br/>
+  </p>
+</div>
+      
+    </div>
+  
+  
+  
+    <div class="footer-items__end">
+      
+        <div class="footer-item">
+<p class="theme-version">
+  <!-- # L10n: Setting the PST URL as an argument as this does not need to be localized -->
+  Built with the <a href="https://pydata-sphinx-theme.readthedocs.io/en/stable/index.html">PyData Sphinx Theme</a> 0.16.1.
+</p></div>
+      
+    </div>
+  
+</div>
+
+  </footer>
+  </body>
+</html>

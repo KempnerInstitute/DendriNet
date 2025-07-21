@@ -1,0 +1,1965 @@
+
+<!DOCTYPE html>
+
+
+<html lang="en" data-content_root="./" >
+
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+    <title>Dendritic Modeling Configuration Guide &#8212; Dendritic Modeling Framework v0.1.0</title>
+  
+  
+  
+  <script data-cfasync="false">
+    document.documentElement.dataset.mode = localStorage.getItem("mode") || "";
+    document.documentElement.dataset.theme = localStorage.getItem("theme") || "";
+  </script>
+  <!--
+    this give us a css class that will be invisible only if js is disabled
+  -->
+  <noscript>
+    <style>
+      .pst-js-only { display: none !important; }
+
+    </style>
+  </noscript>
+  
+  <!-- Loaded before other Sphinx assets -->
+  <link href="_static/styles/theme.css?digest=8878045cc6db502f8baf" rel="stylesheet" />
+<link href="_static/styles/pydata-sphinx-theme.css?digest=8878045cc6db502f8baf" rel="stylesheet" />
+
+    <link rel="stylesheet" type="text/css" href="_static/pygments.css?v=8f2a1f02" />
+    <link rel="stylesheet" type="text/css" href="_static/graphviz.css?v=4ae1632d" />
+    <link rel="stylesheet" type="text/css" href="_static/copybutton.css?v=76b2166b" />
+    <link rel="stylesheet" type="text/css" href="_static/custom.css?v=eced55a1" />
+    <link rel="stylesheet" type="text/css" href="_static/sphinx-design.min.css?v=95c83b7e" />
+    <link rel="stylesheet" type="text/css" href="_static/custom.css?v=eced55a1" />
+  
+  <!-- So that users can add custom icons -->
+  <script src="_static/scripts/fontawesome.js?digest=8878045cc6db502f8baf"></script>
+  <!-- Pre-loaded scripts that we'll load fully later -->
+  <link rel="preload" as="script" href="_static/scripts/bootstrap.js?digest=8878045cc6db502f8baf" />
+<link rel="preload" as="script" href="_static/scripts/pydata-sphinx-theme.js?digest=8878045cc6db502f8baf" />
+
+    <script src="_static/documentation_options.js?v=38b66d78"></script>
+    <script src="_static/doctools.js?v=9bcbadda"></script>
+    <script src="_static/sphinx_highlight.js?v=dc90522c"></script>
+    <script src="_static/clipboard.min.js?v=a7894cd8"></script>
+    <script src="_static/copybutton.js?v=30646c52"></script>
+    <script src="_static/design-tabs.js?v=f930bc37"></script>
+    <script crossorigin="anonymous" integrity="sha256-Ae2Vz/4ePdIu6ZyI/5ZGsYnb+m0JlOmKPjt6XZ9JJkA=" src="https://cdnjs.cloudflare.com/ajax/libs/require.js/2.3.4/require.min.js"></script>
+    <script>DOCUMENTATION_OPTIONS.pagename = 'CONFIGURATION_GUIDE';</script>
+    <script src="_static/custom.js"></script>
+    <link rel="author" title="About these documents" href="about.html" />
+    <link rel="index" title="Index" href="genindex.html" />
+    <link rel="search" title="Search" href="search.html" />
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <meta name="docsearch:language" content="en"/>
+  <meta name="docsearch:version" content="0.1.0" />
+    <meta name="docbuild:last-update" content="Jul 21, 2025"/>
+  </head>
+  
+  
+  <body data-bs-spy="scroll" data-bs-target=".bd-toc-nav" data-offset="180" data-bs-root-margin="0px 0px -60%" data-default-mode="">
+
+  
+  
+  <div id="pst-skip-link" class="skip-link d-print-none"><a href="#main-content">Skip to main content</a></div>
+  
+  <div id="pst-scroll-pixel-helper"></div>
+  
+  <button type="button" class="btn rounded-pill" id="pst-back-to-top">
+    <i class="fa-solid fa-arrow-up"></i>Back to top</button>
+
+  
+  <dialog id="pst-search-dialog">
+    
+<form class="bd-search d-flex align-items-center"
+      action="search.html"
+      method="get">
+  <i class="fa-solid fa-magnifying-glass"></i>
+  <input type="search"
+         class="form-control"
+         name="q"
+         placeholder="Search the docs..."
+         aria-label="Search the docs..."
+         autocomplete="off"
+         autocorrect="off"
+         autocapitalize="off"
+         spellcheck="false"/>
+  <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd>K</kbd></span>
+</form>
+  </dialog>
+
+  <div class="pst-async-banner-revealer d-none">
+  <aside id="bd-header-version-warning" class="d-none d-print-none" aria-label="Version warning"></aside>
+</div>
+
+  
+    <header class="bd-header navbar navbar-expand-lg bd-navbar d-print-none">
+<div class="bd-header__inner bd-page-width">
+  <button class="pst-navbar-icon sidebar-toggle primary-toggle" aria-label="Site navigation">
+    <span class="fa-solid fa-bars"></span>
+  </button>
+  
+  
+  <div class=" navbar-header-items__start">
+    
+      <div class="navbar-item">
+
+  
+    
+  
+
+<a class="navbar-brand logo" href="index.html">
+  
+  
+  
+  
+  
+    
+    
+      
+    
+    
+    <img src="_static/logo_light.png" class="logo__image only-light" alt=""/>
+    <img src="_static/logo_dark.png" class="logo__image only-dark pst-js-only" alt=""/>
+  
+  
+    <p class="title logo__title">Dendritic Modeling</p>
+  
+</a></div>
+    
+  </div>
+  
+  <div class=" navbar-header-items">
+    
+    <div class="me-auto navbar-header-items__center">
+      
+        <div class="navbar-item">
+<nav>
+  <ul class="bd-navbar-elements navbar-nav">
+    
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="introduction.html">
+    Introduction
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="installation.html">
+    Installation and Setup
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="quickstart.html">
+    Quickstart Guide
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="core_concepts.html">
+    Core Concepts
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="architectures/index.html">
+    Network Architectures and Design
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="training/index.html">
+    Training Strategies and Usage
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="analysis/index.html">
+    Analysis Tools and Methods
+  </a>
+</li>
+
+            <li class="nav-item dropdown">
+                <button class="btn dropdown-toggle nav-item" type="button"
+                data-bs-toggle="dropdown" aria-expanded="false"
+                aria-controls="pst-nav-more-links">
+                    More
+                </button>
+                <ul id="pst-nav-more-links" class="dropdown-menu">
+                    
+<li class=" ">
+  <a class="nav-link dropdown-item nav-internal" href="performance/index.html">
+    Performance, Speed, and Efficiency
+  </a>
+</li>
+
+
+<li class=" ">
+  <a class="nav-link dropdown-item nav-internal" href="faq.html">
+    Frequently Asked Questions (FAQ)
+  </a>
+</li>
+
+
+<li class=" ">
+  <a class="nav-link dropdown-item nav-internal" href="glossary.html">
+    Glossary
+  </a>
+</li>
+
+
+<li class=" ">
+  <a class="nav-link dropdown-item nav-internal" href="troubleshooting.html">
+    Troubleshooting Guide
+  </a>
+</li>
+
+
+<li class=" ">
+  <a class="nav-link dropdown-item nav-internal" href="contributing.html">
+    Contributing Guide
+  </a>
+</li>
+
+                </ul>
+            </li>
+            
+  </ul>
+</nav></div>
+      
+    </div>
+    
+    
+    <div class="navbar-header-items__end">
+      
+        <div class="navbar-item navbar-persistent--container">
+          
+
+<button class="btn search-button-field search-button__button pst-js-only" title="Search" aria-label="Search" data-bs-placement="bottom" data-bs-toggle="tooltip">
+ <i class="fa-solid fa-magnifying-glass"></i>
+ <span class="search-button__default-text">Search</span>
+ <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd class="kbd-shortcut__modifier">K</kbd></span>
+</button>
+        </div>
+      
+      
+        <div class="navbar-item">
+<form class="bd-search d-flex align-items-center"
+      action="search.html"
+      method="get">
+  <i class="fa-solid fa-magnifying-glass"></i>
+  <input type="search"
+         class="form-control"
+         name="q"
+         placeholder="Search the docs..."
+         aria-label="Search the docs..."
+         autocomplete="off"
+         autocorrect="off"
+         autocapitalize="off"
+         spellcheck="false"/>
+  <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd>K</kbd></span>
+</form></div>
+      
+        <div class="navbar-item"><ul class="navbar-icon-links"
+    aria-label="Icon Links">
+        <li class="nav-item">
+          
+          
+          
+          
+          
+          
+          
+          
+          <a href="https://github.com/KempnerInstitute/dendritic-modeling" title="GitHub" class="nav-link pst-navbar-icon" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><i class="fa-brands fa-square-github fa-lg" aria-hidden="true"></i>
+            <span class="sr-only">GitHub</span></a>
+        </li>
+        <li class="nav-item">
+          
+          
+          
+          
+          
+          
+          
+          
+          <a href="https://twitter.com/KempnerInstitute" title="Twitter" class="nav-link pst-navbar-icon" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><i class="fa-brands fa-square-twitter fa-lg" aria-hidden="true"></i>
+            <span class="sr-only">Twitter</span></a>
+        </li>
+</ul></div>
+      
+    </div>
+    
+  </div>
+  
+  
+    <div class="navbar-persistent--mobile">
+
+<button class="btn search-button-field search-button__button pst-js-only" title="Search" aria-label="Search" data-bs-placement="bottom" data-bs-toggle="tooltip">
+ <i class="fa-solid fa-magnifying-glass"></i>
+ <span class="search-button__default-text">Search</span>
+ <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd class="kbd-shortcut__modifier">K</kbd></span>
+</button>
+    </div>
+  
+
+  
+    <button class="pst-navbar-icon sidebar-toggle secondary-toggle" aria-label="On this page">
+      <span class="fa-solid fa-outdent"></span>
+    </button>
+  
+</div>
+
+    </header>
+  
+
+  <div class="bd-container">
+    <div class="bd-container__inner bd-page-width">
+      
+      
+      
+        
+      
+      <dialog id="pst-primary-sidebar-modal"></dialog>
+      <div id="pst-primary-sidebar" class="bd-sidebar-primary bd-sidebar">
+        
+
+  
+  <div class="sidebar-header-items sidebar-primary__section">
+    
+    
+      <div class="sidebar-header-items__center">
+        
+          
+          
+            <div class="navbar-item">
+<nav>
+  <ul class="bd-navbar-elements navbar-nav">
+    
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="introduction.html">
+    Introduction
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="installation.html">
+    Installation and Setup
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="quickstart.html">
+    Quickstart Guide
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="core_concepts.html">
+    Core Concepts
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="architectures/index.html">
+    Network Architectures and Design
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="training/index.html">
+    Training Strategies and Usage
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="analysis/index.html">
+    Analysis Tools and Methods
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="performance/index.html">
+    Performance, Speed, and Efficiency
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="faq.html">
+    Frequently Asked Questions (FAQ)
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="glossary.html">
+    Glossary
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="troubleshooting.html">
+    Troubleshooting Guide
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="contributing.html">
+    Contributing Guide
+  </a>
+</li>
+
+  </ul>
+</nav></div>
+          
+        
+      </div>
+    
+    
+    
+      <div class="sidebar-header-items__end">
+        
+          <div class="navbar-item">
+<form class="bd-search d-flex align-items-center"
+      action="search.html"
+      method="get">
+  <i class="fa-solid fa-magnifying-glass"></i>
+  <input type="search"
+         class="form-control"
+         name="q"
+         placeholder="Search the docs..."
+         aria-label="Search the docs..."
+         autocomplete="off"
+         autocorrect="off"
+         autocapitalize="off"
+         spellcheck="false"/>
+  <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd>K</kbd></span>
+</form></div>
+        
+          <div class="navbar-item"><ul class="navbar-icon-links"
+    aria-label="Icon Links">
+        <li class="nav-item">
+          
+          
+          
+          
+          
+          
+          
+          
+          <a href="https://github.com/KempnerInstitute/dendritic-modeling" title="GitHub" class="nav-link pst-navbar-icon" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><i class="fa-brands fa-square-github fa-lg" aria-hidden="true"></i>
+            <span class="sr-only">GitHub</span></a>
+        </li>
+        <li class="nav-item">
+          
+          
+          
+          
+          
+          
+          
+          
+          <a href="https://twitter.com/KempnerInstitute" title="Twitter" class="nav-link pst-navbar-icon" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><i class="fa-brands fa-square-twitter fa-lg" aria-hidden="true"></i>
+            <span class="sr-only">Twitter</span></a>
+        </li>
+</ul></div>
+        
+      </div>
+    
+  </div>
+  
+    <div class="sidebar-primary-items__start sidebar-primary__section">
+        <div class="sidebar-primary-item">
+<form class="bd-search d-flex align-items-center"
+      action="search.html"
+      method="get">
+  <i class="fa-solid fa-magnifying-glass"></i>
+  <input type="search"
+         class="form-control"
+         name="q"
+         placeholder="Search the docs..."
+         aria-label="Search the docs..."
+         autocomplete="off"
+         autocorrect="off"
+         autocapitalize="off"
+         spellcheck="false"/>
+  <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd>K</kbd></span>
+</form></div>
+    </div>
+  
+  
+  <div class="sidebar-primary-items__end sidebar-primary__section">
+      <div class="sidebar-primary-item">
+<div id="ethical-ad-placement"
+      class="flat"
+      data-ea-publisher="readthedocs"
+      data-ea-type="readthedocs-sidebar"
+      data-ea-manual="true">
+</div></div>
+  </div>
+
+
+      </div>
+      
+      <main id="main-content" class="bd-main" role="main">
+        
+        
+          <div class="bd-content">
+            <div class="bd-article-container">
+              
+              <div class="bd-header-article d-print-none">
+<div class="header-article-items header-article__inner">
+  
+    <div class="header-article-items__start">
+      
+        <div class="header-article-item">
+
+<nav aria-label="Breadcrumb" class="d-print-none">
+  <ul class="bd-breadcrumbs">
+    
+    <li class="breadcrumb-item breadcrumb-home">
+      <a href="index.html" class="nav-link" aria-label="Home">
+        <i class="fa-solid fa-home"></i>
+      </a>
+    </li>
+    <li class="breadcrumb-item active" aria-current="page"><span class="ellipsis">Dendritic Modeling Configuration Guide</span></li>
+  </ul>
+</nav>
+</div>
+      
+    </div>
+  
+  
+</div>
+</div>
+              
+              
+              
+                
+<div id="searchbox"></div>
+                <article class="bd-article">
+                  
+  <section id="dendritic-modeling-configuration-guide">
+<h1>Dendritic Modeling Configuration Guide<a class="headerlink" href="#dendritic-modeling-configuration-guide" title="Link to this heading">#</a></h1>
+<p>This comprehensive guide covers all configuration options available in the Dendritic Modeling Framework. All configurations are specified using YAML files that are passed to the training script.</p>
+<section id="table-of-contents">
+<h2>Table of Contents<a class="headerlink" href="#table-of-contents" title="Link to this heading">#</a></h2>
+<ol class="arabic simple">
+<li><p>[Overview](#overview)</p></li>
+<li><p>[Model Configuration](#model-configuration)</p></li>
+<li><p>[Training Configuration](#training-configuration)</p></li>
+<li><p>[Task/Dataset Configuration](#taskdataset-configuration)</p></li>
+<li><p>[Analysis Configuration](#analysis-configuration)</p></li>
+<li><p>[Visualization Configuration](#visualization-configuration)</p></li>
+<li><p>[Output Configuration](#output-configuration)</p></li>
+<li><p>[Weights &amp; Biases Configuration](#weights–biases-configuration)</p></li>
+<li><p>[Complete Examples](#complete-examples)</p></li>
+</ol>
+</section>
+<section id="overview">
+<h2>Overview<a class="headerlink" href="#overview" title="Link to this heading">#</a></h2>
+<p>Configuration files define all aspects of dendritic modeling experiments:</p>
+<p><code class="docutils literal notranslate"><span class="pre">```yaml</span>
+<span class="pre">Basic</span> <span class="pre">structure</span>
+<span class="pre">==================================================</span>
+<span class="pre">model:</span>&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160; <span class="pre">#</span> <span class="pre">Network</span> <span class="pre">architecture</span> <span class="pre">and</span> <span class="pre">parameters</span>
+<span class="pre">train:</span>&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160; <span class="pre">#</span> <span class="pre">Training</span> <span class="pre">strategy</span> <span class="pre">and</span> <span class="pre">hyperparameters</span>
+<span class="pre">task:</span>&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160; <span class="pre">#</span> <span class="pre">Dataset</span> <span class="pre">and</span> <span class="pre">task</span> <span class="pre">configuration</span>
+<span class="pre">analysis:</span>&#160;&#160;&#160;&#160;&#160;&#160; <span class="pre">#</span> <span class="pre">Analysis</span> <span class="pre">and</span> <span class="pre">metrics</span> <span class="pre">configuration</span>
+<span class="pre">visualization:</span>&#160; <span class="pre">#</span> <span class="pre">Plotting</span> <span class="pre">and</span> <span class="pre">visualization</span> <span class="pre">options</span>
+<span class="pre">outputs:</span>&#160;&#160;&#160;&#160;&#160;&#160;&#160; <span class="pre">#</span> <span class="pre">Output</span> <span class="pre">directories</span> <span class="pre">and</span> <span class="pre">saving</span> <span class="pre">options</span>
+<span class="pre">wandb:</span>&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160; <span class="pre">#</span> <span class="pre">Weights</span> <span class="pre">&amp;</span> <span class="pre">Biases</span> <span class="pre">logging</span> <span class="pre">configuration</span>
+<span class="pre">```</span></code></p>
+</section>
+<section id="model-configuration">
+<h2>Model Configuration<a class="headerlink" href="#model-configuration" title="Link to this heading">#</a></h2>
+<section id="network-types">
+<h3>Network Types<a class="headerlink" href="#network-types" title="Link to this heading">#</a></h3>
+<p>The framework supports multiple network architectures:</p>
+<p><a href="#id1"><span class="problematic" id="id2">``</span></a><a href="#id3"><span class="problematic" id="id4">``</span></a><a href="#id5"><span class="problematic" id="id6">`</span></a>yaml
+model:</p>
+<blockquote>
+<div><p>task: classification  # or “regression”</p>
+<p># Three-part model structure
+encoder_network:</p>
+<blockquote>
+<div><p>type: Identity      # Input encoder (Identity, CNN, MLP, AlexNet)
+parameters:</p>
+<blockquote>
+<div><p>input_dim: 784</p>
+</div></blockquote>
+</div></blockquote>
+<dl>
+<dt>core_network:</dt><dd><p>type: EINet         # Main network (EINet, MLP, MatchedParamMLP)
+parameters:</p>
+<blockquote>
+<div><p># See detailed parameters below</p>
+</div></blockquote>
+</dd>
+<dt>decoder_network:</dt><dd><p>type: Identity      # Output decoder (Identity, MLP)
+parameters:</p>
+<blockquote>
+<div><p>output_dim: 10</p>
+</div></blockquote>
+</dd>
+</dl>
+</div></blockquote>
+</section>
+<hr class="docutils" />
+<section id="einet-parameters">
+<h3>EINet Parameters<a class="headerlink" href="#einet-parameters" title="Link to this heading">#</a></h3>
+<p><strong>EINet</strong> (Excitation-Inhibition Network) is the main dendritic architecture:</p>
+<section id="architecture-parameters">
+<h4>Architecture Parameters<a class="headerlink" href="#architecture-parameters" title="Link to this heading">#</a></h4>
+<p><a href="#id7"><span class="problematic" id="id8">``</span></a><a href="#id9"><span class="problematic" id="id10">``</span></a><a href="#id11"><span class="problematic" id="id12">`</span></a>yaml
+model:</p>
+<blockquote>
+<div><dl>
+<dt>core_network:</dt><dd><p>type: EINet
+parameters:</p>
+<blockquote>
+<div><p># Layer sizes
+excitatory_layer_sizes: [128, 64, 32]    # Excitatory neurons per layer
+inhibitory_layer_sizes: [64, 32, 16]     # Inhibitory neurons per layer</p>
+<p># Branching structure
+excitatory_branch_factors: [2, 2]        # Branching factors for E neurons
+inhibitory_branch_factors: []            # Usually empty for I neurons</p>
+<p># Connectivity patterns
+ee_synapses_per_branch_per_layer: [100, 50]  # E→E connections
+ei_synapses_per_branch_per_layer: [50, 25]   # E→I connections
+ie_synapses_per_branch_per_layer: [25, 10]   # I→E connections
+ii_synapses_per_branch_per_layer: [0, 0]     # I→I connections (usually 0)</p>
+<p># Synaptic properties
+somatic_synapses: true                   # Allow direct soma connections
+use_shunting: true                       # Shunting vs subtractive inhibition</p>
+</div></blockquote>
+</dd>
+</dl>
+</div></blockquote>
+</section>
+<hr class="docutils" />
+<section id="synaptic-selection-mechanisms">
+<h4>Synaptic Selection Mechanisms<a class="headerlink" href="#synaptic-selection-mechanisms" title="Link to this heading">#</a></h4>
+<dl>
+<dt><a href="#id13"><span class="problematic" id="id14">``</span></a><a href="#id15"><span class="problematic" id="id16">``</span></a><a href="#id17"><span class="problematic" id="id18">`</span></a>yaml</dt><dd><p># TopK synapse selection
+topk_type: standard           # “standard”, “stochastic”, “variance”, “deepst”
+topk_init_method: xavier_normal  # Weight initialization method
+topk_noise_level: 0.0         # Noise for exploration (0.0-1.0)</p>
+<p># Stochastic TopK parameters
+topk_temperature: 0.5         # Temperature for stochastic selection
+topk_ultrafast: true          # Enable fast approximation</p>
+<p># Dynamic Sparse Training (DeepST) parameters
+excitatory_target_density: 0.1    # Target connection density
+inhibitory_target_density: 0.1
+rewiring_mode: global         # “global”, “local”, “constant_branch”
+rewire_frequency: 1           # Rewiring frequency (epochs)
+use_noise: true               # Add Gaussian noise
+sigma: 0.05                   # Noise standard deviation
+freeze_excitatory_connectivity: false
+freeze_inhibitory_connectivity: false
+weight_threshold: 1e-6        # Pruning threshold</p>
+</dd>
+</dl>
+</section>
+<hr class="docutils" />
+<section id="activation-functions">
+<h4>Activation Functions<a class="headerlink" href="#activation-functions" title="Link to this heading">#</a></h4>
+<dl class="simple">
+<dt><a href="#id19"><span class="problematic" id="id20">``</span></a><a href="#id21"><span class="problematic" id="id22">``</span></a><a href="#id23"><span class="problematic" id="id24">`</span></a>yaml</dt><dd><p># Reactivation functions
+reactivate: true              # Enable reactivation after branches
+reactivation_type: param_tanh # Activation function type
+reactivation_init_m: 1.5      # Initial slope parameter
+reactivation_init_b: 0.5      # Initial bias parameter</p>
+</dd>
+</dl>
+<hr class="docutils" />
+<p><strong>Available reactivation types:</strong>
+* <code class="docutils literal notranslate"><span class="pre">none</span></code>: No reactivation (identity)
+* <code class="docutils literal notranslate"><span class="pre">param_tanh</span></code>: Parametric tanh with learnable m and b
+* <code class="docutils literal notranslate"><span class="pre">param_tanh_only_m</span></code>: Parametric tanh with only m learnable
+* <code class="docutils literal notranslate"><span class="pre">relu</span></code>: Standard ReLU
+* <code class="docutils literal notranslate"><span class="pre">sigmoid</span></code>: Standard sigmoid
+* <code class="docutils literal notranslate"><span class="pre">tanh</span></code>: Standard tanh
+* <code class="docutils literal notranslate"><span class="pre">param_linear_sigmoid</span></code>: Interpolates between linear and sigmoid
+* <code class="docutils literal notranslate"><span class="pre">linear_sigmoid</span></code>: Non-trainable linear-sigmoid interpolation
+* <code class="docutils literal notranslate"><span class="pre">param_linear_tanh</span></code>: Trainable linear-tanh interpolation
+* <code class="docutils literal notranslate"><span class="pre">linear_tanh</span></code>: Non-trainable linear-tanh interpolation
+* <code class="docutils literal notranslate"><span class="pre">param_linear_tanh_transition</span></code>: Smooth transition from linear to tanh
+* <code class="docutils literal notranslate"><span class="pre">linear_tanh_transition</span></code>: Non-trainable version</p>
+</section>
+<section id="gradient-scaling">
+<h4>Gradient Scaling<a class="headerlink" href="#gradient-scaling" title="Link to this heading">#</a></h4>
+<dl>
+<dt><a href="#id25"><span class="problematic" id="id26">``</span></a><a href="#id27"><span class="problematic" id="id28">``</span></a><a href="#id29"><span class="problematic" id="id30">`</span></a>yaml</dt><dd><p># Gradient scaling strategies
+reactivation_strategy: inverse    # “none”, “inverse”
+topk_strategy: conductance_dynamic # “none”, “conductance_dynamic”
+blocklinear_strategy: conductance_dynamic # “none”, “distal_upweight_by_idx”, “conductance_dynamic”</p>
+<p># Debugging
+print_hooks: false            # Print gradient statistics</p>
+</dd>
+</dl>
+</section>
+<hr class="docutils" />
+<section id="input-processing">
+<h4>Input Processing<a class="headerlink" href="#input-processing" title="Link to this heading">#</a></h4>
+<dl>
+<dt><a href="#id31"><span class="problematic" id="id32">``</span></a><a href="#id33"><span class="problematic" id="id34">``</span></a><a href="#id35"><span class="problematic" id="id36">`</span></a>yaml</dt><dd><p># Input modes
+input_mode: 1                 # 0: raw→E, None→I; 1: same→E,I; 2: network transform</p>
+<p># Input network (for input_mode=2)
+input_net_dict:</p>
+<blockquote>
+<div><p>type: CNNInputTransform     # Transform network type</p>
+<p># CNN parameters
+input_shape: [3, 32, 32]    # Input dimensions [C, H, W]
+excitatory_hidden_dims: [16, 32]      # E pathway conv channels
+inhibitory_hidden_dims: [8, 16]       # I pathway conv channels
+excitatory_kernel_sizes: [5, 3]       # E pathway kernel sizes
+inhibitory_kernel_sizes: [7, 5]       # I pathway kernel sizes
+excitatory_strides: [1, 1]            # E pathway strides
+inhibitory_strides: [1, 1]            # I pathway strides</p>
+<p># MLP parameters (for MLPInputTransform)
+hidden_dims: [512, 256]     # Hidden layer sizes
+excitatory_dim: 256          # E pathway output dimension
+inhibitory_dim: 64           # I pathway output dimension</p>
+</div></blockquote>
+</dd>
+</dl>
+<hr class="docutils" />
+<p><strong>Available input transform types:</strong>
+* <code class="docutils literal notranslate"><span class="pre">IndexInputTransform</span></code>: Random index splitting
+* <code class="docutils literal notranslate"><span class="pre">MLPInputTransform</span></code>: MLP-based transformation
+* <code class="docutils literal notranslate"><span class="pre">CNNInputTransform</span></code>: CNN-based transformation
+* <code class="docutils literal notranslate"><span class="pre">AlexNetTransform</span></code>: Pre-trained AlexNet features
+* <code class="docutils literal notranslate"><span class="pre">FeatureExtractorMLP</span></code>: Feature extraction MLP
+* <code class="docutils literal notranslate"><span class="pre">SigmoidInputNetTransform</span></code>: MLP with sigmoid output</p>
+</section>
+</section>
+<section id="other-network-types">
+<h3>Other Network Types<a class="headerlink" href="#other-network-types" title="Link to this heading">#</a></h3>
+<section id="standard-mlp">
+<h4>Standard MLP<a class="headerlink" href="#standard-mlp" title="Link to this heading">#</a></h4>
+<p><a href="#id37"><span class="problematic" id="id38">``</span></a><a href="#id39"><span class="problematic" id="id40">``</span></a><a href="#id41"><span class="problematic" id="id42">`</span></a>yaml
+model:</p>
+<blockquote>
+<div><dl>
+<dt>core_network:</dt><dd><p>type: MLP
+parameters:</p>
+<blockquote>
+<div><p>input_dim: 784
+hidden_dims: [512, 256, 128]
+activation: relu              # “relu”, “sigmoid”, “tanh”
+output_dim: 10</p>
+</div></blockquote>
+</dd>
+</dl>
+</div></blockquote>
+</section>
+<hr class="docutils" />
+<section id="parameter-matched-mlp">
+<h4>Parameter-Matched MLP<a class="headerlink" href="#parameter-matched-mlp" title="Link to this heading">#</a></h4>
+<p><a href="#id43"><span class="problematic" id="id44">``</span></a><a href="#id45"><span class="problematic" id="id46">``</span></a><a href="#id47"><span class="problematic" id="id48">`</span></a>yaml
+model:</p>
+<blockquote>
+<div><dl>
+<dt>core_network:</dt><dd><p>type: MatchedParamMLP
+parameters:</p>
+<blockquote>
+<div><p># Uses same parameters as EINet to match parameter count
+input_dim: 784
+excitatory_layer_sizes: [128, 64]
+inhibitory_layer_sizes: [64, 32]
+# … other EINet parameters</p>
+</div></blockquote>
+</dd>
+</dl>
+</div></blockquote>
+</section>
+</section>
+</section>
+<hr class="docutils" />
+<section id="training-configuration">
+<h2>Training Configuration<a class="headerlink" href="#training-configuration" title="Link to this heading">#</a></h2>
+<section id="learning-strategies">
+<h3>Learning Strategies<a class="headerlink" href="#learning-strategies" title="Link to this heading">#</a></h3>
+<p><a href="#id49"><span class="problematic" id="id50">``</span></a><a href="#id51"><span class="problematic" id="id52">``</span></a><a href="#id53"><span class="problematic" id="id54">`</span></a>yaml
+train:</p>
+<blockquote>
+<div><p>learning_strategy: standard      # Training strategy</p>
+<p># Basic parameters
+run_name: my_experiment          # Experiment name
+seed: 42                         # Random seed
+train_valid_split: 0.8           # Train/validation split ratio
+weight_decay_rate: 0.1           # L2 regularization</p>
+</div></blockquote>
+<hr class="docutils" />
+<p><strong>Available learning strategies:</strong>
+* <code class="docutils literal notranslate"><span class="pre">standard</span></code>: Traditional backpropagation
+* <code class="docutils literal notranslate"><span class="pre">freeze_layers</span></code>: Train layers sequentially
+* <code class="docutils literal notranslate"><span class="pre">freeze_branches</span></code>: Train branches sequentially (local learning)
+* <code class="docutils literal notranslate"><span class="pre">two_step</span></code>: Local pretraining + global fine-tuning
+* <code class="docutils literal notranslate"><span class="pre">two_step_kl</span></code>: Two-step with KL divergence
+* <code class="docutils literal notranslate"><span class="pre">voltage_stabilization</span></code>: Biologically-motivated warm-up</p>
+</section>
+<section id="optimizer-configuration">
+<h3>Optimizer Configuration<a class="headerlink" href="#optimizer-configuration" title="Link to this heading">#</a></h3>
+<p><a href="#id55"><span class="problematic" id="id56">``</span></a><a href="#id57"><span class="problematic" id="id58">``</span></a><a href="#id59"><span class="problematic" id="id60">`</span></a>yaml
+train:</p>
+<blockquote>
+<div><dl>
+<dt>optim_dict:</dt><dd><p># Simple configuration
+split_params: false            # Use single learning rate
+lr: 0.001                     # Learning rate</p>
+<p># Advanced configuration
+split_params: true            # Use different LRs for components
+input_net_lr: 0.001          # Input network learning rate
+topk_lr: 0.005               # Synaptic weight learning rate
+blocklinear_lr: 0.001        # Branch aggregation learning rate
+reactivation_lr: 0.01        # Activation parameter learning rate
+output_layer_lr: 0.001       # Output layer learning rate</p>
+</dd>
+</dl>
+</div></blockquote>
+</section>
+<hr class="docutils" />
+<section id="trainer-parameters">
+<h3>Trainer Parameters<a class="headerlink" href="#trainer-parameters" title="Link to this heading">#</a></h3>
+<p><a href="#id61"><span class="problematic" id="id62">``</span></a><a href="#id63"><span class="problematic" id="id64">``</span></a><a href="#id65"><span class="problematic" id="id66">`</span></a>yaml
+train:</p>
+<blockquote>
+<div><dl>
+<dt>trainer:</dt><dd><p># Basic training
+epochs: 100                   # Number of training epochs
+batch_size: 128              # Batch size
+loss_function: categorical_nll # Loss function
+shuffle: true                # Shuffle training data</p>
+<p># Optimization
+grad_clip_value: 5.0         # Gradient clipping</p>
+<p># Early stopping
+early_stopping: true         # Enable early stopping
+patience: 10                 # Early stopping patience
+load_best_state_dict: true   # Load best model after training</p>
+<p># Logging
+plot_losses: true            # Plot training curves
+suppress_prints: false       # Suppress console output
+print_every: 10              # Print frequency (epochs)</p>
+<p># Strategy-specific parameters
+pretrain_epochs: 20          # Pretraining epochs (two-step, voltage_stabilization)
+target_voltage: 0.5          # Target voltage (voltage_stabilization)
+kl_weight: 0.1              # KL divergence weight (two_step_kl)
+reverse_training: false      # Train in reverse order (freeze strategies)
+epochs_per_layer: 10         # Epochs per layer (freeze_layers)
+epochs_per_branch: 10        # Epochs per branch (freeze_branches)
+final_tune_epochs: 20        # Final tuning epochs (multi-stage strategies)</p>
+</dd>
+</dl>
+</div></blockquote>
+<hr class="docutils" />
+<p><strong>Available loss functions:</strong>
+* <code class="docutils literal notranslate"><span class="pre">categorical_nll</span></code>: Categorical negative log-likelihood
+* <code class="docutils literal notranslate"><span class="pre">mse</span></code>: Mean squared error
+* <code class="docutils literal notranslate"><span class="pre">cross_entropy</span></code>: Cross-entropy loss
+* <code class="docutils literal notranslate"><span class="pre">bce</span></code>: Binary cross-entropy</p>
+</section>
+<section id="encoder-network-training">
+<h3>Encoder Network Training<a class="headerlink" href="#encoder-network-training" title="Link to this heading">#</a></h3>
+<p>For models with sophisticated encoder networks:</p>
+<p><a href="#id67"><span class="problematic" id="id68">``</span></a><a href="#id69"><span class="problematic" id="id70">``</span></a><a href="#id71"><span class="problematic" id="id72">`</span></a>yaml
+train:</p>
+<blockquote>
+<div><dl>
+<dt>encoder:</dt><dd><p># Training mode
+training_mode: sequential     # “joint”, “sequential”
+train_encoder: true          # Whether to train encoder
+encoder_epochs: 20           # Encoder pretraining epochs</p>
+<p># Independent head training
+train_heads_independently: false
+inhibitory_head_objective: classification  # “classification”, “diversity”, “combined”
+diversity_weight: 0.5        # Weight for diversity loss</p>
+<p># Pre-trained weights
+pretrained_options:</p>
+<blockquote>
+<div><p>source: none               # “file”, “pytorch”, “none”
+weights_path: “”           # Path to weights file
+pytorch_model: “”          # PyTorch model name (e.g., “alexnet”)</p>
+</div></blockquote>
+</dd>
+</dl>
+</div></blockquote>
+</section>
+<hr class="docutils" />
+<section id="main-network-training">
+<h3>Main Network Training<a class="headerlink" href="#main-network-training" title="Link to this heading">#</a></h3>
+<p>For multi-stage training strategies:</p>
+<p><a href="#id73"><span class="problematic" id="id74">``</span></a><a href="#id75"><span class="problematic" id="id76">``</span></a><a href="#id77"><span class="problematic" id="id78">`</span></a>yaml
+train:</p>
+<blockquote>
+<div><dl>
+<dt>main:</dt><dd><p># Parameter groups for different learning rates
+param_groups:</p>
+<blockquote>
+<div><p>topk: 0.005               # Synaptic weights
+blocklinear: 0.001        # Branch aggregation
+reactivation: 0.01        # Activation parameters
+output_layer: 0.001       # Output layer</p>
+</div></blockquote>
+<p>weight_decay_rate: 0.1      # Weight decay</p>
+<dl class="simple">
+<dt>trainer:</dt><dd><p># Same parameters as above
+epochs: 80
+batch_size: 128
+# …</p>
+</dd>
+</dl>
+</dd>
+</dl>
+</div></blockquote>
+</section>
+</section>
+<hr class="docutils" />
+<section id="task-dataset-configuration">
+<h2>Task/Dataset Configuration<a class="headerlink" href="#task-dataset-configuration" title="Link to this heading">#</a></h2>
+<section id="dataset-selection">
+<h3>Dataset Selection<a class="headerlink" href="#dataset-selection" title="Link to this heading">#</a></h3>
+<p><a href="#id79"><span class="problematic" id="id80">``</span></a><a href="#id81"><span class="problematic" id="id82">``</span></a><a href="#id83"><span class="problematic" id="id84">`</span></a>yaml
+task:</p>
+<blockquote>
+<div><p>dataset: mnist                 # Dataset name
+data_path: “”                  # Custom data path (empty = default)</p>
+<dl class="simple">
+<dt>parameters:</dt><dd><p># Common parameters
+train_size: 8000             # Training samples
+valid_size: 1000             # Validation samples
+test_size: 1000              # Test samples
+flatten: true                # Flatten images
+normalize: false             # Normalize inputs</p>
+</dd>
+</dl>
+</div></blockquote>
+</section>
+<hr class="docutils" />
+<section id="supported-datasets">
+<h3>Supported Datasets<a class="headerlink" href="#supported-datasets" title="Link to this heading">#</a></h3>
+<section id="vision-datasets">
+<h4>Vision Datasets<a class="headerlink" href="#vision-datasets" title="Link to this heading">#</a></h4>
+<p><a href="#id85"><span class="problematic" id="id86">``</span></a><a href="#id87"><span class="problematic" id="id88">``</span></a><a href="#id89"><span class="problematic" id="id90">`</span></a>yaml
+MNIST handwritten digits
+==================================================
+task:</p>
+<blockquote>
+<div><p>dataset: mnist
+parameters:</p>
+<blockquote>
+<div><p>flatten: true               # Flatten 28x28 → 784
+normalize: true             # Apply normalization</p>
+</div></blockquote>
+</div></blockquote>
+</section>
+</section>
+</section>
+</section>
+<section id="cifar-10-natural-images">
+<h1>CIFAR-10 natural images<a class="headerlink" href="#cifar-10-natural-images" title="Link to this heading">#</a></h1>
+<dl>
+<dt>task:</dt><dd><p>dataset: cifar10
+parameters:</p>
+<blockquote>
+<div><p>flatten: false              # Keep spatial structure
+normalize: true</p>
+</div></blockquote>
+</dd>
+</dl>
+<hr class="docutils" />
+<p><a href="#id91"><span class="problematic" id="id92">``</span></a><a href="#id93"><span class="problematic" id="id94">``</span></a><a href="#id95"><span class="problematic" id="id96">`</span></a>yaml
+Line detection
+==================================================
+task:</p>
+<blockquote>
+<div><p>dataset: line
+parameters:</p>
+<blockquote>
+<div><p>image_size: 16              # Image dimensions</p>
+</div></blockquote>
+</div></blockquote>
+</section>
+<section id="center-surround-patterns">
+<h1>Center-surround patterns<a class="headerlink" href="#center-surround-patterns" title="Link to this heading">#</a></h1>
+<dl>
+<dt>task:</dt><dd><p>dataset: center_surround
+parameters:</p>
+<blockquote>
+<div><p>image_size: 15</p>
+</div></blockquote>
+</dd>
+</dl>
+</section>
+<section id="orientation-bars">
+<h1>Orientation bars<a class="headerlink" href="#orientation-bars" title="Link to this heading">#</a></h1>
+<dl>
+<dt>task:</dt><dd><p>dataset: orientation_bars
+parameters:</p>
+<blockquote>
+<div><p>image_size: 16
+n_orient_classes: 8         # Number of orientations</p>
+</div></blockquote>
+</dd>
+</dl>
+</section>
+<section id="multi-bit-xor">
+<h1>Multi-bit XOR<a class="headerlink" href="#multi-bit-xor" title="Link to this heading">#</a></h1>
+<dl>
+<dt>task:</dt><dd><p>dataset: multi_xor
+parameters:</p>
+<blockquote>
+<div><p>n_bits: 8                   # Number of input bits</p>
+</div></blockquote>
+</dd>
+</dl>
+</section>
+<section id="information-routing">
+<h1>Information routing<a class="headerlink" href="#information-routing" title="Link to this heading">#</a></h1>
+<dl>
+<dt>task:</dt><dd><p>dataset: info_shunting
+parameters:</p>
+<blockquote>
+<div><p>input_dim: 10               # Input dimensionality</p>
+</div></blockquote>
+</dd>
+</dl>
+</section>
+<section id="noisy-line-detection">
+<h1>Noisy line detection<a class="headerlink" href="#noisy-line-detection" title="Link to this heading">#</a></h1>
+<dl>
+<dt>task:</dt><dd><p>dataset: noise_resilience
+parameters:</p>
+<blockquote>
+<div><p>image_size: 16
+noise_level: 0.2            # Gaussian noise level</p>
+</div></blockquote>
+</dd>
+</dl>
+<hr class="docutils" />
+<p><a href="#id97"><span class="problematic" id="id98">``</span></a><a href="#id99"><span class="problematic" id="id100">``</span></a><a href="#id101"><span class="problematic" id="id102">`</span></a>yaml
+Correlated Gaussian inputs
+==================================================
+task:</p>
+<blockquote>
+<div><p>dataset: synthetic_correlated
+parameters:</p>
+<blockquote>
+<div><p>input_dim: 300              # Input dimensionality
+correlation_range: [-0.1, 0.1]  # Correlation range
+mean_magnitude: 0.5         # Class separation</p>
+</div></blockquote>
+</div></blockquote>
+</section>
+<section id="poisson-sampled-data">
+<h1>Poisson-sampled data<a class="headerlink" href="#poisson-sampled-data" title="Link to this heading">#</a></h1>
+<dl>
+<dt>task:</dt><dd><p>dataset: poisson_generator
+parameters:</p>
+<blockquote>
+<div><p>base_dataset: mnist         # Base dataset
+rate_multiplier: 1.0        # Poisson rate</p>
+</div></blockquote>
+</dd>
+</dl>
+</section>
+<section id="orthogonal-network-data">
+<h1>Orthogonal network data<a class="headerlink" href="#orthogonal-network-data" title="Link to this heading">#</a></h1>
+<dl>
+<dt>task:</dt><dd><p>dataset: orthonet
+parameters:</p>
+<blockquote>
+<div><p>input_dim: 10
+n_layers: 5                 # Network depth
+nonlinearity: sigmoid       # “sigmoid”, “tanh”, None
+repeat_layers: false        # Repeat layer weights
+noise_std: 0.1             # Noise for repeated layers</p>
+</div></blockquote>
+</dd>
+</dl>
+<hr class="docutils" />
+<p><a href="#id103"><span class="problematic" id="id104">``</span></a><a href="#id105"><span class="problematic" id="id106">``</span></a><a href="#id107"><span class="problematic" id="id108">`</span></a>yaml
+MNIST with modulo labels
+==================================================
+task:</p>
+<blockquote>
+<div><p>dataset: mnist_modulo10
+parameters:</p>
+<blockquote>
+<div><p>shuffle_iterations: 2</p>
+</div></blockquote>
+</div></blockquote>
+</section>
+<section id="mnist-with-random-flips">
+<h1>MNIST with random flips<a class="headerlink" href="#mnist-with-random-flips" title="Link to this heading">#</a></h1>
+<dl>
+<dt>task:</dt><dd><p>dataset: random_flip_mnist
+parameters:</p>
+<blockquote>
+<div><p>random_flip: true</p>
+</div></blockquote>
+</dd>
+</dl>
+</section>
+<section id="sparse-mnist-feature-selectivity">
+<h1>Sparse MNIST (feature selectivity)<a class="headerlink" href="#sparse-mnist-feature-selectivity" title="Link to this heading">#</a></h1>
+<dl>
+<dt>task:</dt><dd><p>dataset: feature_selectivity
+parameters:</p>
+<blockquote>
+<div><p>threshold: 0.3</p>
+</div></blockquote>
+</dd>
+</dl>
+</section>
+<section id="contextual-figure-ground">
+<h1>Contextual figure-ground<a class="headerlink" href="#contextual-figure-ground" title="Link to this heading">#</a></h1>
+<dl>
+<dt>task:</dt><dd><p>dataset: context_gating
+parameters:</p>
+<blockquote>
+<div><p>noise_level: 0.1</p>
+</div></blockquote>
+</dd>
+</dl>
+</section>
+<section id="compositional-mnist">
+<h1>Compositional MNIST<a class="headerlink" href="#compositional-mnist" title="Link to this heading">#</a></h1>
+<dl>
+<dt>task:</dt><dd><p>dataset: hierarchical_processing
+parameters:</p>
+<blockquote>
+<div><p>n_samples: 10000</p>
+</div></blockquote>
+</dd>
+</dl>
+<hr class="docutils" />
+<section id="analysis-configuration">
+<h2>Analysis Configuration<a class="headerlink" href="#analysis-configuration" title="Link to this heading">#</a></h2>
+<section id="performance-analysis">
+<h3>Performance Analysis<a class="headerlink" href="#performance-analysis" title="Link to this heading">#</a></h3>
+<p><a href="#id109"><span class="problematic" id="id110">``</span></a><a href="#id111"><span class="problematic" id="id112">``</span></a><a href="#id113"><span class="problematic" id="id114">`</span></a>yaml
+analysis:</p>
+<blockquote>
+<div><dl>
+<dt>performance_analysis:</dt><dd><p>enabled: true               # Enable performance metrics
+training: false             # Run during training
+params:</p>
+<blockquote>
+<div><p>accuracy: true            # Classification accuracy
+categorical_loglikelihood: true  # Log-likelihood
+mse: false               # Mean squared error (regression)</p>
+</div></blockquote>
+</dd>
+</dl>
+</div></blockquote>
+</section>
+<hr class="docutils" />
+<section id="information-theoretic-analysis">
+<h3>Information-Theoretic Analysis<a class="headerlink" href="#information-theoretic-analysis" title="Link to this heading">#</a></h3>
+<p><a href="#id115"><span class="problematic" id="id116">``</span></a><a href="#id117"><span class="problematic" id="id118">``</span></a><a href="#id119"><span class="problematic" id="id120">`</span></a>yaml
+analysis:</p>
+<blockquote>
+<div><dl>
+<dt>information_analysis:</dt><dd><p>enabled: true
+training: false             # Usually false (expensive)
+params:</p>
+<blockquote>
+<div><p># Estimation method
+method: kraskov           # “kraskov”, “sklearn”, “copula”, “auto”
+max_samples: 5000         # Limit samples for efficiency</p>
+<p># k-NN estimator (kraskov)
+n_neighbors: 10           # Number of neighbors (5-20)</p>
+<p># Histogram estimator (sklearn)
+n_bins: 20               # Histogram bins</p>
+<p># Copula estimator
+copula_type: gaussian     # “gaussian”, “t”, “clayton”</p>
+<p># Analysis types
+compute_basic_mi: true    # I(E;C), I(I;C), I(Vout;C)
+compute_pairwise_mi: true # I(E;I), I(E;Vout), I(I;Vout)
+compute_conditional_mi: true # I(E;I|C), I(E;Vout|C)
+compute_pid: false        # Partial Information Decomposition</p>
+<p># PID settings
+pid_binarize: true
+pid_binarize_method: median # “median”, “mean”, “quantile”
+pid_binarize_threshold: 0.5</p>
+<p># Additional options
+include_vinf: true        # Include soma activation
+normalize_mi: false       # Normalize MI by entropy
+verbose: false           # Detailed progress
+compute_per_branch: true  # Per-branch analysis
+branch_aggregation: none  # Branch aggregation method</p>
+</div></blockquote>
+</dd>
+</dl>
+</div></blockquote>
+</section>
+<hr class="docutils" />
+<section id="ablation-analysis">
+<h3>Ablation Analysis<a class="headerlink" href="#ablation-analysis" title="Link to this heading">#</a></h3>
+<p><a href="#id121"><span class="problematic" id="id122">``</span></a><a href="#id123"><span class="problematic" id="id124">``</span></a><a href="#id125"><span class="problematic" id="id126">`</span></a>yaml
+analysis:</p>
+<blockquote>
+<div><dl>
+<dt>ablation_analysis:</dt><dd><p>enabled: true
+training: false
+params:</p>
+<blockquote>
+<div><p>layer_ablation: true      # Test removing layers
+compartment_ablation: true # Test removing E/I compartments
+ablate_all_synapses: true # Test removing all synapses
+ablate_excitation: true   # Test removing excitation
+ablate_inhibition: true   # Test removing inhibition
+ablate_upstream: true     # Test removing branches
+accuracy: true           # Measure accuracy
+categorical_loglikelihood: true # Measure log-likelihood</p>
+</div></blockquote>
+</dd>
+</dl>
+</div></blockquote>
+</section>
+<hr class="docutils" />
+<section id="specialized-analyses">
+<h3>Specialized Analyses<a class="headerlink" href="#specialized-analyses" title="Link to this heading">#</a></h3>
+<p><a href="#id127"><span class="problematic" id="id128">``</span></a><a href="#id129"><span class="problematic" id="id130">``</span></a><a href="#id131"><span class="problematic" id="id132">`</span></a>yaml
+analysis:</p>
+<blockquote>
+<div><p># Synaptic turnover tracking
+synapse_turnover_analysis:</p>
+<blockquote>
+<div><p>enabled: false
+training: false            # Track during training</p>
+</div></blockquote>
+<p># Noise robustness
+noise_perturbation_analysis:</p>
+<blockquote>
+<div><p>enabled: false
+training: false
+params:</p>
+<blockquote>
+<div><p>uniform_noise: true      # Test uniform noise
+uniform_magnitudes: [0.1, 0.2]
+gaussian_noise: true     # Test Gaussian noise
+gaussian_sdevs: [0.1, 0.2]
+n_samples: 10           # Samples per noise level
+accuracy: true
+categorical_loglikelihood: true</p>
+</div></blockquote>
+</div></blockquote>
+<p># Weight analysis
+weight_analysis:</p>
+<blockquote>
+<div><p>enabled: false
+training: false
+params:</p>
+<blockquote>
+<div><p>synapse_weights: true    # Analyze synapse weights
+branch_weights: true     # Analyze branch weights</p>
+</div></blockquote>
+</div></blockquote>
+<p># Synaptic activation analysis
+synaptic_activation_analysis:</p>
+<blockquote>
+<div><p>enabled: false
+training: false
+params:</p>
+<blockquote>
+<div><p>network_summary: true    # Network-wide stats
+layer_summary: true      # Per-layer stats
+branch_summary: true     # Per-branch stats
+raw_summary: true        # Raw values
+logspace: false         # Log-transformed values
+downsample: true        # Downsample for efficiency
+samples: 1000           # Sample size</p>
+</div></blockquote>
+</div></blockquote>
+<p># Branch activation analysis
+branch_activation_analysis:</p>
+<blockquote>
+<div><p>enabled: false
+training: false
+params:</p>
+<blockquote>
+<div><p>synapse_activations: true # E/I synapse activations
+branch_activations: true  # Branch outputs
+network_summary: true
+layer_summary: true
+branch_summary: true
+raw_summary: true
+logspace: false
+downsample: true
+samples: 1000</p>
+</div></blockquote>
+</div></blockquote>
+<p># Single layer contribution
+single_layer_contribution:</p>
+<blockquote>
+<div><p>enabled: true
+training: false
+params:</p>
+<blockquote>
+<div><p>save_plots: true         # Generate plots
+save_csv: true          # Save numerical results</p>
+</div></blockquote>
+</div></blockquote>
+</div></blockquote>
+</section>
+</section>
+<hr class="docutils" />
+<section id="visualization-configuration">
+<h2>Visualization Configuration<a class="headerlink" href="#visualization-configuration" title="Link to this heading">#</a></h2>
+<p><a href="#id133"><span class="problematic" id="id134">``</span></a><a href="#id135"><span class="problematic" id="id136">``</span></a><a href="#id137"><span class="problematic" id="id138">`</span></a>yaml
+visualization:</p>
+<blockquote>
+<div><p>enabled: true                # Enable visualization
+visualize_epochs: [10, 30, 50] # Epochs for visualization</p>
+<p># Available plot types
+plots:</p>
+<blockquote>
+<div><ul class="simple">
+<li><p>weights                  # Synaptic weight matrices</p></li>
+<li><p>activations             # Activation distributions</p></li>
+<li><p>gradients               # Gradient flow</p></li>
+<li><p>profiles                # Dendritic profiles</p></li>
+<li><p>branch_info             # Branch information content</p></li>
+<li><p>branch_ablation         # Branch ablation effects</p></li>
+<li><p>layer_ablation          # Layer ablation effects</p></li>
+<li><p>dendritic_ablation_all  # Comprehensive ablation</p></li>
+<li><p>dendritic_information   # Information processing</p></li>
+<li><p>dendritic_information_inputs      # Input information</p></li>
+<li><p>dendritic_information_activations # Activation information</p></li>
+</ul>
+</div></blockquote>
+</div></blockquote>
+</section>
+<hr class="docutils" />
+<section id="output-configuration">
+<h2>Output Configuration<a class="headerlink" href="#output-configuration" title="Link to this heading">#</a></h2>
+<p><a href="#id139"><span class="problematic" id="id140">``</span></a><a href="#id141"><span class="problematic" id="id142">``</span></a><a href="#id143"><span class="problematic" id="id144">`</span></a>yaml
+outputs:</p>
+<blockquote>
+<div><p>dir: ./outputs/              # Base output directory
+run_name: experiment_001     # Run identifier</p>
+<p># Subdirectories created automatically:
+# - models/: Model checkpoints
+# - logs/: Training logs
+# - analysis/: Analysis results
+# - visualizations/: Generated plots</p>
+</div></blockquote>
+</section>
+<hr class="docutils" />
+<section id="weights-biases-configuration">
+<h2>Weights &amp; Biases Configuration<a class="headerlink" href="#weights-biases-configuration" title="Link to this heading">#</a></h2>
+<p><a href="#id145"><span class="problematic" id="id146">``</span></a><a href="#id147"><span class="problematic" id="id148">``</span></a><a href="#id149"><span class="problematic" id="id150">`</span></a>yaml
+wandb:</p>
+<blockquote>
+<div><p>use_wandb: true             # Enable W&amp;B logging
+entity: my_username         # W&amp;B username/team
+project: dendritic_modeling # Project name
+group: experiments          # Run group
+tags: [dendritic, ei_network] # Run tags</p>
+</div></blockquote>
+</section>
+<hr class="docutils" />
+<section id="fsdp-configuration">
+<h2>FSDP Configuration<a class="headerlink" href="#fsdp-configuration" title="Link to this heading">#</a></h2>
+<p>For large models, enable FSDP in train section:
+<a href="#id151"><span class="problematic" id="id152">``</span></a><a href="#id153"><span class="problematic" id="id154">``</span></a><a href="#id155"><span class="problematic" id="id156">`</span></a>yaml
+train:</p>
+<blockquote>
+<div><p>use_fsdp: true
+fsdp_config:</p>
+<blockquote>
+<div><p>mixed_precision: true
+cpu_offload: false
+sharding_strategy: full</p>
+</div></blockquote>
+</div></blockquote>
+<hr class="docutils" />
+<p>Run with torchrun for multi-GPU.</p>
+</section>
+<section id="complete-examples">
+<h2>Complete Examples<a class="headerlink" href="#complete-examples" title="Link to this heading">#</a></h2>
+<section id="simple-einet-classification">
+<h3>Simple EINet Classification<a class="headerlink" href="#simple-einet-classification" title="Link to this heading">#</a></h3>
+<p><a href="#id157"><span class="problematic" id="id158">``</span></a><a href="#id159"><span class="problematic" id="id160">``</span></a><a href="#id161"><span class="problematic" id="id162">`</span></a>yaml
+configs/simple_einet.yaml
+==================================================
+model:</p>
+<blockquote>
+<div><p>task: classification
+encoder_network:</p>
+<blockquote>
+<div><p>type: Identity
+parameters:</p>
+<blockquote>
+<div><p>input_dim: 784</p>
+</div></blockquote>
+</div></blockquote>
+<dl>
+<dt>core_network:</dt><dd><p>type: EINet
+parameters:</p>
+<blockquote>
+<div><p>excitatory_layer_sizes: [64]
+inhibitory_layer_sizes: [32]
+ee_synapses_per_branch_per_layer: [100]
+ie_synapses_per_branch_per_layer: [50]
+use_shunting: true
+reactivation_type: param_tanh</p>
+</div></blockquote>
+</dd>
+<dt>decoder_network:</dt><dd><p>type: Identity
+parameters:</p>
+<blockquote>
+<div><p>output_dim: 10</p>
+</div></blockquote>
+</dd>
+</dl>
+</div></blockquote>
+<dl>
+<dt>train:</dt><dd><p>learning_strategy: standard
+trainer:</p>
+<blockquote>
+<div><p>epochs: 50
+batch_size: 128
+loss_function: categorical_nll</p>
+</div></blockquote>
+</dd>
+<dt>task:</dt><dd><p>dataset: mnist
+parameters:</p>
+<blockquote>
+<div><p>flatten: true
+normalize: true</p>
+</div></blockquote>
+</dd>
+<dt>analysis:</dt><dd><dl class="simple">
+<dt>performance_analysis:</dt><dd><p>enabled: true</p>
+</dd>
+</dl>
+</dd>
+<dt>outputs:</dt><dd><p>dir: ./results/simple_einet/</p>
+</dd>
+</dl>
+</section>
+<hr class="docutils" />
+<section id="advanced-multi-layer-einet">
+<h3>Advanced Multi-Layer EINet<a class="headerlink" href="#advanced-multi-layer-einet" title="Link to this heading">#</a></h3>
+<p><a href="#id163"><span class="problematic" id="id164">``</span></a><a href="#id165"><span class="problematic" id="id166">``</span></a><a href="#id167"><span class="problematic" id="id168">`</span></a>yaml
+configs/advanced_einet.yaml
+==================================================
+model:</p>
+<blockquote>
+<div><p>task: classification
+encoder_network:</p>
+<blockquote>
+<div><p>type: CNNDownsample
+parameters:</p>
+<blockquote>
+<div><p>input_shape: [3, 32, 32]
+hidden_dims: [32, 64]
+kernel_sizes: [5, 3]
+strides: [1, 2]
+output_dim: 512</p>
+</div></blockquote>
+</div></blockquote>
+<dl>
+<dt>core_network:</dt><dd><p>type: EINet
+parameters:</p>
+<blockquote>
+<div><p>excitatory_layer_sizes: [256, 128, 64]
+inhibitory_layer_sizes: [128, 64, 32]
+excitatory_branch_factors: [2, 2]
+ee_synapses_per_branch_per_layer: [200, 100]
+ei_synapses_per_branch_per_layer: [100, 50]
+ie_synapses_per_branch_per_layer: [50, 25]</p>
+<p># Advanced synaptic properties
+topk_type: stochastic
+topk_temperature: 0.3
+reactivation_type: param_tanh
+reactivation_strategy: inverse
+topk_strategy: conductance_dynamic
+blocklinear_strategy: conductance_dynamic</p>
+</div></blockquote>
+</dd>
+<dt>decoder_network:</dt><dd><p>type: MLP
+parameters:</p>
+<blockquote>
+<div><p>input_dim: 64
+hidden_dims: [32]
+output_dim: 10</p>
+</div></blockquote>
+</dd>
+</dl>
+</div></blockquote>
+<dl>
+<dt>train:</dt><dd><p>learning_strategy: two_step
+encoder:</p>
+<blockquote>
+<div><p>training_mode: sequential
+encoder_epochs: 20</p>
+</div></blockquote>
+<dl>
+<dt>main:</dt><dd><dl class="simple">
+<dt>param_groups:</dt><dd><p>topk: 0.005
+blocklinear: 0.001
+reactivation: 0.01
+output_layer: 0.001</p>
+</dd>
+</dl>
+<p>weight_decay_rate: 0.1
+trainer:</p>
+<blockquote>
+<div><p>epochs: 100
+batch_size: 64
+pretrain_epochs: 20
+final_tune_epochs: 30</p>
+</div></blockquote>
+</dd>
+</dl>
+</dd>
+<dt>task:</dt><dd><p>dataset: cifar10
+parameters:</p>
+<blockquote>
+<div><p>normalize: true</p>
+</div></blockquote>
+</dd>
+<dt>analysis:</dt><dd><dl>
+<dt>performance_analysis:</dt><dd><p>enabled: true</p>
+</dd>
+<dt>information_analysis:</dt><dd><p>enabled: true
+params:</p>
+<blockquote>
+<div><p>method: kraskov
+compute_basic_mi: true
+compute_pairwise_mi: true
+max_samples: 3000</p>
+</div></blockquote>
+</dd>
+<dt>ablation_analysis:</dt><dd><p>enabled: true
+params:</p>
+<blockquote>
+<div><p>layer_ablation: true
+compartment_ablation: true</p>
+</div></blockquote>
+</dd>
+</dl>
+</dd>
+<dt>visualization:</dt><dd><p>enabled: true
+plots:</p>
+<blockquote>
+<div><ul class="simple">
+<li><p>weights</p></li>
+<li><p>activations</p></li>
+<li><p>branch_info</p></li>
+<li><p>branch_ablation</p></li>
+</ul>
+</div></blockquote>
+</dd>
+<dt>wandb:</dt><dd><p>use_wandb: true
+project: advanced_dendritic
+tags: [cifar10, two_step, stochastic]</p>
+</dd>
+<dt>outputs:</dt><dd><p>dir: ./results/advanced_einet/</p>
+</dd>
+</dl>
+</section>
+<hr class="docutils" />
+<section id="dynamic-sparse-training-example">
+<h3>Dynamic Sparse Training Example<a class="headerlink" href="#dynamic-sparse-training-example" title="Link to this heading">#</a></h3>
+<p><a href="#id169"><span class="problematic" id="id170">``</span></a><a href="#id171"><span class="problematic" id="id172">``</span></a><a href="#id173"><span class="problematic" id="id174">`</span></a>yaml
+configs/deepst_example.yaml
+==================================================
+model:</p>
+<blockquote>
+<div><p>task: classification
+encoder_network:</p>
+<blockquote>
+<div><p>type: Identity
+parameters:</p>
+<blockquote>
+<div><p>input_dim: 784</p>
+</div></blockquote>
+</div></blockquote>
+<dl>
+<dt>core_network:</dt><dd><p>type: EINet
+parameters:</p>
+<blockquote>
+<div><p>excitatory_layer_sizes: [128, 64]
+inhibitory_layer_sizes: [64, 32]
+excitatory_branch_factors: [2]
+ee_synapses_per_branch_per_layer: [150]
+ie_synapses_per_branch_per_layer: [75]</p>
+<p># Dynamic sparse training
+topk_type: deepst
+excitatory_target_density: 0.1
+inhibitory_target_density: 0.05
+rewiring_mode: global
+rewire_frequency: 5
+use_noise: true
+sigma: 0.05</p>
+<p># Standard reactivation
+reactivation_type: param_tanh</p>
+</div></blockquote>
+</dd>
+<dt>decoder_network:</dt><dd><p>type: Identity
+parameters:</p>
+<blockquote>
+<div><p>output_dim: 10</p>
+</div></blockquote>
+</dd>
+</dl>
+</div></blockquote>
+<dl>
+<dt>train:</dt><dd><p>learning_strategy: standard
+trainer:</p>
+<blockquote>
+<div><p>epochs: 200
+batch_size: 128</p>
+</div></blockquote>
+</dd>
+<dt>task:</dt><dd><p>dataset: mnist
+parameters:</p>
+<blockquote>
+<div><p>flatten: true</p>
+</div></blockquote>
+</dd>
+<dt>analysis:</dt><dd><dl class="simple">
+<dt>synapse_turnover_analysis:</dt><dd><p>enabled: true
+training: true</p>
+</dd>
+<dt>performance_analysis:</dt><dd><p>enabled: true</p>
+</dd>
+</dl>
+</dd>
+<dt>outputs:</dt><dd><p>dir: ./results/deepst_experiment/</p>
+</dd>
+</dl>
+</section>
+<hr class="docutils" />
+<section id="regression-example">
+<h3>Regression Example<a class="headerlink" href="#regression-example" title="Link to this heading">#</a></h3>
+<p><a href="#id175"><span class="problematic" id="id176">``</span></a><a href="#id177"><span class="problematic" id="id178">``</span></a><a href="#id179"><span class="problematic" id="id180">`</span></a>yaml
+configs/regression_example.yaml
+==================================================
+model:</p>
+<blockquote>
+<div><p>task: regression
+encoder_network:</p>
+<blockquote>
+<div><p>type: Identity
+parameters:</p>
+<blockquote>
+<div><p>input_dim: 100</p>
+</div></blockquote>
+</div></blockquote>
+<dl>
+<dt>core_network:</dt><dd><p>type: EINet
+parameters:</p>
+<blockquote>
+<div><p>excitatory_layer_sizes: [64, 32]
+inhibitory_layer_sizes: [32, 16]
+ee_synapses_per_branch_per_layer: [80]
+ie_synapses_per_branch_per_layer: [40]
+use_shunting: true</p>
+</div></blockquote>
+</dd>
+<dt>decoder_network:</dt><dd><p>type: MLP
+parameters:</p>
+<blockquote>
+<div><p>input_dim: 32
+hidden_dims: [16]
+output_dim: 1</p>
+</div></blockquote>
+</dd>
+</dl>
+</div></blockquote>
+<dl>
+<dt>train:</dt><dd><p>learning_strategy: standard
+trainer:</p>
+<blockquote>
+<div><p>epochs: 100
+batch_size: 64
+loss_function: mse</p>
+</div></blockquote>
+</dd>
+<dt>task:</dt><dd><p>dataset: orthonet
+parameters:</p>
+<blockquote>
+<div><p>input_dim: 100
+n_layers: 3
+nonlinearity: sigmoid</p>
+</div></blockquote>
+</dd>
+<dt>analysis:</dt><dd><dl>
+<dt>performance_analysis:</dt><dd><p>enabled: true
+params:</p>
+<blockquote>
+<div><p>accuracy: false
+mse: true
+categorical_loglikelihood: false</p>
+</div></blockquote>
+</dd>
+</dl>
+</dd>
+<dt>outputs:</dt><dd><p>dir: ./results/regression/</p>
+</dd>
+</dl>
+</section>
+<hr class="docutils" />
+<section id="fsdp-large-model-example">
+<h3>FSDP Large Model Example<a class="headerlink" href="#fsdp-large-model-example" title="Link to this heading">#</a></h3>
+<p><a href="#id181"><span class="problematic" id="id182">``</span></a><a href="#id183"><span class="problematic" id="id184">``</span></a><a href="#id185"><span class="problematic" id="id186">`</span></a>yaml
+configs/fsdp_large_model.yaml
+==================================================
+model:</p>
+<blockquote>
+<div><p>task: classification
+core_network:</p>
+<blockquote>
+<div><p>type: EINet
+parameters:</p>
+<blockquote>
+<div><p>excitatory_layer_sizes: [1024, 512]</p>
+</div></blockquote>
+</div></blockquote>
+</div></blockquote>
+<dl>
+<dt>train:</dt><dd><p>use_fsdp: true
+trainer:</p>
+<blockquote>
+<div><p>batch_size: 64</p>
+</div></blockquote>
+</dd>
+</dl>
+</section>
+<hr class="docutils" />
+<section id="sweep-configuration-example">
+<h3>Sweep Configuration Example<a class="headerlink" href="#sweep-configuration-example" title="Link to this heading">#</a></h3>
+<p><a href="#id187"><span class="problematic" id="id188">``</span></a><a href="#id189"><span class="problematic" id="id190">``</span></a><a href="#id191"><span class="problematic" id="id192">`</span></a>yaml
+configs/sweep_config.yaml
+==================================================
+sweep_config:</p>
+<blockquote>
+<div><p>model.network.parameters.excitatory_layer_sizes: [[10], [20]]</p>
+</div></blockquote>
+<dl class="simple">
+<dt>train:</dt><dd><p>use_fsdp: true  # FSDP in sweeps</p>
+</dd>
+</dl>
+<hr class="docutils" />
+<p>—</p>
+<p>This configuration guide covers all the available options in the Dendritic Modeling Framework. For additional examples and tutorials, see the <code class="docutils literal notranslate"><span class="pre">configs/</span></code> directory and the framework documentation.</p>
+</section>
+</section>
+</section>
+
+
+                </article>
+              
+              
+              
+              
+              
+                <footer class="prev-next-footer d-print-none">
+                  
+<div class="prev-next-area">
+</div>
+                </footer>
+              
+            </div>
+            
+            
+              
+                <dialog id="pst-secondary-sidebar-modal"></dialog>
+                <div id="pst-secondary-sidebar" class="bd-sidebar-secondary bd-toc"><div class="sidebar-secondary-items sidebar-secondary__inner">
+
+
+  <div class="sidebar-secondary-item">
+<div
+    id="pst-page-navigation-heading-2"
+    class="page-toc tocsection onthispage">
+    <i class="fa-solid fa-list"></i> On this page
+  </div>
+  <nav class="bd-toc-nav page-toc" aria-labelledby="pst-page-navigation-heading-2">
+    <ul class="visible nav section-nav flex-column">
+<li class="toc-h1 nav-item toc-entry"><a class="reference internal nav-link" href="#">Dendritic Modeling Configuration Guide</a><ul class="visible nav section-nav flex-column">
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#table-of-contents">Table of Contents</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#overview">Overview</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#model-configuration">Model Configuration</a><ul class="visible nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#network-types">Network Types</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#einet-parameters">EINet Parameters</a><ul class="nav section-nav flex-column">
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#architecture-parameters">Architecture Parameters</a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#synaptic-selection-mechanisms">Synaptic Selection Mechanisms</a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#activation-functions">Activation Functions</a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#gradient-scaling">Gradient Scaling</a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#input-processing">Input Processing</a></li>
+</ul>
+</li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#other-network-types">Other Network Types</a><ul class="nav section-nav flex-column">
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#standard-mlp">Standard MLP</a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#parameter-matched-mlp">Parameter-Matched MLP</a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#training-configuration">Training Configuration</a><ul class="visible nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#learning-strategies">Learning Strategies</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#optimizer-configuration">Optimizer Configuration</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#trainer-parameters">Trainer Parameters</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#encoder-network-training">Encoder Network Training</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#main-network-training">Main Network Training</a></li>
+</ul>
+</li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#task-dataset-configuration">Task/Dataset Configuration</a><ul class="visible nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#dataset-selection">Dataset Selection</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#supported-datasets">Supported Datasets</a><ul class="nav section-nav flex-column">
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#vision-datasets">Vision Datasets</a></li>
+</ul>
+</li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toc-h1 nav-item toc-entry"><a class="reference internal nav-link" href="#cifar-10-natural-images">CIFAR-10 natural images</a></li>
+<li class="toc-h1 nav-item toc-entry"><a class="reference internal nav-link" href="#center-surround-patterns">Center-surround patterns</a></li>
+<li class="toc-h1 nav-item toc-entry"><a class="reference internal nav-link" href="#orientation-bars">Orientation bars</a></li>
+<li class="toc-h1 nav-item toc-entry"><a class="reference internal nav-link" href="#multi-bit-xor">Multi-bit XOR</a></li>
+<li class="toc-h1 nav-item toc-entry"><a class="reference internal nav-link" href="#information-routing">Information routing</a></li>
+<li class="toc-h1 nav-item toc-entry"><a class="reference internal nav-link" href="#noisy-line-detection">Noisy line detection</a></li>
+<li class="toc-h1 nav-item toc-entry"><a class="reference internal nav-link" href="#poisson-sampled-data">Poisson-sampled data</a></li>
+<li class="toc-h1 nav-item toc-entry"><a class="reference internal nav-link" href="#orthogonal-network-data">Orthogonal network data</a></li>
+<li class="toc-h1 nav-item toc-entry"><a class="reference internal nav-link" href="#mnist-with-random-flips">MNIST with random flips</a></li>
+<li class="toc-h1 nav-item toc-entry"><a class="reference internal nav-link" href="#sparse-mnist-feature-selectivity">Sparse MNIST (feature selectivity)</a></li>
+<li class="toc-h1 nav-item toc-entry"><a class="reference internal nav-link" href="#contextual-figure-ground">Contextual figure-ground</a></li>
+<li class="toc-h1 nav-item toc-entry"><a class="reference internal nav-link" href="#compositional-mnist">Compositional MNIST</a><ul class="visible nav section-nav flex-column">
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#analysis-configuration">Analysis Configuration</a><ul class="visible nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#performance-analysis">Performance Analysis</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#information-theoretic-analysis">Information-Theoretic Analysis</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#ablation-analysis">Ablation Analysis</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#specialized-analyses">Specialized Analyses</a></li>
+</ul>
+</li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#visualization-configuration">Visualization Configuration</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#output-configuration">Output Configuration</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#weights-biases-configuration">Weights &amp; Biases Configuration</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#fsdp-configuration">FSDP Configuration</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#complete-examples">Complete Examples</a><ul class="visible nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#simple-einet-classification">Simple EINet Classification</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#advanced-multi-layer-einet">Advanced Multi-Layer EINet</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#dynamic-sparse-training-example">Dynamic Sparse Training Example</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#regression-example">Regression Example</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#fsdp-large-model-example">FSDP Large Model Example</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#sweep-configuration-example">Sweep Configuration Example</a></li>
+</ul>
+</li>
+</ul>
+</li>
+</ul>
+
+  </nav></div>
+
+  <div class="sidebar-secondary-item">
+
+  
+  <div class="tocsection editthispage">
+    <a href="https://github.com/KempnerInstitute/dendritic-modeling/edit/main/docs/CONFIGURATION_GUIDE.rst">
+      <i class="fa-solid fa-pencil"></i>
+      
+      
+        
+          Edit on GitHub
+        
+      
+    </a>
+  </div>
+</div>
+
+  <div class="sidebar-secondary-item">
+  <div role="note" aria-label="source link">
+    <h3>This Page</h3>
+    <ul class="this-page-menu">
+      <li><a href="_sources/CONFIGURATION_GUIDE.rst.txt"
+            rel="nofollow">Show Source</a></li>
+    </ul>
+   </div></div>
+
+</div></div>
+              
+            
+          </div>
+          <footer class="bd-footer-content">
+            
+          </footer>
+        
+      </main>
+    </div>
+  </div>
+  
+  <!-- Scripts loaded after <body> so the DOM is not blocked -->
+  <script defer src="_static/scripts/bootstrap.js?digest=8878045cc6db502f8baf"></script>
+<script defer src="_static/scripts/pydata-sphinx-theme.js?digest=8878045cc6db502f8baf"></script>
+
+  <footer class="bd-footer">
+<div class="bd-footer__inner bd-page-width">
+  
+    <div class="footer-items__start">
+      
+        <div class="footer-item">
+
+  <p class="copyright">
+    
+      © Copyright 2024, Kempner Institute for the Study of Natural and Artificial Intelligence.
+      <br/>
+    
+  </p>
+</div>
+      
+        <div class="footer-item">
+
+  <p class="sphinx-version">
+    Created using <a href="https://www.sphinx-doc.org/">Sphinx</a> 8.1.3.
+    <br/>
+  </p>
+</div>
+      
+    </div>
+  
+  
+  
+    <div class="footer-items__end">
+      
+        <div class="footer-item">
+<p class="theme-version">
+  <!-- # L10n: Setting the PST URL as an argument as this does not need to be localized -->
+  Built with the <a href="https://pydata-sphinx-theme.readthedocs.io/en/stable/index.html">PyData Sphinx Theme</a> 0.16.1.
+</p></div>
+      
+    </div>
+  
+</div>
+
+  </footer>
+  </body>
+</html>
