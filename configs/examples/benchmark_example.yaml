@@ -13,23 +13,69 @@
 
 model:
   task: classification
-  base:
-    output_layer: true
-    output_dim: 10
   
-  network:
+  # No encoder for pure benchmarking
+  encoder_network:
+    type: identity
+    parameters:
+      input_shape: [1, 28, 28]  # MNIST input
+  
+  # Core EI network optimized for benchmarking
+  core_network:
     type: EINet
-    params:
-      input_dim: 784
-      hidden_dims: [1024, 512, 256]  # Larger for meaningful benchmark
-      
-      ei_params:
-        ei_balance: 0.8
-        branches_per_neuron: 6
-        synapses_per_branch: 96
-        topk_value: 48
+    parameters:
+      # Transfer function parameters
+      transfer_params:
         input_mode: 1
         independent_pathways: true
+        output_activation: none
+        
+      # Larger architecture for meaningful benchmark
+      excitatory_layer_sizes: [50, 40, 30]        # Large layers for benchmark
+      inhibitory_layer_sizes: [15, 12, 8]         # Corresponding inhibitory layers
+      excitatory_branch_factors: [6, 6, 4]        # More branches for complexity
+      inhibitory_branch_factors: [3, 3, 2]        # Inhibitory branches
+      
+      # Rich connectivity for benchmarking
+      ee_synapses_per_branch_per_layer: [12]      # More synapses per branch
+      ei_synapses_per_branch_per_layer: [6]       # E-to-I connections
+      ie_synapses_per_branch_per_layer: [3]       # I-to-E connections
+      ii_synapses_per_branch_per_layer: [2]       # I-to-I connections
+      
+      # Morphological features
+      somatic_synapses: true
+      use_shunting: true
+      
+      # TopK parameters
+      topk_type: standard
+      topk_init_method: xavier_normal
+      topk_noise_level: 0.0
+      
+      # Reactivation
+      reactivate: true
+      reactivation_type: param_tanh
+      reactivation_init_m: 1.5
+      reactivation_init_b: 0.5
+      
+      # Gradient scaling
+      reactivation_strategy: inverse
+      topk_strategy: conductance_dynamic
+      blocklinear_strategy: conductance_dynamic
+      
+      # Implementation optimizations
+      efficient_blocklinear: true
+      adaptive_initialization: true
+      print_hooks: false
+
+  # Simple decoder for benchmark
+  decoder_network:
+    type: MLP
+    parameters:
+      hidden_dims: [16]         # Minimal decoder
+      activation: relu
+      output_dim: 10           # MNIST classes
+      use_batch_norm: false
+      dropout_rate: 0.0
 
 train:
   run_name: "benchmark_performance_test"
@@ -45,26 +91,47 @@ train:
   performance_mode: true        # Maximum performance mode
   use_fsdp: false              # Single GPU benchmark
   
+  # Skip encoder training for benchmarking
+  encoder:
+    load_save_root: saved_models/encoder
+    lr: 0.001
+    trainer:
+      loss_function: mse
+      epochs: 0                 # Skip encoder training for identity encoder
+      batch_size: 128
+      shuffle: true
+      grad_clip_value: 5.0
+      load_best_state_dict: true
+      plot_losses: false
+      suppress_prints: true
+      print_every: 50
+  
   # Optimized training parameters
   main:
+    learning_strategy: standard  # Standard strategy for benchmarking
+    weight_decay_rate: 0.1
+    
+    # Parameter groups optimized for speed
+    param_groups:
+      lr: 0.001                 # Default learning rate
+      split_params: true        # Split parameters into groups (EINet)
+      topk_lr: 0.001           # Learning rate for TopK layers
+      blocklinear_lr: 0.001    # Learning rate for BlockLinear layers
+      reactivation_lr: 0.001   # Learning rate for reactivation layers
+      decoder_lr: 0.001        # Learning rate for decoder network
+    
     trainer:
+      loss_function: cat_nll    # Loss function for classification
       epochs: 20                # Fewer epochs for throughput testing
       batch_size: 512           # Large batch for max throughput
-      learning_rate: 0.001
       early_stopping: false     # Disabled for consistent benchmarking
       patience: 10
       grad_clip_value: 5.0
-    
-    optimizer:
-      type: "adam"
-      params:
-        lr: 0.001
-        weight_decay: 0.0001
-        betas: [0.9, 0.999]
-        eps: 1e-8
-    
-    # No scheduler for benchmark simplicity
-    scheduler: null
+      shuffle: true
+      load_best_state_dict: true
+      plot_losses: false        # Disabled for performance
+      suppress_prints: true
+      print_every: 50           # Very infrequent printing
   
   # No checkpointing to avoid I/O overhead
   checkpointing:

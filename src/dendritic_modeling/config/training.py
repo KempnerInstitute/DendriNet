@@ -1,5 +1,5 @@
 from dataclasses import dataclass, field
-from typing import Optional
+from typing import Optional, Dict, Any
 
 from dendritic_modeling.config.base import BaseConfig
 
@@ -62,3 +62,12 @@ class TrainConfig(BaseConfig):
     encoder: EncoderTrainConfig = field(default_factory=EncoderTrainConfig)
     main: MainTrainConfig = field(default_factory=MainTrainConfig)
     run_name: str = 'experiment'
+    # Performance features
+    enable_amp: bool = False
+    enable_profiling: bool = False
+    profiling_output_dir: str = 'outputs/profiling/'
+    enable_hooks: bool = True
+    performance_mode: bool = False
+    use_fsdp: bool = False
+    fsdp_config: Optional[Dict[str, Any]] = None
+    checkpointing: Dict[str, Any] = field(default_factory=lambda: {'enabled': True, 'save_every_n_epochs': 10, 'checkpoint_dir': 'outputs/checkpoints/'})

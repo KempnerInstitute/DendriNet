@@ -1,0 +1,482 @@
+# ============================================================================
+# COMPREHENSIVE DENDRITIC MODELING CONFIGURATION - RESTORED & ENHANCED
+# ============================================================================
+# This configuration restores the full functionality that was accidentally removed,
+# including encoder networks (VAE, CNN VAE), complex EINet architecture with 
+# multi-layer branching, morphological definitions, and decoder networks.
+# 
+# ENHANCED with new performance features while preserving all original capabilities.
+# ============================================================================
+
+# ============================================================================
+# MODEL CONFIGURATION - FULL 3-STAGE ARCHITECTURE
+# ============================================================================
+model:
+  task: classification  # Options: "classification", "regression"
+
+  # ==========================================
+  # ENCODER NETWORK (Input Processing Stage)
+  # ==========================================
+  encoder_network:
+    # Network type - rich set of encoder options restored
+    type: identity # Options: MLPAutoencoder, CNNAutoencoder, MLPVariationalAutoencoder, CNNVariationalAutoencoder, identity, none
+    parameters:
+      input_shape: [3, 32, 32]  # Input shape for CNN encoders
+      latent_shape: [16, 8, 8]  # (channels, height, width) for latent representation
+      encoder_hidden_dims: [64] # Hidden dimensions for MLP encoders
+      decoder_hidden_dims: [64] # Hidden dimensions for autoencoder decoders
+      activation: relu           # Activation function
+      # VAE-specific parameters
+      beta: 1.0                 # Beta for beta-VAE
+      use_batch_norm: false     # Batch normalization in encoder
+      dropout_rate: 0.0         # Dropout rate
+
+  # ==========================================
+  # CORE NETWORK (Main Processing Stage)
+  # ==========================================
+  core_network:
+    type: EINet # Options: "EINet", "MLP", "MatchedParamMLP"
+    parameters:
+      # ==========================================
+      # TRANSFER FUNCTION PARAMETERS - RESTORED
+      # ==========================================
+      transfer_params:
+        input_mode: 0             # 0=shared pathway, 1=independent pathways
+        independent_pathways: false # Must match input_mode
+        excitatory_dim: []        # Dimensions for excitatory pathways
+        inhibitory_dim: []        # Dimensions for inhibitory pathways
+        output_activation: none   # Options: sigmoid, relu, tanh, softplus, none
+        
+      # ==========================================
+      # MORPHOLOGICAL ARCHITECTURE - RESTORED
+      # ==========================================
+      # Multi-layer excitatory-inhibitory structure
+      excitatory_layer_sizes: [10, 10, 10]      # Neurons per excitatory layer
+      inhibitory_layer_sizes: [10, 10, 10]      # Neurons per inhibitory layer
+      excitatory_branch_factors: [5, 5, 5]      # Branches per excitatory neuron
+      inhibitory_branch_factors: [5, 5, 5]      # Branches per inhibitory neuron
+      
+      # Synaptic connectivity patterns - all connection types restored
+      ee_synapses_per_branch_per_layer: [5]     # Excitatory-to-excitatory synapses
+      ei_synapses_per_branch_per_layer: [5]     # Excitatory-to-inhibitory synapses  
+      ie_synapses_per_branch_per_layer: [1]     # Inhibitory-to-excitatory synapses
+      ii_synapses_per_branch_per_layer: [1]     # Inhibitory-to-inhibitory synapses
+      
+      # Morphological features
+      somatic_synapses: true    # Include somatic (non-dendritic) synapses
+      use_shunting: true        # Use shunting inhibition
+      
+      # ==========================================
+      # TOPK SPARSITY PARAMETERS - RESTORED & ENHANCED
+      # ==========================================
+      topk_init_method: xavier_normal            # Weight initialization
+      topk_noise_level: 0.0                     # Noise level for stochastic TopK
+      topk_type: standard # Options: "standard", "stochastic", "variance", "deepst"
+      topk_temperature: 0.5                     # Stochastic selection sharpness (0.1-1.0)
+      topk_ultrafast: true                      # Enable faster stochastic TopK implementation
+      
+      # ==========================================
+      # REACTIVATION PARAMETERS - RESTORED
+      # ==========================================
+      reactivate: true          # Enable reactivation functions
+      reactivation_type: param_tanh # Options: "none", "param_tanh", "param_tanh_only_m", "relu", "sigmoid", "tanh", "param_linear_sigmoid"
+      reactivation_init_m: 1.5 # Reactivation parameter m
+      reactivation_init_b: 0.5 # Reactivation parameter b
+      
+      # ==========================================
+      # GRADIENT SCALING STRATEGIES - RESTORED
+      # ==========================================
+      reactivation_strategy: inverse            # Options: "none", "inverse"
+      topk_strategy: conductance_dynamic        # TopK gradient scaling strategy
+      blocklinear_strategy: conductance_dynamic # Options: "none", "distal_upweight_by_idx", "conductance_dynamic"
+      
+      # ==========================================
+      # IMPLEMENTATION OPTIMIZATIONS - ENHANCED
+      # ==========================================
+      efficient_blocklinear: true               # Use efficient blocklinear implementation
+      adaptive_initialization: true            # Network-aware weight scaling to prevent NaN
+      print_hooks: false                       # Print gradient statistics in hooks
+      
+      # ==========================================
+      # DEEPST SPECIFIC PARAMETERS - RESTORED
+      # ==========================================
+      excitatory_target_density: 0.1           # Target density for excitatory connections
+      inhibitory_target_density: 0.1           # Target density for inhibitory connections
+      use_noise: true                          # Apply Gaussian noise during rewiring
+      noise_std: 0.01                         # Standard deviation of Gaussian noise
+      rewiring_frequency: 10                   # Rewiring frequency (every N epochs)
+      use_momentum: true                       # Use momentum in rewiring decisions
+      momentum_factor: 0.9                    # Momentum factor for rewiring (0.0-1.0)
+      use_batch_norm: false                    # Batch normalization in layers
+      use_dropout: false                       # Dropout in layers
+      dropout_rate: 0.1                       # Dropout rate (if enabled)
+      use_weight_decay: true                   # Apply weight decay to connections
+      weight_decay_factor: 0.0001             # Weight decay factor
+      use_activity_regularization: false      # Activity regularization
+      activity_reg_factor: 0.01               # Activity regularization factor
+      use_connection_pruning: false           # Prune weak connections
+      pruning_threshold: 0.01                 # Threshold for connection pruning
+      use_homeostasis: false                  # Homeostatic mechanisms
+      homeostasis_target: 0.1                # Target activity level for homeostasis
+      homeostasis_rate: 0.001                # Learning rate for homeostatic adaptation
+
+  # ==========================================
+  # DECODER NETWORK (Output Processing Stage)
+  # ==========================================
+  decoder_network:
+    type: MLP # Options: "MLP", "CNN", "none"
+    parameters:
+      hidden_dims: [32, 16]     # Hidden layer dimensions
+      activation: relu          # Activation function
+      output_dim: 10           # Final output dimension
+      use_batch_norm: false    # Batch normalization
+      dropout_rate: 0.0        # Dropout rate
+
+# ============================================================================
+# TRAINING CONFIGURATION - RESTORED & ENHANCED
+# ============================================================================
+train:
+  run_name: "comprehensive_ei_experiment"
+  seed: 0
+  train_valid_split: 0.8
+
+  # ==========================================
+  # NEW: PERFORMANCE OPTIMIZATION SETTINGS
+  # ==========================================
+  # Mixed Precision Training (AMP) - NEW FEATURE
+  enable_amp: true              # Enable automatic mixed precision
+  
+  # Profiling Configuration - NEW FEATURE  
+  enable_profiling: false       # Enable PyTorch profiler
+  profiling_output_dir: "outputs/profiling/"
+  
+  # Hook Management - NEW FEATURE
+  enable_hooks: true            # Enable hooks for analysis
+  performance_mode: false       # If true, disables ALL hooks for maximum speed
+  
+  # FSDP Support - NEW FEATURE
+  use_fsdp: false              # Enable for very large models
+  fsdp_config:
+    mixed_precision: true      # Use mixed precision with FSDP
+    gradient_checkpointing: false
+    cpu_offload: false
+
+  # ==========================================
+  # ENCODER TRAINING CONFIGURATION - RESTORED
+  # ==========================================
+  encoder:
+    load_save_root: saved_models/encoder
+    lr: 0.001
+    trainer:
+      loss_function: mse        # Loss function for encoder training
+      epochs: 50               # Encoder pre-training epochs
+      early_stopping: false    # Early stopping for encoder
+      patience: 10             # Patience for early stopping
+      batch_size: 128          # Batch size for encoder training
+      shuffle: true            # Shuffle training data
+      grad_clip_value: 5.0     # Gradient clipping
+      load_best_state_dict: true
+      plot_losses: true
+      suppress_prints: false
+      print_every: 10
+
+  # ==========================================
+  # MAIN NETWORK TRAINING - RESTORED & ENHANCED
+  # ==========================================
+  main:
+    # RESTORED: Multiple learning strategies
+    learning_strategy: standard  # Options: "standard", "freeze_layers", "freeze_branches", "voltage_stabilization", "two_step", "two_step_kl"
+    weight_decay_rate: 0.1
+
+    # RESTORED: Parameter groups with different learning rates
+    param_groups:
+      lr: 0.01                  # Default learning rate
+      split_params: true        # Split parameters into groups (EINet only)
+      topk_lr: 0.001           # Learning rate for TopK layers
+      blocklinear_lr: 0.001    # Learning rate for BlockLinear layers
+      reactivation_lr: 0.001   # Learning rate for reactivation layers
+      decoder_lr: 0.001        # Learning rate for decoder network
+
+    trainer:
+      # Core training parameters
+      loss_function: cat_nll    # Loss function for main training
+      epochs: 500              # Main training epochs
+      early_stopping: false    # Early stopping
+      patience: 10             # Patience for early stopping
+      batch_size: 500          # Batch size for main training
+      shuffle: true            # Shuffle training data
+      grad_clip_value: 5.0     # Gradient clipping
+      load_best_state_dict: true
+      plot_losses: true
+      suppress_prints: false
+      print_every: 10
+      
+      # RESTORED: Advanced training strategy parameters
+      pretrain_epochs: 10      # Pre-training epochs for complex strategies
+      target_voltage: 0.5      # Target voltage for voltage stabilization
+      kl_weight: 0.1          # KL divergence weight for two_step_kl
+      reverse_training: false  # Reverse training direction
+      epochs_per_layer: 10     # Epochs per layer for layer-wise training
+      epochs_per_branch: 10    # Epochs per branch for branch-wise training
+      final_tune_epochs: 10    # Final tuning epochs
+
+    # NEW: Checkpointing support
+    checkpointing:
+      enabled: true
+      save_every_n_epochs: 50
+      checkpoint_dir: "outputs/checkpoints/"
+
+# ============================================================================
+# DATASET CONFIGURATION - RESTORED & ENHANCED  
+# ============================================================================
+task:
+  dataset: cifar10  # Options: mnist, cifar10, mnist_modulo10, random_flip_mnist, etc.
+  data_path: null   # Custom data path if needed
+  parameters: 
+    flatten: true   # Flatten input images
+    normalize: false # Normalize input data
+  
+  # RESTORED: Rich dataset options with parameters
+  # Commented examples of other datasets:
+  # dataset: "line", "center_surround", "orientation_bars", "multi_xor", "mnist", 
+  #          "mnist_modulo10", "mnist_switch2", "mnist_switch10", "info_shunting", 
+  #          "noise_resilience", "feature_selectivity", "context_gating",
+  #          "learning_dynamics", "hierarchical_processing", "cifar10", 
+  #          "poisson_generator", "orthonet"
+  
+  # Example parameters for synthetic datasets:
+  # parameters:
+  #   train_size: 8000
+  #   valid_size: 1000
+  #   test_size: 1000
+  #   image_size: 16
+  #   flatten: true
+  #   normalize: true
+  #   base_dataset: "mnist"
+  #   rate_multiplier: 1
+  #   n_samples: 10
+  #   n_orient_classes: 8
+  #   n_bits: 8
+
+  # NEW: Enhanced data loading
+  data_loader:
+    auto_optimize: true       # Automatic DataLoader optimization
+
+# ============================================================================
+# WANDB LOGGING - RESTORED & ENHANCED
+# ============================================================================
+wandb:
+  entity: houman_safaai-harvard-university  # RESTORED: Original entity
+  project: "dendritic_cifar10"              # RESTORED: Original project
+  group: "debug"                            # RESTORED: Original group
+  tags: [cifar10, enhanced]                 # RESTORED: Original tags + enhanced
+  use_wandb: true                           # RESTORED: Original flag
+  enabled: true                             # NEW: Additional enabled flag
+  
+  # NEW: Enhanced logging options
+  log_freq: 100
+  log_gradients: false
+  log_parameters: false  
+  log_activations: false
+
+# ============================================================================
+# ANALYSIS CONFIGURATION - RESTORED & ENHANCED
+# ============================================================================
+analysis:
+  # NEW: Performance-aware analysis
+  enabled: true
+  respect_hook_settings: true  # Skip analysis if hooks disabled
+
+  # RESTORED: All original analysis modules
+  performance_analysis:
+    enabled: true
+    training: false
+    params:
+      accuracy: true
+      categorical_loglikelihood: true
+      mse: false
+      # NEW: Additional performance metrics
+      memory_usage: true
+      throughput: true
+      gpu_utilization: true
+
+  synapse_turnover_analysis:
+    enabled: false
+    training: false
+
+  noise_perturbation_analysis:
+    enabled: false
+    training: false
+    params:
+      uniform_noise: true
+      uniform_magnitudes: [0.1, 0.2]
+      gaussian_noise: true
+      gaussian_sdevs: [0.1, 0.2]
+      n_samples: 10
+      accuracy: true
+      categorical_loglikelihood: true
+
+  ablation_analysis:
+    enabled: false
+    training: false
+    params:
+      layer_ablation: true
+      compartment_ablation: true
+      ablate_all_synapses: true
+      ablate_excitation: true
+      ablate_inhibition: true
+      ablate_upstream: true
+      accuracy: true
+      categorical_loglikelihood: true
+
+  weight_analysis:
+    enabled: false
+    training: false
+    params:
+      synapse_weights: true
+      branch_weights: true
+
+  synaptic_activation_analysis:
+    enabled: false
+    training: false
+    params:
+      network_summary: true
+      layer_summary: true
+      branch_summary: true
+      raw_summary: true
+      logspace: false
+      downsample: true
+      samples: 2
+
+  branch_activation_analysis:
+    enabled: false
+    training: false
+    params:
+      synapse_activations: true
+      branch_activations: true
+      network_summary: true
+      layer_summary: true
+      branch_summary: true
+      raw_summary: true
+      logspace: false
+      downsample: true
+      samples: 2
+
+  single_layer_contribution:
+    enabled: false
+    training: false
+    params:
+      save_plots: true
+      save_csv: true
+
+  # RESTORED: Information-theoretic analysis with all parameters
+  information_analysis:
+    enabled: false
+    training: false
+    params:
+      method: "kraskov"           # Estimation method
+      max_samples: 100           # Maximum samples for computation
+      n_neighbors: 10            # For Kraskov k-NN estimator
+      n_bins: 20                # For histogram method
+      copula_type: "gaussian"    # For copula method
+      
+      # Information metrics to compute
+      compute_basic_mi: true
+      compute_pairwise_mi: false
+      compute_conditional_mi: false
+      compute_pid: false
+      
+      # PID-specific options
+      pid_binarize: true
+      pid_binarize_method: "median"
+      pid_binarize_threshold: 0.5
+      
+      # Additional options
+      include_vinf: true
+      normalize_mi: false
+      verbose: false
+      compute_per_branch: true
+      branch_aggregation: none
+
+# ============================================================================
+# OUTPUT CONFIGURATION - RESTORED & ENHANCED
+# ============================================================================
+outputs:
+  run_name: exp_run           # RESTORED: Original run name
+  dir: results/               # RESTORED: Original directory
+  
+  # NEW: Cleanup and organization
+  cleanup:
+    enabled: true
+    old_runs_days: 30
+    wandb_cleanup: true
+    
+  subdirs:
+    models: "models/"
+    logs: "logs/"
+    analysis: "analysis/"
+    visualizations: "plots/"
+    profiling: "profiling/"
+    checkpoints: "checkpoints/"
+
+# ============================================================================
+# COMPUTATIONAL RESOURCES - NEW SECTION
+# ============================================================================
+compute:
+  device: "auto"
+  
+  memory:
+    gradient_checkpointing: false
+    empty_cache_freq: 100
+    max_memory_fraction: 0.9
+  
+  distributed:
+    backend: "nccl"
+    timeout_minutes: 30
+
+# ============================================================================
+# SLURM CONFIGURATION - RESTORED & ENHANCED
+# ============================================================================
+slurm_config:
+  output_dir: "/n/holylabs/LABS/kempner_dev/Users/hsafaai/logs"  # RESTORED
+  conda_env: "dendritic_env"                                     # RESTORED
+  conda_env_path: "/n/netscratch/kempner_dev/hsafaai/conda_envs/dendritic_env/etc/profile.d/conda.sh"  # RESTORED
+  modules_to_load:                                               # RESTORED
+    - "python/3.12.5-fasrc01"
+    - "cuda/12.4.1-fasrc01" 
+    - "cudnn/8.9.2.26_cuda12-fasrc01"
+  training_script: "scripts/train_experiment_fstp.py"            # RESTORED
+  account: "kempner_dev"                                         # RESTORED
+  partition: "kempner_h100"                                      # RESTORED
+  run_name: "imagenet_16gpu_large_dendritic"                     # RESTORED
+
+# ============================================================================
+# WHAT WAS RESTORED VS WHAT WAS ADDED
+# ============================================================================
+#
+# RESTORED FUNCTIONALITY (that was accidentally removed):
+# ✅ Encoder networks: VAE, CNN VAE, MLPAutoencoder, CNNVariationalAutoencoder
+# ✅ Complex EINet architecture: multi-layer branching, morphological definitions
+# ✅ All connection types: ee, ei, ie, ii synapses per branch per layer
+# ✅ Decoder networks: MLP, CNN with configurable parameters
+# ✅ Advanced training strategies: freeze_layers, voltage_stabilization, two_step, etc.
+# ✅ Parameter groups: Different learning rates for different components
+# ✅ Rich dataset options: All synthetic and real datasets with parameters
+# ✅ Complete analysis suite: All original analysis modules
+# ✅ SLURM configuration: Complete cluster integration
+# ✅ Morphological parameters: Branch factors, reactivation, gradient scaling
+# ✅ DEEPST parameters: All dynamic sparse training options
+#
+# ADDED NEW FUNCTIONALITY (performance enhancements):
+# 🆕 Mixed precision training (AMP) for speed and memory efficiency
+# 🆕 Conditional profiling for performance analysis
+# 🆕 Hook management for research vs benchmarking modes
+# 🆕 FSDP support for very large models
+# 🆕 Adaptive DataLoader optimization
+# 🆕 Checkpointing support
+# 🆕 Enhanced output organization with cleanup
+# 🆕 Computational resource management
+# 🆕 Performance-aware analysis that respects hook settings
+#
+# NOTHING WAS INTENTIONALLY REMOVED - All original functionality preserved!
+# ============================================================================ 
